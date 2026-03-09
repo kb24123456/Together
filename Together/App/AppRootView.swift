@@ -7,29 +7,37 @@ struct AppRootView: View {
         @Bindable var router = appContext.router
 
         TabView(selection: $router.selectedTab) {
-            Tab("首页", systemImage: "house.fill", value: .home) {
-                NavigationStack {
-                    HomeView(viewModel: appContext.homeViewModel)
-                }
+            NavigationStack {
+                HomeView(viewModel: appContext.homeViewModel)
             }
+            .tabItem {
+                Image(systemName: "house.fill")
+            }
+            .tag(AppTab.home)
 
-            Tab("决策", systemImage: "checklist.checked", value: .decisions) {
-                NavigationStack {
-                    DecisionsView(viewModel: appContext.decisionsViewModel)
-                }
+            NavigationStack {
+                DecisionsView(viewModel: appContext.decisionsViewModel)
             }
+            .tabItem {
+                Image(systemName: "checklist.checked")
+            }
+            .tag(AppTab.decisions)
 
-            Tab("纪念日", systemImage: "calendar", value: .anniversaries) {
-                NavigationStack {
-                    AnniversariesView(viewModel: appContext.anniversariesViewModel)
-                }
+            NavigationStack {
+                AnniversariesView(viewModel: appContext.anniversariesViewModel)
             }
+            .tabItem {
+                Image(systemName: "calendar")
+            }
+            .tag(AppTab.anniversaries)
 
-            Tab("我", systemImage: "person.crop.circle", value: .profile) {
-                NavigationStack {
-                    ProfileView(viewModel: appContext.profileViewModel)
-                }
+            NavigationStack {
+                ProfileView(viewModel: appContext.profileViewModel)
             }
+            .tabItem {
+                Image(systemName: "person.crop.circle")
+            }
+            .tag(AppTab.profile)
         }
         .sheet(item: $router.activeComposer) { route in
             ComposerPlaceholderSheet(route: route)

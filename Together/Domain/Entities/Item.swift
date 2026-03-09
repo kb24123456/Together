@@ -11,8 +11,9 @@ struct Item: Identifiable, Hashable, Sendable {
     let id: UUID
     var relationshipID: UUID?
     let creatorID: UUID
-    let title: String
+    var title: String
     var notes: String?
+    var locationText: String? = nil
     var executionRole: ItemExecutionRole
     var priority: ItemPriority
     var dueAt: Date?
@@ -23,5 +24,6 @@ struct Item: Identifiable, Hashable, Sendable {
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+    var isPinned: Bool = false
     var isDraft: Bool
 }

@@ -84,6 +84,7 @@ enum MockDataFactory {
                 creatorID: partnerUserID,
                 title: "今晚回家顺路带牛奶",
                 notes: "如果超市有低糖酸奶也可以一起带",
+                locationText: "小区北门盒马",
                 executionRole: .recipient,
                 priority: .important,
                 dueAt: now.addingTimeInterval(3_600 * 6),
@@ -94,6 +95,7 @@ enum MockDataFactory {
                 createdAt: now.addingTimeInterval(-3_600 * 2),
                 updatedAt: now.addingTimeInterval(-3_600 * 2),
                 completedAt: nil,
+                isPinned: true,
                 isDraft: false
             ),
             Item(
@@ -102,6 +104,7 @@ enum MockDataFactory {
                 creatorID: currentUserID,
                 title: "一起确认周末看房时间",
                 notes: "中介给了两个时间段，今晚前定下来",
+                locationText: "工作室附近咖啡店",
                 executionRole: .both,
                 priority: .critical,
                 dueAt: now.addingTimeInterval(86_400),
@@ -124,6 +127,7 @@ enum MockDataFactory {
                 createdAt: now.addingTimeInterval(-86_400),
                 updatedAt: now.addingTimeInterval(-1_800),
                 completedAt: nil,
+                isPinned: false,
                 isDraft: false
             ),
             Item(
@@ -132,9 +136,10 @@ enum MockDataFactory {
                 creatorID: currentUserID,
                 title: "我来预约体检，你先知情",
                 notes: "预约好后把时间同步给你",
+                locationText: "市一医院体检中心",
                 executionRole: .initiator,
                 priority: .normal,
-                dueAt: nil,
+                dueAt: now.addingTimeInterval(86_400 * 3),
                 remindAt: nil,
                 status: .inProgress,
                 latestResponse: ItemResponse(
@@ -154,6 +159,7 @@ enum MockDataFactory {
                 createdAt: now.addingTimeInterval(-43_200),
                 updatedAt: now.addingTimeInterval(-7_200),
                 completedAt: nil,
+                isPinned: false,
                 isDraft: false
             )
         ]

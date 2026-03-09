@@ -59,6 +59,7 @@
 - `creatorID: UUID`
 - `title: String`
 - `notes: String?`
+- `locationText: String?`
 - `executionRole: ItemExecutionRole`
 - `priority: ItemPriority`
 - `dueAt: Date?`
@@ -69,6 +70,7 @@
 - `createdAt: Date`
 - `updatedAt: Date`
 - `completedAt: Date?`
+- `isPinned: Bool`
 - `isDraft: Bool`
 
 ### 4.2 ItemExecutionRole
@@ -93,6 +95,15 @@
 - `kind: ItemResponseKind`
 - `message: String?`
 - `respondedAt: Date`
+
+### 4.6 首页交互补充字段
+- `locationText`
+  - 用于首页卡片轻量展示地理位置信息
+  - 用于事项二次编辑时修改位置文本
+- `isPinned`
+  - 用于首页单卡置顶
+  - 首页排序时优先于普通时间排序
+  - 置顶卡在首页必须使用高强调视觉
 
 ### 4.5 ItemResponseKind
 - `willing`

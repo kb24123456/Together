@@ -52,4 +52,25 @@ final class MockItemRepository: ItemRepositoryProtocol {
         items[index] = item
         return item
     }
+
+    func saveItem(_ item: Item) async throws -> Item {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else {
+            throw RepositoryError.notFound
+        }
+
+        if item.isPinned {
+            items = items.map { existing in
+                var copy = existing
+                if existing.relationshipID == item.relationshipID {
+                    copy.isPinned = existing.id == item.id
+                }
+                return copy
+            }
+        }
+
+        var updatedItem = item
+        updatedItem.updatedAt = MockDataFactory.now
+        items[index] = updatedItem
+        return updatedItem
+    }
 }
