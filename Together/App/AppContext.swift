@@ -7,6 +7,7 @@ final class AppContext {
     let container: AppContainer
     let sessionStore: SessionStore
     let router: AppRouter
+    let keyboardMetrics: KeyboardMetricsStore
     let homeViewModel: HomeViewModel
     let decisionsViewModel: DecisionsViewModel
     let anniversariesViewModel: AnniversariesViewModel
@@ -18,6 +19,7 @@ final class AppContext {
         self.container = container
         self.sessionStore = sessionStore
         self.router = router
+        self.keyboardMetrics = KeyboardMetricsStore()
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             itemRepository: container.itemRepository,

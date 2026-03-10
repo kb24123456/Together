@@ -7,18 +7,15 @@ struct HomeView: View {
     @Namespace private var cardNamespace
 
     var body: some View {
-        ZStack {
-            contentLayer
-            editorLayer
-        }
-        .background(AppTheme.colors.background.ignoresSafeArea())
-        .fontDesign(.rounded)
-        .toolbar(.hidden, for: .navigationBar)
-        .task {
-            if viewModel.loadState == .idle {
-                await viewModel.load()
+        contentLayer
+            .background(AppTheme.colors.background.ignoresSafeArea())
+            .fontDesign(.rounded)
+            .toolbar(.hidden, for: .navigationBar)
+            .task {
+                if viewModel.loadState == .idle {
+                    await viewModel.load()
+                }
             }
-        }
     }
 
     private var contentLayer: some View {
@@ -105,7 +102,7 @@ struct HomeView: View {
                                 ownershipTokens: viewModel.ownershipTokens(for: item),
                                 roleLabel: viewModel.roleLabel(for: item),
                                 namespace: cardNamespace,
-                                isExpandedSource: viewModel.expandedEditorItemID == item.id,
+                                isExpandedSource: viewModel.isEditorStageVisible && viewModel.expandedEditorItemID == item.id,
                                 onTap: { viewModel.presentEditor(for: item) },
                                 onTogglePin: {
                                     Task {
@@ -118,44 +115,6 @@ struct HomeView: View {
                 }
             }
         }
-    }
-
-    private var editorLayer: some View {
-        Group {
-            if viewModel.isEditorPresented,
-               let item = viewModel.selectedEditorItem,
-               let draft = viewModel.editorDraft {
-                Color.black.opacity(0.16)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-                    .onTapGesture {
-                        viewModel.dismissEditor()
-                    }
-
-                VStack {
-                    Spacer()
-
-                    HomeItemEditorView(
-                        item: item,
-                        draft: Binding(
-                            get: { viewModel.editorDraft ?? draft },
-                            set: { viewModel.editorDraft = $0 }
-                        ),
-                        namespace: cardNamespace,
-                        onClose: viewModel.dismissEditor,
-                        onSave: {
-                            Task {
-                                await viewModel.applyDraft()
-                            }
-                        }
-                    )
-                    .padding(.horizontal, AppTheme.spacing.md)
-                    .safeAreaPadding(.bottom, AppTheme.spacing.md)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-        }
-        .animation(.spring(response: 0.34, dampingFraction: 0.9), value: viewModel.isEditorPresented)
     }
 }
 

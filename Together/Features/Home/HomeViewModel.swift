@@ -19,6 +19,7 @@ struct HomeEditorDraft: Hashable {
     var title: String
     var notes: String
     var dueAt: Date
+    var remindAt: Date?
     var locationText: String
     var executionRole: ItemExecutionRole
     var priority: ItemPriority
@@ -40,6 +41,7 @@ final class HomeViewModel {
     var expandedEditorItemID: UUID?
     var editorDraft: HomeEditorDraft?
     var isEditorPresented = false
+    var isEditorStageVisible = false
     var isBackgroundScrollLocked = false
 
     init(
@@ -119,6 +121,7 @@ final class HomeViewModel {
             title: item.title,
             notes: item.notes ?? "",
             dueAt: item.dueAt ?? selectedDate,
+            remindAt: item.remindAt,
             locationText: item.locationText ?? "",
             executionRole: item.executionRole,
             priority: item.priority,
@@ -130,13 +133,22 @@ final class HomeViewModel {
         }
     }
 
-    func dismissEditor() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+    func beginEditorDismissal() {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
             isEditorPresented = false
+            isEditorStageVisible = false
             isBackgroundScrollLocked = false
         }
+    }
+
+    func finalizeEditorDismissal() {
         expandedEditorItemID = nil
         editorDraft = nil
+    }
+
+    func dismissEditor() {
+        beginEditorDismissal()
+        finalizeEditorDismissal()
     }
 
     func togglePin(for item: Item) async {
@@ -197,15 +209,16 @@ final class HomeViewModel {
         editorDraft?.isPinned = value
     }
 
-    func applyDraft() async {
+    func applyDraft() async -> Bool {
         guard let draft = editorDraft, let itemIndex = items.firstIndex(where: { $0.id == draft.itemID }) else {
-            return
+            return false
         }
 
         var updated = items[itemIndex]
         updated.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? updated.title : draft.title
         updated.notes = draft.notes.isEmpty ? nil : draft.notes
         updated.dueAt = draft.dueAt
+        updated.remindAt = draft.remindAt
         updated.locationText = draft.locationText.isEmpty ? nil : draft.locationText
         updated.executionRole = draft.executionRole
         updated.priority = draft.priority
@@ -227,9 +240,10 @@ final class HomeViewModel {
         do {
             _ = try await itemRepository.saveItem(updated)
             await load()
-            dismissEditor()
+            return true
         } catch {
             loadState = .failed(error.localizedDescription)
+            return false
         }
     }
 
