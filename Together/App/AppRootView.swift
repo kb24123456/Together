@@ -7,34 +7,56 @@ struct AppRootView: View {
         @Bindable var router = appContext.router
 
         TabView(selection: $router.selectedTab) {
-            Tab("首页", systemImage: "clock", value: .home) {
+            Tab(value: .home) {
                 NavigationStack {
                     HomeView(viewModel: appContext.homeViewModel)
                 }
+            } label: {
+                Image(systemName: "checkmark.square")
+                    .symbolVariant(.none)
+                    .font(.system(size: 19, weight: .light))
+                    .accessibilityLabel("首页")
             }
 
-            Tab("决策", systemImage: "chart.bar", value: .decisions) {
+            Tab(value: .decisions) {
                 NavigationStack {
                     DecisionsView(viewModel: appContext.decisionsViewModel)
                 }
+            } label: {
+                Image(systemName: "bubble.and.pencil.rtl")
+                    .symbolVariant(.none)
+                    .font(.system(size: 19, weight: .light))
+                    .accessibilityLabel("决策")
             }
 
-            Tab("纪念日", systemImage: "line.3.horizontal.decrease", value: .anniversaries) {
+            Tab(value: .anniversaries) {
                 NavigationStack {
                     AnniversariesView(viewModel: appContext.anniversariesViewModel)
                 }
+            } label: {
+                Image(systemName: "heart.text.square")
+                    .symbolVariant(.none)
+                    .font(.system(size: 19, weight: .light))
+                    .accessibilityLabel("纪念日")
             }
 
-            Tab("我", systemImage: "hexagon", value: .profile) {
+            Tab(value: .profile) {
                 NavigationStack {
                     ProfileView(viewModel: appContext.profileViewModel)
                 }
+            } label: {
+                Image(systemName: "suit.heart")
+                    .symbolVariant(.none)
+                    .font(.system(size: 19, weight: .light))
+                    .accessibilityLabel("我")
             }
         }
         .sheet(item: $router.activeComposer) { route in
             ComposerPlaceholderSheet(route: route)
         }
+        .environment(\.symbolVariants, .none)
         .background(AppTheme.colors.background.ignoresSafeArea())
         .font(AppTheme.typography.body)
+        .tint(AppTheme.colors.title)
     }
 }

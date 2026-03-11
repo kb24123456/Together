@@ -1,21 +1,24 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct HomeView: View {
     @Bindable var viewModel: HomeViewModel
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xl) {
+            VStack(alignment: .leading, spacing: 14) {
                 headerSection
                 weekCalendarSection
                 timelineSection
             }
             .padding(.horizontal, AppTheme.spacing.xl)
-            .padding(.top, AppTheme.spacing.lg)
-            .padding(.bottom, 32)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
         }
         .scrollIndicators(.hidden)
-        .safeAreaPadding(.top, AppTheme.spacing.sm)
+        .safeAreaPadding(.top, 6)
         .background(backgroundView)
         .font(AppTheme.typography.body)
         .toolbar(.hidden, for: .navigationBar)
@@ -37,17 +40,14 @@ struct HomeView: View {
     }
 
     private var headerSection: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.lg) {
-            VStack(alignment: .leading, spacing: 14) {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(viewModel.headerDateText)
                     .font(AppTheme.typography.sized(38, weight: .bold))
                     .tracking(-1.1)
                     .foregroundStyle(AppTheme.colors.title)
-
-                Text("今天一起把节奏放稳")
-                    .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body)
             }
+            .frame(height: 56, alignment: .center)
 
             Spacer(minLength: 0)
 
@@ -61,27 +61,31 @@ struct HomeView: View {
                 Capsule()
                     .stroke(AppTheme.colors.outlineStrong.opacity(0.6), lineWidth: 1)
             }
+            .frame(height: 56)
         }
     }
 
     private var weekCalendarSection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 6) {
             ForEach(viewModel.weekDates, id: \.self) { date in
+                let isSelected = viewModel.isSelectedDate(date)
                 Button {
-                    withAnimation(.snappy(duration: 0.28)) {
+                    guard !isSelected else { return }
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
                         viewModel.selectDate(date)
                     }
+                    triggerSoftDateFeedback()
                 } label: {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 4) {
                         Text(date, format: .dateTime.day())
                             .font(
                                 AppTheme.typography.sized(
                                     26,
-                                    weight: viewModel.isSelectedDate(date) ? .bold : .semibold
+                                    weight: isSelected ? .bold : .semibold
                                 )
                             )
                             .foregroundStyle(
-                                viewModel.isSelectedDate(date)
+                                isSelected
                                 ? AppTheme.colors.title
                                 : AppTheme.colors.textTertiary
                             )
@@ -89,20 +93,15 @@ struct HomeView: View {
                         Text(viewModel.weekdayLabel(for: date))
                             .font(AppTheme.typography.textStyle(.caption1, weight: .semibold))
                             .foregroundStyle(
-                                viewModel.isSelectedDate(date)
+                                isSelected
                                 ? AppTheme.colors.coral
                                 : AppTheme.colors.body.opacity(0.7)
                             )
                     }
+                    .scaleEffect(isSelected ? 1.1 : 1.0)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 92)
-                    .background {
-                        if viewModel.isSelectedDate(date) {
-                            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                .fill(AppTheme.colors.surfaceElevated)
-                                .shadow(color: AppTheme.colors.shadow, radius: 10, y: 6)
-                        }
-                    }
+                    .frame(height: 76)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -120,10 +119,18 @@ struct HomeView: View {
                         .stroke(AppTheme.colors.separator, style: StrokeStyle(lineWidth: 1.5, dash: [3, 8]))
                         .frame(height: 1)
                         .padding(.leading, 4)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 2)
                 }
             }
         }
+    }
+
+    private func triggerSoftDateFeedback() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.85)
+        #endif
     }
 
     private func avatarBubble(_ avatar: HomeAvatar, tint: Color) -> some View {
@@ -179,7 +186,7 @@ private struct HomeTimelineRow: View {
                     .foregroundStyle(AppTheme.colors.body.opacity(0.42))
             }
         }
-        .padding(.vertical, 18)
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder
