@@ -8,11 +8,11 @@ struct ComposerPlaceholderSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
                 Text(route == .newItem ? "发请求" : "发决策")
-                    .font(.title2.bold())
+                    .font(AppTheme.typography.textStyle(.title2, weight: .bold))
                     .foregroundStyle(AppTheme.colors.title)
 
                 Text("本轮只完成工程脚手架。这里保留为占位入口，后续接真实表单与发送流程。")
-                    .font(.body)
+                    .font(AppTheme.typography.textStyle(.body))
                     .foregroundStyle(AppTheme.colors.body)
 
                 Spacer()

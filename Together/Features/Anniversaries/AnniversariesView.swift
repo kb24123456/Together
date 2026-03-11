@@ -8,11 +8,11 @@ struct AnniversariesView: View {
             AppTheme.colors.background.ignoresSafeArea()
 
             Text("纪念日")
-                .font(.title2.weight(.semibold))
+                .font(AppTheme.typography.textStyle(.title2, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
         }
         .navigationTitle("纪念日")
         .toolbar(.visible, for: .navigationBar)
-        .fontDesign(.rounded)
+        .font(AppTheme.typography.body)
     }
 }

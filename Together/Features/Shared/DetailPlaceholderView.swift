@@ -7,7 +7,7 @@ struct DetailPlaceholderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
             Text(title)
-                .font(.title3.bold())
+                .font(AppTheme.typography.textStyle(.title3, weight: .bold))
             Text(message)
                 .foregroundStyle(AppTheme.colors.body)
             Spacer()

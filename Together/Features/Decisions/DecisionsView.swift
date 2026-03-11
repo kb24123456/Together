@@ -8,11 +8,11 @@ struct DecisionsView: View {
             AppTheme.colors.background.ignoresSafeArea()
 
             Text("决策")
-                .font(.title2.weight(.semibold))
+                .font(AppTheme.typography.textStyle(.title2, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
         }
         .navigationTitle("决策")
         .toolbar(.visible, for: .navigationBar)
-        .fontDesign(.rounded)
+        .font(AppTheme.typography.body)
     }
 }

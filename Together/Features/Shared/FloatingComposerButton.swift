@@ -17,7 +17,7 @@ struct FloatingComposerButton: View {
             }
         } label: {
             Image(systemName: "plus")
-                .font(.title2.weight(.bold))
+                .font(AppTheme.typography.textStyle(.title2, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 58, height: 58)
                 .background(floatingPink, in: Circle())

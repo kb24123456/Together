@@ -44,6 +44,15 @@
 - 中文正文不强制 rounded，但在混排场景中必须保证英文与数字风格统一。
 - SwiftUI 优先使用 `fontDesign(.rounded)` 落地，避免手工对单个数字临时指定不一致字体。
 
+7. 全局字体系强制统一。
+事实：
+- 英文与数字必须使用 `SF Pro Rounded` 风格。
+- 中文界面主字体使用项目内置 `Resource Han Rounded CN`。
+- 混排文本通过统一字体入口实现：
+  - 主字体：`SF Pro Rounded`
+  - 中文 fallback：`Resource Han Rounded CN`
+- 新增 SwiftUI 页面时，不允许直接继续散落 `.fontDesign(.rounded)` 或 `.system(..., design: .rounded)`；必须通过设计系统字体入口统一调用。
+
 ## SwiftUI 实现规则
 
 1. 顶部和底部安全区域处理

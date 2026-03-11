@@ -7,10 +7,10 @@ struct EmptyStateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Text(title)
-                .font(.headline)
+                .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
             Text(message)
-                .font(.subheadline)
+                .font(AppTheme.typography.textStyle(.subheadline))
                 .foregroundStyle(AppTheme.colors.body)
         }
         .padding(AppTheme.spacing.lg)

@@ -15,12 +15,12 @@ struct CardSection<Content: View>: View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
             VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                 Text(title)
-                    .font(.headline)
+                    .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.title)
 
                 if let subtitle {
                     Text(subtitle)
-                        .font(.subheadline)
+                        .font(AppTheme.typography.textStyle(.subheadline))
                         .foregroundStyle(AppTheme.colors.body)
                 }
             }

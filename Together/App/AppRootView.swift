@@ -7,41 +7,34 @@ struct AppRootView: View {
         @Bindable var router = appContext.router
 
         TabView(selection: $router.selectedTab) {
-            NavigationStack {
-                HomeView(viewModel: appContext.homeViewModel)
+            Tab("首页", systemImage: "clock", value: .home) {
+                NavigationStack {
+                    HomeView(viewModel: appContext.homeViewModel)
+                }
             }
-            .tabItem {
-                Image(systemName: "house.fill")
-            }
-            .tag(AppTab.home)
 
-            NavigationStack {
-                DecisionsView(viewModel: appContext.decisionsViewModel)
+            Tab("决策", systemImage: "chart.bar", value: .decisions) {
+                NavigationStack {
+                    DecisionsView(viewModel: appContext.decisionsViewModel)
+                }
             }
-            .tabItem {
-                Image(systemName: "checklist.checked")
-            }
-            .tag(AppTab.decisions)
 
-            NavigationStack {
-                AnniversariesView(viewModel: appContext.anniversariesViewModel)
+            Tab("纪念日", systemImage: "line.3.horizontal.decrease", value: .anniversaries) {
+                NavigationStack {
+                    AnniversariesView(viewModel: appContext.anniversariesViewModel)
+                }
             }
-            .tabItem {
-                Image(systemName: "calendar")
-            }
-            .tag(AppTab.anniversaries)
 
-            NavigationStack {
-                ProfileView(viewModel: appContext.profileViewModel)
+            Tab("我", systemImage: "hexagon", value: .profile) {
+                NavigationStack {
+                    ProfileView(viewModel: appContext.profileViewModel)
+                }
             }
-            .tabItem {
-                Image(systemName: "person.crop.circle")
-            }
-            .tag(AppTab.profile)
         }
         .sheet(item: $router.activeComposer) { route in
             ComposerPlaceholderSheet(route: route)
         }
         .background(AppTheme.colors.background.ignoresSafeArea())
+        .font(AppTheme.typography.body)
     }
 }

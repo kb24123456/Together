@@ -77,23 +77,24 @@ enum MockDataFactory {
     }
 
     static func makeItems() -> [Item] {
-        [
+        let dayStart = Calendar.current.startOfDay(for: now)
+        return [
             Item(
                 id: UUID(uuidString: "66666666-6666-6666-6666-666666666661")!,
                 relationshipID: pairSpaceID,
                 creatorID: partnerUserID,
-                title: "今晚回家顺路带牛奶",
-                notes: "如果超市有低糖酸奶也可以一起带",
-                locationText: "小区北门盒马",
+                title: "起床",
+                notes: "今天要一起早出门，闹钟响了给我回个表情。",
+                locationText: "家里",
                 executionRole: .recipient,
                 priority: .important,
-                dueAt: now.addingTimeInterval(3_600 * 6),
-                remindAt: now.addingTimeInterval(3_600 * 4),
-                status: .pendingConfirmation,
+                dueAt: dayStart.addingTimeInterval(3_600 * 7),
+                remindAt: dayStart.addingTimeInterval(3_600 * 6 + 2_400),
+                status: .inProgress,
                 latestResponse: nil,
                 responseHistory: [],
-                createdAt: now.addingTimeInterval(-3_600 * 2),
-                updatedAt: now.addingTimeInterval(-3_600 * 2),
+                createdAt: dayStart.addingTimeInterval(-3_600 * 4),
+                updatedAt: dayStart.addingTimeInterval(-3_600 * 4),
                 completedAt: nil,
                 isPinned: true,
                 isDraft: false
@@ -102,30 +103,30 @@ enum MockDataFactory {
                 id: UUID(uuidString: "66666666-6666-6666-6666-666666666662")!,
                 relationshipID: pairSpaceID,
                 creatorID: currentUserID,
-                title: "一起确认周末看房时间",
-                notes: "中介给了两个时间段，今晚前定下来",
-                locationText: "工作室附近咖啡店",
+                title: "开会",
+                notes: "晨会结束后同步一下中午是否一起吃饭。",
+                locationText: "公司会议室",
                 executionRole: .both,
                 priority: .critical,
-                dueAt: now.addingTimeInterval(86_400),
-                remindAt: now.addingTimeInterval(43_200),
+                dueAt: dayStart.addingTimeInterval(3_600 * 8 + 1_200),
+                remindAt: dayStart.addingTimeInterval(3_600 * 8),
                 status: .inProgress,
                 latestResponse: ItemResponse(
                     responderID: partnerUserID,
                     kind: .willing,
-                    message: "今晚吃完饭一起看",
-                    respondedAt: now.addingTimeInterval(-1_800)
+                    message: "会后碰一下",
+                    respondedAt: dayStart.addingTimeInterval(3_600 * 7 + 900)
                 ),
                 responseHistory: [
                     ItemResponse(
                         responderID: partnerUserID,
                         kind: .willing,
-                        message: "今晚吃完饭一起看",
-                        respondedAt: now.addingTimeInterval(-1_800)
+                        message: "会后碰一下",
+                        respondedAt: dayStart.addingTimeInterval(3_600 * 7 + 900)
                     )
                 ],
-                createdAt: now.addingTimeInterval(-86_400),
-                updatedAt: now.addingTimeInterval(-1_800),
+                createdAt: dayStart.addingTimeInterval(-86_400),
+                updatedAt: dayStart.addingTimeInterval(3_600 * 7 + 900),
                 completedAt: nil,
                 isPinned: false,
                 isDraft: false
@@ -134,30 +135,90 @@ enum MockDataFactory {
                 id: UUID(uuidString: "66666666-6666-6666-6666-666666666663")!,
                 relationshipID: pairSpaceID,
                 creatorID: currentUserID,
-                title: "我来预约体检，你先知情",
-                notes: "预约好后把时间同步给你",
-                locationText: "市一医院体检中心",
+                title: "喝水",
+                notes: "下午别忘了补水，我会在群里提醒你。",
+                locationText: nil,
                 executionRole: .initiator,
                 priority: .normal,
-                dueAt: now.addingTimeInterval(86_400 * 3),
-                remindAt: nil,
+                dueAt: dayStart.addingTimeInterval(3_600 * 10 + 1_800),
+                remindAt: dayStart.addingTimeInterval(3_600 * 10),
                 status: .inProgress,
                 latestResponse: ItemResponse(
                     responderID: partnerUserID,
                     kind: .acknowledged,
                     message: "收到",
-                    respondedAt: now.addingTimeInterval(-7_200)
+                    respondedAt: dayStart.addingTimeInterval(3_600 * 9 + 600)
                 ),
                 responseHistory: [
                     ItemResponse(
                         responderID: partnerUserID,
                         kind: .acknowledged,
                         message: "收到",
-                        respondedAt: now.addingTimeInterval(-7_200)
+                        respondedAt: dayStart.addingTimeInterval(3_600 * 9 + 600)
                     )
                 ],
-                createdAt: now.addingTimeInterval(-43_200),
-                updatedAt: now.addingTimeInterval(-7_200),
+                createdAt: dayStart.addingTimeInterval(-43_200),
+                updatedAt: dayStart.addingTimeInterval(3_600 * 9 + 600),
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(uuidString: "66666666-6666-6666-6666-666666666664")!,
+                relationshipID: pairSpaceID,
+                creatorID: partnerUserID,
+                title: "任务优先级排序",
+                notes: "午休前把今天最重要的两件事排出来。",
+                locationText: "共享清单",
+                executionRole: .both,
+                priority: .important,
+                dueAt: dayStart.addingTimeInterval(3_600 * 14),
+                remindAt: dayStart.addingTimeInterval(3_600 * 13 + 1_800),
+                status: .pendingConfirmation,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: dayStart.addingTimeInterval(-21_600),
+                updatedAt: dayStart.addingTimeInterval(-18_000),
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(uuidString: "66666666-6666-6666-6666-666666666665")!,
+                relationshipID: pairSpaceID,
+                creatorID: currentUserID,
+                title: "放松",
+                notes: "睡前留半小时一起散步或者看一集剧。",
+                locationText: "客厅",
+                executionRole: .both,
+                priority: .normal,
+                dueAt: dayStart.addingTimeInterval(3_600 * 21 + 7_200),
+                remindAt: dayStart.addingTimeInterval(3_600 * 21 + 3_600),
+                status: .pendingConfirmation,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: dayStart.addingTimeInterval(-3_600),
+                updatedAt: dayStart.addingTimeInterval(-3_600),
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!,
+                relationshipID: pairSpaceID,
+                creatorID: partnerUserID,
+                title: "顺路带牛奶",
+                notes: "如果超市有低糖酸奶也一起带。",
+                locationText: "小区北门盒马",
+                executionRole: .recipient,
+                priority: .important,
+                dueAt: dayStart.addingTimeInterval(86_400 + 3_600 * 6),
+                remindAt: dayStart.addingTimeInterval(86_400 + 3_600 * 4),
+                status: .pendingConfirmation,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: dayStart.addingTimeInterval(-7_200),
+                updatedAt: dayStart.addingTimeInterval(-7_200),
                 completedAt: nil,
                 isPinned: false,
                 isDraft: false

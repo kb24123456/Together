@@ -8,11 +8,11 @@ struct ProfileView: View {
             AppTheme.colors.background.ignoresSafeArea()
 
             Text("我")
-                .font(.title2.weight(.semibold))
+                .font(AppTheme.typography.textStyle(.title2, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
         }
         .navigationTitle("我")
         .toolbar(.visible, for: .navigationBar)
-        .fontDesign(.rounded)
+        .font(AppTheme.typography.body)
     }
 }
