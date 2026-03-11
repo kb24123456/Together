@@ -7,7 +7,6 @@ final class AppContext {
     let container: AppContainer
     let sessionStore: SessionStore
     let router: AppRouter
-    let keyboardMetrics: KeyboardMetricsStore
     let homeViewModel: HomeViewModel
     let decisionsViewModel: DecisionsViewModel
     let anniversariesViewModel: AnniversariesViewModel
@@ -19,7 +18,6 @@ final class AppContext {
         self.container = container
         self.sessionStore = sessionStore
         self.router = router
-        self.keyboardMetrics = KeyboardMetricsStore()
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             itemRepository: container.itemRepository,
@@ -46,7 +44,10 @@ final class AppContext {
         let container = MockServiceFactory.makeContainer()
         let sessionStore = SessionStore()
         let router = AppRouter()
-        return AppContext(container: container, sessionStore: sessionStore, router: router)
+        let context = AppContext(container: container, sessionStore: sessionStore, router: router)
+        context.seedMockSession()
+        context.hasBootstrapped = true
+        return context
     }
 
     func bootstrapIfNeeded() async {
@@ -56,10 +57,14 @@ final class AppContext {
             authService: container.authService,
             relationshipService: container.relationshipService
         )
-        await homeViewModel.load()
-        await decisionsViewModel.load()
-        await anniversariesViewModel.load()
-        await profileViewModel.load()
         hasBootstrapped = true
+    }
+
+    private func seedMockSession() {
+        sessionStore.authState = .signedIn
+        sessionStore.bindingState = .paired
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.currentPairSpace = MockDataFactory.makePairSpace()
+        sessionStore.activeInvite = nil
     }
 }

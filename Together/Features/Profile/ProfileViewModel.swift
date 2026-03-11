@@ -9,6 +9,7 @@ final class ProfileViewModel {
     private let relationshipService: RelationshipServiceProtocol
     private let notificationService: NotificationServiceProtocol
 
+    var loadState: LoadableState = .idle
     var notificationAuthorization: NotificationAuthorizationStatus = .notDetermined
 
     init(
@@ -29,7 +30,9 @@ final class ProfileViewModel {
     var activeInvite: Invite? { sessionStore.activeInvite }
 
     func load() async {
+        loadState = .loading
         notificationAuthorization = await notificationService.authorizationStatus()
+        loadState = .loaded
     }
 
     func requestNotifications() async {

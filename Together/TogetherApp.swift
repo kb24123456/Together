@@ -8,9 +8,6 @@ struct TogetherApp: App {
         WindowGroup {
             AppRootView()
                 .environment(appContext)
-                .task {
-                    await appContext.bootstrapIfNeeded()
-                }
         }
     }
 }
