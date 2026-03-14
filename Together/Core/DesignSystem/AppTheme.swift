@@ -64,6 +64,12 @@ enum AppTheme {
         }
 
         #if canImport(UIKit)
+        static func sizedUIFont(_ size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+            uiFont(size: size, weight: weight)
+        }
+        #endif
+
+        #if canImport(UIKit)
         private static func uiFont(textStyle: UIFont.TextStyle, weight: UIFont.Weight) -> UIFont {
             let metrics = UIFontMetrics(forTextStyle: textStyle)
             let basePointSize = UIFontDescriptor.preferredFontDescriptor(withTextStyle: textStyle).pointSize

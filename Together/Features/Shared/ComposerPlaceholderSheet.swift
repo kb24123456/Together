@@ -792,13 +792,13 @@ private struct ComposerDatePickerSheet: View {
     private func headerHorizontalInset(for availableWidth: CGFloat) -> CGFloat {
         let gridWidth = max(availableWidth - (Self.horizontalPadding * 2), 0)
         let columnWidth = max((gridWidth - (Self.gridColumnSpacing * 6)) / 7, 0)
+        let firstColumnCenterX = Self.horizontalPadding + (columnWidth / 2)
+        let visualDayHalfWidth = min(widestDayLabelWidth, columnWidth) / 2
 
-        // Align the month title and trailing controls to the visible edge of the
-        // first/last date glyph instead of the raw grid edge, while keeping the
-        // seven calendar columns evenly distributed.
-        let visualDayWidth: CGFloat = 22
-        let visualInset = max((columnWidth - visualDayWidth) / 2, 0)
-        return Self.horizontalPadding + visualInset
+        // Keep the header aligned to the date glyph envelope rather than the raw
+        // grid edge so month text and trailing controls track the first/last
+        // visible day labels across device widths and font changes.
+        return max(firstColumnCenterX - visualDayHalfWidth, Self.horizontalPadding)
     }
 
     private var selectedDate: Date {
@@ -833,6 +833,18 @@ private struct ComposerDatePickerSheet: View {
 
     private var calendarGridHeight: CGFloat {
         Self.calendarGridHeight
+    }
+
+    private var widestDayLabelWidth: CGFloat {
+        #if canImport(UIKit)
+        let font = AppTheme.typography.sizedUIFont(18, weight: .semibold)
+        return (1...31)
+            .map { "\($0)" }
+            .map { NSString(string: $0).size(withAttributes: [.font: font]).width }
+            .max() ?? 0
+        #else
+        return 0
+        #endif
     }
 
     private var weekdaySymbols: [String] {
@@ -931,8 +943,14 @@ private struct ComposerDatePickerSheet: View {
 private struct ComposerTimePickerSheet: View {
     @Binding var draftState: ComposerDraftState
     @State private var selectedTime: Date
+    @State private var scrollTempo: ComposerTimePickerScrollTempo = .idle
+    @State private var numericCountsDown = false
     @State private var lastAppliedStep = 0
     @State private var isDragging = false
+    @State private var lastDragSample: ComposerTimeDragSample?
+    @State private var momentumTask: Task<Void, Never>?
+    @State private var idleResetTask: Task<Void, Never>?
+    @State private var hapticDriver = ComposerTimePickerHapticDriver()
 
     init(draftState: Binding<ComposerDraftState>) {
         _draftState = draftState
@@ -953,24 +971,33 @@ private struct ComposerTimePickerSheet: View {
 
             Text(displayedTime)
                 .font(AppTheme.typography.sized(82, weight: .bold))
+                .monospacedDigit()
                 .tracking(-2.4)
                 .foregroundStyle(AppTheme.colors.title)
-                .contentTransition(.numericText())
-                .animation(.spring(response: 0.28, dampingFraction: 0.84), value: displayedTime)
+                .contentTransition(.numericText(countsDown: numericCountsDown))
+                .blur(radius: scrollTempo.blurRadius)
+                .scaleEffect(scrollTempo.scale)
+                .animation(.spring(response: 0.22, dampingFraction: 0.88), value: scrollTempo)
+                .frame(height: 228)
 
             Spacer(minLength: 0)
 
-            ComposerTimeVerticalHint(isVisible: !isDragging)
+            ComposerTimeVerticalHint(isVisible: scrollTempo == .idle)
                 .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .gesture(timeDragGesture)
         .onAppear {
+            hapticDriver.prepare()
             writeBackSelectedTime()
         }
         .onChange(of: selectedTime) { _, _ in
             writeBackSelectedTime()
+        }
+        .onDisappear {
+            momentumTask?.cancel()
+            idleResetTask?.cancel()
         }
     }
 
@@ -983,32 +1010,284 @@ private struct ComposerTimePickerSheet: View {
     }
 
     private var timeDragGesture: some Gesture {
-        DragGesture(minimumDistance: 6)
+        DragGesture(minimumDistance: 4)
             .onChanged { value in
+                momentumTask?.cancel()
+                momentumTask = nil
+
+                let sample = ComposerTimeDragSample(
+                    translation: value.translation.height,
+                    timestamp: ProcessInfo.processInfo.systemUptime
+                )
+                let velocity = currentVelocity(from: sample)
+                let tempo = ComposerTimePickerScrollTempo.drag(for: velocity)
+                lastDragSample = sample
+
                 if !isDragging {
-                    isDragging = true
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        isDragging = true
+                    }
                 }
 
-                let step = Int((-value.translation.height / 18).rounded())
+                let step = Int((-value.translation.height / tempo.stepDistance).rounded())
                 guard step != lastAppliedStep else { return }
+
                 let delta = step - lastAppliedStep
-                selectedTime = Calendar.current.date(byAdding: .minute, value: delta * 5, to: selectedTime) ?? selectedTime
+                applyStepDelta(delta, tempo: tempo, hapticSource: .drag)
                 lastAppliedStep = step
-                triggerSelectionFeedback()
             }
-            .onEnded { _ in
+            .onEnded { value in
+                let finalSample = ComposerTimeDragSample(
+                    translation: value.translation.height,
+                    timestamp: ProcessInfo.processInfo.systemUptime
+                )
+                let velocity = currentVelocity(from: finalSample)
+                let tempo = ComposerTimePickerScrollTempo.drag(for: velocity)
+                let momentumSteps = projectedMomentumSteps(from: value, tempo: tempo)
+
                 lastAppliedStep = 0
-                withAnimation(.easeOut(duration: 0.18)) {
+                lastDragSample = nil
+                withAnimation(.easeOut(duration: 0.16)) {
                     isDragging = false
+                }
+
+                if momentumSteps == 0 {
+                    settle(after: tempo)
+                } else {
+                    startMomentum(steps: momentumSteps, tempo: tempo)
                 }
             }
     }
 
-    private func triggerSelectionFeedback() {
+    private func currentVelocity(from sample: ComposerTimeDragSample) -> CGFloat {
+        guard let previous = lastDragSample else { return 0 }
+        let deltaTime = max(sample.timestamp - previous.timestamp, 0.001)
+        return abs((sample.translation - previous.translation) / deltaTime)
+    }
+
+    private func projectedMomentumSteps(from value: DragGesture.Value, tempo: ComposerTimePickerScrollTempo) -> Int {
+        let projectedDelta = value.predictedEndTranslation.height - value.translation.height
+        let projectedSteps = Int((-projectedDelta / (tempo.stepDistance * 1.1)).rounded())
+        return max(-tempo.maxMomentumSteps, min(tempo.maxMomentumSteps, projectedSteps))
+    }
+
+    private func applyStepDelta(_ delta: Int, tempo: ComposerTimePickerScrollTempo, hapticSource: ComposerTimePickerHapticSource) {
+        guard delta != 0 else { return }
+
+        let updatedTime = Calendar.current.date(byAdding: .minute, value: delta * 5, to: selectedTime) ?? selectedTime
+
+        scrollTempo = tempo
+        numericCountsDown = delta < 0
+        hapticDriver.emitDetents(count: abs(delta), tempo: tempo, source: hapticSource)
+
+        withAnimation(tempo.textAnimation) {
+            selectedTime = updatedTime
+        }
+    }
+
+    private func startMomentum(steps: Int, tempo: ComposerTimePickerScrollTempo) {
+        momentumTask?.cancel()
+        momentumTask = Task { @MainActor in
+            let direction = steps > 0 ? 1 : -1
+            for _ in 0..<abs(steps) {
+                guard !Task.isCancelled else { break }
+                applyStepDelta(direction, tempo: tempo.momentumTempo, hapticSource: .momentum)
+                try? await Task.sleep(for: .milliseconds(tempo.momentumTempo.detentIntervalMilliseconds))
+            }
+            settle(after: tempo.momentumTempo)
+            momentumTask = nil
+        }
+    }
+
+    private func settle(after tempo: ComposerTimePickerScrollTempo) {
+        idleResetTask?.cancel()
+        hapticDriver.emitSettle(for: tempo)
+        idleResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            scrollTempo = .idle
+        }
+    }
+}
+
+private enum ComposerTimePickerScrollTempo: Equatable {
+    case idle
+    case dragSlow
+    case dragMedium
+    case dragFast
+    case momentumSlow
+    case momentumFast
+
+    static func drag(for velocity: CGFloat) -> Self {
+        switch velocity {
+        case ..<220:
+            return .dragSlow
+        case ..<480:
+            return .dragMedium
+        default:
+            return .dragFast
+        }
+    }
+
+    var stepDistance: CGFloat {
+        switch self {
+        case .dragFast:
+            return 12
+        case .dragMedium:
+            return 15
+        case .dragSlow, .momentumSlow, .momentumFast, .idle:
+            return 18
+        }
+    }
+
+    var maxMomentumSteps: Int {
+        switch self {
+        case .dragFast:
+            return 8
+        case .dragMedium:
+            return 5
+        case .dragSlow, .momentumSlow, .momentumFast, .idle:
+            return 2
+        }
+    }
+
+    var momentumTempo: Self {
+        switch self {
+        case .dragFast, .momentumFast:
+            return .momentumFast
+        case .dragMedium, .dragSlow, .momentumSlow, .idle:
+            return .momentumSlow
+        }
+    }
+
+    var detentIntervalMilliseconds: Int {
+        switch self {
+        case .momentumFast:
+            return 32
+        case .momentumSlow:
+            return 54
+        default:
+            return 0
+        }
+    }
+
+    var blurRadius: CGFloat {
+        switch self {
+        case .dragFast, .momentumFast:
+            return 1
+        case .dragMedium, .momentumSlow:
+            return 0.5
+        case .dragSlow, .idle:
+            return 0
+        }
+    }
+
+    var scale: CGFloat {
+        switch self {
+        case .dragFast, .momentumFast:
+            return 1.016
+        case .dragMedium, .momentumSlow:
+            return 1.008
+        case .dragSlow, .idle:
+            return 1
+        }
+    }
+
+    var rollImpulse: CGFloat {
+        switch self {
+        case .dragFast, .momentumFast:
+            return 18
+        case .dragMedium, .momentumSlow:
+            return 12
+        case .dragSlow:
+            return 8
+        case .idle:
+            return 0
+        }
+    }
+
+    var textAnimation: Animation {
+        switch self {
+        case .dragFast, .momentumFast:
+            return .linear(duration: 0.045)
+        case .dragMedium, .momentumSlow:
+            return .linear(duration: 0.075)
+        case .dragSlow:
+            return .spring(response: 0.18, dampingFraction: 0.9)
+        case .idle:
+            return .spring(response: 0.24, dampingFraction: 0.86)
+        }
+    }
+}
+
+private struct ComposerTimeDragSample {
+    let translation: CGFloat
+    let timestamp: TimeInterval
+}
+
+private enum ComposerTimePickerHapticSource {
+    case drag
+    case momentum
+}
+
+@MainActor
+private final class ComposerTimePickerHapticDriver {
+    #if canImport(UIKit)
+    private let selectionGenerator = UISelectionFeedbackGenerator()
+    private let softImpactGenerator = UIImpactFeedbackGenerator(style: .soft)
+    private let rigidImpactGenerator = UIImpactFeedbackGenerator(style: .rigid)
+    private var detentCounter = 0
+    #endif
+
+    func prepare() {
         #if canImport(UIKit)
-        let generator = UISelectionFeedbackGenerator()
-        generator.prepare()
-        generator.selectionChanged()
+        selectionGenerator.prepare()
+        softImpactGenerator.prepare()
+        rigidImpactGenerator.prepare()
+        #endif
+    }
+
+    func emitDetents(count: Int, tempo: ComposerTimePickerScrollTempo, source: ComposerTimePickerHapticSource) {
+        #if canImport(UIKit)
+        guard count > 0 else { return }
+
+        for _ in 0..<count {
+            detentCounter += 1
+            selectionGenerator.selectionChanged()
+
+            switch (tempo, source) {
+            case (.dragMedium, .drag), (.momentumSlow, .momentum):
+                if detentCounter.isMultiple(of: 2) {
+                    softImpactGenerator.impactOccurred(intensity: 0.34)
+                }
+            case (.dragFast, .drag), (.momentumFast, .momentum):
+                if detentCounter.isMultiple(of: 2) {
+                    rigidImpactGenerator.impactOccurred(intensity: 0.42)
+                }
+            default:
+                break
+            }
+
+            selectionGenerator.prepare()
+            softImpactGenerator.prepare()
+            rigidImpactGenerator.prepare()
+        }
+        #endif
+    }
+
+    func emitSettle(for tempo: ComposerTimePickerScrollTempo) {
+        #if canImport(UIKit)
+        switch tempo {
+        case .dragFast, .momentumFast:
+            rigidImpactGenerator.impactOccurred(intensity: 0.48)
+        case .dragMedium, .momentumSlow:
+            rigidImpactGenerator.impactOccurred(intensity: 0.38)
+        case .dragSlow:
+            softImpactGenerator.impactOccurred(intensity: 0.28)
+        case .idle:
+            break
+        }
+        detentCounter = 0
+        prepare()
         #endif
     }
 }
