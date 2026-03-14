@@ -1,6 +1,6 @@
 import Foundation
 
-enum ItemExecutionRole: String, Hashable, Sendable {
+enum ItemExecutionRole: String, Hashable, Sendable, Codable {
     case initiator
     case recipient
     case both
@@ -17,7 +17,7 @@ enum ItemExecutionRole: String, Hashable, Sendable {
     }
 }
 
-enum ItemPriority: String, CaseIterable, Hashable, Sendable {
+enum ItemPriority: String, CaseIterable, Hashable, Sendable, Codable {
     case normal
     case important
     case critical
@@ -34,7 +34,7 @@ enum ItemPriority: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-enum ItemResponseKind: String, CaseIterable, Hashable, Sendable {
+enum ItemResponseKind: String, CaseIterable, Hashable, Sendable, Codable {
     case willing
     case notAvailableNow
     case notSuitable
@@ -54,7 +54,7 @@ enum ItemResponseKind: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-enum ItemStatus: String, Hashable, Sendable {
+enum ItemStatus: String, Hashable, Sendable, Codable {
     case pendingConfirmation
     case inProgress
     case completed

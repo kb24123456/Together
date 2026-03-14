@@ -11,8 +11,8 @@ struct User: Identifiable, Hashable, Sendable {
 }
 
 struct NotificationSettings: Hashable, Sendable {
-    var newItemEnabled: Bool
-    var decisionEnabled: Bool
-    var anniversaryEnabled: Bool
-    var deadlineEnabled: Bool
+    var taskReminderEnabled: Bool
+    var dailySummaryEnabled: Bool
+    var calendarReminderEnabled: Bool
+    var futureCollaborationInviteEnabled: Bool
 }

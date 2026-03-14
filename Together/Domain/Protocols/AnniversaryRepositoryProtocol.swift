@@ -1,5 +1,5 @@
 import Foundation
 
 protocol AnniversaryRepositoryProtocol: Sendable {
-    func fetchAnniversaries(relationshipID: UUID?) async throws -> [Anniversary]
+    func fetchAnniversaries(spaceID: UUID?) async throws -> [Anniversary]
 }

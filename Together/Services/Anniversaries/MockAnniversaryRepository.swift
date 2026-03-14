@@ -1,9 +1,9 @@
 import Foundation
 
 struct MockAnniversaryRepository: AnniversaryRepositoryProtocol {
-    func fetchAnniversaries(relationshipID: UUID?) async throws -> [Anniversary] {
+    func fetchAnniversaries(spaceID: UUID?) async throws -> [Anniversary] {
         MockDataFactory.makeAnniversaries()
-            .filter { $0.relationshipID == relationshipID }
+            .filter { $0.spaceID == spaceID }
             .sorted { $0.eventDate < $1.eventDate }
     }
 }

@@ -7,6 +7,13 @@ enum AppTheme {
     enum colors {
         static let background = Color(red: 0.965, green: 0.961, blue: 0.949)
         static let backgroundSoft = Color(red: 0.982, green: 0.979, blue: 0.972)
+        static let homeBackground = Color(red: 0.982, green: 0.985, blue: 0.988)
+        static let homeBackgroundSoft = Color(red: 0.996, green: 0.997, blue: 0.999)
+        static let projectLayerBackground = Color(red: 0.15, green: 0.16, blue: 0.18)
+        static let projectLayerSurface = Color(red: 0.20, green: 0.22, blue: 0.25)
+        static let projectLayerOutline = Color.white.opacity(0.10)
+        static let projectLayerText = Color(red: 0.95, green: 0.96, blue: 0.98)
+        static let projectLayerSecondaryText = Color(red: 0.74, green: 0.76, blue: 0.80)
         static let surface = Color.white
         static let surfaceElevated = Color(red: 0.979, green: 0.977, blue: 0.969)
         static let accent = Color(red: 0.24, green: 0.47, blue: 0.42)

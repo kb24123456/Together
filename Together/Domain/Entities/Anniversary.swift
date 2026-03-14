@@ -15,7 +15,7 @@ struct ReminderRule: Hashable, Sendable {
 
 struct Anniversary: Identifiable, Hashable, Sendable {
     let id: UUID
-    var relationshipID: UUID?
+    var spaceID: UUID?
     var name: String
     var kind: AnniversaryKind
     var eventDate: Date

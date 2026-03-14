@@ -7,20 +7,24 @@ final class SessionStore {
     var authState: AuthState = .signedOut
     var bindingState: BindingState = .singleTrial
     var currentUser: User?
+    var currentSpace: Space?
+    var availableSpaces: [Space] = []
     var currentPairSpace: PairSpace?
     var activeInvite: Invite?
 
     func bootstrap(
         authService: AuthServiceProtocol,
-        relationshipService: RelationshipServiceProtocol
+        spaceService: SpaceServiceProtocol
     ) async {
         let session = await authService.currentSession()
         authState = session.state
         currentUser = session.user
 
-        let bindingContext = await relationshipService.currentBindingContext(for: session.user?.id)
-        bindingState = bindingContext.state
-        currentPairSpace = bindingContext.pairSpace
-        activeInvite = bindingContext.activeInvite
+        let spaceContext = await spaceService.currentSpaceContext(for: session.user?.id)
+        currentSpace = spaceContext.currentSpace
+        availableSpaces = spaceContext.availableSpaces
+        bindingState = .singleTrial
+        currentPairSpace = nil
+        activeInvite = nil
     }
 }

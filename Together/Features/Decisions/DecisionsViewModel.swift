@@ -33,8 +33,7 @@ final class DecisionsViewModel {
         loadState = .loading
 
         do {
-            let relationshipID = sessionStore.currentPairSpace?.id
-            let decisions = try await decisionRepository.fetchDecisions(relationshipID: relationshipID)
+            let decisions = try await decisionRepository.fetchDecisions(spaceID: sessionStore.currentSpace?.id)
             pendingDecisions = decisions.filter { $0.status == .pendingResponse }
             stalledDecisions = decisions.filter { $0.status == .noConsensusYet }
             consensusDecisions = decisions.filter { $0.status == .consensusReached }

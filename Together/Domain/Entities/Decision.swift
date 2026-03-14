@@ -8,7 +8,7 @@ struct DecisionVote: Hashable, Sendable {
 
 struct Decision: Identifiable, Hashable, Sendable {
     let id: UUID
-    var relationshipID: UUID?
+    var spaceID: UUID?
     let creatorID: UUID
     var template: DecisionTemplate
     var title: String

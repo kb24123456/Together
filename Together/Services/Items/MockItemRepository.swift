@@ -4,10 +4,14 @@ import Foundation
 final class MockItemRepository: ItemRepositoryProtocol {
     private var items: [Item] = MockDataFactory.makeItems()
 
-    func fetchItems(relationshipID: UUID?) async throws -> [Item] {
+    func fetchItems(spaceID: UUID?) async throws -> [Item] {
         items
-            .filter { $0.relationshipID == relationshipID }
+            .filter { $0.spaceID == spaceID && $0.isArchived == false }
             .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func fetchItem(itemID: UUID) async throws -> Item? {
+        items.first(where: { $0.id == itemID })
     }
 
     func updateItemStatus(itemID: UUID, response: ItemResponseKind?, actorID: UUID) async throws -> Item {
@@ -42,11 +46,13 @@ final class MockItemRepository: ItemRepositoryProtocol {
         }
 
         var item = items[index]
-        item.status = ItemStateMachine.nextStatus(
-            from: item.status,
-            executionRole: item.executionRole,
-            isCompletion: true
-        )
+        if item.repeatRule == nil {
+            item.status = ItemStateMachine.nextStatus(
+                from: item.status,
+                executionRole: item.executionRole,
+                isCompletion: true
+            )
+        }
         item.completedAt = MockDataFactory.now
         item.updatedAt = MockDataFactory.now
         items[index] = item
@@ -54,14 +60,10 @@ final class MockItemRepository: ItemRepositoryProtocol {
     }
 
     func saveItem(_ item: Item) async throws -> Item {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else {
-            throw RepositoryError.notFound
-        }
-
         if item.isPinned {
             items = items.map { existing in
                 var copy = existing
-                if existing.relationshipID == item.relationshipID {
+                if existing.spaceID == item.spaceID {
                     copy.isPinned = existing.id == item.id
                 }
                 return copy
@@ -70,7 +72,11 @@ final class MockItemRepository: ItemRepositoryProtocol {
 
         var updatedItem = item
         updatedItem.updatedAt = MockDataFactory.now
-        items[index] = updatedItem
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index] = updatedItem
+        } else {
+            items.append(updatedItem)
+        }
         return updatedItem
     }
 }

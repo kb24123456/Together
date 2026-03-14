@@ -4,6 +4,7 @@ import Observation
 @MainActor
 @Observable
 final class AppRouter {
-    var selectedTab: AppTab = .home
     var activeComposer: ComposerRoute?
+    var isProjectLayerPresented = false
+    var isProfilePresented = false
 }

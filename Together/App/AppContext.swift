@@ -8,8 +8,9 @@ final class AppContext {
     let sessionStore: SessionStore
     let router: AppRouter
     let homeViewModel: HomeViewModel
-    let decisionsViewModel: DecisionsViewModel
-    let anniversariesViewModel: AnniversariesViewModel
+    let listsViewModel: ListsViewModel
+    let projectsViewModel: ProjectsViewModel
+    let calendarViewModel: CalendarViewModel
     let profileViewModel: ProfileViewModel
 
     private(set) var hasBootstrapped = false
@@ -20,17 +21,19 @@ final class AppContext {
         self.router = router
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
-            itemRepository: container.itemRepository,
-            anniversaryRepository: container.anniversaryRepository
+            taskApplicationService: container.taskApplicationService
         )
-        self.decisionsViewModel = DecisionsViewModel(
+        self.listsViewModel = ListsViewModel(
             sessionStore: sessionStore,
-            decisionRepository: container.decisionRepository,
+            taskListRepository: container.taskListRepository
+        )
+        self.projectsViewModel = ProjectsViewModel(
+            sessionStore: sessionStore,
+            projectRepository: container.projectRepository
+        )
+        self.calendarViewModel = CalendarViewModel(
+            sessionStore: sessionStore,
             itemRepository: container.itemRepository
-        )
-        self.anniversariesViewModel = AnniversariesViewModel(
-            sessionStore: sessionStore,
-            anniversaryRepository: container.anniversaryRepository
         )
         self.profileViewModel = ProfileViewModel(
             sessionStore: sessionStore,
@@ -41,7 +44,7 @@ final class AppContext {
     }
 
     static func bootstrap() -> AppContext {
-        let container = MockServiceFactory.makeContainer()
+        let container = LocalServiceFactory.makeContainer()
         let sessionStore = SessionStore()
         let router = AppRouter()
         let context = AppContext(container: container, sessionStore: sessionStore, router: router)
@@ -55,16 +58,18 @@ final class AppContext {
 
         await sessionStore.bootstrap(
             authService: container.authService,
-            relationshipService: container.relationshipService
+            spaceService: container.spaceService
         )
         hasBootstrapped = true
     }
 
     private func seedMockSession() {
         sessionStore.authState = .signedIn
-        sessionStore.bindingState = .paired
+        sessionStore.bindingState = .singleTrial
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.currentPairSpace = MockDataFactory.makePairSpace()
+        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.availableSpaces = [MockDataFactory.makeSingleSpace()]
+        sessionStore.currentPairSpace = nil
         sessionStore.activeInvite = nil
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 struct AppNotification: Identifiable, Hashable, Sendable {
     let id: UUID
-    var relationshipID: UUID?
+    var spaceID: UUID?
     var targetID: UUID
     var targetType: ReminderTargetType
     var channel: ReminderChannel

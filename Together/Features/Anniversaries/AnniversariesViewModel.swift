@@ -29,9 +29,7 @@ final class AnniversariesViewModel {
         loadState = .loading
 
         do {
-            anniversaries = try await anniversaryRepository.fetchAnniversaries(
-                relationshipID: sessionStore.currentPairSpace?.id
-            )
+            anniversaries = try await anniversaryRepository.fetchAnniversaries(spaceID: sessionStore.currentSpace?.id)
             loadState = .loaded
         } catch {
             loadState = .failed(error.localizedDescription)

@@ -3,8 +3,8 @@ import Foundation
 struct MockRelationshipService: RelationshipServiceProtocol {
     func currentBindingContext(for userID: UUID?) async -> BindingContext {
         BindingContext(
-            state: .paired,
-            pairSpace: MockDataFactory.makePairSpace(),
+            state: .singleTrial,
+            pairSpace: nil,
             activeInvite: nil
         )
     }

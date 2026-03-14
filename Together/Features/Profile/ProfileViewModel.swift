@@ -25,9 +25,21 @@ final class ProfileViewModel {
     }
 
     var currentUser: User? { sessionStore.currentUser }
+    var currentSpace: Space? { sessionStore.currentSpace }
     var bindingState: BindingState { sessionStore.bindingState }
     var pairSpace: PairSpace? { sessionStore.currentPairSpace }
     var activeInvite: Invite? { sessionStore.activeInvite }
+
+    var notificationSummary: String {
+        switch notificationAuthorization {
+        case .authorized:
+            return "提醒已开启"
+        case .denied:
+            return "提醒未开启"
+        case .notDetermined:
+            return "尚未请求提醒权限"
+        }
+    }
 
     func load() async {
         loadState = .loading
@@ -49,6 +61,8 @@ final class ProfileViewModel {
         sessionStore.authState = .signedOut
         sessionStore.bindingState = .singleTrial
         sessionStore.currentUser = nil
+        sessionStore.currentSpace = nil
+        sessionStore.availableSpaces = []
         sessionStore.currentPairSpace = nil
     }
 }

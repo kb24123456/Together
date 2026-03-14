@@ -1,15 +1,17 @@
 import Foundation
 
-struct ItemResponse: Hashable, Sendable {
+struct ItemResponse: Hashable, Sendable, Codable {
     let responderID: UUID
     var kind: ItemResponseKind
     var message: String?
     var respondedAt: Date
 }
 
-struct Item: Identifiable, Hashable, Sendable {
+struct Item: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
-    var relationshipID: UUID?
+    var spaceID: UUID?
+    var listID: UUID?
+    var projectID: UUID?
     let creatorID: UUID
     var title: String
     var notes: String?
@@ -26,4 +28,7 @@ struct Item: Identifiable, Hashable, Sendable {
     var completedAt: Date?
     var isPinned: Bool = false
     var isDraft: Bool
+    var isArchived: Bool = false
+    var archivedAt: Date? = nil
+    var repeatRule: ItemRepeatRule? = nil
 }

@@ -14,7 +14,7 @@ enum BindingState: String, CaseIterable, Hashable, Sendable {
     var description: String {
         switch self {
         case .singleTrial:
-            return "单人试用"
+            return "单人模式"
         case .invitePending:
             return "已发出邀请"
         case .inviteReceived:

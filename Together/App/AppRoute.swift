@@ -1,25 +1,29 @@
 import Foundation
 
 enum ComposerRoute: String, Identifiable {
-    case newItem
-    case newDecision
+    case newTask
+    case newProject
 
     var id: String { rawValue }
 }
 
-enum HomeRoute: Hashable {
+enum TodayRoute: Hashable {
     case itemDetail(UUID)
 }
 
-enum DecisionRoute: Hashable {
+enum ListRoute: Hashable {
     case detail(UUID)
 }
 
-enum AnniversaryRoute: Hashable {
+enum ProjectRoute: Hashable {
     case detail(UUID)
+}
+
+enum CalendarRoute: Hashable {
+    case detail(Date)
 }
 
 enum ProfileRoute: Hashable {
     case notificationSettings
-    case bindingDetails
+    case futureCollaboration
 }

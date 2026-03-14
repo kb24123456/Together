@@ -4,9 +4,9 @@ import Foundation
 final class MockDecisionRepository: DecisionRepositoryProtocol {
     private var decisions: [Decision] = MockDataFactory.makeDecisions()
 
-    func fetchDecisions(relationshipID: UUID?) async throws -> [Decision] {
+    func fetchDecisions(spaceID: UUID?) async throws -> [Decision] {
         decisions
-            .filter { $0.relationshipID == relationshipID }
+            .filter { $0.spaceID == spaceID }
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 

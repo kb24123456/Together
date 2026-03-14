@@ -1,237 +1,183 @@
 # 一起 数据模型说明
 
-## 1. 设计原则
-- 所有双人共享数据必须带 `relationshipID`
-- 未绑定试用态产生的数据只能是草稿或示例，不得直接视为共享历史
-- 解绑后旧 `relationshipID` 不得复用
-- 新绑定必须生成新的 `PairSpace.id` 和新的 `dataBoundaryToken`
+## 1. 迁移结论
+
+### 事实
+- 当前仓库已有 `PairSpace / Invite / Decision / Anniversary` 等旧模型。
+- 这些模型来自旧的双人优先方案。
+
+### 结论
+- 当前 MVP 的核心模型应回到 `Task / TaskList / Project / Reminder / Space`。
+- 新开发优先使用通用 `spaceID`，不要继续扩散 `relationshipID`。
+- 双人模式未来应作为 `PairSpace` 扩展能力挂在同一套 Space 模型下，而不是让单人模式变成“未绑定试用态”。
 
 ## 2. User
-
-### 2.1 事实字段
 - `id: UUID`
 - `appleUserID: String?`
 - `displayName: String`
 - `avatarSystemName: String?`
 - `createdAt: Date`
 - `updatedAt: Date`
-- `preferences: NotificationSettings`
+- `preferences: UserPreferences`
 
-### 2.2 NotificationSettings
-- `newItemEnabled: Bool`
-- `decisionEnabled: Bool`
-- `anniversaryEnabled: Bool`
-- `deadlineEnabled: Bool`
+### UserPreferences
+- `theme: AppThemePreference`
+- `startPage: StartPagePreference`
+- `reduceMotionOverride: Bool?`
+- `notificationSettings: NotificationSettings`
 
-## 3. PairSpace / Relationship
+### NotificationSettings
+- `taskReminderEnabled: Bool`
+- `dailySummaryEnabled: Bool`
+- `calendarReminderEnabled: Bool`
+- `futureCollaborationInviteEnabled: Bool`
 
-### 3.1 PairSpace
+## 3. Space
+
+### 3.1 Space
 - `id: UUID`
-- `status: PairSpaceStatus`
-- `memberA: PairMember`
-- `memberB: PairMember?`
-- `dataBoundaryToken: UUID`
-- `createdAt: Date`
-- `activatedAt: Date?`
-- `endedAt: Date?`
-
-### 3.2 PairMember
-- `userID: UUID`
-- `nickname: String`
-- `joinedAt: Date`
-
-### 3.3 PairSpaceStatus
-- `trial`
-- `pendingAcceptance`
-- `active`
-- `ended`
-
-### 3.4 数据边界规则
-- 所有共享 Item / Decision / Anniversary / Reminder 都以 `relationshipID == PairSpace.id` 归属
-- 解绑后活跃 `PairSpace` 失效，但历史 PairSpace 不可自动转给新对象
-- 新关系从新 `PairSpace` 开始，不继承旧对象
-
-## 4. Item（事项）
-
-### 4.1 字段
-- `id: UUID`
-- `relationshipID: UUID?`
-- `creatorID: UUID`
-- `title: String`
-- `notes: String?`
-- `locationText: String?`
-- `executionRole: ItemExecutionRole`
-- `priority: ItemPriority`
-- `dueAt: Date?`
-- `remindAt: Date?`
-- `status: ItemStatus`
-- `latestResponse: ItemResponse?`
-- `responseHistory: [ItemResponse]`
-- `createdAt: Date`
-- `updatedAt: Date`
-- `completedAt: Date?`
-- `isPinned: Bool`
-- `isDraft: Bool`
-
-### 4.2 ItemExecutionRole
-- `initiator`
-  - 存储语义：由发起人完成，对方知情
-  - UI 映射：根据当前用户显示为“我负责 / 对方负责”
-- `recipient`
-  - 存储语义：由接收方完成
-  - UI 映射：根据当前用户显示为“我负责 / 对方负责”
-- `both`
-  - 存储语义：双方共同完成
-  - UI 映射：显示为“双方 / 一起做”
-
-### 4.3 ItemStatus
-- `pendingConfirmation`：待确认
-- `inProgress`：进行中
-- `completed`：已完成
-- `declinedOrBlocked`：未同意 / 无法完成
-
-### 4.4 ItemResponse
-- `responderID: UUID`
-- `kind: ItemResponseKind`
-- `message: String?`
-- `respondedAt: Date`
-
-### 4.6 首页交互补充字段
-- `locationText`
-  - 用于首页卡片轻量展示地理位置信息
-  - 用于事项二次编辑时修改位置文本
-- `isPinned`
-  - 用于首页单卡置顶
-  - 首页排序时优先于普通时间排序
-  - 置顶卡在首页必须使用高强调视觉
-
-### 4.5 ItemResponseKind
-- `willing`
-- `notAvailableNow`
-- `notSuitable`
-- `acknowledged`
-
-## 5. Decision（决策）
-
-### 5.1 字段
-- `id: UUID`
-- `relationshipID: UUID?`
-- `creatorID: UUID`
-- `template: DecisionTemplate`
-- `title: String`
-- `notes: String?`
-- `referenceLink: URL?`
-- `proposedTime: Date?`
-- `status: DecisionStatus`
-- `votes: [DecisionVote]`
+- `type: SpaceType`
+- `displayName: String`
+- `ownerUserID: UUID`
+- `status: SpaceStatus`
 - `createdAt: Date`
 - `updatedAt: Date`
 - `archivedAt: Date?`
-- `convertedItemID: UUID?`
-- `isDraft: Bool`
 
-### 5.2 DecisionTemplate
-- `buy`
-- `eat`
-- `go`
+### 3.2 SpaceType
+- `single`
+- `pair`
+- `multi`
 
-### 5.3 DecisionVote
-- `voterID: UUID`
-- `value: DecisionVoteValue`
-- `respondedAt: Date`
+### 3.3 SpaceStatus
+- `active`
+- `paused`
+- `archived`
 
-### 5.4 DecisionVoteValue
-- `agree`
-- `neutral`
-- `reject`
+### 3.4 SpaceMembership（V2+）
+- `spaceID: UUID`
+- `userID: UUID`
+- `role: SpaceRole`
+- `joinedAt: Date`
 
-### 5.5 DecisionStatus
-- `pendingResponse`：待表态
-- `consensusReached`：已达成一致
-- `noConsensusYet`：暂未达成一致
-- `archived`：已归档
+### 3.5 规则
+- V1 默认只有一个活跃 `SingleSpace`。
+- V2 才开始真正使用 `PairSpace` 的共享能力。
+- V3 以前不要让 `MultiSpace` 进入产品承诺。
 
-## 6. Anniversary（纪念日）
+## 4. Task
 
-### 6.1 字段
+### 4.1 核心字段
 - `id: UUID`
-- `relationshipID: UUID?`
+- `spaceID: UUID`
+- `creatorUserID: UUID`
+- `assigneeUserID: UUID?`
+- `listID: UUID?`
+- `projectID: UUID?`
+- `title: String`
+- `notes: String?`
+- `status: TaskStatus`
+- `priority: TaskPriority`
+- `dueAt: Date?`
+- `remindAt: Date?`
+- `completedAt: Date?`
+- `sortOrder: Double?`
+- `isFlagged: Bool`
+- `createdAt: Date`
+- `updatedAt: Date`
+- `collaboration: TaskCollaboration?`
+
+### 4.2 TaskStatus
+- `inbox`
+- `todo`
+- `inProgress`
+- `completed`
+- `archived`
+
+### 4.3 TaskPriority
+- `normal`
+- `important`
+- `critical`
+
+### 4.4 TaskCollaboration（V2+）
+- `mode: TaskCollaborationMode`
+- `sharedByUserID: UUID`
+- `lastSyncAt: Date?`
+- `partnerState: TaskPartnerState?`
+
+### 4.5 规则
+- `TaskStatus` 表达任务生命周期，不承载未来双人协作的反馈语义。
+- 双人模式下的接收、确认、共同编辑等行为，优先放进 `TaskCollaboration`，不要污染单人任务主状态。
+
+## 5. TaskList
+- `id: UUID`
+- `spaceID: UUID`
 - `name: String`
-- `kind: AnniversaryKind`
-- `eventDate: Date`
-- `reminderRule: ReminderRule?`
+- `kind: TaskListKind`
+- `colorToken: String?`
+- `sortOrder: Double`
+- `isArchived: Bool`
 - `createdAt: Date`
 - `updatedAt: Date`
 
-### 6.2 AnniversaryKind
-- `relationshipStart`
-- `wedding`
-- `trip`
+### TaskListKind
+- `systemInbox`
+- `systemToday`
+- `systemSomeday`
 - `custom`
 
-### 6.3 ReminderRule
-- `leadDays: Int`
-- `remindAtHour: Int`
-- `remindAtMinute: Int`
-
-## 7. Notification / Reminder
-
-### 7.1 代码命名
-- `AppNotification`
-
-### 7.2 字段
+## 6. Project
 - `id: UUID`
-- `relationshipID: UUID?`
-- `targetID: UUID`
-- `targetType: ReminderTargetType`
+- `spaceID: UUID`
+- `name: String`
+- `notes: String?`
+- `colorToken: String?`
+- `status: ProjectStatus`
+- `targetDate: Date?`
+- `createdAt: Date`
+- `updatedAt: Date`
+- `completedAt: Date?`
+
+### ProjectStatus
+- `active`
+- `onHold`
+- `completed`
+- `archived`
+
+## 7. Reminder / Notification
+- `id: UUID`
+- `spaceID: UUID`
+- `taskID: UUID?`
+- `projectID: UUID?`
+- `kind: ReminderKind`
 - `channel: ReminderChannel`
+- `scheduledAt: Date`
+- `deliveredAt: Date?`
 - `status: ReminderDeliveryStatus`
 - `title: String`
 - `body: String`
-- `scheduledAt: Date`
-- `deliveredAt: Date?`
 
-### 7.3 ReminderTargetType
-- `item`
-- `decision`
-- `anniversary`
-- `invite`
-- `binding`
+### ReminderKind
+- `taskDue`
+- `taskReminder`
+- `dailySummary`
+- `projectDeadline`
+- `futurePairInvite`
 
-## 8. Invite / BindingState
+## 8. 附加模块（非 V1 核心）
 
-### 8.1 Invite
-- `id: UUID`
-- `pairSpaceID: UUID`
-- `inviterID: UUID`
-- `inviteCode: String`
-- `status: InviteStatus`
-- `sentAt: Date`
-- `respondedAt: Date?`
-- `expiresAt: Date`
+### DecisionCard（后续）
+- 用于记录需要讨论的事项，不再作为首页主数据对象。
+- 若保留，必须挂在 `spaceID` 下，而不是独立于 Todo 系统之外。
 
-### 8.2 InviteStatus
-- `pending`
-- `accepted`
-- `declined`
-- `expired`
-- `cancelled`
-- `revoked`
+### AnniversaryEvent（后续）
+- 用于记录纪念性日期或重要提醒。
+- 若实现，优先作为提醒附加能力，而不是一级主流程。
 
-### 8.3 BindingState
-- `singleTrial`
-- `invitePending`
-- `inviteReceived`
-- `paired`
-- `unbound`
+## 9. 兼容说明
+- 当前代码仍使用 `relationshipID` 与 `PairSpace` 的地方，属于迁移中的技术债。
+- 后续代码改造时，优先引入兼容层或映射层，再逐步迁移字段命名，避免一次性大拆。
 
-## 9. Assumptions / Open Questions
-
-### 9.1 Assumptions
-- 当前字段先覆盖首版闭环，不提前扩成聊天、评论、附件、子任务模型
-- `relationshipID == nil` 视为未进入双人空间的本地草稿或示例数据
-
-### 9.2 Open Questions
-- Item 是否允许图片 / 链接附件，文档未明确
-- Decision 的链接字段是否需要富预览，文档未明确
-- Anniversary 是否区分农历、重复周期，文档未明确
+## 10. Open Questions
+- V1 是否需要独立的标签模型，还是先用 `TaskList + Project` 组合承接。
+- `TaskStatus.inbox` 与 `TaskList.systemInbox` 是否统一用一个系统语义源维护。

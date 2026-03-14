@@ -6,57 +6,87 @@ struct AppRootView: View {
     var body: some View {
         @Bindable var router = appContext.router
 
-        TabView(selection: $router.selectedTab) {
-            Tab(value: .home) {
-                NavigationStack {
-                    HomeView(viewModel: appContext.homeViewModel)
-                }
-            } label: {
-                Image(systemName: "checkmark.square")
-                    .symbolVariant(.none)
-                    .font(.system(size: 19, weight: .light))
-                    .accessibilityLabel("首页")
+        ZStack(alignment: .bottom) {
+            ProjectsView(
+                viewModel: appContext.projectsViewModel,
+                style: .layer
+            )
+            .opacity(router.isProjectLayerPresented ? 1 : 0)
+            .animation(.easeInOut(duration: 0.22), value: router.isProjectLayerPresented)
+
+            NavigationStack {
+                HomeView(
+                    viewModel: appContext.homeViewModel,
+                    isProjectLayerPresented: router.isProjectLayerPresented
+                )
             }
 
-            Tab(value: .decisions) {
-                NavigationStack {
-                    DecisionsView(viewModel: appContext.decisionsViewModel)
+        }
+        .background(
+            Group {
+                if router.isProjectLayerPresented {
+                    AppTheme.colors.projectLayerBackground.ignoresSafeArea()
+                } else {
+                    AppTheme.colors.homeBackground.ignoresSafeArea()
                 }
-            } label: {
-                Image(systemName: "bubble.and.pencil.rtl")
-                    .symbolVariant(.none)
-                    .font(.system(size: 19, weight: .light))
-                    .accessibilityLabel("决策")
             }
-
-            Tab(value: .anniversaries) {
-                NavigationStack {
-                    AnniversariesView(viewModel: appContext.anniversariesViewModel)
+        )
+        .safeAreaInset(edge: .bottom, spacing: 10) {
+            HomeDockBar(
+                isProjectLayerPresented: router.isProjectLayerPresented,
+                onProfileTapped: {
+                    router.isProjectLayerPresented = false
+                    router.isProfilePresented = true
+                },
+                onComposeTapped: {
+                    router.isProjectLayerPresented = false
+                    router.activeComposer = .newTask
+                },
+                onProjectsTapped: {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                        router.isProjectLayerPresented.toggle()
+                    }
                 }
-            } label: {
-                Image(systemName: "heart.text.square")
-                    .symbolVariant(.none)
-                    .font(.system(size: 19, weight: .light))
-                    .accessibilityLabel("纪念日")
-            }
-
-            Tab(value: .profile) {
-                NavigationStack {
-                    ProfileView(viewModel: appContext.profileViewModel)
+            )
+        }
+        .fullScreenCover(isPresented: $router.isProfilePresented) {
+            NavigationStack {
+                ProfileView(viewModel: appContext.profileViewModel)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("关闭") {
+                                router.isProfilePresented = false
+                            }
+                        }
                 }
-            } label: {
-                Image(systemName: "suit.heart")
-                    .symbolVariant(.none)
-                    .font(.system(size: 19, weight: .light))
-                    .accessibilityLabel("我")
             }
         }
         .sheet(item: $router.activeComposer) { route in
-            ComposerPlaceholderSheet(route: route)
+            ComposerPlaceholderSheet(
+                route: route,
+                appContext: appContext
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+            .presentationCornerRadius(40)
+            .presentationBackground(AppTheme.colors.surface)
+            .presentationBackgroundInteraction(.enabled)
+            .presentationContentInteraction(.scrolls)
+            .interactiveDismissDisabled(false)
+            .modifier(ComposerPresentationSizingModifier())
         }
         .environment(\.symbolVariants, .none)
-        .background(AppTheme.colors.background.ignoresSafeArea())
         .font(AppTheme.typography.body)
         .tint(AppTheme.colors.title)
+    }
+}
+
+private struct ComposerPresentationSizingModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.presentationSizing(.page)
+        } else {
+            content
+        }
     }
 }

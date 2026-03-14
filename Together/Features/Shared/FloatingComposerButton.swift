@@ -1,19 +1,19 @@
 import SwiftUI
 
 struct FloatingComposerButton: View {
-    let onCreateItem: () -> Void
-    let onCreateDecision: () -> Void
+    let onCreateTask: () -> Void
+    let onCreateProject: () -> Void
 
     private let floatingPink = Color(red: 0.91, green: 0.39, blue: 0.60)
 
     var body: some View {
         Menu {
-            Button("发请求", systemImage: "square.and.pencil") {
-                onCreateItem()
+            Button("新建任务", systemImage: "square.and.pencil") {
+                onCreateTask()
             }
 
-            Button("发决策", systemImage: "checklist") {
-                onCreateDecision()
+            Button("新建项目", systemImage: "folder.badge.plus") {
+                onCreateProject()
             }
         } label: {
             Image(systemName: "plus")
