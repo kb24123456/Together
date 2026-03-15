@@ -106,6 +106,13 @@ final class HomeViewModel {
         return items.first(where: { $0.id == selectedItemID })
     }
 
+    var quickTimePresetMinutes: [Int] {
+        NotificationSettings.normalizedQuickTimePresetMinutes(
+            sessionStore.currentUser?.preferences.quickTimePresetMinutes
+            ?? NotificationSettings.defaultQuickTimePresetMinutes
+        )
+    }
+
     var headerAvatars: [HomeAvatar] {
         if showsPairAvatarPreview {
             return [currentUserAvatar, pairPreviewAvatar]

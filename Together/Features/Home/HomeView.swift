@@ -22,6 +22,16 @@ struct HomeView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .offset(y: projectCardOffset)
                 }
+
+                if viewModel.selectedItemID != nil {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            HomeInteractionFeedback.selection()
+                            viewModel.dismissItemDetail()
+                        }
+                }
             }
             .ignoresSafeArea(edges: .top)
         }
@@ -183,6 +193,12 @@ struct HomeView: View {
                         .foregroundStyle(AppTheme.colors.title)
                     Text("保持留白，必要时从底部中间按钮快速添加。")
                         .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
+                    if viewModel.hasCompletedEntries {
+                        completedVisibilityButton
+                            .padding(.top, 8)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, AppTheme.spacing.xl)
@@ -221,23 +237,9 @@ struct HomeView: View {
                     }
 
                     if viewModel.hasCompletedEntries {
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            viewModel.toggleCompletedVisibility()
-                        } label: {
-                            Text("\(viewModel.completedVisibilityButtonTitle) \(viewModel.completedEntryCount)")
-                                .font(AppTheme.typography.sized(13, weight: .semibold))
-                                .foregroundStyle(AppTheme.colors.body.opacity(0.76))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 9)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(AppTheme.colors.surfaceElevated)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 14)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                        completedVisibilityButton
+                            .padding(.top, 14)
+                            .frame(maxWidth: .infinity, alignment: .center)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -251,6 +253,24 @@ struct HomeView: View {
         .animation(.spring(response: 0.26, dampingFraction: 0.88), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.timelineEntryIDs)
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.hasCompletedEntries)
+    }
+
+    private var completedVisibilityButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            viewModel.toggleCompletedVisibility()
+        } label: {
+            Text("\(viewModel.completedVisibilityButtonTitle) \(viewModel.completedEntryCount)")
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.76))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(AppTheme.colors.surfaceElevated)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private var headerPrimaryColor: Color {
