@@ -6,6 +6,7 @@ struct TaskDraft: Hashable, Sendable {
     var listID: UUID?
     var projectID: UUID?
     var dueAt: Date?
+    var hasExplicitTime: Bool
     var remindAt: Date?
     var priority: ItemPriority
     var executionRole: ItemExecutionRole
@@ -20,6 +21,7 @@ struct TaskDraft: Hashable, Sendable {
         listID: UUID? = nil,
         projectID: UUID? = nil,
         dueAt: Date? = nil,
+        hasExplicitTime: Bool = false,
         remindAt: Date? = nil,
         priority: ItemPriority = .normal,
         executionRole: ItemExecutionRole = .initiator,
@@ -33,6 +35,7 @@ struct TaskDraft: Hashable, Sendable {
         self.listID = listID
         self.projectID = projectID
         self.dueAt = dueAt
+        self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
         self.priority = priority
         self.executionRole = executionRole
@@ -51,6 +54,7 @@ extension TaskDraft {
             listID: item.listID,
             projectID: item.projectID,
             dueAt: item.dueAt,
+            hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
             priority: item.priority,
             executionRole: item.executionRole,

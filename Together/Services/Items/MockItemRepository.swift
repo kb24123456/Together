@@ -79,4 +79,11 @@ final class MockItemRepository: ItemRepositoryProtocol {
         }
         return updatedItem
     }
+
+    func deleteItem(itemID: UUID) async throws {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+        items.remove(at: index)
+    }
 }

@@ -35,6 +35,7 @@ final class HomeViewModel {
     private let taskApplicationService: TaskApplicationServiceProtocol
 
     private var detailSaveTask: Task<Void, Never>?
+    private var savedDetailDraft: TaskDraft?
     private(set) var selectedDateTransitionEdge: Edge = .trailing
 
     var selectedDate: Date = Date()
@@ -44,7 +45,7 @@ final class HomeViewModel {
     var showsPairAvatarPreview = false
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
-    var detailDetent: PresentationDetent = .medium
+    var detailDetent: PresentationDetent = .height(340)
     var isPerformingCompletion = false
     var recentCompletedItemID: UUID?
     var showsCompletedItems = true
@@ -106,6 +107,11 @@ final class HomeViewModel {
         return items.first(where: { $0.id == selectedItemID })
     }
 
+    var hasUnsavedDetailChanges: Bool {
+        guard detailDetent == .large, let detailDraft else { return false }
+        return detailDraft != savedDetailDraft
+    }
+
     var quickTimePresetMinutes: [Int] {
         NotificationSettings.normalizedQuickTimePresetMinutes(
             sessionStore.currentUser?.preferences.quickTimePresetMinutes
@@ -156,8 +162,10 @@ final class HomeViewModel {
     func presentItemDetail(_ itemID: UUID) {
         guard let item = items.first(where: { $0.id == itemID }) else { return }
         selectedItemID = itemID
-        detailDraft = TaskDraft(item: item)
-        detailDetent = .medium
+        let draft = TaskDraft(item: item)
+        detailDraft = draft
+        savedDetailDraft = draft
+        detailDetent = .height(340)
     }
 
     func dismissItemDetail() {
@@ -165,7 +173,8 @@ final class HomeViewModel {
         detailSaveTask = nil
         selectedItemID = nil
         detailDraft = nil
-        detailDetent = .medium
+        savedDetailDraft = nil
+        detailDetent = .height(340)
     }
 
     func markDetailForExpandedEditing() {
@@ -194,6 +203,7 @@ final class HomeViewModel {
             )
         } else {
             draft.dueAt = nil
+            draft.hasExplicitTime = false
         }
         detailDraft = draft
         scheduleDetailSave(immediately: true)
@@ -211,6 +221,20 @@ final class HomeViewModel {
         guard var draft = detailDraft else { return }
         let existing = draft.dueAt ?? defaultDueDate()
         draft.dueAt = merge(date: existing, timeSource: dueTime)
+        draft.hasExplicitTime = true
+        detailDraft = draft
+        scheduleDetailSave(immediately: true)
+    }
+
+    func clearDraftDueTime() {
+        guard var draft = detailDraft, let dueAt = draft.dueAt else { return }
+        draft.dueAt = calendar.date(
+            bySettingHour: 18,
+            minute: 0,
+            second: 0,
+            of: dueAt
+        ) ?? dueAt
+        draft.hasExplicitTime = false
         detailDraft = draft
         scheduleDetailSave(immediately: true)
     }
@@ -240,6 +264,11 @@ final class HomeViewModel {
     func updateDraftRepeatRule(_ rule: ItemRepeatRule?) {
         detailDraft?.repeatRule = rule
         scheduleDetailSave(immediately: true)
+    }
+
+    func saveDetailDraft() async {
+        detailSaveTask?.cancel()
+        await persistDetailDraft()
     }
 
     func updateDraftRepeatRule(_ frequency: ItemRepeatFrequency?) {
@@ -289,6 +318,26 @@ final class HomeViewModel {
         }
 
         isPerformingCompletion = false
+    }
+
+    func deleteSelectedItem() async {
+        guard
+            let itemID = selectedItemID,
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+
+        do {
+            try await taskApplicationService.deleteTask(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID
+            )
+            items.removeAll { $0.id == itemID }
+            dismissItemDetail()
+        } catch {
+            return
+        }
     }
 
     func toggleCompletedVisibility() {
@@ -350,6 +399,7 @@ final class HomeViewModel {
     }
 
     private func scheduleDetailSave(immediately: Bool = false) {
+        guard detailDetent != .large else { return }
         detailSaveTask?.cancel()
         detailSaveTask = Task { [weak self] in
             guard let self else { return }
@@ -376,6 +426,9 @@ final class HomeViewModel {
                 actorID: actorID,
                 draft: detailDraft
             )
+            let refreshedDraft = TaskDraft(item: saved)
+            self.detailDraft = refreshedDraft
+            self.savedDetailDraft = refreshedDraft
             replaceItem(saved)
         } catch {
             return

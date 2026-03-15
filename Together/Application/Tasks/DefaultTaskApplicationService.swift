@@ -59,6 +59,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             executionRole: draft.executionRole,
             priority: draft.priority,
             dueAt: draft.dueAt,
+            hasExplicitTime: draft.hasExplicitTime,
             remindAt: draft.remindAt,
             status: draft.status,
             latestResponse: nil,
@@ -96,6 +97,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.priority = draft.priority
         item.executionRole = draft.executionRole
         item.status = draft.status
+        item.hasExplicitTime = draft.hasExplicitTime
         item.isPinned = draft.isPinned
         item.isDraft = draft.isDraft
         item.repeatRule = draft.repeatRule
@@ -223,6 +225,20 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         )
         await reminderScheduler.removeTaskReminder(for: saved.id)
         return saved
+    }
+
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {
+        _ = try await existingTask(in: spaceID, taskID: taskID)
+        try await itemRepository.deleteItem(itemID: taskID)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .task,
+                operation: .delete,
+                recordID: taskID,
+                spaceID: spaceID
+            )
+        )
+        await reminderScheduler.removeTaskReminder(for: taskID)
     }
 
     func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item {

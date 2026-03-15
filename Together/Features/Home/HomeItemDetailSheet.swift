@@ -5,10 +5,16 @@ import UIKit
 
 struct HomeItemDetailSheet: View {
     @Bindable var viewModel: HomeViewModel
-    @FocusState private var focusedField: Field?
-    @State private var activeMenu: HomeDetailMenu?
+    @State private var focusedField: Field?
+    @State private var activeMenu: TaskEditorMenu?
+    @State private var pendingAction: DetailEntryAction?
+    @State private var isAwaitingDeleteConfirmation = false
+    @State private var lastFocusedFieldBeforeMenu: Field?
+    @State private var focusCoordinator = DetailTextInputFocusCoordinator()
+    @Namespace private var chipRowNamespace
+    @Namespace private var categorySwitcherNamespace
 
-    private enum Field: Hashable {
+    enum Field: Hashable {
         case title
         case notes
     }
@@ -18,24 +24,26 @@ struct HomeItemDetailSheet: View {
         case periodic
     }
 
+    private enum DetailEntryAction {
+        case none
+        case focus(Field)
+        case menu(TaskEditorMenu)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
                 if viewModel.detailDraft != nil {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
-                            editorSection
-                            chipSection
-                            Spacer(minLength: 0)
+                    GeometryReader { proxy in
+                        Group {
+                            if isExpandedEditor {
+                                expandedEditorLayout(proxy: proxy)
+                            } else {
+                                compactDetailLayout(proxy: proxy)
+                            }
                         }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .frame(minHeight: 0, alignment: .top)
-                        .padding(.horizontal, 28)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
-                    .padding(.top, 20)
-                    .padding(.bottom, 20)
-                    .scrollIndicators(.hidden)
-                    .background(.clear)
                 } else {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,15 +51,28 @@ struct HomeItemDetailSheet: View {
             }
         }
         .background(.clear)
+        .overlay {
+            if activeMenu != nil {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        dismissActiveMenu()
+                    }
+            }
+        }
         .sheet(item: $activeMenu) { menu in
-            HomeDetailMenuSheet(menu: menu, viewModel: viewModel)
+            HomeDetailMenuSheet(menu: menu, viewModel: viewModel, onDismiss: dismissActiveMenu)
                 .presentationDetents(menu.detents)
                 .presentationContentInteraction(.scrolls)
                 .presentationBackgroundInteraction(.enabled)
                 .presentationDragIndicator(.hidden)
-                .modifier(HomeDetailMenuPresentationSizingModifier())
+                .interactiveDismissDisabled(false)
+                .modifier(TaskEditorMenuPresentationSizingModifier())
+                .onDisappear {
+                    restoreFocusAfterMenuIfNeeded(preferImmediateResponder: true)
+                }
         }
-        .presentationDetents([.medium, .large], selection: $viewModel.detailDetent)
+        .presentationDetents([.height(340), .large], selection: $viewModel.detailDetent)
         .presentationDragIndicator(.hidden)
         .presentationBackgroundInteraction(.enabled)
         .onChange(of: focusedField) { _, newValue in
@@ -60,98 +81,439 @@ struct HomeItemDetailSheet: View {
                 viewModel.markDetailForExpandedEditing()
             }
         }
+        .onChange(of: viewModel.detailDetent) { _, newValue in
+            guard newValue == .large else { return }
+            performPendingActionIfNeeded()
+        }
     }
 
-    private var editorSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField(
-                detailCategory == .periodic ? "周期任务标题" : "任务标题",
+    private var isExpandedEditor: Bool {
+        viewModel.detailDetent == .large
+    }
+
+    private func compactDetailLayout(proxy: GeometryProxy) -> some View {
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    cancelInlineDeleteConfirmation()
+                }
+
+            VStack(alignment: .leading, spacing: 0) {
+                compactHeaderSection
+                compactMetaSection
+                compactChipSection
+                    .padding(.top, 14)
+                compactActionButtons
+                    .padding(.top, 12)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 18)
+        .padding(.bottom, max(proxy.safeAreaInsets.bottom, 6))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func expandedEditorLayout(proxy: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            expandedCategorySwitcher
+                .padding(.top, 18)
+                .padding(.bottom, 8)
+
+            expandedEditorSection
+                .padding(.horizontal, 26)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(AppTheme.colors.surface)
+        .overlay(alignment: .bottom) {
+            expandedBottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, 8))
+        }
+        .ignoresSafeArea(edges: .bottom)
+    }
+
+    private var expandedCategorySwitcher: some View {
+        HStack(spacing: 10) {
+            ForEach(["周期性", "任务", "项目"], id: \.self) { title in
+                let isActive = expandedCategoryTitle == title
+
+                Button {
+                    if isActive {
+                        HomeInteractionFeedback.selection()
+                        focusedField = .title
+                    }
+                } label: {
+                    Text(title)
+                        .font(AppTheme.typography.sized(18, weight: isActive ? .bold : .semibold))
+                        .foregroundStyle(isActive ? AppTheme.colors.title : AppTheme.colors.textTertiary)
+                        .scaleEffect(isActive ? 1 : 0.96)
+                        .padding(.horizontal, 17)
+                        .padding(.vertical, 9)
+                        .background(
+                            ZStack {
+                                if isActive {
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(AppTheme.colors.surfaceElevated)
+                                        .matchedGeometryEffect(
+                                            id: "detail.categorySwitcher.selection",
+                                            in: categorySwitcherNamespace
+                                        )
+                                }
+                            }
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!isActive)
+            }
+        }
+        .padding(.bottom, 10)
+    }
+
+    private func expandedBottomActionArea(bottomInset: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            VStack(alignment: .leading, spacing: viewModel.hasUnsavedDetailChanges ? 12 : 10) {
+                Text(currentStateText)
+                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+
+                chipRow { menu in
+                    HomeInteractionFeedback.selection()
+                    openMenu(menu)
+                }
+
+                if viewModel.hasUnsavedDetailChanges {
+                    expandedSaveButton
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
+            .background(
+                LinearGradient(
+                    colors: [.clear, AppTheme.colors.surface.opacity(0.97)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        .padding(.bottom, bottomInset)
+        .animation(.spring(response: 0.24, dampingFraction: 0.88), value: viewModel.hasUnsavedDetailChanges)
+    }
+
+    private var expandedSaveButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            Task {
+                await viewModel.saveDetailDraft()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(13, weight: .bold))
+                Text("保存")
+                    .font(AppTheme.typography.sized(15, weight: .bold))
+            }
+            .foregroundStyle(AppTheme.colors.coral)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemFill))
+            )
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(.white.opacity(0.54), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var compactHeaderSection: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Button {
+                HomeInteractionFeedback.selection()
+                expandToLarge(for: .focus(.title))
+            } label: {
+                Text(viewModel.detailDraft?.title ?? "")
+                    .font(AppTheme.typography.sized(32, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                HomeInteractionFeedback.selection()
+                expandToLarge(for: .focus(.notes))
+            } label: {
+                Text(compactNotesText)
+                    .font(AppTheme.typography.sized(18, weight: .medium))
+                    .foregroundStyle(compactNotesColor)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var compactMetaSection: some View {
+        Text(currentStateText)
+            .font(AppTheme.typography.sized(15, weight: .semibold))
+            .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+            .padding(.top, 38)
+    }
+
+    private var compactChipSection: some View {
+        chipRow { menu in
+            HomeInteractionFeedback.selection()
+            expandToLarge(for: .menu(menu))
+        }
+        .opacity(0.94)
+    }
+
+    private var compactActionButtons: some View {
+        HStack(spacing: 10) {
+            compactActionButton(
+                title: viewModel.detailDraft?.isPinned == true ? "已置顶" : "置顶",
+                systemImage: "pin",
+                tint: AppTheme.colors.body
+            ) {
+                HomeInteractionFeedback.selection()
+                viewModel.updateDraftPinned(!(viewModel.detailDraft?.isPinned ?? false))
+            }
+
+            compactActionButton(
+                title: "编辑",
+                systemImage: "pencil",
+                tint: AppTheme.colors.body
+            ) {
+                HomeInteractionFeedback.selection()
+                expandToLarge(for: .focus(.title))
+            }
+
+            compactDeleteButton
+        }
+    }
+
+    private func compactActionButton(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(AppTheme.typography.sized(22, weight: .semibold))
+                Text(title)
+                    .font(AppTheme.typography.sized(17, weight: .semibold))
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 84)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color(uiColor: .quaternarySystemFill).opacity(0.86))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(.white.opacity(0.28), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var compactDeleteButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            if isAwaitingDeleteConfirmation {
+                Task {
+                    await viewModel.deleteSelectedItem()
+                }
+            } else {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    isAwaitingDeleteConfirmation = true
+                }
+            }
+        } label: {
+            ZStack {
+                if isAwaitingDeleteConfirmation {
+                    compactDeleteContent(
+                        title: "确认",
+                        systemImage: "checkmark"
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+                } else {
+                    compactDeleteContent(
+                        title: "移除",
+                        systemImage: "trash"
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    ))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 84)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color(uiColor: .quaternarySystemFill).opacity(0.82))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(.white.opacity(0.24), lineWidth: 1)
+            }
+            .clipped()
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isAwaitingDeleteConfirmation)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func compactDeleteContent(
+        title: String,
+        systemImage: String
+    ) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(AppTheme.typography.sized(22, weight: .semibold))
+                .contentTransition(.symbolEffect(.replace))
+            Text(title)
+                .font(AppTheme.typography.sized(17, weight: .semibold))
+                .contentTransition(.interpolate)
+        }
+        .foregroundStyle(AppTheme.colors.coral)
+    }
+
+    private var expandedEditorSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            DetailFocusableTextView(
                 text: Binding(
                     get: { viewModel.detailDraft?.title ?? "" },
                     set: { viewModel.updateDraftTitle($0) }
                 ),
-                axis: .vertical
+                focusedField: $focusedField,
+                focusCoordinator: focusCoordinator,
+                field: .title,
+                placeholder: detailCategory == .periodic ? "周期任务标题" : "任务标题",
+                font: AppTheme.typography.sizedUIFont(30, weight: .bold),
+                textColor: UIColor(AppTheme.colors.title),
+                placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.62)),
+                maximumNumberOfLines: 3
             )
-            .font(AppTheme.typography.sized(34, weight: .bold))
-            .foregroundStyle(AppTheme.colors.title)
-            .focused($focusedField, equals: .title)
 
-            TextField(
-                "添加备注...",
+            DetailFocusableTextView(
                 text: Binding(
                     get: { viewModel.detailDraft?.notes ?? "" },
                     set: { viewModel.updateDraftNotes($0) }
                 ),
-                axis: .vertical
+                focusedField: $focusedField,
+                focusCoordinator: focusCoordinator,
+                field: .notes,
+                placeholder: "添加备注...",
+                font: AppTheme.typography.sizedUIFont(16, weight: .medium),
+                textColor: UIColor(AppTheme.colors.body.opacity(0.78)),
+                placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.74)),
+                maximumNumberOfLines: 8
             )
-            .font(AppTheme.typography.sized(20, weight: .regular))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.88))
-            .lineLimit(4)
-            .focused($focusedField, equals: .notes)
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    private var chipSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(chips) { chip in
-                    Button {
-                        HomeInteractionFeedback.selection()
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                            viewModel.markDetailForExpandedEditing()
-                        }
-                        activeMenu = chip.menu
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: chip.systemImage)
-                                .font(AppTheme.typography.sized(14, weight: .semibold))
-                            Text(chip.title)
-                                .font(AppTheme.typography.sized(14, weight: .semibold))
-                        }
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.84))
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color(uiColor: .secondarySystemFill))
-                        )
-                        .overlay {
-                            Capsule(style: .continuous)
-                                .stroke(.white.opacity(0.54), lineWidth: 1)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
+    private func chipRow(action: @escaping (TaskEditorMenu) -> Void) -> some View {
+        TaskEditorChipRow(
+            chips: chips,
+            namespace: chipRowNamespace,
+            trailingInset: 0,
+            onChipTap: action,
+            onClearTap: { chip in
+                HomeInteractionFeedback.selection()
+                guard chip.menu == .time else { return }
+                viewModel.clearDraftDueTime()
             }
-            .padding(.vertical, 2)
-        }
-        .scrollIndicators(.hidden)
-        .padding(.top, 6)
+        )
     }
 
     private var detailCategory: DetailCategory {
         viewModel.detailDraft?.repeatRule == nil ? .task : .periodic
     }
 
-    private var chips: [HomeDetailChip] {
+    private var expandedCategoryTitle: String {
+        switch detailCategory {
+        case .periodic:
+            return "周期性"
+        case .task:
+            return "任务"
+        }
+    }
+
+    private var chips: [TaskEditorRenderedChip] {
+        let snapshots: [TaskEditorChipSnapshot]
         switch detailCategory {
         case .task:
-            return [
-                HomeDetailChip(systemImage: "calendar", title: taskDateTitle, menu: .date),
-                HomeDetailChip(systemImage: "clock", title: taskTimeTitle, menu: .time),
-                HomeDetailChip(systemImage: "bell", title: reminderTitle, menu: .reminder),
-                HomeDetailChip(
-                    systemImage: "flag",
+            snapshots = [
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.date.rawValue,
+                    title: taskDateTitle,
+                    systemImage: "calendar",
+                    menu: .date,
+                    semanticValue: .date(viewModel.detailDraft?.dueAt ?? viewModel.selectedDate)
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.time.rawValue,
+                    title: taskTimeTitle,
+                    systemImage: "clock",
+                    menu: .time,
+                    semanticValue: .time(viewModel.detailDraft?.dueAt),
+                    showsTrailingClear: showsTimeClearButton
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.reminder.rawValue,
+                    title: reminderTitle,
+                    systemImage: "bell",
+                    menu: .reminder,
+                    semanticValue: .reminder(reminderOffset)
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.priority.rawValue,
                     title: viewModel.detailDraft?.priority.title ?? "普通",
-                    menu: .priority
+                    systemImage: "flag",
+                    menu: .priority,
+                    semanticValue: .priority(viewModel.detailDraft?.priority.animationRank ?? 0)
                 )
             ]
         case .periodic:
-            return [
-                HomeDetailChip(systemImage: "arrow.triangle.2.circlepath", title: repeatTitle, menu: .repeatRule),
-                HomeDetailChip(systemImage: "bell", title: reminderTitle, menu: .reminder)
+            snapshots = [
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.repeatRule.rawValue,
+                    title: repeatTitle,
+                    systemImage: "arrow.triangle.2.circlepath",
+                    menu: .repeatRule,
+                    semanticValue: .repeatRule(
+                        title: repeatTitle,
+                        rank: viewModel.detailDraft?.repeatRule?.animationRank ?? 0
+                    )
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.reminder.rawValue,
+                    title: reminderTitle,
+                    systemImage: "bell",
+                    menu: .reminder,
+                    semanticValue: .reminder(reminderOffset)
+                )
             ]
         }
+
+        return makeRenderedChips(from: snapshots)
     }
 
     private var taskDateTitle: String {
@@ -159,7 +521,12 @@ struct HomeItemDetailSheet: View {
     }
 
     private var taskTimeTitle: String {
-        guard let dueAt = viewModel.detailDraft?.dueAt else { return "时间" }
+        guard
+            viewModel.detailDraft?.hasExplicitTime == true,
+            let dueAt = viewModel.detailDraft?.dueAt
+        else {
+            return "时间"
+        }
         return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
@@ -170,7 +537,7 @@ struct HomeItemDetailSheet: View {
         }
 
         let delta = dueAt.timeIntervalSince(remindAt)
-        return HomeDetailReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
+        return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
     }
 
     private var repeatTitle: String {
@@ -181,6 +548,10 @@ struct HomeItemDetailSheet: View {
             return "不重复"
         }
         return rule.title(anchorDate: dueAt, calendar: .current)
+    }
+
+    private var showsTimeClearButton: Bool {
+        viewModel.detailDraft?.hasExplicitTime == true
     }
 
     private func localizedRelativeMonthDayText(_ date: Date) -> String {
@@ -195,17 +566,143 @@ struct HomeItemDetailSheet: View {
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
-        formatter.setLocalizedDateFormatFromTemplate("M月d日")
+        formatter.dateFormat = "M月d日"
         return formatter.string(from: date)
     }
 
-}
+    private func absoluteMonthDayText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter.string(from: date)
+    }
 
-private struct HomeDetailChip: Identifiable {
-    let id = UUID()
-    let systemImage: String
-    let title: String
-    let menu: HomeDetailMenu
+    private var compactNotesText: String {
+        let notes = viewModel.detailDraft?.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return notes.isEmpty ? "添加备注..." : notes
+    }
+
+    private var compactNotesColor: Color {
+        let notes = viewModel.detailDraft?.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return notes.isEmpty ? AppTheme.colors.textTertiary.opacity(0.74) : AppTheme.colors.body.opacity(0.78)
+    }
+
+    private var currentStateText: String {
+        "\(statusDateText) · \(statusLabelText)"
+    }
+
+    private var reminderOffset: TimeInterval? {
+        guard
+            let dueAt = viewModel.detailDraft?.dueAt,
+            let remindAt = viewModel.detailDraft?.remindAt
+        else { return nil }
+        return dueAt.timeIntervalSince(remindAt)
+    }
+
+    private var statusDateText: String {
+        if
+            let rule = viewModel.detailDraft?.repeatRule,
+            let dueAt = viewModel.detailDraft?.dueAt
+        {
+            return rule.title(anchorDate: dueAt, calendar: .current)
+        }
+        guard let dueAt = viewModel.detailDraft?.dueAt else { return "未安排" }
+        return localizedRelativeMonthDayText(dueAt)
+    }
+
+    private func cancelInlineDeleteConfirmation() {
+        guard isAwaitingDeleteConfirmation else { return }
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+            isAwaitingDeleteConfirmation = false
+        }
+    }
+
+    private var statusLabelText: String {
+        if let item = viewModel.selectedItem,
+           item.isCompleted(on: viewModel.selectedDate, calendar: .current) || item.status == .completed {
+            return "已完成"
+        }
+        if let dueAt = viewModel.detailDraft?.dueAt, dueAt <= .now {
+            return "已超时"
+        }
+        return "进行中"
+    }
+
+    private func expandToLarge(for action: DetailEntryAction) {
+        cancelInlineDeleteConfirmation()
+        pendingAction = action
+
+        if isExpandedEditor {
+            performPendingActionIfNeeded()
+            return
+        }
+
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            viewModel.markDetailForExpandedEditing()
+        }
+    }
+
+    private func performPendingActionIfNeeded() {
+        guard let pendingAction else { return }
+        self.pendingAction = nil
+
+        switch pendingAction {
+        case .none:
+            break
+        case let .focus(field):
+            DispatchQueue.main.async {
+                focusedField = field
+            }
+        case let .menu(menu):
+            openMenu(menu)
+        }
+    }
+
+    private func restoreFocusAfterMenuIfNeeded(preferImmediateResponder: Bool = false) {
+        guard let field = lastFocusedFieldBeforeMenu else { return }
+        lastFocusedFieldBeforeMenu = nil
+        focusedField = field
+
+        guard preferImmediateResponder else { return }
+        focusCoordinator.requestFocus(for: field)
+        DispatchQueue.main.async {
+            focusCoordinator.requestFocus(for: field)
+        }
+    }
+
+    private func openMenu(_ menu: TaskEditorMenu) {
+        lastFocusedFieldBeforeMenu = focusedField ?? focusCoordinator.currentFocusedField ?? .title
+        focusCoordinator.resignCurrentResponder()
+        focusedField = nil
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withTransaction(HomeDetailMenuAnimation.presentationTransaction) {
+                activeMenu = menu
+            }
+        }
+    }
+
+    private func dismissActiveMenu() {
+        restoreFocusAfterMenuIfNeeded(preferImmediateResponder: true)
+        withTransaction(HomeDetailMenuAnimation.dismissalTransaction) {
+            activeMenu = nil
+        }
+    }
+
+    private func makeRenderedChips(from snapshots: [TaskEditorChipSnapshot]) -> [TaskEditorRenderedChip] {
+        snapshots.map { snapshot in
+            TaskEditorRenderedChip(
+                id: snapshot.id,
+                title: snapshot.title,
+                systemImage: snapshot.systemImage,
+                menu: snapshot.menu,
+                showsTrailingClear: snapshot.showsTrailingClear,
+                transitionDirection: .up,
+                semanticValue: snapshot.semanticValue
+            )
+        }
+    }
+
 }
 
 private struct HomeDetailMenuPresentationSizingModifier: ViewModifier {
@@ -215,6 +712,265 @@ private struct HomeDetailMenuPresentationSizingModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+private enum HomeDetailMenuAnimation {
+    static let presentation = Animation.spring(response: 0.28, dampingFraction: 0.9)
+    static let dismissal = Animation.spring(response: 0.4, dampingFraction: 0.94)
+
+    static var presentationTransaction: Transaction {
+        Transaction(animation: presentation)
+    }
+
+    static var dismissalTransaction: Transaction {
+        Transaction(animation: dismissal)
+    }
+}
+
+@MainActor
+private final class DetailTextInputFocusCoordinator {
+    weak var titleTextView: UITextView?
+    weak var notesTextView: UITextView?
+    private(set) var currentFocusedField: HomeItemDetailSheet.Field?
+    private var pendingFocusField: HomeItemDetailSheet.Field?
+
+    var isTransitioningFocus: Bool {
+        pendingFocusField != nil
+    }
+
+    func register(_ textView: UITextView, for field: HomeItemDetailSheet.Field) {
+        switch field {
+        case .title:
+            titleTextView = textView
+        case .notes:
+            notesTextView = textView
+        }
+
+        if pendingFocusField == field {
+            DispatchQueue.main.async {
+                self.requestFocus(for: field)
+            }
+        }
+    }
+
+    func resignCurrentResponder() {
+        pendingFocusField = nil
+        if titleTextView?.isFirstResponder == true {
+            titleTextView?.resignFirstResponder()
+        }
+        if notesTextView?.isFirstResponder == true {
+            notesTextView?.resignFirstResponder()
+        }
+    }
+
+    func markDidBeginEditing(_ field: HomeItemDetailSheet.Field) {
+        currentFocusedField = field
+        pendingFocusField = nil
+    }
+
+    func markDidEndEditing(_ field: HomeItemDetailSheet.Field) {
+        if currentFocusedField == field {
+            currentFocusedField = nil
+        }
+    }
+
+    func requestFocus(for field: HomeItemDetailSheet.Field) {
+        pendingFocusField = field
+        let target: UITextView?
+        let other: UITextView?
+
+        switch field {
+        case .title:
+            target = titleTextView
+            other = notesTextView
+        case .notes:
+            target = notesTextView
+            other = titleTextView
+        }
+
+        if other?.isFirstResponder == true {
+            other?.resignFirstResponder()
+        }
+        guard let target, target.window != nil else { return }
+        guard !target.isFirstResponder else {
+            currentFocusedField = field
+            pendingFocusField = nil
+            return
+        }
+        target.becomeFirstResponder()
+        currentFocusedField = field
+        pendingFocusField = nil
+    }
+}
+
+private struct DetailFocusableTextView: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var focusedField: HomeItemDetailSheet.Field?
+    let focusCoordinator: DetailTextInputFocusCoordinator
+    let field: HomeItemDetailSheet.Field
+    let placeholder: String
+    let font: UIFont
+    let textColor: UIColor
+    let placeholderColor: UIColor
+    let maximumNumberOfLines: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> DetailTextViewContainer {
+        let container = DetailTextViewContainer()
+        container.textView.delegate = context.coordinator
+        focusCoordinator.register(container.textView, for: field)
+        container.textView.backgroundColor = .clear
+        container.textView.textContainerInset = .zero
+        container.textView.textContainer.lineFragmentPadding = 0
+        container.textView.isScrollEnabled = false
+        container.textView.keyboardDismissMode = .interactive
+        container.setContentHuggingPriority(.required, for: .vertical)
+        container.setContentCompressionResistancePriority(.required, for: .vertical)
+        container.textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        container.textView.setContentHuggingPriority(.required, for: .vertical)
+        container.textView.setContentCompressionResistancePriority(.required, for: .vertical)
+        container.onDidMoveToWindow = {
+            context.coordinator.syncFirstResponder(in: container.textView)
+        }
+
+        update(container, coordinator: context.coordinator)
+        return container
+    }
+
+    func updateUIView(_ uiView: DetailTextViewContainer, context: Context) {
+        context.coordinator.parent = self
+        focusCoordinator.register(uiView.textView, for: field)
+        update(uiView, coordinator: context.coordinator)
+        context.coordinator.syncFirstResponder(in: uiView.textView)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: DetailTextViewContainer, context: Context) -> CGSize? {
+        let targetWidth = proposal.width ?? uiView.bounds.width
+        guard targetWidth > 0 else {
+            return uiView.intrinsicContentSize
+        }
+        return uiView.sizeThatFits(CGSize(width: targetWidth, height: .greatestFiniteMagnitude))
+    }
+
+    private func update(_ container: DetailTextViewContainer, coordinator: Coordinator) {
+        let textView = container.textView
+        textView.font = font
+        textView.textColor = textColor
+        textView.textContainer.maximumNumberOfLines = maximumNumberOfLines
+        textView.textContainer.lineBreakMode = .byTruncatingTail
+        if textView.text != text {
+            textView.text = text
+        }
+        container.placeholderLabel.text = placeholder
+        container.placeholderLabel.font = font
+        container.placeholderLabel.textColor = placeholderColor
+        container.placeholderLabel.isHidden = !text.isEmpty
+        container.invalidateIntrinsicContentSize()
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: DetailFocusableTextView
+
+        init(parent: DetailFocusableTextView) {
+            self.parent = parent
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            let updated = textView.text ?? ""
+            if parent.text != updated {
+                parent.text = updated
+            }
+            if let container = textView.superview as? DetailTextViewContainer {
+                container.placeholderLabel.isHidden = !updated.isEmpty
+            }
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.focusCoordinator.markDidBeginEditing(parent.field)
+            if parent.focusedField != parent.field {
+                parent.focusedField = parent.field
+            }
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.focusCoordinator.markDidEndEditing(parent.field)
+            if parent.focusedField == parent.field && !parent.focusCoordinator.isTransitioningFocus {
+                parent.focusedField = nil
+            }
+        }
+
+        func syncFirstResponder(in textView: UITextView) {
+            let shouldFocus = parent.focusedField == parent.field
+            if shouldFocus {
+                guard !textView.isFirstResponder else { return }
+                guard textView.window != nil else { return }
+                textView.becomeFirstResponder()
+            } else if textView.isFirstResponder {
+                textView.resignFirstResponder()
+            }
+        }
+    }
+}
+
+private final class DetailTextViewContainer: UIView {
+    let textView = UITextView()
+    let placeholderLabel = UILabel()
+    var onDidMoveToWindow: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+
+        addSubview(textView)
+        addSubview(placeholderLabel)
+
+        textView.translatesAutoresizingMaskIntoConstraints = false
+        placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
+        placeholderLabel.numberOfLines = 0
+        placeholderLabel.backgroundColor = .clear
+
+        NSLayoutConstraint.activate([
+            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textView.topAnchor.constraint(equalTo: topAnchor),
+            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            placeholderLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            placeholderLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            placeholderLabel.topAnchor.constraint(equalTo: topAnchor)
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        onDidMoveToWindow?()
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let fallbackWidth = window?.windowScene?.screen.bounds.width ?? 320
+        let fittingWidth = bounds.width > 0 ? bounds.width : fallbackWidth - 52
+        let textHeight = textView.sizeThatFits(CGSize(width: fittingWidth, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: UIView.noIntrinsicMetric, height: ceil(textHeight))
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let fittingWidth = size.width > 0 ? size.width : (bounds.width > 0 ? bounds.width : 320)
+        let textHeight = textView.sizeThatFits(CGSize(width: fittingWidth, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: fittingWidth, height: ceil(textHeight))
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        invalidateIntrinsicContentSize()
     }
 }
 
@@ -249,9 +1005,9 @@ private struct HomeDetailDateMenuDetent: CustomPresentationDetent {
 }
 
 private struct HomeDetailMenuSheet: View {
-    let menu: HomeDetailMenu
+    let menu: TaskEditorMenu
     @Bindable var viewModel: HomeViewModel
-    @Environment(\.dismiss) private var dismiss
+    let onDismiss: () -> Void
 
     var body: some View {
         menuContent
@@ -262,112 +1018,85 @@ private struct HomeDetailMenuSheet: View {
     private var menuContent: some View {
         switch menu {
         case .date:
-            HomeDetailDatePickerSheet(viewModel: viewModel) {
-                dismiss()
-            }
+            TaskEditorDatePickerSheet(
+                selectedDate: detailDateBinding,
+                selectionFeedback: HomeInteractionFeedback.selection,
+                onDismiss: onDismiss
+            )
         case .time:
-            HomeDetailTimePickerSheet(
-                viewModel: viewModel,
-                quickPresetMinutes: viewModel.quickTimePresetMinutes
-            ) {
-                dismiss()
-            }
+            TaskEditorTimePickerSheet(
+                selectedTime: detailTimeBinding,
+                anchorDate: detailDateBinding.wrappedValue,
+                quickPresetMinutes: viewModel.quickTimePresetMinutes,
+                selectionFeedback: HomeInteractionFeedback.selection,
+                primaryFeedback: HomeInteractionFeedback.selection,
+                onDismiss: onDismiss
+            )
         case .reminder:
-            optionList(options: reminderOptions)
+            TaskEditorOptionList(
+                options: reminderOptions,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
         case .priority:
-            optionList(options: priorityOptions)
+            TaskEditorOptionList(
+                options: priorityOptions,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
         case .repeatRule:
-            optionList(options: repeatOptions)
+            TaskEditorOptionList(
+                options: repeatOptions,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
         }
     }
 
-    private var reminderOptions: [HomeDetailOptionRow] {
-        [HomeDetailOptionRow(title: "不提醒", isSelected: viewModel.detailDraft?.remindAt == nil) {
+    private var reminderOptions: [TaskEditorOptionRow] {
+        [TaskEditorOptionRow(title: "不提醒", isSelected: viewModel.detailDraft?.remindAt == nil) {
             viewModel.setDraftReminderEnabled(false)
-            dismiss()
-        }] + HomeDetailReminderPreset.allCases.map { preset in
-            HomeDetailOptionRow(
+            onDismiss()
+        }] + TaskEditorReminderPreset.allCases.map { preset in
+            TaskEditorOptionRow(
                 title: preset.title,
                 isSelected: reminderTitle == preset.chipTitle
             ) {
                 ensureDueDateExists()
                 let dueAt = viewModel.detailDraft?.dueAt ?? .now
                 viewModel.updateDraftReminder(dueAt.addingTimeInterval(-preset.secondsBeforeTarget))
-                dismiss()
+                onDismiss()
             }
         }
     }
 
-    private var priorityOptions: [HomeDetailOptionRow] {
+    private var priorityOptions: [TaskEditorOptionRow] {
         ItemPriority.allCases.map { priority in
-            HomeDetailOptionRow(
+            TaskEditorOptionRow(
                 title: priority.title,
                 isSelected: viewModel.detailDraft?.priority == priority
             ) {
                 viewModel.updateDraftPriority(priority)
-                dismiss()
+                onDismiss()
             }
         }
     }
 
-    private var repeatOptions: [HomeDetailOptionRow] {
+    private var repeatOptions: [TaskEditorOptionRow] {
         let anchorDate = viewModel.detailDraft?.dueAt ?? defaultDetailDate
         let selectedTitle = repeatTitle
-        return HomeDetailRepeatPreset.allCases.map { preset in
+        return TaskEditorRepeatPreset.allCases.map { preset in
             let title = preset.title(anchorDate: anchorDate)
-            return HomeDetailOptionRow(title: title, isSelected: selectedTitle == title) {
+            return TaskEditorOptionRow(title: title, isSelected: selectedTitle == title) {
                 ensureDueDateExists()
                 viewModel.updateDraftRepeatRule(preset.makeRule(anchorDate: anchorDate))
-                dismiss()
+                onDismiss()
             }
         }
-    }
-
-    private func optionList(options: [HomeDetailOptionRow]) -> some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                ForEach(options) { option in
-                    Button {
-                        HomeInteractionFeedback.selection()
-                        option.action()
-                    } label: {
-                        HStack {
-                            Text(option.title)
-                                .font(AppTheme.typography.sized(17, weight: .semibold))
-                                .foregroundStyle(AppTheme.colors.title)
-                            Spacer(minLength: 0)
-                            if option.isSelected {
-                                Image(systemName: "checkmark")
-                                    .font(AppTheme.typography.sized(14, weight: .bold))
-                                    .foregroundStyle(AppTheme.colors.coral)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .frame(minHeight: HomeDetailMenuOptionMetrics.height)
-                        .padding(.horizontal, 18)
-                        .contentShape(
-                            RoundedRectangle(
-                                cornerRadius: HomeDetailMenuOptionMetrics.cornerRadius,
-                                style: .continuous
-                            )
-                        )
-                    }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(HomeDetailMenuOptionButtonStyle())
-                    .modifier(HomeDetailMenuOptionGlassModifier())
-                }
-            }
-            .padding(HomeDetailMenuOptionMetrics.outerInset)
-        }
-        .scrollIndicators(.hidden)
-        .background(.clear)
     }
 
     private var reminderTitle: String {
         guard let remindAt = viewModel.detailDraft?.remindAt else { return "提醒" }
         guard let dueAt = viewModel.detailDraft?.dueAt else { return "提醒" }
         let delta = dueAt.timeIntervalSince(remindAt)
-        return HomeDetailReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
+        return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
     }
 
     private var repeatTitle: String {
@@ -382,6 +1111,29 @@ private struct HomeDetailMenuSheet: View {
 
     private var defaultDetailDate: Date {
         viewModel.detailDraft?.dueAt ?? viewModel.selectedDate
+    }
+
+    private var detailDateBinding: Binding<Date> {
+        Binding(
+            get: { viewModel.detailDraft?.dueAt ?? viewModel.selectedDate },
+            set: { newValue in
+                viewModel.updateDraftDueDate(newValue)
+            }
+        )
+    }
+
+    private var detailTimeBinding: Binding<Date?> {
+        Binding(
+            get: {
+                guard viewModel.detailDraft?.hasExplicitTime == true else { return nil }
+                return viewModel.detailDraft?.dueAt
+            },
+            set: { newValue in
+                if let newValue {
+                    viewModel.updateDraftDueTime(newValue)
+                }
+            }
+        )
     }
 
     private func ensureDueDateExists() {

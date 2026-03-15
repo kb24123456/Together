@@ -22,6 +22,7 @@ enum CloudKitTaskRecordCodec {
         record["priority"] = item.priority.rawValue as CKRecordValue
         record["status"] = item.status.rawValue as CKRecordValue
         record["dueAt"] = item.dueAt as CKRecordValue?
+        record["hasExplicitTime"] = item.hasExplicitTime as CKRecordValue
         record["remindAt"] = item.remindAt as CKRecordValue?
         record["createdAt"] = item.createdAt as CKRecordValue
         record["updatedAt"] = item.updatedAt as CKRecordValue
@@ -65,6 +66,7 @@ enum CloudKitTaskRecordCodec {
             executionRole: ItemExecutionRole(rawValue: executionRoleRaw) ?? .initiator,
             priority: ItemPriority(rawValue: priorityRaw) ?? .normal,
             dueAt: record["dueAt"] as? Date,
+            hasExplicitTime: record["hasExplicitTime"] as? Bool ?? false,
             remindAt: record["remindAt"] as? Date,
             status: ItemStatus(rawValue: statusRaw) ?? .pendingConfirmation,
             latestResponse: try decodeOptional((record["latestResponseJSON"] as? String), as: ItemResponse.self),

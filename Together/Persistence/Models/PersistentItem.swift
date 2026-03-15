@@ -14,6 +14,7 @@ final class PersistentItem {
     var executionRoleRawValue: String
     var priorityRawValue: String
     var dueAt: Date?
+    var hasExplicitTime: Bool
     var remindAt: Date?
     var statusRawValue: String
     var latestResponseData: Data?
@@ -39,6 +40,7 @@ final class PersistentItem {
         executionRoleRawValue: String,
         priorityRawValue: String,
         dueAt: Date?,
+        hasExplicitTime: Bool,
         remindAt: Date?,
         statusRawValue: String,
         latestResponseData: Data?,
@@ -63,6 +65,7 @@ final class PersistentItem {
         self.executionRoleRawValue = executionRoleRawValue
         self.priorityRawValue = priorityRawValue
         self.dueAt = dueAt
+        self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
         self.statusRawValue = statusRawValue
         self.latestResponseData = latestResponseData
@@ -92,6 +95,7 @@ extension PersistentItem {
             executionRoleRawValue: item.executionRole.rawValue,
             priorityRawValue: item.priority.rawValue,
             dueAt: item.dueAt,
+            hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
             statusRawValue: item.status.rawValue,
             latestResponseData: Self.encode(item.latestResponse),
@@ -120,6 +124,7 @@ extension PersistentItem {
             executionRole: ItemExecutionRole(rawValue: executionRoleRawValue) ?? .initiator,
             priority: ItemPriority(rawValue: priorityRawValue) ?? .normal,
             dueAt: dueAt,
+            hasExplicitTime: hasExplicitTime,
             remindAt: remindAt,
             status: ItemStatus(rawValue: statusRawValue) ?? .pendingConfirmation,
             latestResponse: Self.decode(latestResponseData, defaultValue: nil),
@@ -145,6 +150,7 @@ extension PersistentItem {
         executionRoleRawValue = item.executionRole.rawValue
         priorityRawValue = item.priority.rawValue
         dueAt = item.dueAt
+        hasExplicitTime = item.hasExplicitTime
         remindAt = item.remindAt
         statusRawValue = item.status.rawValue
         latestResponseData = Self.encode(item.latestResponse)

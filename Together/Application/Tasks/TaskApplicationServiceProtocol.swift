@@ -22,5 +22,6 @@ protocol TaskApplicationServiceProtocol: Sendable {
     func toggleTaskCompletion(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
     func completeTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws
     func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item
 }

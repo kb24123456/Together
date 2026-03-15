@@ -19,6 +19,7 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     var executionRole: ItemExecutionRole
     var priority: ItemPriority
     var dueAt: Date?
+    var hasExplicitTime: Bool = false
     var remindAt: Date?
     var status: ItemStatus
     var latestResponse: ItemResponse?

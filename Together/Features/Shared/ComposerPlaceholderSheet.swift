@@ -10,7 +10,7 @@ struct ComposerPlaceholderSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var draftState: ComposerDraftState
-    @State private var activeMenu: ComposerMenu?
+    @State private var activeMenu: TaskEditorMenu?
     @State private var isSaving = false
     @State private var lastFocusedFieldBeforeMenu: ComposerField?
     @State private var focusedField: ComposerField?
@@ -18,8 +18,8 @@ struct ComposerPlaceholderSheet: View {
     @State private var focusCoordinator = ComposerTextInputFocusCoordinator()
     @Namespace private var categorySwitcherNamespace
     @Namespace private var chipRowNamespace
-    @State private var displayedChips: [ComposerRenderedChip] = []
-    @State private var pendingChipSnapshots: [ComposerChipSnapshot]?
+    @State private var displayedChips: [TaskEditorRenderedChip] = []
+    @State private var pendingChipSnapshots: [TaskEditorChipSnapshot]?
 
     init(route: ComposerRoute, appContext: AppContext) {
         self.route = route
@@ -66,7 +66,7 @@ struct ComposerPlaceholderSheet: View {
             .ignoresSafeArea(edges: .bottom)
         }
         .sheet(item: $activeMenu) { menu in
-            ComposerMenuSheet(
+            ComposerEditorMenuSheet(
                 menu: menu,
                 draftState: $draftState,
                 quickTimePresetMinutes: NotificationSettings.normalizedQuickTimePresetMinutes(
@@ -80,7 +80,7 @@ struct ComposerPlaceholderSheet: View {
             .presentationBackgroundInteraction(.enabled)
             .presentationDragIndicator(.hidden)
             .interactiveDismissDisabled(false)
-            .modifier(ComposerMenuPresentationSizingModifier())
+            .modifier(TaskEditorMenuPresentationSizingModifier())
             .onDisappear {
                 restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
                 playPendingChipUpdatesIfNeeded()
@@ -213,84 +213,38 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private func chipRow(trailingInset: CGFloat) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(chipsForCurrentCategory) { chip in
-                    HStack(spacing: chip.showsTrailingClear ? 8 : 3) {
-                        Button {
-                            ComposerButtonHaptics.selection()
-                            openMenu(chip.menu)
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: chip.systemImage)
-                                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                                ComposerAnimatedChipTitle(
-                                    text: chip.title,
-                                    semanticValue: chip.semanticValue,
-                                    direction: chip.transitionDirection,
-                                    font: AppTheme.typography.sized(14, weight: .semibold),
-                                    uiFont: AppTheme.typography.sizedUIFont(14, weight: .semibold)
-                                )
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if chip.showsTrailingClear {
-                            Button {
-                                ComposerButtonHaptics.selection()
-                                clearChipValue(chip)
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(AppTheme.typography.sized(11, weight: .bold))
-                                    .frame(width: 16, height: 16)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.84))
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 8)
-                    .modifier(
-                        ComposerChipSurfaceModifier(
-                            animationID: chip.id,
-                            namespace: chipRowNamespace
-                        )
-                    )
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .offset(x: 10)),
-                            removal: .opacity.combined(with: .offset(x: -10))
-                        )
-                    )
-                }
+        TaskEditorChipRow(
+            chips: chipsForCurrentCategory,
+            namespace: chipRowNamespace,
+            trailingInset: trailingInset,
+            onChipTap: { menu in
+                ComposerButtonHaptics.selection()
+                openMenu(menu)
+            },
+            onClearTap: { chip in
+                ComposerButtonHaptics.selection()
+                clearChipValue(chip)
             }
-            .padding(.trailing, trailingInset)
-            .padding(.vertical, 2)
-            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: chipAnimationKey)
-        }
-        .scrollIndicators(.hidden)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        )
     }
 
     private var chipAnimationKey: String {
         chipsForCurrentCategory.map(\.id).joined(separator: "|")
     }
 
-    private var chipsForCurrentCategory: [ComposerRenderedChip] {
+    private var chipsForCurrentCategory: [TaskEditorRenderedChip] {
         if displayedChips.isEmpty {
             return makeRenderedChips(from: currentChipSnapshots, previous: [])
         }
         return displayedChips
     }
 
-    private var currentChipSnapshots: [ComposerChipSnapshot] {
+    private var currentChipSnapshots: [TaskEditorChipSnapshot] {
         switch draftState.category {
         case .periodic:
             return [
-                ComposerChipSnapshot(
-                    id: ComposerMenu.repeatRule.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.repeatRule.rawValue,
                     title: draftState.repeatSummaryText,
                     systemImage: "arrow.triangle.2.circlepath",
                     menu: .repeatRule,
@@ -299,8 +253,8 @@ struct ComposerPlaceholderSheet: View {
                         rank: draftState.repeatRule.animationRank
                     )
                 ),
-                ComposerChipSnapshot(
-                    id: ComposerMenu.reminder.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.reminder.rawValue,
                     title: draftState.reminderSummaryText(for: .periodic),
                     systemImage: "bell",
                     menu: .reminder,
@@ -309,30 +263,30 @@ struct ComposerPlaceholderSheet: View {
             ]
         case .task:
             return [
-                ComposerChipSnapshot(
-                    id: ComposerMenu.date.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.date.rawValue,
                     title: draftState.taskDateText,
                     systemImage: "calendar",
                     menu: .date,
                     semanticValue: .date(draftState.taskDate)
                 ),
-                ComposerChipSnapshot(
-                    id: ComposerMenu.time.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.time.rawValue,
                     title: draftState.taskTimeText,
                     systemImage: "clock",
                     menu: .time,
                     semanticValue: .time(draftState.taskTime),
                     showsTrailingClear: draftState.taskTime != nil
                 ),
-                ComposerChipSnapshot(
-                    id: ComposerMenu.reminder.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.reminder.rawValue,
                     title: draftState.reminderSummaryText(for: .task),
                     systemImage: "bell",
                     menu: .reminder,
                     semanticValue: .reminder(draftState.taskReminderOffset)
                 ),
-                ComposerChipSnapshot(
-                    id: ComposerMenu.priority.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.priority.rawValue,
                     title: draftState.priority.title,
                     systemImage: "flag",
                     menu: .priority,
@@ -341,22 +295,22 @@ struct ComposerPlaceholderSheet: View {
             ]
         case .project:
             return [
-                ComposerChipSnapshot(
-                    id: ComposerMenu.date.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.date.rawValue,
                     title: draftState.projectDateText,
                     systemImage: "calendar",
                     menu: .date,
                     semanticValue: .optionalDate(draftState.projectTargetDate)
                 ),
-                ComposerChipSnapshot(
-                    id: ComposerMenu.reminder.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.reminder.rawValue,
                     title: draftState.reminderSummaryText(for: .project),
                     systemImage: "bell",
                     menu: .reminder,
                     semanticValue: .reminder(draftState.projectReminderOffset)
                 ),
-                ComposerChipSnapshot(
-                    id: ComposerMenu.priority.rawValue,
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.priority.rawValue,
                     title: draftState.priority.title,
                     systemImage: "flag",
                     menu: .priority,
@@ -372,7 +326,7 @@ struct ComposerPlaceholderSheet: View {
         self.pendingChipSnapshots = nil
     }
 
-    private func applyRenderedChips(_ snapshots: [ComposerChipSnapshot], animated: Bool) {
+    private func applyRenderedChips(_ snapshots: [TaskEditorChipSnapshot], animated: Bool) {
         let nextChips = makeRenderedChips(from: snapshots, previous: displayedChips)
         let shouldAnimateLayout = animated && displayedChips.map(\.id) != nextChips.map(\.id)
 
@@ -386,12 +340,12 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private func makeRenderedChips(
-        from snapshots: [ComposerChipSnapshot],
-        previous: [ComposerRenderedChip]
-    ) -> [ComposerRenderedChip] {
+        from snapshots: [TaskEditorChipSnapshot],
+        previous: [TaskEditorRenderedChip]
+    ) -> [TaskEditorRenderedChip] {
         let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
         return snapshots.map { snapshot in
-            ComposerRenderedChip(
+            TaskEditorRenderedChip(
                 id: snapshot.id,
                 title: snapshot.title,
                 systemImage: snapshot.systemImage,
@@ -407,17 +361,17 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private func transitionDirection(
-        from previousValue: ComposerChipSemanticValue?,
-        to newValue: ComposerChipSemanticValue
-    ) -> ComposerChipTextTransitionDirection {
+        from previousValue: TaskEditorChipSemanticValue?,
+        to newValue: TaskEditorChipSemanticValue
+    ) -> TaskEditorChipTextTransitionDirection {
         guard let previousValue else { return .up }
-        return ComposerChipSemanticValue.direction(from: previousValue, to: newValue)
+        return TaskEditorChipSemanticValue.direction(from: previousValue, to: newValue)
     }
     private var addButtonTitle: String {
         draftState.category == .project ? "创建" : "添加"
     }
 
-    private func openMenu(_ menu: ComposerMenu) {
+    private func openMenu(_ menu: TaskEditorMenu) {
         lastFocusedFieldBeforeMenu = focusedField
         focusCoordinator.resignCurrentResponder()
         focusedField = nil
@@ -441,7 +395,7 @@ struct ComposerPlaceholderSheet: View {
         }
     }
 
-    private func clearChipValue(_ chip: ComposerRenderedChip) {
+    private func clearChipValue(_ chip: TaskEditorRenderedChip) {
         switch (draftState.category, chip.menu) {
         case (.task, .time):
             draftState.taskTime = nil
@@ -597,6 +551,7 @@ private struct ComposerDraftState: Hashable {
                 title: title,
                 notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
                 dueAt: anchorTime,
+                hasExplicitTime: false,
                 remindAt: remindAt,
                 priority: priority,
                 repeatRule: repeatRule
@@ -615,6 +570,7 @@ private struct ComposerDraftState: Hashable {
                 title: title,
                 notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
                 dueAt: dueAt,
+                hasExplicitTime: taskTime != nil,
                 remindAt: remindAt,
                 priority: priority
             )
@@ -1308,6 +1264,124 @@ private struct ComposerDateMenuDetent: CustomPresentationDetent {
             ComposerDatePickerSheet.preferredHeight + 12,
             context.maxDetentValue * 0.72
         )
+    }
+}
+
+private struct ComposerEditorMenuSheet: View {
+    let menu: TaskEditorMenu
+    @Binding var draftState: ComposerDraftState
+    let quickTimePresetMinutes: [Int]
+    let onDismiss: () -> Void
+
+    var body: some View {
+        menuContent
+            .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private var menuContent: some View {
+        switch menu {
+        case .date:
+            TaskEditorDatePickerSheet(
+                selectedDate: selectedDateBinding,
+                selectionFeedback: ComposerButtonHaptics.selection,
+                onDismiss: onDismiss
+            )
+        case .time:
+            TaskEditorTimePickerSheet(
+                selectedTime: $draftState.taskTime,
+                anchorDate: draftState.taskDate,
+                quickPresetMinutes: quickTimePresetMinutes,
+                selectionFeedback: ComposerButtonHaptics.selection,
+                primaryFeedback: ComposerButtonHaptics.primary,
+                onDismiss: onDismiss
+            )
+        case .reminder:
+            TaskEditorOptionList(
+                options: reminderMenuOptions,
+                selectionFeedback: ComposerButtonHaptics.selection
+            )
+        case .priority:
+            TaskEditorOptionList(
+                options: ItemPriority.allCases.map { priority in
+                    TaskEditorOptionRow(
+                        title: priority.title,
+                        isSelected: draftState.priority == priority,
+                        action: {
+                            draftState.priority = priority
+                            onDismiss()
+                        }
+                    )
+                },
+                selectionFeedback: ComposerButtonHaptics.selection
+            )
+        case .repeatRule:
+            TaskEditorOptionList(
+                options: TaskEditorRepeatPreset.allCases.map { preset in
+                    let title = preset.title(anchorDate: draftState.periodicAnchorDate)
+                    return TaskEditorOptionRow(
+                        title: title,
+                        isSelected: title == draftState.repeatSummaryText,
+                        action: {
+                            draftState.repeatRule = preset.makeRule(anchorDate: draftState.periodicAnchorDate)
+                            onDismiss()
+                        }
+                    )
+                },
+                selectionFeedback: ComposerButtonHaptics.selection
+            )
+        }
+    }
+
+    private var selectedDateBinding: Binding<Date> {
+        Binding(
+            get: {
+                switch draftState.category {
+                case .periodic:
+                    return draftState.periodicAnchorDate
+                case .task:
+                    return draftState.taskDate
+                case .project:
+                    return draftState.projectTargetDate ?? draftState.taskDate
+                }
+            },
+            set: { newValue in
+                switch draftState.category {
+                case .periodic:
+                    draftState.periodicAnchorDate = newValue
+                case .task:
+                    draftState.taskDate = newValue
+                case .project:
+                    draftState.projectTargetDate = newValue
+                }
+            }
+        )
+    }
+
+    private var reminderMenuOptions: [TaskEditorOptionRow] {
+        [TaskEditorOptionRow(title: "不提醒", isSelected: draftState.reminderSummaryText(for: draftState.category) == "提醒") {
+            setReminder(nil)
+        }] + TaskEditorReminderPreset.allCases.map { preset in
+            TaskEditorOptionRow(
+                title: preset.title,
+                isSelected: draftState.reminderSummaryText(for: draftState.category) == preset.title,
+                action: {
+                    setReminder(preset.secondsBeforeTarget)
+                }
+            )
+        }
+    }
+
+    private func setReminder(_ seconds: TimeInterval?) {
+        switch draftState.category {
+        case .periodic:
+            draftState.periodicReminderOffset = seconds
+        case .task:
+            draftState.taskReminderOffset = seconds
+        case .project:
+            draftState.projectReminderOffset = seconds
+        }
+        onDismiss()
     }
 }
 
@@ -2175,45 +2249,6 @@ private enum ComposerMenuAnimation {
 
     static var dismissalTransaction: Transaction {
         Transaction(animation: dismissal)
-    }
-}
-
-private extension ItemPriority {
-    var animationRank: Int {
-        switch self {
-        case .normal:
-            return 0
-        case .important:
-            return 1
-        case .critical:
-            return 2
-        }
-    }
-}
-
-private extension ItemRepeatRule {
-    var animationRank: Int {
-        switch frequency {
-        case .daily:
-            return interval == 1 ? 0 : interval
-        case .weekly:
-            if weekdays == [2, 3, 4, 5, 6] {
-                return 2
-            }
-            if interval == 2 {
-                return 4
-            }
-            return 3
-        case .monthly:
-            switch interval {
-            case 6:
-                return 7
-            case 3:
-                return 6
-            default:
-                return 5
-            }
-        }
     }
 }
 

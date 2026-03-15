@@ -111,6 +111,16 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return savedItem
     }
 
+    func deleteItem(itemID: UUID) async throws {
+        let context = ModelContext(container)
+        guard let record = try fetchRecord(itemID: itemID, context: context) else {
+            throw RepositoryError.notFound
+        }
+
+        context.delete(record)
+        try context.save()
+    }
+
     private func fetchRecord(itemID: UUID, context: ModelContext) throws -> PersistentItem? {
         let descriptor = FetchDescriptor<PersistentItem>(
             predicate: #Predicate<PersistentItem> { $0.id == itemID }

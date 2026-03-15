@@ -11,6 +11,7 @@ enum SyncOperationKind: String, Codable, Hashable, Sendable {
     case upsert
     case complete
     case archive
+    case delete
 }
 
 struct SyncChange: Identifiable, Codable, Hashable, Sendable {
