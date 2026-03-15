@@ -12,16 +12,19 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let id: UUID
     let title: String
     let notes: String?
-    let locationText: String?
     let timeText: String
-    let statusText: String
-    let executionLabel: String
     let symbolName: String
     let accentColorName: String
     let showsSolidSymbol: Bool
     let isMuted: Bool
     let isCompleted: Bool
-    let repeatText: String?
+    let urgency: HomeTimelineUrgency
+}
+
+enum HomeTimelineUrgency: Hashable {
+    case normal
+    case imminent
+    case overdue
 }
 
 @MainActor
@@ -44,6 +47,7 @@ final class HomeViewModel {
     var detailDetent: PresentationDetent = .medium
     var isPerformingCompletion = false
     var recentCompletedItemID: UUID?
+    var showsCompletedItems = true
 
     init(
         sessionStore: SessionStore,
@@ -52,7 +56,6 @@ final class HomeViewModel {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
         let currentUser = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
-        let currentSpace = sessionStore.currentSpace ?? MockDataFactory.makeSingleSpace()
         self.currentUserAvatar = HomeAvatar(
             id: currentUser.id,
             displayName: currentUser.displayName,
@@ -227,12 +230,15 @@ final class HomeViewModel {
         scheduleDetailSave(immediately: true)
     }
 
+    func updateDraftRepeatRule(_ rule: ItemRepeatRule?) {
+        detailDraft?.repeatRule = rule
+        scheduleDetailSave(immediately: true)
+    }
+
     func updateDraftRepeatRule(_ frequency: ItemRepeatFrequency?) {
         guard var draft = detailDraft else { return }
         guard let frequency else {
-            draft.repeatRule = nil
-            detailDraft = draft
-            scheduleDetailSave(immediately: true)
+            updateDraftRepeatRule(nil as ItemRepeatRule?)
             return
         }
 
@@ -268,12 +274,20 @@ final class HomeViewModel {
                 taskID: itemID,
                 actorID: actorID
             )
-            replaceItemPreservingOrder(saved)
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                replaceItemPreservingOrder(saved)
+            }
         } catch {
             recentCompletedItemID = nil
         }
 
         isPerformingCompletion = false
+    }
+
+    func toggleCompletedVisibility() {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            showsCompletedItems.toggle()
+        }
     }
 
     func isSelectedDate(_ date: Date) -> Bool {
@@ -293,28 +307,39 @@ final class HomeViewModel {
         }
     }
 
-    var timelineEntries: [HomeTimelineEntry] {
-        let viewerID = sessionStore.currentUser?.id ?? MockDataFactory.currentUserID
+    var completedEntryCount: Int {
+        sortedItemsForTimeline.filter { $0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed }.count
+    }
 
-        return items.map { item in
+    var hasCompletedEntries: Bool {
+        completedEntryCount > 0
+    }
+
+    var completedVisibilityButtonTitle: String {
+        showsCompletedItems ? "隐藏已完成" : "显示已完成"
+    }
+
+    var timelineEntries: [HomeTimelineEntry] {
+        visibleTimelineItems.map { item in
             let isCompleted = item.isCompleted(on: selectedDate, calendar: calendar) || item.status == .completed
 
             return HomeTimelineEntry(
                 id: item.id,
                 title: item.title,
                 notes: item.notes,
-                locationText: item.locationText,
                 timeText: timeText(for: item),
-                statusText: statusText(for: item, isCompleted: isCompleted),
-                executionLabel: executionLabel(for: item, viewerID: viewerID),
                 symbolName: symbolName(for: item),
                 accentColorName: accentColorName(for: item),
                 showsSolidSymbol: item.isPinned || item.priority == .critical || isCompleted,
                 isMuted: isCompleted,
                 isCompleted: isCompleted,
-                repeatText: item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar)
+                urgency: urgency(for: item, isCompleted: isCompleted)
             )
         }
+    }
+
+    var timelineEntryIDs: [UUID] {
+        timelineEntries.map(\.id)
     }
 
     private func scheduleDetailSave(immediately: Bool = false) {
@@ -355,9 +380,6 @@ final class HomeViewModel {
             items[index] = item
         } else {
             items.append(item)
-        }
-        items.sort { lhs, rhs in
-            lhs.updatedAt > rhs.updatedAt
         }
     }
 
@@ -403,49 +425,6 @@ final class HomeViewModel {
         return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
-    private func executionLabel(for item: Item, viewerID: UUID) -> String {
-        if let repeatRule = item.repeatRule {
-            return repeatRule.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar)
-        }
-        if item.isPinned || item.priority == .critical {
-            return "今日重点"
-        }
-        if item.creatorID != viewerID {
-            return "共享输入"
-        }
-
-        switch item.status {
-        case .pendingConfirmation:
-            return "待整理"
-        case .inProgress:
-            return "正在推进"
-        case .completed:
-            return "已收尾"
-        case .declinedOrBlocked:
-            return "已搁置"
-        }
-    }
-
-    private func statusText(for item: Item, isCompleted: Bool) -> String {
-        if isCompleted {
-            return "已完成"
-        }
-        if item.isOverdue(on: selectedDate, calendar: calendar) {
-            return "已逾期"
-        }
-
-        switch item.status {
-        case .pendingConfirmation:
-            return "待整理"
-        case .inProgress:
-            return "进行中"
-        case .completed:
-            return "已完成"
-        case .declinedOrBlocked:
-            return "已搁置"
-        }
-    }
-
     private func symbolName(for item: Item) -> String {
         if item.repeatRule != nil {
             return "repeat"
@@ -477,5 +456,52 @@ final class HomeViewModel {
         default:
             return "neutral"
         }
+    }
+
+    private var visibleTimelineItems: [Item] {
+        let sortedItems = sortedItemsForTimeline
+        guard showsCompletedItems == false else { return sortedItems }
+        return sortedItems.filter { !($0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed) }
+    }
+
+    private var sortedItemsForTimeline: [Item] {
+        items.sorted { lhs, rhs in
+            let lhsCompleted = lhs.isCompleted(on: selectedDate, calendar: calendar) || lhs.status == .completed
+            let rhsCompleted = rhs.isCompleted(on: selectedDate, calendar: calendar) || rhs.status == .completed
+
+            if lhsCompleted != rhsCompleted {
+                return lhsCompleted == false
+            }
+
+            if lhsCompleted {
+                let lhsCompletedAt = lhs.completedAt ?? .distantPast
+                let rhsCompletedAt = rhs.completedAt ?? .distantPast
+                if lhsCompletedAt != rhsCompletedAt {
+                    return lhsCompletedAt < rhsCompletedAt
+                }
+            }
+
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt < rhs.createdAt
+            }
+
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
+    private func urgency(for item: Item, isCompleted: Bool) -> HomeTimelineUrgency {
+        guard isCompleted == false, let dueAt = item.dueAt else { return .normal }
+        if dueAt <= .now {
+            return .overdue
+        }
+
+        let imminentThreshold = TimeInterval(
+            (sessionStore.currentUser?.preferences.taskUrgencyWindowMinutes ?? 30) * 60
+        )
+        if dueAt.timeIntervalSinceNow <= imminentThreshold {
+            return .imminent
+        }
+
+        return .normal
     }
 }

@@ -45,7 +45,10 @@ struct HomeDockBar: View {
     }
 
     private var primaryButton: some View {
-        Button(action: onComposeTapped) {
+        Button {
+            HomeInteractionFeedback.selection()
+            onComposeTapped()
+        } label: {
             Image(systemName: "plus")
                 .font(AppTheme.typography.sized(28, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body)
@@ -56,7 +59,10 @@ struct HomeDockBar: View {
     }
 
     private func circleButton(systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button {
+            HomeInteractionFeedback.selection()
+            action()
+        } label: {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(22, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body)

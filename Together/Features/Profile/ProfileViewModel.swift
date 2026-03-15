@@ -50,6 +50,19 @@ final class ProfileViewModel {
         }
     }
 
+    var taskUrgencyWindowMinutes: Int {
+        sessionStore.currentUser?.preferences.taskUrgencyWindowMinutes ?? 30
+    }
+
+    let taskUrgencyOptions: [Int] = [10, 30, 60, 120]
+    let quickTimePresetOptions: [Int] = Array(stride(from: 5, through: 180, by: 5))
+
+    var quickTimePresetMinutes: [Int] {
+        NotificationSettings.normalizedQuickTimePresetMinutes(
+            sessionStore.currentUser?.preferences.quickTimePresetMinutes ?? NotificationSettings.defaultQuickTimePresetMinutes
+        )
+    }
+
     func load() async {
         loadState = .loading
         notificationAuthorization = await notificationService.authorizationStatus()
@@ -68,6 +81,26 @@ final class ProfileViewModel {
     func createInvite() async {
         guard let inviterID = currentUser?.id else { return }
         _ = try? await relationshipService.createInvite(from: inviterID)
+    }
+
+    func updateTaskUrgencyWindow(minutes: Int) {
+        guard var user = sessionStore.currentUser else { return }
+        user.preferences.taskUrgencyWindowMinutes = minutes
+        user.updatedAt = .now
+        sessionStore.currentUser = user
+    }
+
+    func updateQuickTimePreset(minutes: Int, at index: Int) {
+        guard var user = sessionStore.currentUser else { return }
+
+        var presets = quickTimePresetMinutes
+        guard presets.indices.contains(index) else { return }
+
+        let roundedMinutes = NotificationSettings.normalizedQuickTimePresetMinutes([minutes]).first ?? minutes
+        presets[index] = roundedMinutes
+        user.preferences.quickTimePresetMinutes = NotificationSettings.normalizedQuickTimePresetMinutes(presets)
+        user.updatedAt = .now
+        sessionStore.currentUser = user
     }
 
     func signOut() async {

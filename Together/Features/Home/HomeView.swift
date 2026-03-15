@@ -65,15 +65,10 @@ struct HomeView: View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(viewModel.headerDateText)
-                    .font(AppTheme.typography.sized(48, weight: .bold))
-                    .tracking(-1.8)
+                    .font(AppTheme.typography.sized(40, weight: .bold))
+                    .tracking(-1.2)
                     .foregroundStyle(headerPrimaryColor)
                     .contentTransition(.numericText())
-
-                Circle()
-                    .fill(AppTheme.colors.coral)
-                    .frame(width: 18, height: 18)
-                    .padding(.top, 18)
             }
 
             Spacer(minLength: 0)
@@ -146,7 +141,7 @@ struct HomeView: View {
                         Text(date, format: .dateTime.day())
                             .font(
                                 AppTheme.typography.sized(
-                                    26,
+                                    22,
                                     weight: isSelected ? .bold : .semibold
                                 )
                             )
@@ -157,7 +152,7 @@ struct HomeView: View {
                             )
 
                         Text(viewModel.weekdayLabel(for: date))
-                            .font(AppTheme.typography.textStyle(.caption1, weight: .semibold))
+                            .font(AppTheme.typography.sized(12, weight: .semibold))
                             .foregroundStyle(
                                 isSelected
                                 ? AppTheme.colors.coral
@@ -198,13 +193,22 @@ struct HomeView: View {
                             entry: entry,
                             isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
                             onToggleCompletion: {
+                                HomeInteractionFeedback.selection()
                                 Task {
                                     await viewModel.completeItem(entry.id)
+                                    HomeInteractionFeedback.completion()
                                 }
                             },
                             onOpenDetail: {
+                                HomeInteractionFeedback.soft()
                                 viewModel.presentItemDetail(entry.id)
                             }
+                        )
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .trailing).combined(with: .opacity)
+                            )
                         )
 
                         if index < viewModel.timelineEntries.count - 1 {
@@ -215,6 +219,27 @@ struct HomeView: View {
                                 .padding(.vertical, 2)
                         }
                     }
+
+                    if viewModel.hasCompletedEntries {
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            viewModel.toggleCompletedVisibility()
+                        } label: {
+                            Text("\(viewModel.completedVisibilityButtonTitle) \(viewModel.completedEntryCount)")
+                                .font(AppTheme.typography.sized(13, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.76))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 9)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(AppTheme.colors.surfaceElevated)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 14)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
                 .id(viewModel.selectedDateKey)
                 .transition(
@@ -224,6 +249,8 @@ struct HomeView: View {
             }
         }
         .animation(.spring(response: 0.26, dampingFraction: 0.88), value: viewModel.selectedDateKey)
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.timelineEntryIDs)
+        .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.hasCompletedEntries)
     }
 
     private var headerPrimaryColor: Color {
@@ -239,11 +266,7 @@ struct HomeView: View {
     }
 
     private func triggerSoftDateFeedback() {
-        #if canImport(UIKit)
-        let generator = UIImpactFeedbackGenerator(style: .soft)
-        generator.prepare()
-        generator.impactOccurred(intensity: 0.85)
-        #endif
+        HomeInteractionFeedback.soft()
     }
 }
 
@@ -267,29 +290,16 @@ private struct HomeTimelineRow: View {
                     .font(AppTheme.typography.sized(19, weight: .bold))
                     .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
 
-                HStack(spacing: 8) {
-                    Text(entry.executionLabel)
-                    if let repeatText = entry.repeatText, repeatText != entry.executionLabel {
-                        Text(repeatText)
-                    }
-                    if let locationText = entry.locationText, locationText.isEmpty == false {
-                        Text(locationText)
-                    }
-                }
-                .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.68))
+                Text(displaySubtitle)
+                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.68))
+                    .lineLimit(2)
             }
 
             Spacer(minLength: 0)
 
             VStack(alignment: .trailing, spacing: 6) {
-                Text(entry.timeText)
-                    .font(AppTheme.typography.sized(18, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.timeText.opacity(entry.isMuted ? 0.42 : 0.82))
-
-                Text(entry.statusText)
-                    .font(AppTheme.typography.textStyle(.caption1, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(entry.isCompleted ? 0.5 : 0.42))
+                HomeTimelineTimeText(entry: entry)
             }
         }
         .padding(.vertical, 12)
@@ -301,6 +311,13 @@ private struct HomeTimelineRow: View {
             }
             .tint(AppTheme.colors.coral)
         }
+    }
+
+    private var displaySubtitle: String {
+        guard let notes = entry.notes, notes.isEmpty == false else {
+            return entry.urgency == .overdue ? "已超时" : "进行中"
+        }
+        return notes
     }
 
     @ViewBuilder
@@ -391,6 +408,41 @@ private struct HomeTimelineRow: View {
 private enum BadgeBorderStyle {
     case solid
     case dashed
+}
+
+private struct HomeTimelineTimeText: View {
+    let entry: HomeTimelineEntry
+    @State private var isBreathing = false
+
+    var body: some View {
+        Text(entry.timeText)
+            .font(AppTheme.typography.sized(entry.urgency == .imminent ? 20 : 18, weight: .semibold))
+            .foregroundStyle(timeColor)
+            .scaleEffect(entry.urgency == .imminent ? (isBreathing ? 1.09 : 0.94) : 1)
+            .opacity(entry.urgency == .imminent ? (isBreathing ? 1 : 0.62) : 1)
+            .animation(
+                entry.urgency == .imminent
+                ? .easeInOut(duration: 0.72).repeatForever(autoreverses: true)
+                : .default,
+                value: isBreathing
+            )
+            .onAppear {
+                guard entry.urgency == .imminent else { return }
+                isBreathing = true
+            }
+            .onChange(of: entry.urgency) { _, newValue in
+                isBreathing = newValue == .imminent
+            }
+    }
+
+    private var timeColor: Color {
+        switch entry.urgency {
+        case .normal:
+            return AppTheme.colors.timeText.opacity(entry.isMuted ? 0.42 : 0.82)
+        case .imminent, .overdue:
+            return AppTheme.colors.coral.opacity(entry.isMuted ? 0.5 : 1)
+        }
+    }
 }
 
 private struct HomeAvatarToggleButton: View {

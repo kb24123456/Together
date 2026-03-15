@@ -69,6 +69,10 @@ struct ComposerPlaceholderSheet: View {
             ComposerMenuSheet(
                 menu: menu,
                 draftState: $draftState,
+                quickTimePresetMinutes: NotificationSettings.normalizedQuickTimePresetMinutes(
+                    appContext.sessionStore.currentUser?.preferences.quickTimePresetMinutes
+                    ?? NotificationSettings.defaultQuickTimePresetMinutes
+                ),
                 onDismiss: dismissActiveMenu
             )
             .presentationDetents(menu.detents)
@@ -212,26 +216,42 @@ struct ComposerPlaceholderSheet: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(chipsForCurrentCategory) { chip in
-                    Button {
-                        ComposerButtonHaptics.selection()
-                        openMenu(chip.menu)
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: chip.systemImage)
-                                .font(AppTheme.typography.sized(14, weight: .semibold))
-                            ComposerAnimatedChipTitle(
-                                text: chip.title,
-                                semanticValue: chip.semanticValue,
-                                direction: chip.transitionDirection,
-                                font: AppTheme.typography.sized(14, weight: .semibold),
-                                uiFont: AppTheme.typography.sizedUIFont(14, weight: .semibold)
-                            )
+                    HStack(spacing: chip.showsTrailingClear ? 8 : 3) {
+                        Button {
+                            ComposerButtonHaptics.selection()
+                            openMenu(chip.menu)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: chip.systemImage)
+                                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                                ComposerAnimatedChipTitle(
+                                    text: chip.title,
+                                    semanticValue: chip.semanticValue,
+                                    direction: chip.transitionDirection,
+                                    font: AppTheme.typography.sized(14, weight: .semibold),
+                                    uiFont: AppTheme.typography.sizedUIFont(14, weight: .semibold)
+                                )
+                            }
+                            .contentShape(Rectangle())
                         }
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.84))
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 8)
+                        .buttonStyle(.plain)
+
+                        if chip.showsTrailingClear {
+                            Button {
+                                ComposerButtonHaptics.selection()
+                                clearChipValue(chip)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(AppTheme.typography.sized(11, weight: .bold))
+                                    .frame(width: 16, height: 16)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 8)
                     .modifier(
                         ComposerChipSurfaceModifier(
                             animationID: chip.id,
@@ -301,7 +321,8 @@ struct ComposerPlaceholderSheet: View {
                     title: draftState.taskTimeText,
                     systemImage: "clock",
                     menu: .time,
-                    semanticValue: .time(draftState.taskTime)
+                    semanticValue: .time(draftState.taskTime),
+                    showsTrailingClear: draftState.taskTime != nil
                 ),
                 ComposerChipSnapshot(
                     id: ComposerMenu.reminder.rawValue,
@@ -375,6 +396,7 @@ struct ComposerPlaceholderSheet: View {
                 title: snapshot.title,
                 systemImage: snapshot.systemImage,
                 menu: snapshot.menu,
+                showsTrailingClear: snapshot.showsTrailingClear,
                 transitionDirection: transitionDirection(
                     from: previousByID[snapshot.id]?.semanticValue,
                     to: snapshot.semanticValue
@@ -416,6 +438,15 @@ struct ComposerPlaceholderSheet: View {
         focusCoordinator.requestFocus(for: field)
         DispatchQueue.main.async {
             focusCoordinator.requestFocus(for: field)
+        }
+    }
+
+    private func clearChipValue(_ chip: ComposerRenderedChip) {
+        switch (draftState.category, chip.menu) {
+        case (.task, .time):
+            draftState.taskTime = nil
+        default:
+            break
         }
     }
 
@@ -862,6 +893,7 @@ private struct ComposerRenderedChip: Identifiable {
     let title: String
     let systemImage: String
     let menu: ComposerMenu
+    let showsTrailingClear: Bool
     let transitionDirection: ComposerChipTextTransitionDirection
     let semanticValue: ComposerChipSemanticValue
 }
@@ -872,6 +904,7 @@ private struct ComposerChipSnapshot: Identifiable, Equatable {
     let systemImage: String
     let menu: ComposerMenu
     let semanticValue: ComposerChipSemanticValue
+    var showsTrailingClear = false
 }
 
 private enum ComposerChipTextTransitionDirection {
@@ -1262,7 +1295,7 @@ private enum ComposerMenu: String, Identifiable {
         case .date:
             return [.custom(ComposerDateMenuDetent.self)]
         case .time:
-            return [.fraction(0.46)]
+            return [.fraction(0.5)]
         case .reminder, .priority, .repeatRule:
             return [.fraction(0.46)]
         }
@@ -1281,6 +1314,7 @@ private struct ComposerDateMenuDetent: CustomPresentationDetent {
 private struct ComposerMenuSheet: View {
     let menu: ComposerMenu
     @Binding var draftState: ComposerDraftState
+    let quickTimePresetMinutes: [Int]
     let onDismiss: () -> Void
 
     var body: some View {
@@ -1294,7 +1328,11 @@ private struct ComposerMenuSheet: View {
         case .date:
             ComposerDatePickerSheet(draftState: $draftState, onDismiss: onDismiss)
         case .time:
-            ComposerTimePickerSheet(draftState: $draftState, onDismiss: onDismiss)
+            ComposerTimePickerSheet(
+                draftState: $draftState,
+                quickPresetMinutes: quickTimePresetMinutes,
+                onDismiss: onDismiss
+            )
         case .reminder:
             optionList(
                 options: reminderMenuOptions
@@ -1691,20 +1729,17 @@ private struct ComposerDatePickerSheet: View {
 
 private struct ComposerTimePickerSheet: View {
     @Binding var draftState: ComposerDraftState
+    let quickPresetMinutes: [Int]
     let onDismiss: () -> Void
     @State private var selectedTime: Date
-    @State private var scrollTempo: ComposerTimePickerScrollTempo = .idle
-    @State private var numericCountsDown = false
-    @State private var lastAppliedStep = 0
-    @State private var isDragging = false
-    @State private var lastDragSample: ComposerTimeDragSample?
-    @State private var momentumTask: Task<Void, Never>?
-    @State private var idleResetTask: Task<Void, Never>?
-    @State private var hapticDriver = ComposerTimePickerHapticDriver()
-    @State private var didClearSelection = false
 
-    init(draftState: Binding<ComposerDraftState>, onDismiss: @escaping () -> Void) {
+    init(
+        draftState: Binding<ComposerDraftState>,
+        quickPresetMinutes: [Int],
+        onDismiss: @escaping () -> Void
+    ) {
         _draftState = draftState
+        self.quickPresetMinutes = NotificationSettings.normalizedQuickTimePresetMinutes(quickPresetMinutes)
         self.onDismiss = onDismiss
         let baseTime = draftState.wrappedValue.taskTime
             ?? Self.roundedTimeSeed(for: draftState.wrappedValue.taskDate)
@@ -1713,66 +1748,65 @@ private struct ComposerTimePickerSheet: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Text(displayedTime)
-                .font(AppTheme.typography.sized(82, weight: .bold))
-                .monospacedDigit()
-                .tracking(-2.4)
-                .foregroundStyle(AppTheme.colors.title)
-                .contentTransition(.numericText(countsDown: numericCountsDown))
-                .blur(radius: scrollTempo.blurRadius)
-                .scaleEffect(scrollTempo.scale)
-                .animation(.spring(response: 0.22, dampingFraction: 0.88), value: scrollTempo)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-
-            Text("截止时间")
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.title.opacity(0.72))
-                .padding(.bottom, 104)
-
-            ComposerTimeVerticalHint(isVisible: scrollTempo == .idle)
-                .padding(.bottom, 20)
-        }
-        .overlay(alignment: .topTrailing) {
-            if draftState.taskTime != nil {
-                Button {
-                    ComposerButtonHaptics.selection()
-                    clearTime()
-                } label: {
-                    Text("清除")
-                        .font(AppTheme.typography.sized(15, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title.opacity(0.82))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color(uiColor: .secondarySystemFill))
-                        )
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                ForEach(quickPresetMinutes, id: \.self) { minutes in
+                    Button {
+                        ComposerButtonHaptics.selection()
+                        applyQuickPreset(minutes)
+                    } label: {
+                        Text(relativePresetTitle(minutes))
+                            .font(AppTheme.typography.sized(15, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.title)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 52)
+                    }
+                    .buttonStyle(ComposerMenuOptionButtonStyle())
+                    .modifier(ComposerMenuOptionGlassModifier())
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 18)
-                .padding(.trailing, 22)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .gesture(timeDragGesture)
-        .onAppear {
-            hapticDriver.prepare()
-        }
-        .onChange(of: selectedTime) { _, _ in
-            writeBackSelectedTime()
-        }
-        .onDisappear {
-            momentumTask?.cancel()
-            idleResetTask?.cancel()
-            commitPendingSelectionIfNeeded()
-        }
-    }
+            .padding(.top, ComposerTimePickerMetrics.verticalInset)
+            .padding(.horizontal, ComposerMenuOptionMetrics.outerInset)
+            .padding(.bottom, ComposerTimePickerMetrics.contentSpacing)
 
-    private var displayedTime: String {
-        selectedTime.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+            ComposerMinuteIntervalWheelPicker(
+                selection: $selectedTime,
+                minuteInterval: 5
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: ComposerTimePickerMetrics.pickerHeight)
+            .clipped()
+            .padding(.bottom, ComposerTimePickerMetrics.contentSpacing)
+
+            HStack {
+                Button {
+                    ComposerButtonHaptics.primary()
+                    saveSelection()
+                } label: {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Text("添加")
+                            .font(AppTheme.typography.sized(17, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.title)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: ComposerMenuOptionMetrics.height)
+                    .contentShape(
+                        RoundedRectangle(
+                            cornerRadius: ComposerMenuOptionMetrics.cornerRadius,
+                            style: .continuous
+                        )
+                    )
+                }
+                .frame(maxWidth: .infinity)
+                .buttonStyle(ComposerMenuOptionButtonStyle())
+                .modifier(ComposerMenuOptionGlassModifier())
+            }
+            .padding(.horizontal, ComposerMenuOptionMetrics.outerInset)
+            .padding(.bottom, ComposerTimePickerMetrics.verticalInset)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private static func roundedTimeSeed(for date: Date) -> Date? {
@@ -1794,339 +1828,105 @@ private struct ComposerTimePickerSheet: View {
         )
     }
 
-    private func writeBackSelectedTime() {
-        didClearSelection = false
-        draftState.taskTime = selectedTime
+    private static func offsetTimeSeed(minutesFromNow: Int, for date: Date) -> Date {
+        let calendar = Calendar.current
+        let future = Date().addingTimeInterval(TimeInterval(minutesFromNow * 60))
+        let components = calendar.dateComponents([.hour, .minute], from: future)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+
+        return calendar.date(
+            bySettingHour: hour,
+            minute: minute,
+            second: 0,
+            of: date
+        ) ?? date
     }
 
-    private func clearTime() {
-        momentumTask?.cancel()
-        momentumTask = nil
-        idleResetTask?.cancel()
-        idleResetTask = nil
-        lastAppliedStep = 0
-        lastDragSample = nil
-        withAnimation(.easeOut(duration: 0.16)) {
-            isDragging = false
-            scrollTempo = .idle
+    private func applyQuickPreset(_ minutes: Int) {
+        let presetTime = Self.offsetTimeSeed(minutesFromNow: minutes, for: draftState.taskDate)
+        selectedTime = presetTime
+        saveSelection(presetTime)
+    }
+
+    private func relativePresetTitle(_ minutes: Int) -> String {
+        if minutes >= 60, minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)小时后"
         }
-        didClearSelection = true
-        draftState.taskTime = nil
+        return "\(minutes)分钟后"
+    }
+
+    private func saveSelection(_ value: Date? = nil) {
+        draftState.taskTime = value ?? selectedTime
         onDismiss()
     }
+}
 
-    private func commitPendingSelectionIfNeeded() {
-        guard !didClearSelection else { return }
-        draftState.taskTime = selectedTime
+private struct ComposerMinuteIntervalWheelPicker: UIViewRepresentable {
+    @Binding var selection: Date
+    let minuteInterval: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
     }
 
-    private var timeDragGesture: some Gesture {
-        DragGesture(minimumDistance: 4)
-            .onChanged { value in
-                momentumTask?.cancel()
-                momentumTask = nil
+    func makeUIView(context: Context) -> UIDatePicker {
+        let picker = UIDatePicker()
+        picker.datePickerMode = .time
+        picker.preferredDatePickerStyle = .wheels
+        picker.locale = Locale(identifier: "zh_CN")
+        picker.minuteInterval = minuteInterval
+        picker.setDate(Self.rounded(selection, minuteInterval: minuteInterval), animated: false)
+        picker.addTarget(context.coordinator, action: #selector(Coordinator.didChange(_:)), for: .valueChanged)
+        return picker
+    }
 
-                let sample = ComposerTimeDragSample(
-                    translation: value.translation.height,
-                    timestamp: ProcessInfo.processInfo.systemUptime
-                )
-                let velocity = currentVelocity(from: sample)
-                let tempo = ComposerTimePickerScrollTempo.drag(for: velocity)
-                lastDragSample = sample
+    func updateUIView(_ uiView: UIDatePicker, context: Context) {
+        let roundedSelection = Self.rounded(selection, minuteInterval: minuteInterval)
 
-                if !isDragging {
-                    withAnimation(.easeOut(duration: 0.12)) {
-                        isDragging = true
-                    }
-                }
-
-                let step = Int((-value.translation.height / tempo.stepDistance).rounded())
-                guard step != lastAppliedStep else { return }
-
-                let delta = step - lastAppliedStep
-                applyStepDelta(delta, tempo: tempo, hapticSource: .drag)
-                lastAppliedStep = step
+        if abs(selection.timeIntervalSince(roundedSelection)) > 0.5 {
+            DispatchQueue.main.async {
+                selection = roundedSelection
             }
-            .onEnded { value in
-                let finalSample = ComposerTimeDragSample(
-                    translation: value.translation.height,
-                    timestamp: ProcessInfo.processInfo.systemUptime
-                )
-                let velocity = currentVelocity(from: finalSample)
-                let tempo = ComposerTimePickerScrollTempo.drag(for: velocity)
-                let momentumSteps = projectedMomentumSteps(from: value, tempo: tempo)
-
-                lastAppliedStep = 0
-                lastDragSample = nil
-                withAnimation(.easeOut(duration: 0.16)) {
-                    isDragging = false
-                }
-
-                if momentumSteps == 0 {
-                    settle(after: tempo)
-                } else {
-                    startMomentum(steps: momentumSteps, tempo: tempo)
-                }
-            }
-    }
-
-    private func currentVelocity(from sample: ComposerTimeDragSample) -> CGFloat {
-        guard let previous = lastDragSample else { return 0 }
-        let deltaTime = max(sample.timestamp - previous.timestamp, 0.001)
-        return abs((sample.translation - previous.translation) / deltaTime)
-    }
-
-    private func projectedMomentumSteps(from value: DragGesture.Value, tempo: ComposerTimePickerScrollTempo) -> Int {
-        let projectedDelta = value.predictedEndTranslation.height - value.translation.height
-        let projectedSteps = Int((-projectedDelta / (tempo.stepDistance * 1.1)).rounded())
-        return max(-tempo.maxMomentumSteps, min(tempo.maxMomentumSteps, projectedSteps))
-    }
-
-    private func applyStepDelta(_ delta: Int, tempo: ComposerTimePickerScrollTempo, hapticSource: ComposerTimePickerHapticSource) {
-        guard delta != 0 else { return }
-
-        let updatedTime = Calendar.current.date(byAdding: .minute, value: delta * 5, to: selectedTime) ?? selectedTime
-
-        scrollTempo = tempo
-        numericCountsDown = delta < 0
-        hapticDriver.emitDetents(count: abs(delta), tempo: tempo, source: hapticSource)
-
-        withAnimation(tempo.textAnimation) {
-            selectedTime = updatedTime
         }
-    }
 
-    private func startMomentum(steps: Int, tempo: ComposerTimePickerScrollTempo) {
-        momentumTask?.cancel()
-        momentumTask = Task { @MainActor in
-            let direction = steps > 0 ? 1 : -1
-            for _ in 0..<abs(steps) {
-                guard !Task.isCancelled else { break }
-                applyStepDelta(direction, tempo: tempo.momentumTempo, hapticSource: .momentum)
-                try? await Task.sleep(for: .milliseconds(tempo.momentumTempo.detentIntervalMilliseconds))
-            }
-            settle(after: tempo.momentumTempo)
-            momentumTask = nil
+        if abs(uiView.date.timeIntervalSince(roundedSelection)) > 0.5 {
+            uiView.setDate(roundedSelection, animated: context.coordinator.hasAppeared)
         }
+
+        context.coordinator.hasAppeared = true
     }
 
-    private func settle(after tempo: ComposerTimePickerScrollTempo) {
-        idleResetTask?.cancel()
-        hapticDriver.emitSettle(for: tempo)
-        idleResetTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            scrollTempo = .idle
+    private static func rounded(_ date: Date, minuteInterval: Int) -> Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+        let roundedMinute = Int((Double(minute) / Double(minuteInterval)).rounded()) * minuteInterval
+
+        let hourBaseDate = calendar.date(
+            bySettingHour: hour,
+            minute: 0,
+            second: 0,
+            of: date
+        ) ?? date
+
+        return calendar.date(byAdding: .minute, value: roundedMinute, to: hourBaseDate) ?? hourBaseDate
+    }
+
+    final class Coordinator: NSObject {
+        var parent: ComposerMinuteIntervalWheelPicker
+        var hasAppeared = false
+
+        init(_ parent: ComposerMinuteIntervalWheelPicker) {
+            self.parent = parent
         }
-    }
-}
 
-private enum ComposerTimePickerScrollTempo: Equatable {
-    case idle
-    case dragSlow
-    case dragMedium
-    case dragFast
-    case momentumSlow
-    case momentumFast
-
-    static func drag(for velocity: CGFloat) -> Self {
-        switch velocity {
-        case ..<220:
-            return .dragSlow
-        case ..<480:
-            return .dragMedium
-        default:
-            return .dragFast
-        }
-    }
-
-    var stepDistance: CGFloat {
-        switch self {
-        case .dragFast:
-            return 12
-        case .dragMedium:
-            return 15
-        case .dragSlow, .momentumSlow, .momentumFast, .idle:
-            return 18
-        }
-    }
-
-    var maxMomentumSteps: Int {
-        switch self {
-        case .dragFast:
-            return 8
-        case .dragMedium:
-            return 5
-        case .dragSlow, .momentumSlow, .momentumFast, .idle:
-            return 2
-        }
-    }
-
-    var momentumTempo: Self {
-        switch self {
-        case .dragFast, .momentumFast:
-            return .momentumFast
-        case .dragMedium, .dragSlow, .momentumSlow, .idle:
-            return .momentumSlow
-        }
-    }
-
-    var detentIntervalMilliseconds: Int {
-        switch self {
-        case .momentumFast:
-            return 32
-        case .momentumSlow:
-            return 54
-        default:
-            return 0
-        }
-    }
-
-    var blurRadius: CGFloat {
-        switch self {
-        case .dragFast, .momentumFast:
-            return 1
-        case .dragMedium, .momentumSlow:
-            return 0.5
-        case .dragSlow, .idle:
-            return 0
-        }
-    }
-
-    var scale: CGFloat {
-        switch self {
-        case .dragFast, .momentumFast:
-            return 1.016
-        case .dragMedium, .momentumSlow:
-            return 1.008
-        case .dragSlow, .idle:
-            return 1
-        }
-    }
-
-    var rollImpulse: CGFloat {
-        switch self {
-        case .dragFast, .momentumFast:
-            return 18
-        case .dragMedium, .momentumSlow:
-            return 12
-        case .dragSlow:
-            return 8
-        case .idle:
-            return 0
-        }
-    }
-
-    var textAnimation: Animation {
-        switch self {
-        case .dragFast, .momentumFast:
-            return .linear(duration: 0.045)
-        case .dragMedium, .momentumSlow:
-            return .linear(duration: 0.075)
-        case .dragSlow:
-            return .spring(response: 0.18, dampingFraction: 0.9)
-        case .idle:
-            return .spring(response: 0.24, dampingFraction: 0.86)
-        }
-    }
-}
-
-private struct ComposerTimeDragSample {
-    let translation: CGFloat
-    let timestamp: TimeInterval
-}
-
-private enum ComposerTimePickerHapticSource {
-    case drag
-    case momentum
-}
-
-@MainActor
-private final class ComposerTimePickerHapticDriver {
-    #if canImport(UIKit)
-    private let selectionGenerator = UISelectionFeedbackGenerator()
-    private let softImpactGenerator = UIImpactFeedbackGenerator(style: .soft)
-    private let rigidImpactGenerator = UIImpactFeedbackGenerator(style: .rigid)
-    private var detentCounter = 0
-    #endif
-
-    func prepare() {
-        #if canImport(UIKit)
-        selectionGenerator.prepare()
-        softImpactGenerator.prepare()
-        rigidImpactGenerator.prepare()
-        #endif
-    }
-
-    func emitDetents(count: Int, tempo: ComposerTimePickerScrollTempo, source: ComposerTimePickerHapticSource) {
-        #if canImport(UIKit)
-        guard count > 0 else { return }
-
-        for _ in 0..<count {
-            detentCounter += 1
-            selectionGenerator.selectionChanged()
-
-            switch (tempo, source) {
-            case (.dragMedium, .drag), (.momentumSlow, .momentum):
-                if detentCounter.isMultiple(of: 2) {
-                    softImpactGenerator.impactOccurred(intensity: 0.34)
-                }
-            case (.dragFast, .drag), (.momentumFast, .momentum):
-                if detentCounter.isMultiple(of: 2) {
-                    rigidImpactGenerator.impactOccurred(intensity: 0.42)
-                }
-            default:
-                break
-            }
-
-            selectionGenerator.prepare()
-            softImpactGenerator.prepare()
-            rigidImpactGenerator.prepare()
-        }
-        #endif
-    }
-
-    func emitSettle(for tempo: ComposerTimePickerScrollTempo) {
-        #if canImport(UIKit)
-        switch tempo {
-        case .dragFast, .momentumFast:
-            rigidImpactGenerator.impactOccurred(intensity: 0.48)
-        case .dragMedium, .momentumSlow:
-            rigidImpactGenerator.impactOccurred(intensity: 0.38)
-        case .dragSlow:
-            softImpactGenerator.impactOccurred(intensity: 0.28)
-        case .idle:
-            break
-        }
-        detentCounter = 0
-        prepare()
-        #endif
-    }
-}
-
-private struct ComposerTimeVerticalHint: View {
-    let isVisible: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.up")
-            Image(systemName: "arrow.down")
-        }
-        .font(.system(size: 18, weight: .semibold))
-        .foregroundStyle(Color.black.opacity(0.18))
-        .opacity(isVisible ? 0.38 : 0)
-        .modifier(ComposerSymbolHintEffectModifier(isActive: isVisible))
-                .animation(.easeOut(duration: 0.16), value: isVisible)
-    }
-}
-
-private struct ComposerSymbolHintEffectModifier: ViewModifier {
-    let isActive: Bool
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.symbolEffect(.pulse, options: .repeating, isActive: isActive)
-        } else {
-            content
+        @objc func didChange(_ sender: UIDatePicker) {
+            parent.selection = ComposerMinuteIntervalWheelPicker.rounded(
+                sender.date,
+                minuteInterval: parent.minuteInterval
+            )
         }
     }
 }
@@ -2329,6 +2129,12 @@ private enum ComposerMenuOptionMetrics {
     static let cornerRadius: CGFloat = 26
 }
 
+private enum ComposerTimePickerMetrics {
+    static let verticalInset: CGFloat = 18
+    static let contentSpacing: CGFloat = 12
+    static let pickerHeight: CGFloat = 170
+}
+
 private enum ComposerField: Hashable {
     case title
     case notes
@@ -2336,17 +2142,17 @@ private enum ComposerField: Hashable {
 
 @MainActor
 private enum ComposerButtonHaptics {
-    private static let selectionGenerator = UISelectionFeedbackGenerator()
+    private static let selectionGenerator = UIImpactFeedbackGenerator(style: .soft)
     private static let primaryGenerator = UIImpactFeedbackGenerator(style: .light)
 
     static func selection() {
         selectionGenerator.prepare()
-        selectionGenerator.selectionChanged()
+        selectionGenerator.impactOccurred(intensity: 0.9)
     }
 
     static func primary() {
         primaryGenerator.prepare()
-        primaryGenerator.impactOccurred(intensity: 0.9)
+        primaryGenerator.impactOccurred(intensity: 0.96)
     }
 }
 
