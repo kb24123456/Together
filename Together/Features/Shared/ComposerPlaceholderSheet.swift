@@ -1,6 +1,7 @@
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
+import CoreText
 #endif
 
 struct ComposerPlaceholderSheet: View {
@@ -12,7 +13,13 @@ struct ComposerPlaceholderSheet: View {
     @State private var activeMenu: ComposerMenu?
     @State private var isSaving = false
     @State private var lastFocusedFieldBeforeMenu: ComposerField?
-    @FocusState private var focusedField: ComposerField?
+    @State private var focusedField: ComposerField?
+    @State private var hasScheduledInitialTitleFocus = false
+    @State private var focusCoordinator = ComposerTextInputFocusCoordinator()
+    @Namespace private var categorySwitcherNamespace
+    @Namespace private var chipRowNamespace
+    @State private var displayedChips: [ComposerRenderedChip] = []
+    @State private var pendingChipSnapshots: [ComposerChipSnapshot]?
 
     init(route: ComposerRoute, appContext: AppContext) {
         self.route = route
@@ -32,30 +39,33 @@ struct ComposerPlaceholderSheet: View {
                     .padding(.top, 18)
                     .padding(.bottom, 8)
 
-                TabView(selection: $draftState.category) {
-                    ForEach(ComposerCategory.allCases) { category in
-                        ComposerPage(
-                            category: category,
-                            draftState: $draftState,
-                            focusedField: $focusedField
-                        )
-                        .tag(category)
-                        .padding(.horizontal, 26)
-                        .padding(.top, 12)
-                        .padding(.bottom, 24)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.spring(response: 0.26, dampingFraction: 0.84), value: draftState.category)
+                ComposerPage(
+                    category: draftState.category,
+                    draftState: $draftState,
+                    focusedField: $focusedField,
+                    focusCoordinator: focusCoordinator
+                )
+                .padding(.horizontal, 26)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(AppTheme.colors.surface)
             .overlay(alignment: .bottom) {
                 bottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, 8))
             }
+            .overlay {
+                if activeMenu != nil {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            dismissActiveMenu()
+                        }
+                }
+            }
             .ignoresSafeArea(edges: .bottom)
         }
-        .sheet(item: $activeMenu, onDismiss: restoreKeyboardFocusIfNeeded) { menu in
+        .sheet(item: $activeMenu) { menu in
             ComposerMenuSheet(
                 menu: menu,
                 draftState: $draftState,
@@ -63,13 +73,28 @@ struct ComposerPlaceholderSheet: View {
             )
             .presentationDetents(menu.detents)
             .presentationContentInteraction(.scrolls)
+            .presentationBackgroundInteraction(.enabled)
             .presentationDragIndicator(.hidden)
             .interactiveDismissDisabled(false)
             .modifier(ComposerMenuPresentationSizingModifier())
+            .onDisappear {
+                restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
+                playPendingChipUpdatesIfNeeded()
+            }
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+            guard !hasScheduledInitialTitleFocus else { return }
+            hasScheduledInitialTitleFocus = true
+            displayedChips = makeRenderedChips(from: currentChipSnapshots, previous: displayedChips)
+            DispatchQueue.main.async {
                 focusedField = .title
+            }
+        }
+        .onChange(of: currentChipSnapshots) { _, newSnapshots in
+            if activeMenu != nil {
+                pendingChipSnapshots = newSnapshots
+            } else {
+                applyRenderedChips(newSnapshots, animated: !displayedChips.isEmpty)
             }
         }
     }
@@ -78,8 +103,15 @@ struct ComposerPlaceholderSheet: View {
         HStack(spacing: 10) {
             ForEach(ComposerCategory.allCases) { category in
                 Button {
+                    ComposerButtonHaptics.selection()
+                    let fieldToRestore = focusedField ?? focusCoordinator.currentFocusedField ?? .title
+                    focusCoordinator.prepareFocusTransition(to: fieldToRestore)
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                         draftState.category = category
+                    }
+                    focusedField = fieldToRestore
+                    DispatchQueue.main.async {
+                        focusCoordinator.requestFocus(for: fieldToRestore)
                     }
                 } label: {
                     Text(category.title)
@@ -89,11 +121,20 @@ struct ComposerPlaceholderSheet: View {
                             ? AppTheme.colors.title
                             : AppTheme.colors.textTertiary
                         )
+                        .scaleEffect(draftState.category == category ? 1 : 0.96)
                         .padding(.horizontal, 17)
                         .padding(.vertical, 9)
                         .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(draftState.category == category ? AppTheme.colors.surfaceElevated : .clear)
+                            ZStack {
+                                if draftState.category == category {
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(AppTheme.colors.surfaceElevated)
+                                        .matchedGeometryEffect(
+                                            id: "composer.categorySwitcher.selection",
+                                            in: categorySwitcherNamespace
+                                        )
+                                }
+                            }
                         )
                 }
                 .buttonStyle(.plain)
@@ -106,32 +147,13 @@ struct ComposerPlaceholderSheet: View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            HStack(alignment: .center, spacing: 12) {
-                chipRow
+            VStack(alignment: .leading, spacing: draftState.hasMeaningfulContent ? 12 : 0) {
+                HStack(alignment: .center, spacing: 12) {
+                    chipRow(trailingInset: 0)
+                }
 
                 if draftState.hasMeaningfulContent {
-                    Button {
-                        Task {
-                            await save()
-                        }
-                    } label: {
-                        Text(addButtonTitle)
-                            .font(AppTheme.typography.sized(15, weight: .bold))
-                            .foregroundStyle(AppTheme.colors.coral)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 11)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color.white.opacity(0.95))
-                            )
-                            .overlay {
-                                Capsule(style: .continuous)
-                                    .stroke(.white.opacity(0.88), lineWidth: 1)
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isSaving)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    stackedPrimaryActionButton
                 }
             }
             .padding(.horizontal, 18)
@@ -149,90 +171,225 @@ struct ComposerPlaceholderSheet: View {
         .animation(.spring(response: 0.24, dampingFraction: 0.88), value: draftState.hasMeaningfulContent)
     }
 
-    private var chipRow: some View {
+    private var stackedPrimaryActionButton: some View {
+        primaryActionButtonBody
+            .frame(maxWidth: .infinity)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var primaryActionButtonBody: some View {
+        Button {
+            ComposerButtonHaptics.primary()
+            Task {
+                await save()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(13, weight: .bold))
+
+                Text(addButtonTitle)
+                    .font(AppTheme.typography.sized(15, weight: .bold))
+            }
+            .foregroundStyle(AppTheme.colors.coral)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemFill))
+            )
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(.white.opacity(0.54), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isSaving)
+    }
+
+    private func chipRow(trailingInset: CGFloat) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(chipsForCurrentCategory) { chip in
                     Button {
+                        ComposerButtonHaptics.selection()
                         openMenu(chip.menu)
                     } label: {
-                        HStack(spacing: 7) {
+                        HStack(spacing: 3) {
                             Image(systemName: chip.systemImage)
                                 .font(AppTheme.typography.sized(14, weight: .semibold))
-                            Text(chip.title)
-                                .font(AppTheme.typography.sized(14, weight: .semibold))
+                            ComposerAnimatedChipTitle(
+                                text: chip.title,
+                                semanticValue: chip.semanticValue,
+                                direction: chip.transitionDirection,
+                                font: AppTheme.typography.sized(14, weight: .semibold),
+                                uiFont: AppTheme.typography.sizedUIFont(14, weight: .semibold)
+                            )
                         }
                         .foregroundStyle(AppTheme.colors.body.opacity(0.84))
                         .padding(.horizontal, 13)
                         .padding(.vertical, 8)
                     }
                     .buttonStyle(.plain)
-                    .modifier(ComposerChipSurfaceModifier())
+                    .modifier(
+                        ComposerChipSurfaceModifier(
+                            animationID: chip.id,
+                            namespace: chipRowNamespace
+                        )
+                    )
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .offset(x: 10)),
+                            removal: .opacity.combined(with: .offset(x: -10))
+                        )
+                    )
                 }
             }
+            .padding(.trailing, trailingInset)
             .padding(.vertical, 2)
+            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: chipAnimationKey)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var chipsForCurrentCategory: [ComposerChip] {
+    private var chipAnimationKey: String {
+        chipsForCurrentCategory.map(\.id).joined(separator: "|")
+    }
+
+    private var chipsForCurrentCategory: [ComposerRenderedChip] {
+        if displayedChips.isEmpty {
+            return makeRenderedChips(from: currentChipSnapshots, previous: [])
+        }
+        return displayedChips
+    }
+
+    private var currentChipSnapshots: [ComposerChipSnapshot] {
         switch draftState.category {
         case .periodic:
             return [
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.repeatRule.rawValue,
                     title: draftState.repeatSummaryText,
                     systemImage: "arrow.triangle.2.circlepath",
-                    menu: .repeatRule
+                    menu: .repeatRule,
+                    semanticValue: .repeatRule(
+                        title: draftState.repeatSummaryText,
+                        rank: draftState.repeatRule.animationRank
+                    )
                 ),
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.reminder.rawValue,
                     title: draftState.reminderSummaryText(for: .periodic),
                     systemImage: "bell",
-                    menu: .reminder
+                    menu: .reminder,
+                    semanticValue: .reminder(draftState.periodicReminderOffset)
                 )
             ]
         case .task:
             return [
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.date.rawValue,
                     title: draftState.taskDateText,
                     systemImage: "calendar",
-                    menu: .date
+                    menu: .date,
+                    semanticValue: .date(draftState.taskDate)
                 ),
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.time.rawValue,
                     title: draftState.taskTimeText,
                     systemImage: "clock",
-                    menu: .time
+                    menu: .time,
+                    semanticValue: .time(draftState.taskTime)
                 ),
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.reminder.rawValue,
                     title: draftState.reminderSummaryText(for: .task),
                     systemImage: "bell",
-                    menu: .reminder
+                    menu: .reminder,
+                    semanticValue: .reminder(draftState.taskReminderOffset)
                 ),
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.priority.rawValue,
                     title: draftState.priority.title,
                     systemImage: "flag",
-                    menu: .priority
+                    menu: .priority,
+                    semanticValue: .priority(draftState.priority.animationRank)
                 )
             ]
         case .project:
             return [
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.date.rawValue,
                     title: draftState.projectDateText,
                     systemImage: "calendar",
-                    menu: .date
+                    menu: .date,
+                    semanticValue: .optionalDate(draftState.projectTargetDate)
                 ),
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.reminder.rawValue,
                     title: draftState.reminderSummaryText(for: .project),
                     systemImage: "bell",
-                    menu: .reminder
+                    menu: .reminder,
+                    semanticValue: .reminder(draftState.projectReminderOffset)
                 ),
-                ComposerChip(
+                ComposerChipSnapshot(
+                    id: ComposerMenu.priority.rawValue,
                     title: draftState.priority.title,
                     systemImage: "flag",
-                    menu: .priority
+                    menu: .priority,
+                    semanticValue: .priority(draftState.priority.animationRank)
                 )
             ]
         }
+    }
+
+    private func playPendingChipUpdatesIfNeeded() {
+        guard let pendingChipSnapshots else { return }
+        applyRenderedChips(pendingChipSnapshots, animated: true)
+        self.pendingChipSnapshots = nil
+    }
+
+    private func applyRenderedChips(_ snapshots: [ComposerChipSnapshot], animated: Bool) {
+        let nextChips = makeRenderedChips(from: snapshots, previous: displayedChips)
+        let shouldAnimateLayout = animated && displayedChips.map(\.id) != nextChips.map(\.id)
+
+        if shouldAnimateLayout {
+            withAnimation(ComposerChipAnimation.layoutSpring) {
+                displayedChips = nextChips
+            }
+        } else {
+            displayedChips = nextChips
+        }
+    }
+
+    private func makeRenderedChips(
+        from snapshots: [ComposerChipSnapshot],
+        previous: [ComposerRenderedChip]
+    ) -> [ComposerRenderedChip] {
+        let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
+        return snapshots.map { snapshot in
+            ComposerRenderedChip(
+                id: snapshot.id,
+                title: snapshot.title,
+                systemImage: snapshot.systemImage,
+                menu: snapshot.menu,
+                transitionDirection: transitionDirection(
+                    from: previousByID[snapshot.id]?.semanticValue,
+                    to: snapshot.semanticValue
+                ),
+                semanticValue: snapshot.semanticValue
+            )
+        }
+    }
+
+    private func transitionDirection(
+        from previousValue: ComposerChipSemanticValue?,
+        to newValue: ComposerChipSemanticValue
+    ) -> ComposerChipTextTransitionDirection {
+        guard let previousValue else { return .up }
+        return ComposerChipSemanticValue.direction(from: previousValue, to: newValue)
     }
     private var addButtonTitle: String {
         draftState.category == .project ? "创建" : "添加"
@@ -240,29 +397,33 @@ struct ComposerPlaceholderSheet: View {
 
     private func openMenu(_ menu: ComposerMenu) {
         lastFocusedFieldBeforeMenu = focusedField
+        focusCoordinator.resignCurrentResponder()
         focusedField = nil
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+            withTransaction(ComposerMenuAnimation.presentationTransaction) {
                 activeMenu = menu
             }
         }
     }
 
-    private func restoreKeyboardFocusIfNeeded() {
+    private func restoreKeyboardFocusIfNeeded(preferImmediateResponder: Bool = false) {
         guard let field = lastFocusedFieldBeforeMenu else { return }
         lastFocusedFieldBeforeMenu = nil
+        focusedField = field
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            focusedField = field
+        guard preferImmediateResponder else { return }
+        focusCoordinator.requestFocus(for: field)
+        DispatchQueue.main.async {
+            focusCoordinator.requestFocus(for: field)
         }
     }
 
     private func dismissActiveMenu() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+        restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
+        withTransaction(ComposerMenuAnimation.dismissalTransaction) {
             activeMenu = nil
         }
-        restoreKeyboardFocusIfNeeded()
     }
 
     @MainActor
@@ -358,17 +519,17 @@ private struct ComposerDraftState: Hashable {
     }
 
     var taskDateText: String {
-        taskDate.formatted(.dateTime.month(.defaultDigits).day())
+        Self.localizedRelativeMonthDayText(taskDate)
     }
 
     var taskTimeText: String {
-        guard let taskTime else { return "添加时间" }
+        guard let taskTime else { return "时间" }
         return taskTime.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
     var projectDateText: String {
         guard let projectTargetDate else { return "截止日期" }
-        return projectTargetDate.formatted(.dateTime.month(.defaultDigits).day())
+        return Self.localizedRelativeMonthDayText(projectTargetDate)
     }
 
     var repeatSummaryText: String {
@@ -387,7 +548,7 @@ private struct ComposerDraftState: Hashable {
         }
 
         guard let offset else { return "提醒" }
-        return ReminderPreset.preset(for: offset)?.title ?? "提醒"
+        return ReminderPreset.preset(for: offset)?.chipTitle ?? "提醒"
     }
 
     func taskDraft() -> TaskDraft {
@@ -467,26 +628,58 @@ private struct ComposerDraftState: Hashable {
             minute: timeComponents.minute
         )) ?? date
     }
+
+    private static func localizedMonthDayText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter.string(from: date)
+    }
+
+    private static func localizedRelativeMonthDayText(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "今天"
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: .now),
+           calendar.isDate(date, inSameDayAs: tomorrow) {
+            return "明天"
+        }
+        return localizedMonthDayText(date)
+    }
 }
 
 private struct ComposerPage: View {
     let category: ComposerCategory
     @Binding var draftState: ComposerDraftState
-    @FocusState.Binding var focusedField: ComposerField?
+    @Binding var focusedField: ComposerField?
+    let focusCoordinator: ComposerTextInputFocusCoordinator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TextField(category.titlePlaceholder, text: $draftState.title, axis: .vertical)
-                .font(AppTheme.typography.sized(30, weight: .bold))
-                .foregroundStyle(AppTheme.colors.title)
-                .lineLimit(3)
-                .focused($focusedField, equals: .title)
+            ComposerFocusableTextView(
+                text: $draftState.title,
+                focusedField: $focusedField,
+                focusCoordinator: focusCoordinator,
+                field: .title,
+                placeholder: category.titlePlaceholder,
+                font: AppTheme.typography.sizedUIFont(30, weight: .bold),
+                textColor: UIColor(AppTheme.colors.title),
+                placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.62)),
+                maximumNumberOfLines: 3
+            )
 
-            TextField("添加备注...", text: $draftState.notes, axis: .vertical)
-                .font(AppTheme.typography.sized(16, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.78))
-                .lineLimit(8, reservesSpace: false)
-                .focused($focusedField, equals: .notes)
+            ComposerFocusableTextView(
+                text: $draftState.notes,
+                focusedField: $focusedField,
+                focusCoordinator: focusCoordinator,
+                field: .notes,
+                placeholder: "添加备注...",
+                font: AppTheme.typography.sizedUIFont(16, weight: .medium),
+                textColor: UIColor(AppTheme.colors.body.opacity(0.78)),
+                placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.74)),
+                maximumNumberOfLines: 8
+            )
 
             Spacer(minLength: 0)
         }
@@ -494,11 +687,565 @@ private struct ComposerPage: View {
     }
 }
 
-private struct ComposerChip: Identifiable {
-    let id = UUID()
+private struct ComposerFocusableTextView: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var focusedField: ComposerField?
+    let focusCoordinator: ComposerTextInputFocusCoordinator
+    let field: ComposerField
+    let placeholder: String
+    let font: UIFont
+    let textColor: UIColor
+    let placeholderColor: UIColor
+    let maximumNumberOfLines: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> ComposerTextViewContainer {
+        let container = ComposerTextViewContainer()
+        container.textView.delegate = context.coordinator
+        focusCoordinator.register(container.textView, for: field)
+        container.textView.backgroundColor = .clear
+        container.textView.textContainerInset = .zero
+        container.textView.textContainer.lineFragmentPadding = 0
+        container.textView.isScrollEnabled = false
+        container.textView.keyboardDismissMode = .interactive
+        container.setContentHuggingPriority(.required, for: .vertical)
+        container.setContentCompressionResistancePriority(.required, for: .vertical)
+        container.textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        container.textView.setContentHuggingPriority(.required, for: .vertical)
+        container.textView.setContentCompressionResistancePriority(.required, for: .vertical)
+        container.onDidMoveToWindow = {
+            context.coordinator.syncFirstResponder(in: container.textView)
+        }
+
+        update(container, coordinator: context.coordinator)
+        return container
+    }
+
+    func updateUIView(_ uiView: ComposerTextViewContainer, context: Context) {
+        context.coordinator.parent = self
+        focusCoordinator.register(uiView.textView, for: field)
+        update(uiView, coordinator: context.coordinator)
+        context.coordinator.syncFirstResponder(in: uiView.textView)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: ComposerTextViewContainer, context: Context) -> CGSize? {
+        let targetWidth = proposal.width ?? uiView.bounds.width
+        guard targetWidth > 0 else {
+            return uiView.intrinsicContentSize
+        }
+        return uiView.sizeThatFits(CGSize(width: targetWidth, height: .greatestFiniteMagnitude))
+    }
+
+    private func update(_ container: ComposerTextViewContainer, coordinator: Coordinator) {
+        let textView = container.textView
+        textView.font = font
+        textView.textColor = textColor
+        textView.textContainer.maximumNumberOfLines = maximumNumberOfLines
+        textView.textContainer.lineBreakMode = .byTruncatingTail
+        if textView.text != text {
+            textView.text = text
+        }
+        container.placeholderLabel.text = placeholder
+        container.placeholderLabel.font = font
+        container.placeholderLabel.textColor = placeholderColor
+        container.placeholderLabel.isHidden = !text.isEmpty
+        container.invalidateIntrinsicContentSize()
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ComposerFocusableTextView
+
+        init(parent: ComposerFocusableTextView) {
+            self.parent = parent
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            let updated = textView.text ?? ""
+            if parent.text != updated {
+                parent.text = updated
+            }
+            if let container = textView.superview as? ComposerTextViewContainer {
+                container.placeholderLabel.isHidden = !updated.isEmpty
+            }
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.focusCoordinator.markDidBeginEditing(parent.field)
+            if parent.focusedField != parent.field {
+                parent.focusedField = parent.field
+            }
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.focusCoordinator.markDidEndEditing(parent.field)
+            if parent.focusedField == parent.field && !parent.focusCoordinator.isTransitioningFocus {
+                parent.focusedField = nil
+            }
+        }
+
+        func syncFirstResponder(in textView: UITextView) {
+            let shouldFocus = parent.focusedField == parent.field
+            if shouldFocus {
+                guard !textView.isFirstResponder else { return }
+                guard textView.window != nil else { return }
+                textView.becomeFirstResponder()
+            } else if textView.isFirstResponder {
+                textView.resignFirstResponder()
+            }
+        }
+    }
+}
+
+private final class ComposerTextViewContainer: UIView {
+    let textView = UITextView()
+    let placeholderLabel = UILabel()
+    var onDidMoveToWindow: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+
+        addSubview(textView)
+        addSubview(placeholderLabel)
+
+        textView.translatesAutoresizingMaskIntoConstraints = false
+        placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
+        placeholderLabel.numberOfLines = 0
+        placeholderLabel.backgroundColor = .clear
+
+        NSLayoutConstraint.activate([
+            textView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            textView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            textView.topAnchor.constraint(equalTo: topAnchor),
+            textView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            placeholderLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            placeholderLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            placeholderLabel.topAnchor.constraint(equalTo: topAnchor)
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        onDidMoveToWindow?()
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let fallbackWidth = window?.windowScene?.screen.bounds.width ?? 320
+        let fittingWidth = bounds.width > 0 ? bounds.width : fallbackWidth - 52
+        let textHeight = textView.sizeThatFits(CGSize(width: fittingWidth, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: UIView.noIntrinsicMetric, height: ceil(textHeight))
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let fittingWidth = size.width > 0 ? size.width : (bounds.width > 0 ? bounds.width : 320)
+        let textHeight = textView.sizeThatFits(CGSize(width: fittingWidth, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: fittingWidth, height: ceil(textHeight))
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        invalidateIntrinsicContentSize()
+    }
+}
+
+private struct ComposerRenderedChip: Identifiable {
+    let id: String
     let title: String
     let systemImage: String
     let menu: ComposerMenu
+    let transitionDirection: ComposerChipTextTransitionDirection
+    let semanticValue: ComposerChipSemanticValue
+}
+
+private struct ComposerChipSnapshot: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let menu: ComposerMenu
+    let semanticValue: ComposerChipSemanticValue
+}
+
+private enum ComposerChipTextTransitionDirection {
+    case up
+    case down
+
+    var outgoingOffset: CGFloat {
+        switch self {
+        case .up:
+            return -16
+        case .down:
+            return 16
+        }
+    }
+
+    var incomingStartOffset: CGFloat {
+        -outgoingOffset
+    }
+}
+
+private enum ComposerChipSemanticValue: Equatable {
+    case date(Date)
+    case optionalDate(Date?)
+    case time(Date?)
+    case reminder(TimeInterval?)
+    case priority(Int)
+    case repeatRule(title: String, rank: Int)
+
+    static func direction(from oldValue: Self, to newValue: Self) -> ComposerChipTextTransitionDirection {
+        switch (oldValue, newValue) {
+        case let (.date(oldDate), .date(newDate)):
+            return newDate >= oldDate ? .up : .down
+        case let (.optionalDate(oldDate), .optionalDate(newDate)):
+            return compare(oldDate, newDate)
+        case let (.time(oldTime), .time(newTime)):
+            return compare(oldTime, newTime)
+        case let (.reminder(oldOffset), .reminder(newOffset)):
+            return (newOffset ?? -.infinity) >= (oldOffset ?? -.infinity) ? .up : .down
+        case let (.priority(oldRank), .priority(newRank)):
+            return newRank >= oldRank ? .up : .down
+        case let (.repeatRule(oldTitle, oldRank), .repeatRule(newTitle, newRank)):
+            if newRank != oldRank {
+                return newRank >= oldRank ? .up : .down
+            }
+            return newTitle.localizedCompare(oldTitle) == .orderedDescending ? .up : .down
+        default:
+            return .up
+        }
+    }
+
+    private static func compare(_ oldDate: Date?, _ newDate: Date?) -> ComposerChipTextTransitionDirection {
+        switch (oldDate, newDate) {
+        case let (.some(oldDate), .some(newDate)):
+            return newDate >= oldDate ? .up : .down
+        case (.none, .some):
+            return .up
+        case (.some, .none):
+            return .down
+        case (.none, .none):
+            return .up
+        }
+    }
+}
+
+private struct ComposerChipTextSegment: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case numeric
+        case text
+    }
+
+    let id: String
+    let text: String
+    let kind: Kind
+
+    static func empty(id: String, kind: Kind) -> Self {
+        Self(id: id, text: "", kind: kind)
+    }
+
+    func measuredWidth(using font: UIFont) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        return ceil((text as NSString).size(withAttributes: attributes).width)
+    }
+}
+
+private struct ComposerChipTextLayout: Equatable {
+    let segments: [ComposerChipTextSegment]
+
+    init(text: String, semanticValue: ComposerChipSemanticValue) {
+        switch semanticValue {
+        case let .date(date):
+            segments = Self.dateSegments(for: date)
+        case let .optionalDate(date):
+            if let date {
+                segments = Self.dateSegments(for: date)
+            } else {
+                segments = [ComposerChipTextSegment(id: "main", text: text, kind: .text)]
+            }
+        case let .time(date):
+            segments = Self.timeSegments(for: date, placeholder: text)
+        case .reminder, .priority, .repeatRule:
+            segments = [ComposerChipTextSegment(id: "main", text: text, kind: .text)]
+        }
+    }
+
+    func segment(id: String) -> ComposerChipTextSegment? {
+        segments.first { $0.id == id }
+    }
+
+    func measuredWidth(using font: UIFont) -> CGFloat {
+        segments.reduce(0) { partialResult, segment in
+            partialResult + segment.measuredWidth(using: font)
+        }
+    }
+
+    private static func dateSegments(for date: Date) -> [ComposerChipTextSegment] {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return [
+                ComposerChipTextSegment(id: "relative", text: "今天", kind: .text),
+                .empty(id: "monthTens", kind: .numeric),
+                .empty(id: "monthOnes", kind: .numeric),
+                .empty(id: "monthSuffix", kind: .text),
+                .empty(id: "dayTens", kind: .numeric),
+                .empty(id: "dayOnes", kind: .numeric),
+                .empty(id: "daySuffix", kind: .text)
+            ]
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: .now),
+           calendar.isDate(date, inSameDayAs: tomorrow) {
+            return [
+                ComposerChipTextSegment(id: "relative", text: "明天", kind: .text),
+                .empty(id: "monthTens", kind: .numeric),
+                .empty(id: "monthOnes", kind: .numeric),
+                .empty(id: "monthSuffix", kind: .text),
+                .empty(id: "dayTens", kind: .numeric),
+                .empty(id: "dayOnes", kind: .numeric),
+                .empty(id: "daySuffix", kind: .text)
+            ]
+        }
+
+        let monthSegments = numberSegments(
+            prefix: "month",
+            value: calendar.component(.month, from: date),
+            digits: 2,
+            blankLeadingZero: true
+        )
+        let daySegments = numberSegments(
+            prefix: "day",
+            value: calendar.component(.day, from: date),
+            digits: 2,
+            blankLeadingZero: true
+        )
+        return [
+            .empty(id: "relative", kind: .text),
+            monthSegments[0],
+            monthSegments[1],
+            ComposerChipTextSegment(id: "monthSuffix", text: "月", kind: .text),
+            daySegments[0],
+            daySegments[1],
+            ComposerChipTextSegment(id: "daySuffix", text: "日", kind: .text)
+        ]
+    }
+
+    private static func timeSegments(for date: Date?, placeholder: String) -> [ComposerChipTextSegment] {
+        guard let date else {
+            return [
+                ComposerChipTextSegment(id: "placeholder", text: placeholder, kind: .text),
+                .empty(id: "hourTens", kind: .numeric),
+                .empty(id: "hourOnes", kind: .numeric),
+                .empty(id: "separator", kind: .text),
+                .empty(id: "minuteTens", kind: .numeric),
+                .empty(id: "minuteOnes", kind: .numeric)
+            ]
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        let formatted = formatter.string(from: date)
+        let components = formatted.split(separator: ":").map(String.init)
+        let hour = Int(components.indices.contains(0) ? components[0] : "") ?? 0
+        let minute = Int(components.indices.contains(1) ? components[1] : "") ?? 0
+        let hourSegments = numberSegments(prefix: "hour", value: hour, digits: 2, blankLeadingZero: false)
+        let minuteSegments = numberSegments(prefix: "minute", value: minute, digits: 2, blankLeadingZero: false)
+
+        return [
+            .empty(id: "placeholder", kind: .text),
+            hourSegments[0],
+            hourSegments[1],
+            ComposerChipTextSegment(id: "separator", text: ":", kind: .text),
+            minuteSegments[0],
+            minuteSegments[1]
+        ]
+    }
+
+    private static func numberSegments(
+        prefix: String,
+        value: Int,
+        digits: Int,
+        blankLeadingZero: Bool
+    ) -> [ComposerChipTextSegment] {
+        let formatted = String(format: "%0\(digits)d", value)
+        return formatted.enumerated().map { index, character in
+            let isLeadingZero = blankLeadingZero && index == 0 && character == "0"
+            return ComposerChipTextSegment(
+                id: "\(prefix)\(index)",
+                text: isLeadingZero ? "" : String(character),
+                kind: .numeric
+            )
+        }
+    }
+}
+
+private struct ComposerAnimatedChipTitle: View {
+    let text: String
+    let semanticValue: ComposerChipSemanticValue
+    let direction: ComposerChipTextTransitionDirection
+    let font: Font
+    let uiFont: UIFont
+
+    @State private var displayedText: String
+    @State private var displayedWidth: CGFloat
+    @State private var transitionToken = UUID()
+
+    init(
+        text: String,
+        semanticValue: ComposerChipSemanticValue,
+        direction: ComposerChipTextTransitionDirection,
+        font: Font,
+        uiFont: UIFont
+    ) {
+        self.text = text
+        self.semanticValue = semanticValue
+        self.direction = direction
+        self.font = font
+        self.uiFont = uiFont
+        _displayedText = State(initialValue: text)
+        _displayedWidth = State(
+            initialValue: Self.measuredWidth(
+                text: text,
+                semanticValue: semanticValue,
+                using: uiFont
+            )
+        )
+    }
+
+    var body: some View {
+        token(displayedText)
+        .frame(width: displayedWidth, height: 22, alignment: .center)
+        .frame(height: 22, alignment: .center)
+        .clipped()
+        .onChange(of: text) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            syncTransition(to: newValue)
+        }
+    }
+
+    private func syncTransition(to newText: String) {
+        let targetWidth = Self.measuredWidth(
+            text: newText,
+            semanticValue: semanticValue,
+            using: uiFont
+        )
+        let token = UUID()
+        transitionToken = token
+
+        if targetWidth > displayedWidth {
+            withAnimation(ComposerChipAnimation.layoutSpring) {
+                displayedWidth = targetWidth
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + ComposerChipAnimation.widthExpansionLead) {
+                guard transitionToken == token else { return }
+                withAnimation(ComposerChipAnimation.textSpring) {
+                    displayedText = newText
+                }
+            }
+        } else {
+            withAnimation(ComposerChipAnimation.textSpring) {
+                displayedText = newText
+            }
+            withAnimation(ComposerChipAnimation.layoutSpring) {
+                displayedWidth = targetWidth
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func token(_ value: String) -> some View {
+        if value.isEmpty {
+            Text("")
+                .font(font)
+                .lineLimit(1)
+        } else {
+            switch contentTransitionStyle {
+            case .numeric:
+                Text(value)
+                    .font(font)
+                    .monospacedDigit()
+                    .contentTransition(.numericText(countsDown: direction == .down))
+                    .lineLimit(1)
+            case .interpolated:
+                Text(value)
+                    .font(font)
+                    .contentTransition(.interpolate)
+                    .lineLimit(1)
+            case .none:
+                Text(value)
+                    .font(font)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private var contentTransitionStyle: ComposerChipContentTransitionStyle {
+        switch semanticValue {
+        case .date, .optionalDate, .time:
+            return .numeric
+        case .reminder:
+            return .numeric
+        case .priority, .repeatRule:
+            return .interpolated
+        }
+    }
+
+    private static func measure(text: String, using font: UIFont) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        return ceil((text as NSString).size(withAttributes: attributes).width)
+    }
+
+    private static func measuredWidth(
+        text: String,
+        semanticValue: ComposerChipSemanticValue,
+        using font: UIFont
+    ) -> CGFloat {
+        let measuredFont = measuredFont(for: semanticValue, baseFont: font)
+        return measure(text: text, using: measuredFont) + measurementPadding(for: semanticValue)
+    }
+
+    private static func measuredFont(
+        for semanticValue: ComposerChipSemanticValue,
+        baseFont: UIFont
+    ) -> UIFont {
+        guard usesNumericTransition(for: semanticValue) else { return baseFont }
+        let descriptor = baseFont.fontDescriptor.addingAttributes([
+            UIFontDescriptor.AttributeName.featureSettings: [[
+                UIFontDescriptor.FeatureKey.type: kNumberSpacingType,
+                UIFontDescriptor.FeatureKey.selector: kMonospacedNumbersSelector
+            ]]
+        ])
+        return UIFont(descriptor: descriptor, size: baseFont.pointSize)
+    }
+
+    private static func measurementPadding(for semanticValue: ComposerChipSemanticValue) -> CGFloat {
+        usesNumericTransition(for: semanticValue) ? 8 : 6
+    }
+
+    private static func usesNumericTransition(for semanticValue: ComposerChipSemanticValue) -> Bool {
+        switch semanticValue {
+        case .date, .optionalDate, .time:
+            return true
+        case .reminder:
+            return true
+        case .priority, .repeatRule:
+            return false
+        }
+    }
+}
+
+private enum ComposerChipContentTransitionStyle {
+    case numeric
+    case interpolated
+    case none
 }
 
 private enum ComposerMenu: String, Identifiable {
@@ -547,11 +1294,10 @@ private struct ComposerMenuSheet: View {
         case .date:
             ComposerDatePickerSheet(draftState: $draftState, onDismiss: onDismiss)
         case .time:
-            ComposerTimePickerSheet(draftState: $draftState)
+            ComposerTimePickerSheet(draftState: $draftState, onDismiss: onDismiss)
         case .reminder:
             optionList(
-                options: reminderMenuOptions,
-                selectedTitle: draftState.reminderSummaryText(for: draftState.category)
+                options: reminderMenuOptions
             )
         case .priority:
             optionList(
@@ -597,11 +1343,14 @@ private struct ComposerMenuSheet: View {
         }
     }
 
-    private func optionList(options: [ComposerOptionRow], selectedTitle: String? = nil) -> some View {
+    private func optionList(options: [ComposerOptionRow]) -> some View {
         ScrollView {
             VStack(spacing: 10) {
                 ForEach(options) { option in
-                    Button(action: option.action) {
+                    Button {
+                        ComposerButtonHaptics.selection()
+                        option.action()
+                    } label: {
                         HStack {
                             Text(option.title)
                                 .font(AppTheme.typography.sized(17, weight: .semibold))
@@ -610,19 +1359,25 @@ private struct ComposerMenuSheet: View {
                             if option.isSelected {
                                 Image(systemName: "checkmark")
                                     .font(AppTheme.typography.sized(14, weight: .bold))
-                                    .foregroundStyle(AppTheme.colors.coral)
+                                .foregroundStyle(AppTheme.colors.coral)
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minHeight: ComposerMenuOptionMetrics.height)
                         .padding(.horizontal, 18)
-                        .padding(.vertical, 16)
+                        .contentShape(
+                            RoundedRectangle(
+                                cornerRadius: ComposerMenuOptionMetrics.cornerRadius,
+                                style: .continuous
+                            )
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(ComposerMenuOptionButtonStyle())
                     .modifier(ComposerMenuOptionGlassModifier())
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+            .padding(ComposerMenuOptionMetrics.outerInset)
         }
         .scrollIndicators(.hidden)
         .background(Color.clear)
@@ -705,6 +1460,7 @@ private struct ComposerDatePickerSheet: View {
                         }
 
                         Button("Today") {
+                            ComposerButtonHaptics.selection()
                             selectDate(Date())
                         }
                         .buttonStyle(.plain)
@@ -744,6 +1500,7 @@ private struct ComposerDatePickerSheet: View {
                     ) {
                         ForEach(monthCells) { cell in
                             Button {
+                                ComposerButtonHaptics.selection()
                                 selectDate(cell.date)
                             } label: {
                                 ZStack {
@@ -893,7 +1650,7 @@ private struct ComposerDatePickerSheet: View {
     private func shiftMonth(by amount: Int) {
         guard let next = Calendar.current.date(byAdding: .month, value: amount, to: displayedMonth) else { return }
         transitionDirection = amount >= 0 ? .forward : .backward
-        triggerSelectionFeedback()
+        ComposerButtonHaptics.selection()
         withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
             displayedMonth = next
         }
@@ -901,7 +1658,6 @@ private struct ComposerDatePickerSheet: View {
 
     private func selectDate(_ date: Date) {
         let normalized = Calendar.current.startOfDay(for: date)
-        triggerSelectionFeedback()
         switch draftState.category {
         case .periodic:
             draftState.periodicAnchorDate = normalized
@@ -931,17 +1687,11 @@ private struct ComposerDatePickerSheet: View {
         return cell.isInDisplayedMonth ? AppTheme.colors.title : AppTheme.colors.textTertiary.opacity(0.52)
     }
 
-    private func triggerSelectionFeedback() {
-        #if canImport(UIKit)
-        let generator = UISelectionFeedbackGenerator()
-        generator.prepare()
-        generator.selectionChanged()
-        #endif
-    }
 }
 
 private struct ComposerTimePickerSheet: View {
     @Binding var draftState: ComposerDraftState
+    let onDismiss: () -> Void
     @State private var selectedTime: Date
     @State private var scrollTempo: ComposerTimePickerScrollTempo = .idle
     @State private var numericCountsDown = false
@@ -951,24 +1701,19 @@ private struct ComposerTimePickerSheet: View {
     @State private var momentumTask: Task<Void, Never>?
     @State private var idleResetTask: Task<Void, Never>?
     @State private var hapticDriver = ComposerTimePickerHapticDriver()
+    @State private var didClearSelection = false
 
-    init(draftState: Binding<ComposerDraftState>) {
+    init(draftState: Binding<ComposerDraftState>, onDismiss: @escaping () -> Void) {
         _draftState = draftState
+        self.onDismiss = onDismiss
         let baseTime = draftState.wrappedValue.taskTime
-            ?? Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: draftState.wrappedValue.taskDate)
+            ?? Self.roundedTimeSeed(for: draftState.wrappedValue.taskDate)
             ?? draftState.wrappedValue.taskDate
         _selectedTime = State(initialValue: baseTime)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 26)
-
-            Text("截止时间")
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.title.opacity(0.72))
-                .padding(.bottom, 10)
-
+        ZStack(alignment: .bottom) {
             Text(displayedTime)
                 .font(AppTheme.typography.sized(82, weight: .bold))
                 .monospacedDigit()
@@ -978,19 +1723,43 @@ private struct ComposerTimePickerSheet: View {
                 .blur(radius: scrollTempo.blurRadius)
                 .scaleEffect(scrollTempo.scale)
                 .animation(.spring(response: 0.22, dampingFraction: 0.88), value: scrollTempo)
-                .frame(height: 228)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
 
-            Spacer(minLength: 0)
+            Text("截止时间")
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title.opacity(0.72))
+                .padding(.bottom, 104)
 
             ComposerTimeVerticalHint(isVisible: scrollTempo == .idle)
                 .padding(.bottom, 20)
+        }
+        .overlay(alignment: .topTrailing) {
+            if draftState.taskTime != nil {
+                Button {
+                    ComposerButtonHaptics.selection()
+                    clearTime()
+                } label: {
+                    Text("清除")
+                        .font(AppTheme.typography.sized(15, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title.opacity(0.82))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemFill))
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 18)
+                .padding(.trailing, 22)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .gesture(timeDragGesture)
         .onAppear {
             hapticDriver.prepare()
-            writeBackSelectedTime()
         }
         .onChange(of: selectedTime) { _, _ in
             writeBackSelectedTime()
@@ -998,6 +1767,7 @@ private struct ComposerTimePickerSheet: View {
         .onDisappear {
             momentumTask?.cancel()
             idleResetTask?.cancel()
+            commitPendingSelectionIfNeeded()
         }
     }
 
@@ -1005,7 +1775,48 @@ private struct ComposerTimePickerSheet: View {
         selectedTime.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
+    private static func roundedTimeSeed(for date: Date) -> Date? {
+        let calendar = Calendar.current
+        let now = Date()
+        let components = calendar.dateComponents([.hour, .minute], from: now)
+        guard let hour = components.hour, let minute = components.minute else { return nil }
+
+        let roundedMinute = Int((Double(minute) / 5).rounded()) * 5
+        let minuteOverflow = roundedMinute / 60
+        let normalizedMinute = roundedMinute % 60
+        let normalizedHour = (hour + minuteOverflow) % 24
+
+        return calendar.date(
+            bySettingHour: normalizedHour,
+            minute: normalizedMinute,
+            second: 0,
+            of: date
+        )
+    }
+
     private func writeBackSelectedTime() {
+        didClearSelection = false
+        draftState.taskTime = selectedTime
+    }
+
+    private func clearTime() {
+        momentumTask?.cancel()
+        momentumTask = nil
+        idleResetTask?.cancel()
+        idleResetTask = nil
+        lastAppliedStep = 0
+        lastDragSample = nil
+        withAnimation(.easeOut(duration: 0.16)) {
+            isDragging = false
+            scrollTempo = .idle
+        }
+        didClearSelection = true
+        draftState.taskTime = nil
+        onDismiss()
+    }
+
+    private func commitPendingSelectionIfNeeded() {
+        guard !didClearSelection else { return }
         draftState.taskTime = selectedTime
     }
 
@@ -1304,7 +2115,7 @@ private struct ComposerTimeVerticalHint: View {
         .foregroundStyle(Color.black.opacity(0.18))
         .opacity(isVisible ? 0.38 : 0)
         .modifier(ComposerSymbolHintEffectModifier(isActive: isVisible))
-        .animation(.easeOut(duration: 0.16), value: isVisible)
+                .animation(.easeOut(duration: 0.16), value: isVisible)
     }
 }
 
@@ -1371,6 +2182,23 @@ private enum ReminderPreset: CaseIterable, Identifiable {
         }
     }
 
+    var chipTitle: String {
+        switch self {
+        case .atTime:
+            return "准时"
+        case .fiveMinutes:
+            return "5 分钟"
+        case .fifteenMinutes:
+            return "15 分钟"
+        case .thirtyMinutes:
+            return "30 分钟"
+        case .oneHour:
+            return "1 小时"
+        case .oneDay:
+            return "1 天"
+        }
+    }
+
     static func preset(for secondsBeforeTarget: TimeInterval) -> ReminderPreset? {
         allCases.first { $0.secondsBeforeTarget == secondsBeforeTarget }
     }
@@ -1434,11 +2262,18 @@ private enum RepeatPreset: CaseIterable, Identifiable {
 }
 
 private struct ComposerChipSurfaceModifier: ViewModifier {
+    let animationID: String
+    let namespace: Namespace.ID
+
     func body(content: Content) -> some View {
         content
             .background(
                 Capsule(style: .continuous)
                     .fill(Color(uiColor: .secondarySystemFill))
+                    .matchedGeometryEffect(
+                        id: "composer.chip.\(animationID)",
+                        in: namespace
+                    )
             )
             .overlay {
                 Capsule(style: .continuous)
@@ -1451,21 +2286,209 @@ private struct ComposerMenuOptionGlassModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
-                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .glassEffect(
+                    .regular.interactive(),
+                    in: RoundedRectangle(
+                        cornerRadius: ComposerMenuOptionMetrics.cornerRadius,
+                        style: .continuous
+                    )
+                )
         } else {
             content
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(
+                    .ultraThinMaterial,
+                    in: RoundedRectangle(
+                        cornerRadius: ComposerMenuOptionMetrics.cornerRadius,
+                        style: .continuous
+                    )
+                )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(
+                        cornerRadius: ComposerMenuOptionMetrics.cornerRadius,
+                        style: .continuous
+                    )
                         .stroke(.white.opacity(0.66), lineWidth: 1)
                 }
         }
     }
 }
 
+private struct ComposerMenuOptionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .brightness(configuration.isPressed ? -0.02 : 0)
+            .animation(.spring(response: 0.18, dampingFraction: 0.84), value: configuration.isPressed)
+    }
+}
+
+private enum ComposerMenuOptionMetrics {
+    static let outerInset: CGFloat = 18
+    static let height: CGFloat = 66
+    static let cornerRadius: CGFloat = 26
+}
+
 private enum ComposerField: Hashable {
     case title
     case notes
+}
+
+@MainActor
+private enum ComposerButtonHaptics {
+    private static let selectionGenerator = UISelectionFeedbackGenerator()
+    private static let primaryGenerator = UIImpactFeedbackGenerator(style: .light)
+
+    static func selection() {
+        selectionGenerator.prepare()
+        selectionGenerator.selectionChanged()
+    }
+
+    static func primary() {
+        primaryGenerator.prepare()
+        primaryGenerator.impactOccurred(intensity: 0.9)
+    }
+}
+
+private enum ComposerChipAnimation {
+    static let textSpring = Animation.easeInOut(duration: 0.7)
+    static let layoutSpring = Animation.spring(response: 0.36, dampingFraction: 0.88)
+    static let textDuration: TimeInterval = 0.72
+    static let segmentDelayStep: TimeInterval = 0.14
+    static let maximumSegmentDelay: TimeInterval = 0.56
+    static let widthExpansionLead: TimeInterval = 0.12
+}
+
+private enum ComposerMenuAnimation {
+    static let presentation = Animation.spring(response: 0.28, dampingFraction: 0.9)
+    static let dismissal = Animation.spring(response: 0.4, dampingFraction: 0.94)
+
+    static var presentationTransaction: Transaction {
+        Transaction(animation: presentation)
+    }
+
+    static var dismissalTransaction: Transaction {
+        Transaction(animation: dismissal)
+    }
+}
+
+private extension ItemPriority {
+    var animationRank: Int {
+        switch self {
+        case .normal:
+            return 0
+        case .important:
+            return 1
+        case .critical:
+            return 2
+        }
+    }
+}
+
+private extension ItemRepeatRule {
+    var animationRank: Int {
+        switch frequency {
+        case .daily:
+            return interval == 1 ? 0 : interval
+        case .weekly:
+            if weekdays == [2, 3, 4, 5, 6] {
+                return 2
+            }
+            if interval == 2 {
+                return 4
+            }
+            return 3
+        case .monthly:
+            switch interval {
+            case 6:
+                return 7
+            case 3:
+                return 6
+            default:
+                return 5
+            }
+        }
+    }
+}
+
+@MainActor
+private final class ComposerTextInputFocusCoordinator {
+    weak var titleTextView: UITextView?
+    weak var notesTextView: UITextView?
+    private(set) var currentFocusedField: ComposerField?
+    private var pendingFocusField: ComposerField?
+
+    var isTransitioningFocus: Bool {
+        pendingFocusField != nil
+    }
+
+    func register(_ textView: UITextView, for field: ComposerField) {
+        switch field {
+        case .title:
+            titleTextView = textView
+        case .notes:
+            notesTextView = textView
+        }
+
+        if pendingFocusField == field {
+            DispatchQueue.main.async {
+                self.requestFocus(for: field)
+            }
+        }
+    }
+
+    func resignCurrentResponder() {
+        pendingFocusField = nil
+        if titleTextView?.isFirstResponder == true {
+            titleTextView?.resignFirstResponder()
+        }
+        if notesTextView?.isFirstResponder == true {
+            notesTextView?.resignFirstResponder()
+        }
+    }
+
+    func prepareFocusTransition(to field: ComposerField) {
+        pendingFocusField = field
+    }
+
+    func markDidBeginEditing(_ field: ComposerField) {
+        currentFocusedField = field
+        pendingFocusField = nil
+    }
+
+    func markDidEndEditing(_ field: ComposerField) {
+        if currentFocusedField == field {
+            currentFocusedField = nil
+        }
+    }
+
+    func requestFocus(for field: ComposerField) {
+        pendingFocusField = field
+        let target: UITextView?
+        let other: UITextView?
+
+        switch field {
+        case .title:
+            target = titleTextView
+            other = notesTextView
+        case .notes:
+            target = notesTextView
+            other = titleTextView
+        }
+
+        if other?.isFirstResponder == true {
+            other?.resignFirstResponder()
+        }
+        guard let target, target.window != nil else { return }
+        guard !target.isFirstResponder else {
+            currentFocusedField = field
+            pendingFocusField = nil
+            return
+        }
+        target.becomeFirstResponder()
+        currentFocusedField = field
+        pendingFocusField = nil
+    }
 }
 
 private struct CalendarDayCell: Identifiable {

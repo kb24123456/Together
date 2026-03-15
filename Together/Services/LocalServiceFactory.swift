@@ -11,6 +11,8 @@ enum LocalServiceFactory {
         persistence: PersistenceController
     ) -> AppContainer {
         let modelContainer = persistence.container
+        let notificationService = LocalNotificationService()
+        let reminderScheduler = LocalReminderScheduler(notificationService: notificationService)
         let syncCoordinator = LocalSyncCoordinator(container: modelContainer)
         let itemRepository = LocalItemRepository(container: modelContainer)
         let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
@@ -22,7 +24,8 @@ enum LocalServiceFactory {
         )
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            syncCoordinator: syncCoordinator
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: reminderScheduler
         )
 
         return AppContainer(
@@ -34,10 +37,14 @@ enum LocalServiceFactory {
             relationshipService: MockRelationshipService(),
             itemRepository: itemRepository,
             taskListRepository: LocalTaskListRepository(container: modelContainer),
-            projectRepository: LocalProjectRepository(container: modelContainer),
+            projectRepository: LocalProjectRepository(
+                container: modelContainer,
+                reminderScheduler: reminderScheduler
+            ),
             decisionRepository: MockDecisionRepository(),
             anniversaryRepository: MockAnniversaryRepository(),
-            notificationService: MockNotificationService()
+            notificationService: notificationService,
+            reminderScheduler: reminderScheduler
         )
     }
 }

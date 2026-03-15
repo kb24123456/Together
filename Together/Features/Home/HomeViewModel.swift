@@ -34,7 +34,7 @@ final class HomeViewModel {
     private var detailSaveTask: Task<Void, Never>?
     private(set) var selectedDateTransitionEdge: Edge = .trailing
 
-    var selectedDate: Date = MockDataFactory.now
+    var selectedDate: Date = Date()
     var items: [Item] = []
     var currentUserAvatar: HomeAvatar
     var pairPreviewAvatar: HomeAvatar
@@ -310,7 +310,7 @@ final class HomeViewModel {
                 symbolName: symbolName(for: item),
                 accentColorName: accentColorName(for: item),
                 showsSolidSymbol: item.isPinned || item.priority == .critical || isCompleted,
-                isMuted: isCompleted || (item.priority == .normal && item.isPinned == false),
+                isMuted: isCompleted,
                 isCompleted: isCompleted,
                 repeatText: item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar)
             )

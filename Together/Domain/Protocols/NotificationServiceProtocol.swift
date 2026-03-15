@@ -10,4 +10,5 @@ protocol NotificationServiceProtocol: Sendable {
     func authorizationStatus() async -> NotificationAuthorizationStatus
     func requestAuthorization() async throws -> NotificationAuthorizationStatus
     func schedule(_ notifications: [AppNotification]) async throws
+    func cancel(_ identifiers: [String]) async
 }

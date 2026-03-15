@@ -3,14 +3,17 @@ import Foundation
 actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     private let itemRepository: ItemRepositoryProtocol
     private let syncCoordinator: SyncCoordinatorProtocol
+    private let reminderScheduler: ReminderSchedulerProtocol
     private let calendar = Calendar.current
 
     init(
         itemRepository: ItemRepositoryProtocol,
-        syncCoordinator: SyncCoordinatorProtocol
+        syncCoordinator: SyncCoordinatorProtocol,
+        reminderScheduler: ReminderSchedulerProtocol
     ) {
         self.itemRepository = itemRepository
         self.syncCoordinator = syncCoordinator
+        self.reminderScheduler = reminderScheduler
     }
 
     func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] {
@@ -78,6 +81,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
 
@@ -106,6 +110,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
 
@@ -130,6 +135,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
 
@@ -154,6 +160,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
 
@@ -177,6 +184,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                     spaceID: spaceID
                 )
             )
+            await reminderScheduler.syncTaskReminder(for: saved)
             return saved
         }
 
@@ -193,6 +201,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        await reminderScheduler.syncTaskReminder(for: item)
         return item
     }
 
@@ -212,6 +221,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        await reminderScheduler.removeTaskReminder(for: saved.id)
         return saved
     }
 

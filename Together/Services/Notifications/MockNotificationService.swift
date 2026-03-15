@@ -10,4 +10,6 @@ struct MockNotificationService: NotificationServiceProtocol {
     }
 
     func schedule(_ notifications: [AppNotification]) async throws {}
+
+    func cancel(_ identifiers: [String]) async {}
 }

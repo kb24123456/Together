@@ -38,7 +38,7 @@ struct ItemRepeatRule: Hashable, Sendable, Codable {
         self.dayOfMonth = dayOfMonth
     }
 
-    func title(anchorDate: Date, calendar: Calendar = .current) -> String {
+    nonisolated func title(anchorDate: Date, calendar: Calendar = .current) -> String {
         switch frequency {
         case .daily:
             return "每天"
@@ -65,7 +65,7 @@ struct ItemRepeatRule: Hashable, Sendable, Codable {
         }
     }
 
-    func matches(referenceDate: Date, anchorDate: Date, calendar: Calendar = .current) -> Bool {
+    nonisolated func matches(referenceDate: Date, anchorDate: Date, calendar: Calendar = .current) -> Bool {
         let normalizedReference = calendar.startOfDay(for: referenceDate)
         let normalizedAnchor = calendar.startOfDay(for: anchorDate)
 
@@ -94,7 +94,7 @@ struct ItemRepeatRule: Hashable, Sendable, Codable {
         }
     }
 
-    private func resolvedWeekdays(anchorDate: Date, calendar: Calendar) -> [Int] {
+    private nonisolated func resolvedWeekdays(anchorDate: Date, calendar: Calendar) -> [Int] {
         if let weekdays, weekdays.isEmpty == false {
             return weekdays
         }
@@ -102,7 +102,7 @@ struct ItemRepeatRule: Hashable, Sendable, Codable {
         return [weekday ?? calendar.component(.weekday, from: anchorDate)]
     }
 
-    private func weekdayTitle(for weekday: Int) -> String {
+    private nonisolated func weekdayTitle(for weekday: Int) -> String {
         switch weekday {
         case 1: return "日"
         case 2: return "一"
@@ -117,11 +117,11 @@ struct ItemRepeatRule: Hashable, Sendable, Codable {
 }
 
 extension Item {
-    var anchorDateForRepeatRule: Date {
+    nonisolated var anchorDateForRepeatRule: Date {
         dueAt ?? createdAt
     }
 
-    func occurs(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
+    nonisolated func occurs(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
         if let repeatRule {
             return repeatRule.matches(referenceDate: referenceDate, anchorDate: anchorDateForRepeatRule, calendar: calendar)
         }
@@ -130,12 +130,12 @@ extension Item {
         return calendar.isDate(dueAt, inSameDayAs: referenceDate)
     }
 
-    func isCompleted(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
+    nonisolated func isCompleted(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
         guard let completedAt else { return false }
         return calendar.isDate(completedAt, inSameDayAs: referenceDate)
     }
 
-    func appearsOnHome(for referenceDate: Date, includeOverdue: Bool, calendar: Calendar = .current) -> Bool {
+    nonisolated func appearsOnHome(for referenceDate: Date, includeOverdue: Bool, calendar: Calendar = .current) -> Bool {
         if occurs(on: referenceDate, calendar: calendar) {
             return true
         }
@@ -152,7 +152,7 @@ extension Item {
         return isCompleted(on: referenceDate, calendar: calendar)
     }
 
-    func isOverdue(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
+    nonisolated func isOverdue(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
         guard repeatRule == nil, let dueAt else { return false }
         guard status != .completed else { return false }
         return dueAt < calendar.startOfDay(for: referenceDate)

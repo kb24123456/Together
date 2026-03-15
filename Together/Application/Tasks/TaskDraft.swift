@@ -23,7 +23,7 @@ struct TaskDraft: Hashable, Sendable {
         remindAt: Date? = nil,
         priority: ItemPriority = .normal,
         executionRole: ItemExecutionRole = .initiator,
-        status: ItemStatus = .pendingConfirmation,
+        status: ItemStatus = .inProgress,
         isPinned: Bool = false,
         isDraft: Bool = false,
         repeatRule: ItemRepeatRule? = nil

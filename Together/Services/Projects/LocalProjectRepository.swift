@@ -3,9 +3,11 @@ import SwiftData
 
 actor LocalProjectRepository: ProjectRepositoryProtocol {
     private let container: ModelContainer
+    private let reminderScheduler: ReminderSchedulerProtocol
 
-    init(container: ModelContainer) {
+    init(container: ModelContainer, reminderScheduler: ReminderSchedulerProtocol) {
         self.container = container
+        self.reminderScheduler = reminderScheduler
     }
 
     func fetchProjects(spaceID: UUID?) async throws -> [Project] {
@@ -42,7 +44,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
 
         try context.save()
         let count = try taskCountsByProject(in: context, spaceID: savedProject.spaceID)[savedProject.id, default: 0]
-        return savedProject.withTaskCount(count)
+        let projectWithCount = savedProject.withTaskCount(count)
+        await reminderScheduler.syncProjectReminder(for: projectWithCount)
+        return projectWithCount
     }
 
     func archiveProject(projectID: UUID) async throws -> Project {
@@ -56,7 +60,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         try context.save()
 
         let count = try taskCountsByProject(in: context, spaceID: record.spaceID)[record.id, default: 0]
-        return record.domainModel(taskCount: count)
+        let archivedProject = record.domainModel(taskCount: count)
+        await reminderScheduler.removeProjectReminder(for: archivedProject.id)
+        return archivedProject
     }
 
     private func fetchRecord(projectID: UUID, context: ModelContext) throws -> PersistentProject? {

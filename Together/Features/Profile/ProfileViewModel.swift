@@ -8,6 +8,9 @@ final class ProfileViewModel {
     private let authService: AuthServiceProtocol
     private let relationshipService: RelationshipServiceProtocol
     private let notificationService: NotificationServiceProtocol
+    private let itemRepository: ItemRepositoryProtocol
+    private let projectRepository: ProjectRepositoryProtocol
+    private let reminderScheduler: ReminderSchedulerProtocol
 
     var loadState: LoadableState = .idle
     var notificationAuthorization: NotificationAuthorizationStatus = .notDetermined
@@ -16,12 +19,18 @@ final class ProfileViewModel {
         sessionStore: SessionStore,
         authService: AuthServiceProtocol,
         relationshipService: RelationshipServiceProtocol,
-        notificationService: NotificationServiceProtocol
+        notificationService: NotificationServiceProtocol,
+        itemRepository: ItemRepositoryProtocol,
+        projectRepository: ProjectRepositoryProtocol,
+        reminderScheduler: ReminderSchedulerProtocol
     ) {
         self.sessionStore = sessionStore
         self.authService = authService
         self.relationshipService = relationshipService
         self.notificationService = notificationService
+        self.itemRepository = itemRepository
+        self.projectRepository = projectRepository
+        self.reminderScheduler = reminderScheduler
     }
 
     var currentUser: User? { sessionStore.currentUser }
@@ -49,6 +58,11 @@ final class ProfileViewModel {
 
     func requestNotifications() async {
         notificationAuthorization = (try? await notificationService.requestAuthorization()) ?? .denied
+        guard notificationAuthorization == .authorized else { return }
+        let spaceID = sessionStore.currentSpace?.id
+        let tasks = (try? await itemRepository.fetchItems(spaceID: spaceID)) ?? []
+        let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        await reminderScheduler.resync(tasks: tasks, projects: projects)
     }
 
     func createInvite() async {

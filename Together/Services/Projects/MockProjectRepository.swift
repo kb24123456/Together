@@ -3,6 +3,11 @@ import Foundation
 @MainActor
 final class MockProjectRepository: ProjectRepositoryProtocol {
     private var projects: [Project] = MockDataFactory.makeProjects()
+    private let reminderScheduler: ReminderSchedulerProtocol
+
+    init(reminderScheduler: ReminderSchedulerProtocol) {
+        self.reminderScheduler = reminderScheduler
+    }
 
     func fetchProjects(spaceID: UUID?) async throws -> [Project] {
         projects
@@ -21,6 +26,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         } else {
             projects.append(project)
         }
+        await reminderScheduler.syncProjectReminder(for: project)
         return project
     }
 
@@ -31,6 +37,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
 
         projects[index].status = .archived
         projects[index].updatedAt = MockDataFactory.now
+        await reminderScheduler.removeProjectReminder(for: projectID)
         return projects[index]
     }
 }

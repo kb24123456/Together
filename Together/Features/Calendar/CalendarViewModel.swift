@@ -9,7 +9,7 @@ final class CalendarViewModel {
     private let calendar = Calendar.current
 
     var loadState: LoadableState = .idle
-    var selectedDate: Date = MockDataFactory.now
+    var selectedDate: Date = Date()
     var scheduledItems: [Item] = []
     var isMonthMode = false
 
