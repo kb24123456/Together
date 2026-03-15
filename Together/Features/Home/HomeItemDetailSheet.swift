@@ -22,46 +22,35 @@ struct HomeItemDetailSheet: View {
         NavigationStack {
             Group {
                 if viewModel.detailDraft != nil {
-                    GeometryReader { proxy in
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 0) {
-                                editorSection
-                                chipSection
-                                if activeMenu != nil {
-                                    Color.clear
-                                        .frame(maxWidth: .infinity)
-                                        .frame(minHeight: 72)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            collapseExpandedMenu()
-                                        }
-                                }
-                                Spacer(minLength: 0)
-                            }
-                            .frame(minHeight: proxy.size.height - 1, alignment: .top)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            editorSection
+                            chipSection
+                            Spacer(minLength: 0)
                         }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .frame(minHeight: 0, alignment: .top)
                         .padding(.horizontal, 28)
-                        .padding(.top, 24)
-                        .padding(.bottom, 36)
-                        .scrollIndicators(.hidden)
-                        .background(.clear)
                     }
+                    .padding(.top, 20)
+                    .padding(.bottom, 20)
+                    .scrollIndicators(.hidden)
+                    .background(.clear)
                 } else {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") {
-                        HomeInteractionFeedback.selection()
-                        viewModel.dismissItemDetail()
-                    }
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-                }
-            }
         }
         .background(.clear)
+        .sheet(item: $activeMenu) { menu in
+            HomeDetailMenuSheet(menu: menu, viewModel: viewModel)
+                .presentationDetents(menu.detents)
+                .presentationContentInteraction(.scrolls)
+                .presentationBackgroundInteraction(.enabled)
+                .presentationDragIndicator(.hidden)
+                .modifier(HomeDetailMenuPresentationSizingModifier())
+        }
         .presentationDetents([.medium, .large], selection: $viewModel.detailDetent)
         .presentationDragIndicator(.hidden)
         .presentationBackgroundInteraction(.enabled)
@@ -71,13 +60,10 @@ struct HomeItemDetailSheet: View {
                 viewModel.markDetailForExpandedEditing()
             }
         }
-        .onChange(of: activeMenu) { _, newValue in
-            updateDetent(for: newValue)
-        }
     }
 
     private var editorSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             TextField(
                 detailCategory == .periodic ? "周期任务标题" : "任务标题",
                 text: Binding(
@@ -100,83 +86,47 @@ struct HomeItemDetailSheet: View {
             )
             .font(AppTheme.typography.sized(20, weight: .regular))
             .foregroundStyle(AppTheme.colors.body.opacity(0.88))
-            .lineLimit(4, reservesSpace: true)
+            .lineLimit(4)
             .focused($focusedField, equals: .notes)
         }
     }
 
     private var chipSection: some View {
-        VStack(alignment: .leading, spacing: HomeDetailLayout.workspaceTopSpacing) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(chips) { chip in
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            toggleMenu(chip.menu)
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: chip.systemImage)
-                                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                                Text(chip.title)
-                                    .font(AppTheme.typography.sized(14, weight: .semibold))
-
-                                if activeMenu == chip.menu {
-                                    Image(systemName: "chevron.down")
-                                        .font(AppTheme.typography.sized(11, weight: .bold))
-                                        .transition(.opacity.combined(with: .offset(x: 4)))
-                                }
-                            }
-                            .foregroundStyle(activeMenu == chip.menu ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.84))
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color(uiColor: .secondarySystemFill))
-                            )
-                            .overlay {
-                                Capsule(style: .continuous)
-                                    .stroke(
-                                        activeMenu == chip.menu ? .white.opacity(0.8) : .white.opacity(0.54),
-                                        lineWidth: 1
-                                    )
-                            }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(chips) { chip in
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            viewModel.markDetailForExpandedEditing()
                         }
-                        .buttonStyle(.plain)
+                        activeMenu = chip.menu
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: chip.systemImage)
+                                .font(AppTheme.typography.sized(14, weight: .semibold))
+                            Text(chip.title)
+                                .font(AppTheme.typography.sized(14, weight: .semibold))
+                        }
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemFill))
+                        )
+                        .overlay {
+                            Capsule(style: .continuous)
+                                .stroke(.white.opacity(0.54), lineWidth: 1)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.vertical, 2)
             }
-            .scrollIndicators(.hidden)
-
-            workspaceSection
+            .padding(.vertical, 2)
         }
-        .padding(.top, 12)
-    }
-
-    @ViewBuilder
-    private var workspaceSection: some View {
-        ZStack(alignment: .top) {
-            if let activeMenu {
-                HomeDetailExpandedWorkspace(
-                    menu: activeMenu,
-                    viewModel: viewModel,
-                    onCollapse: collapseExpandedMenu
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity.combined(with: .offset(y: 12)),
-                        removal: .opacity.combined(with: .offset(y: -8))
-                    )
-                )
-            } else {
-                Color.clear
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: HomeDetailLayout.idleWorkspaceHeight)
-                    .contentShape(Rectangle())
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: activeMenu)
+        .scrollIndicators(.hidden)
+        .padding(.top, 6)
     }
 
     private var detailCategory: DetailCategory {
@@ -249,33 +199,6 @@ struct HomeItemDetailSheet: View {
         return formatter.string(from: date)
     }
 
-    private func toggleMenu(_ menu: HomeDetailMenu) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-            activeMenu = activeMenu == menu ? nil : menu
-        }
-    }
-
-    private func collapseExpandedMenu() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-            activeMenu = nil
-        }
-    }
-
-    private func updateDetent(for menu: HomeDetailMenu?) {
-        let target: PresentationDetent
-        switch menu {
-        case .date:
-            target = .large
-        case .time:
-            target = .large
-        case .reminder, .priority, .repeatRule, nil:
-            target = .medium
-        }
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-            viewModel.detailDetent = target
-        }
-    }
 }
 
 private struct HomeDetailChip: Identifiable {
@@ -285,23 +208,50 @@ private struct HomeDetailChip: Identifiable {
     let menu: HomeDetailMenu
 }
 
-private enum HomeDetailLayout {
-    static let idleWorkspaceHeight: CGFloat = 196
-    static let workspaceTopSpacing: CGFloat = 14
+private struct HomeDetailMenuPresentationSizingModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.presentationSizing(.fitted)
+        } else {
+            content
+        }
+    }
 }
 
-private enum HomeDetailMenu: String, Hashable {
+private enum HomeDetailMenu: String, Identifiable {
     case date
     case time
     case reminder
     case priority
     case repeatRule
+
+    var id: String { rawValue }
+
+    var detents: Set<PresentationDetent> {
+        switch self {
+        case .date:
+            return [.custom(HomeDetailDateMenuDetent.self)]
+        case .time:
+            return [.fraction(0.5)]
+        case .reminder, .priority, .repeatRule:
+            return [.fraction(0.46)]
+        }
+    }
 }
 
-private struct HomeDetailExpandedWorkspace: View {
+private struct HomeDetailDateMenuDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        min(
+            HomeDetailDatePickerSheet.preferredHeight + 12,
+            context.maxDetentValue * 0.72
+        )
+    }
+}
+
+private struct HomeDetailMenuSheet: View {
     let menu: HomeDetailMenu
     @Bindable var viewModel: HomeViewModel
-    let onCollapse: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         menuContent
@@ -313,14 +263,14 @@ private struct HomeDetailExpandedWorkspace: View {
         switch menu {
         case .date:
             HomeDetailDatePickerSheet(viewModel: viewModel) {
-                onCollapse()
+                dismiss()
             }
         case .time:
             HomeDetailTimePickerSheet(
                 viewModel: viewModel,
                 quickPresetMinutes: viewModel.quickTimePresetMinutes
             ) {
-                onCollapse()
+                dismiss()
             }
         case .reminder:
             optionList(options: reminderOptions)
@@ -334,7 +284,7 @@ private struct HomeDetailExpandedWorkspace: View {
     private var reminderOptions: [HomeDetailOptionRow] {
         [HomeDetailOptionRow(title: "不提醒", isSelected: viewModel.detailDraft?.remindAt == nil) {
             viewModel.setDraftReminderEnabled(false)
-            onCollapse()
+            dismiss()
         }] + HomeDetailReminderPreset.allCases.map { preset in
             HomeDetailOptionRow(
                 title: preset.title,
@@ -343,7 +293,7 @@ private struct HomeDetailExpandedWorkspace: View {
                 ensureDueDateExists()
                 let dueAt = viewModel.detailDraft?.dueAt ?? .now
                 viewModel.updateDraftReminder(dueAt.addingTimeInterval(-preset.secondsBeforeTarget))
-                onCollapse()
+                dismiss()
             }
         }
     }
@@ -355,7 +305,7 @@ private struct HomeDetailExpandedWorkspace: View {
                 isSelected: viewModel.detailDraft?.priority == priority
             ) {
                 viewModel.updateDraftPriority(priority)
-                onCollapse()
+                dismiss()
             }
         }
     }
@@ -368,45 +318,48 @@ private struct HomeDetailExpandedWorkspace: View {
             return HomeDetailOptionRow(title: title, isSelected: selectedTitle == title) {
                 ensureDueDateExists()
                 viewModel.updateDraftRepeatRule(preset.makeRule(anchorDate: anchorDate))
-                onCollapse()
+                dismiss()
             }
         }
     }
 
     private func optionList(options: [HomeDetailOptionRow]) -> some View {
-        VStack(spacing: 10) {
-            ForEach(options) { option in
-                Button {
-                    HomeInteractionFeedback.selection()
-                    option.action()
-                } label: {
-                    HStack {
-                        Text(option.title)
-                            .font(AppTheme.typography.sized(17, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.title)
-                        Spacer(minLength: 0)
-                        if option.isSelected {
-                            Image(systemName: "checkmark")
-                                .font(AppTheme.typography.sized(14, weight: .bold))
-                                .foregroundStyle(AppTheme.colors.coral)
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(options) { option in
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        option.action()
+                    } label: {
+                        HStack {
+                            Text(option.title)
+                                .font(AppTheme.typography.sized(17, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.title)
+                            Spacer(minLength: 0)
+                            if option.isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(AppTheme.typography.sized(14, weight: .bold))
+                                    .foregroundStyle(AppTheme.colors.coral)
+                            }
                         }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(minHeight: HomeDetailMenuOptionMetrics.height)
-                    .padding(.horizontal, 18)
-                    .contentShape(
-                        RoundedRectangle(
-                            cornerRadius: HomeDetailMenuOptionMetrics.cornerRadius,
-                            style: .continuous
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minHeight: HomeDetailMenuOptionMetrics.height)
+                        .padding(.horizontal, 18)
+                        .contentShape(
+                            RoundedRectangle(
+                                cornerRadius: HomeDetailMenuOptionMetrics.cornerRadius,
+                                style: .continuous
+                            )
                         )
-                    )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(HomeDetailMenuOptionButtonStyle())
+                    .modifier(HomeDetailMenuOptionGlassModifier())
                 }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(HomeDetailMenuOptionButtonStyle())
-                .modifier(HomeDetailMenuOptionGlassModifier())
             }
+            .padding(HomeDetailMenuOptionMetrics.outerInset)
         }
-        .padding(HomeDetailMenuOptionMetrics.outerInset)
+        .scrollIndicators(.hidden)
         .background(.clear)
     }
 
