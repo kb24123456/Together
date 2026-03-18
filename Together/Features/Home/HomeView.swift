@@ -6,6 +6,7 @@ import UIKit
 struct HomeView: View {
     @Bindable var viewModel: HomeViewModel
     let isProjectLayerPresented: Bool
+    @State private var weekPagerSelection = 1
 
     var body: some View {
         GeometryReader { proxy in
@@ -137,8 +138,34 @@ struct HomeView: View {
     }
 
     private var weekCalendarSection: some View {
+        TabView(selection: $weekPagerSelection) {
+            ForEach([-1, 0, 1], id: \.self) { offset in
+                weekPage(for: offset)
+                    .tag(offset + 1)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: 76)
+        .onChange(of: weekPagerSelection) { _, newValue in
+            guard newValue != 1 else { return }
+
+            let weekOffset = newValue == 2 ? 1 : -1
+            triggerSoftDateFeedback()
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+                viewModel.shiftSelectedWeek(by: weekOffset)
+            }
+
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                weekPagerSelection = 1
+            }
+        }
+    }
+
+    private func weekPage(for offset: Int) -> some View {
         HStack(spacing: 6) {
-            ForEach(viewModel.weekDates, id: \.self) { date in
+            ForEach(viewModel.weekDates(shiftedByWeeks: offset), id: \.self) { date in
                 let isSelected = viewModel.isSelectedDate(date)
                 Button {
                     guard !isSelected else { return }
@@ -371,18 +398,6 @@ private struct HomeTimelineRow: View {
     @ViewBuilder
     private var interactiveBadge: some View {
         switch entry.accentColorName {
-        case "sun":
-            symbolBadge(
-                foregroundColor: AppTheme.colors.sun,
-                borderStyle: .solid,
-                fillColor: AppTheme.colors.surface
-            )
-        case "violet":
-            symbolBadge(
-                foregroundColor: AppTheme.colors.violet,
-                borderStyle: .solid,
-                fillColor: AppTheme.colors.surface
-            )
         case "coral":
             symbolBadge(
                 foregroundColor: AppTheme.colors.coral,
@@ -414,13 +429,6 @@ private struct HomeTimelineRow: View {
                             dash: borderStyle == .dashed ? [4, 4.8] : []
                         )
                     )
-            }
-            .overlay {
-                if entry.symbolName != "circle" {
-                    Image(systemName: entry.symbolName)
-                        .font(AppTheme.typography.sized(13, weight: .bold))
-                        .foregroundStyle(foregroundColor)
-                }
             }
     }
 }

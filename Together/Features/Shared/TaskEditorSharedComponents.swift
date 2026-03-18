@@ -1,5 +1,6 @@
 import SwiftUI
 #if canImport(UIKit)
+import Combine
 import UIKit
 import CoreText
 #endif
@@ -541,7 +542,7 @@ struct TaskEditorTimePickerSheet: View {
             .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
             .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
 
-            TaskEditorMinuteIntervalWheelPicker(
+            TaskEditorSingleColumnTimeWheel(
                 selection: $stagedTime,
                 minuteInterval: 5
             )
@@ -628,7 +629,7 @@ struct TaskEditorTimePickerSheet: View {
     }
 }
 
-struct TaskEditorMinuteIntervalWheelPicker: UIViewRepresentable {
+struct TaskEditorSingleColumnTimeWheel: UIViewRepresentable {
     @Binding var selection: Date
     let minuteInterval: Int
 
@@ -636,28 +637,34 @@ struct TaskEditorMinuteIntervalWheelPicker: UIViewRepresentable {
         Coordinator(self)
     }
 
-    func makeUIView(context: Context) -> UIDatePicker {
-        let picker = UIDatePicker()
-        picker.datePickerMode = .time
-        picker.preferredDatePickerStyle = .wheels
-        picker.locale = Locale(identifier: "zh_CN")
-        picker.minuteInterval = minuteInterval
-        picker.setDate(Self.rounded(selection, minuteInterval: minuteInterval), animated: false)
-        picker.addTarget(context.coordinator, action: #selector(Coordinator.didChange(_:)), for: .valueChanged)
-        return picker
+    func makeUIView(context: Context) -> TaskEditorSingleColumnTimeTableView {
+        let tableView = TaskEditorSingleColumnTimeTableView(frame: .zero, style: .plain)
+        tableView.backgroundColor = .clear
+        tableView.separatorStyle = .none
+        tableView.showsVerticalScrollIndicator = false
+        tableView.contentInsetAdjustmentBehavior = .never
+        tableView.decelerationRate = .normal
+        tableView.rowHeight = TaskEditorSingleColumnTimeWheelMetrics.rowHeight
+        tableView.register(
+            TaskEditorSingleColumnTimeCell.self,
+            forCellReuseIdentifier: TaskEditorSingleColumnTimeCell.reuseIdentifier
+        )
+        tableView.dataSource = context.coordinator
+        tableView.delegate = context.coordinator
+        context.coordinator.configureInitialSelection(for: tableView)
+        return tableView
     }
 
-    func updateUIView(_ uiView: UIDatePicker, context: Context) {
+    func updateUIView(_ uiView: TaskEditorSingleColumnTimeTableView, context: Context) {
         let roundedSelection = Self.rounded(selection, minuteInterval: minuteInterval)
         if abs(selection.timeIntervalSince(roundedSelection)) > 0.5 {
             DispatchQueue.main.async {
                 selection = roundedSelection
             }
         }
-        if abs(uiView.date.timeIntervalSince(roundedSelection)) > 0.5 {
-            uiView.setDate(roundedSelection, animated: context.coordinator.hasAppeared)
-        }
-        context.coordinator.hasAppeared = true
+        context.coordinator.parent = self
+        context.coordinator.syncSelectionIfNeeded(in: uiView, targetDate: roundedSelection)
+        context.coordinator.updateVisibleCells(in: uiView)
     }
 
     private static func rounded(_ date: Date, minuteInterval: Int) -> Date {
@@ -670,20 +677,237 @@ struct TaskEditorMinuteIntervalWheelPicker: UIViewRepresentable {
         return calendar.date(byAdding: .minute, value: roundedMinute, to: hourBaseDate) ?? hourBaseDate
     }
 
-    final class Coordinator: NSObject {
-        var parent: TaskEditorMinuteIntervalWheelPicker
-        var hasAppeared = false
+    final class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate, UIScrollViewDelegate {
+        var parent: TaskEditorSingleColumnTimeWheel
+        private let selectionFeedbackGenerator = UISelectionFeedbackGenerator()
+        private var lastCenteredRow: Int?
+        private var isProgrammaticScroll = false
+        private let formatter: DateFormatter = {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "HH:mm"
+            return formatter
+        }()
 
-        init(_ parent: TaskEditorMinuteIntervalWheelPicker) {
+        init(_ parent: TaskEditorSingleColumnTimeWheel) {
             self.parent = parent
         }
 
-        @objc func didChange(_ sender: UIDatePicker) {
-            parent.selection = TaskEditorMinuteIntervalWheelPicker.rounded(
-                sender.date,
-                minuteInterval: parent.minuteInterval
-            )
+        func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+            slotCount * TaskEditorSingleColumnTimeWheelMetrics.loopMultiplier
         }
+
+        func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+            let cell = tableView.dequeueReusableCell(
+                withIdentifier: TaskEditorSingleColumnTimeCell.reuseIdentifier,
+                for: indexPath
+            ) as? TaskEditorSingleColumnTimeCell ?? TaskEditorSingleColumnTimeCell(
+                style: .default,
+                reuseIdentifier: TaskEditorSingleColumnTimeCell.reuseIdentifier
+            )
+            cell.configure(text: formatter.string(from: date(for: indexPath.row)))
+            return cell
+        }
+
+        func scrollViewDidLayoutSubviews(_ scrollView: UIScrollView) {
+            guard let tableView = scrollView as? TaskEditorSingleColumnTimeTableView else { return }
+            let inset = max((tableView.bounds.height - TaskEditorSingleColumnTimeWheelMetrics.rowHeight) * 0.5, 0)
+            if abs(tableView.contentInset.top - inset) > 0.5 || abs(tableView.contentInset.bottom - inset) > 0.5 {
+                tableView.contentInset = UIEdgeInsets(top: inset, left: 0, bottom: inset, right: 0)
+                tableView.scrollIndicatorInsets = tableView.contentInset
+                if let lastCenteredRow {
+                    tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: lastCenteredRow, in: tableView)), animated: false)
+                } else {
+                    configureInitialSelection(for: tableView)
+                }
+            }
+            updateVisibleCells(in: tableView)
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            guard let tableView = scrollView as? TaskEditorSingleColumnTimeTableView else { return }
+            let centeredRow = nearestRow(in: tableView)
+            if centeredRow != lastCenteredRow {
+                lastCenteredRow = centeredRow
+                let centeredDate = date(for: centeredRow)
+                if abs(parent.selection.timeIntervalSince(centeredDate)) > 0.5 {
+                    parent.selection = centeredDate
+                    if !isProgrammaticScroll {
+                        selectionFeedbackGenerator.selectionChanged()
+                    }
+                }
+            }
+            updateVisibleCells(in: tableView)
+        }
+
+        func scrollViewWillEndDragging(
+            _ scrollView: UIScrollView,
+            withVelocity velocity: CGPoint,
+            targetContentOffset: UnsafeMutablePointer<CGPoint>
+        ) {
+            guard let tableView = scrollView as? TaskEditorSingleColumnTimeTableView else { return }
+            let targetRow = nearestRow(for: targetContentOffset.pointee.y, in: tableView)
+            targetContentOffset.pointee.y = offsetY(forRow: targetRow, in: tableView)
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            guard !decelerate, let tableView = scrollView as? TaskEditorSingleColumnTimeTableView else { return }
+            snapToNearestRow(in: tableView, animated: true)
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            guard let tableView = scrollView as? TaskEditorSingleColumnTimeTableView else { return }
+            snapToNearestRow(in: tableView, animated: true)
+        }
+
+        func configureInitialSelection(for tableView: TaskEditorSingleColumnTimeTableView) {
+            let row = targetRow(for: parent.selection)
+            lastCenteredRow = row
+            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: row, in: tableView)), animated: false)
+            updateVisibleCells(in: tableView)
+        }
+
+        func syncSelectionIfNeeded(in tableView: TaskEditorSingleColumnTimeTableView, targetDate: Date) {
+            guard tableView.bounds.height > 0 else { return }
+            let centeredRow = nearestRow(in: tableView)
+            let targetRow = targetRow(for: targetDate, preferredRow: centeredRow)
+            guard targetRow != centeredRow else { return }
+            isProgrammaticScroll = true
+            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: targetRow, in: tableView)), animated: true)
+            isProgrammaticScroll = false
+        }
+
+        func updateVisibleCells(in tableView: TaskEditorSingleColumnTimeTableView) {
+            let visibleCenterY = tableView.contentOffset.y + tableView.bounds.height * 0.5
+            for case let cell as TaskEditorSingleColumnTimeCell in tableView.visibleCells {
+                let distance = abs(cell.center.y - visibleCenterY)
+                let normalized = min(distance / TaskEditorSingleColumnTimeWheelMetrics.rowHeight, 4)
+                let alpha = max(0.14, 0.92 - normalized * 0.24)
+                let scale = max(0.88, 1 - normalized * 0.05)
+                let isCentered = distance < (TaskEditorSingleColumnTimeWheelMetrics.rowHeight * 0.5)
+                cell.applyAppearance(alpha: alpha, scale: scale, isCentered: isCentered)
+            }
+        }
+
+        private var slotCount: Int {
+            (24 * 60) / parent.minuteInterval
+        }
+
+        private func snapToNearestRow(in tableView: TaskEditorSingleColumnTimeTableView, animated: Bool) {
+            let row = nearestRow(in: tableView)
+            recenterIfNeeded(tableView, around: row)
+            isProgrammaticScroll = true
+            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: row, in: tableView)), animated: animated)
+            isProgrammaticScroll = false
+            lastCenteredRow = row
+            let centeredDate = date(for: row)
+            if abs(parent.selection.timeIntervalSince(centeredDate)) > 0.5 {
+                parent.selection = centeredDate
+            }
+        }
+
+        private func nearestRow(in tableView: UITableView) -> Int {
+            nearestRow(for: tableView.contentOffset.y, in: tableView)
+        }
+
+        private func nearestRow(for offsetY: CGFloat, in tableView: UITableView) -> Int {
+            let raw = Int(round((offsetY + tableView.contentInset.top) / TaskEditorSingleColumnTimeWheelMetrics.rowHeight))
+            return min(max(raw, 0), max(tableView.numberOfRows(inSection: 0) - 1, 0))
+        }
+
+        private func offsetY(forRow row: Int, in tableView: UITableView) -> CGFloat {
+            (CGFloat(row) * TaskEditorSingleColumnTimeWheelMetrics.rowHeight) - tableView.contentInset.top
+        }
+
+        private func date(for row: Int) -> Date {
+            let calendar = Calendar.current
+            let slotIndex = ((row % slotCount) + slotCount) % slotCount
+            let totalMinutes = slotIndex * parent.minuteInterval
+            let hour = totalMinutes / 60
+            let minute = totalMinutes % 60
+            return calendar.date(
+                bySettingHour: hour,
+                minute: minute,
+                second: 0,
+                of: parent.selection
+            ) ?? parent.selection
+        }
+
+        private func targetRow(for date: Date, preferredRow: Int? = nil) -> Int {
+            let calendar = Calendar.current
+            let hour = calendar.component(.hour, from: date)
+            let minute = calendar.component(.minute, from: date)
+            let slotIndex = ((hour * 60) + minute) / parent.minuteInterval
+            let middleCycle = TaskEditorSingleColumnTimeWheelMetrics.loopMultiplier / 2
+            let base = slotIndex + middleCycle * slotCount
+
+            guard let preferredRow else { return base }
+            return [base - slotCount, base, base + slotCount]
+                .min(by: { abs($0 - preferredRow) < abs($1 - preferredRow) }) ?? base
+        }
+
+        private func recenterIfNeeded(_ tableView: TaskEditorSingleColumnTimeTableView, around row: Int) {
+            let cycle = row / slotCount
+            let middleCycle = TaskEditorSingleColumnTimeWheelMetrics.loopMultiplier / 2
+            guard abs(cycle - middleCycle) > 20 else { return }
+            let centeredRow = (row % slotCount) + middleCycle * slotCount
+            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: centeredRow, in: tableView)), animated: false)
+            lastCenteredRow = centeredRow
+        }
+    }
+}
+
+private enum TaskEditorSingleColumnTimeWheelMetrics {
+    static let loopMultiplier = 200
+    static let rowHeight: CGFloat = 44
+    static let baseFontSize: CGFloat = 19
+    static let selectedFontSize: CGFloat = 28
+}
+
+final class TaskEditorSingleColumnTimeTableView: UITableView {}
+
+final class TaskEditorSingleColumnTimeCell: UITableViewCell {
+    static let reuseIdentifier = "TaskEditorSingleColumnTimeCell"
+
+    private let timeLabel = UILabel()
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
+        selectionStyle = .none
+
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        timeLabel.textAlignment = .center
+        timeLabel.adjustsFontSizeToFitWidth = false
+        timeLabel.backgroundColor = .clear
+        contentView.addSubview(timeLabel)
+
+        NSLayoutConstraint.activate([
+            timeLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            timeLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            timeLabel.topAnchor.constraint(equalTo: contentView.topAnchor),
+            timeLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(text: String) {
+        timeLabel.text = text
+    }
+
+    func applyAppearance(alpha: CGFloat, scale: CGFloat, isCentered: Bool) {
+        timeLabel.alpha = alpha
+        timeLabel.transform = CGAffineTransform(scaleX: scale, y: scale)
+        timeLabel.font = AppTheme.typography.sizedUIFont(
+            isCentered ? TaskEditorSingleColumnTimeWheelMetrics.selectedFontSize : TaskEditorSingleColumnTimeWheelMetrics.baseFontSize,
+            weight: isCentered ? .bold : .semibold
+        )
+        timeLabel.textColor = UIColor(isCentered ? AppTheme.colors.title : AppTheme.colors.body)
     }
 }
 
@@ -810,7 +1034,7 @@ struct TaskEditorChipSurfaceModifier: ViewModifier {
         content
             .background(
                 Capsule(style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemFill))
+                    .fill(AppTheme.colors.pillSurface)
                     .matchedGeometryEffect(
                         id: "taskEditor.chip.\(animationID)",
                         in: namespace
@@ -818,7 +1042,7 @@ struct TaskEditorChipSurfaceModifier: ViewModifier {
             )
             .overlay {
                 Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(0.86), lineWidth: 1)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
             }
     }
 }
@@ -861,6 +1085,132 @@ struct TaskEditorMenuOptionButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.92 : 1)
             .brightness(configuration.isPressed ? -0.02 : 0)
             .animation(.spring(response: 0.18, dampingFraction: 0.84), value: configuration.isPressed)
+    }
+}
+
+struct TaskEditorPrimaryActionOvershootModifier: ViewModifier {
+    let trigger: Bool
+    let keyboardRevealOffset: CGFloat
+
+    private enum Motion {
+        static let entryOffset: CGFloat = 62
+        static let overshootOffset: CGFloat = -6
+        static let entryScale: CGFloat = 0.87
+        static let overshootScale: CGFloat = 1.01
+        static let settleDelay: TimeInterval = 0.34
+        static let entrySpring = Animation.interpolatingSpring(
+            mass: 1.26,
+            stiffness: 154,
+            damping: 24,
+            initialVelocity: 4.6
+        )
+        static let settleSpring = Animation.interpolatingSpring(
+            mass: 1.28,
+            stiffness: 94,
+            damping: 26,
+            initialVelocity: 0.12
+        )
+    }
+
+    @State private var yOffset: CGFloat = 0
+    @State private var scale: CGFloat = 1
+    @State private var opacity: Double = 1
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: yOffset)
+            .scaleEffect(scale, anchor: .center)
+            .opacity(opacity)
+            .onAppear {
+                guard trigger else { return }
+                playOvershootAnimation()
+            }
+            .onChange(of: trigger) { _, isActive in
+                guard isActive else {
+                    yOffset = 0
+                    scale = 1
+                    opacity = 1
+                    return
+                }
+                playOvershootAnimation()
+            }
+    }
+
+    private func playOvershootAnimation() {
+        yOffset = max(Motion.entryOffset, keyboardRevealOffset)
+        scale = Motion.entryScale
+        opacity = 0
+
+        withAnimation(Motion.entrySpring) {
+            yOffset = Motion.overshootOffset
+            scale = Motion.overshootScale
+            opacity = 1
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + Motion.settleDelay) {
+            withAnimation(Motion.settleSpring) {
+                yOffset = 0
+                scale = 1
+                opacity = 1
+            }
+        }
+    }
+}
+
+@MainActor
+final class TaskEditorKeyboardObserver: ObservableObject {
+    @Published private(set) var overlap: CGFloat = 0
+
+    private var willChangeFrameObserver: NSObjectProtocol?
+    private var willHideObserver: NSObjectProtocol?
+
+    init() {
+        let center = NotificationCenter.default
+
+        willChangeFrameObserver = center.addObserver(
+            forName: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+            Task { @MainActor [weak self] in
+                self?.handleKeyboardFrame(frame)
+            }
+        }
+
+        willHideObserver = center.addObserver(
+            forName: UIResponder.keyboardWillHideNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.overlap = 0
+            }
+        }
+    }
+
+    deinit {
+        let center = NotificationCenter.default
+        if let willChangeFrameObserver {
+            center.removeObserver(willChangeFrameObserver)
+        }
+        if let willHideObserver {
+            center.removeObserver(willHideObserver)
+        }
+    }
+
+    private func handleKeyboardFrame(_ frame: CGRect?) {
+        guard
+            let frame,
+            let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first,
+            let window = windowScene.windows.first(where: \.isKeyWindow)
+        else {
+            return
+        }
+
+        overlap = max(0, window.bounds.maxY - frame.minY - window.safeAreaInsets.bottom)
     }
 }
 

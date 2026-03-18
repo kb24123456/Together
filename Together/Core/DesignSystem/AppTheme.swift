@@ -16,6 +16,8 @@ enum AppTheme {
         static let projectLayerSecondaryText = Color(red: 0.74, green: 0.76, blue: 0.80)
         static let surface = Color.white
         static let surfaceElevated = Color(red: 0.979, green: 0.977, blue: 0.969)
+        static let pillSurface = Color(red: 0.973, green: 0.972, blue: 0.966)
+        static let pillOutline = Color.white.opacity(0.9)
         static let accent = Color(red: 0.24, green: 0.47, blue: 0.42)
         static let accentSoft = Color(red: 0.92, green: 0.96, blue: 0.94)
         static let secondaryAccent = Color(red: 0.86, green: 0.78, blue: 0.67)

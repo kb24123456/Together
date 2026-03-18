@@ -11,6 +11,7 @@ struct HomeItemDetailSheet: View {
     @State private var isAwaitingDeleteConfirmation = false
     @State private var lastFocusedFieldBeforeMenu: Field?
     @State private var focusCoordinator = DetailTextInputFocusCoordinator()
+    @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
     @Namespace private var chipRowNamespace
     @Namespace private var categorySwitcherNamespace
 
@@ -201,7 +202,7 @@ struct HomeItemDetailSheet: View {
             )
         }
         .padding(.bottom, bottomInset)
-        .animation(.spring(response: 0.24, dampingFraction: 0.88), value: viewModel.hasUnsavedDetailChanges)
+        .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: viewModel.hasUnsavedDetailChanges)
     }
 
     private var expandedSaveButton: some View {
@@ -217,21 +218,34 @@ struct HomeItemDetailSheet: View {
                 Text("保存")
                     .font(AppTheme.typography.sized(15, weight: .bold))
             }
-            .foregroundStyle(AppTheme.colors.coral)
+            .foregroundStyle(AppTheme.colors.title)
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
+            .frame(minHeight: 72)
+            .padding(.horizontal, 18)
             .background(
-                Capsule(style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemFill))
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                Capsule(style: .continuous)
-                    .stroke(.white.opacity(0.54), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
+        .padding(.horizontal, 10)
+        .modifier(
+            TaskEditorPrimaryActionOvershootModifier(
+                trigger: viewModel.hasUnsavedDetailChanges,
+                keyboardRevealOffset: primaryActionKeyboardRevealOffset
+            )
+        )
+        .transition(.offset(y: 18).combined(with: .opacity))
+    }
+
+    private var primaryActionKeyboardRevealOffset: CGFloat {
+        guard keyboardObserver.overlap > 0 else { return 0 }
+        return min(max(keyboardObserver.overlap * 0.32, 104), 136)
     }
 
     private var compactHeaderSection: some View {
@@ -319,11 +333,11 @@ struct HomeItemDetailSheet: View {
             .frame(minHeight: 84)
             .background(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color(uiColor: .quaternarySystemFill).opacity(0.86))
+                    .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(.white.opacity(0.28), lineWidth: 1)
+                    .stroke(AppTheme.colors.pillOutline.opacity(0.72), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -367,11 +381,11 @@ struct HomeItemDetailSheet: View {
             .frame(minHeight: 84)
             .background(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color(uiColor: .quaternarySystemFill).opacity(0.82))
+                    .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(.white.opacity(0.24), lineWidth: 1)
+                    .stroke(AppTheme.colors.pillOutline.opacity(0.68), lineWidth: 1)
             }
             .clipped()
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isAwaitingDeleteConfirmation)
@@ -1443,7 +1457,7 @@ private struct HomeDetailTimePickerSheet: View {
             .padding(.horizontal, HomeDetailMenuOptionMetrics.outerInset)
             .padding(.bottom, HomeDetailTimePickerMetrics.contentSpacing)
 
-            HomeDetailMinuteIntervalWheelPicker(
+            TaskEditorSingleColumnTimeWheel(
                 selection: $selectedTime,
                 minuteInterval: 5
             )

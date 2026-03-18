@@ -16,6 +16,7 @@ struct ComposerPlaceholderSheet: View {
     @State private var focusedField: ComposerField?
     @State private var hasScheduledInitialTitleFocus = false
     @State private var focusCoordinator = ComposerTextInputFocusCoordinator()
+    @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
     @Namespace private var categorySwitcherNamespace
     @Namespace private var chipRowNamespace
     @State private var displayedChips: [TaskEditorRenderedChip] = []
@@ -172,13 +173,25 @@ struct ComposerPlaceholderSheet: View {
             )
         }
         .padding(.bottom, bottomInset)
-        .animation(.spring(response: 0.24, dampingFraction: 0.88), value: draftState.hasMeaningfulContent)
+        .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: draftState.hasMeaningfulContent)
     }
 
     private var stackedPrimaryActionButton: some View {
         primaryActionButtonBody
             .frame(maxWidth: .infinity)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .padding(.horizontal, 10)
+            .modifier(
+                TaskEditorPrimaryActionOvershootModifier(
+                    trigger: draftState.hasMeaningfulContent,
+                    keyboardRevealOffset: primaryActionKeyboardRevealOffset
+                )
+            )
+            .transition(.offset(y: 18).combined(with: .opacity))
+    }
+
+    private var primaryActionKeyboardRevealOffset: CGFloat {
+        guard keyboardObserver.overlap > 0 else { return 0 }
+        return min(max(keyboardObserver.overlap * 0.32, 104), 136)
     }
 
     private var primaryActionButtonBody: some View {
@@ -195,21 +208,23 @@ struct ComposerPlaceholderSheet: View {
                 Text(addButtonTitle)
                     .font(AppTheme.typography.sized(15, weight: .bold))
             }
-            .foregroundStyle(AppTheme.colors.coral)
+            .foregroundStyle(AppTheme.colors.title)
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
+            .frame(minHeight: 72)
+            .padding(.horizontal, 18)
             .background(
-                Capsule(style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemFill))
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                Capsule(style: .continuous)
-                    .stroke(.white.opacity(0.54), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
         .disabled(isSaving)
+        .scaleEffect(isSaving ? 0.98 : 1)
+        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
     }
 
     private func chipRow(trailingInset: CGFloat) -> some View {
@@ -1843,7 +1858,7 @@ private struct ComposerTimePickerSheet: View {
             .padding(.horizontal, ComposerMenuOptionMetrics.outerInset)
             .padding(.bottom, ComposerTimePickerMetrics.contentSpacing)
 
-            ComposerMinuteIntervalWheelPicker(
+            TaskEditorSingleColumnTimeWheel(
                 selection: $selectedTime,
                 minuteInterval: 5
             )

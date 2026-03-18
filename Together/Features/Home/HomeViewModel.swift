@@ -13,9 +13,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let title: String
     let notes: String?
     let timeText: String
-    let symbolName: String
     let accentColorName: String
-    let showsSolidSymbol: Bool
     let isMuted: Bool
     let isCompleted: Bool
     let urgency: HomeTimelineUrgency
@@ -90,8 +88,19 @@ final class HomeViewModel {
     }
 
     var weekDates: [Date] {
-        let interval = calendar.dateInterval(of: .weekOfYear, for: selectedDate)
-            ?? DateInterval(start: selectedDate, duration: 86_400 * 7)
+        weekDates(shiftedByWeeks: 0)
+    }
+
+    func weekDates(shiftedByWeeks offset: Int) -> [Date] {
+        let anchorDate: Date
+        if offset == 0 {
+            anchorDate = selectedDate
+        } else {
+            anchorDate = calendar.date(byAdding: .day, value: offset * 7, to: selectedDate) ?? selectedDate
+        }
+
+        let interval = calendar.dateInterval(of: .weekOfYear, for: anchorDate)
+            ?? DateInterval(start: anchorDate, duration: 86_400 * 7)
 
         return (0..<7).compactMap {
             calendar.date(byAdding: .day, value: $0, to: interval.start)
@@ -132,6 +141,14 @@ final class HomeViewModel {
         let newDay = calendar.startOfDay(for: date)
         selectedDateTransitionEdge = newDay >= oldDay ? .trailing : .leading
         selectedDate = date
+    }
+
+    func shiftSelectedWeek(by offset: Int) {
+        guard offset != 0 else { return }
+        guard let shiftedDate = calendar.date(byAdding: .day, value: offset * 7, to: selectedDate) else {
+            return
+        }
+        selectDate(shiftedDate)
     }
 
     func toggleAvatarPreview() {
@@ -384,9 +401,7 @@ final class HomeViewModel {
                 title: item.title,
                 notes: item.notes,
                 timeText: timeText(for: item),
-                symbolName: symbolName(for: item),
                 accentColorName: accentColorName(for: item),
-                showsSolidSymbol: item.isPinned || item.priority == .critical || isCompleted,
                 isMuted: isCompleted,
                 isCompleted: isCompleted,
                 urgency: urgency(for: item, isCompleted: isCompleted)
@@ -485,37 +500,12 @@ final class HomeViewModel {
         return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
-    private func symbolName(for item: Item) -> String {
-        if item.repeatRule != nil {
-            return "repeat"
-        }
-
-        switch item.title {
-        case let title where title.localizedStandardContains("晨会"):
-            return "sun.max.fill"
-        case let title where title.localizedStandardContains("复盘"):
-            return "moon.fill"
-        default:
-            return item.isPinned ? "sparkles" : "circle"
-        }
-    }
-
     private func accentColorName(for item: Item) -> String {
         if item.isPinned || item.priority == .critical {
             return "coral"
         }
-        if item.repeatRule != nil {
-            return "neutral"
-        }
 
-        switch item.title {
-        case let title where title.localizedStandardContains("晨会"):
-            return "sun"
-        case let title where title.localizedStandardContains("复盘"):
-            return "violet"
-        default:
-            return "neutral"
-        }
+        return "neutral"
     }
 
     private var visibleTimelineItems: [Item] {
