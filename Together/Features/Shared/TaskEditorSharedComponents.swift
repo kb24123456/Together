@@ -671,6 +671,11 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
         tableView.dataSource = context.coordinator
         tableView.delegate = context.coordinator
         context.coordinator.configureInitialSelection(for: tableView)
+        DispatchQueue.main.async {
+            tableView.reloadData()
+            tableView.layoutIfNeeded()
+            context.coordinator.configureInitialSelection(for: tableView)
+        }
         return tableView
     }
 
@@ -726,6 +731,11 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
             )
             cell.configure(text: formatter.string(from: date(for: indexPath.row)))
             return cell
+        }
+
+        func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+            guard let cell = cell as? TaskEditorSingleColumnTimeCell else { return }
+            applyAppearance(to: cell, in: tableView)
         }
 
         func scrollViewDidLayoutSubviews(_ scrollView: UIScrollView) {
@@ -797,15 +807,19 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
         }
 
         func updateVisibleCells(in tableView: TaskEditorSingleColumnTimeTableView) {
-            let visibleCenterY = tableView.contentOffset.y + tableView.bounds.height * 0.5
             for case let cell as TaskEditorSingleColumnTimeCell in tableView.visibleCells {
-                let distance = abs(cell.center.y - visibleCenterY)
-                let normalized = min(distance / TaskEditorSingleColumnTimeWheelMetrics.rowHeight, 4)
-                let isCentered = distance < (TaskEditorSingleColumnTimeWheelMetrics.rowHeight * 0.5)
-                let alpha = isCentered ? 0.02 : max(0.12, 0.9 - normalized * 0.24)
-                let scale = isCentered ? 1 : max(0.86, 1 - normalized * 0.05)
-                cell.applyAppearance(alpha: alpha, scale: scale, isCentered: isCentered)
+                applyAppearance(to: cell, in: tableView)
             }
+        }
+
+        private func applyAppearance(to cell: TaskEditorSingleColumnTimeCell, in tableView: UITableView) {
+            let visibleCenterY = tableView.contentOffset.y + tableView.bounds.height * 0.5
+            let distance = abs(cell.center.y - visibleCenterY)
+            let normalized = min(distance / TaskEditorSingleColumnTimeWheelMetrics.rowHeight, 5)
+            let isCentered = distance < (TaskEditorSingleColumnTimeWheelMetrics.rowHeight * 0.5)
+            let alpha = isCentered ? 0.008 : max(0.04, 0.58 - normalized * 0.13)
+            let scale = isCentered ? 1 : max(0.84, 1 - normalized * 0.04)
+            cell.applyAppearance(alpha: alpha, scale: scale, isCentered: isCentered)
         }
 
         private var slotCount: Int {
@@ -881,10 +895,12 @@ private struct TaskEditorSingleColumnTimeWheelFadeMask: View {
         LinearGradient(
             stops: [
                 .init(color: .clear, location: 0),
-                .init(color: .black.opacity(0.82), location: 0.18),
-                .init(color: .black, location: 0.34),
-                .init(color: .black, location: 0.66),
-                .init(color: .black.opacity(0.82), location: 0.82),
+                .init(color: .black.opacity(0.55), location: 0.10),
+                .init(color: .black.opacity(0.86), location: 0.22),
+                .init(color: .black, location: 0.32),
+                .init(color: .black, location: 0.68),
+                .init(color: .black.opacity(0.86), location: 0.78),
+                .init(color: .black.opacity(0.55), location: 0.90),
                 .init(color: .clear, location: 1)
             ],
             startPoint: .top,
@@ -896,18 +912,28 @@ private struct TaskEditorSingleColumnTimeWheelFadeMask: View {
 private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
     let selection: Date
 
+    private var timeText: String {
+        selection.formatted(
+            .dateTime
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+        )
+    }
+
     var body: some View {
         HStack {
             Spacer(minLength: 0)
-            Text(
-                selection,
-                format: .dateTime
-                    .hour(.twoDigits(amPM: .omitted))
-                    .minute(.twoDigits)
-            )
-            .contentTransition(.numericText())
-            .font(AppTheme.typography.sized(30, weight: .bold))
-            .foregroundStyle(AppTheme.colors.title)
+            HStack(spacing: 10) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.82))
+
+                Text(timeText)
+                .contentTransition(.numericText())
+                .font(AppTheme.typography.sized(36, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+            }
+            .offset(x: -3)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
@@ -917,23 +943,24 @@ private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
                 cornerRadius: TaskEditorSingleColumnTimeWheelMetrics.selectionCapsuleHeight * 0.5,
                 style: .continuous
             )
-            .fill(AppTheme.colors.surfaceElevated.opacity(0.98))
+            .fill(AppTheme.colors.pillSurface.opacity(0.96))
         )
         .overlay(
             RoundedRectangle(
                 cornerRadius: TaskEditorSingleColumnTimeWheelMetrics.selectionCapsuleHeight * 0.5,
                 style: .continuous
             )
-            .strokeBorder(Color.white.opacity(0.9), lineWidth: 1)
+            .strokeBorder(Color.white.opacity(0.78), lineWidth: 1)
         )
-        .shadow(color: AppTheme.colors.shadow.opacity(0.22), radius: 22, y: 8)
+        .shadow(color: AppTheme.colors.shadow.opacity(0.12), radius: 16, y: 5)
+        .animation(.easeInOut(duration: 0.22), value: timeText)
     }
 }
 
 private enum TaskEditorSingleColumnTimeWheelMetrics {
     static let loopMultiplier = 200
-    static let rowHeight: CGFloat = 44
-    static let baseFontSize: CGFloat = 19
+    static let rowHeight: CGFloat = 38
+    static let baseFontSize: CGFloat = 22
     static let selectedFontSize: CGFloat = 28
     static let selectionCapsuleHeight: CGFloat = 74
 }
@@ -1297,7 +1324,7 @@ enum TaskEditorMenuOptionMetrics {
 enum TaskEditorTimePickerMetrics {
     static let verticalInset: CGFloat = 18
     static let contentSpacing: CGFloat = 12
-    static let pickerHeight: CGFloat = 170
+    static let pickerHeight: CGFloat = 214
 }
 
 enum TaskEditorChipAnimation {

@@ -2221,7 +2221,7 @@ private enum ComposerMenuOptionMetrics {
 private enum ComposerTimePickerMetrics {
     static let verticalInset: CGFloat = 18
     static let contentSpacing: CGFloat = 12
-    static let pickerHeight: CGFloat = 170
+    static let pickerHeight: CGFloat = 214
 }
 
 private enum ComposerField: Hashable {

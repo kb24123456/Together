@@ -176,7 +176,7 @@ struct HomeItemDetailSheet: View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: viewModel.hasUnsavedDetailChanges ? 12 : 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text(currentStateText)
                     .font(AppTheme.typography.sized(15, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.84))
@@ -186,9 +186,7 @@ struct HomeItemDetailSheet: View {
                     openMenu(menu)
                 }
 
-                if viewModel.hasUnsavedDetailChanges {
-                    expandedSaveButton
-                }
+                expandedSaveButton
             }
             .padding(.horizontal, 18)
             .padding(.top, 12)
@@ -202,14 +200,20 @@ struct HomeItemDetailSheet: View {
             )
         }
         .padding(.bottom, bottomInset)
-        .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: viewModel.hasUnsavedDetailChanges)
+        .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: isExpandedEditor)
     }
 
     private var expandedSaveButton: some View {
         Button {
             HomeInteractionFeedback.selection()
-            Task {
-                await viewModel.saveDetailDraft()
+            if viewModel.hasUnsavedDetailChanges {
+                Task {
+                    await viewModel.saveDetailDraft()
+                }
+            } else {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                    viewModel.detailDetent = .height(340)
+                }
             }
         } label: {
             HStack(spacing: 6) {
@@ -236,7 +240,7 @@ struct HomeItemDetailSheet: View {
         .padding(.horizontal, 10)
         .modifier(
             TaskEditorPrimaryActionOvershootModifier(
-                trigger: viewModel.hasUnsavedDetailChanges,
+                trigger: isExpandedEditor,
                 keyboardRevealOffset: primaryActionKeyboardRevealOffset
             )
         )
@@ -1836,5 +1840,5 @@ private enum HomeDetailMenuOptionMetrics {
 private enum HomeDetailTimePickerMetrics {
     static let verticalInset: CGFloat = 18
     static let contentSpacing: CGFloat = 12
-    static let pickerHeight: CGFloat = 170
+    static let pickerHeight: CGFloat = 214
 }
