@@ -25,6 +25,11 @@ enum HomeTimelineUrgency: Hashable {
     case overdue
 }
 
+enum HomeDateTransitionStyle: Hashable {
+    case sameWeek
+    case crossWeek
+}
+
 @MainActor
 @Observable
 final class HomeViewModel {
@@ -35,6 +40,7 @@ final class HomeViewModel {
     private var detailSaveTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
     private(set) var selectedDateTransitionEdge: Edge = .trailing
+    private(set) var selectedDateTransitionStyle: HomeDateTransitionStyle = .sameWeek
 
     var selectedDate: Date = Date()
     var items: [Item] = []
@@ -140,6 +146,9 @@ final class HomeViewModel {
         let oldDay = calendar.startOfDay(for: selectedDate)
         let newDay = calendar.startOfDay(for: date)
         selectedDateTransitionEdge = newDay >= oldDay ? .trailing : .leading
+        selectedDateTransitionStyle = calendar.isDate(oldDay, equalTo: newDay, toGranularity: .weekOfYear)
+            ? .sameWeek
+            : .crossWeek
         selectedDate = date
     }
 
@@ -153,6 +162,42 @@ final class HomeViewModel {
 
     func toggleAvatarPreview() {
         showsPairAvatarPreview.toggle()
+    }
+
+    func createQuickCaptureTask(title: String) async -> Bool {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return false }
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else {
+            return false
+        }
+
+        let dueAt = calendar.date(
+            bySettingHour: 18,
+            minute: 0,
+            second: 0,
+            of: selectedDate
+        ) ?? selectedDate
+
+        let draft = TaskDraft(
+            title: trimmedTitle,
+            dueAt: dueAt,
+            hasExplicitTime: false
+        )
+
+        do {
+            _ = try await taskApplicationService.createTask(
+                in: spaceID,
+                actorID: actorID,
+                draft: draft
+            )
+            await reload()
+            return true
+        } catch {
+            return false
+        }
     }
 
     func loadIfNeeded() async {

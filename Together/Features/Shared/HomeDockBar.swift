@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct HomeDockBar: View {
-    let isProjectLayerPresented: Bool
+    let isQuickCapturePresented: Bool
     let onProfileTapped: () -> Void
     let onComposeTapped: () -> Void
-    let onProjectsTapped: () -> Void
+    let onQuickCaptureTapped: () -> Void
 
     var body: some View {
         Group {
@@ -38,8 +38,8 @@ struct HomeDockBar: View {
             primaryButton
 
             circleButton(
-                systemImage: isProjectLayerPresented ? "square.grid.2x2.fill" : "square.grid.2x2",
-                action: onProjectsTapped
+                systemImage: isQuickCapturePresented ? "xmark" : "square.and.pencil",
+                action: onQuickCaptureTapped
             )
         }
     }

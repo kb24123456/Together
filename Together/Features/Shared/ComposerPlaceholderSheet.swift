@@ -7,6 +7,7 @@ import CoreText
 struct ComposerPlaceholderSheet: View {
     let route: ComposerRoute
     let appContext: AppContext
+    let initialTitle: String?
 
     @Environment(\.dismiss) private var dismiss
     @State private var draftState: ComposerDraftState
@@ -22,14 +23,20 @@ struct ComposerPlaceholderSheet: View {
     @State private var displayedChips: [TaskEditorRenderedChip] = []
     @State private var pendingChipSnapshots: [TaskEditorChipSnapshot]?
 
-    init(route: ComposerRoute, appContext: AppContext) {
+    init(route: ComposerRoute, appContext: AppContext, initialTitle: String? = nil) {
         self.route = route
         self.appContext = appContext
+        self.initialTitle = initialTitle
+        let initialDraft = ComposerDraftState(
+            initialCategory: route == .newProject ? .project : .task,
+            referenceDate: appContext.homeViewModel.selectedDate
+        )
+        var seededDraft = initialDraft
+        if let initialTitle, !initialTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            seededDraft.title = initialTitle
+        }
         _draftState = State(
-            initialValue: ComposerDraftState(
-                initialCategory: route == .newProject ? .project : .task,
-                referenceDate: appContext.homeViewModel.selectedDate
-            )
+            initialValue: seededDraft
         )
     }
 

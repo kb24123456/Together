@@ -6,7 +6,10 @@ import UIKit
 struct HomeView: View {
     @Bindable var viewModel: HomeViewModel
     let isProjectLayerPresented: Bool
-    @State private var weekPagerSelection = 1
+    @State private var weekPagerOffset: CGFloat = 0
+    @State private var isWeekPagerSettling = false
+
+    private let weekPageBreathingGap: CGFloat = 10
 
     var body: some View {
         GeometryReader { proxy in
@@ -17,7 +20,7 @@ struct HomeView: View {
                     headerSection
                         .padding(.horizontal, AppTheme.spacing.xl)
                         .padding(.top, proxy.safeAreaInsets.top + AppTheme.spacing.sm)
-                        .padding(.bottom, isProjectLayerPresented ? AppTheme.spacing.lg : AppTheme.spacing.xl)
+                        .padding(.bottom, AppTheme.spacing.md)
 
                     contentCard
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -108,7 +111,7 @@ struct HomeView: View {
                 timelineSection
             }
             .padding(.horizontal, AppTheme.spacing.xl)
-            .padding(.top, isProjectLayerPresented ? AppTheme.spacing.xl : AppTheme.spacing.lg)
+            .padding(.top, AppTheme.spacing.sm)
             .padding(.bottom, 144)
         }
         .scrollIndicators(.hidden)
@@ -138,29 +141,24 @@ struct HomeView: View {
     }
 
     private var weekCalendarSection: some View {
-        TabView(selection: $weekPagerSelection) {
-            ForEach([-1, 0, 1], id: \.self) { offset in
-                weekPage(for: offset)
-                    .tag(offset + 1)
+        GeometryReader { proxy in
+            let pageWidth = max(proxy.size.width, 1)
+
+            HStack(spacing: 0) {
+                ForEach([-1, 0, 1], id: \.self) { offset in
+                    weekPage(for: offset)
+                        .frame(width: pageWidth - weekPageBreathingGap)
+                        .frame(width: pageWidth)
+                        .opacity(weekPageOpacity(for: offset, pageWidth: pageWidth))
+                }
             }
+            .frame(width: pageWidth * 3, alignment: .leading)
+            .offset(x: -pageWidth + weekPagerOffset)
+            .contentShape(Rectangle())
+            .simultaneousGesture(weekPagerDragGesture(pageWidth: pageWidth))
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
         .frame(height: 76)
-        .onChange(of: weekPagerSelection) { _, newValue in
-            guard newValue != 1 else { return }
-
-            let weekOffset = newValue == 2 ? 1 : -1
-            triggerSoftDateFeedback()
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
-                viewModel.shiftSelectedWeek(by: weekOffset)
-            }
-
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                weekPagerSelection = 1
-            }
-        }
+        .clipped()
     }
 
     private func weekPage(for offset: Int) -> some View {
@@ -271,10 +269,7 @@ struct HomeView: View {
                     }
                 }
                 .id(viewModel.selectedDateKey)
-                .transition(
-                    .move(edge: viewModel.selectedDateTransitionEdge)
-                    .combined(with: .opacity)
-                )
+                .transition(timelineTransition)
             }
         }
         .animation(.spring(response: 0.26, dampingFraction: 0.88), value: viewModel.selectedDateKey)
@@ -314,6 +309,122 @@ struct HomeView: View {
 
     private func triggerSoftDateFeedback() {
         HomeInteractionFeedback.soft()
+    }
+
+    private var timelineTransition: AnyTransition {
+        let direction: CGFloat = viewModel.selectedDateTransitionEdge == .trailing ? 1 : -1
+
+        switch viewModel.selectedDateTransitionStyle {
+        case .sameWeek:
+            return .asymmetric(
+                insertion: .offset(x: 12 * direction).combined(with: .opacity),
+                removal: .offset(x: -10 * direction).combined(with: .opacity)
+            )
+        case .crossWeek:
+            return .asymmetric(
+                insertion: .offset(x: 18 * direction).combined(with: .opacity),
+                removal: .offset(x: -14 * direction).combined(with: .opacity)
+            )
+        }
+    }
+
+    private func weekPagerDragGesture(pageWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .local)
+            .onChanged { value in
+                guard !isWeekPagerSettling else { return }
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                weekPagerOffset = resistedWeekPagerOffset(
+                    for: value.translation.width,
+                    pageWidth: pageWidth
+                )
+            }
+            .onEnded { value in
+                guard !isWeekPagerSettling else { return }
+
+                let horizontalTravel = value.translation.width
+                guard abs(horizontalTravel) > abs(value.translation.height) else {
+                    settleWeekPager(to: 0, pageWidth: pageWidth)
+                    return
+                }
+
+                let projectedTravel = value.predictedEndTranslation.width
+                let targetDirection = weekPagerTargetDirection(
+                    translation: horizontalTravel,
+                    predictedTranslation: projectedTravel,
+                    pageWidth: pageWidth
+                )
+
+                settleWeekPager(to: targetDirection, pageWidth: pageWidth)
+            }
+    }
+
+    private func weekPagerTargetDirection(
+        translation: CGFloat,
+        predictedTranslation: CGFloat,
+        pageWidth: CGFloat
+    ) -> Int {
+        let distanceThreshold = pageWidth * 0.24
+        let projectedDistanceThreshold = pageWidth * 0.42
+
+        if translation <= -distanceThreshold || predictedTranslation <= -projectedDistanceThreshold {
+            return -1
+        }
+
+        if translation >= distanceThreshold || predictedTranslation >= projectedDistanceThreshold {
+            return 1
+        }
+
+        return 0
+    }
+
+    private func settleWeekPager(to direction: Int, pageWidth: CGFloat) {
+        isWeekPagerSettling = true
+
+        let targetOffset = CGFloat(direction) * pageWidth
+        let animation = direction == 0
+            ? Animation.spring(response: 0.34, dampingFraction: 0.88)
+            : Animation.spring(response: 0.42, dampingFraction: 0.86, blendDuration: 0.12)
+
+        withAnimation(animation) {
+            weekPagerOffset = targetOffset
+        }
+
+        let settleDelay = direction == 0 ? 0.22 : 0.30
+        DispatchQueue.main.asyncAfter(deadline: .now() + settleDelay) {
+            if direction != 0 {
+                viewModel.shiftSelectedWeek(by: -direction)
+                triggerSoftDateFeedback()
+            }
+
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                weekPagerOffset = 0
+                isWeekPagerSettling = false
+            }
+        }
+    }
+
+    private func resistedWeekPagerOffset(for translation: CGFloat, pageWidth: CGFloat) -> CGFloat {
+        let limit = pageWidth * 0.92
+        guard abs(translation) > limit else { return translation }
+
+        let overflow = abs(translation) - limit
+        let resistedOverflow = overflow * 0.24
+        return translation.sign == .minus
+            ? -(limit + resistedOverflow)
+            : limit + resistedOverflow
+    }
+
+    private func weekPageOpacity(for offset: Int, pageWidth: CGFloat) -> Double {
+        let distance = weekPageDistance(for: offset, pageWidth: pageWidth)
+        return 1 - (distance * 0.025)
+    }
+
+    private func weekPageDistance(for offset: Int, pageWidth: CGFloat) -> CGFloat {
+        guard pageWidth > 0 else { return 0 }
+        let relativeOffset = (CGFloat(offset) * pageWidth + weekPagerOffset) / pageWidth
+        return min(abs(relativeOffset), 1)
     }
 }
 

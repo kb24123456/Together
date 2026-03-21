@@ -5,6 +5,6 @@ import Observation
 @Observable
 final class AppRouter {
     var activeComposer: ComposerRoute?
-    var isProjectLayerPresented = false
+    var pendingComposerTitle: String?
     var isProfilePresented = false
 }

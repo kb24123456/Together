@@ -23,7 +23,7 @@ struct PersistenceController {
                 resolvedContainer = try Self.makeContainer(inMemory: false)
                 try Self.seedIfNeeded(container: resolvedContainer)
             } catch {
-                fatalError("Failed to initialize persistence after reset: \(error)")
+                fatalError("Failed to initialize persistence after reset: \(    error)")
             }
         }
 
