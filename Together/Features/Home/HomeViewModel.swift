@@ -30,12 +30,27 @@ enum HomeDateTransitionStyle: Hashable {
     case crossWeek
 }
 
+struct QuickCapturePendingConfirmation: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let rawInput: String
+    let title: String
+    let suggestedReminderAt: Date
+    let confirmationKind: QuickCaptureConfirmationKind
+}
+
+enum QuickCaptureTaskCreationResult: Sendable, Equatable {
+    case saved
+    case needsTimeConfirmation(QuickCapturePendingConfirmation)
+    case failed
+}
+
 @MainActor
 @Observable
 final class HomeViewModel {
     private let calendar = Calendar.current
     private let sessionStore: SessionStore
     private let taskApplicationService: TaskApplicationServiceProtocol
+    private let quickCaptureParser: QuickCaptureParserProtocol
 
     private var detailSaveTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
@@ -56,10 +71,12 @@ final class HomeViewModel {
 
     init(
         sessionStore: SessionStore,
-        taskApplicationService: TaskApplicationServiceProtocol
+        taskApplicationService: TaskApplicationServiceProtocol,
+        quickCaptureParser: QuickCaptureParserProtocol
     ) {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
+        self.quickCaptureParser = quickCaptureParser
         let currentUser = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
         self.currentUserAvatar = HomeAvatar(
             id: currentUser.id,
@@ -164,9 +181,54 @@ final class HomeViewModel {
         showsPairAvatarPreview.toggle()
     }
 
-    func createQuickCaptureTask(title: String) async -> Bool {
+    func createQuickCaptureTask(title: String) async -> QuickCaptureTaskCreationResult {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return false }
+        guard !trimmedTitle.isEmpty else { return .failed }
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else {
+            return .failed
+        }
+
+        let parseResult = quickCaptureParser.parse(trimmedTitle, now: .now, calendar: calendar)
+
+        if parseResult.saveDecision == .confirmTime,
+           let suggestedReminderAt = parseResult.parsedDate {
+            return .needsTimeConfirmation(
+                QuickCapturePendingConfirmation(
+                    id: UUID(),
+                    rawInput: parseResult.rawInput,
+                    title: parseResult.title,
+                    suggestedReminderAt: suggestedReminderAt,
+                    confirmationKind: parseResult.confirmationKind
+                )
+            )
+        }
+
+        let draft = quickCaptureDraft(
+            title: parseResult.title,
+            scheduledAt: parseResult.parsedDate,
+            hasExplicitTime: parseResult.timeStatus == .exact
+        )
+
+        do {
+            _ = try await taskApplicationService.createTask(
+                in: spaceID,
+                actorID: actorID,
+                draft: draft
+            )
+            await reload()
+            return .saved
+        } catch {
+            return .failed
+        }
+    }
+
+    func confirmQuickCaptureTask(
+        _ confirmation: QuickCapturePendingConfirmation,
+        reminderAt: Date
+    ) async -> Bool {
         guard
             let spaceID = sessionStore.currentSpace?.id,
             let actorID = sessionStore.currentUser?.id
@@ -174,17 +236,10 @@ final class HomeViewModel {
             return false
         }
 
-        let dueAt = calendar.date(
-            bySettingHour: 18,
-            minute: 0,
-            second: 0,
-            of: selectedDate
-        ) ?? selectedDate
-
-        let draft = TaskDraft(
-            title: trimmedTitle,
-            dueAt: dueAt,
-            hasExplicitTime: false
+        let draft = quickCaptureDraft(
+            title: confirmation.title,
+            scheduledAt: reminderAt,
+            hasExplicitTime: true
         )
 
         do {
@@ -469,6 +524,34 @@ final class HomeViewModel {
             guard Task.isCancelled == false else { return }
             await self.persistDetailDraft()
         }
+    }
+
+    private func quickCaptureDraft(
+        title: String,
+        scheduledAt: Date?,
+        hasExplicitTime: Bool
+    ) -> TaskDraft {
+        if let scheduledAt {
+            return TaskDraft(
+                title: title,
+                dueAt: scheduledAt,
+                hasExplicitTime: hasExplicitTime,
+                remindAt: scheduledAt
+            )
+        }
+
+        let dueAt = calendar.date(
+            bySettingHour: 18,
+            minute: 0,
+            second: 0,
+            of: selectedDate
+        ) ?? selectedDate
+
+        return TaskDraft(
+            title: title,
+            dueAt: dueAt,
+            hasExplicitTime: false
+        )
     }
 
     private func persistDetailDraft() async {

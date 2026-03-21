@@ -12,6 +12,7 @@ struct AppRootView: View {
     @State private var quickCaptureHasVisibleText = false
     @State private var lastKeyboardOverlap: CGFloat = 0
     @State private var quickCaptureSpeechRecognizer = QuickCaptureSpeechRecognizer()
+    @State private var pendingQuickCaptureConfirmation: QuickCapturePendingConfirmation?
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
 
     var body: some View {
@@ -69,6 +70,13 @@ struct AppRootView: View {
             .presentationContentInteraction(.scrolls)
             .interactiveDismissDisabled(false)
             .modifier(ComposerPresentationSizingModifier())
+        }
+        .sheet(item: $pendingQuickCaptureConfirmation, onDismiss: {
+            if isQuickCapturePresented && !isSubmittingQuickCapture {
+                isQuickCaptureFocused = true
+            }
+        }) { confirmation in
+            quickCaptureConfirmationSheet(confirmation)
         }
         .environment(\.symbolVariants, .none)
         .font(AppTheme.typography.body)
@@ -266,6 +274,7 @@ struct AppRootView: View {
                         isFocused: $isQuickCaptureFocused,
                         isSubmitting: isSubmittingQuickCapture,
                         onContentPresenceChanged: { hasContent in
+                            guard quickCaptureHasVisibleText != hasContent else { return }
                             quickCaptureHasVisibleText = hasContent
                         },
                         onSubmit: { finalText in
@@ -351,6 +360,7 @@ struct AppRootView: View {
         quickCaptureSpeechRecognizer.stopListening()
         quickCaptureSpeechRecognizer.resetDraft()
         isQuickCaptureFocused = false
+        pendingQuickCaptureConfirmation = nil
         quickCaptureDebugMessage = nil
         quickCaptureText = ""
         quickCaptureHasVisibleText = false
@@ -371,25 +381,37 @@ struct AppRootView: View {
         isQuickCaptureFocused = false
 
         Task {
-            let didSave = await appContext.homeViewModel.createQuickCaptureTask(title: trimmedTitle)
+            let result = await appContext.homeViewModel.createQuickCaptureTask(title: trimmedTitle)
             await MainActor.run {
                 isSubmittingQuickCapture = false
-                guard didSave else {
+                switch result {
+                case .saved:
+                    quickCaptureDebugMessage = nil
+                    quickCaptureText = ""
+                    quickCaptureHasVisibleText = false
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
+                        isQuickCapturePresented = false
+                    }
+                    quickCaptureSpeechRecognizer.stopListening()
+                    quickCaptureSpeechRecognizer.resetDraft()
+                    HomeInteractionFeedback.soft()
+                case let .needsTimeConfirmation(confirmation):
+                    quickCaptureDebugMessage = nil
+                    quickCaptureText = confirmation.title
+                    quickCaptureHasVisibleText = true
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) {
+                        pendingQuickCaptureConfirmation = confirmation
+                    }
+                    isQuickCaptureFocused = false
+                    quickCaptureSpeechRecognizer.stopListening()
+                    quickCaptureSpeechRecognizer.resetDraft()
+                    HomeInteractionFeedback.soft()
+                case .failed:
                     quickCaptureDebugMessage = quickCaptureSubmissionSnapshot(
-                        reason: "createQuickCaptureTask 返回 false",
+                        reason: "createQuickCaptureTask 保存失败",
                         chosenTitle: trimmedTitle
                     )
-                    return
                 }
-                quickCaptureDebugMessage = nil
-                quickCaptureText = ""
-                quickCaptureHasVisibleText = false
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
-                    isQuickCapturePresented = false
-                }
-                quickCaptureSpeechRecognizer.stopListening()
-                quickCaptureSpeechRecognizer.resetDraft()
-                HomeInteractionFeedback.soft()
             }
         }
     }
@@ -416,6 +438,84 @@ struct AppRootView: View {
                 isQuickCaptureFocused = false
             } else {
                 isQuickCaptureFocused = true
+            }
+        }
+    }
+
+    private func dismissQuickCaptureConfirmation(restoreFocus: Bool) {
+        HomeInteractionFeedback.selection()
+        pendingQuickCaptureConfirmation = nil
+        guard restoreFocus else { return }
+        DispatchQueue.main.async {
+            isQuickCaptureFocused = true
+        }
+    }
+
+    private func confirmQuickCaptureSelection(
+        _ confirmation: QuickCapturePendingConfirmation,
+        reminderAt: Date
+    ) {
+        HomeInteractionFeedback.selection()
+        isSubmittingQuickCapture = true
+
+        Task {
+            let didSave = await appContext.homeViewModel.confirmQuickCaptureTask(
+                confirmation,
+                reminderAt: reminderAt
+            )
+            await MainActor.run {
+                isSubmittingQuickCapture = false
+                if didSave {
+                    HomeInteractionFeedback.completion()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) {
+                        pendingQuickCaptureConfirmation = nil
+                    }
+                    dismissQuickCapture()
+                } else {
+                    quickCaptureDebugMessage = "原因: 轻确认保存失败\nchosenTitle: \(confirmation.title)"
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func quickCaptureConfirmationSheet(
+        _ confirmation: QuickCapturePendingConfirmation
+    ) -> some View {
+        Group {
+            switch confirmation.confirmationKind {
+            case .timeOnly:
+                QuickCaptureTimeOnlyConfirmationSheet(
+                    confirmation: confirmation,
+                    onConfirm: { selectedDate in
+                        confirmQuickCaptureSelection(confirmation, reminderAt: selectedDate)
+                    }
+                )
+                .interactiveDismissDisabled(isSubmittingQuickCapture)
+                .presentationDragIndicator(.hidden)
+                .presentationContentInteraction(.scrolls)
+                .presentationBackgroundInteraction(.enabled)
+                .presentationDetents([.fraction(0.5)])
+                .presentationCornerRadius(56)
+                .modifier(QuickCaptureSheetGlassBackgroundModifier())
+            case .dateAndTime:
+                QuickCaptureDateTimeConfirmationSheet(
+                    confirmation: confirmation,
+                    isSubmitting: isSubmittingQuickCapture,
+                    onCancel: {
+                        dismissQuickCaptureConfirmation(restoreFocus: true)
+                    },
+                    onConfirm: { selectedDate in
+                        confirmQuickCaptureSelection(confirmation, reminderAt: selectedDate)
+                    }
+                )
+                .interactiveDismissDisabled(isSubmittingQuickCapture)
+                .presentationDragIndicator(.hidden)
+                .presentationContentInteraction(.scrolls)
+                .presentationBackgroundInteraction(.enabled)
+                .presentationCornerRadius(56)
+                .modifier(QuickCaptureSheetGlassBackgroundModifier())
+                .modifier(QuickCaptureDateTimeConfirmationPresentationSizingModifier())
             }
         }
     }
@@ -530,9 +630,7 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
         context.coordinator.textView = textView
         bridge.coordinator = context.coordinator
 
-        if textView.text != text {
-            textView.text = text
-        }
+        context.coordinator.applySwiftUITextUpdate(text, to: textView)
         context.coordinator.updateContentPresence(using: textView)
 
         textView.isEditable = !isSubmitting
@@ -554,6 +652,7 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
     final class Coordinator: NSObject, UITextViewDelegate {
         @Binding private var text: String
         @Binding private var isFocused: Bool
+        private var isApplyingSwiftUIUpdate = false
         weak var bridge: QuickCaptureInputBridge?
         weak var textView: UITextView?
         var onSubmit: (String) -> Void = { _ in }
@@ -575,11 +674,13 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
         }
 
         func textViewDidChange(_ textView: UITextView) {
+            guard !isApplyingSwiftUIUpdate else { return }
             text = currentDocumentText(from: textView)
             updateContentPresence(using: textView)
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            guard !isApplyingSwiftUIUpdate else { return }
             let currentText = currentDocumentText(from: textView)
             if !currentText.isEmpty {
                 text = currentText
@@ -588,10 +689,12 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
+            guard !isApplyingSwiftUIUpdate else { return }
             isFocused = true
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
+            guard !isApplyingSwiftUIUpdate else { return }
             text = currentDocumentText(from: textView)
             isFocused = false
             updateContentPresence(using: textView)
@@ -631,7 +734,10 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
             let hasContent = !resolvedSubmissionText(from: textView)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty
-            onContentPresenceChanged(hasContent)
+
+            DispatchQueue.main.async { [onContentPresenceChanged] in
+                onContentPresenceChanged(hasContent)
+            }
         }
 
         private func resolvedSubmissionText(from textView: UITextView) -> String {
@@ -678,6 +784,15 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
             }
 
             return textView.text ?? ""
+        }
+
+        func applySwiftUITextUpdate(_ updatedText: String, to textView: UITextView) {
+            guard textView.text != updatedText else { return }
+            isApplyingSwiftUIUpdate = true
+            textView.text = updatedText
+            DispatchQueue.main.async { [weak self] in
+                self?.isApplyingSwiftUIUpdate = false
+            }
         }
     }
 }
@@ -745,6 +860,238 @@ private struct QuickCaptureSendGlassModifier: ViewModifier {
                         .stroke(.white.opacity(0.62), lineWidth: 1)
                 }
                 .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 14, y: 6)
+        }
+    }
+}
+
+private struct QuickCaptureTimeOnlyConfirmationSheet: View {
+    let confirmation: QuickCapturePendingConfirmation
+    let onConfirm: (Date) -> Void
+
+    @State private var selectedTime: Date?
+
+    init(
+        confirmation: QuickCapturePendingConfirmation,
+        onConfirm: @escaping (Date) -> Void
+    ) {
+        self.confirmation = confirmation
+        self.onConfirm = onConfirm
+        _selectedTime = State(initialValue: confirmation.suggestedReminderAt)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("确认时间")
+                .font(AppTheme.typography.sized(18, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .padding(.top, 20)
+                .padding(.bottom, 4)
+
+            TaskEditorTimePickerSheet(
+                selectedTime: $selectedTime,
+                anchorDate: confirmation.suggestedReminderAt,
+                quickPresetMinutes: [],
+                showsQuickPresets: false,
+                primaryButtonTitle: "确认",
+                selectionFeedback: HomeInteractionFeedback.selection,
+                primaryFeedback: HomeInteractionFeedback.selection,
+                onDismiss: {
+                    onConfirm(selectedTime ?? confirmation.suggestedReminderAt)
+                }
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+private struct QuickCaptureSheetGlassBackgroundModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .presentationBackground {
+                    Rectangle()
+                        .fill(.clear)
+                        .glassEffect(.regular, in: .rect(cornerRadius: 56, style: .continuous))
+                }
+        } else {
+            content
+                .presentationBackground(.ultraThinMaterial)
+        }
+    }
+}
+
+private struct QuickCaptureDateTimeConfirmationSheet: View {
+    let confirmation: QuickCapturePendingConfirmation
+    let isSubmitting: Bool
+    let onCancel: () -> Void
+    let onConfirm: (Date) -> Void
+
+    @State private var selectedDate: Date
+
+    init(
+        confirmation: QuickCapturePendingConfirmation,
+        isSubmitting: Bool,
+        onCancel: @escaping () -> Void,
+        onConfirm: @escaping (Date) -> Void
+    ) {
+        self.confirmation = confirmation
+        self.isSubmitting = isSubmitting
+        self.onCancel = onCancel
+        self.onConfirm = onConfirm
+        _selectedDate = State(initialValue: confirmation.suggestedReminderAt)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("确认时间")
+                .font(AppTheme.typography.sized(20, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .padding(.top, 24)
+
+            VStack(spacing: 0) {
+                TaskEditorDatePickerSheet(
+                    selectedDate: selectedDayBinding,
+                    selectionFeedback: HomeInteractionFeedback.selection,
+                    onDismiss: {}
+                )
+                .frame(height: TaskEditorDatePickerSheet.preferredHeight)
+
+                Divider()
+                    .overlay(AppTheme.colors.separator.opacity(0.2))
+                    .padding(.horizontal, 12)
+
+                QuickCaptureInlineTimeRow(selectedDate: $selectedDate)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+
+            HStack(spacing: 12) {
+                Button {
+                    onCancel()
+                } label: {
+                    Text("取消")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .buttonStyle(QuickCaptureSheetActionButtonStyle())
+
+                Button {
+                    onConfirm(selectedDate)
+                } label: {
+                    Text("确认")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .buttonStyle(QuickCaptureSheetActionButtonStyle(isPrimary: true))
+                .disabled(isSubmitting)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var selectedDayBinding: Binding<Date> {
+        Binding(
+            get: { Calendar.current.startOfDay(for: selectedDate) },
+            set: { newDay in
+                let calendar = Calendar.current
+                let hour = calendar.component(.hour, from: selectedDate)
+                let minute = calendar.component(.minute, from: selectedDate)
+                let merged = calendar.date(
+                    bySettingHour: hour,
+                    minute: minute,
+                    second: 0,
+                    of: newDay
+                ) ?? newDay
+                selectedDate = merged
+            }
+        )
+    }
+}
+
+private struct QuickCaptureInlineTimeRow: View {
+    @Binding var selectedDate: Date
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text("时间")
+                .font(AppTheme.typography.sized(16, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.7))
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            DatePicker(
+                "时间",
+                selection: $selectedDate,
+                displayedComponents: [.hourAndMinute]
+            )
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .tint(AppTheme.colors.title)
+            .blendMode(.normal)
+            .padding(.horizontal, 4)
+            .frame(height: 44)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct QuickCaptureSheetActionButtonStyle: ButtonStyle {
+    var isPrimary = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(AppTheme.typography.sized(17, weight: .semibold))
+            .foregroundStyle(AppTheme.colors.title)
+            .contentShape(Capsule(style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
+            .modifier(QuickCaptureSheetActionGlassModifier(isPrimary: isPrimary))
+    }
+}
+
+private struct QuickCaptureSheetActionGlassModifier: ViewModifier {
+    let isPrimary: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(
+                    isPrimary ? .regular.interactive() : .regular,
+                    in: Capsule(style: .continuous)
+                )
+        } else {
+            content
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isPrimary ? AppTheme.colors.pillSurface : AppTheme.colors.surfaceElevated)
+                )
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(
+                            isPrimary ? AppTheme.colors.pillOutline : AppTheme.colors.separator.opacity(0.45),
+                            lineWidth: 1
+                        )
+                }
+        }
+    }
+}
+
+private struct QuickCaptureDateTimeConfirmationPresentationSizingModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.presentationSizing(.page)
+        } else {
+            content.presentationDetents([.large])
         }
     }
 }

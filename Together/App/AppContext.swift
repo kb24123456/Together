@@ -23,7 +23,8 @@ final class AppContext {
         self.router = router
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
-            taskApplicationService: container.taskApplicationService
+            taskApplicationService: container.taskApplicationService,
+            quickCaptureParser: container.quickCaptureParser
         )
         self.listsViewModel = ListsViewModel(
             sessionStore: sessionStore,

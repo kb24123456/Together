@@ -14,6 +14,7 @@ enum MockServiceFactory {
             cloudGateway: cloudGateway,
             remoteSyncApplier: remoteSyncApplier
         )
+        let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
             syncCoordinator: syncCoordinator,
@@ -24,6 +25,7 @@ enum MockServiceFactory {
             authService: MockAuthService(),
             spaceService: MockSpaceService(),
             taskApplicationService: taskApplicationService,
+            quickCaptureParser: quickCaptureParser,
             syncCoordinator: syncCoordinator,
             syncOrchestrator: syncOrchestrator,
             relationshipService: MockRelationshipService(),

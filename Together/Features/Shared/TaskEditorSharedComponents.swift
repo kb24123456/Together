@@ -295,6 +295,7 @@ struct TaskEditorDatePickerSheet: View {
                     Text(monthTitle)
                         .font(AppTheme.typography.sized(21, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
+                        .contentTransition(.numericText())
 
                     Spacer(minLength: 0)
 
@@ -335,42 +336,17 @@ struct TaskEditorDatePickerSheet: View {
                         }
                     }
 
-                    LazyVGrid(columns: calendarColumns, spacing: Self.gridRowSpacing) {
-                        ForEach(monthCells) { cell in
-                            Button {
-                                selectionFeedback()
-                                selectDate(cell.date)
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .stroke(
-                                            isToday(cell.date) && !isSelected(cell.date) ? AppTheme.colors.coral : .clear,
-                                            lineWidth: 1.6
-                                        )
-                                        .background(
-                                            Circle()
-                                                .fill(isSelected(cell.date) ? AppTheme.colors.coral : .clear)
-                                        )
-
-                                    Text("\(Calendar.current.component(.day, from: cell.date))")
-                                        .font(AppTheme.typography.sized(18, weight: .semibold))
-                                        .foregroundStyle(dayTextColor(for: cell))
-                                }
-                                .frame(maxWidth: .infinity)
-                                .frame(height: Self.gridRowHeight)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                    ZStack {
+                        monthGrid
                     }
                     .frame(height: Self.calendarGridHeight, alignment: .top)
+                    .clipped()
+                    .animation(.spring(response: 0.34, dampingFraction: 0.88), value: displayedMonth)
                 }
                 .padding(.horizontal, Self.horizontalPadding)
             }
             .frame(maxWidth: .infinity, alignment: .top)
         }
-        .id(monthIdentity)
-        .transition(monthTransition)
-        .animation(.spring(response: 0.34, dampingFraction: 0.88), value: displayedMonth)
         .padding(.vertical, Self.topBottomPadding)
         .frame(maxWidth: .infinity, alignment: .top)
     }
@@ -445,6 +421,38 @@ struct TaskEditorDatePickerSheet: View {
         return cells
     }
 
+    private var monthGrid: some View {
+        LazyVGrid(columns: calendarColumns, spacing: Self.gridRowSpacing) {
+            ForEach(monthCells) { cell in
+                Button {
+                    selectionFeedback()
+                    selectDate(cell.date)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .stroke(
+                                isToday(cell.date) && !isSelected(cell.date) ? AppTheme.colors.coral : .clear,
+                                lineWidth: 1.6
+                            )
+                            .background(
+                                Circle()
+                                    .fill(isSelected(cell.date) ? AppTheme.colors.coral : .clear)
+                            )
+
+                        Text("\(Calendar.current.component(.day, from: cell.date))")
+                            .font(AppTheme.typography.sized(18, weight: .semibold))
+                            .foregroundStyle(dayTextColor(for: cell))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.gridRowHeight)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .id(monthIdentity)
+        .transition(monthTransition)
+    }
+
     private func calendarButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
@@ -492,6 +500,7 @@ struct TaskEditorTimePickerSheet: View {
     @Binding var selectedTime: Date?
     let anchorDate: Date
     let quickPresetMinutes: [Int]
+    let showsQuickPresets: Bool
     let primaryButtonTitle: String
     let selectionFeedback: () -> Void
     let primaryFeedback: () -> Void
@@ -502,6 +511,7 @@ struct TaskEditorTimePickerSheet: View {
         selectedTime: Binding<Date?>,
         anchorDate: Date,
         quickPresetMinutes: [Int],
+        showsQuickPresets: Bool = true,
         primaryButtonTitle: String = "添加",
         selectionFeedback: @escaping () -> Void,
         primaryFeedback: @escaping () -> Void,
@@ -510,6 +520,7 @@ struct TaskEditorTimePickerSheet: View {
         _selectedTime = selectedTime
         self.anchorDate = anchorDate
         self.quickPresetMinutes = NotificationSettings.normalizedQuickTimePresetMinutes(quickPresetMinutes)
+        self.showsQuickPresets = showsQuickPresets
         self.primaryButtonTitle = primaryButtonTitle
         self.selectionFeedback = selectionFeedback
         self.primaryFeedback = primaryFeedback
@@ -522,25 +533,27 @@ struct TaskEditorTimePickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                ForEach(quickPresetMinutes, id: \.self) { minutes in
-                    Button {
-                        selectionFeedback()
-                        applyQuickPreset(minutes)
-                    } label: {
-                        Text(relativePresetTitle(minutes))
-                            .font(AppTheme.typography.sized(15, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.title)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 52)
+            if showsQuickPresets {
+                HStack(spacing: 10) {
+                    ForEach(quickPresetMinutes, id: \.self) { minutes in
+                        Button {
+                            selectionFeedback()
+                            applyQuickPreset(minutes)
+                        } label: {
+                            Text(relativePresetTitle(minutes))
+                                .font(AppTheme.typography.sized(15, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.title)
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 52)
+                        }
+                        .buttonStyle(TaskEditorMenuOptionButtonStyle())
+                        .modifier(TaskEditorMenuOptionGlassModifier())
                     }
-                    .buttonStyle(TaskEditorMenuOptionButtonStyle())
-                    .modifier(TaskEditorMenuOptionGlassModifier())
                 }
+                .padding(.top, TaskEditorTimePickerMetrics.verticalInset)
+                .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
+                .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
             }
-            .padding(.top, TaskEditorTimePickerMetrics.verticalInset)
-            .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
-            .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
 
             TaskEditorSingleColumnTimeWheel(
                 selection: $stagedTime,
@@ -549,6 +562,7 @@ struct TaskEditorTimePickerSheet: View {
             .frame(maxWidth: .infinity)
             .frame(height: TaskEditorTimePickerMetrics.pickerHeight)
             .clipped()
+            .padding(.top, showsQuickPresets ? 0 : TaskEditorTimePickerMetrics.verticalInset)
             .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
 
             HStack {
