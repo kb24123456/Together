@@ -11,9 +11,14 @@ struct AppRootView: View {
     @State private var quickCaptureDebugMessage: String?
     @State private var quickCaptureHasVisibleText = false
     @State private var lastKeyboardOverlap: CGFloat = 0
+    @State private var quickCaptureFieldHeight: CGFloat = 52
     @State private var quickCaptureSpeechRecognizer = QuickCaptureSpeechRecognizer()
     @State private var pendingQuickCaptureConfirmation: QuickCapturePendingConfirmation?
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
+
+    private let quickCaptureTranscriptPreviewThreshold = 16
+    private let quickCaptureFieldMinHeight: CGFloat = 52
+    private let quickCaptureFieldMaxHeight: CGFloat = 112
 
     var body: some View {
         @Bindable var router = appContext.router
@@ -160,6 +165,18 @@ struct AppRootView: View {
                     .zIndex(2)
             }
 
+            if shouldShowQuickCaptureTranscriptPreview {
+                quickCaptureTranscriptPreview
+                    .padding(.horizontal, AppTheme.spacing.xl)
+                    .padding(.bottom, captureBottom + 84)
+                    .transition(
+                        .move(edge: .bottom)
+                        .combined(with: .opacity)
+                        .combined(with: .scale(scale: 0.96, anchor: .bottom))
+                    )
+                    .zIndex(1.5)
+            }
+
             if !isQuickCapturePresented {
                 HomeDockBar(
                     isQuickCapturePresented: false,
@@ -196,7 +213,25 @@ struct AppRootView: View {
         }
         .animation(.spring(response: 0.38, dampingFraction: 0.86), value: isQuickCapturePresented)
         .animation(.easeOut(duration: 0.2), value: quickCaptureDebugMessage)
+        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: shouldShowQuickCaptureTranscriptPreview)
         .allowsHitTesting(true)
+    }
+
+    private var shouldShowQuickCaptureTranscriptPreview: Bool {
+        guard isQuickCapturePresented else { return false }
+        guard quickCaptureSpeechRecognizer.isListening || quickCaptureSpeechRecognizer.state == .authorizing else { return false }
+
+        let trimmed = quickCaptureText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        return trimmed.count > quickCaptureTranscriptPreviewThreshold || trimmed.contains("\n")
+    }
+
+    private var quickCaptureTranscriptPreview: some View {
+        QuickCaptureTranscriptPreviewCard(
+            text: quickCaptureText,
+            isPreparing: quickCaptureSpeechRecognizer.state == .authorizing
+        )
     }
 
     private func quickCaptureDebugPanel(_ message: String) -> some View {
@@ -253,7 +288,7 @@ struct AppRootView: View {
     }
 
     private var quickCaptureBar: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .bottom, spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: "square.and.pencil")
                     .font(AppTheme.typography.sized(18, weight: .semibold))
@@ -273,6 +308,11 @@ struct AppRootView: View {
                         text: $quickCaptureText,
                         isFocused: $isQuickCaptureFocused,
                         isSubmitting: isSubmittingQuickCapture,
+                        minHeight: quickCaptureFieldMinHeight,
+                        maxHeight: quickCaptureFieldMaxHeight,
+                        onHeightChange: { height in
+                            quickCaptureFieldHeight = height
+                        },
                         onContentPresenceChanged: { hasContent in
                             guard quickCaptureHasVisibleText != hasContent else { return }
                             quickCaptureHasVisibleText = hasContent
@@ -314,7 +354,7 @@ struct AppRootView: View {
             }
             .padding(.leading, 18)
             .padding(.trailing, 6)
-            .frame(height: 52)
+            .frame(height: quickCaptureFieldHeight, alignment: .center)
             .modifier(QuickCaptureFieldGlassModifier())
 
             ZStack {
@@ -334,6 +374,7 @@ struct AppRootView: View {
             .opacity(quickCaptureHasVisibleText ? 1 : 0.42)
         }
         .padding(.horizontal, AppTheme.spacing.xl)
+        .animation(.spring(response: 0.26, dampingFraction: 0.84), value: quickCaptureFieldHeight)
     }
 
     private func toggleQuickCapture() {
@@ -364,6 +405,7 @@ struct AppRootView: View {
         quickCaptureDebugMessage = nil
         quickCaptureText = ""
         quickCaptureHasVisibleText = false
+        quickCaptureFieldHeight = quickCaptureFieldMinHeight
     }
 
     private func submitQuickCapture(_ rawTitle: String? = nil) {
@@ -389,6 +431,7 @@ struct AppRootView: View {
                     quickCaptureDebugMessage = nil
                     quickCaptureText = ""
                     quickCaptureHasVisibleText = false
+                    quickCaptureFieldHeight = quickCaptureFieldMinHeight
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
                         isQuickCapturePresented = false
                     }
@@ -403,6 +446,7 @@ struct AppRootView: View {
                         pendingQuickCaptureConfirmation = confirmation
                     }
                     isQuickCaptureFocused = false
+                    quickCaptureFieldHeight = quickCaptureFieldMinHeight
                     quickCaptureSpeechRecognizer.stopListening()
                     quickCaptureSpeechRecognizer.resetDraft()
                     HomeInteractionFeedback.soft()
@@ -593,12 +637,21 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     let isSubmitting: Bool
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
+    let onHeightChange: (CGFloat) -> Void
     let onContentPresenceChanged: (Bool) -> Void
     let onSubmit: (String) -> Void
     let onDebug: (String) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, isFocused: $isFocused, bridge: bridge)
+        Coordinator(
+            text: $text,
+            isFocused: $isFocused,
+            bridge: bridge,
+            minHeight: minHeight,
+            maxHeight: maxHeight
+        )
     }
 
     func makeUIView(context: Context) -> UITextView {
@@ -626,12 +679,14 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.onSubmit = onSubmit
         context.coordinator.onDebug = onDebug
+        context.coordinator.onHeightChange = onHeightChange
         context.coordinator.onContentPresenceChanged = onContentPresenceChanged
         context.coordinator.textView = textView
         bridge.coordinator = context.coordinator
 
         context.coordinator.applySwiftUITextUpdate(text, to: textView)
         context.coordinator.updateContentPresence(using: textView)
+        context.coordinator.updateMeasuredHeight(using: textView)
 
         textView.isEditable = !isSubmitting
         textView.isSelectable = !isSubmitting
@@ -652,17 +707,28 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
     final class Coordinator: NSObject, UITextViewDelegate {
         @Binding private var text: String
         @Binding private var isFocused: Bool
+        private let minHeight: CGFloat
+        private let maxHeight: CGFloat
         private var isApplyingSwiftUIUpdate = false
         weak var bridge: QuickCaptureInputBridge?
         weak var textView: UITextView?
         var onSubmit: (String) -> Void = { _ in }
         var onDebug: (String) -> Void = { _ in }
+        var onHeightChange: (CGFloat) -> Void = { _ in }
         var onContentPresenceChanged: (Bool) -> Void = { _ in }
 
-        init(text: Binding<String>, isFocused: Binding<Bool>, bridge: QuickCaptureInputBridge) {
+        init(
+            text: Binding<String>,
+            isFocused: Binding<Bool>,
+            bridge: QuickCaptureInputBridge,
+            minHeight: CGFloat,
+            maxHeight: CGFloat
+        ) {
             _text = text
             _isFocused = isFocused
             self.bridge = bridge
+            self.minHeight = minHeight
+            self.maxHeight = maxHeight
         }
 
         func submitFromExternalButton() {
@@ -677,6 +743,7 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
             guard !isApplyingSwiftUIUpdate else { return }
             text = currentDocumentText(from: textView)
             updateContentPresence(using: textView)
+            updateMeasuredHeight(using: textView)
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
@@ -698,6 +765,7 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
             text = currentDocumentText(from: textView)
             isFocused = false
             updateContentPresence(using: textView)
+            updateMeasuredHeight(using: textView)
         }
 
         func textView(
@@ -790,8 +858,31 @@ private struct NativeQuickCaptureTextEditor: UIViewRepresentable {
             guard textView.text != updatedText else { return }
             isApplyingSwiftUIUpdate = true
             textView.text = updatedText
+            updateMeasuredHeight(using: textView)
             DispatchQueue.main.async { [weak self] in
                 self?.isApplyingSwiftUIUpdate = false
+            }
+        }
+
+        func updateMeasuredHeight(using textView: UITextView) {
+            let targetWidth = textView.bounds.width
+            guard targetWidth > 1 else {
+                DispatchQueue.main.async { [onHeightChange, minHeight] in
+                    onHeightChange(minHeight)
+                }
+                return
+            }
+            let fittingSize = CGSize(width: targetWidth, height: .greatestFiniteMagnitude)
+            let measuredHeight = textView.sizeThatFits(fittingSize).height
+            let clampedHeight = min(max(measuredHeight, minHeight), maxHeight)
+            let shouldScroll = measuredHeight > maxHeight + 0.5
+
+            if textView.isScrollEnabled != shouldScroll {
+                textView.isScrollEnabled = shouldScroll
+            }
+
+            DispatchQueue.main.async { [onHeightChange] in
+                onHeightChange(clampedHeight)
             }
         }
     }
@@ -860,6 +951,52 @@ private struct QuickCaptureSendGlassModifier: ViewModifier {
                         .stroke(.white.opacity(0.62), lineWidth: 1)
                 }
                 .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 14, y: 6)
+        }
+    }
+}
+
+private struct QuickCaptureTranscriptPreviewCard: View {
+    let text: String
+    let isPreparing: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(isPreparing ? "正在准备语音输入…" : "实时转写")
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.48))
+
+            ScrollView(showsIndicators: false) {
+                Text(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                    .font(AppTheme.typography.sized(22, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: 88, maxHeight: 150)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(QuickCaptureTranscriptPreviewGlassModifier())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("语音转写预览")
+        .accessibilityValue(text)
+    }
+}
+
+private struct QuickCaptureTranscriptPreviewGlassModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        } else {
+            content
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(.white.opacity(0.62), lineWidth: 1)
+                }
+                .shadow(color: AppTheme.colors.shadow.opacity(0.1), radius: 16, y: 8)
         }
     }
 }
