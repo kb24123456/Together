@@ -28,4 +28,20 @@ enum HomeInteractionFeedback {
         generator.notificationOccurred(.success)
         #endif
     }
+
+    static func swipeReveal() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .rigid)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.82)
+        #endif
+    }
+
+    static func menuTap() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.9)
+        #endif
+    }
 }

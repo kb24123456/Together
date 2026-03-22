@@ -63,6 +63,16 @@ final class ProfileViewModel {
         )
     }
 
+    var snoozePresetSummary: String {
+        let titles = quickTimePresetMinutes.map { minutes in
+            if minutes >= 60, minutes.isMultiple(of: 60) {
+                return "\(minutes / 60)小时后"
+            }
+            return "\(minutes)分钟后"
+        }
+        return titles.joined(separator: " / ")
+    }
+
     func load() async {
         loadState = .loading
         notificationAuthorization = await notificationService.authorizationStatus()

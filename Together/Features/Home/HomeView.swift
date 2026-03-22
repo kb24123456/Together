@@ -9,7 +9,9 @@ struct HomeView: View {
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isWeekPagerSettling = false
 
-    private let weekPageBreathingGap: CGFloat = 10
+    private let weekPageBreathingGap: CGFloat = 0
+    private let weekDateSpacing: CGFloat = AppTheme.spacing.sm
+    private let contentCardCornerRadius: CGFloat = 40
 
     var body: some View {
         GeometryReader { proxy in
@@ -20,7 +22,11 @@ struct HomeView: View {
                     headerSection
                         .padding(.horizontal, AppTheme.spacing.xl)
                         .padding(.top, proxy.safeAreaInsets.top + AppTheme.spacing.sm)
-                        .padding(.bottom, AppTheme.spacing.md)
+
+                    weekCalendarSection
+                        .padding(.horizontal, AppTheme.spacing.xl)
+                        .padding(.top, 0)
+                        .padding(.bottom, 0)
 
                     contentCard
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -55,6 +61,67 @@ struct HomeView: View {
         ) {
             HomeItemDetailSheet(viewModel: viewModel)
         }
+        .confirmationDialog(
+            viewModel.activeSnoozeContext.map { "推迟“\($0.title)”" } ?? "推迟",
+            isPresented: Binding(
+                get: { viewModel.isShowingSnoozeOptions },
+                set: {
+                    viewModel.isShowingSnoozeOptions = $0
+                    if !$0, viewModel.activeSnoozeMenu == nil {
+                        viewModel.dismissSnoozeUI()
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            ForEach(viewModel.quickTimePresetMinutes, id: \.self) { minutes in
+                Button(relativePresetTitle(minutes)) {
+                    Task {
+                        await viewModel.applySnooze(minutes: minutes)
+                        HomeInteractionFeedback.selection()
+                    }
+                }
+            }
+
+            Button("明天") {
+                Task {
+                    await viewModel.applySnoozeTomorrow()
+                    HomeInteractionFeedback.selection()
+                }
+            }
+
+            Button("自定义") {
+                HomeInteractionFeedback.selection()
+                viewModel.presentCustomSnoozePicker()
+            }
+
+            Button("取消", role: .cancel) {
+                viewModel.dismissSnoozeUI()
+            }
+        }
+        .sheet(
+            item: Binding(
+                get: { viewModel.activeSnoozeMenu },
+                set: {
+                    if let value = $0 {
+                        viewModel.activeSnoozeMenu = value
+                    } else {
+                        viewModel.dismissSnoozeUI()
+                    }
+                }
+            )
+        ) { menu in
+            HomeSnoozeMenuSheet(
+                menu: menu,
+                viewModel: viewModel
+            )
+            .presentationDetents(menu.detents)
+            .presentationContentInteraction(.scrolls)
+            .presentationBackgroundInteraction(.disabled)
+            .presentationDragIndicator(.hidden)
+            .interactiveDismissDisabled(false)
+            .modifier(TaskEditorMenuPresentationSizingModifier())
+        }
     }
 
     private var backgroundView: some View {
@@ -76,13 +143,43 @@ struct HomeView: View {
     }
 
     private var headerSection: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(viewModel.headerDateText)
                     .font(AppTheme.typography.sized(40, weight: .bold))
                     .tracking(-1.2)
                     .foregroundStyle(headerPrimaryColor)
                     .contentTransition(.numericText())
+
+                if !viewModel.isViewingToday {
+                    Button {
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                            viewModel.returnToToday()
+                        }
+                        HomeInteractionFeedback.selection()
+                    } label: {
+                        Text("今天")
+                            .font(AppTheme.typography.sized(15, weight: .semibold))
+                            .foregroundStyle(headerPrimaryColor)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(AppTheme.colors.surface.opacity(0.88))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.84, anchor: .leading)
+                                .combined(with: .opacity)
+                                .combined(with: .offset(x: -10, y: 1)),
+                            removal: .scale(scale: 0.9, anchor: .leading)
+                                .combined(with: .opacity)
+                                .combined(with: .offset(x: -6, y: -1))
+                        )
+                    )
+                }
             }
 
             Spacer(minLength: 0)
@@ -100,6 +197,7 @@ struct HomeView: View {
             )
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
+        .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
         .animation(.spring(response: 0.34, dampingFraction: 0.82), value: viewModel.showsPairAvatarPreview)
         .animation(.spring(response: 0.36, dampingFraction: 0.86), value: isProjectLayerPresented)
     }
@@ -107,17 +205,16 @@ struct HomeView: View {
     private var contentCard: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                weekCalendarSection
                 timelineSection
             }
             .padding(.horizontal, AppTheme.spacing.xl)
-            .padding(.top, AppTheme.spacing.sm)
+            .padding(.top, AppTheme.spacing.lg)
             .padding(.bottom, 144)
         }
         .scrollIndicators(.hidden)
         .scrollDisabled(isProjectLayerPresented)
         .background(
-            RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : 32, style: .continuous)
+            RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : contentCardCornerRadius, style: .continuous)
                 .fill(AppTheme.colors.surface)
         )
         .overlay(alignment: .top) {
@@ -135,7 +232,7 @@ struct HomeView: View {
             y: isProjectLayerPresented ? -6 : 10
         )
         .clipShape(
-            RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : 32, style: .continuous)
+            RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : contentCardCornerRadius, style: .continuous)
         )
         .animation(.spring(response: 0.36, dampingFraction: 0.86), value: isProjectLayerPresented)
     }
@@ -162,7 +259,7 @@ struct HomeView: View {
     }
 
     private func weekPage(for offset: Int) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: weekDateSpacing) {
             ForEach(viewModel.weekDates(shiftedByWeeks: offset), id: \.self) { date in
                 let isSelected = viewModel.isSelectedDate(date)
                 Button {
@@ -194,19 +291,14 @@ struct HomeView: View {
                                 : AppTheme.colors.body.opacity(0.7)
                             )
                     }
-                    .scaleEffect(isSelected ? 1.1 : 1.0)
+                    .scaleEffect(isSelected ? 1.16 : 1.0)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 76)
-                    .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(isSelected ? AppTheme.colors.surfaceElevated : .clear)
-                    )
+                    .frame(height: 84)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 2)
     }
 
     private var timelineSection: some View {
@@ -232,6 +324,8 @@ struct HomeView: View {
                     ForEach(Array(viewModel.timelineEntries.enumerated()), id: \.element.id) { index, entry in
                         HomeTimelineRow(
                             entry: entry,
+                            quickTimePresetMinutes: viewModel.quickTimePresetMinutes,
+                            presetTitle: relativePresetTitle,
                             isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
                             onToggleCompletion: {
                                 HomeInteractionFeedback.selection()
@@ -243,6 +337,27 @@ struct HomeView: View {
                             onOpenDetail: {
                                 HomeInteractionFeedback.soft()
                                 viewModel.presentItemDetail(entry.id)
+                            },
+                            onPrepareSnoozeContext: {
+                                viewModel.prepareSnoozeContext(for: entry.id)
+                            },
+                            onSnoozeMinutes: { minutes in
+                                HomeInteractionFeedback.selection()
+                                Task {
+                                    await viewModel.applySnooze(minutes: minutes)
+                                }
+                            },
+                            onSnoozeTomorrow: {
+                                HomeInteractionFeedback.selection()
+                                Task {
+                                    await viewModel.applySnoozeTomorrow()
+                                }
+                            },
+                            onSnoozeCustom: {
+                                HomeInteractionFeedback.selection()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                                    viewModel.presentCustomSnoozePicker()
+                                }
                             }
                         )
                         .transition(
@@ -426,15 +541,50 @@ struct HomeView: View {
         let relativeOffset = (CGFloat(offset) * pageWidth + weekPagerOffset) / pageWidth
         return min(abs(relativeOffset), 1)
     }
+
+    private func relativePresetTitle(_ minutes: Int) -> String {
+        if minutes >= 60, minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)小时后"
+        }
+        return "\(minutes)分钟后"
+    }
 }
 
 private struct HomeTimelineRow: View {
     let entry: HomeTimelineEntry
+    let quickTimePresetMinutes: [Int]
+    let presetTitle: (Int) -> String
     let isAnimatingCompletion: Bool
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
+    let onPrepareSnoozeContext: () -> Bool
+    let onSnoozeMinutes: (Int) -> Void
+    let onSnoozeTomorrow: () -> Void
+    let onSnoozeCustom: () -> Void
+    @State private var swipeOffset: CGFloat = 0
+
+    private let actionWidth: CGFloat = 74
+    private let actionButtonSize: CGFloat = 54
+    private let actionOpenThreshold: CGFloat = 36
+    @State private var hasTriggeredSwipeFeedback = false
 
     var body: some View {
+        rowContent
+            .offset(x: swipeOffset)
+            .overlay(alignment: .trailing) {
+                if !entry.isCompleted && entry.canSnooze {
+                    snoozeMenuTrigger
+                        .padding(.trailing, 6)
+                        .opacity(swipeRevealProgress)
+                        .scaleEffect(0.9 + (swipeRevealProgress * 0.1))
+                        .allowsHitTesting(swipeOffset <= -actionOpenThreshold)
+                }
+            }
+            .clipShape(Rectangle())
+        .animation(.spring(response: 0.24, dampingFraction: 0.88), value: swipeOffset)
+    }
+
+    private var rowContent: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Button(action: onToggleCompletion) {
                 timelineSymbol
@@ -462,18 +612,129 @@ private struct HomeTimelineRow: View {
         }
         .padding(.vertical, 12)
         .contentShape(Rectangle())
-        .onTapGesture(perform: onOpenDetail)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(entry.isCompleted ? "恢复" : "完成", systemImage: entry.isCompleted ? "arrow.uturn.backward" : "checkmark") {
-                onToggleCompletion()
+        .onTapGesture {
+            if swipeOffset < 0 {
+                withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                    swipeOffset = 0
+                }
+            } else {
+                onOpenDetail()
             }
-            .tint(AppTheme.colors.coral)
+        }
+        .gesture(rowSwipeGesture)
+    }
+
+    private var snoozeMenuTrigger: some View {
+        Menu {
+            ForEach(quickTimePresetMinutes, id: \.self) { minutes in
+                Button(presetTitle(minutes), systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90") {
+                    guard onPrepareSnoozeContext() else { return }
+                    onSnoozeMinutes(minutes)
+                    closeSwipeAction(after: 0.12)
+                }
+            }
+
+            Button("明天", systemImage: "sun.max") {
+                guard onPrepareSnoozeContext() else { return }
+                onSnoozeTomorrow()
+                closeSwipeAction(after: 0.12)
+            }
+
+            Divider()
+
+            Button("自定义", systemImage: "slider.horizontal.3") {
+                guard onPrepareSnoozeContext() else { return }
+                onSnoozeCustom()
+                closeSwipeAction(after: 0.16)
+            }
+        } label: {
+            Image(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
+                .font(AppTheme.typography.sized(20, weight: .bold))
+                .foregroundStyle(AppTheme.colors.sky)
+                .frame(width: actionButtonSize, height: actionButtonSize)
+                .background(
+                    Circle()
+                        .fill(AppTheme.colors.outlineStrong.opacity(0.26))
+                )
+                .clipShape(Circle())
+                .contentShape(Circle())
+                .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 10, y: 5)
+        }
+        .menuStyle(.automatic)
+        .buttonStyle(.plain)
+        .highPriorityGesture(
+            TapGesture().onEnded {
+                HomeInteractionFeedback.menuTap()
+            }
+        )
+    }
+
+    private var rowSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .local)
+            .onChanged { value in
+                guard !entry.isCompleted, entry.canSnooze else { return }
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+
+                if value.translation.width < 0 {
+                    swipeOffset = max(value.translation.width, -actionWidth)
+                    if swipeOffset <= -actionOpenThreshold, hasTriggeredSwipeFeedback == false {
+                        hasTriggeredSwipeFeedback = true
+                        HomeInteractionFeedback.swipeReveal()
+                    }
+                } else if swipeOffset < 0 {
+                    swipeOffset = min(0, -actionWidth + value.translation.width)
+                    if swipeOffset > -actionOpenThreshold {
+                        hasTriggeredSwipeFeedback = false
+                    }
+                }
+            }
+            .onEnded { value in
+                guard !entry.isCompleted, entry.canSnooze else { return }
+                guard abs(value.translation.width) > abs(value.translation.height) else {
+                    settleSwipeOffset(using: value)
+                    return
+                }
+
+                settleSwipeOffset(using: value)
+            }
+    }
+
+    private func settleSwipeOffset(using value: DragGesture.Value) {
+        let predictedTravel = value.predictedEndTranslation.width
+        let shouldOpen = value.translation.width < -actionOpenThreshold || predictedTravel < -(actionWidth * 0.78)
+
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+            swipeOffset = shouldOpen ? -actionWidth : 0
+        }
+        hasTriggeredSwipeFeedback = shouldOpen
+    }
+
+    private var swipeRevealProgress: CGFloat {
+        let progress = min(max(-swipeOffset / actionWidth, 0), 1)
+        return progress
+    }
+
+    private func closeSwipeAction(after delay: TimeInterval = 0) {
+        let reset = {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                swipeOffset = 0
+            }
+            hasTriggeredSwipeFeedback = false
+        }
+
+        guard delay > 0 else {
+            reset()
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            reset()
         }
     }
 
     private var displaySubtitle: String {
         guard let notes = entry.notes, notes.isEmpty == false else {
-            return entry.urgency == .overdue ? "已超时" : "进行中"
+            return entry.statusText
         }
         return notes
     }
@@ -554,24 +815,28 @@ private struct HomeTimelineTimeText: View {
     @State private var isBreathing = false
 
     var body: some View {
-        Text(entry.timeText)
-            .font(AppTheme.typography.sized(entry.urgency == .imminent ? 20 : 18, weight: .semibold))
-            .foregroundStyle(timeColor)
-            .scaleEffect(entry.urgency == .imminent ? (isBreathing ? 1.09 : 0.94) : 1)
-            .opacity(entry.urgency == .imminent ? (isBreathing ? 1 : 0.62) : 1)
-            .animation(
-                entry.urgency == .imminent
-                ? .easeInOut(duration: 0.72).repeatForever(autoreverses: true)
-                : .default,
-                value: isBreathing
-            )
-            .onAppear {
-                guard entry.urgency == .imminent else { return }
-                isBreathing = true
+        Group {
+            if entry.timeText.isEmpty == false {
+                Text(entry.timeText)
+                    .font(AppTheme.typography.sized(entry.urgency == .imminent ? 20 : 18, weight: .semibold))
+                    .foregroundStyle(timeColor)
+                    .scaleEffect(entry.urgency == .imminent ? (isBreathing ? 1.09 : 0.94) : 1)
+                    .opacity(entry.urgency == .imminent ? (isBreathing ? 1 : 0.62) : 1)
+                    .animation(
+                        entry.urgency == .imminent
+                        ? .easeInOut(duration: 0.72).repeatForever(autoreverses: true)
+                        : .default,
+                        value: isBreathing
+                    )
+                    .onAppear {
+                        guard entry.urgency == .imminent else { return }
+                        isBreathing = true
+                    }
+                    .onChange(of: entry.urgency) { _, newValue in
+                        isBreathing = newValue == .imminent
+                    }
             }
-            .onChange(of: entry.urgency) { _, newValue in
-                isBreathing = newValue == .imminent
-            }
+        }
     }
 
     private var timeColor: Color {
@@ -620,6 +885,43 @@ private struct HomeAvatarToggleButton: View {
             }
             .shadow(color: AppTheme.colors.shadow.opacity(0.65), radius: 6, y: 4)
             .zIndex(zIndex)
+    }
+}
+
+private struct HomeSnoozeMenuSheet: View {
+    let menu: HomeSnoozeMenu
+    @Bindable var viewModel: HomeViewModel
+
+    var body: some View {
+        Group {
+            switch menu {
+            case .customDate:
+                TaskEditorDatePickerSheet(
+                    selectedDate: $viewModel.stagedCustomSnoozeDate,
+                    selectionFeedback: HomeInteractionFeedback.selection,
+                    onDismiss: viewModel.transitionFromCustomDateToTime
+                )
+            case .customTime:
+                TaskEditorTimePickerSheet(
+                    selectedTime: $viewModel.stagedCustomSnoozeTime,
+                    anchorDate: viewModel.stagedCustomSnoozeDate,
+                    quickPresetMinutes: viewModel.quickTimePresetMinutes,
+                    primaryButtonTitle: "确认",
+                    selectionFeedback: HomeInteractionFeedback.selection,
+                    primaryFeedback: HomeInteractionFeedback.selection,
+                    onTimeSaved: {
+                        Task {
+                            await viewModel.applyCustomSnoozeSelection()
+                            HomeInteractionFeedback.selection()
+                        }
+                    },
+                    onDismiss: {
+                        viewModel.dismissSnoozeUI()
+                    }
+                )
+            }
+        }
+        .id(menu.id)
     }
 }
 

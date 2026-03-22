@@ -119,7 +119,8 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         }
 
         guard let dueAt = item.dueAt, let repeatRule = item.repeatRule else { return nil }
-        let reminderLead = dueAt.timeIntervalSince(remindAt)
+        let reminderTarget = reminderTargetDate(for: dueAt, hasExplicitTime: item.hasExplicitTime)
+        let reminderLead = reminderTarget.timeIntervalSince(remindAt)
         let anchorDate = item.anchorDateForRepeatRule
         let threshold = now.addingTimeInterval(reminderLead)
         let startDay = calendar.startOfDay(for: max(anchorDate, threshold))
@@ -129,7 +130,8 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
             guard repeatRule.matches(referenceDate: candidateDay, anchorDate: anchorDate, calendar: calendar) else { continue }
 
             let candidateDueAt = merge(date: candidateDay, timeSource: dueAt)
-            let candidateReminder = candidateDueAt.addingTimeInterval(-reminderLead)
+            let candidateReminderTarget = reminderTargetDate(for: candidateDueAt, hasExplicitTime: item.hasExplicitTime)
+            let candidateReminder = candidateReminderTarget.addingTimeInterval(-reminderLead)
 
             if let normalizedCandidate = normalizedScheduledDate(candidateReminder, now: now) {
                 return normalizedCandidate
@@ -149,7 +151,10 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
 
     private func taskBody(for item: Item, scheduledAt: Date) -> String {
         if let dueAt = item.dueAt {
-            return "到期时间 \(dueAt.formatted(.dateTime.month().day().hour().minute()))"
+            if item.hasExplicitTime {
+                return "到期时间 \(dueAt.formatted(.dateTime.month().day().hour().minute()))"
+            }
+            return "截止日期 \(dueAt.formatted(.dateTime.month().day()))"
         }
         if item.repeatRule != nil {
             return "下一次提醒 \(scheduledAt.formatted(.dateTime.month().day().hour().minute()))"
@@ -175,5 +180,10 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
             minute: timeComponents.minute,
             second: timeComponents.second
         )) ?? date
+    }
+
+    private func reminderTargetDate(for dueAt: Date, hasExplicitTime: Bool) -> Date {
+        guard hasExplicitTime == false else { return dueAt }
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
     }
 }

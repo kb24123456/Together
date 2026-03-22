@@ -20,6 +20,7 @@ enum AppTheme {
         static let pillOutline = Color.white.opacity(0.9)
         static let accent = Color(red: 0.24, green: 0.47, blue: 0.42)
         static let accentSoft = Color(red: 0.92, green: 0.96, blue: 0.94)
+        static let sky = Color(red: 0.42, green: 0.70, blue: 0.98)
         static let secondaryAccent = Color(red: 0.86, green: 0.78, blue: 0.67)
         static let coral = Color(red: 0.87, green: 0.48, blue: 0.41)
         static let sun = Color(red: 0.93, green: 0.74, blue: 0.18)

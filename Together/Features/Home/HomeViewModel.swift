@@ -13,9 +13,11 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let title: String
     let notes: String?
     let timeText: String
+    let statusText: String
     let accentColorName: String
     let isMuted: Bool
     let isCompleted: Bool
+    let canSnooze: Bool
     let urgency: HomeTimelineUrgency
 }
 
@@ -28,6 +30,27 @@ enum HomeTimelineUrgency: Hashable {
 enum HomeDateTransitionStyle: Hashable {
     case sameWeek
     case crossWeek
+}
+
+enum HomeSnoozeMenu: String, Identifiable {
+    case customDate
+    case customTime
+
+    var id: String { rawValue }
+
+    var detents: Set<PresentationDetent> {
+        switch self {
+        case .customDate:
+            return [.height(TaskEditorDatePickerSheet.preferredHeight + 12)]
+        case .customTime:
+            return [.fraction(0.5)]
+        }
+    }
+}
+
+struct HomeSnoozeContext: Identifiable, Hashable {
+    let id: UUID
+    let title: String
 }
 
 struct QuickCapturePendingConfirmation: Identifiable, Hashable, Sendable {
@@ -68,6 +91,12 @@ final class HomeViewModel {
     var isPerformingCompletion = false
     var recentCompletedItemID: UUID?
     var showsCompletedItems = true
+    var activeSnoozeContext: HomeSnoozeContext?
+    var isShowingSnoozeOptions = false
+    var activeSnoozeMenu: HomeSnoozeMenu?
+    var stagedCustomSnoozeDate: Date = Date()
+    var stagedCustomSnoozeTime: Date?
+    var isPerformingSnooze = false
 
     init(
         sessionStore: SessionStore,
@@ -151,6 +180,10 @@ final class HomeViewModel {
         )
     }
 
+    var isViewingToday: Bool {
+        calendar.isDate(selectedDate, inSameDayAs: .now)
+    }
+
     var headerAvatars: [HomeAvatar] {
         if showsPairAvatarPreview {
             return [currentUserAvatar, pairPreviewAvatar]
@@ -179,6 +212,10 @@ final class HomeViewModel {
 
     func toggleAvatarPreview() {
         showsPairAvatarPreview.toggle()
+    }
+
+    func returnToToday() {
+        selectDate(Date())
     }
 
     func createQuickCaptureTask(title: String) async -> QuickCaptureTaskCreationResult {
@@ -311,13 +348,17 @@ final class HomeViewModel {
     func setDraftDueDateEnabled(_ enabled: Bool) {
         guard var draft = detailDraft else { return }
         if enabled {
-            let current = draft.dueAt ?? defaultDueDate()
-            draft.dueAt = calendar.date(
-                bySettingHour: calendar.component(.hour, from: current),
-                minute: calendar.component(.minute, from: current),
-                second: 0,
-                of: selectedDate
-            )
+            if draft.hasExplicitTime {
+                let current = draft.dueAt ?? defaultDueDate()
+                draft.dueAt = calendar.date(
+                    bySettingHour: calendar.component(.hour, from: current),
+                    minute: calendar.component(.minute, from: current),
+                    second: 0,
+                    of: selectedDate
+                )
+            } else {
+                draft.dueAt = dateOnlyDueDate(for: selectedDate)
+            }
         } else {
             draft.dueAt = nil
             draft.hasExplicitTime = false
@@ -328,8 +369,12 @@ final class HomeViewModel {
 
     func updateDraftDueDate(_ dueDate: Date) {
         guard var draft = detailDraft else { return }
-        let existing = draft.dueAt ?? defaultDueDate()
-        draft.dueAt = merge(date: dueDate, timeSource: existing)
+        if draft.hasExplicitTime {
+            let existing = draft.dueAt ?? defaultDueDate()
+            draft.dueAt = merge(date: dueDate, timeSource: existing)
+        } else {
+            draft.dueAt = dateOnlyDueDate(for: dueDate)
+        }
         detailDraft = draft
         scheduleDetailSave(immediately: true)
     }
@@ -345,20 +390,16 @@ final class HomeViewModel {
 
     func clearDraftDueTime() {
         guard var draft = detailDraft, let dueAt = draft.dueAt else { return }
-        draft.dueAt = calendar.date(
-            bySettingHour: 18,
-            minute: 0,
-            second: 0,
-            of: dueAt
-        ) ?? dueAt
+        draft.dueAt = dateOnlyDueDate(for: dueAt)
         draft.hasExplicitTime = false
+        draft.remindAt = nil
         detailDraft = draft
         scheduleDetailSave(immediately: true)
     }
 
     func setDraftReminderEnabled(_ enabled: Bool) {
         guard var draft = detailDraft else { return }
-        draft.remindAt = enabled ? (draft.dueAt ?? defaultReminderDate()) : nil
+        draft.remindAt = enabled ? defaultReminderDate(for: draft) : nil
         detailDraft = draft
         scheduleDetailSave(immediately: true)
     }
@@ -463,6 +504,61 @@ final class HomeViewModel {
         }
     }
 
+    func canSnooze(_ itemID: UUID) -> Bool {
+        guard let item = items.first(where: { $0.id == itemID }) else { return false }
+        return item.status != .completed && item.completedAt == nil
+    }
+
+    func presentSnoozeOptions(for itemID: UUID) {
+        guard prepareSnoozeContext(for: itemID) else { return }
+        isShowingSnoozeOptions = true
+    }
+
+    @discardableResult
+    func prepareSnoozeContext(for itemID: UUID) -> Bool {
+        guard canSnooze(itemID) else { return false }
+        guard let item = items.first(where: { $0.id == itemID }) else { return false }
+        activeSnoozeContext = HomeSnoozeContext(id: item.id, title: item.title)
+        return true
+    }
+
+    func dismissSnoozeUI() {
+        isShowingSnoozeOptions = false
+        activeSnoozeContext = nil
+        activeSnoozeMenu = nil
+    }
+
+    func applySnoozeTomorrow() async {
+        await snoozeActiveItem(using: .tomorrow)
+    }
+
+    func applySnooze(minutes: Int) async {
+        await snoozeActiveItem(using: .minutes(minutes))
+    }
+
+    func presentCustomSnoozePicker() {
+        guard let item = activeSnoozeItem else { return }
+        isShowingSnoozeOptions = false
+        let baseDate = item.dueAt ?? selectedDate
+        stagedCustomSnoozeDate = calendar.startOfDay(for: baseDate)
+        if item.hasExplicitTime, let dueAt = item.dueAt {
+            stagedCustomSnoozeTime = dueAt
+        } else {
+            stagedCustomSnoozeTime = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: baseDate)
+        }
+        activeSnoozeMenu = .customDate
+    }
+
+    func transitionFromCustomDateToTime() {
+        activeSnoozeMenu = .customTime
+    }
+
+    func applyCustomSnoozeSelection() async {
+        guard let stagedTime = stagedCustomSnoozeTime else { return }
+        let customDate = merge(date: stagedCustomSnoozeDate, timeSource: stagedTime)
+        await snoozeActiveItem(using: .custom(customDate))
+    }
+
     func isSelectedDate(_ date: Date) -> Bool {
         calendar.isDate(date, inSameDayAs: selectedDate)
     }
@@ -501,9 +597,11 @@ final class HomeViewModel {
                 title: item.title,
                 notes: item.notes,
                 timeText: timeText(for: item),
+                statusText: statusText(for: item, isCompleted: isCompleted),
                 accentColorName: accentColorName(for: item),
                 isMuted: isCompleted,
                 isCompleted: isCompleted,
+                canSnooze: item.repeatRule == nil,
                 urgency: urgency(for: item, isCompleted: isCompleted)
             )
         }
@@ -540,16 +638,9 @@ final class HomeViewModel {
             )
         }
 
-        let dueAt = calendar.date(
-            bySettingHour: 18,
-            minute: 0,
-            second: 0,
-            of: selectedDate
-        ) ?? selectedDate
-
         return TaskDraft(
             title: title,
-            dueAt: dueAt,
+            dueAt: dateOnlyDueDate(for: selectedDate),
             hasExplicitTime: false
         )
     }
@@ -605,8 +696,19 @@ final class HomeViewModel {
         calendar.date(bySettingHour: 18, minute: 0, second: 0, of: selectedDate) ?? selectedDate
     }
 
-    private func defaultReminderDate() -> Date {
-        calendar.date(byAdding: .minute, value: -30, to: defaultDueDate()) ?? defaultDueDate()
+    private func dateOnlyDueDate(for date: Date) -> Date {
+        calendar.startOfDay(for: date)
+    }
+
+    private func defaultReminderDate(for draft: TaskDraft? = nil) -> Date {
+        let currentDraft = draft ?? detailDraft
+        let reminderTarget: Date
+        if let dueAt = currentDraft?.dueAt {
+            reminderTarget = reminderTargetDate(for: dueAt, hasExplicitTime: currentDraft?.hasExplicitTime ?? false)
+        } else {
+            reminderTarget = defaultDueDate()
+        }
+        return calendar.date(byAdding: .minute, value: -30, to: reminderTarget) ?? reminderTarget
     }
 
     private func merge(date: Date, timeSource: Date) -> Date {
@@ -621,9 +723,17 @@ final class HomeViewModel {
         )) ?? date
     }
 
+    private func reminderTargetDate(for dueAt: Date, hasExplicitTime: Bool) -> Date {
+        guard hasExplicitTime == false else { return dueAt }
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
+    }
+
     private func timeText(for item: Item) -> String {
         guard let dueAt = item.dueAt else {
             return item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar) ?? "--:--"
+        }
+        guard item.hasExplicitTime else {
+            return item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar) ?? "当日完成"
         }
         return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
@@ -659,6 +769,16 @@ final class HomeViewModel {
                 }
             }
 
+            let lhsDueAt = timelineSortDate(for: lhs)
+            let rhsDueAt = timelineSortDate(for: rhs)
+            if lhsDueAt != rhsDueAt {
+                return lhsDueAt < rhsDueAt
+            }
+
+            if lhs.priority != rhs.priority {
+                return priorityRank(lhs.priority) > priorityRank(rhs.priority)
+            }
+
             if lhs.createdAt != rhs.createdAt {
                 return lhs.createdAt < rhs.createdAt
             }
@@ -668,18 +788,116 @@ final class HomeViewModel {
     }
 
     private func urgency(for item: Item, isCompleted: Bool) -> HomeTimelineUrgency {
-        guard isCompleted == false, let dueAt = item.dueAt else { return .normal }
-        if dueAt <= .now {
+        guard isCompleted == false else { return .normal }
+        let dueAt = item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt
+        guard let dueAt else { return .normal }
+        guard item.hasExplicitTime else { return .normal }
+        let selectedDayStart = calendar.startOfDay(for: selectedDate)
+        let todayStart = calendar.startOfDay(for: .now)
+        let referenceMoment: Date
+        if selectedDayStart < todayStart {
+            referenceMoment = calendar.date(byAdding: .day, value: 1, to: selectedDayStart) ?? selectedDate
+        } else if calendar.isDate(selectedDate, inSameDayAs: .now) {
+            referenceMoment = Date.now
+        } else {
+            referenceMoment = selectedDayStart
+        }
+        if dueAt <= referenceMoment {
             return .overdue
         }
 
         let imminentThreshold = TimeInterval(
             (sessionStore.currentUser?.preferences.taskUrgencyWindowMinutes ?? 30) * 60
         )
-        if dueAt.timeIntervalSinceNow <= imminentThreshold {
+        if dueAt.timeIntervalSince(referenceMoment) <= imminentThreshold {
             return .imminent
         }
 
         return .normal
+    }
+
+    private func statusText(for item: Item, isCompleted: Bool) -> String {
+        guard isCompleted == false else { return ItemStatus.completed.title }
+        guard item.repeatRule != nil else {
+            return urgency(for: item, isCompleted: isCompleted) == .overdue ? "已超时" : ItemStatus.inProgress.title
+        }
+
+        if item.isOverdue(on: selectedDate, calendar: calendar) {
+            if calendar.isDate(selectedDate, inSameDayAs: .now) {
+                return item.hasExplicitTime ? "已超时" : "已逾期"
+            }
+            return "已逾期"
+        }
+
+        return "待完成"
+    }
+
+    private var activeSnoozeItem: Item? {
+        guard let activeSnoozeContext else { return nil }
+        return items.first(where: { $0.id == activeSnoozeContext.id })
+    }
+
+    private func timelineSortDate(for item: Item) -> Date {
+        item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt ?? .distantFuture
+    }
+
+    private func priorityRank(_ priority: ItemPriority) -> Int {
+        switch priority {
+        case .critical:
+            return 3
+        case .important:
+            return 2
+        case .normal:
+            return 1
+        }
+    }
+
+    private func removeItem(withID itemID: UUID) {
+        items.removeAll { $0.id == itemID }
+    }
+
+    private func snoozeActiveItem(using option: TaskSnoozeOption) async {
+        guard
+            let context = activeSnoozeContext,
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+        guard isPerformingSnooze == false else { return }
+
+        isPerformingSnooze = true
+        defer { isPerformingSnooze = false }
+
+        do {
+            isShowingSnoozeOptions = false
+            let saved = try await taskApplicationService.snoozeTask(
+                in: spaceID,
+                taskID: context.id,
+                actorID: actorID,
+                option: option
+            )
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                let shouldRemainVisible = saved.appearsOnHome(
+                    for: selectedDate,
+                    includeOverdue: calendar.isDate(selectedDate, inSameDayAs: .now),
+                    calendar: calendar
+                )
+                if shouldRemainVisible {
+                    replaceItemPreservingOrder(saved)
+                } else {
+                    removeItem(withID: saved.id)
+                }
+                if case let .custom(customDate) = option,
+                   calendar.isDate(customDate, inSameDayAs: selectedDate) == false {
+                    selectDate(customDate)
+                }
+            }
+            if case let .custom(customDate) = option,
+               calendar.isDate(customDate, inSameDayAs: selectedDate) == false {
+                await reload()
+            }
+            dismissSnoozeUI()
+        } catch {
+            activeSnoozeMenu = nil
+        }
     }
 }

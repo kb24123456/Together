@@ -75,7 +75,9 @@ struct TogetherTests {
 
     @Test @MainActor
     func mockProjectRepositoryReturnsActiveProjects() async throws {
-        let projects = try await MockProjectRepository().fetchProjects(spaceID: MockDataFactory.singleSpaceID)
+        let projects = try await MockProjectRepository(
+            reminderScheduler: MockReminderScheduler()
+        ).fetchProjects(spaceID: MockDataFactory.singleSpaceID)
 
         #expect(projects.contains { $0.status == .active })
         #expect(projects.contains { $0.status == .completed })
@@ -87,7 +89,10 @@ struct TogetherTests {
         let spaceService = LocalSpaceService(container: persistence.container)
         let itemRepository = LocalItemRepository(container: persistence.container)
         let listRepository = LocalTaskListRepository(container: persistence.container)
-        let projectRepository = LocalProjectRepository(container: persistence.container)
+        let projectRepository = LocalProjectRepository(
+            container: persistence.container,
+            reminderScheduler: MockReminderScheduler()
+        )
 
         let spaceContext = await spaceService.currentSpaceContext(for: MockDataFactory.currentUserID)
         let items = try await itemRepository.fetchItems(spaceID: MockDataFactory.singleSpaceID)
@@ -149,7 +154,10 @@ struct TogetherTests {
     @Test
     func localProjectRepositorySupportsUpsertAndArchive() async throws {
         let persistence = PersistenceController(inMemory: true)
-        let repository = LocalProjectRepository(container: persistence.container)
+        let repository = LocalProjectRepository(
+            container: persistence.container,
+            reminderScheduler: MockReminderScheduler()
+        )
 
         let saved = try await repository.saveProject(
             Project(
@@ -181,7 +189,8 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            syncCoordinator: syncCoordinator
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
         )
 
         let created = try await service.createTask(
@@ -210,13 +219,46 @@ struct TogetherTests {
     }
 
     @Test
+    func taskApplicationServiceCreatesPeriodicTaskWithExplicitTime() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let calendar = Calendar.current
+        let anchorDate = calendar.startOfDay(for: MockDataFactory.now)
+        let dueAt = calendar.date(bySettingHour: 20, minute: 30, second: 0, of: anchorDate) ?? anchorDate
+
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "晚间回顾",
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                remindAt: dueAt.addingTimeInterval(-1_800),
+                repeatRule: ItemRepeatRule(frequency: .daily)
+            )
+        )
+
+        #expect(created.repeatRule?.frequency == .daily)
+        #expect(created.hasExplicitTime == true)
+        #expect(created.dueAt == dueAt)
+        #expect(created.remindAt == dueAt.addingTimeInterval(-1_800))
+    }
+
+    @Test
     func taskApplicationServiceUpdatesAndCompletesTasks() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            syncCoordinator: syncCoordinator
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
         )
         let taskID = UUID(uuidString: "66666666-6666-6666-6666-666666666664")!
 
@@ -256,7 +298,8 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            syncCoordinator: syncCoordinator
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
         )
         let taskID = UUID(uuidString: "66666666-6666-6666-6666-666666666664")!
 
@@ -282,7 +325,8 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            syncCoordinator: syncCoordinator
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
         )
         let taskID = UUID(uuidString: "66666666-6666-6666-6666-666666666666")!
         let newDueAt = MockDataFactory.now.addingTimeInterval(-3_600)
@@ -323,13 +367,92 @@ struct TogetherTests {
     }
 
     @Test
+    func taskApplicationServiceSnoozesTaskToTomorrowPreservingExplicitTime() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let dueAt = Calendar.current.date(
+            bySettingHour: 18,
+            minute: 15,
+            second: 0,
+            of: MockDataFactory.now
+        ) ?? MockDataFactory.now
+        let remindAt = dueAt.addingTimeInterval(-1_800)
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "明日推进任务",
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                remindAt: remindAt
+            )
+        )
+
+        let snoozed = try await service.snoozeTask(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            option: .tomorrow
+        )
+
+        let expectedDueAt = Calendar.current.date(byAdding: .day, value: 1, to: dueAt)
+        let expectedRemindAt = Calendar.current.date(byAdding: .day, value: 1, to: remindAt)
+
+        #expect(snoozed.dueAt == expectedDueAt)
+        #expect(snoozed.remindAt == expectedRemindAt)
+        #expect(snoozed.hasExplicitTime == true)
+    }
+
+    @Test
+    func taskApplicationServiceSnoozesTaskByRelativeMinutesAndKeepsReminderDelta() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let dueAt = MockDataFactory.now.addingTimeInterval(3_600)
+        let remindAt = dueAt.addingTimeInterval(-900)
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "两小时后再做",
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                remindAt: remindAt
+            )
+        )
+
+        let snoozed = try await service.snoozeTask(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            option: .minutes(120)
+        )
+
+        #expect(snoozed.dueAt != nil)
+        #expect(snoozed.hasExplicitTime == true)
+        #expect(snoozed.remindAt?.timeIntervalSince(snoozed.dueAt ?? .now) == -900)
+    }
+
+    @Test
     func taskApplicationServiceBuildsTodaySummaryFromActionableTasks() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            syncCoordinator: syncCoordinator
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
         )
 
         _ = try await service.completeTask(

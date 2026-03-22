@@ -19,6 +19,12 @@ protocol TaskApplicationServiceProtocol: Sendable {
         dueAt: Date?,
         remindAt: Date?
     ) async throws -> Item
+    func snoozeTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        option: TaskSnoozeOption
+    ) async throws -> Item
     func toggleTaskCompletion(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
     func completeTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item

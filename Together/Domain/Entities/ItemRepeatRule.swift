@@ -121,6 +121,25 @@ extension Item {
         dueAt ?? createdAt
     }
 
+    nonisolated func occurrenceDueDate(on referenceDate: Date, calendar: Calendar = .current) -> Date? {
+        guard let dueAt else { return nil }
+        guard let repeatRule else { return dueAt }
+        guard repeatRule.matches(referenceDate: referenceDate, anchorDate: anchorDateForRepeatRule, calendar: calendar) else {
+            return nil
+        }
+
+        let dayComponents = calendar.dateComponents([.year, .month, .day], from: referenceDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: dueAt)
+        return calendar.date(from: DateComponents(
+            year: dayComponents.year,
+            month: dayComponents.month,
+            day: dayComponents.day,
+            hour: timeComponents.hour,
+            minute: timeComponents.minute,
+            second: timeComponents.second
+        ))
+    }
+
     nonisolated func occurs(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
         if let repeatRule {
             return repeatRule.matches(referenceDate: referenceDate, anchorDate: anchorDateForRepeatRule, calendar: calendar)
@@ -153,8 +172,32 @@ extension Item {
     }
 
     nonisolated func isOverdue(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
-        guard repeatRule == nil, let dueAt else { return false }
         guard status != .completed else { return false }
+
+        if repeatRule != nil {
+            guard let dueAt = occurrenceDueDate(on: referenceDate, calendar: calendar) else { return false }
+            return dueAt < overdueBoundary(on: referenceDate, calendar: calendar)
+        }
+
+        guard let dueAt else { return false }
         return dueAt < calendar.startOfDay(for: referenceDate)
+    }
+
+    private nonisolated func overdueBoundary(on referenceDate: Date, calendar: Calendar) -> Date {
+        let todayStart = calendar.startOfDay(for: .now)
+        let referenceStart = calendar.startOfDay(for: referenceDate)
+
+        if referenceStart < todayStart {
+            if hasExplicitTime {
+                return calendar.date(byAdding: .day, value: 1, to: referenceStart) ?? referenceDate
+            }
+            return calendar.date(byAdding: .day, value: 1, to: referenceStart) ?? referenceDate
+        }
+
+        if calendar.isDate(referenceDate, inSameDayAs: .now), hasExplicitTime {
+            return .now
+        }
+
+        return referenceStart
     }
 }

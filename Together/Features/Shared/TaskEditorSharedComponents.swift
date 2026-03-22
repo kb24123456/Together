@@ -504,6 +504,7 @@ struct TaskEditorTimePickerSheet: View {
     let primaryButtonTitle: String
     let selectionFeedback: () -> Void
     let primaryFeedback: () -> Void
+    let onTimeSaved: (() -> Void)?
     let onDismiss: () -> Void
     @State private var stagedTime: Date
 
@@ -515,6 +516,7 @@ struct TaskEditorTimePickerSheet: View {
         primaryButtonTitle: String = "添加",
         selectionFeedback: @escaping () -> Void,
         primaryFeedback: @escaping () -> Void,
+        onTimeSaved: (() -> Void)? = nil,
         onDismiss: @escaping () -> Void
     ) {
         _selectedTime = selectedTime
@@ -524,6 +526,7 @@ struct TaskEditorTimePickerSheet: View {
         self.primaryButtonTitle = primaryButtonTitle
         self.selectionFeedback = selectionFeedback
         self.primaryFeedback = primaryFeedback
+        self.onTimeSaved = onTimeSaved
         self.onDismiss = onDismiss
         let baseTime = selectedTime.wrappedValue
             ?? Self.roundedTimeSeed(for: anchorDate)
@@ -639,6 +642,7 @@ struct TaskEditorTimePickerSheet: View {
 
     private func saveSelection(_ value: Date? = nil) {
         selectedTime = value ?? stagedTime
+        onTimeSaved?()
         onDismiss()
     }
 }

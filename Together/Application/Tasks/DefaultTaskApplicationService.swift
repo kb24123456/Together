@@ -9,7 +9,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     init(
         itemRepository: ItemRepositoryProtocol,
         syncCoordinator: SyncCoordinatorProtocol,
-        reminderScheduler: ReminderSchedulerProtocol
+        reminderScheduler: ReminderSchedulerProtocol = MockReminderScheduler()
     ) {
         self.itemRepository = itemRepository
         self.syncCoordinator = syncCoordinator
@@ -166,6 +166,43 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return saved
     }
 
+    func snoozeTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        option: TaskSnoozeOption
+    ) async throws -> Item {
+        var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard item.status != .completed, item.completedAt == nil else {
+            return item
+        }
+
+        let now = Date.now
+        let targetDueAt = snoozeDueDate(for: item, option: option, now: now)
+        let reminderDelta = reminderDelta(for: item)
+
+        item.dueAt = targetDueAt
+        item.hasExplicitTime = hasExplicitTime(for: item, option: option)
+        if let reminderDelta {
+            item.remindAt = targetDueAt?.addingTimeInterval(reminderDelta)
+        } else if case let .custom(customDate) = option, customDate > now, item.remindAt != nil {
+            item.remindAt = customDate
+        }
+        item.updatedAt = now
+
+        let saved = try await itemRepository.saveItem(item)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .task,
+                operation: .upsert,
+                recordID: saved.id,
+                spaceID: spaceID
+            )
+        )
+        await reminderScheduler.syncTaskReminder(for: saved)
+        return saved
+    }
+
     func toggleTaskCompletion(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
         let existing = try await existingTask(in: spaceID, taskID: taskID)
 
@@ -260,6 +297,47 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             throw RepositoryError.notFound
         }
         return item
+    }
+
+    private func snoozeDueDate(for item: Item, option: TaskSnoozeOption, now: Date) -> Date? {
+        switch option {
+        case .tomorrow:
+            let baseDate = item.dueAt ?? now
+            if item.hasExplicitTime, let dueAt = item.dueAt {
+                return calendar.date(byAdding: .day, value: 1, to: dueAt) ?? dueAt
+            }
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: baseDate) ?? baseDate
+            return calendar.startOfDay(for: tomorrow)
+        case let .minutes(minutes):
+            let baseDate = item.dueAt.map { max($0, now) } ?? now
+            let future = baseDate.addingTimeInterval(TimeInterval(minutes * 60))
+            let roundedMinute = Int((Double(calendar.component(.minute, from: future)) / 5.0).rounded()) * 5
+            let minuteOverflow = roundedMinute / 60
+            let normalizedMinute = roundedMinute % 60
+            let normalizedHour = (calendar.component(.hour, from: future) + minuteOverflow) % 24
+            return calendar.date(
+                bySettingHour: normalizedHour,
+                minute: normalizedMinute,
+                second: 0,
+                of: future
+            ) ?? future
+        case let .custom(date):
+            return date
+        }
+    }
+
+    private func hasExplicitTime(for item: Item, option: TaskSnoozeOption) -> Bool {
+        switch option {
+        case .tomorrow:
+            return item.hasExplicitTime
+        case .minutes, .custom:
+            return true
+        }
+    }
+
+    private func reminderDelta(for item: Item) -> TimeInterval? {
+        guard let dueAt = item.dueAt, let remindAt = item.remindAt else { return nil }
+        return remindAt.timeIntervalSince(dueAt)
     }
 
     private func matches(_ item: Item, scope: TaskScope) -> Bool {

@@ -11,7 +11,7 @@ struct User: Identifiable, Hashable, Sendable {
 }
 
 struct NotificationSettings: Hashable, Sendable {
-    static let defaultQuickTimePresetMinutes: [Int] = [10, 30, 60]
+    static let defaultQuickTimePresetMinutes: [Int] = [30, 60, 120]
 
     var taskReminderEnabled: Bool
     var dailySummaryEnabled: Bool

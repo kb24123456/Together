@@ -22,6 +22,10 @@ struct ComposerPlaceholderSheet: View {
     @Namespace private var chipRowNamespace
     @State private var displayedChips: [TaskEditorRenderedChip] = []
     @State private var pendingChipSnapshots: [TaskEditorChipSnapshot]?
+    @State private var deferredMenuAfterTimeSelection: TaskEditorMenu?
+    @State private var shouldOpenDeferredMenu = false
+    @State private var primaryActionFeedbackNonce = 0
+    @State private var isPrimaryActionAnimating = false
 
     init(route: ComposerRoute, appContext: AppContext, initialTitle: String? = nil) {
         self.route = route
@@ -81,6 +85,7 @@ struct ComposerPlaceholderSheet: View {
                     appContext.sessionStore.currentUser?.preferences.quickTimePresetMinutes
                     ?? NotificationSettings.defaultQuickTimePresetMinutes
                 ),
+                onTimeSaved: handleTimeSaved,
                 onDismiss: dismissActiveMenu
             )
             .presentationDetents(menu.detents)
@@ -204,6 +209,7 @@ struct ComposerPlaceholderSheet: View {
     private var primaryActionButtonBody: some View {
         Button {
             ComposerButtonHaptics.primary()
+            triggerPrimaryActionAnimation()
             Task {
                 await save()
             }
@@ -211,6 +217,7 @@ struct ComposerPlaceholderSheet: View {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark")
                     .font(AppTheme.typography.sized(13, weight: .bold))
+                    .symbolEffect(.bounce, value: primaryActionFeedbackNonce)
 
                 Text(addButtonTitle)
                     .font(AppTheme.typography.sized(15, weight: .bold))
@@ -230,8 +237,18 @@ struct ComposerPlaceholderSheet: View {
         }
         .buttonStyle(.plain)
         .disabled(isSaving)
-        .scaleEffect(isSaving ? 0.98 : 1)
+        .scaleEffect(isSaving ? 0.98 : (isPrimaryActionAnimating ? 0.95 : 1))
+        .brightness(isPrimaryActionAnimating ? -0.015 : 0)
         .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
+        .animation(.spring(response: 0.24, dampingFraction: 0.62), value: isPrimaryActionAnimating)
+    }
+
+    private func triggerPrimaryActionAnimation() {
+        primaryActionFeedbackNonce += 1
+        isPrimaryActionAnimating = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            isPrimaryActionAnimating = false
+        }
     }
 
     private func chipRow(trailingInset: CGFloat) -> some View {
@@ -274,6 +291,14 @@ struct ComposerPlaceholderSheet: View {
                         title: draftState.repeatSummaryText,
                         rank: draftState.repeatRule.animationRank
                     )
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.time.rawValue,
+                    title: draftState.periodicTimeText,
+                    systemImage: "clock",
+                    menu: .time,
+                    semanticValue: .time(draftState.periodicTime),
+                    showsTrailingClear: draftState.periodicTime != nil
                 ),
                 TaskEditorChipSnapshot(
                     id: TaskEditorMenu.reminder.rawValue,
@@ -394,15 +419,44 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private func openMenu(_ menu: TaskEditorMenu) {
+        let targetMenu = resolvedMenu(for: menu)
         lastFocusedFieldBeforeMenu = focusedField
         focusCoordinator.resignCurrentResponder()
         focusedField = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+        let presentTargetMenu = {
             withTransaction(ComposerMenuAnimation.presentationTransaction) {
-                activeMenu = menu
+                activeMenu = targetMenu
             }
         }
+
+        if activeMenu != nil {
+            withTransaction(ComposerMenuAnimation.dismissalTransaction) {
+                activeMenu = nil
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                presentTargetMenu()
+            }
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                presentTargetMenu()
+            }
+        }
+    }
+
+    private func resolvedMenu(for requestedMenu: TaskEditorMenu) -> TaskEditorMenu {
+        deferredMenuAfterTimeSelection = nil
+        shouldOpenDeferredMenu = false
+        guard requestedMenu == .reminder else { return requestedMenu }
+        guard draftState.category == .task, draftState.taskTime == nil else { return requestedMenu }
+        deferredMenuAfterTimeSelection = .reminder
+        shouldOpenDeferredMenu = false
+        return .time
+    }
+
+    private func handleTimeSaved() {
+        guard deferredMenuAfterTimeSelection != nil else { return }
+        shouldOpenDeferredMenu = true
     }
 
     private func restoreKeyboardFocusIfNeeded(preferImmediateResponder: Bool = false) {
@@ -421,6 +475,9 @@ struct ComposerPlaceholderSheet: View {
         switch (draftState.category, chip.menu) {
         case (.task, .time):
             draftState.taskTime = nil
+            draftState.taskReminderOffset = nil
+        case (.periodic, .time):
+            draftState.periodicTime = nil
         default:
             break
         }
@@ -430,6 +487,20 @@ struct ComposerPlaceholderSheet: View {
         restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
         withTransaction(ComposerMenuAnimation.dismissalTransaction) {
             activeMenu = nil
+        }
+
+        guard shouldOpenDeferredMenu, let nextMenu = deferredMenuAfterTimeSelection else {
+            shouldOpenDeferredMenu = false
+            deferredMenuAfterTimeSelection = nil
+            return
+        }
+
+        shouldOpenDeferredMenu = false
+        deferredMenuAfterTimeSelection = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withTransaction(ComposerMenuAnimation.presentationTransaction) {
+                activeMenu = nextMenu
+            }
         }
     }
 
@@ -505,6 +576,7 @@ private struct ComposerDraftState: Hashable {
     var taskDate: Date
     var taskTime: Date?
     var periodicAnchorDate: Date
+    var periodicTime: Date?
     var projectTargetDate: Date?
     var priority: ItemPriority = .normal
     var periodicReminderOffset: TimeInterval?
@@ -532,6 +604,11 @@ private struct ComposerDraftState: Hashable {
     var taskTimeText: String {
         guard let taskTime else { return "时间" }
         return taskTime.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    }
+
+    var periodicTimeText: String {
+        guard let periodicTime else { return "时间" }
+        return periodicTime.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
     var projectDateText: String {
@@ -562,32 +639,25 @@ private struct ComposerDraftState: Hashable {
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         switch category {
         case .periodic:
-            let anchorTime = Calendar.current.date(
-                bySettingHour: 9,
-                minute: 0,
-                second: 0,
-                of: periodicAnchorDate
-            ) ?? periodicAnchorDate
-            let remindAt = periodicReminderOffset.map { anchorTime.addingTimeInterval(-$0) }
+            let dueAt = periodicTime.map { Self.merge(date: periodicAnchorDate, timeSource: $0) }
+                ?? Calendar.current.startOfDay(for: periodicAnchorDate)
+            let reminderTarget = Self.reminderTargetDate(for: dueAt, hasExplicitTime: periodicTime != nil)
+            let remindAt = periodicReminderOffset.map { reminderTarget.addingTimeInterval(-$0) }
             return TaskDraft(
                 title: title,
                 notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-                dueAt: anchorTime,
-                hasExplicitTime: false,
+                dueAt: dueAt,
+                hasExplicitTime: periodicTime != nil,
                 remindAt: remindAt,
                 priority: priority,
                 repeatRule: repeatRule
             )
         case .task:
             let mergedDate = taskTime.map { Self.merge(date: taskDate, timeSource: $0) }
-            let fallbackDate = Calendar.current.date(
-                bySettingHour: 18,
-                minute: 0,
-                second: 0,
-                of: taskDate
-            ) ?? taskDate
+            let fallbackDate = Calendar.current.startOfDay(for: taskDate)
             let dueAt = mergedDate ?? fallbackDate
-            let remindAt = taskReminderOffset.map { dueAt.addingTimeInterval(-$0) }
+            let reminderTarget = Self.reminderTargetDate(for: dueAt, hasExplicitTime: taskTime != nil)
+            let remindAt = taskReminderOffset.map { reminderTarget.addingTimeInterval(-$0) }
             return TaskDraft(
                 title: title,
                 notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
@@ -636,6 +706,12 @@ private struct ComposerDraftState: Hashable {
             hour: timeComponents.hour,
             minute: timeComponents.minute
         )) ?? date
+    }
+
+    private static func reminderTargetDate(for dueAt: Date, hasExplicitTime: Bool) -> Date {
+        guard hasExplicitTime == false else { return dueAt }
+        let calendar = Calendar.current
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
     }
 
     private static func localizedMonthDayText(_ date: Date) -> String {
@@ -1293,10 +1369,12 @@ private struct ComposerEditorMenuSheet: View {
     let menu: TaskEditorMenu
     @Binding var draftState: ComposerDraftState
     let quickTimePresetMinutes: [Int]
+    let onTimeSaved: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
         menuContent
+            .id(menu.id)
             .frame(maxWidth: .infinity, alignment: .top)
     }
 
@@ -1311,11 +1389,12 @@ private struct ComposerEditorMenuSheet: View {
             )
         case .time:
             TaskEditorTimePickerSheet(
-                selectedTime: $draftState.taskTime,
-                anchorDate: draftState.taskDate,
+                selectedTime: selectedTimeBinding,
+                anchorDate: timeAnchorDate,
                 quickPresetMinutes: quickTimePresetMinutes,
                 selectionFeedback: ComposerButtonHaptics.selection,
                 primaryFeedback: ComposerButtonHaptics.primary,
+                onTimeSaved: onTimeSaved,
                 onDismiss: onDismiss
             )
         case .reminder:
@@ -1378,6 +1457,42 @@ private struct ComposerEditorMenuSheet: View {
                 }
             }
         )
+    }
+
+    private var selectedTimeBinding: Binding<Date?> {
+        Binding(
+            get: {
+                switch draftState.category {
+                case .periodic:
+                    return draftState.periodicTime
+                case .task:
+                    return draftState.taskTime
+                case .project:
+                    return nil
+                }
+            },
+            set: { newValue in
+                switch draftState.category {
+                case .periodic:
+                    draftState.periodicTime = newValue
+                case .task:
+                    draftState.taskTime = newValue
+                case .project:
+                    break
+                }
+            }
+        )
+    }
+
+    private var timeAnchorDate: Date {
+        switch draftState.category {
+        case .periodic:
+            return draftState.periodicAnchorDate
+        case .task:
+            return draftState.taskDate
+        case .project:
+            return draftState.projectTargetDate ?? draftState.taskDate
+        }
     }
 
     private var reminderMenuOptions: [TaskEditorOptionRow] {

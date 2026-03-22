@@ -40,8 +40,8 @@ struct CalendarView: View {
                                     Text(item.title)
                                         .foregroundStyle(AppTheme.colors.title)
                                     Spacer()
-                                    if let dueAt = item.dueAt {
-                                        Text(dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)))
+                                    if let trailingText = trailingText(for: item) {
+                                        Text(trailingText)
                                             .foregroundStyle(AppTheme.colors.body)
                                     }
                                 }
@@ -61,5 +61,16 @@ struct CalendarView: View {
             guard viewModel.loadState == .idle else { return }
             await viewModel.load()
         }
+    }
+
+    private func trailingText(for item: Item) -> String? {
+        guard let dueAt = item.dueAt else { return nil }
+        guard item.hasExplicitTime else {
+            if let repeatRule = item.repeatRule {
+                return repeatRule.title(anchorDate: item.anchorDateForRepeatRule, calendar: .current)
+            }
+            return "未设时间"
+        }
+        return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 }

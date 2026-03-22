@@ -11,6 +11,10 @@ struct HomeItemDetailSheet: View {
     @State private var isAwaitingDeleteConfirmation = false
     @State private var lastFocusedFieldBeforeMenu: Field?
     @State private var focusCoordinator = DetailTextInputFocusCoordinator()
+    @State private var deferredMenuAfterTimeSelection: TaskEditorMenu?
+    @State private var shouldOpenDeferredMenu = false
+    @State private var saveFeedbackNonce = 0
+    @State private var isSaveButtonAnimating = false
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
     @Namespace private var chipRowNamespace
     @Namespace private var categorySwitcherNamespace
@@ -62,7 +66,12 @@ struct HomeItemDetailSheet: View {
             }
         }
         .sheet(item: $activeMenu) { menu in
-            HomeDetailMenuSheet(menu: menu, viewModel: viewModel, onDismiss: dismissActiveMenu)
+            HomeDetailMenuSheet(
+                menu: menu,
+                viewModel: viewModel,
+                onTimeSaved: handleTimeSaved,
+                onDismiss: dismissActiveMenu
+            )
                 .presentationDetents(menu.detents)
                 .presentationContentInteraction(.scrolls)
                 .presentationBackgroundInteraction(.enabled)
@@ -206,6 +215,7 @@ struct HomeItemDetailSheet: View {
     private var expandedSaveButton: some View {
         Button {
             HomeInteractionFeedback.selection()
+            triggerSaveButtonAnimation()
             if viewModel.hasUnsavedDetailChanges {
                 Task {
                     await viewModel.saveDetailDraft()
@@ -219,6 +229,7 @@ struct HomeItemDetailSheet: View {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark")
                     .font(AppTheme.typography.sized(13, weight: .bold))
+                    .symbolEffect(.bounce, value: saveFeedbackNonce)
                 Text("保存")
                     .font(AppTheme.typography.sized(15, weight: .bold))
             }
@@ -238,6 +249,9 @@ struct HomeItemDetailSheet: View {
         .buttonStyle(.plain)
         .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
         .padding(.horizontal, 10)
+        .scaleEffect(isSaveButtonAnimating ? 0.95 : 1)
+        .brightness(isSaveButtonAnimating ? -0.015 : 0)
+        .animation(.spring(response: 0.24, dampingFraction: 0.62), value: isSaveButtonAnimating)
         .modifier(
             TaskEditorPrimaryActionOvershootModifier(
                 trigger: isExpandedEditor,
@@ -245,6 +259,14 @@ struct HomeItemDetailSheet: View {
             )
         )
         .transition(.offset(y: 18).combined(with: .opacity))
+    }
+
+    private func triggerSaveButtonAnimation() {
+        saveFeedbackNonce += 1
+        isSaveButtonAnimating = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            isSaveButtonAnimating = false
+        }
     }
 
     private var primaryActionKeyboardRevealOffset: CGFloat {
@@ -522,6 +544,14 @@ struct HomeItemDetailSheet: View {
                     )
                 ),
                 TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.time.rawValue,
+                    title: taskTimeTitle,
+                    systemImage: "clock",
+                    menu: .time,
+                    semanticValue: .time(viewModel.detailDraft?.dueAt),
+                    showsTrailingClear: showsTimeClearButton
+                ),
+                TaskEditorChipSnapshot(
                     id: TaskEditorMenu.reminder.rawValue,
                     title: reminderTitle,
                     systemImage: "bell",
@@ -640,10 +670,41 @@ struct HomeItemDetailSheet: View {
            item.isCompleted(on: viewModel.selectedDate, calendar: .current) || item.status == .completed {
             return "已完成"
         }
-        if let dueAt = viewModel.detailDraft?.dueAt, dueAt <= .now {
+        if viewModel.detailDraft?.repeatRule != nil {
+            return recurringStatusLabelText
+        }
+        if
+            let draft = viewModel.detailDraft,
+            let dueAt = draft.dueAt,
+            isDraftOverdue(draft, dueAt: dueAt)
+        {
             return "已超时"
         }
         return "进行中"
+    }
+
+    private var recurringStatusLabelText: String {
+        guard let item = viewModel.selectedItem else { return "待完成" }
+        if item.isOverdue(on: viewModel.selectedDate, calendar: .current) {
+            if Calendar.current.isDate(viewModel.selectedDate, inSameDayAs: .now) {
+                return item.hasExplicitTime ? "已超时" : "已逾期"
+            }
+            return "已逾期"
+        }
+        return "待完成"
+    }
+
+    private func isDraftOverdue(_ draft: TaskDraft, dueAt: Date) -> Bool {
+        let effectiveDueAt: Date
+        if let item = viewModel.selectedItem {
+            effectiveDueAt = item.occurrenceDueDate(on: viewModel.selectedDate, calendar: .current) ?? dueAt
+        } else {
+            effectiveDueAt = dueAt
+        }
+        if draft.hasExplicitTime {
+            return effectiveDueAt <= .now
+        }
+        return effectiveDueAt < Calendar.current.startOfDay(for: .now)
     }
 
     private func expandToLarge(for action: DetailEntryAction) {
@@ -689,21 +750,64 @@ struct HomeItemDetailSheet: View {
     }
 
     private func openMenu(_ menu: TaskEditorMenu) {
+        let targetMenu = resolvedMenu(for: menu)
         lastFocusedFieldBeforeMenu = focusedField ?? focusCoordinator.currentFocusedField ?? .title
         focusCoordinator.resignCurrentResponder()
         focusedField = nil
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+        let presentTargetMenu = {
             withTransaction(HomeDetailMenuAnimation.presentationTransaction) {
-                activeMenu = menu
+                activeMenu = targetMenu
             }
         }
+
+        if activeMenu != nil {
+            withTransaction(HomeDetailMenuAnimation.dismissalTransaction) {
+                activeMenu = nil
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                presentTargetMenu()
+            }
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                presentTargetMenu()
+            }
+        }
+    }
+
+    private func resolvedMenu(for requestedMenu: TaskEditorMenu) -> TaskEditorMenu {
+        deferredMenuAfterTimeSelection = nil
+        shouldOpenDeferredMenu = false
+        guard requestedMenu == .reminder else { return requestedMenu }
+        guard detailCategory == .task, viewModel.detailDraft?.hasExplicitTime != true else { return requestedMenu }
+        deferredMenuAfterTimeSelection = .reminder
+        shouldOpenDeferredMenu = false
+        return .time
+    }
+
+    private func handleTimeSaved() {
+        guard deferredMenuAfterTimeSelection != nil else { return }
+        shouldOpenDeferredMenu = true
     }
 
     private func dismissActiveMenu() {
         restoreFocusAfterMenuIfNeeded(preferImmediateResponder: true)
         withTransaction(HomeDetailMenuAnimation.dismissalTransaction) {
             activeMenu = nil
+        }
+
+        guard shouldOpenDeferredMenu, let nextMenu = deferredMenuAfterTimeSelection else {
+            shouldOpenDeferredMenu = false
+            deferredMenuAfterTimeSelection = nil
+            return
+        }
+
+        shouldOpenDeferredMenu = false
+        deferredMenuAfterTimeSelection = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withTransaction(HomeDetailMenuAnimation.presentationTransaction) {
+                activeMenu = nextMenu
+            }
         }
     }
 
@@ -1025,10 +1129,12 @@ private struct HomeDetailDateMenuDetent: CustomPresentationDetent {
 private struct HomeDetailMenuSheet: View {
     let menu: TaskEditorMenu
     @Bindable var viewModel: HomeViewModel
+    let onTimeSaved: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
         menuContent
+            .id(menu.id)
             .frame(maxWidth: .infinity, alignment: .top)
     }
 
@@ -1048,6 +1154,7 @@ private struct HomeDetailMenuSheet: View {
                 quickPresetMinutes: viewModel.quickTimePresetMinutes,
                 selectionFeedback: HomeInteractionFeedback.selection,
                 primaryFeedback: HomeInteractionFeedback.selection,
+                onTimeSaved: onTimeSaved,
                 onDismiss: onDismiss
             )
         case .reminder:
@@ -1078,8 +1185,8 @@ private struct HomeDetailMenuSheet: View {
                 isSelected: reminderTitle == preset.chipTitle
             ) {
                 ensureDueDateExists()
-                let dueAt = viewModel.detailDraft?.dueAt ?? .now
-                viewModel.updateDraftReminder(dueAt.addingTimeInterval(-preset.secondsBeforeTarget))
+                let reminderTarget = reminderTargetDate()
+                viewModel.updateDraftReminder(reminderTarget.addingTimeInterval(-preset.secondsBeforeTarget))
                 onDismiss()
             }
         }
@@ -1112,8 +1219,7 @@ private struct HomeDetailMenuSheet: View {
 
     private var reminderTitle: String {
         guard let remindAt = viewModel.detailDraft?.remindAt else { return "提醒" }
-        guard let dueAt = viewModel.detailDraft?.dueAt else { return "提醒" }
-        let delta = dueAt.timeIntervalSince(remindAt)
+        let delta = reminderTargetDate().timeIntervalSince(remindAt)
         return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
     }
 
@@ -1157,6 +1263,14 @@ private struct HomeDetailMenuSheet: View {
     private func ensureDueDateExists() {
         guard viewModel.detailDraft?.dueAt == nil else { return }
         viewModel.setDraftDueDateEnabled(true)
+    }
+
+    private func reminderTargetDate() -> Date {
+        let dueAt = viewModel.detailDraft?.dueAt ?? viewModel.selectedDate
+        if viewModel.detailDraft?.hasExplicitTime == true {
+            return dueAt
+        }
+        return Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
     }
 }
 

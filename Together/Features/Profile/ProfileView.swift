@@ -66,6 +66,10 @@ struct ProfileView: View {
                                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                                 .foregroundStyle(AppTheme.colors.title)
 
+                            Text("首页任务推迟和任务编辑时间菜单会共用这 3 个快捷时间。当前顺序：\(viewModel.snoozePresetSummary)")
+                                .font(AppTheme.typography.textStyle(.caption1))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
                             ForEach(Array(viewModel.quickTimePresetMinutes.enumerated()), id: \.offset) { index, minutes in
                                 HStack(spacing: 12) {
                                     Text("预设\(index + 1)")
@@ -88,7 +92,7 @@ struct ProfileView: View {
                                 }
                             }
 
-                            Text("添加页时间二级菜单会优先显示这 3 个快捷时间，分钟粒度固定为 5 分钟。")
+                            Text("首页推迟还会固定提供“明天”和“自定义”。分钟粒度固定为 5 分钟。")
                                 .font(AppTheme.typography.textStyle(.caption1))
                                 .foregroundStyle(AppTheme.colors.body.opacity(0.7))
                         }
