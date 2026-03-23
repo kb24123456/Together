@@ -180,7 +180,7 @@ extension Item {
         }
 
         guard let dueAt else { return false }
-        return dueAt < calendar.startOfDay(for: referenceDate)
+        return dueAt < overdueBoundary(on: referenceDate, calendar: calendar)
     }
 
     private nonisolated func overdueBoundary(on referenceDate: Date, calendar: Calendar) -> Date {

@@ -188,7 +188,7 @@ struct HomeItemDetailSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(currentStateText)
                     .font(AppTheme.typography.sized(15, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+                    .foregroundStyle(statusTextColor)
 
                 chipRow { menu in
                     HomeInteractionFeedback.selection()
@@ -305,7 +305,7 @@ struct HomeItemDetailSheet: View {
     private var compactMetaSection: some View {
         Text(currentStateText)
             .font(AppTheme.typography.sized(15, weight: .semibold))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+            .foregroundStyle(statusTextColor)
             .padding(.top, 38)
     }
 
@@ -637,6 +637,12 @@ struct HomeItemDetailSheet: View {
 
     private var currentStateText: String {
         "\(statusDateText) · \(statusLabelText)"
+    }
+
+    private var statusTextColor: Color {
+        statusLabelText == "已逾期"
+        ? AppTheme.colors.coral
+        : AppTheme.colors.body.opacity(0.84)
     }
 
     private var reminderOffset: TimeInterval? {

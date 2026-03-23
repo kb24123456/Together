@@ -733,7 +733,7 @@ final class HomeViewModel {
             return item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar) ?? "--:--"
         }
         guard item.hasExplicitTime else {
-            return item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar) ?? "当日完成"
+            return item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar) ?? "当天"
         }
         return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
@@ -819,7 +819,15 @@ final class HomeViewModel {
     private func statusText(for item: Item, isCompleted: Bool) -> String {
         guard isCompleted == false else { return ItemStatus.completed.title }
         guard item.repeatRule != nil else {
-            return urgency(for: item, isCompleted: isCompleted) == .overdue ? "已超时" : ItemStatus.inProgress.title
+            guard item.isOverdue(on: selectedDate, calendar: calendar) else {
+                return ItemStatus.inProgress.title
+            }
+
+            if calendar.isDate(selectedDate, inSameDayAs: .now) {
+                return item.hasExplicitTime ? "已超时" : "已逾期"
+            }
+
+            return "已逾期"
         }
 
         if item.isOverdue(on: selectedDate, calendar: calendar) {

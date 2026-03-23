@@ -61,44 +61,6 @@ struct HomeView: View {
         ) {
             HomeItemDetailSheet(viewModel: viewModel)
         }
-        .confirmationDialog(
-            viewModel.activeSnoozeContext.map { "推迟“\($0.title)”" } ?? "推迟",
-            isPresented: Binding(
-                get: { viewModel.isShowingSnoozeOptions },
-                set: {
-                    viewModel.isShowingSnoozeOptions = $0
-                    if !$0, viewModel.activeSnoozeMenu == nil {
-                        viewModel.dismissSnoozeUI()
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            ForEach(viewModel.quickTimePresetMinutes, id: \.self) { minutes in
-                Button(relativePresetTitle(minutes)) {
-                    Task {
-                        await viewModel.applySnooze(minutes: minutes)
-                        HomeInteractionFeedback.selection()
-                    }
-                }
-            }
-
-            Button("明天") {
-                Task {
-                    await viewModel.applySnoozeTomorrow()
-                    HomeInteractionFeedback.selection()
-                }
-            }
-
-            Button("自定义") {
-                HomeInteractionFeedback.selection()
-                viewModel.presentCustomSnoozePicker()
-            }
-
-            Button("取消", role: .cancel) {
-                viewModel.dismissSnoozeUI()
-            }
-        }
         .sheet(
             item: Binding(
                 get: { viewModel.activeSnoozeMenu },
@@ -324,9 +286,8 @@ struct HomeView: View {
                     ForEach(Array(viewModel.timelineEntries.enumerated()), id: \.element.id) { index, entry in
                         HomeTimelineRow(
                             entry: entry,
-                            quickTimePresetMinutes: viewModel.quickTimePresetMinutes,
-                            presetTitle: relativePresetTitle,
                             isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
+                            quickSnoozeMinuteOptions: viewModel.quickTimePresetMinutes,
                             onToggleCompletion: {
                                 HomeInteractionFeedback.selection()
                                 Task {
@@ -338,26 +299,24 @@ struct HomeView: View {
                                 HomeInteractionFeedback.soft()
                                 viewModel.presentItemDetail(entry.id)
                             },
-                            onPrepareSnoozeContext: {
-                                viewModel.prepareSnoozeContext(for: entry.id)
-                            },
-                            onSnoozeMinutes: { minutes in
-                                HomeInteractionFeedback.selection()
+                            onApplySnoozeMinutes: { minutes in
+                                guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
                                 Task {
                                     await viewModel.applySnooze(minutes: minutes)
+                                    HomeInteractionFeedback.selection()
                                 }
                             },
-                            onSnoozeTomorrow: {
-                                HomeInteractionFeedback.selection()
+                            onApplySnoozeTomorrow: {
+                                guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
                                 Task {
                                     await viewModel.applySnoozeTomorrow()
+                                    HomeInteractionFeedback.selection()
                                 }
                             },
-                            onSnoozeCustom: {
+                            onPresentCustomSnooze: {
+                                guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
                                 HomeInteractionFeedback.selection()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                                    viewModel.presentCustomSnoozePicker()
-                                }
+                                viewModel.presentCustomSnoozePicker()
                             }
                         )
                         .transition(
@@ -552,15 +511,13 @@ struct HomeView: View {
 
 private struct HomeTimelineRow: View {
     let entry: HomeTimelineEntry
-    let quickTimePresetMinutes: [Int]
-    let presetTitle: (Int) -> String
     let isAnimatingCompletion: Bool
+    let quickSnoozeMinuteOptions: [Int]
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
-    let onPrepareSnoozeContext: () -> Bool
-    let onSnoozeMinutes: (Int) -> Void
-    let onSnoozeTomorrow: () -> Void
-    let onSnoozeCustom: () -> Void
+    let onApplySnoozeMinutes: (Int) -> Void
+    let onApplySnoozeTomorrow: () -> Void
+    let onPresentCustomSnooze: () -> Void
     @State private var swipeOffset: CGFloat = 0
 
     private let actionWidth: CGFloat = 74
@@ -600,7 +557,7 @@ private struct HomeTimelineRow: View {
 
                 Text(displaySubtitle)
                     .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.68))
+                    .foregroundStyle(subtitleColor)
                     .lineLimit(2)
             }
 
@@ -625,48 +582,24 @@ private struct HomeTimelineRow: View {
     }
 
     private var snoozeMenuTrigger: some View {
-        Menu {
-            ForEach(quickTimePresetMinutes, id: \.self) { minutes in
-                Button(presetTitle(minutes), systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90") {
-                    guard onPrepareSnoozeContext() else { return }
-                    onSnoozeMinutes(minutes)
-                    closeSwipeAction(after: 0.12)
-                }
-            }
-
-            Button("明天", systemImage: "sun.max") {
-                guard onPrepareSnoozeContext() else { return }
-                onSnoozeTomorrow()
-                closeSwipeAction(after: 0.12)
-            }
-
-            Divider()
-
-            Button("自定义", systemImage: "slider.horizontal.3") {
-                guard onPrepareSnoozeContext() else { return }
-                onSnoozeCustom()
-                closeSwipeAction(after: 0.16)
-            }
-        } label: {
-            Image(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
-                .font(AppTheme.typography.sized(20, weight: .bold))
-                .foregroundStyle(AppTheme.colors.sky)
-                .frame(width: actionButtonSize, height: actionButtonSize)
-                .background(
-                    Circle()
-                        .fill(AppTheme.colors.outlineStrong.opacity(0.26))
-                )
-                .clipShape(Circle())
-                .contentShape(Circle())
-                .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 10, y: 5)
-        }
-        .menuStyle(.automatic)
-        .buttonStyle(.plain)
-        .highPriorityGesture(
-            TapGesture().onEnded {
-                HomeInteractionFeedback.menuTap()
+        HomeSnoozeMenuButton(
+            quickSnoozeMinuteOptions: quickSnoozeMinuteOptions,
+            relativePresetTitle: relativePresetTitle,
+            onQuickSnooze: { minutes in
+                onApplySnoozeMinutes(minutes)
+                closeSwipeAction(after: 0.32)
+            },
+            onTomorrow: {
+                onApplySnoozeTomorrow()
+                closeSwipeAction(after: 0.32)
+            },
+            onCustom: {
+                onPresentCustomSnooze()
+                closeSwipeAction(after: 0.36)
             }
         )
+        .frame(width: actionButtonSize, height: actionButtonSize)
+        .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 10, y: 5)
     }
 
     private var rowSwipeGesture: some Gesture {
@@ -714,6 +647,13 @@ private struct HomeTimelineRow: View {
         return progress
     }
 
+    private func relativePresetTitle(_ minutes: Int) -> String {
+        if minutes >= 60, minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)小时后"
+        }
+        return "\(minutes)分钟后"
+    }
+
     private func closeSwipeAction(after delay: TimeInterval = 0) {
         let reset = {
             withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
@@ -737,6 +677,16 @@ private struct HomeTimelineRow: View {
             return entry.statusText
         }
         return notes
+    }
+
+    private var subtitleColor: Color {
+        guard entry.notes?.isEmpty != false else {
+            return AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.68)
+        }
+        if entry.statusText == "已逾期" {
+            return AppTheme.colors.coral.opacity(entry.isMuted ? 0.5 : 1)
+        }
+        return AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.68)
     }
 
     @ViewBuilder
@@ -804,6 +754,156 @@ private struct HomeTimelineRow: View {
             }
     }
 }
+
+#if canImport(UIKit)
+private struct HomeSnoozeMenuButton: UIViewRepresentable {
+    let quickSnoozeMinuteOptions: [Int]
+    let relativePresetTitle: (Int) -> String
+    let onQuickSnooze: (Int) -> Void
+    let onTomorrow: () -> Void
+    let onCustom: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = HomeSnoozeMenuHostButton(type: .system)
+        button.showsMenuAsPrimaryAction = true
+        button.contentHorizontalAlignment = .fill
+        button.contentVerticalAlignment = .fill
+        button.clipsToBounds = false
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.handleTouchDown),
+            for: .touchDown
+        )
+        context.coordinator.applyConfiguration(to: button, parent: self)
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.applyConfiguration(to: button, parent: self)
+    }
+
+    final class Coordinator: NSObject {
+        var parent: HomeSnoozeMenuButton
+
+        init(_ parent: HomeSnoozeMenuButton) {
+            self.parent = parent
+        }
+
+        @objc
+        func handleTouchDown() {
+            HomeInteractionFeedback.menuTap()
+        }
+
+        func applyConfiguration(to button: UIButton, parent: HomeSnoozeMenuButton) {
+            var configuration = UIButton.Configuration.plain()
+            configuration.baseForegroundColor = UIColor(AppTheme.colors.sky)
+            configuration.background.backgroundColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.16))
+            configuration.background.cornerRadius = 27
+            configuration.cornerStyle = .capsule
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+            configuration.image = UIImage(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
+            configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
+            configuration.imagePlacement = .all
+            button.configuration = configuration
+            button.configurationUpdateHandler = { target in
+                guard var updatedConfiguration = target.configuration else { return }
+                updatedConfiguration.baseForegroundColor = UIColor(AppTheme.colors.sky)
+                updatedConfiguration.background.backgroundColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.16))
+                updatedConfiguration.background.strokeColor = .clear
+                updatedConfiguration.background.strokeWidth = 0
+                updatedConfiguration.image = UIImage(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
+                updatedConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
+                target.configuration = updatedConfiguration
+                target.alpha = 1
+                target.transform = .identity
+            }
+            button.menu = makeMenu(parent: parent)
+            button.tintColor = UIColor(AppTheme.colors.sky)
+        }
+
+        private func makeMenu(parent: HomeSnoozeMenuButton) -> UIMenu {
+            var actions: [UIMenuElement] = parent.quickSnoozeMinuteOptions.map { minutes in
+                UIAction(title: parent.relativePresetTitle(minutes)) { _ in
+                    parent.onQuickSnooze(minutes)
+                }
+            }
+
+            actions.append(
+                UIAction(title: "明天") { _ in
+                    parent.onTomorrow()
+                }
+            )
+
+            actions.append(
+                UIAction(title: "自定义") { _ in
+                    parent.onCustom()
+                }
+            )
+
+            return UIMenu(children: actions)
+        }
+    }
+}
+
+private final class HomeSnoozeMenuHostButton: UIButton {
+    override var isHighlighted: Bool {
+        get { false }
+        set {
+            super.isHighlighted = false
+            alpha = 1
+            transform = .identity
+        }
+    }
+
+    override var isSelected: Bool {
+        get { false }
+        set {
+            super.isSelected = false
+        }
+    }
+}
+#else
+private struct HomeSnoozeMenuButton: View {
+    let quickSnoozeMinuteOptions: [Int]
+    let relativePresetTitle: (Int) -> String
+    let onQuickSnooze: (Int) -> Void
+    let onTomorrow: () -> Void
+    let onCustom: () -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(quickSnoozeMinuteOptions, id: \.self) { minutes in
+                Button(relativePresetTitle(minutes)) {
+                    onQuickSnooze(minutes)
+                }
+            }
+
+            Button("明天") {
+                onTomorrow()
+            }
+
+            Button("自定义") {
+                onCustom()
+            }
+        } label: {
+            Image(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
+                .font(AppTheme.typography.sized(20, weight: .bold))
+                .foregroundStyle(AppTheme.colors.sky)
+                .frame(width: 54, height: 54)
+                .background(
+                    Circle()
+                        .fill(AppTheme.colors.outlineStrong.opacity(0.16))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+#endif
 
 private enum BadgeBorderStyle {
     case solid
