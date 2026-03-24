@@ -322,12 +322,12 @@ struct HomeView: View {
                             await viewModel.completeItem(entry.id, trigger: .swipeAction)
                         }
                     } label: {
-                        Label(
-                            entry.isCompleted ? "恢复" : "完成",
-                            systemImage: entry.isCompleted ? "arrow.uturn.backward" : "checkmark"
+                        HomeSwipeActionBubble(
+                            systemImage: entry.isCompleted ? "arrow.uturn.backward" : "checkmark",
+                            tint: entry.isCompleted ? AppTheme.colors.body.opacity(0.76) : AppTheme.colors.coral,
+                            edge: .leading
                         )
                     }
-                    .labelStyle(.iconOnly)
                     .tint(entry.isCompleted ? AppTheme.colors.body.opacity(0.76) : AppTheme.colors.coral)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -336,9 +336,12 @@ struct HomeView: View {
                         HomeInteractionFeedback.selection()
                         viewModel.presentCustomSnoozePicker()
                     } label: {
-                        Label("推迟", systemImage: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
+                        HomeSwipeActionBubble(
+                            systemImage: "arrowshape.turn.up.backward.badge.clock.fill.rtl",
+                            tint: AppTheme.colors.sky,
+                            edge: .trailing
+                        )
                     }
-                    .labelStyle(.iconOnly)
                     .tint(AppTheme.colors.sky)
                 }
                 .applyTransition(rowTransition)
@@ -801,6 +804,35 @@ private struct HomeTimelineRow: View {
     }
 }
 
+private struct HomeSwipeActionBubble: View {
+    let systemImage: String
+    let tint: Color
+    let edge: HorizontalEdge
+
+    private let actionDiameter: CGFloat = 44
+    private let contentBiasOffset: CGFloat = 30
+
+    var body: some View {
+        ZStack(alignment: alignment) {
+            Circle()
+                .fill(tint)
+                .frame(width: actionDiameter, height: actionDiameter)
+                .overlay {
+                    Image(systemName: systemImage)
+                        .font(AppTheme.typography.sized(18, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .offset(x: edge == .leading ? contentBiasOffset : -contentBiasOffset)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    private var alignment: Alignment {
+        edge == .leading ? .trailing : .leading
+    }
+}
+
 #if canImport(UIKit)
 private struct HomeSnoozeMenuButton: UIViewRepresentable {
     let quickSnoozeMinuteOptions: [Int]
@@ -1049,33 +1081,199 @@ private struct HomeSnoozeMenuSheet: View {
     var body: some View {
         Group {
             switch menu {
-            case .customDate:
-                TaskEditorDatePickerSheet(
-                    selectedDate: $viewModel.stagedCustomSnoozeDate,
-                    selectionFeedback: HomeInteractionFeedback.selection,
-                    onDismiss: viewModel.transitionFromCustomDateToTime
-                )
-            case .customTime:
-                TaskEditorTimePickerSheet(
-                    selectedTime: $viewModel.stagedCustomSnoozeTime,
-                    anchorDate: viewModel.stagedCustomSnoozeDate,
-                    quickPresetMinutes: viewModel.quickTimePresetMinutes,
-                    primaryButtonTitle: "确认",
-                    selectionFeedback: HomeInteractionFeedback.selection,
-                    primaryFeedback: HomeInteractionFeedback.selection,
-                    onTimeSaved: {
-                        Task {
-                            await viewModel.applyCustomSnoozeSelection()
-                            HomeInteractionFeedback.selection()
-                        }
-                    },
-                    onDismiss: {
-                        viewModel.dismissSnoozeUI()
-                    }
-                )
+            case .customEditor:
+                HomeCustomSnoozeEditorSheet(viewModel: viewModel)
             }
         }
         .id(menu.id)
+    }
+}
+
+private struct HomeCustomSnoozeEditorSheet: View {
+    @Bindable var viewModel: HomeViewModel
+
+    private let presetMinutes = [5, 30, 60]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            presetRow
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 12)
+
+            HomeSnoozeWeekStrip(
+                selectedDate: $viewModel.stagedCustomSnoozeDate,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
+            .padding(.horizontal, 18)
+            .padding(.bottom, 10)
+
+            HStack(spacing: 14) {
+                Text("时间")
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.74))
+
+                Spacer(minLength: 0)
+
+                TaskEditorSingleColumnTimeWheel(
+                    selection: selectedTimeBinding,
+                    minuteInterval: 5
+                )
+                .frame(width: 216, height: 126)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+
+            Button {
+                Task {
+                    await viewModel.applyCustomSnoozeSelection()
+                    HomeInteractionFeedback.selection()
+                }
+            } label: {
+                Text("确认")
+                    .font(AppTheme.typography.sized(17, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+            }
+            .buttonStyle(TaskEditorMenuOptionButtonStyle())
+            .modifier(TaskEditorMenuOptionGlassModifier())
+            .padding(.horizontal, 18)
+            .padding(.bottom, 18)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var presetRow: some View {
+        HStack(spacing: 10) {
+            ForEach(presetMinutes, id: \.self) { minutes in
+                Button(relativePresetTitle(minutes)) {
+                    Task {
+                        await viewModel.applySnooze(minutes: minutes)
+                        HomeInteractionFeedback.selection()
+                    }
+                }
+                .buttonStyle(HomeSnoozePresetButtonStyle())
+            }
+
+            Button("明天") {
+                Task {
+                    await viewModel.applySnoozeTomorrow()
+                    HomeInteractionFeedback.selection()
+                }
+            }
+            .buttonStyle(HomeSnoozePresetButtonStyle())
+        }
+    }
+
+    private var selectedTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                viewModel.stagedCustomSnoozeTime
+                    ?? Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: viewModel.stagedCustomSnoozeDate)
+                    ?? viewModel.stagedCustomSnoozeDate
+            },
+            set: { viewModel.stagedCustomSnoozeTime = $0 }
+        )
+    }
+
+    private func relativePresetTitle(_ minutes: Int) -> String {
+        if minutes >= 60, minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)小时后"
+        }
+        return "\(minutes)分钟后"
+    }
+}
+
+private struct HomeSnoozeWeekStrip: View {
+    @Binding var selectedDate: Date
+    let selectionFeedback: () -> Void
+
+    private let calendar = Calendar.current
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 10) {
+                    ForEach(visibleDates, id: \.self) { date in
+                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+
+                        Button {
+                            selectionFeedback()
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                                selectedDate = calendar.startOfDay(for: date)
+                            }
+                        } label: {
+                            VStack(spacing: 4) {
+                                Text(weekdayLabel(for: date))
+                                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                                    .foregroundStyle(isSelected ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.6))
+
+                                Text("\(calendar.component(.day, from: date))")
+                                    .font(AppTheme.typography.sized(18, weight: isSelected ? .bold : .semibold))
+                                    .foregroundStyle(isSelected ? AppTheme.colors.title : AppTheme.colors.title.opacity(0.82))
+                            }
+                            .frame(width: 58, height: 62)
+                            .background {
+                                if isSelected {
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .fill(AppTheme.colors.pillSurface)
+                                }
+                            }
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .stroke(isSelected ? AppTheme.colors.pillOutline : AppTheme.colors.outline.opacity(0.1), lineWidth: 1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .id(date.timeIntervalSince1970)
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+            .onAppear {
+                proxy.scrollTo(selectedDate.timeIntervalSince1970, anchor: .center)
+            }
+            .onChange(of: selectedDate) { _, newValue in
+                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+                    proxy.scrollTo(newValue.timeIntervalSince1970, anchor: .center)
+                }
+            }
+        }
+        .frame(height: 74)
+    }
+
+    private var visibleDates: [Date] {
+        (-7...13).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: calendar.startOfDay(for: selectedDate))
+        }
+    }
+
+    private func weekdayLabel(for date: Date) -> String {
+        switch calendar.component(.weekday, from: date) {
+        case 1: return "日"
+        case 2: return "一"
+        case 3: return "二"
+        case 4: return "三"
+        case 5: return "四"
+        case 6: return "五"
+        case 7: return "六"
+        default: return ""
+        }
+    }
+}
+
+private struct HomeSnoozePresetButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button(role: nil, action: configuration.trigger) {
+            configuration.label
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+        }
+        .buttonStyle(TaskEditorMenuOptionButtonStyle())
+        .modifier(TaskEditorMenuOptionGlassModifier())
     }
 }
 

@@ -33,18 +33,12 @@ enum HomeDateTransitionStyle: Hashable {
 }
 
 enum HomeSnoozeMenu: String, Identifiable {
-    case customDate
-    case customTime
+    case customEditor
 
     var id: String { rawValue }
 
     var detents: Set<PresentationDetent> {
-        switch self {
-        case .customDate:
-            return [.height(TaskEditorDatePickerSheet.preferredHeight + 12)]
-        case .customTime:
-            return [.fraction(0.5)]
-        }
+        [.height(402)]
     }
 }
 
@@ -576,11 +570,7 @@ final class HomeViewModel {
         } else {
             stagedCustomSnoozeTime = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: baseDate)
         }
-        activeSnoozeMenu = .customDate
-    }
-
-    func transitionFromCustomDateToTime() {
-        activeSnoozeMenu = .customTime
+        activeSnoozeMenu = .customEditor
     }
 
     func applyCustomSnoozeSelection() async {
