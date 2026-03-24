@@ -426,7 +426,18 @@ final class HomeViewModel {
 
     func saveDetailDraft() async {
         detailSaveTask?.cancel()
-        await persistDetailDraft()
+        _ = await persistDetailDraft()
+    }
+
+    func saveDetailDraftAndDismiss() async {
+        detailSaveTask?.cancel()
+
+        if hasUnsavedDetailChanges {
+            let didPersist = await persistDetailDraft()
+            guard didPersist else { return }
+        }
+
+        dismissItemDetail()
     }
 
     func updateDraftRepeatRule(_ frequency: ItemRepeatFrequency?) {
@@ -456,11 +467,11 @@ final class HomeViewModel {
         scheduleDetailSave(immediately: true)
     }
 
-    func completeItem(_ itemID: UUID) async {
+    func completeItem(_ itemID: UUID, trigger: CompletionTrigger = .inlineControl) async {
         guard let spaceID = sessionStore.currentSpace?.id, let actorID = sessionStore.currentUser?.id else { return }
         guard isPerformingCompletion == false else { return }
         isPerformingCompletion = true
-        recentCompletedItemID = itemID
+        recentCompletedItemID = trigger == .inlineControl ? itemID : nil
 
         do {
             let saved = try await taskApplicationService.toggleTaskCompletion(
@@ -468,8 +479,23 @@ final class HomeViewModel {
                 taskID: itemID,
                 actorID: actorID
             )
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                replaceItemPreservingOrder(saved)
+            switch trigger {
+            case .inlineControl:
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                    replaceItemPreservingOrder(saved)
+                }
+            case .swipeAction:
+                if saved.status == .completed || saved.completedAt != nil {
+                    try? await Task.sleep(for: .milliseconds(220))
+                    withAnimation(.bouncy(duration: 0.58, extraBounce: 0.04)) {
+                        replaceItemPreservingOrder(saved)
+                    }
+                } else {
+                    try? await Task.sleep(for: .milliseconds(220))
+                    withAnimation(.bouncy(duration: 0.56, extraBounce: 0.03)) {
+                        replaceItemPreservingOrder(saved)
+                    }
+                }
             }
         } catch {
             recentCompletedItemID = nil
@@ -499,9 +525,13 @@ final class HomeViewModel {
     }
 
     func toggleCompletedVisibility() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+        withAnimation(.bouncy(duration: 0.74, extraBounce: 0.08)) {
             showsCompletedItems.toggle()
         }
+    }
+
+    func setCompletedVisibility(_ isVisible: Bool) {
+        showsCompletedItems = isVisible
     }
 
     func canSnooze(_ itemID: UUID) -> Bool {
@@ -588,23 +618,17 @@ final class HomeViewModel {
         showsCompletedItems ? "隐藏已完成" : "显示已完成"
     }
 
-    var timelineEntries: [HomeTimelineEntry] {
-        visibleTimelineItems.map { item in
-            let isCompleted = item.isCompleted(on: selectedDate, calendar: calendar) || item.status == .completed
+    var activeTimelineEntries: [HomeTimelineEntry] {
+        incompleteTimelineItems.map(makeTimelineEntry)
+    }
 
-            return HomeTimelineEntry(
-                id: item.id,
-                title: item.title,
-                notes: item.notes,
-                timeText: timeText(for: item),
-                statusText: statusText(for: item, isCompleted: isCompleted),
-                accentColorName: accentColorName(for: item),
-                isMuted: isCompleted,
-                isCompleted: isCompleted,
-                canSnooze: item.repeatRule == nil,
-                urgency: urgency(for: item, isCompleted: isCompleted)
-            )
-        }
+    var completedTimelineEntries: [HomeTimelineEntry] {
+        guard showsCompletedItems else { return [] }
+        return completedTimelineItems.map(makeTimelineEntry)
+    }
+
+    var timelineEntries: [HomeTimelineEntry] {
+        activeTimelineEntries + completedTimelineEntries
     }
 
     var timelineEntryIDs: [UUID] {
@@ -645,13 +669,14 @@ final class HomeViewModel {
         )
     }
 
-    private func persistDetailDraft() async {
+    @discardableResult
+    private func persistDetailDraft() async -> Bool {
         guard
             let spaceID = sessionStore.currentSpace?.id,
             let actorID = sessionStore.currentUser?.id,
             let selectedItemID,
             let detailDraft
-        else { return }
+        else { return false }
 
         do {
             let saved = try await taskApplicationService.updateTask(
@@ -664,8 +689,9 @@ final class HomeViewModel {
             self.detailDraft = refreshedDraft
             self.savedDetailDraft = refreshedDraft
             replaceItem(saved)
+            return true
         } catch {
-            return
+            return false
         }
     }
 
@@ -750,6 +776,15 @@ final class HomeViewModel {
         let sortedItems = sortedItemsForTimeline
         guard showsCompletedItems == false else { return sortedItems }
         return sortedItems.filter { !($0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed) }
+    }
+
+    private var incompleteTimelineItems: [Item] {
+        visibleTimelineItems.filter { !($0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed) }
+    }
+
+    private var completedTimelineItems: [Item] {
+        guard showsCompletedItems else { return [] }
+        return visibleTimelineItems.filter { $0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed }
     }
 
     private var sortedItemsForTimeline: [Item] {
@@ -840,6 +875,23 @@ final class HomeViewModel {
         return "待完成"
     }
 
+    private func makeTimelineEntry(for item: Item) -> HomeTimelineEntry {
+        let isCompleted = item.isCompleted(on: selectedDate, calendar: calendar) || item.status == .completed
+
+        return HomeTimelineEntry(
+            id: item.id,
+            title: item.title,
+            notes: item.notes,
+            timeText: timeText(for: item),
+            statusText: statusText(for: item, isCompleted: isCompleted),
+            accentColorName: accentColorName(for: item),
+            isMuted: isCompleted,
+            isCompleted: isCompleted,
+            canSnooze: item.repeatRule == nil,
+            urgency: urgency(for: item, isCompleted: isCompleted)
+        )
+    }
+
     private var activeSnoozeItem: Item? {
         guard let activeSnoozeContext else { return nil }
         return items.first(where: { $0.id == activeSnoozeContext.id })
@@ -907,5 +959,12 @@ final class HomeViewModel {
         } catch {
             activeSnoozeMenu = nil
         }
+    }
+}
+
+extension HomeViewModel {
+    enum CompletionTrigger {
+        case inlineControl
+        case swipeAction
     }
 }

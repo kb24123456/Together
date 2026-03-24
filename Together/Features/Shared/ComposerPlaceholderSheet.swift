@@ -22,8 +22,6 @@ struct ComposerPlaceholderSheet: View {
     @Namespace private var chipRowNamespace
     @State private var displayedChips: [TaskEditorRenderedChip] = []
     @State private var pendingChipSnapshots: [TaskEditorChipSnapshot]?
-    @State private var deferredMenuAfterTimeSelection: TaskEditorMenu?
-    @State private var shouldOpenDeferredMenu = false
     @State private var primaryActionFeedbackNonce = 0
     @State private var isPrimaryActionAnimating = false
 
@@ -77,26 +75,28 @@ struct ComposerPlaceholderSheet: View {
             }
             .ignoresSafeArea(edges: .bottom)
         }
-        .sheet(item: $activeMenu) { menu in
-            ComposerEditorMenuSheet(
-                menu: menu,
-                draftState: $draftState,
-                quickTimePresetMinutes: NotificationSettings.normalizedQuickTimePresetMinutes(
-                    appContext.sessionStore.currentUser?.preferences.quickTimePresetMinutes
-                    ?? NotificationSettings.defaultQuickTimePresetMinutes
-                ),
-                onTimeSaved: handleTimeSaved,
-                onDismiss: dismissActiveMenu
-            )
-            .presentationDetents(menu.detents)
-            .presentationContentInteraction(.scrolls)
-            .presentationBackgroundInteraction(.enabled)
-            .presentationDragIndicator(.hidden)
-            .interactiveDismissDisabled(false)
-            .modifier(TaskEditorMenuPresentationSizingModifier())
-            .onDisappear {
-                restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
-                playPendingChipUpdatesIfNeeded()
+        .sheet(isPresented: isSecondaryMenuPresented, onDismiss: {
+            restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
+            playPendingChipUpdatesIfNeeded()
+        }) {
+            if let menuBinding = activeMenuBinding {
+                ComposerEditorMenuSheet(
+                    context: menuContext,
+                    activeMenu: menuBinding,
+                    draftState: $draftState,
+                    quickTimePresetMinutes: NotificationSettings.normalizedQuickTimePresetMinutes(
+                        appContext.sessionStore.currentUser?.preferences.quickTimePresetMinutes
+                        ?? NotificationSettings.defaultQuickTimePresetMinutes
+                    ),
+                    disabledMenus: disabledMenus,
+                    onDismiss: dismissActiveMenu
+                )
+                .presentationDetents(menuContext.detents)
+                .presentationContentInteraction(.scrolls)
+                .presentationBackgroundInteraction(.enabled)
+                .presentationDragIndicator(.hidden)
+                .interactiveDismissDisabled(false)
+                .modifier(TaskEditorMenuPresentationSizingModifier())
             }
         }
         .onAppear {
@@ -257,6 +257,7 @@ struct ComposerPlaceholderSheet: View {
             namespace: chipRowNamespace,
             trailingInset: trailingInset,
             onChipTap: { menu in
+                guard disabledMenus.contains(menu) == false else { return }
                 ComposerButtonHaptics.selection()
                 openMenu(menu)
             },
@@ -350,27 +351,21 @@ struct ComposerPlaceholderSheet: View {
                     semanticValue: .optionalDate(draftState.projectTargetDate)
                 ),
                 TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.reminder.rawValue,
-                    title: draftState.reminderSummaryText(for: .project),
-                    systemImage: "bell",
-                    menu: .reminder,
-                    semanticValue: .reminder(draftState.projectReminderOffset)
-                ),
-                TaskEditorChipSnapshot(
                     id: TaskEditorMenu.priority.rawValue,
                     title: draftState.priority.title,
                     systemImage: "flag",
                     menu: .priority,
                     semanticValue: .priority(draftState.priority.animationRank)
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.subtasks.rawValue,
+                    title: draftState.projectSubtaskSummaryText,
+                    systemImage: "checklist",
+                    menu: .subtasks,
+                    semanticValue: .subtasks(draftState.projectSubtasks.count)
                 )
             ]
         }
-    }
-
-    private func playPendingChipUpdatesIfNeeded() {
-        guard let pendingChipSnapshots else { return }
-        applyRenderedChips(pendingChipSnapshots, animated: true)
-        self.pendingChipSnapshots = nil
     }
 
     private func applyRenderedChips(_ snapshots: [TaskEditorChipSnapshot], animated: Bool) {
@@ -414,49 +409,66 @@ struct ComposerPlaceholderSheet: View {
         guard let previousValue else { return .up }
         return TaskEditorChipSemanticValue.direction(from: previousValue, to: newValue)
     }
+
+    private func playPendingChipUpdatesIfNeeded() {
+        guard let pendingChipSnapshots else { return }
+        applyRenderedChips(pendingChipSnapshots, animated: true)
+        self.pendingChipSnapshots = nil
+    }
+
     private var addButtonTitle: String {
         draftState.category == .project ? "创建" : "添加"
     }
 
+    private var menuContext: TaskEditorMenuContext {
+        switch draftState.category {
+        case .periodic:
+            return .periodic
+        case .task:
+            return .task
+        case .project:
+            return .project
+        }
+    }
+
+    private var disabledMenus: Set<TaskEditorMenu> {
+        switch draftState.category {
+        case .periodic:
+            return draftState.periodicTime == nil ? [.reminder] : []
+        case .task:
+            return draftState.taskTime == nil ? [.reminder] : []
+        case .project:
+            return []
+        }
+    }
+
+    private var isSecondaryMenuPresented: Binding<Bool> {
+        Binding(
+            get: { activeMenu != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    dismissActiveMenu()
+                }
+            }
+        )
+    }
+
+    private var activeMenuBinding: Binding<TaskEditorMenu>? {
+        guard let activeMenu else { return nil }
+        return Binding(
+            get: { self.activeMenu ?? activeMenu },
+            set: { self.activeMenu = $0 }
+        )
+    }
+
     private func openMenu(_ menu: TaskEditorMenu) {
-        let targetMenu = resolvedMenu(for: menu)
+        guard disabledMenus.contains(menu) == false else { return }
         lastFocusedFieldBeforeMenu = focusedField
         focusCoordinator.resignCurrentResponder()
         focusedField = nil
-
-        let presentTargetMenu = {
-            withTransaction(ComposerMenuAnimation.presentationTransaction) {
-                activeMenu = targetMenu
-            }
+        withTransaction(ComposerMenuAnimation.presentationTransaction) {
+            activeMenu = menu
         }
-
-        if activeMenu != nil {
-            withTransaction(ComposerMenuAnimation.dismissalTransaction) {
-                activeMenu = nil
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                presentTargetMenu()
-            }
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                presentTargetMenu()
-            }
-        }
-    }
-
-    private func resolvedMenu(for requestedMenu: TaskEditorMenu) -> TaskEditorMenu {
-        deferredMenuAfterTimeSelection = nil
-        shouldOpenDeferredMenu = false
-        guard requestedMenu == .reminder else { return requestedMenu }
-        guard draftState.category == .task, draftState.taskTime == nil else { return requestedMenu }
-        deferredMenuAfterTimeSelection = .reminder
-        shouldOpenDeferredMenu = false
-        return .time
-    }
-
-    private func handleTimeSaved() {
-        guard deferredMenuAfterTimeSelection != nil else { return }
-        shouldOpenDeferredMenu = true
     }
 
     private func restoreKeyboardFocusIfNeeded(preferImmediateResponder: Bool = false) {
@@ -488,20 +500,6 @@ struct ComposerPlaceholderSheet: View {
         withTransaction(ComposerMenuAnimation.dismissalTransaction) {
             activeMenu = nil
         }
-
-        guard shouldOpenDeferredMenu, let nextMenu = deferredMenuAfterTimeSelection else {
-            shouldOpenDeferredMenu = false
-            deferredMenuAfterTimeSelection = nil
-            return
-        }
-
-        shouldOpenDeferredMenu = false
-        deferredMenuAfterTimeSelection = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withTransaction(ComposerMenuAnimation.presentationTransaction) {
-                activeMenu = nextMenu
-            }
-        }
     }
 
     @MainActor
@@ -525,9 +523,16 @@ struct ComposerPlaceholderSheet: View {
                 )
                 await appContext.homeViewModel.reload()
             case .project:
-                _ = try await appContext.container.projectRepository.saveProject(
+                let project = try await appContext.container.projectRepository.saveProject(
                     draftState.projectDraft(spaceID: spaceID)
                 )
+                for subtask in draftState.projectSubtasks {
+                    _ = try await appContext.container.taskApplicationService.createTask(
+                        in: spaceID,
+                        actorID: actorID,
+                        draft: subtask.taskDraft(projectID: project.id)
+                    )
+                }
                 await appContext.projectsViewModel.load()
             }
 
@@ -569,6 +574,26 @@ private enum ComposerCategory: Int, CaseIterable, Identifiable {
     }
 }
 
+private struct ProjectSubtaskDraft: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var isCompleted: Bool
+
+    init(id: UUID = UUID(), title: String, isCompleted: Bool = false) {
+        self.id = id
+        self.title = title
+        self.isCompleted = isCompleted
+    }
+
+    func taskDraft(projectID: UUID) -> TaskDraft {
+        TaskDraft(
+            title: title,
+            projectID: projectID,
+            status: isCompleted ? .completed : .inProgress
+        )
+    }
+}
+
 private struct ComposerDraftState: Hashable {
     var category: ComposerCategory
     var title = ""
@@ -581,8 +606,9 @@ private struct ComposerDraftState: Hashable {
     var priority: ItemPriority = .normal
     var periodicReminderOffset: TimeInterval?
     var taskReminderOffset: TimeInterval?
-    var projectReminderOffset: TimeInterval?
     var repeatRule: ItemRepeatRule
+    var projectSubtasks: [ProjectSubtaskDraft] = []
+    var projectSubtaskInput = ""
 
     init(initialCategory: ComposerCategory, referenceDate: Date) {
         self.category = initialCategory
@@ -620,6 +646,13 @@ private struct ComposerDraftState: Hashable {
         repeatRule.title(anchorDate: periodicAnchorDate, calendar: .current)
     }
 
+    var projectSubtaskSummaryText: String {
+        let total = projectSubtasks.count
+        guard total > 0 else { return "子任务" }
+        let completed = projectSubtasks.filter(\.isCompleted).count
+        return "\(completed)/\(total)"
+    }
+
     func reminderSummaryText(for category: ComposerCategory) -> String {
         let offset: TimeInterval?
         switch category {
@@ -628,7 +661,7 @@ private struct ComposerDraftState: Hashable {
         case .task:
             offset = taskReminderOffset
         case .project:
-            offset = projectReminderOffset
+            offset = nil
         }
 
         guard let offset else { return "提醒" }
@@ -673,11 +706,6 @@ private struct ComposerDraftState: Hashable {
 
     func projectDraft(spaceID: UUID) -> Project {
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let targetDate = projectTargetDate
-        let remindAt = projectReminderOffset.flatMap { offset in
-            targetDate?.addingTimeInterval(-offset)
-        }
-
         return Project(
             id: UUID(),
             spaceID: spaceID,
@@ -685,14 +713,30 @@ private struct ComposerDraftState: Hashable {
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             colorToken: "graphite",
             status: .active,
-            targetDate: targetDate,
-            remindAt: remindAt,
+            targetDate: projectTargetDate,
+            remindAt: nil,
             priority: priority,
-            taskCount: 0,
+            taskCount: projectSubtasks.count,
             createdAt: .now,
             updatedAt: .now,
             completedAt: nil
         )
+    }
+
+    mutating func addProjectSubtask() {
+        let trimmed = projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        projectSubtasks.append(ProjectSubtaskDraft(title: trimmed))
+        projectSubtaskInput = ""
+    }
+
+    mutating func toggleProjectSubtask(_ id: UUID) {
+        guard let index = projectSubtasks.firstIndex(where: { $0.id == id }) else { return }
+        projectSubtasks[index].isCompleted.toggle()
+    }
+
+    mutating func removeProjectSubtask(_ id: UUID) {
+        projectSubtasks.removeAll { $0.id == id }
     }
 
     private static func merge(date: Date, timeSource: Date) -> Date {
@@ -1366,26 +1410,32 @@ private struct ComposerDateMenuDetent: CustomPresentationDetent {
 }
 
 private struct ComposerEditorMenuSheet: View {
-    let menu: TaskEditorMenu
+    let context: TaskEditorMenuContext
+    @Binding var activeMenu: TaskEditorMenu
     @Binding var draftState: ComposerDraftState
     let quickTimePresetMinutes: [Int]
-    let onTimeSaved: () -> Void
+    let disabledMenus: Set<TaskEditorMenu>
     let onDismiss: () -> Void
 
     var body: some View {
-        menuContent
-            .id(menu.id)
-            .frame(maxWidth: .infinity, alignment: .top)
+        TaskEditorUnifiedMenuSheet(
+            context: context,
+            activeMenu: $activeMenu,
+            disabledMenus: disabledMenus,
+            selectionFeedback: ComposerButtonHaptics.selection
+        ) { menu in
+            menuContent(for: menu)
+        }
     }
 
     @ViewBuilder
-    private var menuContent: some View {
+    private func menuContent(for menu: TaskEditorMenu) -> some View {
         switch menu {
         case .date:
             TaskEditorDatePickerSheet(
                 selectedDate: selectedDateBinding,
                 selectionFeedback: ComposerButtonHaptics.selection,
-                onDismiss: onDismiss
+                onDismiss: {}
             )
         case .time:
             TaskEditorTimePickerSheet(
@@ -1394,8 +1444,8 @@ private struct ComposerEditorMenuSheet: View {
                 quickPresetMinutes: quickTimePresetMinutes,
                 selectionFeedback: ComposerButtonHaptics.selection,
                 primaryFeedback: ComposerButtonHaptics.primary,
-                onTimeSaved: onTimeSaved,
-                onDismiss: onDismiss
+                onTimeSaved: nil,
+                onDismiss: {}
             )
         case .reminder:
             TaskEditorOptionList(
@@ -1410,7 +1460,6 @@ private struct ComposerEditorMenuSheet: View {
                         isSelected: draftState.priority == priority,
                         action: {
                             draftState.priority = priority
-                            onDismiss()
                         }
                     )
                 },
@@ -1425,12 +1474,13 @@ private struct ComposerEditorMenuSheet: View {
                         isSelected: title == draftState.repeatSummaryText,
                         action: {
                             draftState.repeatRule = preset.makeRule(anchorDate: draftState.periodicAnchorDate)
-                            onDismiss()
                         }
                     )
                 },
                 selectionFeedback: ComposerButtonHaptics.selection
             )
+        case .subtasks:
+            ComposerProjectSubtasksPanel(draftState: $draftState)
         }
     }
 
@@ -1516,9 +1566,120 @@ private struct ComposerEditorMenuSheet: View {
         case .task:
             draftState.taskReminderOffset = seconds
         case .project:
-            draftState.projectReminderOffset = seconds
+            break
         }
-        onDismiss()
+    }
+}
+
+private struct ComposerProjectSubtasksPanel: View {
+    @Binding var draftState: ComposerDraftState
+    @FocusState private var isInputFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if draftState.projectSubtasks.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("先拆出几个可执行的小步骤。")
+                        .font(AppTheme.typography.sized(16, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title)
+
+                    Text("项目不会进入 Today 执行流，子任务会作为关联任务保存到项目下。")
+                        .font(AppTheme.typography.textStyle(.subheadline))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+            } else {
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(draftState.projectSubtasks) { subtask in
+                            HStack(spacing: 12) {
+                                Button {
+                                    ComposerButtonHaptics.selection()
+                                    draftState.toggleProjectSubtask(subtask.id)
+                                } label: {
+                                    Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .font(AppTheme.typography.sized(20, weight: .semibold))
+                                        .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
+                                        .frame(width: 28, height: 28)
+                                }
+                                .buttonStyle(.plain)
+
+                                Text(subtask.title)
+                                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                                    .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 1))
+                                    .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.36))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                Button {
+                                    ComposerButtonHaptics.selection()
+                                    draftState.removeProjectSubtask(subtask.id)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(AppTheme.typography.sized(11, weight: .bold))
+                                        .foregroundStyle(AppTheme.colors.body.opacity(0.66))
+                                        .frame(width: 18, height: 18)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 58)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .modifier(TaskEditorMenuOptionGlassModifier())
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
+                }
+                .scrollIndicators(.hidden)
+            }
+
+            HStack(spacing: 12) {
+                TextField("添加子任务", text: $draftState.projectSubtaskInput)
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($isInputFocused)
+                    .onSubmit {
+                        addSubtask()
+                    }
+
+                Button("添加") {
+                    addSubtask()
+                }
+                .buttonStyle(.plain)
+                .font(AppTheme.typography.sized(15, weight: .bold))
+                .foregroundStyle(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
+                .disabled(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 18)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func addSubtask() {
+        ComposerButtonHaptics.primary()
+        draftState.addProjectSubtask()
+        if draftState.projectSubtaskInput.isEmpty {
+            isInputFocused = true
+        }
     }
 }
 
@@ -1639,7 +1800,7 @@ private struct ComposerMenuSheet: View {
         case .task:
             draftState.taskReminderOffset = seconds
         case .project:
-            draftState.projectReminderOffset = seconds
+            break
         }
         onDismiss()
     }

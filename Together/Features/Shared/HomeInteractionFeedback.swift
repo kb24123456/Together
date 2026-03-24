@@ -37,6 +37,14 @@ enum HomeInteractionFeedback {
         #endif
     }
 
+    static func swipeCommitReady() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .rigid)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.92)
+        #endif
+    }
+
     static func menuTap() {
         #if canImport(UIKit)
         let generator = UIImpactFeedbackGenerator(style: .light)

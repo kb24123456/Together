@@ -11,8 +11,6 @@ struct HomeItemDetailSheet: View {
     @State private var isAwaitingDeleteConfirmation = false
     @State private var lastFocusedFieldBeforeMenu: Field?
     @State private var focusCoordinator = DetailTextInputFocusCoordinator()
-    @State private var deferredMenuAfterTimeSelection: TaskEditorMenu?
-    @State private var shouldOpenDeferredMenu = false
     @State private var saveFeedbackNonce = 0
     @State private var isSaveButtonAnimating = false
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
@@ -65,22 +63,24 @@ struct HomeItemDetailSheet: View {
                     }
             }
         }
-        .sheet(item: $activeMenu) { menu in
-            HomeDetailMenuSheet(
-                menu: menu,
-                viewModel: viewModel,
-                onTimeSaved: handleTimeSaved,
-                onDismiss: dismissActiveMenu
-            )
-                .presentationDetents(menu.detents)
+        .sheet(isPresented: isSecondaryMenuPresented, onDismiss: {
+            restoreFocusAfterMenuIfNeeded(preferImmediateResponder: true)
+        }) {
+            if let menuBinding = activeMenuBinding {
+                HomeDetailMenuSheet(
+                    context: menuContext,
+                    activeMenu: menuBinding,
+                    viewModel: viewModel,
+                    disabledMenus: disabledMenus,
+                    onDismiss: dismissActiveMenu
+                )
+                .presentationDetents(menuContext.detents)
                 .presentationContentInteraction(.scrolls)
                 .presentationBackgroundInteraction(.enabled)
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled(false)
                 .modifier(TaskEditorMenuPresentationSizingModifier())
-                .onDisappear {
-                    restoreFocusAfterMenuIfNeeded(preferImmediateResponder: true)
-                }
+            }
         }
         .presentationDetents([.height(340), .large], selection: $viewModel.detailDetent)
         .presentationDragIndicator(.hidden)
@@ -191,6 +191,7 @@ struct HomeItemDetailSheet: View {
                     .foregroundStyle(statusTextColor)
 
                 chipRow { menu in
+                    guard disabledMenus.contains(menu) == false else { return }
                     HomeInteractionFeedback.selection()
                     openMenu(menu)
                 }
@@ -487,6 +488,33 @@ struct HomeItemDetailSheet: View {
         viewModel.detailDraft?.repeatRule == nil ? .task : .periodic
     }
 
+    private var menuContext: TaskEditorMenuContext {
+        detailCategory == .periodic ? .periodic : .task
+    }
+
+    private var disabledMenus: Set<TaskEditorMenu> {
+        viewModel.detailDraft?.hasExplicitTime == true ? [] : [.reminder]
+    }
+
+    private var isSecondaryMenuPresented: Binding<Bool> {
+        Binding(
+            get: { activeMenu != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    dismissActiveMenu()
+                }
+            }
+        )
+    }
+
+    private var activeMenuBinding: Binding<TaskEditorMenu>? {
+        guard let activeMenu else { return nil }
+        return Binding(
+            get: { self.activeMenu ?? activeMenu },
+            set: { self.activeMenu = $0 }
+        )
+    }
+
     private var expandedCategoryTitle: String {
         switch detailCategory {
         case .periodic:
@@ -756,64 +784,19 @@ struct HomeItemDetailSheet: View {
     }
 
     private func openMenu(_ menu: TaskEditorMenu) {
-        let targetMenu = resolvedMenu(for: menu)
+        guard disabledMenus.contains(menu) == false else { return }
         lastFocusedFieldBeforeMenu = focusedField ?? focusCoordinator.currentFocusedField ?? .title
         focusCoordinator.resignCurrentResponder()
         focusedField = nil
-
-        let presentTargetMenu = {
-            withTransaction(HomeDetailMenuAnimation.presentationTransaction) {
-                activeMenu = targetMenu
-            }
+        withTransaction(HomeDetailMenuAnimation.presentationTransaction) {
+            activeMenu = menu
         }
-
-        if activeMenu != nil {
-            withTransaction(HomeDetailMenuAnimation.dismissalTransaction) {
-                activeMenu = nil
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                presentTargetMenu()
-            }
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                presentTargetMenu()
-            }
-        }
-    }
-
-    private func resolvedMenu(for requestedMenu: TaskEditorMenu) -> TaskEditorMenu {
-        deferredMenuAfterTimeSelection = nil
-        shouldOpenDeferredMenu = false
-        guard requestedMenu == .reminder else { return requestedMenu }
-        guard detailCategory == .task, viewModel.detailDraft?.hasExplicitTime != true else { return requestedMenu }
-        deferredMenuAfterTimeSelection = .reminder
-        shouldOpenDeferredMenu = false
-        return .time
-    }
-
-    private func handleTimeSaved() {
-        guard deferredMenuAfterTimeSelection != nil else { return }
-        shouldOpenDeferredMenu = true
     }
 
     private func dismissActiveMenu() {
         restoreFocusAfterMenuIfNeeded(preferImmediateResponder: true)
         withTransaction(HomeDetailMenuAnimation.dismissalTransaction) {
             activeMenu = nil
-        }
-
-        guard shouldOpenDeferredMenu, let nextMenu = deferredMenuAfterTimeSelection else {
-            shouldOpenDeferredMenu = false
-            deferredMenuAfterTimeSelection = nil
-            return
-        }
-
-        shouldOpenDeferredMenu = false
-        deferredMenuAfterTimeSelection = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withTransaction(HomeDetailMenuAnimation.presentationTransaction) {
-                activeMenu = nextMenu
-            }
         }
     }
 
@@ -1133,25 +1116,31 @@ private struct HomeDetailDateMenuDetent: CustomPresentationDetent {
 }
 
 private struct HomeDetailMenuSheet: View {
-    let menu: TaskEditorMenu
+    let context: TaskEditorMenuContext
+    @Binding var activeMenu: TaskEditorMenu
     @Bindable var viewModel: HomeViewModel
-    let onTimeSaved: () -> Void
+    let disabledMenus: Set<TaskEditorMenu>
     let onDismiss: () -> Void
 
     var body: some View {
-        menuContent
-            .id(menu.id)
-            .frame(maxWidth: .infinity, alignment: .top)
+        TaskEditorUnifiedMenuSheet(
+            context: context,
+            activeMenu: $activeMenu,
+            disabledMenus: disabledMenus,
+            selectionFeedback: HomeInteractionFeedback.selection
+        ) { menu in
+            menuContent(for: menu)
+        }
     }
 
     @ViewBuilder
-    private var menuContent: some View {
+    private func menuContent(for menu: TaskEditorMenu) -> some View {
         switch menu {
         case .date:
             TaskEditorDatePickerSheet(
                 selectedDate: detailDateBinding,
                 selectionFeedback: HomeInteractionFeedback.selection,
-                onDismiss: onDismiss
+                onDismiss: {}
             )
         case .time:
             TaskEditorTimePickerSheet(
@@ -1160,8 +1149,8 @@ private struct HomeDetailMenuSheet: View {
                 quickPresetMinutes: viewModel.quickTimePresetMinutes,
                 selectionFeedback: HomeInteractionFeedback.selection,
                 primaryFeedback: HomeInteractionFeedback.selection,
-                onTimeSaved: onTimeSaved,
-                onDismiss: onDismiss
+                onTimeSaved: nil,
+                onDismiss: {}
             )
         case .reminder:
             TaskEditorOptionList(
@@ -1178,13 +1167,14 @@ private struct HomeDetailMenuSheet: View {
                 options: repeatOptions,
                 selectionFeedback: HomeInteractionFeedback.selection
             )
+        case .subtasks:
+            EmptyView()
         }
     }
 
     private var reminderOptions: [TaskEditorOptionRow] {
         [TaskEditorOptionRow(title: "不提醒", isSelected: viewModel.detailDraft?.remindAt == nil) {
             viewModel.setDraftReminderEnabled(false)
-            onDismiss()
         }] + TaskEditorReminderPreset.allCases.map { preset in
             TaskEditorOptionRow(
                 title: preset.title,
@@ -1193,7 +1183,6 @@ private struct HomeDetailMenuSheet: View {
                 ensureDueDateExists()
                 let reminderTarget = reminderTargetDate()
                 viewModel.updateDraftReminder(reminderTarget.addingTimeInterval(-preset.secondsBeforeTarget))
-                onDismiss()
             }
         }
     }
@@ -1205,7 +1194,6 @@ private struct HomeDetailMenuSheet: View {
                 isSelected: viewModel.detailDraft?.priority == priority
             ) {
                 viewModel.updateDraftPriority(priority)
-                onDismiss()
             }
         }
     }
@@ -1218,7 +1206,6 @@ private struct HomeDetailMenuSheet: View {
             return TaskEditorOptionRow(title: title, isSelected: selectedTitle == title) {
                 ensureDueDateExists()
                 viewModel.updateDraftRepeatRule(preset.makeRule(anchorDate: anchorDate))
-                onDismiss()
             }
         }
     }

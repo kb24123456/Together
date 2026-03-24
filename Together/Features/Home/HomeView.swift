@@ -8,10 +8,17 @@ struct HomeView: View {
     let isProjectLayerPresented: Bool
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isWeekPagerSettling = false
+    @State private var isCompletedVisibilityButtonCompressed = false
+    @State private var isCompletedSectionVisible = true
+    @State private var isCompletedSectionTransitioning = false
 
     private let weekPageBreathingGap: CGFloat = 0
     private let weekDateSpacing: CGFloat = AppTheme.spacing.sm
     private let contentCardCornerRadius: CGFloat = 40
+    private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
+    private let timelineRowVerticalInset: CGFloat = 14
+    private let timelineDividerLeadingInset: CGFloat = AppTheme.spacing.xl + 44
+    private let timelineBottomInset: CGFloat = 144
 
     var body: some View {
         GeometryReader { proxy in
@@ -84,6 +91,9 @@ struct HomeView: View {
             .interactiveDismissDisabled(false)
             .modifier(TaskEditorMenuPresentationSizingModifier())
         }
+        .onAppear {
+            isCompletedSectionVisible = viewModel.showsCompletedItems
+        }
     }
 
     private var backgroundView: some View {
@@ -91,14 +101,7 @@ struct HomeView: View {
             if isProjectLayerPresented {
                 Color.clear
             } else {
-                LinearGradient(
-                    colors: [
-                        AppTheme.colors.homeBackground,
-                        AppTheme.colors.homeBackgroundSoft
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                AppTheme.colors.surface
             }
         }
         .ignoresSafeArea()
@@ -127,7 +130,7 @@ struct HomeView: View {
                             .padding(.vertical, 9)
                             .background(
                                 Capsule(style: .continuous)
-                                    .fill(AppTheme.colors.surface.opacity(0.88))
+                                    .fill(AppTheme.colors.surfaceElevated)
                             )
                     }
                     .buttonStyle(.plain)
@@ -165,16 +168,22 @@ struct HomeView: View {
     }
 
     private var contentCard: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                timelineSection
+        Group {
+            if viewModel.timelineEntries.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        timelineSection
+                    }
+                    .padding(.horizontal, AppTheme.spacing.xl)
+                    .padding(.top, AppTheme.spacing.lg)
+                    .padding(.bottom, 144)
+                }
+                .scrollIndicators(.hidden)
+                .scrollDisabled(isProjectLayerPresented)
+            } else {
+                timelineList
             }
-            .padding(.horizontal, AppTheme.spacing.xl)
-            .padding(.top, AppTheme.spacing.lg)
-            .padding(.bottom, 144)
         }
-        .scrollIndicators(.hidden)
-        .scrollDisabled(isProjectLayerPresented)
         .background(
             RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : contentCardCornerRadius, style: .continuous)
                 .fill(AppTheme.colors.surface)
@@ -182,21 +191,181 @@ struct HomeView: View {
         .overlay(alignment: .top) {
             if isProjectLayerPresented {
                 Capsule(style: .continuous)
-                    .fill(.white.opacity(0.82))
+                    .fill(AppTheme.colors.outlineStrong.opacity(0.32))
                     .frame(width: 76, height: 7)
                     .padding(.top, 12)
                     .transition(.opacity)
             }
         }
         .shadow(
-            color: isProjectLayerPresented ? AppTheme.colors.shadow.opacity(2.2) : AppTheme.colors.shadow.opacity(0.7),
-            radius: isProjectLayerPresented ? 34 : 18,
-            y: isProjectLayerPresented ? -6 : 10
+            color: isProjectLayerPresented ? AppTheme.colors.shadow.opacity(2.2) : .clear,
+            radius: isProjectLayerPresented ? 34 : 0,
+            y: isProjectLayerPresented ? -6 : 0
         )
         .clipShape(
             RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : contentCardCornerRadius, style: .continuous)
         )
         .animation(.spring(response: 0.36, dampingFraction: 0.86), value: isProjectLayerPresented)
+    }
+
+    private var timelineList: some View {
+        List {
+            Color.clear
+                .frame(height: 6)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(AppTheme.colors.surface)
+                .listRowSeparator(.hidden)
+
+            timelineRows(
+                viewModel.activeTimelineEntries,
+                rowTransition: activeRowTransition
+            )
+
+            if viewModel.hasCompletedEntries {
+                completedVisibilityButton
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 12,
+                            leading: timelineRowHorizontalInset,
+                            bottom: viewModel.completedTimelineEntries.isEmpty ? timelineBottomInset : 10,
+                            trailing: timelineRowHorizontalInset
+                        )
+                    )
+                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowSeparator(.hidden)
+
+                if viewModel.showsCompletedItems {
+                    completedTimelineSection
+                }
+            } else {
+                Color.clear
+                    .frame(height: timelineBottomInset)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowSeparator(.hidden)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
+        .scrollDisabled(isProjectLayerPresented)
+        .environment(\.defaultMinListRowHeight, 0)
+        .safeAreaPadding(.top, AppTheme.spacing.sm)
+        .background(AppTheme.colors.surface)
+    }
+
+    @ViewBuilder
+    private var completedTimelineSection: some View {
+        timelineRows(
+            viewModel.completedTimelineEntries,
+            rowTransition: completedRowTransition,
+            sectionVisibility: CompletedSectionVisibility(
+                isVisible: isCompletedSectionVisible,
+                count: viewModel.completedTimelineEntries.count
+            )
+        )
+
+        if viewModel.completedTimelineEntries.isEmpty == false {
+            Color.clear
+                .frame(height: timelineBottomInset)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(AppTheme.colors.surface)
+                .listRowSeparator(.hidden)
+                .modifier(CompletedSectionMotionModifier(isVisible: isCompletedSectionVisible))
+                .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private func timelineRows(
+        _ entries: [HomeTimelineEntry],
+        rowTransition: AnyTransition? = nil,
+        sectionVisibility: CompletedSectionVisibility? = nil
+    ) -> some View {
+        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+            HomeTimelineRow(
+                entry: entry,
+                isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
+                onToggleCompletion: {
+                    if entry.isCompleted {
+                        HomeInteractionFeedback.selection()
+                    } else {
+                        HomeInteractionFeedback.completion()
+                    }
+                    Task {
+                        await viewModel.completeItem(entry.id)
+                    }
+                },
+                onOpenDetail: {
+                    viewModel.presentItemDetail(entry.id)
+                }
+            )
+                .listRowInsets(
+                    EdgeInsets(
+                        top: timelineRowVerticalInset,
+                        leading: timelineRowHorizontalInset,
+                        bottom: timelineRowVerticalInset,
+                        trailing: timelineRowHorizontalInset
+                    )
+                )
+                .listRowBackground(AppTheme.colors.surface)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        if entry.isCompleted {
+                            HomeInteractionFeedback.selection()
+                        } else {
+                            HomeInteractionFeedback.completion()
+                        }
+                        Task {
+                            await viewModel.completeItem(entry.id, trigger: .swipeAction)
+                        }
+                    } label: {
+                        Label(
+                            entry.isCompleted ? "恢复" : "完成",
+                            systemImage: entry.isCompleted ? "arrow.uturn.backward" : "checkmark"
+                        )
+                    }
+                    .labelStyle(.iconOnly)
+                    .tint(entry.isCompleted ? AppTheme.colors.body.opacity(0.76) : AppTheme.colors.coral)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
+                        HomeInteractionFeedback.selection()
+                        viewModel.presentCustomSnoozePicker()
+                    } label: {
+                        Label("推迟", systemImage: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
+                    }
+                    .labelStyle(.iconOnly)
+                    .tint(AppTheme.colors.sky)
+                }
+                .applyTransition(rowTransition)
+                .applyCompletedSectionVisibility(
+                    sectionVisibility.map { $0.rowVisibility(for: index) }
+                )
+
+            if index < entries.count - 1 {
+                DashedDivider()
+                    .stroke(AppTheme.colors.separator, style: StrokeStyle(lineWidth: 1.5, dash: [3, 8]))
+                    .frame(height: 1)
+                    .padding(.leading, 2)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 0,
+                            leading: timelineDividerLeadingInset,
+                            bottom: 0,
+                            trailing: timelineRowHorizontalInset
+                        )
+                    )
+                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowSeparator(.hidden)
+                    .applyCompletedSectionVisibility(
+                        sectionVisibility.map { $0.rowVisibility(for: index) }
+                    )
+            }
+        }
     }
 
     private var weekCalendarSection: some View {
@@ -282,68 +451,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, AppTheme.spacing.xl)
             } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(viewModel.timelineEntries.enumerated()), id: \.element.id) { index, entry in
-                        HomeTimelineRow(
-                            entry: entry,
-                            isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
-                            quickSnoozeMinuteOptions: viewModel.quickTimePresetMinutes,
-                            onToggleCompletion: {
-                                HomeInteractionFeedback.selection()
-                                Task {
-                                    await viewModel.completeItem(entry.id)
-                                    HomeInteractionFeedback.completion()
-                                }
-                            },
-                            onOpenDetail: {
-                                HomeInteractionFeedback.soft()
-                                viewModel.presentItemDetail(entry.id)
-                            },
-                            onApplySnoozeMinutes: { minutes in
-                                guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
-                                Task {
-                                    await viewModel.applySnooze(minutes: minutes)
-                                    HomeInteractionFeedback.selection()
-                                }
-                            },
-                            onApplySnoozeTomorrow: {
-                                guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
-                                Task {
-                                    await viewModel.applySnoozeTomorrow()
-                                    HomeInteractionFeedback.selection()
-                                }
-                            },
-                            onPresentCustomSnooze: {
-                                guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
-                                HomeInteractionFeedback.selection()
-                                viewModel.presentCustomSnoozePicker()
-                            }
-                        )
-                        .transition(
-                            .asymmetric(
-                                insertion: .move(edge: .bottom).combined(with: .opacity),
-                                removal: .move(edge: .trailing).combined(with: .opacity)
-                            )
-                        )
-
-                        if index < viewModel.timelineEntries.count - 1 {
-                            DashedDivider()
-                                .stroke(AppTheme.colors.separator, style: StrokeStyle(lineWidth: 1.5, dash: [3, 8]))
-                                .frame(height: 1)
-                                .padding(.leading, 4)
-                                .padding(.vertical, 2)
-                        }
-                    }
-
-                    if viewModel.hasCompletedEntries {
-                        completedVisibilityButton
-                            .padding(.top, 14)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
-                .id(viewModel.selectedDateKey)
-                .transition(timelineTransition)
+                EmptyView()
             }
         }
         .animation(.spring(response: 0.26, dampingFraction: 0.88), value: viewModel.selectedDateKey)
@@ -354,19 +462,34 @@ struct HomeView: View {
     private var completedVisibilityButton: some View {
         Button {
             HomeInteractionFeedback.selection()
-            viewModel.toggleCompletedVisibility()
+            isCompletedVisibilityButtonCompressed = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(110))
+                isCompletedVisibilityButtonCompressed = false
+            }
+            toggleCompletedSectionVisibility()
         } label: {
-            Text("\(viewModel.completedVisibilityButtonTitle) \(viewModel.completedEntryCount)")
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.76))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(AppTheme.colors.surfaceElevated)
-                )
+            HStack(spacing: 4) {
+                Text(viewModel.completedVisibilityButtonTitle)
+
+                Text("\(viewModel.completedEntryCount)")
+            }
+            .font(AppTheme.typography.sized(13, weight: .semibold))
+            .foregroundStyle(AppTheme.colors.body.opacity(0.76))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.surfaceElevated)
+            )
         }
         .buttonStyle(.plain)
+        .scaleEffect(
+            x: isCompletedVisibilityButtonCompressed ? 0.92 : 1,
+            y: isCompletedVisibilityButtonCompressed ? 0.88 : 1,
+            anchor: .center
+        )
+        .animation(.bouncy(duration: 0.54, extraBounce: 0.28), value: isCompletedVisibilityButtonCompressed)
     }
 
     private var headerPrimaryColor: Color {
@@ -385,6 +508,37 @@ struct HomeView: View {
         HomeInteractionFeedback.soft()
     }
 
+    private func toggleCompletedSectionVisibility() {
+        guard isCompletedSectionTransitioning == false else { return }
+        isCompletedSectionTransitioning = true
+        let staggerCount = min(viewModel.completedTimelineEntries.count, 6)
+        let staggerDelay = Double(max(staggerCount - 1, 0)) * 0.028
+
+        if viewModel.showsCompletedItems {
+            withAnimation(.bouncy(duration: 0.46, extraBounce: 0.16)) {
+                isCompletedSectionVisible = false
+            }
+
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.46 + staggerDelay))
+                viewModel.setCompletedVisibility(false)
+                isCompletedSectionTransitioning = false
+            }
+        } else {
+            isCompletedSectionVisible = false
+            viewModel.setCompletedVisibility(true)
+
+            Task { @MainActor in
+                await Task.yield()
+                withAnimation(.bouncy(duration: 0.82, extraBounce: 0.2)) {
+                    isCompletedSectionVisible = true
+                }
+                try? await Task.sleep(for: .seconds(0.82 + staggerDelay))
+                isCompletedSectionTransitioning = false
+            }
+        }
+    }
+
     private var timelineTransition: AnyTransition {
         let direction: CGFloat = viewModel.selectedDateTransitionEdge == .trailing ? 1 : -1
 
@@ -400,6 +554,20 @@ struct HomeView: View {
                 removal: .offset(x: -14 * direction).combined(with: .opacity)
             )
         }
+    }
+
+    private var activeRowTransition: AnyTransition {
+        .asymmetric(
+            insertion: .modifier(
+                active: VerticalMotionModifier(offsetY: -34, scale: 0.985, opacity: 0),
+                identity: VerticalMotionModifier(offsetY: 0, scale: 1, opacity: 1)
+            ),
+            removal: .opacity
+        )
+    }
+
+    private var completedRowTransition: AnyTransition {
+        .opacity
     }
 
     private func weekPagerDragGesture(pageWidth: CGFloat) -> some Gesture {
@@ -512,36 +680,10 @@ struct HomeView: View {
 private struct HomeTimelineRow: View {
     let entry: HomeTimelineEntry
     let isAnimatingCompletion: Bool
-    let quickSnoozeMinuteOptions: [Int]
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
-    let onApplySnoozeMinutes: (Int) -> Void
-    let onApplySnoozeTomorrow: () -> Void
-    let onPresentCustomSnooze: () -> Void
-    @State private var swipeOffset: CGFloat = 0
-
-    private let actionWidth: CGFloat = 74
-    private let actionButtonSize: CGFloat = 54
-    private let actionOpenThreshold: CGFloat = 36
-    @State private var hasTriggeredSwipeFeedback = false
 
     var body: some View {
-        rowContent
-            .offset(x: swipeOffset)
-            .overlay(alignment: .trailing) {
-                if !entry.isCompleted && entry.canSnooze {
-                    snoozeMenuTrigger
-                        .padding(.trailing, 6)
-                        .opacity(swipeRevealProgress)
-                        .scaleEffect(0.9 + (swipeRevealProgress * 0.1))
-                        .allowsHitTesting(swipeOffset <= -actionOpenThreshold)
-                }
-            }
-            .clipShape(Rectangle())
-        .animation(.spring(response: 0.24, dampingFraction: 0.88), value: swipeOffset)
-    }
-
-    private var rowContent: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Button(action: onToggleCompletion) {
                 timelineSymbol
@@ -550,125 +692,31 @@ private struct HomeTimelineRow: View {
             .buttonStyle(.plain)
             .contentShape(Rectangle())
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.title)
-                    .font(AppTheme.typography.sized(19, weight: .bold))
-                    .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-
-                Text(displaySubtitle)
-                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                    .foregroundStyle(subtitleColor)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(alignment: .trailing, spacing: 6) {
-                HomeTimelineTimeText(entry: entry)
-            }
-        }
-        .padding(.vertical, 12)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if swipeOffset < 0 {
-                withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
-                    swipeOffset = 0
-                }
-            } else {
+            Button {
+                HomeInteractionFeedback.soft()
                 onOpenDetail()
-            }
-        }
-        .gesture(rowSwipeGesture)
-    }
+            } label: {
+                HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(entry.title)
+                            .font(AppTheme.typography.sized(19, weight: .bold))
+                            .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
 
-    private var snoozeMenuTrigger: some View {
-        HomeSnoozeMenuButton(
-            quickSnoozeMinuteOptions: quickSnoozeMinuteOptions,
-            relativePresetTitle: relativePresetTitle,
-            onQuickSnooze: { minutes in
-                onApplySnoozeMinutes(minutes)
-                closeSwipeAction(after: 0.32)
-            },
-            onTomorrow: {
-                onApplySnoozeTomorrow()
-                closeSwipeAction(after: 0.32)
-            },
-            onCustom: {
-                onPresentCustomSnooze()
-                closeSwipeAction(after: 0.36)
-            }
-        )
-        .frame(width: actionWidth, height: actionButtonSize, alignment: .trailing)
-        .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 10, y: 5)
-    }
-
-    private var rowSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .local)
-            .onChanged { value in
-                guard !entry.isCompleted, entry.canSnooze else { return }
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-
-                if value.translation.width < 0 {
-                    swipeOffset = max(value.translation.width, -actionWidth)
-                    if swipeOffset <= -actionOpenThreshold, hasTriggeredSwipeFeedback == false {
-                        hasTriggeredSwipeFeedback = true
-                        HomeInteractionFeedback.swipeReveal()
+                        Text(displaySubtitle)
+                            .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                            .foregroundStyle(subtitleColor)
+                            .lineLimit(2)
                     }
-                } else if swipeOffset < 0 {
-                    swipeOffset = min(0, -actionWidth + value.translation.width)
-                    if swipeOffset > -actionOpenThreshold {
-                        hasTriggeredSwipeFeedback = false
+
+                    Spacer(minLength: 0)
+
+                    VStack(alignment: .trailing, spacing: 6) {
+                        HomeTimelineTimeText(entry: entry)
                     }
                 }
+                .contentShape(Rectangle())
             }
-            .onEnded { value in
-                guard !entry.isCompleted, entry.canSnooze else { return }
-                guard abs(value.translation.width) > abs(value.translation.height) else {
-                    settleSwipeOffset(using: value)
-                    return
-                }
-
-                settleSwipeOffset(using: value)
-            }
-    }
-
-    private func settleSwipeOffset(using value: DragGesture.Value) {
-        let predictedTravel = value.predictedEndTranslation.width
-        let shouldOpen = value.translation.width < -actionOpenThreshold || predictedTravel < -(actionWidth * 0.78)
-
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
-            swipeOffset = shouldOpen ? -actionWidth : 0
-        }
-        hasTriggeredSwipeFeedback = shouldOpen
-    }
-
-    private var swipeRevealProgress: CGFloat {
-        let progress = min(max(-swipeOffset / actionWidth, 0), 1)
-        return progress
-    }
-
-    private func relativePresetTitle(_ minutes: Int) -> String {
-        if minutes >= 60, minutes.isMultiple(of: 60) {
-            return "\(minutes / 60)小时后"
-        }
-        return "\(minutes)分钟后"
-    }
-
-    private func closeSwipeAction(after delay: TimeInterval = 0) {
-        let reset = {
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
-                swipeOffset = 0
-            }
-            hasTriggeredSwipeFeedback = false
-        }
-
-        guard delay > 0 else {
-            reset()
-            return
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            reset()
+            .buttonStyle(.plain)
         }
     }
 
@@ -698,8 +746,6 @@ private struct HomeTimelineRow: View {
                 interactiveBadge
             }
         }
-        .scaleEffect(isAnimatingCompletion ? 1.08 : 1.0)
-        .animation(.spring(response: 0.26, dampingFraction: 0.72), value: isAnimatingCompletion)
     }
 
     private var completionBadge: some View {
@@ -802,20 +848,23 @@ private struct HomeSnoozeMenuButton: UIViewRepresentable {
         func applyConfiguration(to button: UIButton, parent: HomeSnoozeMenuButton) {
             var configuration = UIButton.Configuration.plain()
             configuration.baseForegroundColor = UIColor(AppTheme.colors.sky)
-            configuration.background.backgroundColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.16))
+            configuration.background.backgroundColor = UIColor(AppTheme.colors.surfaceElevated)
+            configuration.background.strokeColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.18))
+            configuration.background.strokeWidth = 1
             configuration.background.cornerRadius = 27
-            configuration.cornerStyle = .capsule
-            configuration.contentInsets = NSDirectionalEdgeInsets(top: 17, leading: 17, bottom: 17, trailing: 17)
+            configuration.cornerStyle = .fixed
+            configuration.contentInsets = .zero
             configuration.image = UIImage(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
             configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
             configuration.imagePlacement = .all
             button.configuration = configuration
+            button.frame.size = CGSize(width: 54, height: 54)
             button.configurationUpdateHandler = { target in
                 guard var updatedConfiguration = target.configuration else { return }
                 updatedConfiguration.baseForegroundColor = UIColor(AppTheme.colors.sky)
-                updatedConfiguration.background.backgroundColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.16))
-                updatedConfiguration.background.strokeColor = .clear
-                updatedConfiguration.background.strokeWidth = 0
+                updatedConfiguration.background.backgroundColor = UIColor(AppTheme.colors.surfaceElevated)
+                updatedConfiguration.background.strokeColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.18))
+                updatedConfiguration.background.strokeWidth = 1
                 updatedConfiguration.image = UIImage(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
                 updatedConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
                 target.configuration = updatedConfiguration
@@ -898,8 +947,12 @@ private struct HomeSnoozeMenuButton: View {
                 .frame(width: 54, height: 54)
                 .background(
                     Circle()
-                        .fill(AppTheme.colors.outlineStrong.opacity(0.16))
+                        .fill(AppTheme.colors.surfaceElevated)
                 )
+                .overlay {
+                    Circle()
+                        .stroke(AppTheme.colors.outlineStrong.opacity(0.18), lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
     }
@@ -978,11 +1031,11 @@ private struct HomeAvatarToggleButton: View {
             .frame(width: 34, height: 34)
             .background(
                 Circle()
-                    .fill(AppTheme.colors.surface.opacity(0.92))
+                    .fill(AppTheme.colors.surfaceElevated)
             )
             .overlay {
                 Circle()
-                    .stroke(.white.opacity(0.9), lineWidth: 1.2)
+                    .stroke(AppTheme.colors.outlineStrong.opacity(0.32), lineWidth: 1.2)
             }
             .shadow(color: AppTheme.colors.shadow.opacity(0.65), radius: 6, y: 4)
             .zIndex(zIndex)
@@ -1033,10 +1086,10 @@ private struct HomeAvatarGlassModifier: ViewModifier {
                 .glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
         } else {
             content
-                .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+                .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
                 .overlay {
                     Capsule(style: .continuous)
-                        .stroke(.white.opacity(0.7), lineWidth: 1)
+                        .stroke(AppTheme.colors.outlineStrong.opacity(0.22), lineWidth: 1)
                 }
         }
     }
@@ -1048,5 +1101,93 @@ private struct DashedDivider: Shape {
         path.move(to: CGPoint(x: rect.minX, y: rect.midY))
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
         return path
+    }
+}
+
+private struct VerticalMotionModifier: ViewModifier {
+    let offsetY: CGFloat
+    let scale: CGFloat
+    let opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: offsetY)
+            .scaleEffect(scale, anchor: .center)
+            .opacity(opacity)
+    }
+}
+
+private struct CompletedSectionVisibility {
+    let isVisible: Bool
+    let count: Int
+
+    func rowVisibility(for index: Int) -> CompletedRowVisibility {
+        CompletedRowVisibility(
+            isVisible: isVisible,
+            index: index,
+            count: count
+        )
+    }
+}
+
+private struct CompletedSectionMotionModifier: ViewModifier {
+    let isVisible: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: isVisible ? 0 : 102)
+            .scaleEffect(x: isVisible ? 1 : 1.016, y: isVisible ? 1 : 0.958, anchor: .center)
+            .opacity(isVisible ? 1 : 0)
+    }
+}
+
+private struct CompletedRowVisibility {
+    let isVisible: Bool
+    let index: Int
+    let count: Int
+}
+
+private struct CompletedRowCascadeModifier: ViewModifier {
+    let visibility: CompletedRowVisibility
+
+    private var animation: Animation {
+        let delayIndex = visibility.isVisible ? visibility.index : max(visibility.count - visibility.index - 1, 0)
+        return .bouncy(duration: visibility.isVisible ? 0.78 : 0.46, extraBounce: visibility.isVisible ? 0.22 : 0.12)
+            .delay(Double(delayIndex) * 0.028)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: visibility.isVisible ? 0 : 26)
+            .scaleEffect(
+                x: visibility.isVisible ? 1 : 1.022,
+                y: visibility.isVisible ? 1 : 0.936,
+                anchor: .center
+            )
+            .opacity(visibility.isVisible ? 1 : 0)
+            .animation(animation, value: visibility.isVisible)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyTransition(_ transition: AnyTransition?) -> some View {
+        if let transition {
+            self.transition(.asymmetric(insertion: transition, removal: .opacity))
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func applyCompletedSectionVisibility(_ visibility: CompletedRowVisibility?) -> some View {
+        switch visibility {
+        case let visibility?:
+            self
+                .modifier(CompletedRowCascadeModifier(visibility: visibility))
+                .allowsHitTesting(visibility.isVisible)
+        case nil:
+            self
+        }
     }
 }

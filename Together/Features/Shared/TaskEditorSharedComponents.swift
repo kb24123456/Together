@@ -11,17 +11,69 @@ enum TaskEditorMenu: String, Identifiable {
     case reminder
     case priority
     case repeatRule
+    case subtasks
 
     var id: String { rawValue }
 
-    var detents: Set<PresentationDetent> {
+    var systemImage: String {
         switch self {
         case .date:
-            return [.custom(TaskEditorDateMenuDetent.self)]
+            return "calendar"
         case .time:
-            return [.fraction(0.5)]
-        case .reminder, .priority, .repeatRule:
-            return [.fraction(0.46)]
+            return "clock"
+        case .reminder:
+            return "bell"
+        case .priority:
+            return "flag"
+        case .repeatRule:
+            return "repeat"
+        case .subtasks:
+            return "checklist"
+        }
+    }
+
+    var accessibilityTitle: String {
+        switch self {
+        case .date:
+            return "日期"
+        case .time:
+            return "时间"
+        case .reminder:
+            return "提醒"
+        case .priority:
+            return "优先级"
+        case .repeatRule:
+            return "重复"
+        case .subtasks:
+            return "子任务"
+        }
+    }
+}
+
+enum TaskEditorMenuContext {
+    case periodic
+    case task
+    case project
+
+    var menus: [TaskEditorMenu] {
+        switch self {
+        case .periodic:
+            return [.repeatRule, .time, .reminder]
+        case .task:
+            return [.date, .time, .reminder, .priority]
+        case .project:
+            return [.date, .priority, .subtasks]
+        }
+    }
+
+    var detents: Set<PresentationDetent> {
+        switch self {
+        case .task:
+            return [.custom(TaskEditorTaskMenuDetent.self)]
+        case .periodic:
+            return [.custom(TaskEditorPeriodicMenuDetent.self)]
+        case .project:
+            return [.custom(TaskEditorProjectMenuDetent.self)]
         }
     }
 }
@@ -68,6 +120,7 @@ enum TaskEditorChipSemanticValue: Equatable {
     case reminder(TimeInterval?)
     case priority(Int)
     case repeatRule(title: String, rank: Int)
+    case subtasks(Int)
 
     static func direction(
         from previousValue: TaskEditorChipSemanticValue,
@@ -90,6 +143,8 @@ enum TaskEditorChipSemanticValue: Equatable {
             return newRank >= oldRank ? .up : .down
         case let (.repeatRule(_, oldRank), .repeatRule(_, newRank)):
             return newRank >= oldRank ? .up : .down
+        case let (.subtasks(oldCount), .subtasks(newCount)):
+            return newCount >= oldCount ? .up : .down
         default:
             return .up
         }
@@ -249,6 +304,159 @@ struct TaskEditorOptionList: View {
         .scrollIndicators(.hidden)
         .background(.clear)
     }
+}
+
+struct TaskEditorUnifiedMenuSheet<Content: View>: View {
+    let context: TaskEditorMenuContext
+    @Binding var activeMenu: TaskEditorMenu
+    let disabledMenus: Set<TaskEditorMenu>
+    let selectionFeedback: () -> Void
+    @ViewBuilder let content: (TaskEditorMenu) -> Content
+
+    @State private var displayedMenu: TaskEditorMenu
+    @State private var transitionDirection: TaskEditorMenuTransitionDirection = .forward
+
+    init(
+        context: TaskEditorMenuContext,
+        activeMenu: Binding<TaskEditorMenu>,
+        disabledMenus: Set<TaskEditorMenu> = [],
+        selectionFeedback: @escaping () -> Void,
+        @ViewBuilder content: @escaping (TaskEditorMenu) -> Content
+    ) {
+        self.context = context
+        _activeMenu = activeMenu
+        self.disabledMenus = disabledMenus
+        self.selectionFeedback = selectionFeedback
+        self.content = content
+        _displayedMenu = State(initialValue: activeMenu.wrappedValue)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TaskEditorMenuSwitcher(
+                menus: context.menus,
+                activeMenu: activeMenu,
+                disabledMenus: disabledMenus
+            ) { nextMenu in
+                guard nextMenu != activeMenu else { return }
+                guard disabledMenus.contains(nextMenu) == false else { return }
+                transitionDirection = transitionDirectionForMenuChange(to: nextMenu)
+                selectionFeedback()
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                    activeMenu = nextMenu
+                    displayedMenu = nextMenu
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            ZStack {
+                content(displayedMenu)
+                    .id(displayedMenu.id)
+                    .transition(menuTransition)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .clipped()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(AppTheme.colors.surface)
+        .onChange(of: activeMenu) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            transitionDirection = transitionDirectionForMenuChange(to: newValue)
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                displayedMenu = newValue
+            }
+        }
+    }
+
+    private var menuTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: transitionDirection.insertionEdge).combined(with: .opacity),
+            removal: .move(edge: transitionDirection.removalEdge).combined(with: .opacity)
+        )
+    }
+
+    private func transitionDirectionForMenuChange(to nextMenu: TaskEditorMenu) -> TaskEditorMenuTransitionDirection {
+        let menus = context.menus
+        let currentIndex = menus.firstIndex(of: displayedMenu) ?? 0
+        let nextIndex = menus.firstIndex(of: nextMenu) ?? currentIndex
+        return nextIndex >= currentIndex ? .forward : .backward
+    }
+}
+
+private enum TaskEditorMenuTransitionDirection {
+    case forward
+    case backward
+
+    var insertionEdge: Edge {
+        switch self {
+        case .forward:
+            return .trailing
+        case .backward:
+            return .leading
+        }
+    }
+
+    var removalEdge: Edge {
+        switch self {
+        case .forward:
+            return .leading
+        case .backward:
+            return .trailing
+        }
+    }
+}
+
+private struct TaskEditorMenuSwitcher: View {
+    let menus: [TaskEditorMenu]
+    let activeMenu: TaskEditorMenu
+    let disabledMenus: Set<TaskEditorMenu>
+    let onSelect: (TaskEditorMenu) -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(menus) { menu in
+                Button {
+                    onSelect(menu)
+                } label: {
+                    Image(systemName: menu.systemImage)
+                        .font(AppTheme.typography.sized(18, weight: .semibold))
+                        .foregroundStyle(foregroundColor(for: menu))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: TaskEditorToolbarMetrics.itemHeight)
+                        .background {
+                            if activeMenu == menu {
+                                Capsule(style: .continuous)
+                                    .fill(AppTheme.colors.pillSurface)
+                            }
+                        }
+                        .overlay {
+                            if activeMenu == menu {
+                                Capsule(style: .continuous)
+                                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+                            }
+                        }
+                        .contentShape(Capsule(style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(disabledMenus.contains(menu))
+                .opacity(disabledMenus.contains(menu) ? 0.34 : 1)
+                .accessibilityLabel(menu.accessibilityTitle)
+            }
+        }
+    }
+
+    private func foregroundColor(for menu: TaskEditorMenu) -> Color {
+        if disabledMenus.contains(menu) {
+            return AppTheme.colors.body.opacity(0.35)
+        }
+        return activeMenu == menu ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.72)
+    }
+}
+
+enum TaskEditorToolbarMetrics {
+    static let itemHeight: CGFloat = 48
 }
 
 struct TaskEditorDatePickerSheet: View {
@@ -1360,6 +1568,31 @@ private struct TaskEditorDateMenuDetent: CustomPresentationDetent {
     }
 }
 
+private struct TaskEditorTaskMenuDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        min(
+            TaskEditorDatePickerSheet.preferredHeight + TaskEditorUnifiedMenuMetrics.sheetChromeHeight,
+            context.maxDetentValue * 0.82
+        )
+    }
+}
+
+private struct TaskEditorPeriodicMenuDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        min(452, context.maxDetentValue * 0.66)
+    }
+}
+
+private struct TaskEditorProjectMenuDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        min(492, context.maxDetentValue * 0.7)
+    }
+}
+
+enum TaskEditorUnifiedMenuMetrics {
+    static let sheetChromeHeight: CGFloat = 78
+}
+
 private struct TaskEditorCalendarDayCell: Identifiable {
     let id = UUID()
     let date: Date
@@ -1410,7 +1643,7 @@ private struct TaskEditorChipTextLayout: Equatable {
             }
         case let .time(date):
             segments = Self.timeSegments(for: date, placeholder: text)
-        case .reminder, .priority, .repeatRule:
+        case .reminder, .priority, .repeatRule, .subtasks:
             segments = [TaskEditorChipTextSegment(id: "main", text: text, kind: .text)]
         }
     }
@@ -1598,7 +1831,7 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder:
             return .numeric
-        case .priority, .repeatRule:
+        case .priority, .repeatRule, .subtasks:
             return .interpolated
         }
     }
@@ -1639,7 +1872,7 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder:
             return true
-        case .priority, .repeatRule:
+        case .priority, .repeatRule, .subtasks:
             return false
         }
     }
