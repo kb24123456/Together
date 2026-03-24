@@ -598,7 +598,7 @@ private struct HomeTimelineRow: View {
                 closeSwipeAction(after: 0.36)
             }
         )
-        .frame(width: actionButtonSize, height: actionButtonSize)
+        .frame(width: actionWidth, height: actionButtonSize, alignment: .trailing)
         .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 10, y: 5)
     }
 
@@ -768,7 +768,7 @@ private struct HomeSnoozeMenuButton: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UIButton {
-        let button = HomeSnoozeMenuHostButton(type: .system)
+        let button = HomeSnoozeMenuHostButton(type: .custom)
         button.showsMenuAsPrimaryAction = true
         button.contentHorizontalAlignment = .fill
         button.contentVerticalAlignment = .fill
@@ -805,7 +805,7 @@ private struct HomeSnoozeMenuButton: UIViewRepresentable {
             configuration.background.backgroundColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.16))
             configuration.background.cornerRadius = 27
             configuration.cornerStyle = .capsule
-            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 17, leading: 17, bottom: 17, trailing: 17)
             configuration.image = UIImage(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
             configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
             configuration.imagePlacement = .all
@@ -824,6 +824,7 @@ private struct HomeSnoozeMenuButton: UIViewRepresentable {
             }
             button.menu = makeMenu(parent: parent)
             button.tintColor = UIColor(AppTheme.colors.sky)
+            button.invalidateIntrinsicContentSize()
         }
 
         private func makeMenu(parent: HomeSnoozeMenuButton) -> UIMenu {
