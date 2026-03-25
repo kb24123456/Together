@@ -33,12 +33,12 @@ enum HomeDateTransitionStyle: Hashable {
 }
 
 enum HomeSnoozeMenu: String, Identifiable {
-    case customEditor
+    case settings
 
     var id: String { rawValue }
 
     var detents: Set<PresentationDetent> {
-        [.height(402)]
+        [.fraction(0.5)]
     }
 }
 
@@ -61,6 +61,11 @@ enum QuickCaptureTaskCreationResult: Sendable, Equatable {
     case failed
 }
 
+struct TaskTemplateSaveResult: Sendable, Equatable {
+    let templateID: UUID
+    let isNewlyCreated: Bool
+}
+
 @MainActor
 @Observable
 final class HomeViewModel {
@@ -68,6 +73,7 @@ final class HomeViewModel {
     private let sessionStore: SessionStore
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let quickCaptureParser: QuickCaptureParserProtocol
+    private let taskTemplateRepository: TaskTemplateRepositoryProtocol
 
     private var detailSaveTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
@@ -81,25 +87,31 @@ final class HomeViewModel {
     var showsPairAvatarPreview = false
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
-    var detailDetent: PresentationDetent = .height(340)
+    var detailDetent: PresentationDetent = .height(316)
     var isPerformingCompletion = false
     var recentCompletedItemID: UUID?
     var showsCompletedItems = true
     var activeSnoozeContext: HomeSnoozeContext?
     var isShowingSnoozeOptions = false
     var activeSnoozeMenu: HomeSnoozeMenu?
+    var stagedSnoozeActiveMenu: TaskEditorMenu = .date
     var stagedCustomSnoozeDate: Date = Date()
     var stagedCustomSnoozeTime: Date?
+    var stagedCustomSnoozeAllDay = false
+    var stagedCustomSnoozeReminderOffset: TimeInterval?
+    var stagedCustomSnoozeRepeatRule: ItemRepeatRule?
     var isPerformingSnooze = false
 
     init(
         sessionStore: SessionStore,
         taskApplicationService: TaskApplicationServiceProtocol,
-        quickCaptureParser: QuickCaptureParserProtocol
+        quickCaptureParser: QuickCaptureParserProtocol,
+        taskTemplateRepository: TaskTemplateRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
         self.quickCaptureParser = quickCaptureParser
+        self.taskTemplateRepository = taskTemplateRepository
         let currentUser = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
         self.currentUserAvatar = HomeAvatar(
             id: currentUser.id,
@@ -198,10 +210,12 @@ final class HomeViewModel {
 
     func shiftSelectedWeek(by offset: Int) {
         guard offset != 0 else { return }
-        guard let shiftedDate = calendar.date(byAdding: .day, value: offset * 7, to: selectedDate) else {
+        let shiftedWeekDates = weekDates(shiftedByWeeks: offset)
+        let middleIndex = shiftedWeekDates.count / 2
+        guard shiftedWeekDates.indices.contains(middleIndex) else {
             return
         }
-        selectDate(shiftedDate)
+        selectDate(shiftedWeekDates[middleIndex])
     }
 
     func toggleAvatarPreview() {
@@ -313,7 +327,7 @@ final class HomeViewModel {
         let draft = TaskDraft(item: item)
         detailDraft = draft
         savedDetailDraft = draft
-        detailDetent = .height(340)
+        detailDetent = .height(316)
     }
 
     func dismissItemDetail() {
@@ -322,7 +336,7 @@ final class HomeViewModel {
         selectedItemID = nil
         detailDraft = nil
         savedDetailDraft = nil
-        detailDetent = .height(340)
+        detailDetent = .height(316)
     }
 
     func markDetailForExpandedEditing() {
@@ -434,6 +448,47 @@ final class HomeViewModel {
         dismissItemDetail()
     }
 
+    func saveCurrentDraftAsTemplate() async -> Bool {
+        await saveCurrentDraftAsTemplateResult() != nil
+    }
+
+    func saveCurrentDraftAsTemplateResult() async -> TaskTemplateSaveResult? {
+        guard
+            let detailDraft,
+            let spaceID = sessionStore.currentSpace?.id
+        else {
+            return nil
+        }
+
+        let trimmedTitle = detailDraft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedTitle.isEmpty == false else { return nil }
+
+        let template = TaskTemplate(spaceID: spaceID, draft: detailDraft, calendar: calendar)
+
+        do {
+            let existing = try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
+                .first { $0.isSemanticallyEquivalent(to: template) }
+
+            if let existing {
+                return TaskTemplateSaveResult(templateID: existing.id, isNewlyCreated: false)
+            }
+
+            let saved = try await taskTemplateRepository.saveTaskTemplate(template)
+            return TaskTemplateSaveResult(templateID: saved.id, isNewlyCreated: true)
+        } catch {
+            return nil
+        }
+    }
+
+    func deleteTaskTemplate(_ templateID: UUID) async -> Bool {
+        do {
+            try await taskTemplateRepository.deleteTaskTemplate(templateID: templateID)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     func updateDraftRepeatRule(_ frequency: ItemRepeatFrequency?) {
         guard var draft = detailDraft else { return }
         guard let frequency else {
@@ -475,8 +530,18 @@ final class HomeViewModel {
             )
             switch trigger {
             case .inlineControl:
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                    replaceItemPreservingOrder(saved)
+                if saved.status == .completed || saved.completedAt != nil {
+                    try? await Task.sleep(for: .milliseconds(280))
+                    withAnimation(.bouncy(duration: 0.62, extraBounce: 0.08)) {
+                        replaceItemPreservingOrder(saved)
+                    }
+                    try? await Task.sleep(for: .milliseconds(120))
+                    recentCompletedItemID = nil
+                } else {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                        replaceItemPreservingOrder(saved)
+                    }
+                    recentCompletedItemID = nil
                 }
             case .swipeAction:
                 if saved.status == .completed || saved.completedAt != nil {
@@ -484,11 +549,13 @@ final class HomeViewModel {
                     withAnimation(.bouncy(duration: 0.58, extraBounce: 0.04)) {
                         replaceItemPreservingOrder(saved)
                     }
+                    recentCompletedItemID = nil
                 } else {
                     try? await Task.sleep(for: .milliseconds(220))
                     withAnimation(.bouncy(duration: 0.56, extraBounce: 0.03)) {
                         replaceItemPreservingOrder(saved)
                     }
+                    recentCompletedItemID = nil
                 }
             }
         } catch {
@@ -550,6 +617,7 @@ final class HomeViewModel {
         isShowingSnoozeOptions = false
         activeSnoozeContext = nil
         activeSnoozeMenu = nil
+        stagedSnoozeActiveMenu = .date
     }
 
     func applySnoozeTomorrow() async {
@@ -564,19 +632,71 @@ final class HomeViewModel {
         guard let item = activeSnoozeItem else { return }
         isShowingSnoozeOptions = false
         let baseDate = item.dueAt ?? selectedDate
+        stagedSnoozeActiveMenu = .date
         stagedCustomSnoozeDate = calendar.startOfDay(for: baseDate)
         if item.hasExplicitTime, let dueAt = item.dueAt {
             stagedCustomSnoozeTime = dueAt
         } else {
             stagedCustomSnoozeTime = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: baseDate)
         }
-        activeSnoozeMenu = .customEditor
+        stagedCustomSnoozeAllDay = item.hasExplicitTime == false
+        stagedCustomSnoozeReminderOffset = reminderOffset(for: item)
+        stagedCustomSnoozeRepeatRule = item.repeatRule
+        activeSnoozeMenu = .settings
     }
 
     func applyCustomSnoozeSelection() async {
-        guard let stagedTime = stagedCustomSnoozeTime else { return }
-        let customDate = merge(date: stagedCustomSnoozeDate, timeSource: stagedTime)
-        await snoozeActiveItem(using: .custom(customDate))
+        let option: TaskSnoozeOption
+        if stagedCustomSnoozeAllDay {
+            option = .custom(
+                date: calendar.startOfDay(for: stagedCustomSnoozeDate),
+                hasExplicitTime: false
+            )
+        } else {
+            guard let stagedTime = stagedCustomSnoozeTime else { return }
+            option = .custom(
+                date: merge(date: stagedCustomSnoozeDate, timeSource: stagedTime),
+                hasExplicitTime: true
+            )
+        }
+        await snoozeActiveItem(using: option)
+    }
+
+    var stagedSnoozeTitle: String {
+        let components = calendar.dateComponents([.month, .day], from: stagedCustomSnoozeDate)
+        let month = components.month ?? 1
+        let day = components.day ?? 1
+        return "\(month)月\(day)日"
+    }
+
+    var stagedSnoozeDisabledMenus: Set<TaskEditorMenu> {
+        stagedCustomSnoozeAllDay ? [.reminder] : []
+    }
+
+    func cancelSnoozeSettings() {
+        dismissSnoozeUI()
+    }
+
+    func confirmSnoozeSettings() async {
+        await applyCustomSnoozeSelection()
+    }
+
+    func setSnoozeActiveMenu(_ menu: TaskEditorMenu) {
+        stagedSnoozeActiveMenu = menu
+    }
+
+    func setSnoozeAllDay(_ isAllDay: Bool) {
+        stagedCustomSnoozeAllDay = isAllDay
+        if isAllDay {
+            stagedCustomSnoozeReminderOffset = nil
+        } else if stagedCustomSnoozeTime == nil {
+            stagedCustomSnoozeTime = calendar.date(
+                bySettingHour: 9,
+                minute: 0,
+                second: 0,
+                of: stagedCustomSnoozeDate
+            )
+        }
     }
 
     func isSelectedDate(_ date: Date) -> Bool {
@@ -906,6 +1026,11 @@ final class HomeViewModel {
         items.removeAll { $0.id == itemID }
     }
 
+    private func reminderOffset(for item: Item) -> TimeInterval? {
+        guard let dueAt = item.dueAt, let remindAt = item.remindAt else { return nil }
+        return dueAt.timeIntervalSince(remindAt)
+    }
+
     private func snoozeActiveItem(using option: TaskSnoozeOption) async {
         guard
             let context = activeSnoozeContext,
@@ -936,12 +1061,12 @@ final class HomeViewModel {
                 } else {
                     removeItem(withID: saved.id)
                 }
-                if case let .custom(customDate) = option,
+                if case let .custom(customDate, _) = option,
                    calendar.isDate(customDate, inSameDayAs: selectedDate) == false {
                     selectDate(customDate)
                 }
             }
-            if case let .custom(customDate) = option,
+            if case let .custom(customDate, _) = option,
                calendar.isDate(customDate, inSameDayAs: selectedDate) == false {
                 await reload()
             }

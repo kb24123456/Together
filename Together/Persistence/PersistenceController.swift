@@ -44,6 +44,7 @@ struct PersistenceController {
             PersistentTaskList.self,
             PersistentProject.self,
             PersistentItem.self,
+            PersistentTaskTemplate.self,
             PersistentSyncChange.self,
             PersistentSyncState.self,
             configurations: configuration

@@ -24,6 +24,8 @@ struct ComposerPlaceholderSheet: View {
     @State private var pendingChipSnapshots: [TaskEditorChipSnapshot]?
     @State private var primaryActionFeedbackNonce = 0
     @State private var isPrimaryActionAnimating = false
+    @State private var isLoadingTemplates = false
+    @State private var taskTemplates: [TaskTemplate] = []
 
     init(route: ComposerRoute, appContext: AppContext, initialTitle: String? = nil) {
         self.route = route
@@ -88,6 +90,14 @@ struct ComposerPlaceholderSheet: View {
                         appContext.sessionStore.currentUser?.preferences.quickTimePresetMinutes
                         ?? NotificationSettings.defaultQuickTimePresetMinutes
                     ),
+                    templates: taskTemplates,
+                    isLoadingTemplates: isLoadingTemplates,
+                    onTemplatePicked: { template in
+                        applyTemplate(template)
+                    },
+                    onTemplateDeleted: { template in
+                        await deleteTemplate(template)
+                    },
                     disabledMenus: disabledMenus,
                     onDismiss: dismissActiveMenu
                 )
@@ -165,6 +175,10 @@ struct ComposerPlaceholderSheet: View {
             Spacer(minLength: 0)
 
             VStack(alignment: .leading, spacing: draftState.hasMeaningfulContent ? 12 : 0) {
+                if showsTemplateButton {
+                    templateCapsuleButton
+                }
+
                 HStack(alignment: .center, spacing: 12) {
                     chipRow(trailingInset: 0)
                 }
@@ -186,6 +200,37 @@ struct ComposerPlaceholderSheet: View {
         }
         .padding(.bottom, bottomInset)
         .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: draftState.hasMeaningfulContent)
+    }
+
+    private var showsTemplateButton: Bool {
+        draftState.category != .project
+    }
+
+    private var templateCapsuleButton: some View {
+        Button {
+            ComposerButtonHaptics.selection()
+            openMenu(.template)
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "square.stack.3d.up.fill")
+                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                    .padding(.trailing, 2)
+                Text("模板")
+                    .font(AppTheme.typography.sized(14, weight: .semibold))
+            }
+            .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+            .padding(.horizontal, 13)
+            .padding(.vertical, 8)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
+            }
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var stackedPrimaryActionButton: some View {
@@ -421,6 +466,9 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private var menuContext: TaskEditorMenuContext {
+        if activeMenu == .template {
+            return .template
+        }
         switch draftState.category {
         case .periodic:
             return .periodic
@@ -469,6 +517,11 @@ struct ComposerPlaceholderSheet: View {
         withTransaction(ComposerMenuAnimation.presentationTransaction) {
             activeMenu = menu
         }
+        if menu == .template {
+            Task {
+                await loadTemplates()
+            }
+        }
     }
 
     private func restoreKeyboardFocusIfNeeded(preferImmediateResponder: Bool = false) {
@@ -499,6 +552,43 @@ struct ComposerPlaceholderSheet: View {
         restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
         withTransaction(ComposerMenuAnimation.dismissalTransaction) {
             activeMenu = nil
+        }
+    }
+
+    @MainActor
+    private func loadTemplates() async {
+        guard let spaceID = appContext.sessionStore.currentSpace?.id else {
+            taskTemplates = []
+            return
+        }
+
+        isLoadingTemplates = true
+        defer { isLoadingTemplates = false }
+
+        do {
+            taskTemplates = try await appContext.container.taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
+        } catch {
+            taskTemplates = []
+        }
+    }
+
+    private func applyTemplate(_ template: TaskTemplate) {
+        draftState.apply(template: template, referenceDate: appContext.homeViewModel.selectedDate)
+        dismissActiveMenu()
+        displayedChips = makeRenderedChips(from: currentChipSnapshots, previous: displayedChips)
+        focusedField = .title
+        DispatchQueue.main.async {
+            focusCoordinator.requestFocus(for: .title)
+        }
+    }
+
+    @MainActor
+    private func deleteTemplate(_ template: TaskTemplate) async {
+        do {
+            try await appContext.container.taskTemplateRepository.deleteTaskTemplate(templateID: template.id)
+            taskTemplates.removeAll { $0.id == template.id }
+        } catch {
+            return
         }
     }
 
@@ -598,12 +688,15 @@ private struct ComposerDraftState: Hashable {
     var category: ComposerCategory
     var title = ""
     var notes = ""
+    var linkedListID: UUID?
+    var linkedProjectID: UUID?
     var taskDate: Date
     var taskTime: Date?
     var periodicAnchorDate: Date
     var periodicTime: Date?
     var projectTargetDate: Date?
     var priority: ItemPriority = .normal
+    var isPinned = false
     var periodicReminderOffset: TimeInterval?
     var taskReminderOffset: TimeInterval?
     var repeatRule: ItemRepeatRule
@@ -679,10 +772,13 @@ private struct ComposerDraftState: Hashable {
             return TaskDraft(
                 title: title,
                 notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+                listID: linkedListID,
+                projectID: linkedProjectID,
                 dueAt: dueAt,
                 hasExplicitTime: periodicTime != nil,
                 remindAt: remindAt,
                 priority: priority,
+                isPinned: isPinned,
                 repeatRule: repeatRule
             )
         case .task:
@@ -694,10 +790,13 @@ private struct ComposerDraftState: Hashable {
             return TaskDraft(
                 title: title,
                 notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+                listID: linkedListID,
+                projectID: linkedProjectID,
                 dueAt: dueAt,
                 hasExplicitTime: taskTime != nil,
                 remindAt: remindAt,
-                priority: priority
+                priority: priority,
+                isPinned: isPinned
             )
         case .project:
             return TaskDraft(title: title, notes: trimmedNotes.isEmpty ? nil : trimmedNotes)
@@ -739,6 +838,41 @@ private struct ComposerDraftState: Hashable {
         projectSubtasks.removeAll { $0.id == id }
     }
 
+    mutating func apply(template: TaskTemplate, referenceDate: Date) {
+        let calendar = Calendar.current
+        let anchorDate = calendar.startOfDay(for: referenceDate)
+
+        title = template.title
+        notes = template.notes ?? ""
+        linkedListID = template.listID
+        linkedProjectID = template.projectID
+        priority = template.priority
+        isPinned = template.isPinned
+        projectSubtasks = []
+        projectSubtaskInput = ""
+        projectTargetDate = nil
+
+        switch template.category {
+        case .task:
+            category = .task
+            taskDate = anchorDate
+            taskTime = template.hasExplicitTime ? template.time?.date(on: anchorDate, calendar: calendar) : nil
+            taskReminderOffset = template.reminderOffset
+            periodicAnchorDate = anchorDate
+            periodicTime = nil
+            periodicReminderOffset = nil
+        case .periodic:
+            category = .periodic
+            periodicAnchorDate = anchorDate
+            periodicTime = template.hasExplicitTime ? template.time?.date(on: anchorDate, calendar: calendar) : nil
+            periodicReminderOffset = template.reminderOffset
+            repeatRule = template.repeatRule ?? ItemRepeatRule(frequency: .daily)
+            taskDate = anchorDate
+            taskTime = nil
+            taskReminderOffset = nil
+        }
+    }
+
     private static func merge(date: Date, timeSource: Date) -> Date {
         let calendar = Calendar.current
         let dayComponents = calendar.dateComponents([.year, .month, .day], from: date)
@@ -775,6 +909,130 @@ private struct ComposerDraftState: Hashable {
             return "明天"
         }
         return localizedMonthDayText(date)
+    }
+}
+
+private struct ComposerTemplatePickerSheet: View {
+    let templates: [TaskTemplate]
+    let isLoading: Bool
+    let onSelect: (TaskTemplate) -> Void
+    let onDelete: (TaskTemplate) async -> Void
+
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView("正在读取模板…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if templates.isEmpty {
+                ContentUnavailableView(
+                    "还没有可用模板",
+                    systemImage: "square.stack.3d.up.slash",
+                    description: Text("先在任务详情里把常用任务保存为模板。")
+                )
+            } else {
+                List {
+                    ForEach(templates) { template in
+                        Button {
+                            ComposerButtonHaptics.selection()
+                            onSelect(template)
+                        } label: {
+                            ComposerTemplateRow(template: template)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task {
+                                    await onDelete(template)
+                                }
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .background(AppTheme.colors.surface)
+            }
+        }
+    }
+}
+
+private struct ComposerTemplateRow: View {
+    let template: TaskTemplate
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(template.title)
+                .font(AppTheme.typography.sized(18, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let notes = template.notes, notes.isEmpty == false {
+                Text(notes)
+                    .font(AppTheme.typography.sized(14, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(2)
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 72), spacing: 8, alignment: .leading)],
+                alignment: .leading,
+                spacing: 8
+            ) {
+                templateBadge(title: template.category == .periodic ? "周期性" : "任务", systemImage: "square.stack.3d.up")
+                templateBadge(title: template.priority.title, systemImage: "flag")
+                if let time = template.time {
+                    templateBadge(
+                        title: String(format: "%02d:%02d", time.hour, time.minute),
+                        systemImage: "clock"
+                    )
+                }
+                if let reminderOffset = template.reminderOffset,
+                   let preset = TaskEditorReminderPreset.preset(for: reminderOffset) {
+                    templateBadge(title: preset.chipTitle, systemImage: "bell")
+                }
+                if template.isPinned {
+                    templateBadge(title: "置顶", systemImage: "pin")
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(AppTheme.colors.pillSurface)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(AppTheme.colors.pillOutline.opacity(0.88), lineWidth: 1)
+        }
+    }
+
+    private func templateBadge(title: String, systemImage: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(AppTheme.typography.sized(11, weight: .bold))
+            Text(title)
+                .font(AppTheme.typography.sized(12, weight: .semibold))
+        }
+        .foregroundStyle(AppTheme.colors.body.opacity(0.78))
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Capsule(style: .continuous)
+                .fill(AppTheme.colors.surfaceElevated)
+        )
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(AppTheme.colors.outline.opacity(0.12), lineWidth: 1)
+        }
     }
 }
 
@@ -1414,6 +1672,10 @@ private struct ComposerEditorMenuSheet: View {
     @Binding var activeMenu: TaskEditorMenu
     @Binding var draftState: ComposerDraftState
     let quickTimePresetMinutes: [Int]
+    let templates: [TaskTemplate]
+    let isLoadingTemplates: Bool
+    let onTemplatePicked: (TaskTemplate) -> Void
+    let onTemplateDeleted: (TaskTemplate) async -> Void
     let disabledMenus: Set<TaskEditorMenu>
     let onDismiss: () -> Void
 
@@ -1422,7 +1684,9 @@ private struct ComposerEditorMenuSheet: View {
             context: context,
             activeMenu: $activeMenu,
             disabledMenus: disabledMenus,
-            selectionFeedback: ComposerButtonHaptics.selection
+            selectionFeedback: ComposerButtonHaptics.selection,
+            headerTitle: context == .template ? "选择模板" : nil,
+            switcherPlacement: .bottom
         ) { menu in
             menuContent(for: menu)
         }
@@ -1481,6 +1745,13 @@ private struct ComposerEditorMenuSheet: View {
             )
         case .subtasks:
             ComposerProjectSubtasksPanel(draftState: $draftState)
+        case .template:
+            ComposerTemplatePickerSheet(
+                templates: templates,
+                isLoading: isLoadingTemplates,
+                onSelect: onTemplatePicked,
+                onDelete: onTemplateDeleted
+            )
         }
     }
 

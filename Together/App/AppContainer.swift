@@ -9,6 +9,7 @@ struct AppContainer {
     let syncOrchestrator: SyncOrchestratorProtocol
     let relationshipService: RelationshipServiceProtocol
     let itemRepository: ItemRepositoryProtocol
+    let taskTemplateRepository: TaskTemplateRepositoryProtocol
     let taskListRepository: TaskListRepositoryProtocol
     let projectRepository: ProjectRepositoryProtocol
     let decisionRepository: DecisionRepositoryProtocol

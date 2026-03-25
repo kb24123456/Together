@@ -5,6 +5,7 @@ enum MockServiceFactory {
     static func makeContainer() -> AppContainer {
         let syncCoordinator = NoOpSyncCoordinator()
         let itemRepository = MockItemRepository()
+        let taskTemplateRepository = MockTaskTemplateRepository()
         let notificationService = MockNotificationService()
         let reminderScheduler = MockReminderScheduler()
         let cloudGateway = PlaceholderCloudSyncGateway()
@@ -30,6 +31,7 @@ enum MockServiceFactory {
             syncOrchestrator: syncOrchestrator,
             relationshipService: MockRelationshipService(),
             itemRepository: itemRepository,
+            taskTemplateRepository: taskTemplateRepository,
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
             decisionRepository: MockDecisionRepository(),

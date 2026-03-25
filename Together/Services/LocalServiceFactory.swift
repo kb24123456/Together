@@ -15,6 +15,7 @@ enum LocalServiceFactory {
         let reminderScheduler = LocalReminderScheduler(notificationService: notificationService)
         let syncCoordinator = LocalSyncCoordinator(container: modelContainer)
         let itemRepository = LocalItemRepository(container: modelContainer)
+        let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
         let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
         let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository)
         let syncOrchestrator = DefaultSyncOrchestrator(
@@ -38,6 +39,7 @@ enum LocalServiceFactory {
             syncOrchestrator: syncOrchestrator,
             relationshipService: MockRelationshipService(),
             itemRepository: itemRepository,
+            taskTemplateRepository: taskTemplateRepository,
             taskListRepository: LocalTaskListRepository(container: modelContainer),
             projectRepository: LocalProjectRepository(
                 container: modelContainer,

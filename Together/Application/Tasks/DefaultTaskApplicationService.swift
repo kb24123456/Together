@@ -185,7 +185,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.hasExplicitTime = hasExplicitTime(for: item, option: option)
         if let reminderDelta {
             item.remindAt = targetDueAt?.addingTimeInterval(reminderDelta)
-        } else if case let .custom(customDate) = option, customDate > now, item.remindAt != nil {
+        } else if case let .custom(customDate, _) = option, customDate > now, item.remindAt != nil {
             item.remindAt = customDate
         }
         item.updatedAt = now
@@ -321,7 +321,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 second: 0,
                 of: future
             ) ?? future
-        case let .custom(date):
+        case let .custom(date, _):
             return date
         }
     }
@@ -330,8 +330,10 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         switch option {
         case .tomorrow:
             return item.hasExplicitTime
-        case .minutes, .custom:
+        case .minutes:
             return true
+        case let .custom(_, hasExplicitTime):
+            return hasExplicitTime
         }
     }
 

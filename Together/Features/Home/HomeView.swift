@@ -14,6 +14,7 @@ struct HomeView: View {
 
     private let weekPageBreathingGap: CGFloat = 0
     private let weekDateSpacing: CGFloat = AppTheme.spacing.sm
+    private let weekMiddleIndex = 3
     private let contentCardCornerRadius: CGFloat = 40
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
@@ -85,6 +86,9 @@ struct HomeView: View {
                 viewModel: viewModel
             )
             .presentationDetents(menu.detents)
+            .presentationBackground {
+                TaskEditorSettingsPresentationBackground()
+            }
             .presentationContentInteraction(.scrolls)
             .presentationBackgroundInteraction(.disabled)
             .presentationDragIndicator(.hidden)
@@ -284,6 +288,7 @@ struct HomeView: View {
         sectionVisibility: CompletedSectionVisibility? = nil
     ) -> some View {
         ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+            let isCompletedRow = sectionVisibility != nil || entry.isCompleted
             HomeTimelineRow(
                 entry: entry,
                 isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
@@ -309,7 +314,7 @@ struct HomeView: View {
                         trailing: timelineRowHorizontalInset
                     )
                 )
-                .listRowBackground(AppTheme.colors.surface)
+                .listRowBackground(isCompletedRow ? Color.clear : AppTheme.colors.surface)
                 .listRowSeparator(.hidden)
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                     Button {
@@ -362,7 +367,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowBackground(sectionVisibility == nil ? AppTheme.colors.surface : Color.clear)
                     .listRowSeparator(.hidden)
                     .applyCompletedSectionVisibility(
                         sectionVisibility.map { $0.rowVisibility(for: index) }
@@ -386,17 +391,20 @@ struct HomeView: View {
             .frame(width: pageWidth * 3, alignment: .leading)
             .offset(x: -pageWidth + weekPagerOffset)
             .contentShape(Rectangle())
-            .simultaneousGesture(weekPagerDragGesture(pageWidth: pageWidth))
+            .highPriorityGesture(weekPagerDragGesture(pageWidth: pageWidth))
         }
         .frame(height: 76)
         .clipped()
     }
 
     private func weekPage(for offset: Int) -> some View {
-        HStack(spacing: weekDateSpacing) {
-            ForEach(viewModel.weekDates(shiftedByWeeks: offset), id: \.self) { date in
-                let isSelected = viewModel.isSelectedDate(date)
+        let dates = viewModel.weekDates(shiftedByWeeks: offset)
+
+        return HStack(spacing: weekDateSpacing) {
+            ForEach(Array(dates.enumerated()), id: \.element) { index, date in
+                let isSelected = weekDateIsSelected(date, index: index)
                 Button {
+                    guard !isWeekPagerInteracting else { return }
                     guard !isSelected else { return }
                     withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
                         viewModel.selectDate(date)
@@ -672,6 +680,18 @@ struct HomeView: View {
         return min(abs(relativeOffset), 1)
     }
 
+    private var isWeekPagerInteracting: Bool {
+        isWeekPagerSettling || abs(weekPagerOffset) > 0.5
+    }
+
+    private func weekDateIsSelected(_ date: Date, index: Int) -> Bool {
+        if isWeekPagerInteracting {
+            return index == weekMiddleIndex
+        }
+
+        return viewModel.isSelectedDate(date)
+    }
+
     private func relativePresetTitle(_ minutes: Int) -> String {
         if minutes >= 60, minutes.isMultiple(of: 60) {
             return "\(minutes / 60)小时后"
@@ -685,6 +705,9 @@ private struct HomeTimelineRow: View {
     let isAnimatingCompletion: Bool
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
+    @State private var checkmarkProgress: CGFloat = 1
+    @State private var badgeScale: CGFloat = 1
+    @State private var badgeOutlineOpacity = 1.0
 
     var body: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
@@ -721,6 +744,36 @@ private struct HomeTimelineRow: View {
             }
             .buttonStyle(.plain)
         }
+        .onChange(of: isAnimatingCompletion) { _, newValue in
+            guard newValue else { return }
+
+            checkmarkProgress = 0
+            badgeScale = 0.84
+            badgeOutlineOpacity = 1
+
+            withAnimation(.spring(response: 0.16, dampingFraction: 0.72)) {
+                badgeScale = 0.84
+            }
+
+            Task { @MainActor in
+                withAnimation(.easeOut(duration: 0.1)) {
+                    badgeOutlineOpacity = 0
+                }
+
+                try? await Task.sleep(for: .milliseconds(55))
+                withAnimation(.easeOut(duration: 0.24)) {
+                    checkmarkProgress = 1
+                }
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.56)) {
+                    badgeScale = 1.08
+                }
+
+                try? await Task.sleep(for: .milliseconds(140))
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.66)) {
+                    badgeScale = 1
+                }
+            }
+        }
     }
 
     private var displaySubtitle: String {
@@ -742,65 +795,76 @@ private struct HomeTimelineRow: View {
 
     @ViewBuilder
     private var timelineSymbol: some View {
-        Group {
-            if entry.isCompleted {
-                completionBadge
-            } else {
-                interactiveBadge
-            }
+        checkmarkBadge
+    }
+
+    private var checkmarkBadge: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(
+                    ringColor,
+                    style: StrokeStyle(lineWidth: isAnimatingCompletion ? 1.8 : 1.6, dash: [3.6, 4.4])
+                )
+                .opacity(outlineOpacity)
+
+            AnimatedCheckmarkShape()
+                .trim(from: 0, to: checkmarkTrim)
+                .stroke(
+                    AppTheme.colors.coral,
+                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round)
+                )
+                .frame(width: 18, height: 18)
+                .rotationEffect(.degrees(-4))
+                .opacity(checkmarkOpacity)
         }
+        .scaleEffect(isAnimatingCompletion ? badgeScale : 1)
+        .shadow(
+            color: AppTheme.colors.coral.opacity(isAnimatingCompletion ? 0.2 : 0),
+            radius: isAnimatingCompletion ? 12 : 0,
+            y: isAnimatingCompletion ? 5 : 0
+        )
     }
 
-    private var completionBadge: some View {
-        RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .fill(AppTheme.colors.surfaceElevated)
-            .overlay {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(AppTheme.colors.outlineStrong.opacity(0.78), lineWidth: 1.25)
-            }
-            .overlay {
-                Image(systemName: "checkmark")
-                    .font(AppTheme.typography.sized(13, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.coral)
-                    .symbolEffect(.bounce, value: isAnimatingCompletion)
-            }
-    }
+    private var ringColor: Color {
+        if entry.isCompleted {
+            return .clear
+        }
 
-    @ViewBuilder
-    private var interactiveBadge: some View {
+        if isAnimatingCompletion {
+            return AppTheme.colors.body.opacity(0.32)
+        }
+
         switch entry.accentColorName {
         case "coral":
-            symbolBadge(
-                foregroundColor: AppTheme.colors.coral,
-                borderStyle: .solid,
-                fillColor: AppTheme.colors.surfaceElevated
-            )
+            return AppTheme.colors.coral.opacity(0.58)
         default:
-            symbolBadge(
-                foregroundColor: AppTheme.colors.body.opacity(0.58),
-                borderStyle: .dashed,
-                fillColor: .clear
-            )
+            return AppTheme.colors.body.opacity(0.44)
         }
     }
 
-    private func symbolBadge(
-        foregroundColor: Color,
-        borderStyle: BadgeBorderStyle,
-        fillColor: Color
-    ) -> some View {
-        RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .fill(fillColor)
-            .overlay {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(
-                        foregroundColor.opacity(borderStyle == .dashed ? 0.58 : 0.34),
-                        style: StrokeStyle(
-                            lineWidth: borderStyle == .dashed ? 1.6 : 1.3,
-                            dash: borderStyle == .dashed ? [4, 4.8] : []
-                        )
-                    )
-            }
+    private var outlineOpacity: Double {
+        if entry.isCompleted { return 0 }
+        if isAnimatingCompletion { return badgeOutlineOpacity }
+        return 1
+    }
+
+    private var checkmarkTrim: CGFloat {
+        if isAnimatingCompletion { return checkmarkProgress }
+        return entry.isCompleted ? 1 : 0
+    }
+
+    private var checkmarkOpacity: Double {
+        (entry.isCompleted || isAnimatingCompletion) ? 1 : 0
+    }
+}
+
+private struct AnimatedCheckmarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.minY + rect.height * 0.56))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.minY + rect.height * 0.80))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.86, y: rect.minY + rect.height * 0.22))
+        return path
     }
 }
 
@@ -991,11 +1055,6 @@ private struct HomeSnoozeMenuButton: View {
 }
 #endif
 
-private enum BadgeBorderStyle {
-    case solid
-    case dashed
-}
-
 private struct HomeTimelineTimeText: View {
     let entry: HomeTimelineEntry
     @State private var isBreathing = false
@@ -1081,11 +1140,187 @@ private struct HomeSnoozeMenuSheet: View {
     var body: some View {
         Group {
             switch menu {
-            case .customEditor:
-                HomeCustomSnoozeEditorSheet(viewModel: viewModel)
+            case .settings:
+                HomeSnoozeSettingsSheet(viewModel: viewModel)
             }
         }
         .id(menu.id)
+    }
+}
+
+private struct HomeSnoozeSettingsSheet: View {
+    @Bindable var viewModel: HomeViewModel
+    @State private var showsCalendarReturnToToday = false
+
+    private let menus: [TaskEditorMenu] = [.time, .date, .reminder, .repeatRule]
+
+    var body: some View {
+        TaskEditorSettingsSheet(
+            title: viewModel.stagedSnoozeTitle,
+            menus: menus,
+            activeMenu: snoozeMenuBinding,
+            disabledMenus: viewModel.stagedSnoozeDisabledMenus,
+            selectionFeedback: HomeInteractionFeedback.selection,
+            onCancel: {
+                HomeInteractionFeedback.selection()
+                viewModel.cancelSnoozeSettings()
+            },
+            onConfirm: {
+                Task {
+                    await viewModel.confirmSnoozeSettings()
+                    HomeInteractionFeedback.selection()
+                }
+            },
+            onMenuTap: handleMenuTap,
+            titleTrailingAccessory: titleTrailingAccessory,
+            menuPresentation: menuPresentation(for:)
+        ) { menu in
+            menuContent(for: menu)
+        }
+        .onChange(of: viewModel.stagedCustomSnoozeDate) { _, newValue in
+            if Calendar.current.isDateInToday(newValue) {
+                showsCalendarReturnToToday = false
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func menuContent(for menu: TaskEditorMenu) -> some View {
+        switch menu {
+        case .time:
+            TaskEditorSettingsTimePage(
+                selectedTime: $viewModel.stagedCustomSnoozeTime,
+                isAllDay: allDayBinding,
+                anchorDate: viewModel.stagedCustomSnoozeDate,
+                selectedDate: $viewModel.stagedCustomSnoozeDate,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
+        case .date:
+            TaskEditorSettingsMonthPage(
+                selectedDate: $viewModel.stagedCustomSnoozeDate,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
+        case .reminder:
+            TaskEditorFadedOptionList(
+                options: reminderOptions,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
+        case .repeatRule:
+            TaskEditorFadedOptionList(
+                options: repeatOptions,
+                selectionFeedback: HomeInteractionFeedback.selection
+            )
+        case .priority, .subtasks, .template:
+            EmptyView()
+        }
+    }
+
+    private var snoozeMenuBinding: Binding<TaskEditorMenu> {
+        Binding(
+            get: { viewModel.stagedSnoozeActiveMenu },
+            set: { viewModel.setSnoozeActiveMenu($0) }
+        )
+    }
+
+    private var allDayBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.stagedCustomSnoozeAllDay },
+            set: { viewModel.setSnoozeAllDay($0) }
+        )
+    }
+
+    private var titleTrailingAccessory: AnyView? {
+        guard viewModel.stagedSnoozeActiveMenu == .time else { return nil }
+        return AnyView(
+            Button {
+                HomeInteractionFeedback.selection()
+                viewModel.setSnoozeAllDay(!viewModel.stagedCustomSnoozeAllDay)
+            } label: {
+                Text("全天")
+                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                    .foregroundStyle(
+                        viewModel.stagedCustomSnoozeAllDay
+                        ? AppTheme.colors.title
+                        : AppTheme.colors.body.opacity(0.76)
+                    )
+                    .padding(.horizontal, 14)
+                    .frame(height: 36)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(
+                                viewModel.stagedCustomSnoozeAllDay
+                                ? AppTheme.colors.pillSurface
+                                : Color.white.opacity(0.16)
+                            )
+                    }
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .stroke(
+                                viewModel.stagedCustomSnoozeAllDay
+                                ? AppTheme.colors.pillOutline
+                                : Color.white.opacity(0.28),
+                                lineWidth: 1
+                            )
+                    }
+            }
+            .buttonStyle(.plain)
+        )
+    }
+
+    private func menuPresentation(for menu: TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation {
+        if menu == .date, showsCalendarReturnToToday {
+            return .title("今天", accessibilityTitle: "返回今天")
+        }
+        return .icon(systemImage: menu.systemImage, accessibilityTitle: menu.accessibilityTitle)
+    }
+
+    private func handleMenuTap(_ menu: TaskEditorMenu) -> Bool {
+        guard
+            menu == .date,
+            viewModel.stagedSnoozeActiveMenu == .date,
+            showsCalendarReturnToToday
+        else {
+            return false
+        }
+
+        HomeInteractionFeedback.selection()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+            viewModel.stagedCustomSnoozeDate = Calendar.current.startOfDay(for: .now)
+            showsCalendarReturnToToday = false
+        }
+        return true
+    }
+
+    private func handleCalendarDaySelection(_ date: Date) {
+        let isToday = Calendar.current.isDateInToday(date)
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            showsCalendarReturnToToday = !isToday
+        }
+    }
+
+    private var reminderOptions: [TaskEditorOptionRow] {
+        [TaskEditorOptionRow(title: "不提醒", isSelected: viewModel.stagedCustomSnoozeReminderOffset == nil) {
+            viewModel.stagedCustomSnoozeReminderOffset = nil
+        }] + TaskEditorReminderPreset.allCases.map { preset in
+            TaskEditorOptionRow(
+                title: preset.title,
+                isSelected: viewModel.stagedCustomSnoozeReminderOffset == preset.secondsBeforeTarget
+            ) {
+                viewModel.stagedCustomSnoozeReminderOffset = preset.secondsBeforeTarget
+            }
+        }
+    }
+
+    private var repeatOptions: [TaskEditorOptionRow] {
+        TaskEditorRepeatPreset.allCases.map { preset in
+            let title = preset.title(anchorDate: viewModel.stagedCustomSnoozeDate)
+            return TaskEditorOptionRow(
+                title: title,
+                isSelected: viewModel.stagedCustomSnoozeRepeatRule?.title(anchorDate: viewModel.stagedCustomSnoozeDate) == title
+            ) {
+                viewModel.stagedCustomSnoozeRepeatRule = preset.makeRule(anchorDate: viewModel.stagedCustomSnoozeDate)
+            }
+        }
     }
 }
 
@@ -1123,6 +1358,8 @@ private struct HomeCustomSnoozeEditorSheet: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
+
+            Spacer()
 
             Button {
                 Task {

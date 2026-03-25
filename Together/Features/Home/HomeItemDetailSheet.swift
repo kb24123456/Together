@@ -9,6 +9,7 @@ struct HomeItemDetailSheet: View {
     @State private var activeMenu: TaskEditorMenu?
     @State private var pendingAction: DetailEntryAction?
     @State private var isAwaitingDeleteConfirmation = false
+    @State private var templateSaveState: CompactTemplateSaveState = .idle
     @State private var lastFocusedFieldBeforeMenu: Field?
     @State private var focusCoordinator = DetailTextInputFocusCoordinator()
     @State private var saveFeedbackNonce = 0
@@ -82,7 +83,7 @@ struct HomeItemDetailSheet: View {
                 .modifier(TaskEditorMenuPresentationSizingModifier())
             }
         }
-        .presentationDetents([.height(340), .large], selection: $viewModel.detailDetent)
+        .presentationDetents([.height(316), .large], selection: $viewModel.detailDetent)
         .presentationDragIndicator(.hidden)
         .presentationBackgroundInteraction(.enabled)
         .onChange(of: focusedField) { _, newValue in
@@ -106,7 +107,7 @@ struct HomeItemDetailSheet: View {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    cancelInlineDeleteConfirmation()
+                    cancelInlineActions()
                 }
 
             VStack(alignment: .leading, spacing: 0) {
@@ -223,7 +224,7 @@ struct HomeItemDetailSheet: View {
                 }
             } else {
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                    viewModel.detailDetent = .height(340)
+                        viewModel.detailDetent = .height(316)
                 }
             }
         } label: {
@@ -319,26 +320,54 @@ struct HomeItemDetailSheet: View {
     }
 
     private var compactActionButtons: some View {
-        HStack(spacing: 10) {
-            compactActionButton(
-                title: viewModel.detailDraft?.isPinned == true ? "已置顶" : "置顶",
-                systemImage: "pin",
-                tint: AppTheme.colors.body
-            ) {
-                HomeInteractionFeedback.selection()
-                viewModel.updateDraftPinned(!(viewModel.detailDraft?.isPinned ?? false))
-            }
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                compactTemplateButton
 
-            compactActionButton(
-                title: "编辑",
-                systemImage: "pencil",
-                tint: AppTheme.colors.body
-            ) {
-                HomeInteractionFeedback.selection()
-                expandToLarge(for: .focus(.title))
-            }
+                compactActionButton(
+                    title: "编辑",
+                    systemImage: "pencil",
+                    tint: AppTheme.colors.body
+                ) {
+                    HomeInteractionFeedback.selection()
+                    expandToLarge(for: .focus(.title))
+                }
 
-            compactDeleteButton
+                compactDeleteButton
+            }
+        }
+    }
+
+    private var templateSaveButtonTitle: String {
+        switch templateSaveState {
+        case .idle:
+            return "存模板"
+        case .saved:
+            return "成功"
+        }
+    }
+
+    private var templateSaveButtonSystemImage: String {
+        switch templateSaveState {
+        case .idle:
+            return "square.stack.3d.up.fill"
+        case .saved:
+            return "checkmark.circle.fill"
+        }
+    }
+
+    private func handleTemplateSaveTap() {
+        guard case .idle = templateSaveState else { return }
+        Task {
+            guard let result = await viewModel.saveCurrentDraftAsTemplateResult() else { return }
+            await MainActor.run {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    templateSaveState = .saved(
+                        templateID: result.templateID,
+                        isNewlyCreated: result.isNewlyCreated
+                    )
+                }
+            }
         }
     }
 
@@ -349,13 +378,11 @@ struct HomeItemDetailSheet: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(AppTheme.typography.sized(22, weight: .semibold))
-                Text(title)
-                    .font(AppTheme.typography.sized(17, weight: .semibold))
-            }
-            .foregroundStyle(tint)
+            compactActionContent(
+                title: title,
+                systemImage: systemImage,
+                tint: tint
+            )
             .frame(maxWidth: .infinity)
             .frame(minHeight: 84)
             .background(
@@ -366,6 +393,50 @@ struct HomeItemDetailSheet: View {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .stroke(AppTheme.colors.pillOutline.opacity(0.72), lineWidth: 1)
             }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var compactTemplateButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            handleTemplateSaveTap()
+        } label: {
+            ZStack {
+                if case .saved = templateSaveState {
+                    compactActionContent(
+                        title: "成功",
+                        systemImage: "checkmark.circle.fill",
+                        tint: AppTheme.colors.body
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+                } else {
+                    compactActionContent(
+                        title: "存模板",
+                        systemImage: "square.stack.3d.up.fill",
+                        tint: AppTheme.colors.body
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    ))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 84)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline.opacity(0.72), lineWidth: 1)
+            }
+            .clipped()
+            .animation(.spring(response: 0.32, dampingFraction: 0.82), value: templateSaveState)
         }
         .buttonStyle(.plain)
     }
@@ -424,15 +495,30 @@ struct HomeItemDetailSheet: View {
         title: String,
         systemImage: String
     ) -> some View {
+        compactActionContent(
+            title: title,
+            systemImage: systemImage,
+            tint: AppTheme.colors.coral
+        )
+    }
+
+    private func compactActionContent(
+        title: String,
+        systemImage: String,
+        tint: Color
+    ) -> some View {
         VStack(spacing: 10) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(22, weight: .semibold))
+                .frame(height: 24, alignment: .center)
                 .contentTransition(.symbolEffect(.replace))
             Text(title)
                 .font(AppTheme.typography.sized(17, weight: .semibold))
+                .lineLimit(1)
                 .contentTransition(.interpolate)
+                .frame(height: 24, alignment: .center)
         }
-        .foregroundStyle(AppTheme.colors.coral)
+        .foregroundStyle(tint)
     }
 
     private var expandedEditorSection: some View {
@@ -692,10 +778,20 @@ struct HomeItemDetailSheet: View {
         return localizedRelativeMonthDayText(dueAt)
     }
 
-    private func cancelInlineDeleteConfirmation() {
-        guard isAwaitingDeleteConfirmation else { return }
+    private func cancelInlineActions() {
+        if isAwaitingDeleteConfirmation {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                isAwaitingDeleteConfirmation = false
+            }
+        }
+
+        guard case let .saved(templateID, isNewlyCreated) = templateSaveState else { return }
         withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
-            isAwaitingDeleteConfirmation = false
+            templateSaveState = .idle
+        }
+        guard isNewlyCreated else { return }
+        Task {
+            _ = await viewModel.deleteTaskTemplate(templateID)
         }
     }
 
@@ -742,7 +838,7 @@ struct HomeItemDetailSheet: View {
     }
 
     private func expandToLarge(for action: DetailEntryAction) {
-        cancelInlineDeleteConfirmation()
+        cancelInlineActions()
         pendingAction = action
 
         if isExpandedEditor {
@@ -814,6 +910,11 @@ struct HomeItemDetailSheet: View {
         }
     }
 
+}
+
+private enum CompactTemplateSaveState: Equatable {
+    case idle
+    case saved(templateID: UUID, isNewlyCreated: Bool)
 }
 
 private struct HomeDetailMenuPresentationSizingModifier: ViewModifier {
@@ -1168,6 +1269,8 @@ private struct HomeDetailMenuSheet: View {
                 selectionFeedback: HomeInteractionFeedback.selection
             )
         case .subtasks:
+            EmptyView()
+        case .template:
             EmptyView()
         }
     }

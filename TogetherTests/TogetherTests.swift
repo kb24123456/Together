@@ -251,6 +251,104 @@ struct TogetherTests {
     }
 
     @Test
+    func taskTemplatePreservesNonDateSettingsFromDraft() async throws {
+        let calendar = Calendar.current
+        let dueAt = calendar.date(from: DateComponents(
+            year: 2026,
+            month: 3,
+            day: 25,
+            hour: 20,
+            minute: 45
+        )) ?? .now
+        let remindAt = dueAt.addingTimeInterval(-1_800)
+        let template = TaskTemplate(
+            spaceID: MockDataFactory.singleSpaceID,
+            draft: TaskDraft(
+                title: "晚间回顾",
+                notes: "复盘今天 3 个关键结果",
+                listID: MockDataFactory.todayListID,
+                projectID: MockDataFactory.focusProjectID,
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                remindAt: remindAt,
+                priority: .important,
+                isPinned: true,
+                repeatRule: ItemRepeatRule(frequency: .daily)
+            ),
+            calendar: calendar
+        )
+
+        #expect(template.title == "晚间回顾")
+        #expect(template.notes == "复盘今天 3 个关键结果")
+        #expect(template.listID == MockDataFactory.todayListID)
+        #expect(template.projectID == MockDataFactory.focusProjectID)
+        #expect(template.priority == .important)
+        #expect(template.isPinned == true)
+        #expect(template.time == TaskTemplateClockTime(hour: 20, minute: 45))
+        #expect(template.reminderOffset == 1_800)
+        #expect(template.category == .periodic)
+    }
+
+    @Test
+    func taskTemplateAppliesCurrentReferenceDateWhenCreatingDraft() async throws {
+        let calendar = Calendar.current
+        let template = TaskTemplate(
+            spaceID: MockDataFactory.singleSpaceID,
+            title: "周会准备",
+            notes: "整理阻塞点和下周计划",
+            listID: MockDataFactory.todayListID,
+            projectID: MockDataFactory.focusProjectID,
+            priority: .critical,
+            isPinned: true,
+            hasExplicitTime: true,
+            time: TaskTemplateClockTime(hour: 9, minute: 30),
+            reminderOffset: 900,
+            repeatRule: nil
+        )
+        let referenceDate = calendar.date(from: DateComponents(
+            year: 2026,
+            month: 4,
+            day: 2,
+            hour: 0,
+            minute: 0
+        )) ?? .now
+
+        let draft = template.makeTaskDraft(for: referenceDate, calendar: calendar)
+
+        #expect(calendar.component(.year, from: draft.dueAt ?? .distantPast) == 2026)
+        #expect(calendar.component(.month, from: draft.dueAt ?? .distantPast) == 4)
+        #expect(calendar.component(.day, from: draft.dueAt ?? .distantPast) == 2)
+        #expect(calendar.component(.hour, from: draft.dueAt ?? .distantPast) == 9)
+        #expect(calendar.component(.minute, from: draft.dueAt ?? .distantPast) == 30)
+        #expect(draft.remindAt == (draft.dueAt?.addingTimeInterval(-900)))
+        #expect(draft.listID == MockDataFactory.todayListID)
+        #expect(draft.projectID == MockDataFactory.focusProjectID)
+        #expect(draft.priority == .critical)
+        #expect(draft.isPinned == true)
+    }
+
+    @Test
+    func localTaskTemplateRepositorySupportsSaveAndFetch() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalTaskTemplateRepository(container: persistence.container)
+        let template = TaskTemplate(
+            spaceID: MockDataFactory.singleSpaceID,
+            title: "每周清单整理",
+            notes: "先清 inbox，再排优先级",
+            priority: .important,
+            hasExplicitTime: true,
+            time: TaskTemplateClockTime(hour: 8, minute: 0),
+            reminderOffset: 1_800
+        )
+
+        let saved = try await repository.saveTaskTemplate(template)
+        let templates = try await repository.fetchTaskTemplates(spaceID: MockDataFactory.singleSpaceID)
+
+        #expect(saved.title == "每周清单整理")
+        #expect(templates.contains { $0.id == saved.id && $0.time == TaskTemplateClockTime(hour: 8, minute: 0) })
+    }
+
+    @Test
     func taskApplicationServiceUpdatesAndCompletesTasks() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)

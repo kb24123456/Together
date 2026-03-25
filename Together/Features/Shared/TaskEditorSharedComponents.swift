@@ -12,6 +12,7 @@ enum TaskEditorMenu: String, Identifiable {
     case priority
     case repeatRule
     case subtasks
+    case template
 
     var id: String { rawValue }
 
@@ -29,6 +30,8 @@ enum TaskEditorMenu: String, Identifiable {
             return "repeat"
         case .subtasks:
             return "checklist"
+        case .template:
+            return "square.stack.3d.up"
         }
     }
 
@@ -46,14 +49,17 @@ enum TaskEditorMenu: String, Identifiable {
             return "重复"
         case .subtasks:
             return "子任务"
+        case .template:
+            return "模板"
         }
     }
 }
 
-enum TaskEditorMenuContext {
+enum TaskEditorMenuContext: Equatable {
     case periodic
     case task
     case project
+    case template
 
     var menus: [TaskEditorMenu] {
         switch self {
@@ -63,6 +69,8 @@ enum TaskEditorMenuContext {
             return [.date, .time, .reminder, .priority]
         case .project:
             return [.date, .priority, .subtasks]
+        case .template:
+            return [.template]
         }
     }
 
@@ -74,7 +82,15 @@ enum TaskEditorMenuContext {
             return [.custom(TaskEditorPeriodicMenuDetent.self)]
         case .project:
             return [.custom(TaskEditorProjectMenuDetent.self)]
+        case .template:
+            return [.custom(TaskEditorTemplateMenuDetent.self)]
         }
+    }
+}
+
+private struct TaskEditorTemplateMenuDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        min(440, context.maxDetentValue * 0.72)
     }
 }
 
@@ -264,6 +280,7 @@ struct TaskEditorOptionRow: Identifiable {
 struct TaskEditorOptionList: View {
     let options: [TaskEditorOptionRow]
     let selectionFeedback: () -> Void
+    var usesGlassBackground = true
 
     var body: some View {
         ScrollView {
@@ -296,7 +313,7 @@ struct TaskEditorOptionList: View {
                     }
                     .frame(maxWidth: .infinity)
                     .buttonStyle(TaskEditorMenuOptionButtonStyle())
-                    .modifier(TaskEditorMenuOptionGlassModifier())
+                    .modifier(TaskEditorMenuOptionSurfaceModifier(isEnabled: usesGlassBackground))
                 }
             }
             .padding(TaskEditorMenuOptionMetrics.outerInset)
@@ -306,11 +323,195 @@ struct TaskEditorOptionList: View {
     }
 }
 
+private struct TaskEditorMenuOptionSurfaceModifier: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.modifier(TaskEditorMenuOptionGlassModifier())
+        } else {
+            content
+        }
+    }
+}
+
+struct TaskEditorSettingsSheet<Content: View>: View {
+    let title: String
+    let menus: [TaskEditorMenu]
+    @Binding var activeMenu: TaskEditorMenu
+    let disabledMenus: Set<TaskEditorMenu>
+    let selectionFeedback: () -> Void
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+    let onMenuTap: ((TaskEditorMenu) -> Bool)?
+    let titleTrailingAccessory: AnyView?
+    let menuPresentation: (TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation
+    @ViewBuilder let content: (TaskEditorMenu) -> Content
+
+    @State private var displayedMenu: TaskEditorMenu
+    @State private var transitionDirection: TaskEditorMenuTransitionDirection = .forward
+
+    init(
+        title: String,
+        menus: [TaskEditorMenu],
+        activeMenu: Binding<TaskEditorMenu>,
+        disabledMenus: Set<TaskEditorMenu> = [],
+        selectionFeedback: @escaping () -> Void,
+        onCancel: @escaping () -> Void,
+        onConfirm: @escaping () -> Void,
+        onMenuTap: ((TaskEditorMenu) -> Bool)? = nil,
+        titleTrailingAccessory: AnyView? = nil,
+        menuPresentation: @escaping (TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation = {
+            .icon(systemImage: $0.systemImage, accessibilityTitle: $0.accessibilityTitle)
+        },
+        @ViewBuilder content: @escaping (TaskEditorMenu) -> Content
+    ) {
+        self.title = title
+        self.menus = menus
+        _activeMenu = activeMenu
+        self.disabledMenus = disabledMenus
+        self.selectionFeedback = selectionFeedback
+        self.onCancel = onCancel
+        self.onConfirm = onConfirm
+        self.onMenuTap = onMenuTap
+        self.titleTrailingAccessory = titleTrailingAccessory
+        self.menuPresentation = menuPresentation
+        self.content = content
+        _displayedMenu = State(initialValue: activeMenu.wrappedValue)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 10)
+
+            ZStack {
+                content(displayedMenu)
+                    .id(displayedMenu.id)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .transition(menuTransition)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .clipped()
+
+            TaskEditorMenuSwitcher(
+                menus: menus,
+                activeMenu: activeMenu,
+                disabledMenus: disabledMenus,
+                presentation: menuPresentation
+            ) { nextMenu in
+                if onMenuTap?(nextMenu) == true { return }
+                guard nextMenu != activeMenu else { return }
+                guard disabledMenus.contains(nextMenu) == false else { return }
+                transitionDirection = transitionDirectionForMenuChange(to: nextMenu)
+                selectionFeedback()
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                    activeMenu = nextMenu
+                    displayedMenu = nextMenu
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 8)
+            .padding(.bottom, 14)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onChange(of: activeMenu) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            transitionDirection = transitionDirectionForMenuChange(to: newValue)
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                displayedMenu = newValue
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            TaskEditorSettingsHeaderButton(title: "取消", action: onCancel)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 10) {
+                Text(title)
+                    .font(AppTheme.typography.sized(24, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .contentTransition(.numericText())
+
+                if let titleTrailingAccessory {
+                    titleTrailingAccessory
+                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            TaskEditorSettingsHeaderButton(title: "确定", action: onConfirm, isTrailing: true)
+        }
+        .frame(minHeight: 48)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: title)
+    }
+
+    private var menuTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: transitionDirection.insertionEdge).combined(with: .opacity),
+            removal: .move(edge: transitionDirection.removalEdge).combined(with: .opacity)
+        )
+    }
+
+    private func transitionDirectionForMenuChange(to nextMenu: TaskEditorMenu) -> TaskEditorMenuTransitionDirection {
+        let currentIndex = menus.firstIndex(of: displayedMenu) ?? 0
+        let nextIndex = menus.firstIndex(of: nextMenu) ?? currentIndex
+        return nextIndex >= currentIndex ? .forward : .backward
+    }
+}
+
+private struct TaskEditorSettingsHeaderButton: View {
+    let title: String
+    let action: () -> Void
+    var isTrailing = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(AppTheme.typography.sized(19, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(width: 72, alignment: isTrailing ? .trailing : .leading)
+                .frame(height: 38)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct TaskEditorSettingsPresentationBackground: View {
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .fill(.clear)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 34, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.46), lineWidth: 1)
+                }
+        } else {
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .stroke(Color.white.opacity(0.42), lineWidth: 1)
+                }
+        }
+    }
+}
+
 struct TaskEditorUnifiedMenuSheet<Content: View>: View {
     let context: TaskEditorMenuContext
     @Binding var activeMenu: TaskEditorMenu
     let disabledMenus: Set<TaskEditorMenu>
     let selectionFeedback: () -> Void
+    let headerTitle: String?
+    let switcherPlacement: TaskEditorMenuSwitcherPlacement
     @ViewBuilder let content: (TaskEditorMenu) -> Content
 
     @State private var displayedMenu: TaskEditorMenu
@@ -321,35 +522,34 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
         activeMenu: Binding<TaskEditorMenu>,
         disabledMenus: Set<TaskEditorMenu> = [],
         selectionFeedback: @escaping () -> Void,
+        headerTitle: String? = nil,
+        switcherPlacement: TaskEditorMenuSwitcherPlacement = .top,
         @ViewBuilder content: @escaping (TaskEditorMenu) -> Content
     ) {
         self.context = context
         _activeMenu = activeMenu
         self.disabledMenus = disabledMenus
         self.selectionFeedback = selectionFeedback
+        self.headerTitle = headerTitle
+        self.switcherPlacement = switcherPlacement
         self.content = content
         _displayedMenu = State(initialValue: activeMenu.wrappedValue)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            TaskEditorMenuSwitcher(
-                menus: context.menus,
-                activeMenu: activeMenu,
-                disabledMenus: disabledMenus
-            ) { nextMenu in
-                guard nextMenu != activeMenu else { return }
-                guard disabledMenus.contains(nextMenu) == false else { return }
-                transitionDirection = transitionDirectionForMenuChange(to: nextMenu)
-                selectionFeedback()
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
-                    activeMenu = nextMenu
-                    displayedMenu = nextMenu
-                }
+            if let headerTitle {
+                Text(headerTitle)
+                    .font(AppTheme.typography.sized(20, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .padding(.bottom, 12)
+            } else if switcherPlacement == .top {
+                switcherView
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
 
             ZStack {
                 content(displayedMenu)
@@ -358,6 +558,10 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .clipped()
+
+            if headerTitle == nil, switcherPlacement == .bottom {
+                switcherView
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(AppTheme.colors.surface)
@@ -383,6 +587,35 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
         let nextIndex = menus.firstIndex(of: nextMenu) ?? currentIndex
         return nextIndex >= currentIndex ? .forward : .backward
     }
+
+    private var switcherView: some View {
+        TaskEditorMenuSwitcher(
+            menus: context.menus,
+            activeMenu: activeMenu,
+            disabledMenus: disabledMenus,
+            presentation: { menu in
+                .icon(systemImage: menu.systemImage, accessibilityTitle: menu.accessibilityTitle)
+            },
+            onSelect: { nextMenu in
+                guard nextMenu != activeMenu else { return }
+                guard disabledMenus.contains(nextMenu) == false else { return }
+                transitionDirection = transitionDirectionForMenuChange(to: nextMenu)
+                selectionFeedback()
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                    activeMenu = nextMenu
+                    displayedMenu = nextMenu
+                }
+            }
+        )
+        .padding(.horizontal, 18)
+        .padding(.top, switcherPlacement == .bottom ? 10 : 14)
+        .padding(.bottom, switcherPlacement == .bottom ? 16 : 10)
+    }
+}
+
+enum TaskEditorMenuSwitcherPlacement {
+    case top
+    case bottom
 }
 
 private enum TaskEditorMenuTransitionDirection {
@@ -408,41 +641,69 @@ private enum TaskEditorMenuTransitionDirection {
     }
 }
 
+struct TaskEditorMenuSwitcherPresentation: Equatable {
+    let systemImage: String?
+    let title: String?
+    let accessibilityTitle: String
+
+    static func icon(systemImage: String, accessibilityTitle: String) -> Self {
+        .init(systemImage: systemImage, title: nil, accessibilityTitle: accessibilityTitle)
+    }
+
+    static func title(_ title: String, accessibilityTitle: String) -> Self {
+        .init(systemImage: nil, title: title, accessibilityTitle: accessibilityTitle)
+    }
+}
+
 private struct TaskEditorMenuSwitcher: View {
     let menus: [TaskEditorMenu]
     let activeMenu: TaskEditorMenu
     let disabledMenus: Set<TaskEditorMenu>
+    let presentation: (TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation
     let onSelect: (TaskEditorMenu) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
             ForEach(menus) { menu in
+                let itemPresentation = presentation(menu)
                 Button {
                     onSelect(menu)
                 } label: {
-                    Image(systemName: menu.systemImage)
-                        .font(AppTheme.typography.sized(18, weight: .semibold))
-                        .foregroundStyle(foregroundColor(for: menu))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: TaskEditorToolbarMetrics.itemHeight)
-                        .background {
-                            if activeMenu == menu {
-                                Capsule(style: .continuous)
-                                    .fill(AppTheme.colors.pillSurface)
-                            }
+                    ZStack {
+                        if let systemImage = itemPresentation.systemImage {
+                            Image(systemName: systemImage)
+                                .font(AppTheme.typography.sized(18, weight: .semibold))
+                                .transition(.opacity.combined(with: .scale(scale: 0.88)))
                         }
-                        .overlay {
-                            if activeMenu == menu {
-                                Capsule(style: .continuous)
-                                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
-                            }
+
+                        if let title = itemPresentation.title {
+                            Text(title)
+                                .font(AppTheme.typography.sized(16, weight: .bold))
+                                .transition(.opacity.combined(with: .scale(scale: 0.88)))
                         }
-                        .contentShape(Capsule(style: .continuous))
+                    }
+                    .foregroundStyle(foregroundColor(for: menu))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TaskEditorToolbarMetrics.itemHeight)
+                    .background {
+                        if activeMenu == menu {
+                            Capsule(style: .continuous)
+                                .fill(AppTheme.colors.pillSurface)
+                        }
+                    }
+                    .overlay {
+                        if activeMenu == menu {
+                            Capsule(style: .continuous)
+                                .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+                        }
+                    }
+                    .contentShape(Capsule(style: .continuous))
+                    .animation(.spring(response: 0.28, dampingFraction: 0.86), value: itemPresentation)
                 }
                 .buttonStyle(.plain)
                 .disabled(disabledMenus.contains(menu))
                 .opacity(disabledMenus.contains(menu) ? 0.34 : 1)
-                .accessibilityLabel(menu.accessibilityTitle)
+                .accessibilityLabel(itemPresentation.accessibilityTitle)
             }
         }
     }
@@ -855,9 +1116,428 @@ struct TaskEditorTimePickerSheet: View {
     }
 }
 
+struct TaskEditorSettingsTimePage: View {
+    @Binding var selectedTime: Date?
+    @Binding var isAllDay: Bool
+    let anchorDate: Date
+    @Binding var selectedDate: Date
+    let selectionFeedback: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            TaskEditorCenteredWeekDatePicker(
+                selectedDate: $selectedDate,
+                selectionFeedback: selectionFeedback
+            )
+            .frame(height: 92)
+
+            GeometryReader { proxy in
+                TaskEditorSingleColumnTimeWheel(
+                    selection: wheelSelection,
+                    minuteInterval: 5,
+                    selectionCapsuleFill: AppTheme.colors.surfaceElevated.opacity(0.92),
+                    showsSelectionIcon: true
+                )
+                .frame(maxWidth: .infinity, maxHeight: max(proxy.size.height, 0))
+                .opacity(isAllDay ? 0.3 : 1)
+                .allowsHitTesting(!isAllDay)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var wheelSelection: Binding<Date> {
+        Binding(
+            get: { selectedTime ?? defaultTime },
+            set: { newValue in
+                selectedTime = newValue
+                if isAllDay {
+                    isAllDay = false
+                }
+            }
+        )
+    }
+
+    private var defaultTime: Date {
+        let calendar = Calendar.current
+        let now = Date()
+        let components = calendar.dateComponents([.hour, .minute], from: now)
+        let hour = components.hour ?? 9
+        let minute = components.minute ?? 0
+        let roundedMinute = Int((Double(minute) / 5).rounded()) * 5
+        let minuteOverflow = roundedMinute / 60
+        let normalizedMinute = roundedMinute % 60
+        let normalizedHour = (hour + minuteOverflow) % 24
+
+        return calendar.date(
+            bySettingHour: normalizedHour,
+            minute: normalizedMinute,
+            second: 0,
+            of: anchorDate
+        ) ?? anchorDate
+    }
+
+}
+
+struct TaskEditorCenteredWeekDatePicker: View {
+    @Binding var selectedDate: Date
+    let selectionFeedback: () -> Void
+
+    @State private var weekPagerOffset: CGFloat = 0
+    @State private var isWeekPagerSettling = false
+
+    private let calendar = Calendar.current
+    private let weekPageBreathingGap: CGFloat = 0
+    private let weekDateSpacing: CGFloat = AppTheme.spacing.sm
+
+    var body: some View {
+        GeometryReader { proxy in
+            let pageWidth = max(proxy.size.width, 1)
+
+            HStack(spacing: 0) {
+                ForEach([-1, 0, 1], id: \.self) { offset in
+                    weekPage(for: offset)
+                        .frame(width: pageWidth - weekPageBreathingGap)
+                        .frame(width: pageWidth)
+                        .opacity(weekPageOpacity(for: offset, pageWidth: pageWidth))
+                }
+            }
+            .frame(width: pageWidth * 3, alignment: .leading)
+            .offset(x: -pageWidth + weekPagerOffset)
+            .contentShape(Rectangle())
+            .simultaneousGesture(weekPagerDragGesture(pageWidth: pageWidth))
+        }
+        .frame(height: 96)
+        .clipped()
+    }
+
+    private func weekPage(for offset: Int) -> some View {
+        HStack(spacing: weekDateSpacing) {
+            ForEach(centeredDates(shiftedByWeeks: offset), id: \.self) { date in
+                let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                Button {
+                    guard !isSelected else { return }
+                    selectionFeedback()
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
+                        selectedDate = date
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        Text(weekdayLabel(for: date))
+                            .font(AppTheme.typography.sized(13, weight: .semibold))
+                            .foregroundStyle(isSelected ? AppTheme.colors.coral : AppTheme.colors.textTertiary)
+
+                        Text(date, format: .dateTime.day())
+                            .font(
+                                AppTheme.typography.sized(
+                                    isSelected ? 24 : 21,
+                                    weight: isSelected ? .bold : .semibold
+                                )
+                            )
+                            .foregroundStyle(
+                                isSelected
+                                ? AppTheme.colors.title
+                                : AppTheme.colors.body.opacity(0.58)
+                            )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 78)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .fill(AppTheme.colors.pillSurface)
+                        }
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(
+                                isSelected ? AppTheme.colors.pillOutline : AppTheme.colors.outline.opacity(0.08),
+                                lineWidth: 1
+                            )
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 6)
+    }
+
+    private func centeredDates(shiftedByWeeks offset: Int) -> [Date] {
+        let centerDate = calendar.date(byAdding: .day, value: offset * 7, to: selectedDate) ?? selectedDate
+        return (-3...3).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: calendar.startOfDay(for: centerDate))
+        }
+    }
+
+    private func weekPageOpacity(for offset: Int, pageWidth: CGFloat) -> Double {
+        let relativeOffset = (CGFloat(offset) * pageWidth + weekPagerOffset) / pageWidth
+        let distance = min(abs(relativeOffset), 1)
+        return 1 - Double(distance) * 0.28
+    }
+
+    private func weekPagerDragGesture(pageWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .local)
+            .onChanged { value in
+                guard !isWeekPagerSettling else { return }
+                weekPagerOffset = resistedWeekPagerOffset(for: value.translation.width, pageWidth: pageWidth)
+            }
+            .onEnded { value in
+                guard !isWeekPagerSettling else { return }
+                let predicted = value.predictedEndTranslation.width
+                let threshold = pageWidth * 0.18
+
+                let direction: Int
+                if predicted <= -threshold {
+                    direction = 1
+                } else if predicted >= threshold {
+                    direction = -1
+                } else {
+                    direction = 0
+                }
+
+                settleWeekPager(to: direction, pageWidth: pageWidth)
+            }
+    }
+
+    private func resistedWeekPagerOffset(for translation: CGFloat, pageWidth: CGFloat) -> CGFloat {
+        let progress = min(abs(translation) / max(pageWidth, 1), 1)
+        let resistance = 1 - (progress * 0.22)
+        return translation * resistance
+    }
+
+    private func settleWeekPager(to direction: Int, pageWidth: CGFloat) {
+        isWeekPagerSettling = true
+        let targetOffset = CGFloat(-direction) * pageWidth
+
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            weekPagerOffset = targetOffset
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            if direction != 0 {
+                selectionFeedback()
+                selectedDate = calendar.date(byAdding: .day, value: direction * 7, to: selectedDate) ?? selectedDate
+            }
+            weekPagerOffset = 0
+            isWeekPagerSettling = false
+        }
+    }
+
+    private func weekdayLabel(for date: Date) -> String {
+        switch calendar.component(.weekday, from: date) {
+        case 1: return "日"
+        case 2: return "一"
+        case 3: return "二"
+        case 4: return "三"
+        case 5: return "四"
+        case 6: return "五"
+        case 7: return "六"
+        default: return ""
+        }
+    }
+}
+
+struct TaskEditorSettingsMonthPage: View {
+    @Binding var selectedDate: Date
+    let selectionFeedback: () -> Void
+    var onDaySelection: ((Date) -> Void)? = nil
+
+    @State private var displayedMonth: Date
+    @State private var transitionDirection: TaskEditorMonthTransitionDirection = .forward
+
+    init(
+        selectedDate: Binding<Date>,
+        selectionFeedback: @escaping () -> Void,
+        onDaySelection: ((Date) -> Void)? = nil
+    ) {
+        _selectedDate = selectedDate
+        self.selectionFeedback = selectionFeedback
+        self.onDaySelection = onDaySelection
+        let calendar = Calendar.current
+        let initialDate = selectedDate.wrappedValue
+        _displayedMonth = State(
+            initialValue: calendar.date(from: calendar.dateComponents([.year, .month], from: initialDate)) ?? initialDate
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            LazyVGrid(columns: calendarColumns, spacing: 0) {
+                ForEach(weekdaySymbols, id: \.self) { symbol in
+                    Text(symbol)
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.46))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 24)
+                }
+            }
+
+            ZStack {
+                monthGrid
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+            .gesture(monthDragGesture)
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onChange(of: selectedDate) { _, newValue in
+            let month = Calendar.current.date(
+                from: Calendar.current.dateComponents([.year, .month], from: newValue)
+            ) ?? newValue
+            if Calendar.current.isDate(month, equalTo: displayedMonth, toGranularity: .month) == false {
+                displayedMonth = month
+            }
+        }
+    }
+
+    private var calendarColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+    }
+
+    private var weekdaySymbols: [String] { ["日", "一", "二", "三", "四", "五", "六"] }
+
+    private var monthIdentity: String {
+        let components = Calendar.current.dateComponents([.year, .month], from: displayedMonth)
+        return "\(components.year ?? 0)-\(components.month ?? 0)"
+    }
+
+    private var monthTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: transitionDirection.insertionEdge).combined(with: .opacity),
+            removal: .move(edge: transitionDirection.removalEdge).combined(with: .opacity)
+        )
+    }
+
+    private var monthCells: [TaskEditorCalendarDayCell] {
+        let calendar = Calendar.current
+        guard
+            let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth),
+            let firstWeek = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.start),
+            let lastWeek = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.end.addingTimeInterval(-1))
+        else {
+            return []
+        }
+
+        var cells: [TaskEditorCalendarDayCell] = []
+        var current = firstWeek.start
+        while current < lastWeek.end {
+            cells.append(
+                TaskEditorCalendarDayCell(
+                    date: current,
+                    isInDisplayedMonth: calendar.isDate(current, equalTo: displayedMonth, toGranularity: .month)
+                )
+            )
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = nextDay
+        }
+        return cells
+    }
+
+    private var monthGrid: some View {
+        LazyVGrid(columns: calendarColumns, spacing: 8) {
+            ForEach(monthCells) { cell in
+                Button {
+                    selectionFeedback()
+                    let nextDate = Calendar.current.startOfDay(for: cell.date)
+                    selectedDate = nextDate
+                    onDaySelection?(nextDate)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(isSelected(cell.date) ? AppTheme.colors.coral : .clear)
+                            .overlay {
+                                Circle()
+                                    .stroke(isToday(cell.date) && !isSelected(cell.date) ? AppTheme.colors.coral : .clear, lineWidth: 1.8)
+                            }
+
+                        Text("\(Calendar.current.component(.day, from: cell.date))")
+                            .font(AppTheme.typography.sized(18, weight: .semibold))
+                            .foregroundStyle(dayTextColor(for: cell))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .id(monthIdentity)
+        .transition(monthTransition)
+    }
+
+    private var monthDragGesture: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onEnded { value in
+                let threshold: CGFloat = 42
+                if value.translation.width <= -threshold {
+                    shiftMonth(by: 1)
+                } else if value.translation.width >= threshold {
+                    shiftMonth(by: -1)
+                }
+            }
+    }
+
+    private func shiftMonth(by amount: Int) {
+        guard let next = Calendar.current.date(byAdding: .month, value: amount, to: displayedMonth) else { return }
+        transitionDirection = amount >= 0 ? .forward : .backward
+        selectionFeedback()
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+            displayedMonth = next
+        }
+    }
+
+    private func isSelected(_ date: Date) -> Bool {
+        Calendar.current.isDate(date, inSameDayAs: selectedDate)
+    }
+
+    private func isToday(_ date: Date) -> Bool {
+        Calendar.current.isDateInToday(date)
+    }
+
+    private func dayTextColor(for cell: TaskEditorCalendarDayCell) -> Color {
+        if isSelected(cell.date) { return .white }
+        if isToday(cell.date) { return AppTheme.colors.coral }
+        return cell.isInDisplayedMonth ? AppTheme.colors.title : AppTheme.colors.textTertiary.opacity(0.46)
+    }
+}
+
+struct TaskEditorFadedOptionList: View {
+    let options: [TaskEditorOptionRow]
+    let selectionFeedback: () -> Void
+
+    var body: some View {
+        TaskEditorOptionList(
+            options: options,
+            selectionFeedback: selectionFeedback,
+            usesGlassBackground: false
+        )
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.08),
+                    .init(color: .black, location: 0.92),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+}
+
 struct TaskEditorSingleColumnTimeWheel: View {
     @Binding var selection: Date
     let minuteInterval: Int
+    var selectionCapsuleFill: Color = AppTheme.colors.pillSurface.opacity(0.96)
+    var showsSelectionIcon = true
 
     var body: some View {
         ZStack {
@@ -867,7 +1547,11 @@ struct TaskEditorSingleColumnTimeWheel: View {
             )
             .mask(TaskEditorSingleColumnTimeWheelFadeMask())
 
-            TaskEditorSingleColumnTimeSelectionCapsule(selection: selection)
+            TaskEditorSingleColumnTimeSelectionCapsule(
+                selection: selection,
+                selectionCapsuleFill: selectionCapsuleFill,
+                showsIcon: showsSelectionIcon
+            )
                 .padding(.horizontal, 18)
                 .allowsHitTesting(false)
         }
@@ -1137,6 +1821,8 @@ private struct TaskEditorSingleColumnTimeWheelFadeMask: View {
 
 private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
     let selection: Date
+    let selectionCapsuleFill: Color
+    let showsIcon: Bool
 
     private var timeText: String {
         selection.formatted(
@@ -1150,14 +1836,16 @@ private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
         HStack {
             Spacer(minLength: 0)
             HStack(spacing: 10) {
-                Image(systemName: "clock.fill")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.82))
+                if showsIcon {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.82))
+                }
 
                 Text(timeText)
-                .contentTransition(.numericText())
-                .font(AppTheme.typography.sized(36, weight: .bold))
-                .foregroundStyle(AppTheme.colors.title)
+                    .contentTransition(.numericText())
+                    .font(AppTheme.typography.sized(31, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
             }
             .offset(x: -3)
             Spacer(minLength: 0)
@@ -1169,7 +1857,7 @@ private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
                 cornerRadius: TaskEditorSingleColumnTimeWheelMetrics.selectionCapsuleHeight * 0.5,
                 style: .continuous
             )
-            .fill(AppTheme.colors.pillSurface.opacity(0.96))
+            .fill(selectionCapsuleFill)
         )
         .overlay(
             RoundedRectangle(
@@ -1185,10 +1873,10 @@ private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
 
 private enum TaskEditorSingleColumnTimeWheelMetrics {
     static let loopMultiplier = 200
-    static let rowHeight: CGFloat = 38
-    static let baseFontSize: CGFloat = 22
-    static let selectedFontSize: CGFloat = 28
-    static let selectionCapsuleHeight: CGFloat = 74
+    static let rowHeight: CGFloat = 34
+    static let baseFontSize: CGFloat = 19
+    static let selectedFontSize: CGFloat = 24
+    static let selectionCapsuleHeight: CGFloat = 62
 }
 
 final class TaskEditorSingleColumnTimeTableView: UITableView {}
