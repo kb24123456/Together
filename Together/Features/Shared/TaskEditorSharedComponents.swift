@@ -608,8 +608,8 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
             }
         )
         .padding(.horizontal, 18)
-        .padding(.top, switcherPlacement == .bottom ? 10 : 14)
-        .padding(.bottom, switcherPlacement == .bottom ? 16 : 10)
+        .padding(.top, switcherPlacement == .bottom ? 0 : 14)
+        .padding(.bottom, switcherPlacement == .bottom ? 10 : 10)
     }
 }
 
@@ -722,17 +722,18 @@ enum TaskEditorToolbarMetrics {
 
 struct TaskEditorDatePickerSheet: View {
     static let gridRowHeight: CGFloat = 36
-    static let gridRowSpacing: CGFloat = 10
+    static let gridRowSpacing: CGFloat = 6
     static let gridColumnSpacing: CGFloat = 0
-    static let weekdayRowHeight: CGFloat = 36
-    static let headerHeight: CGFloat = 40
+    static let weekdayRowHeight: CGFloat = 28
+    static let headerHeight: CGFloat = 36
     static let horizontalPadding: CGFloat = 8
-    static let topBottomPadding: CGFloat = 24
-    static let contentSpacing: CGFloat = 10
-    static let headerToGridSpacing: CGFloat = 10
+    static let topPadding: CGFloat = 16
+    static let bottomPadding: CGFloat = 0
+    static let contentSpacing: CGFloat = 6
+    static let headerToGridSpacing: CGFloat = 6
     static let calendarGridHeight: CGFloat = (gridRowHeight * 6) + (gridRowSpacing * 5)
     static let preferredHeight: CGFloat =
-        (topBottomPadding * 2) + headerHeight + headerToGridSpacing + weekdayRowHeight + contentSpacing + calendarGridHeight
+        topPadding + bottomPadding + headerHeight + headerToGridSpacing + weekdayRowHeight + contentSpacing + calendarGridHeight
 
     @Binding var selectedDate: Date
     let selectionFeedback: () -> Void
@@ -760,27 +761,29 @@ struct TaskEditorDatePickerSheet: View {
             let headerInset = headerHorizontalInset(for: proxy.size.width)
 
             VStack(alignment: .leading, spacing: Self.headerToGridSpacing) {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     Text(monthTitle)
-                        .font(AppTheme.typography.sized(21, weight: .bold))
+                        .font(AppTheme.typography.sized(20, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
                         .contentTransition(.numericText())
 
                     Spacer(minLength: 0)
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         calendarButton(systemName: "chevron.left") {
                             shiftMonth(by: -1)
                         }
 
                         Button("Today") {
+                            let today = Date()
                             selectionFeedback()
-                            selectDate(Date())
+                            displayedMonth = monthStart(for: today)
+                            selectDate(today)
                         }
                         .buttonStyle(.plain)
                         .font(AppTheme.typography.sized(15, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.title)
-                        .frame(minWidth: 84, minHeight: 40)
+                        .frame(minWidth: 76, minHeight: 40)
                         .background(
                             Capsule(style: .continuous)
                                 .fill(Color(uiColor: .secondarySystemFill))
@@ -816,7 +819,8 @@ struct TaskEditorDatePickerSheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .top)
         }
-        .padding(.vertical, Self.topBottomPadding)
+        .padding(.top, Self.topPadding)
+        .padding(.bottom, Self.bottomPadding)
         .frame(maxWidth: .infinity, alignment: .top)
     }
 
@@ -945,6 +949,11 @@ struct TaskEditorDatePickerSheet: View {
         }
     }
 
+    private func monthStart(for date: Date) -> Date {
+        let calendar = Calendar.current
+        return calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
+    }
+
     private func selectDate(_ date: Date) {
         selectedDate = Calendar.current.startOfDay(for: date)
         onDismiss()
@@ -1004,66 +1013,71 @@ struct TaskEditorTimePickerSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showsQuickPresets {
-                HStack(spacing: 10) {
-                    ForEach(quickPresetMinutes, id: \.self) { minutes in
-                        Button {
-                            selectionFeedback()
-                            applyQuickPreset(minutes)
-                        } label: {
-                            Text(relativePresetTitle(minutes))
-                                .font(AppTheme.typography.sized(15, weight: .semibold))
-                                .foregroundStyle(AppTheme.colors.title)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 52)
+        GeometryReader { proxy in
+            let pickerHeight = adaptivePickerHeight(for: proxy.size.height)
+
+            VStack(spacing: 0) {
+                if showsQuickPresets {
+                    HStack(spacing: 10) {
+                        ForEach(quickPresetMinutes, id: \.self) { minutes in
+                            Button {
+                                selectionFeedback()
+                                applyQuickPreset(minutes)
+                            } label: {
+                                Text(relativePresetTitle(minutes))
+                                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                                    .foregroundStyle(AppTheme.colors.title)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(minHeight: 48)
+                            }
+                            .buttonStyle(TaskEditorMenuOptionButtonStyle())
+                            .modifier(TaskEditorMenuOptionGlassModifier())
                         }
-                        .buttonStyle(TaskEditorMenuOptionButtonStyle())
-                        .modifier(TaskEditorMenuOptionGlassModifier())
                     }
+                    .padding(.top, TaskEditorTimePickerMetrics.verticalInset)
+                    .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
+                    .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
                 }
-                .padding(.top, TaskEditorTimePickerMetrics.verticalInset)
-                .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
+
+                TaskEditorSingleColumnTimeWheel(
+                    selection: $stagedTime,
+                    minuteInterval: 5
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: pickerHeight)
+                .clipped()
+                .padding(.top, showsQuickPresets ? 0 : TaskEditorTimePickerMetrics.verticalInset)
                 .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
-            }
 
-            TaskEditorSingleColumnTimeWheel(
-                selection: $stagedTime,
-                minuteInterval: 5
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: TaskEditorTimePickerMetrics.pickerHeight)
-            .clipped()
-            .padding(.top, showsQuickPresets ? 0 : TaskEditorTimePickerMetrics.verticalInset)
-            .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
-
-            HStack {
-                Button {
-                    primaryFeedback()
-                    saveSelection()
-                } label: {
-                    HStack {
-                        Spacer(minLength: 0)
-                        Text(primaryButtonTitle)
-                            .font(AppTheme.typography.sized(17, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.title)
-                        Spacer(minLength: 0)
+                HStack {
+                    Button {
+                        primaryFeedback()
+                        saveSelection()
+                    } label: {
+                        HStack {
+                            Spacer(minLength: 0)
+                            Text(primaryButtonTitle)
+                                .font(AppTheme.typography.sized(17, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.title)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: TaskEditorMenuOptionMetrics.height)
+                        .contentShape(
+                            RoundedRectangle(
+                                cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                                style: .continuous
+                            )
+                        )
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                    .contentShape(
-                        RoundedRectangle(
-                            cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
-                            style: .continuous
-                        )
-                    )
+                    .buttonStyle(TaskEditorMenuOptionButtonStyle())
+                    .modifier(TaskEditorMenuOptionGlassModifier())
                 }
-                .frame(maxWidth: .infinity)
-                .buttonStyle(TaskEditorMenuOptionButtonStyle())
-                .modifier(TaskEditorMenuOptionGlassModifier())
+                .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
+                .padding(.bottom, TaskEditorTimePickerMetrics.verticalInset)
             }
-            .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
-            .padding(.bottom, TaskEditorTimePickerMetrics.verticalInset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(maxWidth: .infinity, alignment: .top)
     }
@@ -1107,6 +1121,24 @@ struct TaskEditorTimePickerSheet: View {
             return "\(minutes / 60)小时后"
         }
         return "\(minutes)分钟后"
+    }
+
+    private func adaptivePickerHeight(for availableHeight: CGFloat) -> CGFloat {
+        let presetBlockHeight =
+            showsQuickPresets
+            ? (TaskEditorTimePickerMetrics.verticalInset + 48 + TaskEditorTimePickerMetrics.contentSpacing)
+            : 0
+        let bottomBlockHeight =
+            TaskEditorMenuOptionMetrics.height
+            + TaskEditorTimePickerMetrics.verticalInset
+            + TaskEditorTimePickerMetrics.contentSpacing
+        let topInset = showsQuickPresets ? 0 : TaskEditorTimePickerMetrics.verticalInset
+        let availablePickerHeight = availableHeight - presetBlockHeight - bottomBlockHeight - topInset
+
+        return min(
+            max(availablePickerHeight, TaskEditorTimePickerMetrics.minimumPickerHeight),
+            TaskEditorTimePickerMetrics.pickerHeight
+        )
     }
 
     private func saveSelection(_ value: Date? = nil) {
@@ -2236,8 +2268,9 @@ enum TaskEditorMenuOptionMetrics {
 }
 
 enum TaskEditorTimePickerMetrics {
-    static let verticalInset: CGFloat = 18
-    static let contentSpacing: CGFloat = 12
+    static let verticalInset: CGFloat = 16
+    static let contentSpacing: CGFloat = 10
+    static let minimumPickerHeight: CGFloat = 184
     static let pickerHeight: CGFloat = 214
 }
 
