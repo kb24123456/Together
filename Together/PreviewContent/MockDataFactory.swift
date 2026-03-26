@@ -29,7 +29,8 @@ enum MockDataFactory {
                 calendarReminderEnabled: true,
                 futureCollaborationInviteEnabled: true,
                 taskUrgencyWindowMinutes: 30,
-                quickTimePresetMinutes: [30, 60, 120]
+                defaultSnoozeMinutes: 30,
+                quickTimePresetMinutes: [5, 30, 60]
             )
         )
     }
@@ -48,7 +49,8 @@ enum MockDataFactory {
                 calendarReminderEnabled: true,
                 futureCollaborationInviteEnabled: false,
                 taskUrgencyWindowMinutes: 30,
-                quickTimePresetMinutes: [30, 60, 120]
+                defaultSnoozeMinutes: 30,
+                quickTimePresetMinutes: [5, 30, 60]
             )
         )
     }

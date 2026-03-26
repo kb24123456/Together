@@ -69,32 +69,6 @@ struct HomeView: View {
         ) {
             HomeItemDetailSheet(viewModel: viewModel)
         }
-        .sheet(
-            item: Binding(
-                get: { viewModel.activeSnoozeMenu },
-                set: {
-                    if let value = $0 {
-                        viewModel.activeSnoozeMenu = value
-                    } else {
-                        viewModel.dismissSnoozeUI()
-                    }
-                }
-            )
-        ) { menu in
-            HomeSnoozeMenuSheet(
-                menu: menu,
-                viewModel: viewModel
-            )
-            .presentationDetents(menu.detents)
-            .presentationBackground {
-                TaskEditorSettingsPresentationBackground()
-            }
-            .presentationContentInteraction(.scrolls)
-            .presentationBackgroundInteraction(.disabled)
-            .presentationDragIndicator(.hidden)
-            .interactiveDismissDisabled(false)
-            .modifier(TaskEditorMenuPresentationSizingModifier())
-        }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
         }
@@ -289,70 +263,70 @@ struct HomeView: View {
     ) -> some View {
         ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
             let isCompletedRow = sectionVisibility != nil || entry.isCompleted
-            HomeTimelineRow(
-                entry: entry,
-                isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
-                onToggleCompletion: {
-                    if entry.isCompleted {
-                        HomeInteractionFeedback.selection()
-                    } else {
-                        HomeInteractionFeedback.completion()
-                    }
-                    Task {
-                        await viewModel.completeItem(entry.id)
-                    }
-                },
-                onOpenDetail: {
-                    viewModel.presentItemDetail(entry.id)
-                }
-            )
-                .listRowInsets(
-                    EdgeInsets(
-                        top: timelineRowVerticalInset,
-                        leading: timelineRowHorizontalInset,
-                        bottom: timelineRowVerticalInset,
-                        trailing: timelineRowHorizontalInset
+            Group {
+                if entry.isCompleted {
+                    HomeTimelineRow(
+                        entry: entry,
+                        isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
+                        onToggleCompletion: {
+                            if entry.isCompleted {
+                                HomeInteractionFeedback.selection()
+                            } else {
+                                HomeInteractionFeedback.completion()
+                            }
+                            Task {
+                                await viewModel.completeItem(entry.id)
+                            }
+                        },
+                        onOpenDetail: {
+                            viewModel.presentItemDetail(entry.id)
+                        }
                     )
-                )
-                .listRowBackground(isCompletedRow ? Color.clear : AppTheme.colors.surface)
-                .listRowSeparator(.hidden)
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        if entry.isCompleted {
+                } else {
+                    HomeTimelineRow(
+                        entry: entry,
+                        isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
+                        onToggleCompletion: {
+                            if entry.isCompleted {
+                                HomeInteractionFeedback.selection()
+                            } else {
+                                HomeInteractionFeedback.completion()
+                            }
+                            Task {
+                                await viewModel.completeItem(entry.id)
+                            }
+                        },
+                        onOpenDetail: {
+                            viewModel.presentItemDetail(entry.id)
+                        }
+                    )
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
                             HomeInteractionFeedback.selection()
-                        } else {
-                            HomeInteractionFeedback.completion()
+                            Task {
+                                await viewModel.snoozeItem(entry.id)
+                            }
+                        } label: {
+                            Image(systemName: "arrowshape.turn.up.forward.fill")
                         }
-                        Task {
-                            await viewModel.completeItem(entry.id, trigger: .swipeAction)
-                        }
-                    } label: {
-                        HomeSwipeActionBubble(
-                            systemImage: entry.isCompleted ? "arrow.uturn.backward" : "checkmark",
-                            tint: entry.isCompleted ? AppTheme.colors.body.opacity(0.76) : AppTheme.colors.coral,
-                            edge: .leading
-                        )
+                        .tint(AppTheme.colors.sky)
                     }
-                    .tint(entry.isCompleted ? AppTheme.colors.body.opacity(0.76) : AppTheme.colors.coral)
                 }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button {
-                        guard viewModel.prepareSnoozeContext(for: entry.id) else { return }
-                        HomeInteractionFeedback.selection()
-                        viewModel.presentCustomSnoozePicker()
-                    } label: {
-                        HomeSwipeActionBubble(
-                            systemImage: "arrowshape.turn.up.backward.badge.clock.fill.rtl",
-                            tint: AppTheme.colors.sky,
-                            edge: .trailing
-                        )
-                    }
-                    .tint(AppTheme.colors.sky)
-                }
-                .applyTransition(rowTransition)
-                .applyCompletedSectionVisibility(
-                    sectionVisibility.map { $0.rowVisibility(for: index) }
+            }
+            .listRowInsets(
+                EdgeInsets(
+                    top: timelineRowVerticalInset,
+                    leading: timelineRowHorizontalInset,
+                    bottom: timelineRowVerticalInset,
+                    trailing: timelineRowHorizontalInset
                 )
+            )
+            .listRowBackground(isCompletedRow ? Color.clear : AppTheme.colors.surface)
+            .listRowSeparator(.hidden)
+            .applyTransition(rowTransition)
+            .applyCompletedSectionVisibility(
+                sectionVisibility.map { $0.rowVisibility(for: index) }
+            )
 
             if index < entries.count - 1 {
                 DashedDivider()
@@ -692,12 +666,6 @@ struct HomeView: View {
         return viewModel.isSelectedDate(date)
     }
 
-    private func relativePresetTitle(_ minutes: Int) -> String {
-        if minutes >= 60, minutes.isMultiple(of: 60) {
-            return "\(minutes / 60)小时后"
-        }
-        return "\(minutes)分钟后"
-    }
 }
 
 private struct HomeTimelineRow: View {
@@ -868,193 +836,6 @@ private struct AnimatedCheckmarkShape: Shape {
     }
 }
 
-private struct HomeSwipeActionBubble: View {
-    let systemImage: String
-    let tint: Color
-    let edge: HorizontalEdge
-
-    private let actionDiameter: CGFloat = 44
-    private let contentBiasOffset: CGFloat = 30
-
-    var body: some View {
-        ZStack(alignment: alignment) {
-            Circle()
-                .fill(tint)
-                .frame(width: actionDiameter, height: actionDiameter)
-                .overlay {
-                    Image(systemName: systemImage)
-                        .font(AppTheme.typography.sized(18, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                .offset(x: edge == .leading ? contentBiasOffset : -contentBiasOffset)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-    }
-
-    private var alignment: Alignment {
-        edge == .leading ? .trailing : .leading
-    }
-}
-
-#if canImport(UIKit)
-private struct HomeSnoozeMenuButton: UIViewRepresentable {
-    let quickSnoozeMinuteOptions: [Int]
-    let relativePresetTitle: (Int) -> String
-    let onQuickSnooze: (Int) -> Void
-    let onTomorrow: () -> Void
-    let onCustom: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    func makeUIView(context: Context) -> UIButton {
-        let button = HomeSnoozeMenuHostButton(type: .custom)
-        button.showsMenuAsPrimaryAction = true
-        button.contentHorizontalAlignment = .fill
-        button.contentVerticalAlignment = .fill
-        button.clipsToBounds = false
-        button.addTarget(
-            context.coordinator,
-            action: #selector(Coordinator.handleTouchDown),
-            for: .touchDown
-        )
-        context.coordinator.applyConfiguration(to: button, parent: self)
-        return button
-    }
-
-    func updateUIView(_ button: UIButton, context: Context) {
-        context.coordinator.parent = self
-        context.coordinator.applyConfiguration(to: button, parent: self)
-    }
-
-    final class Coordinator: NSObject {
-        var parent: HomeSnoozeMenuButton
-
-        init(_ parent: HomeSnoozeMenuButton) {
-            self.parent = parent
-        }
-
-        @objc
-        func handleTouchDown() {
-            HomeInteractionFeedback.menuTap()
-        }
-
-        func applyConfiguration(to button: UIButton, parent: HomeSnoozeMenuButton) {
-            var configuration = UIButton.Configuration.plain()
-            configuration.baseForegroundColor = UIColor(AppTheme.colors.sky)
-            configuration.background.backgroundColor = UIColor(AppTheme.colors.surfaceElevated)
-            configuration.background.strokeColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.18))
-            configuration.background.strokeWidth = 1
-            configuration.background.cornerRadius = 27
-            configuration.cornerStyle = .fixed
-            configuration.contentInsets = .zero
-            configuration.image = UIImage(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
-            configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
-            configuration.imagePlacement = .all
-            button.configuration = configuration
-            button.frame.size = CGSize(width: 54, height: 54)
-            button.configurationUpdateHandler = { target in
-                guard var updatedConfiguration = target.configuration else { return }
-                updatedConfiguration.baseForegroundColor = UIColor(AppTheme.colors.sky)
-                updatedConfiguration.background.backgroundColor = UIColor(AppTheme.colors.surfaceElevated)
-                updatedConfiguration.background.strokeColor = UIColor(AppTheme.colors.outlineStrong.opacity(0.18))
-                updatedConfiguration.background.strokeWidth = 1
-                updatedConfiguration.image = UIImage(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
-                updatedConfiguration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
-                target.configuration = updatedConfiguration
-                target.alpha = 1
-                target.transform = .identity
-            }
-            button.menu = makeMenu(parent: parent)
-            button.tintColor = UIColor(AppTheme.colors.sky)
-            button.invalidateIntrinsicContentSize()
-        }
-
-        private func makeMenu(parent: HomeSnoozeMenuButton) -> UIMenu {
-            var actions: [UIMenuElement] = parent.quickSnoozeMinuteOptions.map { minutes in
-                UIAction(title: parent.relativePresetTitle(minutes)) { _ in
-                    parent.onQuickSnooze(minutes)
-                }
-            }
-
-            actions.append(
-                UIAction(title: "明天") { _ in
-                    parent.onTomorrow()
-                }
-            )
-
-            actions.append(
-                UIAction(title: "自定义") { _ in
-                    parent.onCustom()
-                }
-            )
-
-            return UIMenu(children: actions)
-        }
-    }
-}
-
-private final class HomeSnoozeMenuHostButton: UIButton {
-    override var isHighlighted: Bool {
-        get { false }
-        set {
-            super.isHighlighted = false
-            alpha = 1
-            transform = .identity
-        }
-    }
-
-    override var isSelected: Bool {
-        get { false }
-        set {
-            super.isSelected = false
-        }
-    }
-}
-#else
-private struct HomeSnoozeMenuButton: View {
-    let quickSnoozeMinuteOptions: [Int]
-    let relativePresetTitle: (Int) -> String
-    let onQuickSnooze: (Int) -> Void
-    let onTomorrow: () -> Void
-    let onCustom: () -> Void
-
-    var body: some View {
-        Menu {
-            ForEach(quickSnoozeMinuteOptions, id: \.self) { minutes in
-                Button(relativePresetTitle(minutes)) {
-                    onQuickSnooze(minutes)
-                }
-            }
-
-            Button("明天") {
-                onTomorrow()
-            }
-
-            Button("自定义") {
-                onCustom()
-            }
-        } label: {
-            Image(systemName: "arrowshape.turn.up.backward.badge.clock.fill.rtl")
-                .font(AppTheme.typography.sized(20, weight: .bold))
-                .foregroundStyle(AppTheme.colors.sky)
-                .frame(width: 54, height: 54)
-                .background(
-                    Circle()
-                        .fill(AppTheme.colors.surfaceElevated)
-                )
-                .overlay {
-                    Circle()
-                        .stroke(AppTheme.colors.outlineStrong.opacity(0.18), lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-    }
-}
-#endif
-
 private struct HomeTimelineTimeText: View {
     let entry: HomeTimelineEntry
     @State private var isBreathing = false
@@ -1130,387 +911,6 @@ private struct HomeAvatarToggleButton: View {
             }
             .shadow(color: AppTheme.colors.shadow.opacity(0.65), radius: 6, y: 4)
             .zIndex(zIndex)
-    }
-}
-
-private struct HomeSnoozeMenuSheet: View {
-    let menu: HomeSnoozeMenu
-    @Bindable var viewModel: HomeViewModel
-
-    var body: some View {
-        Group {
-            switch menu {
-            case .settings:
-                HomeSnoozeSettingsSheet(viewModel: viewModel)
-            }
-        }
-        .id(menu.id)
-    }
-}
-
-private struct HomeSnoozeSettingsSheet: View {
-    @Bindable var viewModel: HomeViewModel
-    @State private var showsCalendarReturnToToday = false
-
-    private let menus: [TaskEditorMenu] = [.time, .date, .reminder, .repeatRule]
-
-    var body: some View {
-        TaskEditorSettingsSheet(
-            title: viewModel.stagedSnoozeTitle,
-            menus: menus,
-            activeMenu: snoozeMenuBinding,
-            disabledMenus: viewModel.stagedSnoozeDisabledMenus,
-            selectionFeedback: HomeInteractionFeedback.selection,
-            onCancel: {
-                HomeInteractionFeedback.selection()
-                viewModel.cancelSnoozeSettings()
-            },
-            onConfirm: {
-                Task {
-                    await viewModel.confirmSnoozeSettings()
-                    HomeInteractionFeedback.selection()
-                }
-            },
-            onMenuTap: handleMenuTap,
-            titleTrailingAccessory: titleTrailingAccessory,
-            menuPresentation: menuPresentation(for:)
-        ) { menu in
-            menuContent(for: menu)
-        }
-        .onChange(of: viewModel.stagedCustomSnoozeDate) { _, newValue in
-            if Calendar.current.isDateInToday(newValue) {
-                showsCalendarReturnToToday = false
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func menuContent(for menu: TaskEditorMenu) -> some View {
-        switch menu {
-        case .time:
-            TaskEditorSettingsTimePage(
-                selectedTime: $viewModel.stagedCustomSnoozeTime,
-                isAllDay: allDayBinding,
-                anchorDate: viewModel.stagedCustomSnoozeDate,
-                selectedDate: $viewModel.stagedCustomSnoozeDate,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
-        case .date:
-            TaskEditorSettingsMonthPage(
-                selectedDate: $viewModel.stagedCustomSnoozeDate,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
-        case .reminder:
-            TaskEditorFadedOptionList(
-                options: reminderOptions,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
-        case .repeatRule:
-            TaskEditorFadedOptionList(
-                options: repeatOptions,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
-        case .priority, .subtasks, .template:
-            EmptyView()
-        }
-    }
-
-    private var snoozeMenuBinding: Binding<TaskEditorMenu> {
-        Binding(
-            get: { viewModel.stagedSnoozeActiveMenu },
-            set: { viewModel.setSnoozeActiveMenu($0) }
-        )
-    }
-
-    private var allDayBinding: Binding<Bool> {
-        Binding(
-            get: { viewModel.stagedCustomSnoozeAllDay },
-            set: { viewModel.setSnoozeAllDay($0) }
-        )
-    }
-
-    private var titleTrailingAccessory: AnyView? {
-        guard viewModel.stagedSnoozeActiveMenu == .time else { return nil }
-        return AnyView(
-            Button {
-                HomeInteractionFeedback.selection()
-                viewModel.setSnoozeAllDay(!viewModel.stagedCustomSnoozeAllDay)
-            } label: {
-                Text("全天")
-                    .font(AppTheme.typography.sized(15, weight: .semibold))
-                    .foregroundStyle(
-                        viewModel.stagedCustomSnoozeAllDay
-                        ? AppTheme.colors.title
-                        : AppTheme.colors.body.opacity(0.76)
-                    )
-                    .padding(.horizontal, 14)
-                    .frame(height: 36)
-                    .background {
-                        Capsule(style: .continuous)
-                            .fill(
-                                viewModel.stagedCustomSnoozeAllDay
-                                ? AppTheme.colors.pillSurface
-                                : Color.white.opacity(0.16)
-                            )
-                    }
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .stroke(
-                                viewModel.stagedCustomSnoozeAllDay
-                                ? AppTheme.colors.pillOutline
-                                : Color.white.opacity(0.28),
-                                lineWidth: 1
-                            )
-                    }
-            }
-            .buttonStyle(.plain)
-        )
-    }
-
-    private func menuPresentation(for menu: TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation {
-        if menu == .date, showsCalendarReturnToToday {
-            return .title("今天", accessibilityTitle: "返回今天")
-        }
-        return .icon(systemImage: menu.systemImage, accessibilityTitle: menu.accessibilityTitle)
-    }
-
-    private func handleMenuTap(_ menu: TaskEditorMenu) -> Bool {
-        guard
-            menu == .date,
-            viewModel.stagedSnoozeActiveMenu == .date,
-            showsCalendarReturnToToday
-        else {
-            return false
-        }
-
-        HomeInteractionFeedback.selection()
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-            viewModel.stagedCustomSnoozeDate = Calendar.current.startOfDay(for: .now)
-            showsCalendarReturnToToday = false
-        }
-        return true
-    }
-
-    private func handleCalendarDaySelection(_ date: Date) {
-        let isToday = Calendar.current.isDateInToday(date)
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-            showsCalendarReturnToToday = !isToday
-        }
-    }
-
-    private var reminderOptions: [TaskEditorOptionRow] {
-        [TaskEditorOptionRow(title: "不提醒", isSelected: viewModel.stagedCustomSnoozeReminderOffset == nil) {
-            viewModel.stagedCustomSnoozeReminderOffset = nil
-        }] + TaskEditorReminderPreset.allCases.map { preset in
-            TaskEditorOptionRow(
-                title: preset.title,
-                isSelected: viewModel.stagedCustomSnoozeReminderOffset == preset.secondsBeforeTarget
-            ) {
-                viewModel.stagedCustomSnoozeReminderOffset = preset.secondsBeforeTarget
-            }
-        }
-    }
-
-    private var repeatOptions: [TaskEditorOptionRow] {
-        TaskEditorRepeatPreset.allCases.map { preset in
-            let title = preset.title(anchorDate: viewModel.stagedCustomSnoozeDate)
-            return TaskEditorOptionRow(
-                title: title,
-                isSelected: viewModel.stagedCustomSnoozeRepeatRule?.title(anchorDate: viewModel.stagedCustomSnoozeDate) == title
-            ) {
-                viewModel.stagedCustomSnoozeRepeatRule = preset.makeRule(anchorDate: viewModel.stagedCustomSnoozeDate)
-            }
-        }
-    }
-}
-
-private struct HomeCustomSnoozeEditorSheet: View {
-    @Bindable var viewModel: HomeViewModel
-
-    private let presetMinutes = [5, 30, 60]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            presetRow
-                .padding(.horizontal, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 12)
-
-            HomeSnoozeWeekStrip(
-                selectedDate: $viewModel.stagedCustomSnoozeDate,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
-            .padding(.horizontal, 18)
-            .padding(.bottom, 10)
-
-            HStack(spacing: 14) {
-                Text("时间")
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.74))
-
-                Spacer(minLength: 0)
-
-                TaskEditorSingleColumnTimeWheel(
-                    selection: selectedTimeBinding,
-                    minuteInterval: 5
-                )
-                .frame(width: 216, height: 126)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
-
-            Spacer()
-
-            Button {
-                Task {
-                    await viewModel.applyCustomSnoozeSelection()
-                    HomeInteractionFeedback.selection()
-                }
-            } label: {
-                Text("确认")
-                    .font(AppTheme.typography.sized(17, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-            }
-            .buttonStyle(TaskEditorMenuOptionButtonStyle())
-            .modifier(TaskEditorMenuOptionGlassModifier())
-            .padding(.horizontal, 18)
-            .padding(.bottom, 18)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private var presetRow: some View {
-        HStack(spacing: 10) {
-            ForEach(presetMinutes, id: \.self) { minutes in
-                Button(relativePresetTitle(minutes)) {
-                    Task {
-                        await viewModel.applySnooze(minutes: minutes)
-                        HomeInteractionFeedback.selection()
-                    }
-                }
-                .buttonStyle(HomeSnoozePresetButtonStyle())
-            }
-
-            Button("明天") {
-                Task {
-                    await viewModel.applySnoozeTomorrow()
-                    HomeInteractionFeedback.selection()
-                }
-            }
-            .buttonStyle(HomeSnoozePresetButtonStyle())
-        }
-    }
-
-    private var selectedTimeBinding: Binding<Date> {
-        Binding(
-            get: {
-                viewModel.stagedCustomSnoozeTime
-                    ?? Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: viewModel.stagedCustomSnoozeDate)
-                    ?? viewModel.stagedCustomSnoozeDate
-            },
-            set: { viewModel.stagedCustomSnoozeTime = $0 }
-        )
-    }
-
-    private func relativePresetTitle(_ minutes: Int) -> String {
-        if minutes >= 60, minutes.isMultiple(of: 60) {
-            return "\(minutes / 60)小时后"
-        }
-        return "\(minutes)分钟后"
-    }
-}
-
-private struct HomeSnoozeWeekStrip: View {
-    @Binding var selectedDate: Date
-    let selectionFeedback: () -> Void
-
-    private let calendar = Calendar.current
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(visibleDates, id: \.self) { date in
-                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-
-                        Button {
-                            selectionFeedback()
-                            withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-                                selectedDate = calendar.startOfDay(for: date)
-                            }
-                        } label: {
-                            VStack(spacing: 4) {
-                                Text(weekdayLabel(for: date))
-                                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                                    .foregroundStyle(isSelected ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.6))
-
-                                Text("\(calendar.component(.day, from: date))")
-                                    .font(AppTheme.typography.sized(18, weight: isSelected ? .bold : .semibold))
-                                    .foregroundStyle(isSelected ? AppTheme.colors.title : AppTheme.colors.title.opacity(0.82))
-                            }
-                            .frame(width: 58, height: 62)
-                            .background {
-                                if isSelected {
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .fill(AppTheme.colors.pillSurface)
-                                }
-                            }
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .stroke(isSelected ? AppTheme.colors.pillOutline : AppTheme.colors.outline.opacity(0.1), lineWidth: 1)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .id(date.timeIntervalSince1970)
-                    }
-                }
-                .padding(.horizontal, 2)
-            }
-            .onAppear {
-                proxy.scrollTo(selectedDate.timeIntervalSince1970, anchor: .center)
-            }
-            .onChange(of: selectedDate) { _, newValue in
-                withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-                    proxy.scrollTo(newValue.timeIntervalSince1970, anchor: .center)
-                }
-            }
-        }
-        .frame(height: 74)
-    }
-
-    private var visibleDates: [Date] {
-        (-7...13).compactMap {
-            calendar.date(byAdding: .day, value: $0, to: calendar.startOfDay(for: selectedDate))
-        }
-    }
-
-    private func weekdayLabel(for date: Date) -> String {
-        switch calendar.component(.weekday, from: date) {
-        case 1: return "日"
-        case 2: return "一"
-        case 3: return "二"
-        case 4: return "三"
-        case 5: return "四"
-        case 6: return "五"
-        case 7: return "六"
-        default: return ""
-        }
-    }
-}
-
-private struct HomeSnoozePresetButtonStyle: PrimitiveButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Button(role: nil, action: configuration.trigger) {
-            configuration.label
-                .font(AppTheme.typography.sized(15, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.title)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-        }
-        .buttonStyle(TaskEditorMenuOptionButtonStyle())
-        .modifier(TaskEditorMenuOptionGlassModifier())
     }
 }
 

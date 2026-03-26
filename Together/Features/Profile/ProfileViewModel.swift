@@ -55,22 +55,12 @@ final class ProfileViewModel {
     }
 
     let taskUrgencyOptions: [Int] = [10, 30, 60, 120]
-    let quickTimePresetOptions: [Int] = Array(stride(from: 5, through: 180, by: 5))
+    let snoozeMinuteOptions: [Int] = Array(stride(from: 5, through: 180, by: 5))
 
-    var quickTimePresetMinutes: [Int] {
-        NotificationSettings.normalizedQuickTimePresetMinutes(
-            sessionStore.currentUser?.preferences.quickTimePresetMinutes ?? NotificationSettings.defaultQuickTimePresetMinutes
+    var defaultSnoozeMinutes: Int {
+        NotificationSettings.normalizedSnoozeMinutes(
+            sessionStore.currentUser?.preferences.defaultSnoozeMinutes ?? NotificationSettings.defaultSnoozeMinutes
         )
-    }
-
-    var snoozePresetSummary: String {
-        let titles = quickTimePresetMinutes.map { minutes in
-            if minutes >= 60, minutes.isMultiple(of: 60) {
-                return "\(minutes / 60)小时后"
-            }
-            return "\(minutes)分钟后"
-        }
-        return titles.joined(separator: " / ")
     }
 
     func load() async {
@@ -100,15 +90,9 @@ final class ProfileViewModel {
         sessionStore.currentUser = user
     }
 
-    func updateQuickTimePreset(minutes: Int, at index: Int) {
+    func updateDefaultSnoozeMinutes(_ minutes: Int) {
         guard var user = sessionStore.currentUser else { return }
-
-        var presets = quickTimePresetMinutes
-        guard presets.indices.contains(index) else { return }
-
-        let roundedMinutes = NotificationSettings.normalizedQuickTimePresetMinutes([minutes]).first ?? minutes
-        presets[index] = roundedMinutes
-        user.preferences.quickTimePresetMinutes = NotificationSettings.normalizedQuickTimePresetMinutes(presets)
+        user.preferences.defaultSnoozeMinutes = NotificationSettings.normalizedSnoozeMinutes(minutes)
         user.updatedAt = .now
         sessionStore.currentUser = user
     }

@@ -17,7 +17,6 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let accentColorName: String
     let isMuted: Bool
     let isCompleted: Bool
-    let canSnooze: Bool
     let urgency: HomeTimelineUrgency
 }
 
@@ -30,21 +29,6 @@ enum HomeTimelineUrgency: Hashable {
 enum HomeDateTransitionStyle: Hashable {
     case sameWeek
     case crossWeek
-}
-
-enum HomeSnoozeMenu: String, Identifiable {
-    case settings
-
-    var id: String { rawValue }
-
-    var detents: Set<PresentationDetent> {
-        [.fraction(0.5)]
-    }
-}
-
-struct HomeSnoozeContext: Identifiable, Hashable {
-    let id: UUID
-    let title: String
 }
 
 struct QuickCapturePendingConfirmation: Identifiable, Hashable, Sendable {
@@ -91,15 +75,6 @@ final class HomeViewModel {
     var isPerformingCompletion = false
     var recentCompletedItemID: UUID?
     var showsCompletedItems = true
-    var activeSnoozeContext: HomeSnoozeContext?
-    var isShowingSnoozeOptions = false
-    var activeSnoozeMenu: HomeSnoozeMenu?
-    var stagedSnoozeActiveMenu: TaskEditorMenu = .date
-    var stagedCustomSnoozeDate: Date = Date()
-    var stagedCustomSnoozeTime: Date?
-    var stagedCustomSnoozeAllDay = false
-    var stagedCustomSnoozeReminderOffset: TimeInterval?
-    var stagedCustomSnoozeRepeatRule: ItemRepeatRule?
     var isPerformingSnooze = false
 
     init(
@@ -177,6 +152,13 @@ final class HomeViewModel {
     var hasUnsavedDetailChanges: Bool {
         guard detailDetent == .large, let detailDraft else { return false }
         return detailDraft != savedDetailDraft
+    }
+
+    var defaultSnoozeMinutes: Int {
+        NotificationSettings.normalizedSnoozeMinutes(
+            sessionStore.currentUser?.preferences.defaultSnoozeMinutes
+            ?? NotificationSettings.defaultSnoozeMinutes
+        )
     }
 
     var quickTimePresetMinutes: [Int] {
@@ -595,108 +577,8 @@ final class HomeViewModel {
         showsCompletedItems = isVisible
     }
 
-    func canSnooze(_ itemID: UUID) -> Bool {
-        guard let item = items.first(where: { $0.id == itemID }) else { return false }
-        return item.status != .completed && item.completedAt == nil
-    }
-
-    func presentSnoozeOptions(for itemID: UUID) {
-        guard prepareSnoozeContext(for: itemID) else { return }
-        isShowingSnoozeOptions = true
-    }
-
-    @discardableResult
-    func prepareSnoozeContext(for itemID: UUID) -> Bool {
-        guard canSnooze(itemID) else { return false }
-        guard let item = items.first(where: { $0.id == itemID }) else { return false }
-        activeSnoozeContext = HomeSnoozeContext(id: item.id, title: item.title)
-        return true
-    }
-
-    func dismissSnoozeUI() {
-        isShowingSnoozeOptions = false
-        activeSnoozeContext = nil
-        activeSnoozeMenu = nil
-        stagedSnoozeActiveMenu = .date
-    }
-
-    func applySnoozeTomorrow() async {
-        await snoozeActiveItem(using: .tomorrow)
-    }
-
-    func applySnooze(minutes: Int) async {
-        await snoozeActiveItem(using: .minutes(minutes))
-    }
-
-    func presentCustomSnoozePicker() {
-        guard let item = activeSnoozeItem else { return }
-        isShowingSnoozeOptions = false
-        let baseDate = item.dueAt ?? selectedDate
-        stagedSnoozeActiveMenu = .date
-        stagedCustomSnoozeDate = calendar.startOfDay(for: baseDate)
-        if item.hasExplicitTime, let dueAt = item.dueAt {
-            stagedCustomSnoozeTime = dueAt
-        } else {
-            stagedCustomSnoozeTime = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: baseDate)
-        }
-        stagedCustomSnoozeAllDay = item.hasExplicitTime == false
-        stagedCustomSnoozeReminderOffset = reminderOffset(for: item)
-        stagedCustomSnoozeRepeatRule = item.repeatRule
-        activeSnoozeMenu = .settings
-    }
-
-    func applyCustomSnoozeSelection() async {
-        let option: TaskSnoozeOption
-        if stagedCustomSnoozeAllDay {
-            option = .custom(
-                date: calendar.startOfDay(for: stagedCustomSnoozeDate),
-                hasExplicitTime: false
-            )
-        } else {
-            guard let stagedTime = stagedCustomSnoozeTime else { return }
-            option = .custom(
-                date: merge(date: stagedCustomSnoozeDate, timeSource: stagedTime),
-                hasExplicitTime: true
-            )
-        }
-        await snoozeActiveItem(using: option)
-    }
-
-    var stagedSnoozeTitle: String {
-        let components = calendar.dateComponents([.month, .day], from: stagedCustomSnoozeDate)
-        let month = components.month ?? 1
-        let day = components.day ?? 1
-        return "\(month)月\(day)日"
-    }
-
-    var stagedSnoozeDisabledMenus: Set<TaskEditorMenu> {
-        stagedCustomSnoozeAllDay ? [.reminder] : []
-    }
-
-    func cancelSnoozeSettings() {
-        dismissSnoozeUI()
-    }
-
-    func confirmSnoozeSettings() async {
-        await applyCustomSnoozeSelection()
-    }
-
-    func setSnoozeActiveMenu(_ menu: TaskEditorMenu) {
-        stagedSnoozeActiveMenu = menu
-    }
-
-    func setSnoozeAllDay(_ isAllDay: Bool) {
-        stagedCustomSnoozeAllDay = isAllDay
-        if isAllDay {
-            stagedCustomSnoozeReminderOffset = nil
-        } else if stagedCustomSnoozeTime == nil {
-            stagedCustomSnoozeTime = calendar.date(
-                bySettingHour: 9,
-                minute: 0,
-                second: 0,
-                of: stagedCustomSnoozeDate
-            )
-        }
+    func snoozeItem(_ itemID: UUID) async {
+        await snoozeItem(itemID, using: .minutes(defaultSnoozeMinutes))
     }
 
     func isSelectedDate(_ date: Date) -> Bool {
@@ -997,14 +879,8 @@ final class HomeViewModel {
             accentColorName: accentColorName(for: item),
             isMuted: isCompleted,
             isCompleted: isCompleted,
-            canSnooze: item.repeatRule == nil,
             urgency: urgency(for: item, isCompleted: isCompleted)
         )
-    }
-
-    private var activeSnoozeItem: Item? {
-        guard let activeSnoozeContext else { return nil }
-        return items.first(where: { $0.id == activeSnoozeContext.id })
     }
 
     private func timelineSortDate(for item: Item) -> Date {
@@ -1026,14 +902,8 @@ final class HomeViewModel {
         items.removeAll { $0.id == itemID }
     }
 
-    private func reminderOffset(for item: Item) -> TimeInterval? {
-        guard let dueAt = item.dueAt, let remindAt = item.remindAt else { return nil }
-        return dueAt.timeIntervalSince(remindAt)
-    }
-
-    private func snoozeActiveItem(using option: TaskSnoozeOption) async {
+    private func snoozeItem(_ itemID: UUID, using option: TaskSnoozeOption) async {
         guard
-            let context = activeSnoozeContext,
             let spaceID = sessionStore.currentSpace?.id,
             let actorID = sessionStore.currentUser?.id
         else { return }
@@ -1043,10 +913,9 @@ final class HomeViewModel {
         defer { isPerformingSnooze = false }
 
         do {
-            isShowingSnoozeOptions = false
             let saved = try await taskApplicationService.snoozeTask(
                 in: spaceID,
-                taskID: context.id,
+                taskID: itemID,
                 actorID: actorID,
                 option: option
             )
@@ -1061,20 +930,10 @@ final class HomeViewModel {
                 } else {
                     removeItem(withID: saved.id)
                 }
-                if case let .custom(customDate, _) = option,
-                   calendar.isDate(customDate, inSameDayAs: selectedDate) == false {
-                    selectDate(customDate)
-                }
             }
-            if case let .custom(customDate, _) = option,
-               calendar.isDate(customDate, inSameDayAs: selectedDate) == false {
-                await reload()
-            }
-            dismissSnoozeUI()
-        } catch {
-            activeSnoozeMenu = nil
-        }
+        } catch {}
     }
+
 }
 
 extension HomeViewModel {

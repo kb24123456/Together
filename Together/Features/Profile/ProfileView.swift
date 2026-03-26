@@ -62,37 +62,35 @@ struct ProfileView: View {
                             .padding(.vertical, 4)
 
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("时间快捷预设")
+                            Text("默认推迟时间")
                                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                                 .foregroundStyle(AppTheme.colors.title)
 
-                            Text("首页任务推迟和任务编辑时间菜单会共用这 3 个快捷时间。当前顺序：\(viewModel.snoozePresetSummary)")
+                            Text("首页任务左滑点按推迟图标后，会直接按这个时间执行。")
                                 .font(AppTheme.typography.textStyle(.caption1))
                                 .foregroundStyle(AppTheme.colors.body.opacity(0.72))
 
-                            ForEach(Array(viewModel.quickTimePresetMinutes.enumerated()), id: \.offset) { index, minutes in
-                                HStack(spacing: 12) {
-                                    Text("预设\(index + 1)")
-                                        .foregroundStyle(AppTheme.colors.body)
+                            HStack(spacing: 12) {
+                                Text("默认值")
+                                    .foregroundStyle(AppTheme.colors.body)
 
-                                    Spacer(minLength: 0)
+                                Spacer(minLength: 0)
 
-                                    Picker(
-                                        "预设\(index + 1)",
-                                        selection: Binding(
-                                            get: { viewModel.quickTimePresetMinutes[index] },
-                                            set: { viewModel.updateQuickTimePreset(minutes: $0, at: index) }
-                                        )
-                                    ) {
-                                        ForEach(viewModel.quickTimePresetOptions, id: \.self) { option in
-                                            Text(relativeTimeLabel(minutes: option)).tag(option)
-                                        }
+                                Picker(
+                                    "默认推迟时间",
+                                    selection: Binding(
+                                        get: { viewModel.defaultSnoozeMinutes },
+                                        set: { viewModel.updateDefaultSnoozeMinutes($0) }
+                                    )
+                                ) {
+                                    ForEach(viewModel.snoozeMinuteOptions, id: \.self) { option in
+                                        Text(relativeTimeLabel(minutes: option)).tag(option)
                                     }
-                                    .pickerStyle(.menu)
                                 }
+                                .pickerStyle(.menu)
                             }
 
-                            Text("首页推迟还会固定提供“明天”和“自定义”。分钟粒度固定为 5 分钟。")
+                            Text("分钟粒度固定为 5 分钟。")
                                 .font(AppTheme.typography.textStyle(.caption1))
                                 .foregroundStyle(AppTheme.colors.body.opacity(0.7))
                         }
