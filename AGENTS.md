@@ -71,6 +71,43 @@
 - 页面必须支持 mock data 和 SwiftUI Preview。
 - 开发时就考虑深色模式、Reduce Motion 和安全区域。
 - 优先使用 Apple 原生 API 和系统能力，谨慎引入第三方库。
+- Swift 代码默认按 Swift 6.2+ 的现代写法执行；只要系统或项目条件允许，优先 `async/await`，不要继续新增 closure-first 异步接口。
+- 默认假设严格并发检查会持续增强；共享状态优先使用 `@Observable`，并优先结合 `@State`、`@Bindable`、`@Environment` 传递。
+- 若项目未启用 Main Actor 默认隔离，`@Observable` 类型默认补 `@MainActor`，避免状态更新线程语义模糊。
+- 除非处于低层兼容或历史包袱场景，不新增 `ObservableObject`、`@Published`、`@StateObject`、`@ObservedObject`、`@EnvironmentObject`。
+- 不继续新增 `DispatchQueue.main.async` 这类旧式主线程调度；需要切回主线程时优先使用现代 Swift Concurrency。
+- 除非属于不可恢复错误，不允许新增 force unwrap 和 force try。
+- 优先使用现代 Foundation API 与 `FormatStyle`；不要继续新增 `DateFormatter`、`NumberFormatter`、`MeasurementFormatter` 这类旧格式化器作为常规方案。
+- 字符串、数字、日期格式化默认使用 Swift 原生格式化能力；禁止继续新增 `String(format:)` 这类 C 风格格式化。
+- 文本搜索若面向用户输入，优先使用 `localizedStandardContains()`，不要直接用 `contains()` 替代。
+- 文件路径与 URL 处理优先使用 `URL.documentsDirectory`、`appending(path:)` 等现代 API。
+
+### 7.1 SwiftUI 具体规则
+- 优先使用 `foregroundStyle()`，不要继续新增 `foregroundColor()` 作为常规文本/图标着色方案。
+- 优先使用 `clipShape(.rect(cornerRadius:))`，不要继续新增 `cornerRadius()`。
+- 导航统一使用 `NavigationStack` + `navigationDestination(for:)`，不新增 `NavigationView`。
+- 除非明确需要点击位置或点击次数，否则点击交互优先用 `Button`，不新增 `onTapGesture()`。
+- 不使用 `Task.sleep(nanoseconds:)`，统一使用 `Task.sleep(for:)`。
+- 不使用 `UIScreen.main.bounds` 读取布局空间；优先走安全区域、容器尺寸和现代布局 API。
+- 复杂视图片段不要长期堆在 computed property 中，优先拆成独立 `View` 结构体。
+- 优先使用系统动态字体，不要随意写死字号。
+- 图片按钮默认同时提供文本，避免做成不可读的 icon-only 交互。
+- 非必要不引入 `GeometryReader`；优先评估 `containerRelativeFrame()`、`visualEffect()` 等新 API。
+- 列表与滚动场景避免 `AnyView`。
+- SwiftUI 中避免直接使用 UIKit 颜色。
+
+### 7.2 SwiftData 与测试规则
+- 只要当前模块使用 SwiftData，就优先沿用 SwiftData，不要随手回退到 Core Data 方案。
+- 若 SwiftData 最终接 CloudKit：不要使用 `@Attribute(.unique)`。
+- 若 SwiftData 最终接 CloudKit：模型属性必须提供默认值或声明为 optional。
+- 若 SwiftData 最终接 CloudKit：关系属性默认按 CloudKit 兼容性处理，改动前先确认 optional 与数据迁移影响。
+- 单元测试优先于 UI 测试；只有核心逻辑无法通过单测覆盖时，才补 UI 测试。
+- 若项目已采用 Swift Testing，新测试优先使用 Swift Testing；UI 测试仍按 XCTest 体系处理。
+
+### 7.3 工具与工程卫生
+- 若仓库启用了 `Localizable.xcstrings`，新增用户可见文案优先走字符串目录，不要把文案硬编码散落在页面中。
+- 若仓库已安装 SwiftLint，提交前必须保证没有新增 warning 或 error。
+- 若 Xcode MCP 可用，优先使用其构建、预览、问题列表、文档查询能力，而不是退回到更弱的通用手段。
 
 ## 8. UI 与动效规则
 - 视觉方向：现代简洁、黑白粉、克制、轻生活感，但表达应服务于效率工具，不做廉价情侣风。
@@ -146,3 +183,47 @@
 - 只展开与当前任务直接相关的信息。
 - 不重复描述已知背景。
 - 除非用户要求，不一次性展开过多远期方案。
+
+## 16. Skill 调用规则
+- 目标：在合适的时机，自动选择并调用最匹配的 skill，而不是依赖临时判断或遗忘。
+- 规则：只要任务明显命中某个 skill 的职责边界，就应优先调用对应 skill，再开始实现或分析。
+- 若同一任务同时命中多个 skill，优先顺序为：流程类 skill -> 领域审查类 skill -> 实现类 skill。
+
+### 16.1 默认入口
+- 每次进入新任务，优先按 `using-superpowers` 的原则检查是否存在适配 skill。
+- 对于小任务，如果没有明显命中任何 skill，可直接执行；但只要命中概率足够高，就不应跳过。
+
+### 16.2 当前仓库保留 skill 的触发场景
+- `swiftui-pro`
+  - 用于：SwiftUI 页面开发、SwiftUI 代码审查、现代 API 替换、导航、视图结构、可访问性、Preview 相关问题。
+- `swift-concurrency-pro`
+  - 用于：`async/await`、actor、Sendable、任务取消、`Task` 使用方式、严格并发警告、并发代码审查。
+- `swiftdata-pro`
+  - 用于：SwiftData 模型、`@Query`、谓词、关系、删除规则、索引、CloudKit 兼容性、SwiftData 代码审查。
+- `swift-testing-pro`
+  - 用于：Swift Testing 测试编写、测试重构、从 XCTest 迁移、异步测试、测试结构和断言风格。
+- `ios-animation-codex-skill`
+  - 用于：高级交互动效设计、页面转场、Hero 动画、展开收起、滚动联动、动效系统设计。
+- `ios-fluid-animation`
+  - 用于：强调原生质感、丝滑感、性能优先、可降级、可复用的 iOS 动效实现与优化。
+- `global-dark-mode-delivery`
+  - 用于：全局深色模式改造、主题 token 化、浅深色一致性治理、主题切换和适配审查。
+- `systematic-debugging`
+  - 用于：任何 bug、崩溃、测试失败、构建失败、行为异常、性能异常；必须先查根因，再谈修复。
+- `long-horizon-codex`
+  - 用于：多阶段、大范围、跨会话、长链路任务；需要把执行上下文沉淀为 `prompt.md`、`plans.md`、`implement.md`、`documentation.md` 四个控制面文件时。
+
+### 16.3 组合调用规则
+- SwiftUI 页面 + 并发状态问题：先 `swiftui-pro`，再 `swift-concurrency-pro`。
+- SwiftUI 页面 + SwiftData 数据流：先 `swiftui-pro`，再 `swiftdata-pro`。
+- SwiftData + CloudKit 约束：直接调用 `swiftdata-pro`。
+- 测试失败或需要补测试：先 `systematic-debugging` 判断问题，再按需要调用 `swift-testing-pro`。
+- 动效问题：先在 `ios-animation-codex-skill` 与 `ios-fluid-animation` 中选最贴近的一个；若同时涉及设计意图和性能落地，可组合使用。
+- 深色模式问题：直接调用 `global-dark-mode-delivery`，不要把它降级成普通样式修补。
+- 超过一次会话、里程碑较多、容易上下文丢失的任务：尽早调用 `long-horizon-codex`，不要等到上下文混乱后再补文档。
+
+### 16.4 禁止事项
+- 不要在明显命中 skill 的情况下绕过 skill 直接凭记忆执行。
+- 不要同时拉起多个职责高度重叠的 skill 造成规则冲突。
+- 不要把 `long-horizon-codex` 用于一次性小修。
+- 不要在未完成根因分析前跳过 `systematic-debugging` 直接修 bug。
