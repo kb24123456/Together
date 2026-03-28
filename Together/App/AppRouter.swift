@@ -7,4 +7,5 @@ final class AppRouter {
     var activeComposer: ComposerRoute?
     var pendingComposerTitle: String?
     var isProfilePresented = false
+    var isProjectModePresented = false
 }

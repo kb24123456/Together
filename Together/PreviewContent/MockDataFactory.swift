@@ -501,4 +501,42 @@ enum MockDataFactory {
             )
         ]
     }
+
+    static func makeProjectSubtasks() -> [ProjectSubtask] {
+        [
+            ProjectSubtask(
+                projectID: focusProjectID,
+                title: "统一首页与项目页的信息层级",
+                sortOrder: 0
+            ),
+            ProjectSubtask(
+                projectID: focusProjectID,
+                title: "清理动效与布局的冲突状态",
+                isCompleted: true,
+                sortOrder: 1
+            ),
+            ProjectSubtask(
+                projectID: focusProjectID,
+                title: "补齐项目模式的收尾验收",
+                sortOrder: 2
+            ),
+            ProjectSubtask(
+                projectID: launchProjectID,
+                title: "压缩顶部周视图与列表间距",
+                isCompleted: true,
+                sortOrder: 0
+            ),
+            ProjectSubtask(
+                projectID: launchProjectID,
+                title: "统一进入与返回的动画语义",
+                sortOrder: 1
+            ),
+            ProjectSubtask(
+                projectID: migrationProjectID,
+                title: "完成旧文档字段映射",
+                isCompleted: true,
+                sortOrder: 0
+            )
+        ]
+    }
 }

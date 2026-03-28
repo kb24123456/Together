@@ -18,33 +18,17 @@ struct ProjectsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                headerSection
-
-                projectSection(
-                    title: "推进中的项目",
-                    subtitle: "长期推进的内容不进入 Today 主执行列表。",
-                    projects: viewModel.activeProjects
-                )
-
-                projectSection(
-                    title: "历史项目",
-                    subtitle: "已完成和已归档的项目保留在这里。",
-                    projects: viewModel.archivedProjects
-                )
-            }
-            .padding(.horizontal, AppTheme.spacing.xl)
-            .padding(.top, style == .layer ? 150 : AppTheme.spacing.xl)
-            .padding(.bottom, style == .layer ? 240 : AppTheme.spacing.xl)
-        }
+        ProjectsListContent(
+            viewModel: viewModel,
+            style: style,
+            showsHeader: true,
+            isPresented: true,
+            contentTopPadding: style == .layer ? 150 : AppTheme.spacing.xl,
+            contentBottomPadding: style == .layer ? 240 : AppTheme.spacing.xl
+        )
         .background(backgroundView)
         .navigationTitle(style == .screen ? "项目" : "")
         .toolbar(style == .screen ? .visible : .hidden, for: .navigationBar)
-        .task {
-            guard viewModel.loadState == .idle else { return }
-            await viewModel.load()
-        }
     }
 
     private var backgroundView: some View {
@@ -57,46 +41,230 @@ struct ProjectsView: View {
         }
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            if style == .layer {
-                Text("项目")
-                    .font(AppTheme.typography.sized(34, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.projectLayerText)
+}
 
-                Text("把跨天推进的长期目标留在这一层，避免打断 Today 的执行节奏。")
-                    .font(AppTheme.typography.textStyle(.body))
-                    .foregroundStyle(AppTheme.colors.projectLayerSecondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+struct ProjectsListContent: View {
+    @Bindable var viewModel: ProjectsViewModel
+    let style: ProjectsPresentationStyle
+    let showsHeader: Bool
+    let isPresented: Bool
+    let contentTopPadding: CGFloat
+    let contentBottomPadding: CGFloat
+    @State private var expandedProjectID: UUID?
+    @State private var editingProjectID: UUID?
+    @State private var titleDraft = ""
+    @State private var datePickerProjectID: UUID?
+    @State private var stagedTargetDate = Date()
+    @State private var showsArchivedProjects = false
+    private let horizontalInset = AppTheme.spacing.xl
+    private let expandAnimation = Animation.snappy(duration: 0.42, extraBounce: 0.06)
+    private let collapseAnimation = Animation.snappy(duration: 0.28, extraBounce: 0)
+    private let projectHeaderProtectionHeight: CGFloat = 126
+
+    var body: some View {
+        ZStack {
+            if expandedProjectID != nil {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        HomeInteractionFeedback.selection()
+                        withAnimation(collapseAnimation) {
+                            expandedProjectID = nil
+                        }
+                        editingProjectID = nil
+                        titleDraft = ""
+                    }
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+                    if showsHeader {
+                        headerSection
+                    }
+
+                    projectSection(
+                        projects: viewModel.activeProjects,
+                        sectionIndex: 0,
+                        topInset: projectModeTopProtectionInset
+                    )
+
+                    if viewModel.archivedProjects.isEmpty == false {
+                        archivedProjectsEntry(sectionIndex: 1)
+                    }
+
+                    if showsArchivedProjects, viewModel.archivedProjects.isEmpty == false {
+                        projectSection(
+                            projects: viewModel.archivedProjects,
+                            sectionIndex: 2,
+                            topInset: 0
+                        )
+                    }
+                }
+                .padding(.top, contentTopPadding)
+                .padding(.bottom, contentBottomPadding)
+            }
+
+            if style == .layer {
+                Rectangle()
+                    .fill(AppTheme.colors.projectLayerBackground)
+                    .frame(height: projectHeaderProtectionHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(false)
+            }
+        }
+        .sensoryFeedback(.selection, trigger: expandedProjectID)
+        .task {
+            guard viewModel.loadState == .idle else { return }
+            await viewModel.load()
+        }
+        .sheet(item: datePickerBinding) { project in
+            ProjectDeadlinePickerSheet(
+                selectedDate: Binding(
+                    get: { stagedTargetDate },
+                    set: { stagedTargetDate = $0 }
+                ),
+                onDismiss: {
+                    datePickerProjectID = nil
+                    Task {
+                        await commitTargetDate(for: project.id, value: stagedTargetDate)
+                    }
+                }
+            )
+            .presentationDetents([.height(TaskEditorDatePickerSheet.preferredHeight + 88)])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(AppTheme.colors.surface)
+        }
+    }
+
+    @ViewBuilder
+    private var headerSection: some View {
+        EmptyView()
+    }
+
+    private func projectSection(
+        projects: [Project],
+        sectionIndex: Int,
+        topInset: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if projects.isEmpty {
+                ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 3 + 1) {
+                    emptyState
+                }
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
+                        let isExpanded = expandedProjectID == project.id
+                        let hasExpandedProject = expandedProjectID != nil
+                        let isDimmed = hasExpandedProject && !isExpanded
+
+                        ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 6 + index + 1) {
+                            ProjectListRow(
+                                project: project,
+                                style: style,
+                                isExpanded: isExpanded,
+                                hasExpandedProject: hasExpandedProject,
+                                isDimmed: isDimmed,
+                                isEditingTitle: editingProjectID == project.id,
+                                titleDraft: titleBinding(for: project.id),
+                                onToggleExpanded: {
+                                    toggleExpanded(project.id)
+                                },
+                                onCollapseExpanded: {
+                                    collapseExpandedProject()
+                                },
+                                onToggleCompletion: {
+                                    Task {
+                                        await viewModel.toggleProjectCompletion(projectID: project.id)
+                                    }
+                                },
+                                onToggleSubtask: { subtaskID in
+                                    Task {
+                                        await viewModel.toggleSubtask(projectID: project.id, subtaskID: subtaskID)
+                                    }
+                                },
+                                onUpdateSubtask: { subtaskID, title in
+                                    Task {
+                                        await viewModel.updateSubtask(projectID: project.id, subtaskID: subtaskID, title: title)
+                                    }
+                                },
+                                onAddSubtask: { title in
+                                    Task {
+                                        await viewModel.addSubtask(projectID: project.id, title: title)
+                                    }
+                                },
+                                onBeginTitleEditing: {
+                                    HomeInteractionFeedback.selection()
+                                    editingProjectID = project.id
+                                    titleDraft = project.name
+                                },
+                                onCommitTitle: { title in
+                                    editingProjectID = nil
+                                    Task {
+                                        await commitTitle(for: project.id, value: title)
+                                    }
+                                },
+                                onOpenDeadlineEditor: {
+                                    HomeInteractionFeedback.selection()
+                                    editingProjectID = nil
+                                    stagedTargetDate = project.targetDate ?? .now
+                                    datePickerProjectID = project.id
+                                },
+                                onSubtitleTapped: {
+                                    toggleExpanded(project.id)
+                                },
+                                onRequestAddSubtask: {
+                                    withAnimation(expandedProjectID == project.id ? collapseAnimation : expandAnimation) {
+                                        if expandedProjectID == project.id {
+                                            expandedProjectID = nil
+                                        } else {
+                                            expandedProjectID = project.id
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        .padding(.top, index == 0 ? topInset : 0)
+                        .padding(.vertical, isExpanded ? 40 : 0)
+
+                        if index < projects.count - 1, shouldShowDivider(for: project.id, nextProjectID: projects[index + 1].id) {
+                            ProjectDashedDivider()
+                                .stroke(separatorColor, style: StrokeStyle(lineWidth: 1.4, dash: [3, 8]))
+                                .frame(height: 1)
+                                .padding(.leading, 62)
+                                .padding(.trailing, horizontalInset)
+                                .opacity(isDimmed ? 0.28 : 1)
+                        }
+                    }
+                }
             }
         }
     }
 
-    private func projectSection(
-        title: String,
-        subtitle: String,
-        projects: [Project]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                Text(title)
-                    .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                    .foregroundStyle(sectionTitleColor)
-
-                Text(subtitle)
-                    .font(AppTheme.typography.textStyle(.subheadline))
-                    .foregroundStyle(sectionSubtitleColor)
-            }
-
-            if projects.isEmpty {
-                emptyState
-            } else {
-                VStack(spacing: AppTheme.spacing.md) {
-                    ForEach(projects) { project in
-                        projectCard(project)
-                    }
+    private func archivedProjectsEntry(sectionIndex: Int) -> some View {
+        ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 6 + 1) {
+            Button {
+                HomeInteractionFeedback.selection()
+                withAnimation(showsArchivedProjects ? collapseAnimation : expandAnimation) {
+                    showsArchivedProjects.toggle()
                 }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(showsArchivedProjects ? "收起已完成项目" : "查看已完成项目")
+                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                        .foregroundStyle(sectionSubtitleColor)
+
+                    Image(systemName: showsArchivedProjects ? "chevron.up" : "chevron.down")
+                        .font(AppTheme.typography.sized(11, weight: .bold))
+                        .foregroundStyle(sectionSubtitleColor.opacity(0.78))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, AppTheme.spacing.md)
+                .padding(.bottom, AppTheme.spacing.sm)
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -104,69 +272,820 @@ struct ProjectsView: View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Text("还没有项目")
                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                .foregroundStyle(sectionTitleColor)
+                .foregroundStyle(emptyStateTitleColor)
 
-            Text("项目创建入口会在下一轮接进来，这一层先承接已有项目结构。")
+            Text("先创建一个项目，再把拆解步骤留在项目层里推进。")
                 .foregroundStyle(sectionSubtitleColor)
         }
-        .padding(AppTheme.spacing.lg)
+        .padding(.horizontal, horizontalInset)
+        .padding(.vertical, AppTheme.spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackground, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(cardOutline)
-        }
-    }
-
-    private func projectCard(_ project: Project) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            HStack {
-                Text(project.name)
-                    .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                    .foregroundStyle(sectionTitleColor)
-
-                Spacer()
-
-                StatusBadge(title: project.status.badgeTitle, tint: project.status.tint)
-            }
-
-            if let notes = project.notes {
-                Text(notes)
-                    .font(AppTheme.typography.textStyle(.subheadline))
-                    .foregroundStyle(sectionSubtitleColor)
-            }
-
-            Text(project.targetDate.map { "截止于 \($0.formatted(date: .abbreviated, time: .omitted))" } ?? "尚未设置截止日期")
-                .font(AppTheme.typography.textStyle(.caption1, weight: .semibold))
-                .foregroundStyle(sectionSubtitleColor.opacity(0.86))
-
-            Text("\(project.taskCount) 个关联事件")
-                .font(AppTheme.typography.textStyle(.caption1, weight: .semibold))
-                .foregroundStyle(sectionSubtitleColor.opacity(0.86))
-        }
-        .padding(AppTheme.spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackground, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(cardOutline)
-        }
+        .background(cardBackground)
     }
 
     private var cardBackground: Color {
-        style == .layer ? AppTheme.colors.projectLayerSurface : AppTheme.colors.surface
+        style == .layer ? AppTheme.colors.projectLayerSurface.opacity(0.12) : .clear
     }
 
-    private var cardOutline: Color {
-        style == .layer ? AppTheme.colors.projectLayerOutline : AppTheme.colors.outline
-    }
-
-    private var sectionTitleColor: Color {
+    private var emptyStateTitleColor: Color {
         style == .layer ? AppTheme.colors.projectLayerText : AppTheme.colors.title
     }
 
     private var sectionSubtitleColor: Color {
         style == .layer ? AppTheme.colors.projectLayerSecondaryText : AppTheme.colors.body
+    }
+
+    private var separatorColor: Color {
+        style == .layer ? AppTheme.colors.projectLayerOutline.opacity(0.8) : AppTheme.colors.separator
+    }
+
+    private func toggleExpanded(_ projectID: UUID) {
+        let targetIsExpanded = expandedProjectID != projectID
+        withAnimation(targetIsExpanded ? expandAnimation : collapseAnimation) {
+            editingProjectID = nil
+            titleDraft = ""
+            if expandedProjectID == projectID {
+                expandedProjectID = nil
+            } else {
+                expandedProjectID = projectID
+            }
+        }
+    }
+
+    private func collapseExpandedProject() {
+        guard expandedProjectID != nil else { return }
+        withAnimation(collapseAnimation) {
+            expandedProjectID = nil
+        }
+        editingProjectID = nil
+        titleDraft = ""
+    }
+
+    private func shouldShowDivider(for projectID: UUID, nextProjectID: UUID) -> Bool {
+        guard let expandedProjectID else { return true }
+        return expandedProjectID != projectID && expandedProjectID != nextProjectID
+    }
+
+    private var projectModeTopProtectionInset: CGFloat {
+        showsHeader ? 0 : 4
+    }
+
+    private var datePickerBinding: Binding<Project?> {
+        Binding(
+            get: {
+                guard let id = datePickerProjectID else { return nil }
+                return viewModel.projects.first(where: { $0.id == id })
+            },
+            set: { project in
+                datePickerProjectID = project?.id
+            }
+        )
+    }
+
+    private func titleBinding(for projectID: UUID) -> Binding<String> {
+        Binding(
+            get: { editingProjectID == projectID ? titleDraft : "" },
+            set: { titleDraft = $0 }
+        )
+    }
+
+    private func commitTitle(for projectID: UUID, value: String) async {
+        guard let project = viewModel.projects.first(where: { $0.id == projectID }) else { return }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false, trimmed != project.name else {
+            titleDraft = ""
+            return
+        }
+
+        var updatedProject = project
+        updatedProject.name = trimmed
+        await viewModel.updateProject(updatedProject)
+        titleDraft = ""
+    }
+
+    private func commitTargetDate(for projectID: UUID, value: Date) async {
+        guard let project = viewModel.projects.first(where: { $0.id == projectID }) else { return }
+        let nextDate = Calendar.current.startOfDay(for: value)
+        guard project.targetDate.map({ Calendar.current.isDate($0, inSameDayAs: nextDate) }) != true else { return }
+
+        var updatedProject = project
+        updatedProject.targetDate = nextDate
+        await viewModel.updateProject(updatedProject)
+    }
+}
+
+private struct ProjectListRow: View {
+    let project: Project
+    let style: ProjectsPresentationStyle
+    let isExpanded: Bool
+    let hasExpandedProject: Bool
+    let isDimmed: Bool
+    let isEditingTitle: Bool
+    @Binding var titleDraft: String
+    let onToggleExpanded: () -> Void
+    let onCollapseExpanded: () -> Void
+    let onToggleCompletion: () -> Void
+    let onToggleSubtask: (UUID) -> Void
+    let onUpdateSubtask: (UUID, String) -> Void
+    let onAddSubtask: (String) -> Void
+    let onBeginTitleEditing: () -> Void
+    let onCommitTitle: (String) -> Void
+    let onOpenDeadlineEditor: () -> Void
+    let onSubtitleTapped: () -> Void
+    let onRequestAddSubtask: () -> Void
+    @FocusState private var isTitleFieldFocused: Bool
+    private let horizontalInset = AppTheme.spacing.xl
+    private let expandedStateAnimation = Animation.snappy(duration: 0.42, extraBounce: 0.06)
+    private let collapseStateAnimation = Animation.snappy(duration: 0.28, extraBounce: 0)
+    private let subtaskAnimation = Animation.smooth(duration: 0.22).delay(0.04)
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+            Button(action: onToggleCompletion) {
+                ProjectCompletionBadge(isCompleted: project.status == .completed)
+                    .frame(width: 40, height: 40)
+            }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    if project.status == .completed {
+                        HomeInteractionFeedback.selection()
+                    } else {
+                        HomeInteractionFeedback.completion()
+                    }
+                }
+            )
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        titleRegion
+                        subtitleAction
+                    }
+
+                    Spacer(minLength: 0)
+
+                    deadlineEditorButton
+                }
+
+                if isExpanded {
+                    ProjectSubtasksSection(
+                        project: project,
+                        style: style,
+                        shouldFocusInput: project.subtasks.isEmpty,
+                        onToggleSubtask: onToggleSubtask,
+                        onUpdateSubtask: onUpdateSubtask,
+                        onAddSubtask: onAddSubtask
+                    )
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: 8)),
+                            removal: .opacity
+                        )
+                    )
+                    .animation(subtaskAnimation, value: isExpanded)
+                }
+            }
+        }
+        .padding(.horizontal, horizontalInset)
+        .padding(.vertical, isExpanded ? 42 : 14)
+        .background(expandedBackground)
+        .opacity(isDimmed ? 0.36 : 1)
+        .scaleEffect(isExpanded ? 1.012 : 1, anchor: .center)
+        .zIndex(isExpanded ? 3 : 0)
+        .contentShape(Rectangle())
+        .animation(isExpanded ? expandedStateAnimation : collapseStateAnimation, value: isExpanded)
+        .onTapGesture {
+            guard hasExpandedProject, !isExpanded else { return }
+            onCollapseExpanded()
+        }
+        .onChange(of: project.name) { _, newValue in
+            if isEditingTitle == false {
+                titleDraft = newValue
+            }
+        }
+        .onChange(of: isEditingTitle) { _, isEditing in
+            if isEditing {
+                titleDraft = project.name
+                isTitleFieldFocused = true
+            } else {
+                isTitleFieldFocused = false
+            }
+        }
+    }
+
+    private var titleColor: Color {
+        style == .layer ? AppTheme.colors.projectLayerText : AppTheme.colors.title
+    }
+
+    private var titleFont: Font {
+        AppTheme.typography.sized(19, weight: .bold)
+    }
+
+    private var subtitleColor: Color {
+        style == .layer ? AppTheme.colors.projectLayerSecondaryText : AppTheme.colors.body.opacity(0.68)
+    }
+
+    private var subtitleActionTextColor: Color {
+        subtitleColor
+    }
+
+    private var expandedShadowColor: Color {
+        AppTheme.colors.shadow.opacity(isEditingTitle ? 0.16 : 0.42)
+    }
+
+    private var expandedShadowRadius: CGFloat {
+        isEditingTitle ? 18 : 48
+    }
+
+    private var expandedShadowYOffset: CGFloat {
+        isEditingTitle ? 8 : 24
+    }
+
+    private var deadlineColor: Color {
+        if project.status == .completed {
+            return subtitleColor.opacity(0.74)
+        }
+        return style == .layer ? AppTheme.colors.projectLayerText : AppTheme.colors.timeText.opacity(0.82)
+    }
+
+    private var progressTint: Color {
+        switch project.status {
+        case .onHold:
+            return AppTheme.colors.warning
+        case .completed:
+            return AppTheme.colors.success
+        case .archived:
+            return subtitleColor.opacity(0.8)
+        case .active:
+            return AppTheme.colors.coral
+        }
+    }
+
+    private var subtitleActionText: String {
+        guard project.subtasks.isEmpty == false else { return "添加子任务" }
+        if project.completedSubtaskCount == 0 {
+            return "\(project.subtasks.count) 个子任务"
+        }
+        return "\(project.completedSubtaskCount)/\(project.subtasks.count) 已完成"
+    }
+
+    private func dueSummary(prefix: String) -> String {
+        guard let targetDate = project.targetDate else { return "尚未设置截止日期" }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let targetDay = calendar.startOfDay(for: targetDate)
+        let dayDelta = calendar.dateComponents([.day], from: today, to: targetDay).day ?? 0
+
+        if dayDelta < 0 {
+            return "已逾期 \(-dayDelta) 天"
+        }
+        if dayDelta == 0 {
+            return "\(prefix)今天截止"
+        }
+        if dayDelta == 1 {
+            return "\(prefix)明天截止"
+        }
+        return "\(prefix)\(dayDelta) 天后截止"
+    }
+
+    private var deadlineText: String {
+        guard let targetDate = project.targetDate else { return "--" }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(targetDate) {
+            return "今天"
+        }
+        if calendar.isDateInTomorrow(targetDate) {
+            return "明天"
+        }
+        let month = calendar.component(.month, from: targetDate)
+        let day = calendar.component(.day, from: targetDate)
+        return "\(month)月\(day)日"
+    }
+
+    private var isOverdue: Bool {
+        guard let targetDate = project.targetDate else { return false }
+        return Calendar.current.startOfDay(for: targetDate) < Calendar.current.startOfDay(for: .now)
+    }
+
+    @ViewBuilder
+    private var titleRegion: some View {
+        if isEditingTitle {
+            TextField("", text: $titleDraft, prompt: Text(project.name))
+                .font(titleFont)
+                .foregroundStyle(titleColor)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .focused($isTitleFieldFocused)
+                .onSubmit {
+                    onCommitTitle(titleDraft)
+                }
+                .onChange(of: isTitleFieldFocused) { _, focused in
+                    if focused == false, isEditingTitle {
+                        onCommitTitle(titleDraft)
+                    }
+                }
+        } else {
+            Button(action: titleAction) {
+                Text(project.name)
+                    .font(titleFont)
+                    .foregroundStyle(titleColor.opacity(project.status == .completed ? 0.56 : 1))
+                    .strikethrough(project.status == .completed, color: subtitleColor.opacity(0.34))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var subtitleAction: some View {
+        Button {
+            if hasExpandedProject, !isExpanded {
+                onCollapseExpanded()
+            } else if isExpanded == false {
+                onToggleExpanded()
+            } else if project.subtasks.isEmpty {
+                onRequestAddSubtask()
+            } else {
+                onSubtitleTapped()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(subtitleActionText)
+                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                    .foregroundStyle(subtitleActionTextColor)
+
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(AppTheme.typography.sized(11, weight: .bold))
+                    .foregroundStyle(subtitleColor.opacity(0.74))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var deadlineEditorButton: some View {
+        Button(action: deadlineAction) {
+            VStack(alignment: .trailing, spacing: 8) {
+                Text(deadlineText)
+                    .font(AppTheme.typography.sized(18, weight: .semibold))
+                    .foregroundStyle(deadlineColor)
+                    .multilineTextAlignment(.trailing)
+
+                if project.subtasks.isEmpty == false {
+                    HStack(alignment: .center, spacing: 8) {
+                        ProjectProgressBar(progress: project.subtaskProgress, tint: progressTint)
+
+                        Text("\(project.completedSubtaskCount)/\(project.subtasks.count)")
+                            .font(AppTheme.typography.sized(12, weight: .semibold))
+                            .foregroundStyle(subtitleColor.opacity(0.72))
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var expandedBackground: some View {
+        if isExpanded {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(backgroundColor)
+                .shadow(
+                    color: expandedShadowColor,
+                    radius: expandedShadowRadius,
+                    y: expandedShadowYOffset
+                )
+                .overlay {
+                    Color.clear
+                        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .onTapGesture {
+                            onToggleExpanded()
+                        }
+                }
+                .transition(.opacity)
+        }
+    }
+
+    private var backgroundColor: Color {
+        style == .layer ? AppTheme.colors.projectLayerSurface.opacity(0.18) : AppTheme.colors.surface.opacity(0.94)
+    }
+
+    private func titleAction() {
+        if hasExpandedProject, !isExpanded {
+            onCollapseExpanded()
+            return
+        }
+        if isExpanded {
+            onBeginTitleEditing()
+        } else {
+            onToggleExpanded()
+        }
+    }
+
+    private func deadlineAction() {
+        if hasExpandedProject, !isExpanded {
+            onCollapseExpanded()
+            return
+        }
+        onOpenDeadlineEditor()
+    }
+}
+
+private struct ProjectDeadlinePickerSheet: View {
+    @Binding var selectedDate: Date
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("修改截止日期")
+                .font(AppTheme.typography.sized(22, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, AppTheme.spacing.lg)
+
+            TaskEditorDatePickerSheet(
+                selectedDate: $selectedDate,
+                selectionFeedback: HomeInteractionFeedback.selection,
+                onDismiss: onDismiss
+            )
+            .frame(height: TaskEditorDatePickerSheet.preferredHeight)
+            .padding(.bottom, AppTheme.spacing.lg)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(AppTheme.colors.surface)
+    }
+}
+
+private struct ProjectSubtasksSection: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let project: Project
+    let style: ProjectsPresentationStyle
+    let shouldFocusInput: Bool
+    let onToggleSubtask: (UUID) -> Void
+    let onUpdateSubtask: (UUID, String) -> Void
+    let onAddSubtask: (String) -> Void
+    @State private var draftTitle = ""
+    @State private var editingSubtaskID: UUID?
+    @State private var subtaskDraft = ""
+    @FocusState private var isInputFocused: Bool
+    @FocusState private var focusedSubtaskID: UUID?
+    private let verticalSpacing: CGFloat = 10
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: verticalSpacing) {
+            ForEach(Array(project.subtasks.enumerated()), id: \.element.id) { index, subtask in
+                ProjectSubtaskCascadeRow(index: index, reduceMotion: reduceMotion) {
+                    HStack(alignment: .center, spacing: 10) {
+                        Button {
+                            if subtask.isCompleted {
+                                HomeInteractionFeedback.selection()
+                            } else {
+                                HomeInteractionFeedback.soft()
+                            }
+                            onToggleSubtask(subtask.id)
+                        } label: {
+                            Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(AppTheme.typography.sized(17, weight: .semibold))
+                                .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : subtitleColor.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+
+                        if editingSubtaskID == subtask.id {
+                            TextField("", text: subtaskBinding(for: subtask), prompt: Text(subtask.title))
+                                .font(AppTheme.typography.sized(15, weight: .medium))
+                                .foregroundStyle(titleColor)
+                                .textInputAutocapitalization(.sentences)
+                                .submitLabel(.done)
+                                .focused($focusedSubtaskID, equals: subtask.id)
+                                .onSubmit {
+                                    commitSubtask(subtask)
+                                }
+                                .onChange(of: focusedSubtaskID) { _, focusedID in
+                                    if focusedID != subtask.id, editingSubtaskID == subtask.id {
+                                        commitSubtask(subtask)
+                                    }
+                                }
+                        } else {
+                            Button {
+                                HomeInteractionFeedback.selection()
+                                editingSubtaskID = subtask.id
+                                subtaskDraft = subtask.title
+                                focusedSubtaskID = subtask.id
+                            } label: {
+                                Text(subtask.title)
+                                    .font(AppTheme.typography.sized(15, weight: .medium))
+                                    .foregroundStyle(titleColor.opacity(subtask.isCompleted ? 0.46 : 0.92))
+                                    .strikethrough(subtask.isCompleted, color: subtitleColor.opacity(0.32))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+
+            ProjectSubtaskCascadeRow(index: project.subtasks.count, reduceMotion: reduceMotion) {
+                HStack(spacing: 10) {
+                    Button(action: addSubtask) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(AppTheme.typography.sized(17, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.coral)
+                    }
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            HomeInteractionFeedback.selection()
+                        }
+                    )
+                    .buttonStyle(.plain)
+                    .disabled(draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    TextField("添加子任务", text: $draftTitle)
+                        .font(AppTheme.typography.sized(15, weight: .medium))
+                        .foregroundStyle(titleColor)
+                        .textInputAutocapitalization(.sentences)
+                        .submitLabel(.done)
+                        .focused($isInputFocused)
+                        .onSubmit(addSubtask)
+                }
+            }
+        }
+        .padding(.top, verticalSpacing)
+        .onAppear {
+            if shouldFocusInput {
+                Task { @MainActor in
+                    isInputFocused = true
+                }
+            }
+        }
+        .onChange(of: project.subtasks) { _, subtasks in
+            if let editingSubtaskID, subtasks.contains(where: { $0.id == editingSubtaskID }) == false {
+                self.editingSubtaskID = nil
+                subtaskDraft = ""
+            }
+        }
+    }
+
+    private var titleColor: Color {
+        style == .layer ? AppTheme.colors.projectLayerText : AppTheme.colors.title
+    }
+
+    private var subtitleColor: Color {
+        style == .layer ? AppTheme.colors.projectLayerSecondaryText : AppTheme.colors.body
+    }
+
+    private func subtaskBinding(for subtask: ProjectSubtask) -> Binding<String> {
+        Binding(
+            get: { editingSubtaskID == subtask.id ? subtaskDraft : subtask.title },
+            set: { subtaskDraft = $0 }
+        )
+    }
+
+    private func commitSubtask(_ subtask: ProjectSubtask) {
+        let trimmed = subtaskDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer {
+            editingSubtaskID = nil
+            subtaskDraft = ""
+            focusedSubtaskID = nil
+        }
+        guard trimmed.isEmpty == false, trimmed != subtask.title else { return }
+        onUpdateSubtask(subtask.id, trimmed)
+    }
+
+    private func addSubtask() {
+        let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        HomeInteractionFeedback.selection()
+        onAddSubtask(trimmed)
+        draftTitle = ""
+    }
+}
+
+private struct ProjectSubtaskCascadeRow<Content: View>: View {
+    @State private var isVisible = false
+    let index: Int
+    let reduceMotion: Bool
+    @ViewBuilder let content: Content
+
+    init(
+        index: Int,
+        reduceMotion: Bool,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.index = index
+        self.reduceMotion = reduceMotion
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : 18)
+            .scaleEffect(isVisible ? 1 : 0.965, anchor: .center)
+            .onAppear {
+                isVisible = false
+                withAnimation(animation) {
+                    isVisible = true
+                }
+            }
+    }
+
+    private var animation: Animation {
+        if reduceMotion {
+            return .easeOut(duration: 0.16)
+        }
+        return .snappy(duration: 0.32, extraBounce: 0.03).delay(Double(index) * 0.075)
+    }
+}
+
+private struct ProjectProgressBar: View {
+    let progress: Double
+    let tint: Color
+    private let barWidth: CGFloat = 40
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Capsule(style: .continuous)
+                .fill(tint.opacity(0.14))
+
+            Capsule(style: .continuous)
+                .fill(tint)
+                .frame(width: progress > 0 ? max(10, barWidth * progress) : 0)
+        }
+        .frame(width: barWidth, height: 6)
+        .animation(.smooth(duration: 0.2), value: progress)
+    }
+}
+
+private struct ProjectCompletionBadge: View {
+    let isCompleted: Bool
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(
+                    AppTheme.colors.body.opacity(isCompleted ? 0.16 : 0.44),
+                    style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                )
+                .opacity(isCompleted ? 0 : 1)
+
+            AnimatedProjectCheckmarkShape()
+                .trim(from: 0, to: isCompleted ? 1 : 0)
+                .stroke(
+                    AppTheme.colors.coral,
+                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round)
+                )
+                .frame(width: 18, height: 18)
+                .rotationEffect(.degrees(-4))
+                .opacity(isCompleted ? 1 : 0)
+        }
+    }
+}
+
+private struct AnimatedProjectCheckmarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.minY + rect.height * 0.56))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.minY + rect.height * 0.80))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.86, y: rect.minY + rect.height * 0.22))
+        return path
+    }
+}
+
+private struct ProjectDashedDivider: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        return path
+    }
+}
+
+private struct ProjectCascadeItem<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: ProjectCascadePhase = .hidden
+    @State private var animationTask: Task<Void, Never>?
+
+    let isVisible: Bool
+    let index: Int
+    @ViewBuilder let content: Content
+
+    init(
+        isVisible: Bool,
+        index: Int,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.isVisible = isVisible
+        self.index = index
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .opacity(phase.opacity)
+            .offset(y: phase.offsetY)
+            .scaleEffect(phase.scale, anchor: .center)
+            .animation(animation(for: phase), value: phase)
+            .onAppear {
+                updatePhase(for: isVisible)
+            }
+            .onChange(of: isVisible) { _, visible in
+                updatePhase(for: visible)
+            }
+            .onDisappear {
+                animationTask?.cancel()
+            }
+    }
+
+    private func updatePhase(for visible: Bool) {
+        animationTask?.cancel()
+
+        guard visible else {
+            phase = .hidden
+            return
+        }
+
+        let delay = Double(index) * 0.034
+        phase = .hidden
+
+        animationTask = Task { @MainActor in
+            if delay > 0 {
+                try? await Task.sleep(for: .seconds(delay))
+            }
+            guard !Task.isCancelled else { return }
+            phase = .preparing
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 70 : 95))
+            guard !Task.isCancelled else { return }
+            phase = .settled
+        }
+    }
+
+    private func animation(for phase: ProjectCascadePhase) -> Animation {
+        if reduceMotion {
+            switch phase {
+            case .hidden:
+                return .easeOut(duration: 0.12)
+            case .preparing:
+                return .easeOut(duration: 0.10)
+            case .settled:
+                return .easeOut(duration: 0.16)
+            }
+        }
+
+        switch phase {
+        case .hidden:
+            return .easeOut(duration: 0.14)
+        case .preparing:
+            return .easeOut(duration: 0.12)
+        case .settled:
+            return .spring(response: 0.34, dampingFraction: 0.9)
+        }
+    }
+}
+
+private enum ProjectCascadePhase: CaseIterable {
+    case hidden
+    case preparing
+    case settled
+
+    var opacity: Double {
+        switch self {
+        case .hidden:
+            return 0.02
+        case .preparing:
+            return 0.68
+        case .settled:
+            return 1
+        }
+    }
+
+    var offsetY: CGFloat {
+        switch self {
+        case .hidden:
+            return 28
+        case .preparing:
+            return 10
+        case .settled:
+            return 0
+        }
+    }
+
+    var scale: CGFloat {
+        switch self {
+        case .hidden:
+            return 0.992
+        case .preparing:
+            return 0.998
+        case .settled:
+            return 1
+        }
     }
 }
 

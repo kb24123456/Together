@@ -617,10 +617,10 @@ struct ComposerPlaceholderSheet: View {
                     draftState.projectDraft(spaceID: spaceID)
                 )
                 for subtask in draftState.projectSubtasks {
-                    _ = try await appContext.container.taskApplicationService.createTask(
-                        in: spaceID,
-                        actorID: actorID,
-                        draft: subtask.taskDraft(projectID: project.id)
+                    _ = try await appContext.container.projectRepository.addSubtask(
+                        projectID: project.id,
+                        title: subtask.title,
+                        isCompleted: subtask.isCompleted
                     )
                 }
                 await appContext.projectsViewModel.load()
@@ -673,14 +673,6 @@ private struct ProjectSubtaskDraft: Identifiable, Hashable {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
-    }
-
-    func taskDraft(projectID: UUID) -> TaskDraft {
-        TaskDraft(
-            title: title,
-            projectID: projectID,
-            status: isCompleted ? .completed : .inProgress
-        )
     }
 }
 

@@ -75,6 +75,7 @@ extension PersistentProject {
             remindAt: remindAt,
             priority: ItemPriority(rawValue: priorityRawValue) ?? .normal,
             taskCount: taskCount,
+            subtasks: [],
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: completedAt

@@ -18,6 +18,7 @@ struct Project: Identifiable, Hashable, Sendable {
     var remindAt: Date?
     var priority: ItemPriority
     var taskCount: Int
+    var subtasks: [ProjectSubtask]
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
@@ -33,6 +34,7 @@ struct Project: Identifiable, Hashable, Sendable {
         remindAt: Date?,
         priority: ItemPriority,
         taskCount: Int,
+        subtasks: [ProjectSubtask] = [],
         createdAt: Date,
         updatedAt: Date,
         completedAt: Date?
@@ -47,8 +49,20 @@ struct Project: Identifiable, Hashable, Sendable {
         self.remindAt = remindAt
         self.priority = priority
         self.taskCount = taskCount
+        self.subtasks = subtasks
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt
+    }
+}
+
+extension Project {
+    var completedSubtaskCount: Int {
+        subtasks.filter(\.isCompleted).count
+    }
+
+    var subtaskProgress: Double {
+        guard subtasks.isEmpty == false else { return 0 }
+        return Double(completedSubtaskCount) / Double(subtasks.count)
     }
 }

@@ -689,6 +689,10 @@ final class HomeViewModel {
         activeTimelineEntries + completedTimelineEntries
     }
 
+    var hasAnyTimelineEntriesForSelectedDate: Bool {
+        sortedItemsForTimeline.isEmpty == false
+    }
+
     var timelineEntryIDs: [UUID] {
         timelineEntries.map(\.id)
     }

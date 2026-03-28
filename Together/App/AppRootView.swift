@@ -3,6 +3,7 @@ import UIKit
 
 struct AppRootView: View {
     @Environment(AppContext.self) private var appContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var quickCaptureInputBridge = QuickCaptureInputBridge()
     @State private var isQuickCapturePresented = false
     @State private var quickCaptureText = ""
@@ -14,6 +15,7 @@ struct AppRootView: View {
     @State private var quickCaptureFieldHeight: CGFloat = 52
     @State private var quickCaptureSpeechRecognizer = QuickCaptureSpeechRecognizer()
     @State private var pendingQuickCaptureConfirmation: QuickCapturePendingConfirmation?
+    @State private var isProjectButtonReturning = false
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
 
     private let quickCaptureTranscriptPreviewThreshold = 16
@@ -28,8 +30,16 @@ struct AppRootView: View {
                 NavigationStack {
                     HomeView(
                         viewModel: appContext.homeViewModel,
-                        isProjectLayerPresented: false,
+                        projectsViewModel: appContext.projectsViewModel,
+                        isProjectModePresented: router.isProjectModePresented,
+                        onOpenProjectsMode: {
+                            openProjectsMode(router: router)
+                        },
+                        onCloseProjectsMode: {
+                            closeProjectsMode(router: router)
+                        },
                         onCreateTaskTapped: {
+                            closeProjectsMode(router: router)
                             dismissQuickCapture()
                             router.pendingComposerTitle = nil
                             router.activeComposer = .newTask
@@ -155,6 +165,7 @@ struct AppRootView: View {
     @ViewBuilder
     private func overlayChrome(bottomInset: CGFloat, router: AppRouter) -> some View {
         let collapsedDockBottom = max(4, bottomInset - 28)
+        let projectModeDockBottom = bottomInset + 12
         let pinnedKeyboardOverlap =
             keyboardObserver.overlap > 0
             ? keyboardObserver.overlap
@@ -185,20 +196,31 @@ struct AppRootView: View {
             if !isQuickCapturePresented {
                 HomeDockBar(
                     isQuickCapturePresented: false,
+                    isProjectModePresented: router.isProjectModePresented,
+                    isProjectButtonReturning: isProjectButtonReturning,
                     onProfileTapped: {
+                        closeProjectsMode(router: router)
                         dismissQuickCapture()
                         router.isProfilePresented = true
                     },
                     onComposeTapped: {
+                        closeProjectsMode(router: router)
                         dismissQuickCapture()
                         router.pendingComposerTitle = nil
                         router.activeComposer = .newTask
                     },
                     onQuickCaptureTapped: {
                         toggleQuickCapture()
+                    },
+                    onProjectsTapped: {
+                        if router.isProjectModePresented {
+                            closeProjectsMode(router: router)
+                        } else {
+                            openProjectsMode(router: router)
+                        }
                     }
                 )
-                .padding(.bottom, collapsedDockBottom)
+                .padding(.bottom, router.isProjectModePresented ? projectModeDockBottom : collapsedDockBottom)
                 .transition(
                     .move(edge: .bottom)
                     .combined(with: .opacity)
@@ -219,7 +241,14 @@ struct AppRootView: View {
         .animation(.spring(response: 0.38, dampingFraction: 0.86), value: isQuickCapturePresented)
         .animation(.easeOut(duration: 0.2), value: quickCaptureDebugMessage)
         .animation(.spring(response: 0.34, dampingFraction: 0.84), value: shouldShowQuickCaptureTranscriptPreview)
+        .animation(projectModeAnimation, value: router.isProjectModePresented)
         .allowsHitTesting(true)
+    }
+
+    private var projectModeAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.18)
+            : .spring(response: 0.38, dampingFraction: 0.88)
     }
 
     private var shouldShowQuickCaptureTranscriptPreview: Bool {
@@ -383,6 +412,7 @@ struct AppRootView: View {
     }
 
     private func toggleQuickCapture() {
+        appContext.router.isProjectModePresented = false
         withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
             isQuickCapturePresented.toggle()
         }
@@ -411,6 +441,34 @@ struct AppRootView: View {
         quickCaptureText = ""
         quickCaptureHasVisibleText = false
         quickCaptureFieldHeight = quickCaptureFieldMinHeight
+    }
+
+    private func openProjectsMode(router: AppRouter) {
+        guard !isQuickCapturePresented else { return }
+        guard pendingQuickCaptureConfirmation == nil else { return }
+        guard router.isProfilePresented == false else { return }
+        guard router.activeComposer == nil else { return }
+        guard router.isProjectModePresented == false else { return }
+
+        HomeInteractionFeedback.selection()
+        withAnimation(projectModeAnimation) {
+            router.isProjectModePresented = true
+            isProjectButtonReturning = false
+        }
+    }
+
+    private func closeProjectsMode(router: AppRouter) {
+        guard router.isProjectModePresented else { return }
+
+        HomeInteractionFeedback.selection()
+        isProjectButtonReturning = true
+        withAnimation(projectModeAnimation) {
+            router.isProjectModePresented = false
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(420))
+            isProjectButtonReturning = false
+        }
     }
 
     private func submitQuickCapture(_ rawTitle: String? = nil) {

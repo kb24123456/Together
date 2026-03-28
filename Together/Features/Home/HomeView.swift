@@ -4,8 +4,12 @@ import UIKit
 #endif
 
 struct HomeView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var viewModel: HomeViewModel
-    let isProjectLayerPresented: Bool
+    @Bindable var projectsViewModel: ProjectsViewModel
+    let isProjectModePresented: Bool
+    let onOpenProjectsMode: () -> Void
+    let onCloseProjectsMode: () -> Void
     let onCreateTaskTapped: () -> Void
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isWeekPagerSettling = false
@@ -23,6 +27,7 @@ struct HomeView: View {
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineDividerLeadingInset: CGFloat = AppTheme.spacing.xl + 44
     private let timelineBottomInset: CGFloat = 144
+    private let homeCanvasColor = AppTheme.colors.homeBackground
 
     var body: some View {
         GeometryReader { proxy in
@@ -31,17 +36,21 @@ struct HomeView: View {
 
                 VStack(spacing: 0) {
                     headerSection
-                        .padding(.horizontal, AppTheme.spacing.xl)
-                        .padding(.top, proxy.safeAreaInsets.top + AppTheme.spacing.sm)
+                        .padding(.horizontal, horizontalContentPadding)
+                        .padding(.top, headerTopPadding(safeAreaTop: proxy.safeAreaInsets.top))
+                        .offset(y: headerVerticalOffset)
+                        .zIndex(2)
 
-                    weekCalendarSection
-                        .padding(.horizontal, AppTheme.spacing.xl)
+                    weekCalendarContainer
+                        .padding(.horizontal, horizontalContentPadding)
                         .padding(.top, 0)
                         .padding(.bottom, 0)
+                        .zIndex(1)
 
                     contentCard
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .offset(y: projectCardOffset)
+                        .offset(y: contentCardVerticalOffset)
+                        .scaleEffect(contentCardScale, anchor: .top)
                 }
 
                 if viewModel.selectedItemID != nil {
@@ -61,6 +70,9 @@ struct HomeView: View {
         .task {
             await viewModel.loadIfNeeded()
             updateTodayJumpButtonVisibility()
+            if projectsViewModel.loadState == .idle {
+                await projectsViewModel.load()
+            }
         }
         .task(id: viewModel.selectedDateKey) {
             await viewModel.reload()
@@ -84,102 +96,160 @@ struct HomeView: View {
 
     private var backgroundView: some View {
         Group {
-            if isProjectLayerPresented {
-                Color.clear
-            } else {
-                AppTheme.colors.surface
-            }
+            homeCanvasColor
         }
         .ignoresSafeArea()
     }
 
     private var headerSection: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(viewModel.headerDateText)
-                    .font(AppTheme.typography.sized(36, weight: .bold))
-                    .tracking(-0.9)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.84)
-                    .foregroundStyle(headerPrimaryColor)
-                    .contentTransition(.numericText())
-            }
+        VStack(alignment: .leading, spacing: isProjectModePresented ? 6 : 0) {
+            headerTopRow(compact: isProjectModePresented)
 
-            Spacer(minLength: 0)
-
-            HStack(spacing: AppTheme.spacing.sm) {
-                if isTodayJumpButtonVisible {
-                    todayJumpButton
-                        .transition(todayJumpTransition)
-                        .layoutPriority(2)
-                }
-
-                HomeAvatarToggleButton(
-                    avatars: viewModel.headerAvatars,
-                    foregroundColor: headerPrimaryColor,
-                    secondaryForegroundColor: headerSecondaryColor,
-                    action: {
-                        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                            viewModel.toggleAvatarPreview()
-                        }
-                        triggerSoftDateFeedback()
-                    }
-                )
+            if isProjectModePresented {
+                projectModeHeaderMeta
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
         .animation(.spring(response: 0.34, dampingFraction: 0.82), value: viewModel.showsPairAvatarPreview)
-        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: isProjectLayerPresented)
+    }
+
+    private func headerTopRow(compact: Bool) -> some View {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            headerTitle(compact: compact)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: AppTheme.spacing.sm) {
+                if compact == false, isTodayJumpButtonVisible {
+                    todayJumpButton
+                        .transition(todayJumpTransition)
+                        .layoutPriority(2)
+                }
+
+                headerAvatarButton(compact: compact)
+            }
+        }
+        .frame(minHeight: compact ? 40 : 52, alignment: .center)
+    }
+
+    private var projectModeHeaderMeta: some View {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            Text(projectModeDateLine)
+                .font(AppTheme.typography.sized(14, weight: .medium))
+                .foregroundStyle(headerSecondaryColor)
+                .lineLimit(1)
+
+            Spacer(minLength: 12)
+
+            Text(projectModeProjectsSummary)
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(headerSecondaryColor)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(isProjectModePresented ? 1 : 0)
+        .offset(y: isProjectModePresented ? 0 : projectModeContentTransitionOffset)
+        .allowsHitTesting(false)
+        .animation(projectModeAnimation, value: isProjectModePresented)
+    }
+
+    private func headerTitle(compact: Bool) -> some View {
+        Text(viewModel.headerDateText)
+            .font(AppTheme.typography.sized(36, weight: .bold))
+            .tracking(-0.9)
+            .lineLimit(1)
+            .minimumScaleFactor(0.84)
+            .foregroundStyle(headerPrimaryColor)
+            .contentTransition(.numericText())
+            .scaleEffect(compact ? 0.78 : 1, anchor: .leading)
+            .frame(height: 44, alignment: .leading)
+            .compositingGroup()
+    }
+
+    private func headerAvatarButton(compact: Bool) -> some View {
+        HomeAvatarToggleButton(
+            avatars: viewModel.headerAvatars,
+            foregroundColor: headerPrimaryColor,
+            secondaryForegroundColor: headerSecondaryColor,
+            compact: compact,
+            action: {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                    viewModel.toggleAvatarPreview()
+                }
+                triggerSoftDateFeedback()
+            }
+        )
+        .compositingGroup()
     }
 
     private var contentCard: some View {
-        Group {
-            if viewModel.timelineEntries.isEmpty {
+        ZStack(alignment: .top) {
+            tasksContent
+                .opacity(isProjectModePresented ? 0 : 1)
+                .allowsHitTesting(!isProjectModePresented)
+                .animation(modeFadeAnimation, value: isProjectModePresented)
+
+            if isProjectModePresented {
+                projectsModeContent
+                    .transition(.opacity.combined(with: .offset(y: 10)))
+                    .allowsHitTesting(true)
+            }
+        }
+        .animation(projectModeAnimation, value: isProjectModePresented)
+    }
+
+    private var tasksContent: some View {
+        ZStack {
+            if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         timelineSection
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)
-                    .padding(.top, AppTheme.spacing.sm)
+                    .padding(.top, 0)
                     .padding(.bottom, 144)
                 }
+                .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
-                .scrollDisabled(isProjectLayerPresented)
+                .scrollDisabled(isProjectModePresented)
+                .transition(timelineTransition)
             } else {
                 timelineList
+                    .id("timeline-\(viewModel.selectedDateKey)")
+                    .transition(timelineTransition)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : contentCardCornerRadius, style: .continuous)
-                .fill(AppTheme.colors.surface)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.selectedDateKey)
+    }
+
+    private var projectsModeContent: some View {
+        ProjectsListContent(
+            viewModel: projectsViewModel,
+            style: .screen,
+            showsHeader: false,
+            isPresented: isProjectModePresented,
+            contentTopPadding: 16,
+            contentBottomPadding: 44
         )
-        .overlay(alignment: .top) {
-            if isProjectLayerPresented {
-                Capsule(style: .continuous)
-                    .fill(AppTheme.colors.outlineStrong.opacity(0.32))
-                    .frame(width: 76, height: 7)
-                    .padding(.top, 12)
-                    .transition(.opacity)
-            }
-        }
-        .shadow(
-            color: isProjectLayerPresented ? AppTheme.colors.shadow.opacity(2.2) : .clear,
-            radius: isProjectLayerPresented ? 34 : 0,
-            y: isProjectLayerPresented ? -6 : 0
-        )
-        .clipShape(
-            RoundedRectangle(cornerRadius: isProjectLayerPresented ? 38 : contentCardCornerRadius, style: .continuous)
-        )
-        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: isProjectLayerPresented)
+    }
+
+    private var weekCalendarContainer: some View {
+        weekCalendarSection
+            .frame(height: isProjectModePresented ? 0 : 76, alignment: .top)
+            .offset(y: weekSectionVerticalOffset)
+            .opacity(isProjectModePresented ? 0 : 1)
+            .clipped()
+            .allowsHitTesting(!isProjectModePresented)
+            .animation(projectModeAnimation, value: isProjectModePresented)
     }
 
     private var timelineList: some View {
         List {
             Color.clear
-                .frame(height: 6)
+                .frame(height: 0)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(AppTheme.colors.surface)
+                .listRowBackground(homeCanvasColor)
                 .listRowSeparator(.hidden)
 
             if viewModel.showsOverdueCapsule {
@@ -192,7 +262,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowBackground(homeCanvasColor)
                     .listRowSeparator(.hidden)
             }
 
@@ -212,7 +282,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowBackground(homeCanvasColor)
                     .listRowSeparator(.hidden)
 
                 if viewModel.showsCompletedItems {
@@ -222,17 +292,17 @@ struct HomeView: View {
                 Color.clear
                     .frame(height: timelineBottomInset)
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowBackground(homeCanvasColor)
                     .listRowSeparator(.hidden)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
-        .scrollDisabled(isProjectLayerPresented)
+        .scrollDisabled(isProjectModePresented)
         .environment(\.defaultMinListRowHeight, 0)
-        .safeAreaPadding(.top, AppTheme.spacing.sm)
-        .background(AppTheme.colors.surface)
+        .safeAreaPadding(.top, 0)
+        .background(homeCanvasColor)
     }
 
     private var todayJumpButton: some View {
@@ -257,11 +327,11 @@ struct HomeView: View {
 
     private var todayJumpTransition: AnyTransition {
         .asymmetric(
-            insertion: .offset(y: -8)
-                .combined(with: .scale(scale: 0.94, anchor: .top))
+            insertion: .move(edge: .trailing)
+                .combined(with: .scale(scale: 0.96, anchor: .trailing))
                 .combined(with: .opacity),
-            removal: .offset(y: -4)
-                .combined(with: .scale(scale: 0.97, anchor: .top))
+            removal: .move(edge: .trailing)
+                .combined(with: .scale(scale: 0.98, anchor: .trailing))
                 .combined(with: .opacity)
         )
     }
@@ -276,9 +346,7 @@ struct HomeView: View {
             return
         }
 
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.94)) {
-            isTodayJumpButtonVisible = false
-        }
+        guard isTodayJumpButtonVisible == false else { return }
 
         todayJumpRevealTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
@@ -294,7 +362,7 @@ struct HomeView: View {
     }
 
     private var shouldShowTodayJumpButton: Bool {
-        guard !viewModel.isViewingToday, !isProjectLayerPresented else {
+        guard !viewModel.isViewingToday, !isProjectModePresented else {
             return false
         }
 
@@ -317,7 +385,7 @@ struct HomeView: View {
             Color.clear
                 .frame(height: timelineBottomInset)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(AppTheme.colors.surface)
+                .listRowBackground(homeCanvasColor)
                 .listRowSeparator(.hidden)
                 .modifier(CompletedSectionMotionModifier(isVisible: isCompletedSectionVisible))
                 .allowsHitTesting(false)
@@ -399,7 +467,7 @@ struct HomeView: View {
                     trailing: timelineRowHorizontalInset
                 )
             )
-            .listRowBackground(isCompletedRow ? Color.clear : AppTheme.colors.surface)
+            .listRowBackground(isCompletedRow ? Color.clear : homeCanvasColor)
             .listRowSeparator(.hidden)
             .applyTransition(rowTransition)
             .applyCompletedSectionVisibility(
@@ -419,7 +487,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(sectionVisibility == nil ? AppTheme.colors.surface : Color.clear)
+                    .listRowBackground(sectionVisibility == nil ? homeCanvasColor : Color.clear)
                     .listRowSeparator(.hidden)
                     .applyCompletedSectionVisibility(
                         sectionVisibility.map { $0.rowVisibility(for: index) }
@@ -447,6 +515,7 @@ struct HomeView: View {
         }
         .frame(height: 76)
         .clipped()
+        .animation(projectModeAnimation, value: isProjectModePresented)
     }
 
     private func weekPage(for offset: Int) -> some View {
@@ -467,7 +536,7 @@ struct HomeView: View {
                         Text(date, format: .dateTime.day())
                             .font(
                                 AppTheme.typography.sized(
-                                    22,
+                                    isProjectModePresented ? 18 : 22,
                                     weight: isSelected ? .bold : .semibold
                                 )
                             )
@@ -478,7 +547,7 @@ struct HomeView: View {
                             )
 
                         Text(viewModel.weekdayLabel(for: date))
-                            .font(AppTheme.typography.sized(12, weight: .semibold))
+                            .font(AppTheme.typography.sized(isProjectModePresented ? 11 : 12, weight: .semibold))
                             .foregroundStyle(
                                 isSelected
                                 ? AppTheme.colors.coral
@@ -486,8 +555,9 @@ struct HomeView: View {
                             )
                     }
                     .scaleEffect(isSelected ? 1.16 : 1.0)
+                    .scaleEffect(isProjectModePresented ? 0.92 : 1, anchor: .center)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 84)
+                    .frame(height: isProjectModePresented ? 66 : 84)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -497,7 +567,7 @@ struct HomeView: View {
 
     private var timelineSection: some View {
         ZStack {
-            if viewModel.timelineEntries.isEmpty {
+            if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
                     Text("今天暂时没有非做不可的事")
                         .font(AppTheme.typography.textStyle(.body, weight: .medium))
@@ -625,16 +695,56 @@ struct HomeView: View {
         .accessibilityLabel(viewModel.overdueCapsuleTitle)
     }
 
-    private var headerPrimaryColor: Color {
-        isProjectLayerPresented ? AppTheme.colors.projectLayerText : AppTheme.colors.title
+    private var headerPrimaryColor: Color { AppTheme.colors.title }
+
+    private var headerSecondaryColor: Color { AppTheme.colors.body.opacity(0.62) }
+
+    private var headerVerticalOffset: CGFloat {
+        isProjectModePresented ? -10 : 0
     }
 
-    private var headerSecondaryColor: Color {
-        isProjectLayerPresented ? AppTheme.colors.projectLayerSecondaryText : AppTheme.colors.body.opacity(0.55)
+    private var weekSectionVerticalOffset: CGFloat {
+        isProjectModePresented ? -14 : 0
     }
 
-    private var projectCardOffset: CGFloat {
-        isProjectLayerPresented ? 262 : 0
+    private var contentCardVerticalOffset: CGFloat {
+        0
+    }
+
+    private var projectModeContentTransitionOffset: CGFloat {
+        30
+    }
+
+    private var contentCardScale: CGFloat {
+        1
+    }
+
+    private var modeFadeAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.14)
+            : .easeOut(duration: 0.16)
+    }
+
+    private var projectModeAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.2)
+            : .spring(response: 0.4, dampingFraction: 0.86)
+    }
+
+    private func headerTopPadding(safeAreaTop: CGFloat) -> CGFloat {
+        safeAreaTop + (isProjectModePresented ? 16 : AppTheme.spacing.sm)
+    }
+
+    private var horizontalContentPadding: CGFloat {
+        AppTheme.spacing.xl
+    }
+
+    private var projectModeDateLine: String {
+        viewModel.selectedWeekdayAndDateText.replacingOccurrences(of: "\n", with: " · ")
+    }
+
+    private var projectModeProjectsSummary: String {
+        "当前 \(projectsViewModel.activeProjects.count) 条项目进行中"
     }
 
     private func triggerSoftDateFeedback() {
@@ -817,9 +927,13 @@ struct HomeView: View {
 }
 
 #Preview("Home Default") {
+    let context = AppContext.bootstrap()
     HomeView(
-        viewModel: AppContext.bootstrap().homeViewModel,
-        isProjectLayerPresented: false,
+        viewModel: context.homeViewModel,
+        projectsViewModel: context.projectsViewModel,
+        isProjectModePresented: false,
+        onOpenProjectsMode: {},
+        onCloseProjectsMode: {},
         onCreateTaskTapped: {}
     )
 }
@@ -830,7 +944,10 @@ struct HomeView: View {
 
     return HomeView(
         viewModel: context.homeViewModel,
-        isProjectLayerPresented: false,
+        projectsViewModel: context.projectsViewModel,
+        isProjectModePresented: false,
+        onOpenProjectsMode: {},
+        onCloseProjectsMode: {},
         onCreateTaskTapped: {}
     )
 }
@@ -841,7 +958,10 @@ struct HomeView: View {
 
     return HomeView(
         viewModel: context.homeViewModel,
-        isProjectLayerPresented: false,
+        projectsViewModel: context.projectsViewModel,
+        isProjectModePresented: false,
+        onOpenProjectsMode: {},
+        onCloseProjectsMode: {},
         onCreateTaskTapped: {}
     )
 }
@@ -1058,6 +1178,7 @@ private struct HomeAvatarToggleButton: View {
     let avatars: [HomeAvatar]
     let foregroundColor: Color
     let secondaryForegroundColor: Color
+    let compact: Bool
     let action: () -> Void
 
     var body: some View {
@@ -1073,6 +1194,8 @@ private struct HomeAvatarToggleButton: View {
         }
         .buttonStyle(.plain)
         .modifier(HomeAvatarGlassModifier())
+        .scaleEffect(compact ? 0.86 : 1, anchor: .trailing)
+        .frame(minHeight: controlHeight)
     }
 
     @ViewBuilder

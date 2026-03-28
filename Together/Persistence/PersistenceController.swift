@@ -43,6 +43,7 @@ struct PersistenceController {
             for: PersistentSpace.self,
             PersistentTaskList.self,
             PersistentProject.self,
+            PersistentProjectSubtask.self,
             PersistentItem.self,
             PersistentItemOccurrenceCompletion.self,
             PersistentTaskTemplate.self,
@@ -97,6 +98,10 @@ struct PersistenceController {
 
         for project in MockDataFactory.makeProjects() {
             context.insert(PersistentProject(project: project))
+        }
+
+        for subtask in MockDataFactory.makeProjectSubtasks() {
+            context.insert(PersistentProjectSubtask(subtask: subtask))
         }
 
         for item in MockDataFactory.makeItems() {
