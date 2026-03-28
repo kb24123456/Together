@@ -18,13 +18,21 @@ enum ItemRepeatFrequency: String, CaseIterable, Hashable, Sendable, Codable {
 }
 
 struct ItemRepeatRule: Hashable, Sendable, Codable {
+    private enum CodingKeys: String, CodingKey {
+        case frequency
+        case interval
+        case weekday
+        case weekdays
+        case dayOfMonth
+    }
+
     var frequency: ItemRepeatFrequency
     var interval: Int
     var weekday: Int?
     var weekdays: [Int]?
     var dayOfMonth: Int?
 
-    init(
+    nonisolated init(
         frequency: ItemRepeatFrequency,
         interval: Int = 1,
         weekday: Int? = nil,
@@ -36,6 +44,32 @@ struct ItemRepeatRule: Hashable, Sendable, Codable {
         self.weekday = weekday
         self.weekdays = weekdays?.sorted()
         self.dayOfMonth = dayOfMonth
+    }
+
+    nonisolated static func == (lhs: ItemRepeatRule, rhs: ItemRepeatRule) -> Bool {
+        lhs.frequency == rhs.frequency
+            && lhs.interval == rhs.interval
+            && lhs.weekday == rhs.weekday
+            && lhs.weekdays == rhs.weekdays
+            && lhs.dayOfMonth == rhs.dayOfMonth
+    }
+
+    nonisolated init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        frequency = try container.decode(ItemRepeatFrequency.self, forKey: .frequency)
+        interval = try container.decode(Int.self, forKey: .interval)
+        weekday = try container.decodeIfPresent(Int.self, forKey: .weekday)
+        weekdays = try container.decodeIfPresent([Int].self, forKey: .weekdays)
+        dayOfMonth = try container.decodeIfPresent(Int.self, forKey: .dayOfMonth)
+    }
+
+    nonisolated func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(frequency, forKey: .frequency)
+        try container.encode(interval, forKey: .interval)
+        try container.encodeIfPresent(weekday, forKey: .weekday)
+        try container.encodeIfPresent(weekdays, forKey: .weekdays)
+        try container.encodeIfPresent(dayOfMonth, forKey: .dayOfMonth)
     }
 
     nonisolated func title(anchorDate: Date, calendar: Calendar = .current) -> String {

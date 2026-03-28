@@ -15,7 +15,7 @@ struct TaskDraft: Hashable, Sendable {
     var isDraft: Bool
     var repeatRule: ItemRepeatRule?
 
-    init(
+    nonisolated init(
         title: String,
         notes: String? = nil,
         listID: UUID? = nil,
@@ -47,7 +47,7 @@ struct TaskDraft: Hashable, Sendable {
 }
 
 extension TaskDraft {
-    init(item: Item) {
+    nonisolated init(item: Item) {
         self.init(
             title: item.title,
             notes: item.notes,

@@ -42,11 +42,21 @@ struct SyncChange: Identifiable, Codable, Hashable, Sendable {
 struct SyncCursor: Codable, Hashable, Sendable {
     let token: String
     let updatedAt: Date
+
+    nonisolated init(token: String, updatedAt: Date) {
+        self.token = token
+        self.updatedAt = updatedAt
+    }
 }
 
 struct SyncPushResult: Codable, Hashable, Sendable {
     let pushedCount: Int
     let cursor: SyncCursor?
+
+    nonisolated init(pushedCount: Int, cursor: SyncCursor?) {
+        self.pushedCount = pushedCount
+        self.cursor = cursor
+    }
 }
 
 struct SyncPullResult: Codable, Hashable, Sendable {
@@ -54,7 +64,7 @@ struct SyncPullResult: Codable, Hashable, Sendable {
     let changedRecordIDs: [UUID]
     let payload: RemoteSyncPayload
 
-    init(
+    nonisolated init(
         cursor: SyncCursor?,
         changedRecordIDs: [UUID],
         payload: RemoteSyncPayload = .empty

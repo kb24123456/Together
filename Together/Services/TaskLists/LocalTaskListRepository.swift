@@ -107,7 +107,7 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
 }
 
 private extension TaskList {
-    func withTaskCount(_ count: Int) -> TaskList {
+    nonisolated func withTaskCount(_ count: Int) -> TaskList {
         TaskList(
             id: id,
             spaceID: spaceID,

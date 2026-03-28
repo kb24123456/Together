@@ -6,6 +6,11 @@ enum TaskTemplateCategory: String, Codable, Sendable {
 }
 
 struct TaskTemplateClockTime: Hashable, Sendable, Codable {
+    private enum CodingKeys: String, CodingKey {
+        case hour
+        case minute
+    }
+
     var hour: Int
     var minute: Int
 
@@ -30,6 +35,22 @@ struct TaskTemplateClockTime: Hashable, Sendable, Codable {
             second: 0,
             of: day
         )
+    }
+
+    nonisolated static func == (lhs: TaskTemplateClockTime, rhs: TaskTemplateClockTime) -> Bool {
+        lhs.hour == rhs.hour && lhs.minute == rhs.minute
+    }
+
+    nonisolated init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hour = try container.decode(Int.self, forKey: .hour)
+        minute = try container.decode(Int.self, forKey: .minute)
+    }
+
+    nonisolated func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(hour, forKey: .hour)
+        try container.encode(minute, forKey: .minute)
     }
 }
 

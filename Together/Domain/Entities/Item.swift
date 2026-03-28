@@ -1,10 +1,45 @@
 import Foundation
 
 struct ItemResponse: Hashable, Sendable, Codable {
+    private enum CodingKeys: String, CodingKey {
+        case responderID
+        case kind
+        case message
+        case respondedAt
+    }
+
     let responderID: UUID
     var kind: ItemResponseKind
     var message: String?
     var respondedAt: Date
+
+    nonisolated init(
+        responderID: UUID,
+        kind: ItemResponseKind,
+        message: String?,
+        respondedAt: Date
+    ) {
+        self.responderID = responderID
+        self.kind = kind
+        self.message = message
+        self.respondedAt = respondedAt
+    }
+
+    nonisolated init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        responderID = try container.decode(UUID.self, forKey: .responderID)
+        kind = try container.decode(ItemResponseKind.self, forKey: .kind)
+        message = try container.decodeIfPresent(String.self, forKey: .message)
+        respondedAt = try container.decode(Date.self, forKey: .respondedAt)
+    }
+
+    nonisolated func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(responderID, forKey: .responderID)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(message, forKey: .message)
+        try container.encode(respondedAt, forKey: .respondedAt)
+    }
 }
 
 struct ItemOccurrenceCompletion: Hashable, Sendable, Codable {

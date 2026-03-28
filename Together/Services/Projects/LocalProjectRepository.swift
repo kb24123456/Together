@@ -93,7 +93,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
 }
 
 private extension Project {
-    func withTaskCount(_ count: Int) -> Project {
+    nonisolated func withTaskCount(_ count: Int) -> Project {
         Project(
             id: id,
             spaceID: spaceID,

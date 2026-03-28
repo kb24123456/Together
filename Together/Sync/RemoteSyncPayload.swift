@@ -3,7 +3,7 @@ import Foundation
 struct RemoteSyncPayload: Codable, Hashable, Sendable {
     var tasks: [Item]
 
-    init(tasks: [Item] = []) {
+    nonisolated init(tasks: [Item] = []) {
         self.tasks = tasks
     }
 
@@ -11,5 +11,5 @@ struct RemoteSyncPayload: Codable, Hashable, Sendable {
         tasks.count
     }
 
-    static let empty = RemoteSyncPayload()
+    nonisolated static let empty = RemoteSyncPayload()
 }

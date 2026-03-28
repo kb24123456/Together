@@ -7,9 +7,9 @@ enum CloudKitTaskRecordCodecError: Error {
 }
 
 enum CloudKitTaskRecordCodec {
-    static let recordType = "Task"
+    nonisolated static let recordType = "Task"
 
-    static func makeRecord(from item: Item) throws -> CKRecord {
+    nonisolated static func makeRecord(from item: Item) throws -> CKRecord {
         let record = CKRecord(recordType: recordType, recordID: CKRecord.ID(recordName: item.id.uuidString))
         record["spaceID"] = item.spaceID?.uuidString as CKRecordValue?
         record["listID"] = item.listID?.uuidString as CKRecordValue?
@@ -37,7 +37,7 @@ enum CloudKitTaskRecordCodec {
         return record
     }
 
-    static func decode(record: CKRecord) throws -> Item {
+    nonisolated static func decode(record: CKRecord) throws -> Item {
         let id = UUID(uuidString: record.recordID.recordName) ?? UUID()
         guard
             let creatorIDRaw = record["creatorID"] as? String,
@@ -82,13 +82,13 @@ enum CloudKitTaskRecordCodec {
         )
     }
 
-    private static func encode<T: Encodable>(_ value: T?) throws -> String? {
+    private nonisolated static func encode<T: Encodable>(_ value: T?) throws -> String? {
         guard let value else { return nil }
         let data = try JSONEncoder().encode(value)
         return String(data: data, encoding: .utf8)
     }
 
-    private static func encode<T: Encodable>(_ value: T) throws -> String {
+    private nonisolated static func encode<T: Encodable>(_ value: T) throws -> String {
         let data = try JSONEncoder().encode(value)
         guard let string = String(data: data, encoding: .utf8) else {
             throw CloudKitTaskRecordCodecError.invalidField("json encoding")
@@ -96,14 +96,14 @@ enum CloudKitTaskRecordCodec {
         return string
     }
 
-    private static func decode<T: Decodable>(_ json: String, as type: T.Type) throws -> T {
+    private nonisolated static func decode<T: Decodable>(_ json: String, as type: T.Type) throws -> T {
         guard let data = json.data(using: .utf8) else {
             throw CloudKitTaskRecordCodecError.invalidField("json data")
         }
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private static func decodeOptional<T: Decodable>(_ json: String?, as type: T.Type) throws -> T? {
+    private nonisolated static func decodeOptional<T: Decodable>(_ json: String?, as type: T.Type) throws -> T? {
         guard let json else { return nil }
         return try decode(json, as: type)
     }

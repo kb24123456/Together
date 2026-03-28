@@ -21,4 +21,34 @@ struct Project: Identifiable, Hashable, Sendable {
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+
+    nonisolated init(
+        id: UUID,
+        spaceID: UUID,
+        name: String,
+        notes: String?,
+        colorToken: String?,
+        status: ProjectStatus,
+        targetDate: Date?,
+        remindAt: Date?,
+        priority: ItemPriority,
+        taskCount: Int,
+        createdAt: Date,
+        updatedAt: Date,
+        completedAt: Date?
+    ) {
+        self.id = id
+        self.spaceID = spaceID
+        self.name = name
+        self.notes = notes
+        self.colorToken = colorToken
+        self.status = status
+        self.targetDate = targetDate
+        self.remindAt = remindAt
+        self.priority = priority
+        self.taskCount = taskCount
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.completedAt = completedAt
+    }
 }
