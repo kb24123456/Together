@@ -28,7 +28,12 @@ struct AppRootView: View {
                 NavigationStack {
                     HomeView(
                         viewModel: appContext.homeViewModel,
-                        isProjectLayerPresented: false
+                        isProjectLayerPresented: false,
+                        onCreateTaskTapped: {
+                            dismissQuickCapture()
+                            router.pendingComposerTitle = nil
+                            router.activeComposer = .newTask
+                        }
                     )
                 }
                 .blur(radius: isQuickCapturePresented ? 8 : 0)

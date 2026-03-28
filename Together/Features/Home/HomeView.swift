@@ -6,6 +6,7 @@ import UIKit
 struct HomeView: View {
     @Bindable var viewModel: HomeViewModel
     let isProjectLayerPresented: Bool
+    let onCreateTaskTapped: () -> Void
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isWeekPagerSettling = false
     @State private var isTodayJumpButtonVisible = false
@@ -22,7 +23,6 @@ struct HomeView: View {
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineDividerLeadingInset: CGFloat = AppTheme.spacing.xl + 44
     private let timelineBottomInset: CGFloat = 144
-    private let todayJumpTopInset: CGFloat = 58
 
     var body: some View {
         GeometryReader { proxy in
@@ -97,25 +97,35 @@ struct HomeView: View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(viewModel.headerDateText)
-                    .font(AppTheme.typography.sized(40, weight: .bold))
-                    .tracking(-1.2)
+                    .font(AppTheme.typography.sized(36, weight: .bold))
+                    .tracking(-0.9)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.84)
                     .foregroundStyle(headerPrimaryColor)
                     .contentTransition(.numericText())
             }
 
             Spacer(minLength: 0)
 
-            HomeAvatarToggleButton(
-                avatars: viewModel.headerAvatars,
-                foregroundColor: headerPrimaryColor,
-                secondaryForegroundColor: headerSecondaryColor,
-                action: {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                        viewModel.toggleAvatarPreview()
-                    }
-                    triggerSoftDateFeedback()
+            HStack(spacing: AppTheme.spacing.sm) {
+                if isTodayJumpButtonVisible {
+                    todayJumpButton
+                        .transition(todayJumpTransition)
+                        .layoutPriority(2)
                 }
-            )
+
+                HomeAvatarToggleButton(
+                    avatars: viewModel.headerAvatars,
+                    foregroundColor: headerPrimaryColor,
+                    secondaryForegroundColor: headerSecondaryColor,
+                    action: {
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                            viewModel.toggleAvatarPreview()
+                        }
+                        triggerSoftDateFeedback()
+                    }
+                )
+            }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
@@ -131,7 +141,7 @@ struct HomeView: View {
                         timelineSection
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)
-                    .padding(.top, contentTopPadding)
+                    .padding(.top, AppTheme.spacing.sm)
                     .padding(.bottom, 144)
                 }
                 .scrollIndicators(.hidden)
@@ -145,13 +155,6 @@ struct HomeView: View {
                 .fill(AppTheme.colors.surface)
         )
         .overlay(alignment: .top) {
-            if isTodayJumpButtonVisible {
-                todayJumpButton
-                    .padding(.top, 14)
-                    .transition(todayJumpTransition)
-                    .zIndex(2)
-            }
-
             if isProjectLayerPresented {
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.outlineStrong.opacity(0.32))
@@ -228,12 +231,8 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .scrollDisabled(isProjectLayerPresented)
         .environment(\.defaultMinListRowHeight, 0)
-        .safeAreaPadding(.top, contentTopPadding)
+        .safeAreaPadding(.top, AppTheme.spacing.sm)
         .background(AppTheme.colors.surface)
-    }
-
-    private var contentTopPadding: CGFloat {
-        isTodayJumpButtonVisible ? todayJumpTopInset : AppTheme.spacing.sm
     }
 
     private var todayJumpButton: some View {
@@ -244,12 +243,14 @@ struct HomeView: View {
             }
             HomeInteractionFeedback.selection()
         }
-        .font(AppTheme.typography.sized(15, weight: .semibold))
+        .font(AppTheme.typography.sized(13, weight: .semibold))
         .foregroundStyle(headerPrimaryColor)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .frame(minHeight: 42)
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
         .modifier(HomeAvatarGlassModifier())
-        .shadow(color: AppTheme.colors.shadow.opacity(0.85), radius: 14, y: 8)
         .buttonStyle(.plain)
         .accessibilityLabel("返回今天")
     }
@@ -497,21 +498,57 @@ struct HomeView: View {
     private var timelineSection: some View {
         ZStack {
             if viewModel.timelineEntries.isEmpty {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-                    Text("这一天没有必须处理的事件")
-                        .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+                    Text("今天暂时没有非做不可的事")
+                        .font(AppTheme.typography.textStyle(.body, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.78))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        onCreateTaskTapped()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(AppTheme.typography.sized(16, weight: .semibold))
+
+                            Text("新建任务")
+                                .font(AppTheme.typography.sized(16, weight: .semibold))
+                        }
                         .foregroundStyle(AppTheme.colors.title)
-                    Text("保持留白，必要时从底部中间按钮快速添加。")
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(AppTheme.colors.surfaceElevated)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .center)
 
                     if viewModel.hasCompletedEntries {
-                        completedVisibilityButton
-                            .padding(.top, 8)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            isCompletedVisibilityButtonCompressed = true
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(110))
+                                isCompletedVisibilityButtonCompressed = false
+                            }
+                            toggleCompletedSectionVisibility()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("查看已完成")
+                                Text("\(viewModel.completedEntryCount)")
+                                Text("项")
+                            }
+                            .font(AppTheme.typography.sized(14, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, AppTheme.spacing.xl)
+                .padding(.top, AppTheme.spacing.xxl)
             } else {
                 EmptyView()
             }
@@ -782,7 +819,8 @@ struct HomeView: View {
 #Preview("Home Default") {
     HomeView(
         viewModel: AppContext.bootstrap().homeViewModel,
-        isProjectLayerPresented: false
+        isProjectLayerPresented: false,
+        onCreateTaskTapped: {}
     )
 }
 
@@ -792,7 +830,19 @@ struct HomeView: View {
 
     return HomeView(
         viewModel: context.homeViewModel,
-        isProjectLayerPresented: false
+        isProjectLayerPresented: false,
+        onCreateTaskTapped: {}
+    )
+}
+
+#Preview("Home Empty State") {
+    let context = AppContext.bootstrap()
+    context.homeViewModel.selectDate(Calendar.current.date(byAdding: .day, value: 14, to: MockDataFactory.now) ?? MockDataFactory.now)
+
+    return HomeView(
+        viewModel: context.homeViewModel,
+        isProjectLayerPresented: false,
+        onCreateTaskTapped: {}
     )
 }
 
@@ -1004,6 +1054,7 @@ private struct HomeTimelineTimeText: View {
 }
 
 private struct HomeAvatarToggleButton: View {
+    private let controlHeight: CGFloat = 42
     let avatars: [HomeAvatar]
     let foregroundColor: Color
     let secondaryForegroundColor: Color
@@ -1016,8 +1067,9 @@ private struct HomeAvatarToggleButton: View {
                     avatarBadge(avatar, zIndex: Double(avatars.count - index))
                 }
             }
-            .padding(.horizontal, avatars.count > 1 ? 16 : 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, avatars.count > 1 ? 14 : 10)
+            .padding(.vertical, 5)
+            .frame(minHeight: controlHeight)
         }
         .buttonStyle(.plain)
         .modifier(HomeAvatarGlassModifier())
@@ -1026,9 +1078,9 @@ private struct HomeAvatarToggleButton: View {
     @ViewBuilder
     private func avatarBadge(_ avatar: HomeAvatar, zIndex: Double) -> some View {
         Image(systemName: avatar.systemImageName)
-            .font(AppTheme.typography.sized(18, weight: .semibold))
+            .font(AppTheme.typography.sized(16, weight: .semibold))
             .foregroundStyle(foregroundColor)
-            .frame(width: 34, height: 34)
+            .frame(width: 30, height: 30)
             .background(
                 Circle()
                     .fill(AppTheme.colors.surfaceElevated)

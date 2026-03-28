@@ -40,6 +40,7 @@
 - `DEVELOPMENT_GUIDELINES.md`
 - `DESIGN_GUIDELINES.md`
 - 当前 `AGENTS.md`
+- `docs/development-progress.md`
 - `PRD_正式版_一起.md`
 - `页面详细需求清单_一起.md`
 - `信息架构与线框说明_一起.md`
@@ -168,6 +169,9 @@
 - 修改前说明目的；修改后说明影响。
 - 若任务只要求评估，不要直接改代码。
 - 提交前保证项目可编译、关键 Preview 可运行。
+- 若用户要求归档当前对话，必须先更新 `docs/development-progress.md`，再执行归档。
+- 更新开发进度文档时，只记录归档前最终成立的结果；中途试错、撤回方案、来回修改过程不得写入。
+- 若本轮存在重要功能新增、Bug 修复、UI/交互完善且用户明确归档确认，应将其追加到 `docs/development-progress.md` 的“已归档重要节点”。
 
 ## 14. 当存在不确定性时
 遇到以下情况必须先问：
