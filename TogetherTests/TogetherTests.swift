@@ -98,9 +98,10 @@ struct TogetherTests {
         let items = try await itemRepository.fetchItems(spaceID: MockDataFactory.singleSpaceID)
         let lists = try await listRepository.fetchTaskLists(spaceID: MockDataFactory.singleSpaceID)
         let projects = try await projectRepository.fetchProjects(spaceID: MockDataFactory.singleSpaceID)
+        let expectedActiveItemCount = MockDataFactory.makeItems().filter { $0.isArchived == false }.count
 
         #expect(spaceContext.currentSpace?.id == MockDataFactory.singleSpaceID)
-        #expect(items.count == MockDataFactory.makeItems().count)
+        #expect(items.count == expectedActiveItemCount)
         #expect(lists.contains { $0.id == MockDataFactory.todayListID && $0.taskCount == 3 })
         #expect(projects.contains { $0.id == MockDataFactory.focusProjectID && $0.taskCount == 3 })
     }
@@ -124,6 +125,43 @@ struct TogetherTests {
         #expect(afterResponse.status == .inProgress)
         #expect(afterCompletion.status == .completed)
         #expect(afterCompletion.completedAt != nil)
+    }
+
+    @Test
+    func localItemRepositoryArchivesOnlyCompletedTasksPastThreshold() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalItemRepository(container: persistence.container)
+
+        try await repository.archiveCompletedItemsIfNeeded(
+            spaceID: MockDataFactory.singleSpaceID,
+            referenceDate: MockDataFactory.now,
+            autoArchiveDays: 30
+        )
+
+        let archived = try await repository.fetchArchivedCompletedItems(
+            spaceID: MockDataFactory.singleSpaceID,
+            searchText: nil,
+            before: nil,
+            limit: 30
+        )
+        let active = try await repository.fetchActiveItems(spaceID: MockDataFactory.singleSpaceID)
+
+        #expect(archived.contains { $0.id == UUID(uuidString: "66666666-6666-6666-6666-666666666668")! })
+        #expect(active.contains { $0.id == UUID(uuidString: "66666666-6666-6666-6666-666666666667")! })
+    }
+
+    @Test
+    func localItemRepositoryRestoresArchivedCompletedTask() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalItemRepository(container: persistence.container)
+        let archivedID = UUID(uuidString: "66666666-6666-6666-6666-666666666668")!
+
+        let restored = try await repository.restoreArchivedItem(itemID: archivedID)
+        let activeItems = try await repository.fetchActiveItems(spaceID: MockDataFactory.singleSpaceID)
+
+        #expect(restored.isArchived == false)
+        #expect(restored.archivedAt == nil)
+        #expect(activeItems.contains { $0.id == archivedID })
     }
 
     @Test
@@ -401,6 +439,22 @@ struct TogetherTests {
         )
         let taskID = UUID(uuidString: "66666666-6666-6666-6666-666666666664")!
 
+        _ = try await service.updateTask(
+            in: MockDataFactory.singleSpaceID,
+            taskID: taskID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "梳理本周项目优先级",
+                notes: "午休前确认本周只保留 2 个高价值项目目标。",
+                listID: MockDataFactory.todayListID,
+                projectID: MockDataFactory.launchProjectID,
+                dueAt: MockDataFactory.now.addingTimeInterval(3_600 * 14),
+                hasExplicitTime: true,
+                remindAt: MockDataFactory.now.addingTimeInterval(3_600 * 13 + 1_800),
+                priority: .important,
+                status: .inProgress
+            )
+        )
         _ = try await service.completeTask(
             in: MockDataFactory.singleSpaceID,
             taskID: taskID,
@@ -414,6 +468,194 @@ struct TogetherTests {
 
         #expect(restored.completedAt == nil)
         #expect(restored.status == .inProgress)
+    }
+
+    @Test
+    func periodicTaskCompletionUsesVisibleOccurrenceDateForPastDay() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let calendar = Calendar.current
+        let referenceDate = calendar.date(byAdding: .day, value: -1, to: Date.now) ?? Date.now
+        let dueAt = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: referenceDate
+        ) ?? referenceDate
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "每日回顾",
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                repeatRule: ItemRepeatRule(frequency: .daily)
+            )
+        )
+
+        let completed = try await service.toggleTaskCompletion(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: referenceDate
+        )
+
+        #expect(completed.status != .completed)
+        #expect(completed.completedAt == nil)
+        #expect(completed.isCompleted(on: referenceDate, calendar: calendar))
+    }
+
+    @Test
+    func periodicTaskCompletionKeepsDifferentOccurrenceDaysIndependent() async throws {
+        let itemRepository = TestItemRepository()
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date.now)
+        let wednesday = calendar.date(byAdding: .day, value: -2, to: today) ?? today
+        let thursday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let dueAt = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: wednesday
+        ) ?? wednesday
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "数据通报",
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                repeatRule: ItemRepeatRule(
+                    frequency: .weekly,
+                    weekdays: [calendar.component(.weekday, from: wednesday), calendar.component(.weekday, from: thursday)]
+                )
+            )
+        )
+
+        _ = try await service.toggleTaskCompletion(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: thursday
+        )
+
+        let completedWednesday = try await service.toggleTaskCompletion(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: wednesday
+        )
+
+        #expect(completedWednesday.isCompleted(on: wednesday, calendar: calendar))
+        #expect(completedWednesday.isCompleted(on: thursday, calendar: calendar))
+    }
+
+    @Test
+    func periodicTaskReopenOnlyAffectsCurrentOccurrenceDay() async throws {
+        let itemRepository = TestItemRepository()
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date.now)
+        let wednesday = calendar.date(byAdding: .day, value: -2, to: today) ?? today
+        let thursday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let dueAt = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: wednesday
+        ) ?? wednesday
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "日报检查",
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                repeatRule: ItemRepeatRule(
+                    frequency: .weekly,
+                    weekdays: [calendar.component(.weekday, from: wednesday), calendar.component(.weekday, from: thursday)]
+                )
+            )
+        )
+
+        _ = try await service.toggleTaskCompletion(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: wednesday
+        )
+        _ = try await service.toggleTaskCompletion(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: thursday
+        )
+
+        let reopenedWednesday = try await service.toggleTaskCompletion(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: wednesday
+        )
+
+        #expect(reopenedWednesday.isCompleted(on: wednesday, calendar: calendar) == false)
+        #expect(reopenedWednesday.isCompleted(on: thursday, calendar: calendar))
+    }
+
+    @Test
+    func nonPeriodicTaskCompletionStillUsesActualCompletionDay() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let calendar = Calendar.current
+        let referenceDate = calendar.date(byAdding: .day, value: -1, to: Date.now) ?? Date.now
+        let dueAt = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: referenceDate
+        ) ?? referenceDate
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "补发周报",
+                dueAt: dueAt,
+                hasExplicitTime: true
+            )
+        )
+
+        let completed = try await service.toggleTaskCompletion(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: referenceDate
+        )
+
+        #expect(completed.status == .completed)
+        #expect(calendar.isDate(completed.completedAt ?? .distantPast, inSameDayAs: Date.now))
     }
 
     @Test
@@ -544,30 +786,209 @@ struct TogetherTests {
 
     @Test
     func taskApplicationServiceBuildsTodaySummaryFromActionableTasks() async throws {
-        let persistence = PersistenceController(inMemory: true)
-        let itemRepository = LocalItemRepository(container: persistence.container)
+        let itemRepository = TestItemRepository()
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
+        let calendar = Calendar.current
+        let referenceDate = Date.now
+        let baseDueAt = calendar.date(
+            bySettingHour: 10,
+            minute: 0,
+            second: 0,
+            of: referenceDate
+        ) ?? referenceDate
+
+        let pinnedTask = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "今天的置顶任务",
+                dueAt: baseDueAt,
+                hasExplicitTime: true,
+                isPinned: true
+            )
+        )
+        _ = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "今天的普通任务 A",
+                dueAt: baseDueAt.addingTimeInterval(1_800),
+                hasExplicitTime: true
+            )
+        )
+        _ = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "今天的普通任务 B",
+                dueAt: baseDueAt.addingTimeInterval(3_600),
+                hasExplicitTime: true
+            )
+        )
+        let completedTask = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "今天完成的任务",
+                dueAt: baseDueAt.addingTimeInterval(5_400),
+                hasExplicitTime: true
+            )
+        )
 
         _ = try await service.completeTask(
             in: MockDataFactory.singleSpaceID,
-            taskID: UUID(uuidString: "66666666-6666-6666-6666-666666666661")!,
-            actorID: MockDataFactory.currentUserID
+            taskID: completedTask.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: referenceDate
         )
 
         let summary = try await service.todaySummary(
             in: MockDataFactory.singleSpaceID,
-            referenceDate: MockDataFactory.now
+            referenceDate: referenceDate
         )
 
-        #expect(summary.actionableCount == 4)
-        #expect(summary.dueTodayCount == 4)
+        #expect(summary.actionableCount == 3)
+        #expect(summary.dueTodayCount == 3)
         #expect(summary.completedTodayCount == 1)
-        #expect(summary.pinnedCount == 0)
+        #expect(summary.pinnedCount == 1)
+        #expect(summary.referenceDate == referenceDate)
+        #expect(summary.actionableCount == summary.dueTodayCount)
+        #expect(pinnedTask.isPinned == true)
+    }
+
+    @Test @MainActor
+    func homeViewModelAllowsBackToBackCompletionAcrossDifferentItems() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+
+        let taskService = TestHomeTaskApplicationService()
+        let itemRepository = TestItemRepository()
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: taskService,
+            itemRepository: itemRepository,
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        let baseDate = Date.now
+        let first = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "逾期周期任务 A",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: baseDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: baseDate,
+            updatedAt: baseDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false,
+            repeatRule: ItemRepeatRule(frequency: .daily)
+        )
+        let second = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "逾期周期任务 B",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: baseDate.addingTimeInterval(60),
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: baseDate,
+            updatedAt: baseDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false,
+            repeatRule: ItemRepeatRule(frequency: .daily)
+        )
+        viewModel.items = [first, second]
+
+        async let completeFirst: Void = viewModel.completeItem(first.id)
+        async let completeSecond: Void = viewModel.completeItem(second.id)
+        _ = await (completeFirst, completeSecond)
+
+        let completedIDs = await taskService.completedTaskIDs()
+        #expect(Set(completedIDs) == Set([first.id, second.id]))
+        #expect(viewModel.isAnimatingCompletion(for: first.id, on: baseDate) == false)
+        #expect(viewModel.isAnimatingCompletion(for: second.id, on: baseDate) == false)
+        #expect(viewModel.items.filter { $0.isCompleted(on: baseDate, calendar: Calendar.current) }.count == 2)
+    }
+
+    @Test @MainActor
+    func homeViewModelIgnoresDuplicateCompletionWhileSameOccurrenceIsInFlight() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+
+        let taskService = TestHomeTaskApplicationService()
+        let itemRepository = TestItemRepository()
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: taskService,
+            itemRepository: itemRepository,
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        let baseDate = Date.now
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "同一 occurrence 连点",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: baseDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: baseDate,
+            updatedAt: baseDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false,
+            repeatRule: ItemRepeatRule(frequency: .daily)
+        )
+        viewModel.items = [item]
+
+        async let firstTap: Void = viewModel.completeItem(item.id)
+        async let secondTap: Void = viewModel.completeItem(item.id)
+        _ = await (firstTap, secondTap)
+
+        let completedIDs = await taskService.completedTaskIDs()
+        #expect(completedIDs == [item.id])
+        #expect(viewModel.items.first?.isCompleted(on: baseDate, calendar: Calendar.current) == true)
     }
 
     @Test
@@ -827,6 +1248,293 @@ actor TestSyncCoordinator: SyncCoordinatorProtocol {
             retryCount: (current?.retryCount ?? 0) + 1,
             updatedAt: failedAt
         )
+    }
+}
+
+actor TestItemRepository: ItemRepositoryProtocol {
+    private var items: [Item] = []
+    private var occurrenceCompletions: [UUID: [ItemOccurrenceCompletion]] = [:]
+    private let calendar = Calendar.current
+
+    func fetchActiveItems(spaceID: UUID?) async throws -> [Item] {
+        items
+            .filter { $0.spaceID == spaceID && $0.isArchived == false }
+            .map(hydratedItem)
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func fetchArchivedCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item] {
+        let normalizedLimit = max(limit, 1)
+        let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return items
+            .filter { item in
+                guard item.spaceID == spaceID else { return false }
+                guard item.isArchived, item.completedAt != nil, let archivedAt = item.archivedAt else {
+                    return false
+                }
+                if let before, archivedAt >= before {
+                    return false
+                }
+                guard let normalizedSearch, normalizedSearch.isEmpty == false else {
+                    return true
+                }
+                return item.title.localizedStandardContains(normalizedSearch)
+            }
+            .sorted { ($0.archivedAt ?? .distantPast) > ($1.archivedAt ?? .distantPast) }
+            .prefix(normalizedLimit)
+            .map { $0 }
+    }
+
+    func archiveCompletedItemsIfNeeded(
+        spaceID: UUID?,
+        referenceDate: Date,
+        autoArchiveDays: Int
+    ) async throws {
+        let thresholdDays = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(autoArchiveDays)
+        guard let cutoffDate = calendar.date(byAdding: .day, value: -thresholdDays, to: referenceDate) else {
+            return
+        }
+
+        items = items.map { item in
+            guard item.spaceID == spaceID else { return item }
+            guard item.isArchived == false, let completedAt = item.completedAt else { return item }
+            guard completedAt <= cutoffDate else { return item }
+
+            var copy = item
+            copy.isArchived = true
+            copy.archivedAt = referenceDate
+            copy.isPinned = false
+            return copy
+        }
+    }
+
+    func restoreArchivedItem(itemID: UUID) async throws -> Item {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+
+        items[index].isArchived = false
+        items[index].archivedAt = nil
+        return hydratedItem(items[index])
+    }
+
+    func fetchItem(itemID: UUID) async throws -> Item? {
+        guard let item = items.first(where: { $0.id == itemID }) else { return nil }
+        return hydratedItem(item)
+    }
+
+    func fetchOccurrenceCompletions(itemIDs: [UUID]) async throws -> [UUID: [ItemOccurrenceCompletion]] {
+        var result: [UUID: [ItemOccurrenceCompletion]] = [:]
+        for itemID in itemIDs {
+            result[itemID] = occurrenceCompletions[itemID, default: []]
+        }
+        return result
+    }
+
+    func isCompleted(itemID: UUID, on referenceDate: Date) async throws -> Bool {
+        guard let item = items.first(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+        return hydratedItem(item).isCompleted(on: referenceDate, calendar: calendar)
+    }
+
+    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, actorID: UUID) async throws -> Item {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+
+        var item = items[index]
+        if let response {
+            let responseRecord = ItemResponse(
+                responderID: actorID,
+                kind: response,
+                message: nil,
+                respondedAt: .now
+            )
+            item.latestResponse = responseRecord
+            item.responseHistory.append(responseRecord)
+            item.status = ItemStateMachine.nextStatus(
+                from: item.status,
+                executionRole: item.executionRole,
+                response: response
+            )
+        }
+        item.updatedAt = .now
+        items[index] = item
+        return hydratedItem(item)
+    }
+
+    func markCompleted(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+
+        var item = items[index]
+        if item.repeatRule == nil {
+            item.status = ItemStateMachine.nextStatus(
+                from: item.status,
+                executionRole: item.executionRole,
+                isCompletion: true
+            )
+            item.completedAt = Date.now
+        } else {
+            upsertOccurrenceCompletion(itemID: itemID, referenceDate: referenceDate, completedAt: Date.now)
+            item.completedAt = nil
+        }
+        item.isArchived = false
+        item.archivedAt = nil
+        item.updatedAt = .now
+        items[index] = item
+        return hydratedItem(item)
+    }
+
+    func markIncomplete(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+
+        var item = items[index]
+        if item.repeatRule == nil {
+            item.completedAt = nil
+            if item.status == .completed {
+                item.status = .inProgress
+            }
+        } else {
+            deleteOccurrenceCompletion(itemID: itemID, referenceDate: referenceDate)
+            item.completedAt = nil
+        }
+        item.isArchived = false
+        item.archivedAt = nil
+        item.updatedAt = .now
+        items[index] = item
+        return hydratedItem(item)
+    }
+
+    func saveItem(_ item: Item) async throws -> Item {
+        var savedItem = item
+        savedItem.updatedAt = .now
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index] = savedItem
+        } else {
+            items.append(savedItem)
+        }
+        return hydratedItem(savedItem)
+    }
+
+    func deleteItem(itemID: UUID) async throws {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+        occurrenceCompletions[itemID] = nil
+        items.remove(at: index)
+    }
+
+    private func hydratedItem(_ item: Item) -> Item {
+        var copy = item
+        if item.repeatRule != nil {
+            copy.occurrenceCompletions = occurrenceCompletions[item.id, default: []]
+            copy.completedAt = nil
+        }
+        return copy
+    }
+
+    private func upsertOccurrenceCompletion(itemID: UUID, referenceDate: Date, completedAt: Date) {
+        let occurrenceDate = calendar.startOfDay(for: referenceDate)
+        var completions = occurrenceCompletions[itemID, default: []]
+        completions.removeAll { calendar.isDate($0.occurrenceDate, inSameDayAs: occurrenceDate) }
+        completions.append(ItemOccurrenceCompletion(occurrenceDate: occurrenceDate, completedAt: completedAt))
+        occurrenceCompletions[itemID] = completions.sorted { $0.occurrenceDate < $1.occurrenceDate }
+    }
+
+    private func deleteOccurrenceCompletion(itemID: UUID, referenceDate: Date) {
+        let occurrenceDate = calendar.startOfDay(for: referenceDate)
+        let filtered = occurrenceCompletions[itemID, default: []]
+            .filter { calendar.isDate($0.occurrenceDate, inSameDayAs: occurrenceDate) == false }
+        occurrenceCompletions[itemID] = filtered.isEmpty ? nil : filtered
+    }
+}
+
+actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
+    private var completed: [UUID] = []
+
+    func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] { [] }
+    func todaySummary(in spaceID: UUID, referenceDate: Date) async throws -> TaskTodaySummary {
+        TaskTodaySummary(
+            referenceDate: referenceDate,
+            actionableCount: 0,
+            overdueCount: 0,
+            dueTodayCount: 0,
+            completedTodayCount: 0,
+            pinnedCount: 0
+        )
+    }
+    func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item { throw RepositoryError.notFound }
+    func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item { throw RepositoryError.notFound }
+    func moveTask(in spaceID: UUID, taskID: UUID, actorID: UUID, listID: UUID?, projectID: UUID?) async throws -> Item { throw RepositoryError.notFound }
+    func rescheduleTask(in spaceID: UUID, taskID: UUID, actorID: UUID, dueAt: Date?, remindAt: Date?) async throws -> Item { throw RepositoryError.notFound }
+    func snoozeTask(in spaceID: UUID, taskID: UUID, actorID: UUID, option: TaskSnoozeOption) async throws -> Item { throw RepositoryError.notFound }
+
+    func toggleTaskCompletion(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        referenceDate: Date
+    ) async throws -> Item {
+        completed.append(taskID)
+        try? await Task.sleep(for: .milliseconds(40))
+        return Item(
+            id: taskID,
+            spaceID: spaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: actorID,
+            title: "已完成",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: referenceDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: referenceDate,
+            updatedAt: referenceDate,
+            completedAt: nil,
+            occurrenceCompletions: [
+                ItemOccurrenceCompletion(
+                    occurrenceDate: Calendar.current.startOfDay(for: referenceDate),
+                    completedAt: referenceDate
+                )
+            ],
+            isPinned: false,
+            isDraft: false,
+            repeatRule: ItemRepeatRule(frequency: .daily)
+        )
+    }
+
+    func completeTask(in spaceID: UUID, taskID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item {
+        try await toggleTaskCompletion(
+            in: spaceID,
+            taskID: taskID,
+            actorID: actorID,
+            referenceDate: referenceDate
+        )
+    }
+
+    func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item { throw RepositoryError.notFound }
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {}
+    func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item { throw RepositoryError.notFound }
+
+    func completedTaskIDs() -> [UUID] {
+        completed
     }
 }
 

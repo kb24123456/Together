@@ -78,10 +78,12 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
 
         if let spaceID {
             descriptor = FetchDescriptor(
-                predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID }
+                predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID && $0.isArchived == false }
             )
         } else {
-            descriptor = FetchDescriptor()
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { $0.isArchived == false }
+            )
         }
 
         return try context.fetch(descriptor).reduce(into: [:]) { result, item in

@@ -9,6 +9,8 @@ final class ProfileViewModel {
     private let relationshipService: RelationshipServiceProtocol
     private let notificationService: NotificationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
+    private let taskApplicationService: TaskApplicationServiceProtocol
+    private let taskListRepository: TaskListRepositoryProtocol
     private let projectRepository: ProjectRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
 
@@ -21,6 +23,8 @@ final class ProfileViewModel {
         relationshipService: RelationshipServiceProtocol,
         notificationService: NotificationServiceProtocol,
         itemRepository: ItemRepositoryProtocol,
+        taskApplicationService: TaskApplicationServiceProtocol,
+        taskListRepository: TaskListRepositoryProtocol,
         projectRepository: ProjectRepositoryProtocol,
         reminderScheduler: ReminderSchedulerProtocol
     ) {
@@ -29,6 +33,8 @@ final class ProfileViewModel {
         self.relationshipService = relationshipService
         self.notificationService = notificationService
         self.itemRepository = itemRepository
+        self.taskApplicationService = taskApplicationService
+        self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
         self.reminderScheduler = reminderScheduler
     }
@@ -56,10 +62,22 @@ final class ProfileViewModel {
 
     let taskUrgencyOptions: [Int] = [10, 30, 60, 120]
     let snoozeMinuteOptions: [Int] = Array(stride(from: 5, through: 180, by: 5))
+    let completedTaskAutoArchiveOptions: [Int] = NotificationSettings.completedTaskAutoArchiveDayOptions
 
     var defaultSnoozeMinutes: Int {
         NotificationSettings.normalizedSnoozeMinutes(
             sessionStore.currentUser?.preferences.defaultSnoozeMinutes ?? NotificationSettings.defaultSnoozeMinutes
+        )
+    }
+
+    var completedTaskAutoArchiveEnabled: Bool {
+        sessionStore.currentUser?.preferences.completedTaskAutoArchiveEnabled ?? true
+    }
+
+    var completedTaskAutoArchiveDays: Int {
+        NotificationSettings.normalizedCompletedTaskAutoArchiveDays(
+            sessionStore.currentUser?.preferences.completedTaskAutoArchiveDays
+            ?? NotificationSettings.defaultCompletedTaskAutoArchiveDays
         )
     }
 
@@ -73,7 +91,7 @@ final class ProfileViewModel {
         notificationAuthorization = (try? await notificationService.requestAuthorization()) ?? .denied
         guard notificationAuthorization == .authorized else { return }
         let spaceID = sessionStore.currentSpace?.id
-        let tasks = (try? await itemRepository.fetchItems(spaceID: spaceID)) ?? []
+        let tasks = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
         await reminderScheduler.resync(tasks: tasks, projects: projects)
     }
@@ -95,6 +113,30 @@ final class ProfileViewModel {
         user.preferences.defaultSnoozeMinutes = NotificationSettings.normalizedSnoozeMinutes(minutes)
         user.updatedAt = .now
         sessionStore.currentUser = user
+    }
+
+    func updateCompletedTaskAutoArchiveEnabled(_ isEnabled: Bool) {
+        guard var user = sessionStore.currentUser else { return }
+        user.preferences.completedTaskAutoArchiveEnabled = isEnabled
+        user.updatedAt = .now
+        sessionStore.currentUser = user
+    }
+
+    func updateCompletedTaskAutoArchiveDays(_ days: Int) {
+        guard var user = sessionStore.currentUser else { return }
+        user.preferences.completedTaskAutoArchiveDays = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(days)
+        user.updatedAt = .now
+        sessionStore.currentUser = user
+    }
+
+    func makeCompletedHistoryViewModel() -> CompletedHistoryViewModel {
+        CompletedHistoryViewModel(
+            sessionStore: sessionStore,
+            itemRepository: itemRepository,
+            taskApplicationService: taskApplicationService,
+            taskListRepository: taskListRepository,
+            projectRepository: projectRepository
+        )
     }
 
     func signOut() async {

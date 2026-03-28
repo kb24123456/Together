@@ -30,7 +30,9 @@ enum MockDataFactory {
                 futureCollaborationInviteEnabled: true,
                 taskUrgencyWindowMinutes: 30,
                 defaultSnoozeMinutes: 30,
-                quickTimePresetMinutes: [5, 30, 60]
+                quickTimePresetMinutes: [5, 30, 60],
+                completedTaskAutoArchiveEnabled: true,
+                completedTaskAutoArchiveDays: 30
             )
         )
     }
@@ -50,7 +52,9 @@ enum MockDataFactory {
                 futureCollaborationInviteEnabled: false,
                 taskUrgencyWindowMinutes: 30,
                 defaultSnoozeMinutes: 30,
-                quickTimePresetMinutes: [5, 30, 60]
+                quickTimePresetMinutes: [5, 30, 60],
+                completedTaskAutoArchiveEnabled: true,
+                completedTaskAutoArchiveDays: 30
             )
         )
     }
@@ -266,6 +270,54 @@ enum MockDataFactory {
                 completedAt: nil,
                 isPinned: false,
                 isDraft: false
+            ),
+            Item(
+                id: UUID(uuidString: "66666666-6666-6666-6666-666666666667")!,
+                spaceID: singleSpaceID,
+                listID: planningListID,
+                projectID: launchProjectID,
+                creatorID: currentUserID,
+                title: "补发昨天遗漏的里程碑同步",
+                notes: "这条任务故意保留为逾期态，用来验证 Today 的逾期提醒胶囊。",
+                locationText: "项目同步",
+                executionRole: .initiator,
+                priority: .critical,
+                dueAt: dayStart.addingTimeInterval(3_600 * 8),
+                hasExplicitTime: true,
+                remindAt: dayStart.addingTimeInterval(3_600 * 7 + 1_800),
+                status: .inProgress,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: dayStart.addingTimeInterval(-86_400 * 2),
+                updatedAt: dayStart.addingTimeInterval(-86_400),
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(uuidString: "66666666-6666-6666-6666-666666666668")!,
+                spaceID: singleSpaceID,
+                listID: planningListID,
+                projectID: migrationProjectID,
+                creatorID: currentUserID,
+                title: "归档旧版文档映射表",
+                notes: "这是一条已经完成并进入历史区的任务样本。",
+                locationText: "历史样本",
+                executionRole: .initiator,
+                priority: .normal,
+                dueAt: dayStart.addingTimeInterval(-86_400 * 45),
+                hasExplicitTime: false,
+                remindAt: nil,
+                status: .completed,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: dayStart.addingTimeInterval(-86_400 * 55),
+                updatedAt: dayStart.addingTimeInterval(-86_400 * 35),
+                completedAt: dayStart.addingTimeInterval(-86_400 * 35),
+                isPinned: false,
+                isDraft: false,
+                isArchived: true,
+                archivedAt: dayStart.addingTimeInterval(-86_400 * 5)
             )
         ]
     }

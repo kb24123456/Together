@@ -31,6 +31,11 @@ enum HomeDateTransitionStyle: Hashable {
     case crossWeek
 }
 
+private struct HomeItemOccurrenceKey: Hashable {
+    let itemID: UUID
+    let dayStart: Date
+}
+
 struct QuickCapturePendingConfirmation: Identifiable, Hashable, Sendable {
     let id: UUID
     let rawInput: String
@@ -56,6 +61,7 @@ final class HomeViewModel {
     private let calendar = Calendar.current
     private let sessionStore: SessionStore
     private let taskApplicationService: TaskApplicationServiceProtocol
+    private let itemRepository: ItemRepositoryProtocol
     private let quickCaptureParser: QuickCaptureParserProtocol
     private let taskTemplateRepository: TaskTemplateRepositoryProtocol
 
@@ -72,19 +78,22 @@ final class HomeViewModel {
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
     var detailDetent: PresentationDetent = .height(316)
-    var isPerformingCompletion = false
-    var recentCompletedItemID: UUID?
+    private var completingOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
+    private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     var showsCompletedItems = true
     var isPerformingSnooze = false
+    var showsOverdueOnly = false
 
     init(
         sessionStore: SessionStore,
         taskApplicationService: TaskApplicationServiceProtocol,
+        itemRepository: ItemRepositoryProtocol,
         quickCaptureParser: QuickCaptureParserProtocol,
         taskTemplateRepository: TaskTemplateRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
+        self.itemRepository = itemRepository
         self.quickCaptureParser = quickCaptureParser
         self.taskTemplateRepository = taskTemplateRepository
         let currentUser = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
@@ -102,6 +111,10 @@ final class HomeViewModel {
     }
 
     var headerDateText: String {
+        if isViewingToday {
+            return "Today"
+        }
+
         let components = calendar.dateComponents([.month, .day], from: selectedDate)
         let month = components.month ?? 1
         let day = components.day ?? 1
@@ -188,6 +201,7 @@ final class HomeViewModel {
             ? .sameWeek
             : .crossWeek
         selectedDate = date
+        showsOverdueOnly = false
     }
 
     func shiftSelectedWeek(by offset: Int) {
@@ -206,6 +220,11 @@ final class HomeViewModel {
 
     func returnToToday() {
         selectDate(Date())
+    }
+
+    func toggleOverdueFocus() {
+        guard overdueEntryCount > 0 else { return }
+        showsOverdueOnly.toggle()
     }
 
     func createQuickCaptureTask(title: String) async -> QuickCaptureTaskCreationResult {
@@ -294,10 +313,14 @@ final class HomeViewModel {
         }
 
         do {
+            try await archiveCompletedItemsIfNeeded(in: spaceID)
             items = try await taskApplicationService.tasks(
                 in: spaceID,
                 scope: scope(for: selectedDate)
             )
+            if overdueEntryCount == 0 {
+                showsOverdueOnly = false
+            }
         } catch {
             items = []
         }
@@ -500,51 +523,54 @@ final class HomeViewModel {
 
     func completeItem(_ itemID: UUID, trigger: CompletionTrigger = .inlineControl) async {
         guard let spaceID = sessionStore.currentSpace?.id, let actorID = sessionStore.currentUser?.id else { return }
-        guard isPerformingCompletion == false else { return }
-        isPerformingCompletion = true
-        recentCompletedItemID = trigger == .inlineControl ? itemID : nil
+        let referenceDate = selectedDate
+        let occurrenceKey = occurrenceKey(for: itemID, on: referenceDate)
+        guard completingOccurrenceKeys.contains(occurrenceKey) == false else { return }
+        completingOccurrenceKeys.insert(occurrenceKey)
 
         do {
             let saved = try await taskApplicationService.toggleTaskCompletion(
                 in: spaceID,
                 taskID: itemID,
-                actorID: actorID
+                actorID: actorID,
+                referenceDate: referenceDate
             )
+            let didCompleteOccurrence = saved.isCompleted(on: referenceDate, calendar: calendar)
             switch trigger {
             case .inlineControl:
-                if saved.status == .completed || saved.completedAt != nil {
+                if didCompleteOccurrence {
+                    animatingCompletionOccurrenceKeys.insert(occurrenceKey)
                     try? await Task.sleep(for: .milliseconds(280))
                     withAnimation(.bouncy(duration: 0.62, extraBounce: 0.08)) {
                         replaceItemPreservingOrder(saved)
                     }
                     try? await Task.sleep(for: .milliseconds(120))
-                    recentCompletedItemID = nil
                 } else {
                     withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
                         replaceItemPreservingOrder(saved)
                     }
-                    recentCompletedItemID = nil
                 }
             case .swipeAction:
-                if saved.status == .completed || saved.completedAt != nil {
+                if didCompleteOccurrence {
                     try? await Task.sleep(for: .milliseconds(220))
                     withAnimation(.bouncy(duration: 0.58, extraBounce: 0.04)) {
                         replaceItemPreservingOrder(saved)
                     }
-                    recentCompletedItemID = nil
                 } else {
                     try? await Task.sleep(for: .milliseconds(220))
                     withAnimation(.bouncy(duration: 0.56, extraBounce: 0.03)) {
                         replaceItemPreservingOrder(saved)
                     }
-                    recentCompletedItemID = nil
                 }
             }
-        } catch {
-            recentCompletedItemID = nil
-        }
+        } catch {}
 
-        isPerformingCompletion = false
+        completingOccurrenceKeys.remove(occurrenceKey)
+        animatingCompletionOccurrenceKeys.remove(occurrenceKey)
+    }
+
+    func isAnimatingCompletion(for itemID: UUID, on referenceDate: Date) -> Bool {
+        animatingCompletionOccurrenceKeys.contains(occurrenceKey(for: itemID, on: referenceDate))
     }
 
     func deleteSelectedItem() async {
@@ -562,6 +588,30 @@ final class HomeViewModel {
             )
             items.removeAll { $0.id == itemID }
             dismissItemDetail()
+        } catch {
+            return
+        }
+    }
+
+    func deleteItem(_ itemID: UUID) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+
+        do {
+            try await taskApplicationService.deleteTask(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID
+            )
+            items.removeAll { $0.id == itemID }
+            if selectedItemID == itemID {
+                dismissItemDetail()
+            }
+            if overdueEntryCount == 0 {
+                showsOverdueOnly = false
+            }
         } catch {
             return
         }
@@ -599,7 +649,23 @@ final class HomeViewModel {
     }
 
     var completedEntryCount: Int {
-        sortedItemsForTimeline.filter { $0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed }.count
+        sortedItemsForTimeline.filter { isCompleted($0, on: selectedDate) }.count
+    }
+
+    var overdueEntryCount: Int {
+        guard isViewingToday else { return 0 }
+        return incompleteTimelineItems.filter { $0.isOverdue(on: selectedDate, calendar: calendar) }.count
+    }
+
+    var showsOverdueCapsule: Bool {
+        overdueEntryCount > 0
+    }
+
+    var overdueCapsuleTitle: String {
+        if showsOverdueOnly {
+            return "显示全部任务"
+        }
+        return "有 \(overdueEntryCount) 件任务已逾期"
     }
 
     var hasCompletedEntries: Bool {
@@ -611,7 +677,7 @@ final class HomeViewModel {
     }
 
     var activeTimelineEntries: [HomeTimelineEntry] {
-        incompleteTimelineItems.map(makeTimelineEntry)
+        filteredIncompleteTimelineItems.map(makeTimelineEntry)
     }
 
     var completedTimelineEntries: [HomeTimelineEntry] {
@@ -767,30 +833,35 @@ final class HomeViewModel {
     private var visibleTimelineItems: [Item] {
         let sortedItems = sortedItemsForTimeline
         guard showsCompletedItems == false else { return sortedItems }
-        return sortedItems.filter { !($0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed) }
+        return sortedItems.filter { !isCompleted($0, on: selectedDate) }
     }
 
     private var incompleteTimelineItems: [Item] {
-        visibleTimelineItems.filter { !($0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed) }
+        visibleTimelineItems.filter { !isCompleted($0, on: selectedDate) }
+    }
+
+    private var filteredIncompleteTimelineItems: [Item] {
+        guard showsOverdueOnly else { return incompleteTimelineItems }
+        return incompleteTimelineItems.filter { $0.isOverdue(on: selectedDate, calendar: calendar) }
     }
 
     private var completedTimelineItems: [Item] {
         guard showsCompletedItems else { return [] }
-        return visibleTimelineItems.filter { $0.isCompleted(on: selectedDate, calendar: calendar) || $0.status == .completed }
+        return visibleTimelineItems.filter { isCompleted($0, on: selectedDate) }
     }
 
     private var sortedItemsForTimeline: [Item] {
         items.sorted { lhs, rhs in
-            let lhsCompleted = lhs.isCompleted(on: selectedDate, calendar: calendar) || lhs.status == .completed
-            let rhsCompleted = rhs.isCompleted(on: selectedDate, calendar: calendar) || rhs.status == .completed
+            let lhsCompleted = isCompleted(lhs, on: selectedDate)
+            let rhsCompleted = isCompleted(rhs, on: selectedDate)
 
             if lhsCompleted != rhsCompleted {
                 return lhsCompleted == false
             }
 
             if lhsCompleted {
-                let lhsCompletedAt = lhs.completedAt ?? .distantPast
-                let rhsCompletedAt = rhs.completedAt ?? .distantPast
+                let lhsCompletedAt = lhs.completionDate(on: selectedDate, calendar: calendar) ?? .distantPast
+                let rhsCompletedAt = rhs.completionDate(on: selectedDate, calendar: calendar) ?? .distantPast
                 if lhsCompletedAt != rhsCompletedAt {
                     return lhsCompletedAt < rhsCompletedAt
                 }
@@ -868,7 +939,7 @@ final class HomeViewModel {
     }
 
     private func makeTimelineEntry(for item: Item) -> HomeTimelineEntry {
-        let isCompleted = item.isCompleted(on: selectedDate, calendar: calendar) || item.status == .completed
+        let isCompleted = isCompleted(item, on: selectedDate)
 
         return HomeTimelineEntry(
             id: item.id,
@@ -900,6 +971,33 @@ final class HomeViewModel {
 
     private func removeItem(withID itemID: UUID) {
         items.removeAll { $0.id == itemID }
+    }
+
+    private func occurrenceKey(for itemID: UUID, on referenceDate: Date) -> HomeItemOccurrenceKey {
+        HomeItemOccurrenceKey(
+            itemID: itemID,
+            dayStart: calendar.startOfDay(for: referenceDate)
+        )
+    }
+
+    private func isCompleted(_ item: Item, on referenceDate: Date) -> Bool {
+        item.isCompleted(on: referenceDate, calendar: calendar) || item.status == .completed
+    }
+
+    private func archiveCompletedItemsIfNeeded(in spaceID: UUID) async throws {
+        guard sessionStore.currentUser?.preferences.completedTaskAutoArchiveEnabled ?? true else {
+            return
+        }
+
+        let days = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(
+            sessionStore.currentUser?.preferences.completedTaskAutoArchiveDays
+            ?? NotificationSettings.defaultCompletedTaskAutoArchiveDays
+        )
+        try await itemRepository.archiveCompletedItemsIfNeeded(
+            spaceID: spaceID,
+            referenceDate: .now,
+            autoArchiveDays: days
+        )
     }
 
     private func snoozeItem(_ itemID: UUID, using option: TaskSnoozeOption) async {

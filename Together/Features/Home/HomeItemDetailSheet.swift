@@ -138,7 +138,6 @@ struct HomeItemDetailSheet: View {
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(AppTheme.colors.surface)
         .overlay(alignment: .bottom) {
             expandedBottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, 8))
         }
@@ -1200,9 +1199,9 @@ private enum HomeDetailMenu: String, Identifiable {
         case .date:
             return [.custom(HomeDetailDateMenuDetent.self)]
         case .time:
-            return [.fraction(0.5)]
+            return [.custom(TaskEditorTaskMenuDetent.self)]
         case .reminder, .priority, .repeatRule:
-            return [.fraction(0.46)]
+            return [.custom(TaskEditorTaskMenuDetent.self)]
         }
     }
 }
@@ -1210,7 +1209,7 @@ private enum HomeDetailMenu: String, Identifiable {
 private struct HomeDetailDateMenuDetent: CustomPresentationDetent {
     static func height(in context: Context) -> CGFloat? {
         min(
-            HomeDetailDatePickerSheet.preferredHeight + 12,
+            HomeDetailDatePickerSheet.preferredHeight + TaskEditorUnifiedMenuMetrics.topBarHeight,
             context.maxDetentValue * 0.72
         )
     }
@@ -1223,12 +1222,52 @@ private struct HomeDetailMenuSheet: View {
     let disabledMenus: Set<TaskEditorMenu>
     let onDismiss: () -> Void
 
+    @State private var stagedDate: Date
+    @State private var stagedTime: Date?
+    @State private var stagedReminderOffset: TimeInterval?
+    @State private var stagedPriority: ItemPriority
+    @State private var stagedRepeatRule: ItemRepeatRule?
+
+    @State private var didEditDate = false
+    @State private var didEditTime = false
+    @State private var didEditReminder = false
+    @State private var didEditPriority = false
+    @State private var didEditRepeatRule = false
+
+    init(
+        context: TaskEditorMenuContext,
+        activeMenu: Binding<TaskEditorMenu>,
+        viewModel: HomeViewModel,
+        disabledMenus: Set<TaskEditorMenu>,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.context = context
+        _activeMenu = activeMenu
+        self.viewModel = viewModel
+        self.disabledMenus = disabledMenus
+        self.onDismiss = onDismiss
+
+        let draft = viewModel.detailDraft
+        let initialDueDate = draft?.dueAt ?? viewModel.selectedDate
+        let initialDate = Calendar.current.startOfDay(for: initialDueDate)
+        let initialTime = draft?.hasExplicitTime == true ? draft?.dueAt : nil
+
+        _stagedDate = State(initialValue: initialDate)
+        _stagedTime = State(initialValue: initialTime)
+        _stagedReminderOffset = State(initialValue: Self.reminderOffset(for: draft, fallbackDate: initialDate))
+        _stagedPriority = State(initialValue: draft?.priority ?? .normal)
+        _stagedRepeatRule = State(initialValue: draft?.repeatRule)
+    }
+
     var body: some View {
         TaskEditorUnifiedMenuSheet(
             context: context,
             activeMenu: $activeMenu,
             disabledMenus: disabledMenus,
-            selectionFeedback: HomeInteractionFeedback.selection
+            selectionFeedback: HomeInteractionFeedback.selection,
+            switcherPlacement: .bottom,
+            onClose: onDismiss,
+            onSave: applyChangesAndDismiss
         ) { menu in
             menuContent(for: menu)
         }
@@ -1239,15 +1278,18 @@ private struct HomeDetailMenuSheet: View {
         switch menu {
         case .date:
             TaskEditorDatePickerSheet(
-                selectedDate: detailDateBinding,
+                selectedDate: stagedDateBinding,
                 selectionFeedback: HomeInteractionFeedback.selection,
-                onDismiss: {}
+                onDismiss: {},
+                dismissesOnSelection: false
             )
         case .time:
             TaskEditorTimePickerSheet(
-                selectedTime: detailTimeBinding,
-                anchorDate: detailDateBinding.wrappedValue,
+                selectedTime: stagedTimeBinding,
+                anchorDate: stagedDate,
                 quickPresetMinutes: viewModel.quickTimePresetMinutes,
+                savesOnQuickPresetSelection: false,
+                showsPrimaryButton: false,
                 selectionFeedback: HomeInteractionFeedback.selection,
                 primaryFeedback: HomeInteractionFeedback.selection,
                 onTimeSaved: nil,
@@ -1276,16 +1318,16 @@ private struct HomeDetailMenuSheet: View {
     }
 
     private var reminderOptions: [TaskEditorOptionRow] {
-        [TaskEditorOptionRow(title: "不提醒", isSelected: viewModel.detailDraft?.remindAt == nil) {
-            viewModel.setDraftReminderEnabled(false)
+        [TaskEditorOptionRow(title: "不提醒", isSelected: stagedReminderOffset == nil) {
+            stagedReminderOffset = nil
+            didEditReminder = true
         }] + TaskEditorReminderPreset.allCases.map { preset in
             TaskEditorOptionRow(
                 title: preset.title,
-                isSelected: reminderTitle == preset.chipTitle
+                isSelected: stagedReminderOffset == preset.secondsBeforeTarget
             ) {
-                ensureDueDateExists()
-                let reminderTarget = reminderTargetDate()
-                viewModel.updateDraftReminder(reminderTarget.addingTimeInterval(-preset.secondsBeforeTarget))
+                stagedReminderOffset = preset.secondsBeforeTarget
+                didEditReminder = true
             }
         }
     }
@@ -1294,66 +1336,82 @@ private struct HomeDetailMenuSheet: View {
         ItemPriority.allCases.map { priority in
             TaskEditorOptionRow(
                 title: priority.title,
-                isSelected: viewModel.detailDraft?.priority == priority
+                isSelected: stagedPriority == priority
             ) {
-                viewModel.updateDraftPriority(priority)
+                stagedPriority = priority
+                didEditPriority = true
             }
         }
     }
 
     private var repeatOptions: [TaskEditorOptionRow] {
-        let anchorDate = viewModel.detailDraft?.dueAt ?? defaultDetailDate
-        let selectedTitle = repeatTitle
+        let anchorDate = stagedDate
+        let selectedTitle = stagedRepeatRule?.title(anchorDate: anchorDate, calendar: .current) ?? "不重复"
         return TaskEditorRepeatPreset.allCases.map { preset in
             let title = preset.title(anchorDate: anchorDate)
             return TaskEditorOptionRow(title: title, isSelected: selectedTitle == title) {
+                stagedRepeatRule = preset.makeRule(anchorDate: anchorDate)
+                didEditRepeatRule = true
+            }
+        }
+    }
+
+    private var stagedDateBinding: Binding<Date> {
+        Binding(
+            get: { stagedDate },
+            set: { newValue in
+                stagedDate = Calendar.current.startOfDay(for: newValue)
+                didEditDate = true
+            }
+        )
+    }
+
+    private var stagedTimeBinding: Binding<Date?> {
+        Binding(
+            get: { stagedTime },
+            set: { newValue in
+                stagedTime = newValue
+                didEditTime = true
+            }
+        )
+    }
+
+    private func applyChangesAndDismiss() {
+        if didEditDate {
+            viewModel.updateDraftDueDate(stagedDate)
+        }
+
+        if didEditTime, let stagedTime {
+            if viewModel.detailDraft?.dueAt == nil, didEditDate == false {
                 ensureDueDateExists()
-                viewModel.updateDraftRepeatRule(preset.makeRule(anchorDate: anchorDate))
             }
+            viewModel.updateDraftDueTime(stagedTime)
         }
-    }
 
-    private var reminderTitle: String {
-        guard let remindAt = viewModel.detailDraft?.remindAt else { return "提醒" }
-        let delta = reminderTargetDate().timeIntervalSince(remindAt)
-        return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
-    }
-
-    private var repeatTitle: String {
-        guard
-            let rule = viewModel.detailDraft?.repeatRule,
-            let dueAt = viewModel.detailDraft?.dueAt
-        else {
-            return "不重复"
-        }
-        return rule.title(anchorDate: dueAt, calendar: .current)
-    }
-
-    private var defaultDetailDate: Date {
-        viewModel.detailDraft?.dueAt ?? viewModel.selectedDate
-    }
-
-    private var detailDateBinding: Binding<Date> {
-        Binding(
-            get: { viewModel.detailDraft?.dueAt ?? viewModel.selectedDate },
-            set: { newValue in
-                viewModel.updateDraftDueDate(newValue)
-            }
-        )
-    }
-
-    private var detailTimeBinding: Binding<Date?> {
-        Binding(
-            get: {
-                guard viewModel.detailDraft?.hasExplicitTime == true else { return nil }
-                return viewModel.detailDraft?.dueAt
-            },
-            set: { newValue in
-                if let newValue {
-                    viewModel.updateDraftDueTime(newValue)
+        if didEditReminder {
+            if let offset = stagedReminderOffset {
+                if viewModel.detailDraft?.dueAt == nil, didEditDate == false, didEditTime == false {
+                    ensureDueDateExists()
                 }
+                let reminderTarget = reminderTargetDate()
+                viewModel.updateDraftReminder(reminderTarget.addingTimeInterval(-offset))
+            } else {
+                viewModel.setDraftReminderEnabled(false)
             }
-        )
+        }
+
+        if didEditPriority {
+            viewModel.updateDraftPriority(stagedPriority)
+        }
+
+        if didEditRepeatRule {
+            if stagedRepeatRule != nil, viewModel.detailDraft?.dueAt == nil, didEditDate == false, didEditTime == false {
+                ensureDueDateExists()
+            }
+            viewModel.updateDraftRepeatRule(stagedRepeatRule)
+        }
+
+        onDismiss()
     }
 
     private func ensureDueDateExists() {
@@ -1362,11 +1420,30 @@ private struct HomeDetailMenuSheet: View {
     }
 
     private func reminderTargetDate() -> Date {
-        let dueAt = viewModel.detailDraft?.dueAt ?? viewModel.selectedDate
-        if viewModel.detailDraft?.hasExplicitTime == true {
+        let dueAt = stagedTime.map { merge(date: stagedDate, timeSource: $0) } ?? stagedDate
+        if stagedTime != nil {
             return dueAt
         }
         return Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
+    }
+
+    private func merge(date: Date, timeSource: Date) -> Date {
+        let calendar = Calendar.current
+        return calendar.date(
+            bySettingHour: calendar.component(.hour, from: timeSource),
+            minute: calendar.component(.minute, from: timeSource),
+            second: 0,
+            of: date
+        ) ?? date
+    }
+
+    private static func reminderOffset(for draft: TaskDraft?, fallbackDate: Date) -> TimeInterval? {
+        guard let remindAt = draft?.remindAt else { return nil }
+        let dueAt = draft?.dueAt ?? fallbackDate
+        let target = draft?.hasExplicitTime == true
+            ? dueAt
+            : Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
+        return target.timeIntervalSince(remindAt)
     }
 }
 

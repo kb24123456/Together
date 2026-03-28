@@ -25,9 +25,39 @@ protocol TaskApplicationServiceProtocol: Sendable {
         actorID: UUID,
         option: TaskSnoozeOption
     ) async throws -> Item
-    func toggleTaskCompletion(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
-    func completeTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
+    func toggleTaskCompletion(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        referenceDate: Date
+    ) async throws -> Item
+    func completeTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        referenceDate: Date
+    ) async throws -> Item
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws
     func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item
+}
+
+extension TaskApplicationServiceProtocol {
+    func toggleTaskCompletion(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
+        try await toggleTaskCompletion(
+            in: spaceID,
+            taskID: taskID,
+            actorID: actorID,
+            referenceDate: .now
+        )
+    }
+
+    func completeTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
+        try await completeTask(
+            in: spaceID,
+            taskID: taskID,
+            actorID: actorID,
+            referenceDate: .now
+        )
+    }
 }

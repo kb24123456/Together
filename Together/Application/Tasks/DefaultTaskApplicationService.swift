@@ -9,7 +9,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     init(
         itemRepository: ItemRepositoryProtocol,
         syncCoordinator: SyncCoordinatorProtocol,
-        reminderScheduler: ReminderSchedulerProtocol = MockReminderScheduler()
+        reminderScheduler: ReminderSchedulerProtocol
     ) {
         self.itemRepository = itemRepository
         self.syncCoordinator = syncCoordinator
@@ -17,19 +17,22 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     }
 
     func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] {
-        let items = try await itemRepository.fetchItems(spaceID: spaceID)
+        let items = try await itemRepository.fetchActiveItems(spaceID: spaceID)
         return items
             .filter { matches($0, scope: scope) }
             .sorted { compareItems(lhs: $0, rhs: $1, referenceDate: scope.referenceDate ?? .now) }
     }
 
     func todaySummary(in spaceID: UUID, referenceDate: Date) async throws -> TaskTodaySummary {
-        let items = try await itemRepository.fetchItems(spaceID: spaceID)
+        let items = try await itemRepository.fetchActiveItems(spaceID: spaceID)
         let dayRange = dateRange(for: referenceDate)
-        let actionableItems = items.filter { matches($0, scope: .today(referenceDate: referenceDate)) }
+        let visibleItems = items.filter { matches($0, scope: .today(referenceDate: referenceDate)) }
+        let actionableItems = visibleItems.filter {
+            $0.isCompleted(on: referenceDate, calendar: calendar) == false && $0.status != .completed
+        }
         let completedTodayCount = items.filter {
-            guard let completedAt = $0.completedAt else { return false }
-            return dayRange.contains(completedAt)
+            $0.isCompleted(on: referenceDate, calendar: calendar)
+                || ($0.completedAt.map(dayRange.contains) ?? false)
         }.count
         let overdueCount = actionableItems.filter { isOverdue($0, on: referenceDate) }.count
         let dueTodayCount = actionableItems.filter { isDueOnReferenceDay($0, referenceDate: referenceDate) }.count
@@ -203,18 +206,21 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return saved
     }
 
-    func toggleTaskCompletion(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
+    func toggleTaskCompletion(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        referenceDate: Date
+    ) async throws -> Item {
         let existing = try await existingTask(in: spaceID, taskID: taskID)
+        let isCompletedOnReferenceDate = existing.isCompleted(on: referenceDate, calendar: calendar)
 
-        if existing.completedAt != nil || existing.status == .completed {
-            var restored = existing
-            restored.completedAt = nil
-            restored.updatedAt = .now
-            if restored.status == .completed {
-                restored.status = .inProgress
-            }
-
-            let saved = try await itemRepository.saveItem(restored)
+        if isCompletedOnReferenceDate || existing.status == .completed {
+            let saved = try await itemRepository.markIncomplete(
+                itemID: taskID,
+                actorID: actorID,
+                referenceDate: referenceDate
+            )
             await syncCoordinator.recordLocalChange(
                 SyncChange(
                     entityKind: .task,
@@ -227,11 +233,25 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             return saved
         }
 
-        return try await completeTask(in: spaceID, taskID: taskID, actorID: actorID)
+        return try await completeTask(
+            in: spaceID,
+            taskID: taskID,
+            actorID: actorID,
+            referenceDate: referenceDate
+        )
     }
 
-    func completeTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
-        let item = try await itemRepository.markCompleted(itemID: taskID, actorID: actorID)
+    func completeTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        referenceDate: Date
+    ) async throws -> Item {
+        let item = try await itemRepository.markCompleted(
+            itemID: taskID,
+            actorID: actorID,
+            referenceDate: referenceDate
+        )
         await syncCoordinator.recordLocalChange(
             SyncChange(
                 entityKind: .task,
@@ -292,7 +312,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     }
 
     private func existingTask(in spaceID: UUID, taskID: UUID) async throws -> Item {
-        let items = try await itemRepository.fetchItems(spaceID: spaceID)
+        let items = try await itemRepository.fetchActiveItems(spaceID: spaceID)
         guard let item = items.first(where: { $0.id == taskID }) else {
             throw RepositoryError.notFound
         }
@@ -416,7 +436,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 }
 
 private extension TaskScope {
-    var referenceDate: Date? {
+    nonisolated var referenceDate: Date? {
         switch self {
         case let .today(referenceDate):
             return referenceDate

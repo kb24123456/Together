@@ -24,6 +24,7 @@ final class AppContext {
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
+            itemRepository: container.itemRepository,
             quickCaptureParser: container.quickCaptureParser,
             taskTemplateRepository: container.taskTemplateRepository
         )
@@ -45,6 +46,8 @@ final class AppContext {
             relationshipService: container.relationshipService,
             notificationService: container.notificationService,
             itemRepository: container.itemRepository,
+            taskApplicationService: container.taskApplicationService,
+            taskListRepository: container.taskListRepository,
             projectRepository: container.projectRepository,
             reminderScheduler: container.reminderScheduler
         )
@@ -78,7 +81,7 @@ final class AppContext {
         guard force || hasSyncedReminderNotifications == false else { return }
         let spaceID = sessionStore.currentSpace?.id
 
-        let tasks = (try? await container.itemRepository.fetchItems(spaceID: spaceID)) ?? []
+        let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
 
         await container.reminderScheduler.resync(tasks: tasks, projects: projects)

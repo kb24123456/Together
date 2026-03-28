@@ -111,7 +111,7 @@ extension PersistentItem {
         )
     }
 
-    var domainModel: Item {
+    func domainModel(occurrenceCompletions: [ItemOccurrenceCompletion] = []) -> Item {
         Item(
             id: id,
             spaceID: spaceID,
@@ -131,7 +131,8 @@ extension PersistentItem {
             responseHistory: Self.decode(responseHistoryData, defaultValue: []),
             createdAt: createdAt,
             updatedAt: updatedAt,
-            completedAt: completedAt,
+            completedAt: repeatRuleData == nil ? completedAt : nil,
+            occurrenceCompletions: occurrenceCompletions,
             isPinned: isPinned,
             isDraft: isDraft,
             isArchived: isArchived,
@@ -156,7 +157,7 @@ extension PersistentItem {
         latestResponseData = Self.encode(item.latestResponse)
         responseHistoryData = Self.encode(item.responseHistory)
         updatedAt = item.updatedAt
-        completedAt = item.completedAt
+        completedAt = item.repeatRule == nil ? item.completedAt : nil
         isPinned = item.isPinned
         isDraft = item.isDraft
         isArchived = item.isArchived

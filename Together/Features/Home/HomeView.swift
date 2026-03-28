@@ -8,6 +8,8 @@ struct HomeView: View {
     let isProjectLayerPresented: Bool
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isWeekPagerSettling = false
+    @State private var isTodayJumpButtonVisible = false
+    @State private var todayJumpRevealTask: Task<Void, Never>?
     @State private var isCompletedVisibilityButtonCompressed = false
     @State private var isCompletedSectionVisible = true
     @State private var isCompletedSectionTransitioning = false
@@ -20,6 +22,7 @@ struct HomeView: View {
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineDividerLeadingInset: CGFloat = AppTheme.spacing.xl + 44
     private let timelineBottomInset: CGFloat = 144
+    private let todayJumpTopInset: CGFloat = 58
 
     var body: some View {
         GeometryReader { proxy in
@@ -57,9 +60,11 @@ struct HomeView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.loadIfNeeded()
+            updateTodayJumpButtonVisibility()
         }
         .task(id: viewModel.selectedDateKey) {
             await viewModel.reload()
+            updateTodayJumpButtonVisibility()
         }
         .sheet(
             isPresented: Binding(
@@ -71,6 +76,9 @@ struct HomeView: View {
         }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
+        }
+        .onDisappear {
+            todayJumpRevealTask?.cancel()
         }
     }
 
@@ -93,36 +101,6 @@ struct HomeView: View {
                     .tracking(-1.2)
                     .foregroundStyle(headerPrimaryColor)
                     .contentTransition(.numericText())
-
-                if !viewModel.isViewingToday {
-                    Button {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
-                            viewModel.returnToToday()
-                        }
-                        HomeInteractionFeedback.selection()
-                    } label: {
-                        Text("今天")
-                            .font(AppTheme.typography.sized(15, weight: .semibold))
-                            .foregroundStyle(headerPrimaryColor)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 9)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(AppTheme.colors.surfaceElevated)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.84, anchor: .leading)
-                                .combined(with: .opacity)
-                                .combined(with: .offset(x: -10, y: 1)),
-                            removal: .scale(scale: 0.9, anchor: .leading)
-                                .combined(with: .opacity)
-                                .combined(with: .offset(x: -6, y: -1))
-                        )
-                    )
-                }
             }
 
             Spacer(minLength: 0)
@@ -153,7 +131,7 @@ struct HomeView: View {
                         timelineSection
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)
-                    .padding(.top, AppTheme.spacing.lg)
+                    .padding(.top, contentTopPadding)
                     .padding(.bottom, 144)
                 }
                 .scrollIndicators(.hidden)
@@ -167,6 +145,13 @@ struct HomeView: View {
                 .fill(AppTheme.colors.surface)
         )
         .overlay(alignment: .top) {
+            if isTodayJumpButtonVisible {
+                todayJumpButton
+                    .padding(.top, 14)
+                    .transition(todayJumpTransition)
+                    .zIndex(2)
+            }
+
             if isProjectLayerPresented {
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.outlineStrong.opacity(0.32))
@@ -193,6 +178,20 @@ struct HomeView: View {
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 .listRowBackground(AppTheme.colors.surface)
                 .listRowSeparator(.hidden)
+
+            if viewModel.showsOverdueCapsule {
+                overdueReminderCapsule
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 10,
+                            leading: timelineRowHorizontalInset,
+                            bottom: 8,
+                            trailing: timelineRowHorizontalInset
+                        )
+                    )
+                    .listRowBackground(AppTheme.colors.surface)
+                    .listRowSeparator(.hidden)
+            }
 
             timelineRows(
                 viewModel.activeTimelineEntries,
@@ -229,8 +228,77 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .scrollDisabled(isProjectLayerPresented)
         .environment(\.defaultMinListRowHeight, 0)
-        .safeAreaPadding(.top, AppTheme.spacing.sm)
+        .safeAreaPadding(.top, contentTopPadding)
         .background(AppTheme.colors.surface)
+    }
+
+    private var contentTopPadding: CGFloat {
+        isTodayJumpButtonVisible ? todayJumpTopInset : AppTheme.spacing.sm
+    }
+
+    private var todayJumpButton: some View {
+        Button("Today", systemImage: "arrow.uturn.backward.circle.fill") {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                isTodayJumpButtonVisible = false
+                viewModel.returnToToday()
+            }
+            HomeInteractionFeedback.selection()
+        }
+        .font(AppTheme.typography.sized(15, weight: .semibold))
+        .foregroundStyle(headerPrimaryColor)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .modifier(HomeAvatarGlassModifier())
+        .shadow(color: AppTheme.colors.shadow.opacity(0.85), radius: 14, y: 8)
+        .buttonStyle(.plain)
+        .accessibilityLabel("返回今天")
+    }
+
+    private var todayJumpTransition: AnyTransition {
+        .asymmetric(
+            insertion: .offset(y: -8)
+                .combined(with: .scale(scale: 0.94, anchor: .top))
+                .combined(with: .opacity),
+            removal: .offset(y: -4)
+                .combined(with: .scale(scale: 0.97, anchor: .top))
+                .combined(with: .opacity)
+        )
+    }
+
+    private func updateTodayJumpButtonVisibility() {
+        todayJumpRevealTask?.cancel()
+
+        guard shouldShowTodayJumpButton else {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.92)) {
+                isTodayJumpButtonVisible = false
+            }
+            return
+        }
+
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.94)) {
+            isTodayJumpButtonVisible = false
+        }
+
+        todayJumpRevealTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard shouldShowTodayJumpButton else { return }
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                    isTodayJumpButtonVisible = true
+                }
+            }
+        }
+    }
+
+    private var shouldShowTodayJumpButton: Bool {
+        guard !viewModel.isViewingToday, !isProjectLayerPresented else {
+            return false
+        }
+
+        let calendar = Calendar.current
+        return !calendar.isDate(viewModel.selectedDate, equalTo: .now, toGranularity: .weekOfYear)
     }
 
     @ViewBuilder
@@ -267,7 +335,7 @@ struct HomeView: View {
                 if entry.isCompleted {
                     HomeTimelineRow(
                         entry: entry,
-                        isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
+                        isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -285,7 +353,7 @@ struct HomeView: View {
                 } else {
                     HomeTimelineRow(
                         entry: entry,
-                        isAnimatingCompletion: viewModel.recentCompletedItemID == entry.id && viewModel.isPerformingCompletion,
+                        isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -310,6 +378,15 @@ struct HomeView: View {
                             Image(systemName: "arrowshape.turn.up.forward.fill")
                         }
                         .tint(AppTheme.colors.sky)
+
+                        Button(role: .destructive) {
+                            HomeInteractionFeedback.selection()
+                            Task {
+                                await viewModel.deleteItem(entry.id)
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
                     }
                 }
             }
@@ -475,6 +552,40 @@ struct HomeView: View {
             anchor: .center
         )
         .animation(.bouncy(duration: 0.54, extraBounce: 0.28), value: isCompletedVisibilityButtonCompressed)
+    }
+
+    private var overdueReminderCapsule: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
+                viewModel.toggleOverdueFocus()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: viewModel.showsOverdueOnly ? "line.3.horizontal.decrease.circle.fill" : "exclamationmark.circle.fill")
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+
+                Text(viewModel.overdueCapsuleTitle)
+                    .font(AppTheme.typography.sized(14, weight: .semibold))
+
+                Spacer(minLength: 0)
+
+                if viewModel.showsOverdueOnly == false {
+                    Text("尽快处理")
+                        .font(AppTheme.typography.sized(12, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.coral.opacity(0.8))
+                }
+            }
+            .foregroundStyle(AppTheme.colors.coral)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.coral.opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(viewModel.overdueCapsuleTitle)
     }
 
     private var headerPrimaryColor: Color {
@@ -666,6 +777,23 @@ struct HomeView: View {
         return viewModel.isSelectedDate(date)
     }
 
+}
+
+#Preview("Home Default") {
+    HomeView(
+        viewModel: AppContext.bootstrap().homeViewModel,
+        isProjectLayerPresented: false
+    )
+}
+
+#Preview("Home No Overdue Capsule") {
+    let context = AppContext.bootstrap()
+    context.homeViewModel.selectDate(Calendar.current.date(byAdding: .day, value: 1, to: MockDataFactory.now) ?? MockDataFactory.now)
+
+    return HomeView(
+        viewModel: context.homeViewModel,
+        isProjectLayerPresented: false
+    )
 }
 
 private struct HomeTimelineRow: View {

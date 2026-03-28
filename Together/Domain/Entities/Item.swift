@@ -7,6 +7,11 @@ struct ItemResponse: Hashable, Sendable, Codable {
     var respondedAt: Date
 }
 
+struct ItemOccurrenceCompletion: Hashable, Sendable, Codable {
+    var occurrenceDate: Date
+    var completedAt: Date
+}
+
 struct Item: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     var spaceID: UUID?
@@ -27,6 +32,7 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+    var occurrenceCompletions: [ItemOccurrenceCompletion] = []
     var isPinned: Bool = false
     var isDraft: Bool
     var isArchived: Bool = false

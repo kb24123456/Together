@@ -1,7 +1,7 @@
 import Foundation
 
 enum ItemStateMachine {
-    static func nextStatus(
+    nonisolated static func nextStatus(
         from currentStatus: ItemStatus,
         executionRole: ItemExecutionRole,
         response: ItemResponseKind? = nil,

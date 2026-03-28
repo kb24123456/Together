@@ -1562,6 +1562,11 @@ private struct ComposerAnimatedChipTitle: View {
                     .monospacedDigit()
                     .contentTransition(.numericText(countsDown: direction == .down))
                     .lineLimit(1)
+            case .priority:
+                Text(value)
+                    .font(font)
+                    .contentTransition(.interpolate)
+                    .lineLimit(1)
             case .interpolated:
                 Text(value)
                     .font(font)
@@ -1581,7 +1586,9 @@ private struct ComposerAnimatedChipTitle: View {
             return .numeric
         case .reminder:
             return .numeric
-        case .priority, .repeatRule:
+        case .priority:
+            return .priority
+        case .repeatRule:
             return .interpolated
         }
     }
@@ -1633,6 +1640,7 @@ private struct ComposerAnimatedChipTitle: View {
 
 private enum ComposerChipContentTransitionStyle {
     case numeric
+    case priority
     case interpolated
     case none
 }
@@ -1651,9 +1659,9 @@ private enum ComposerMenu: String, Identifiable {
         case .date:
             return [.custom(ComposerDateMenuDetent.self)]
         case .time:
-            return [.fraction(0.5)]
+            return [.custom(TaskEditorTaskMenuDetent.self)]
         case .reminder, .priority, .repeatRule:
-            return [.fraction(0.46)]
+            return [.custom(TaskEditorTaskMenuDetent.self)]
         }
     }
 }
@@ -1661,7 +1669,7 @@ private enum ComposerMenu: String, Identifiable {
 private struct ComposerDateMenuDetent: CustomPresentationDetent {
     static func height(in context: Context) -> CGFloat? {
         min(
-            ComposerDatePickerSheet.preferredHeight + 12,
+            ComposerDatePickerSheet.preferredHeight + TaskEditorUnifiedMenuMetrics.topBarHeight,
             context.maxDetentValue * 0.72
         )
     }
@@ -1679,6 +1687,68 @@ private struct ComposerEditorMenuSheet: View {
     let disabledMenus: Set<TaskEditorMenu>
     let onDismiss: () -> Void
 
+    @State private var stagedSelectedDate: Date
+    @State private var stagedSelectedTime: Date?
+    @State private var stagedPriority: ItemPriority
+    @State private var stagedReminderOffset: TimeInterval?
+    @State private var stagedRepeatRule: ItemRepeatRule
+
+    @State private var didEditDate = false
+    @State private var didEditTime = false
+    @State private var didEditPriority = false
+    @State private var didEditReminder = false
+    @State private var didEditRepeatRule = false
+
+    init(
+        context: TaskEditorMenuContext,
+        activeMenu: Binding<TaskEditorMenu>,
+        draftState: Binding<ComposerDraftState>,
+        quickTimePresetMinutes: [Int],
+        templates: [TaskTemplate],
+        isLoadingTemplates: Bool,
+        onTemplatePicked: @escaping (TaskTemplate) -> Void,
+        onTemplateDeleted: @escaping (TaskTemplate) async -> Void,
+        disabledMenus: Set<TaskEditorMenu>,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.context = context
+        _activeMenu = activeMenu
+        _draftState = draftState
+        self.quickTimePresetMinutes = quickTimePresetMinutes
+        self.templates = templates
+        self.isLoadingTemplates = isLoadingTemplates
+        self.onTemplatePicked = onTemplatePicked
+        self.onTemplateDeleted = onTemplateDeleted
+        self.disabledMenus = disabledMenus
+        self.onDismiss = onDismiss
+
+        let currentDraft = draftState.wrappedValue
+        let initialDate: Date
+        let initialTime: Date?
+        let initialReminder: TimeInterval?
+
+        switch currentDraft.category {
+        case .periodic:
+            initialDate = currentDraft.periodicAnchorDate
+            initialTime = currentDraft.periodicTime
+            initialReminder = currentDraft.periodicReminderOffset
+        case .task:
+            initialDate = currentDraft.taskDate
+            initialTime = currentDraft.taskTime
+            initialReminder = currentDraft.taskReminderOffset
+        case .project:
+            initialDate = currentDraft.projectTargetDate ?? currentDraft.taskDate
+            initialTime = nil
+            initialReminder = nil
+        }
+
+        _stagedSelectedDate = State(initialValue: initialDate)
+        _stagedSelectedTime = State(initialValue: initialTime)
+        _stagedPriority = State(initialValue: currentDraft.priority)
+        _stagedReminderOffset = State(initialValue: initialReminder)
+        _stagedRepeatRule = State(initialValue: currentDraft.repeatRule)
+    }
+
     var body: some View {
         TaskEditorUnifiedMenuSheet(
             context: context,
@@ -1686,7 +1756,9 @@ private struct ComposerEditorMenuSheet: View {
             disabledMenus: disabledMenus,
             selectionFeedback: ComposerButtonHaptics.selection,
             headerTitle: context == .template ? "选择模板" : nil,
-            switcherPlacement: .bottom
+            switcherPlacement: .bottom,
+            onClose: onDismiss,
+            onSave: context == .template ? onDismiss : applyChangesAndDismiss
         ) { menu in
             menuContent(for: menu)
         }
@@ -1697,15 +1769,18 @@ private struct ComposerEditorMenuSheet: View {
         switch menu {
         case .date:
             TaskEditorDatePickerSheet(
-                selectedDate: selectedDateBinding,
+                selectedDate: stagedDateBinding,
                 selectionFeedback: ComposerButtonHaptics.selection,
-                onDismiss: {}
+                onDismiss: {},
+                dismissesOnSelection: false
             )
         case .time:
             TaskEditorTimePickerSheet(
-                selectedTime: selectedTimeBinding,
-                anchorDate: timeAnchorDate,
+                selectedTime: stagedTimeBinding,
+                anchorDate: stagedSelectedDate,
                 quickPresetMinutes: quickTimePresetMinutes,
+                savesOnQuickPresetSelection: false,
+                showsPrimaryButton: false,
                 selectionFeedback: ComposerButtonHaptics.selection,
                 primaryFeedback: ComposerButtonHaptics.primary,
                 onTimeSaved: nil,
@@ -1718,29 +1793,12 @@ private struct ComposerEditorMenuSheet: View {
             )
         case .priority:
             TaskEditorOptionList(
-                options: ItemPriority.allCases.map { priority in
-                    TaskEditorOptionRow(
-                        title: priority.title,
-                        isSelected: draftState.priority == priority,
-                        action: {
-                            draftState.priority = priority
-                        }
-                    )
-                },
+                options: priorityMenuOptions,
                 selectionFeedback: ComposerButtonHaptics.selection
             )
         case .repeatRule:
             TaskEditorOptionList(
-                options: TaskEditorRepeatPreset.allCases.map { preset in
-                    let title = preset.title(anchorDate: draftState.periodicAnchorDate)
-                    return TaskEditorOptionRow(
-                        title: title,
-                        isSelected: title == draftState.repeatSummaryText,
-                        action: {
-                            draftState.repeatRule = preset.makeRule(anchorDate: draftState.periodicAnchorDate)
-                        }
-                    )
-                },
+                options: repeatRuleMenuOptions,
                 selectionFeedback: ComposerButtonHaptics.selection
             )
         case .subtasks:
@@ -1755,74 +1813,78 @@ private struct ComposerEditorMenuSheet: View {
         }
     }
 
-    private var selectedDateBinding: Binding<Date> {
-        Binding(
-            get: {
-                switch draftState.category {
-                case .periodic:
-                    return draftState.periodicAnchorDate
-                case .task:
-                    return draftState.taskDate
-                case .project:
-                    return draftState.projectTargetDate ?? draftState.taskDate
-                }
-            },
-            set: { newValue in
-                switch draftState.category {
-                case .periodic:
-                    draftState.periodicAnchorDate = newValue
-                case .task:
-                    draftState.taskDate = newValue
-                case .project:
-                    draftState.projectTargetDate = newValue
-                }
+    private func applyChangesAndDismiss() {
+        if didEditDate {
+            switch draftState.category {
+            case .periodic:
+                draftState.periodicAnchorDate = stagedSelectedDate
+            case .task:
+                draftState.taskDate = stagedSelectedDate
+            case .project:
+                draftState.projectTargetDate = stagedSelectedDate
             }
-        )
-    }
-
-    private var selectedTimeBinding: Binding<Date?> {
-        Binding(
-            get: {
-                switch draftState.category {
-                case .periodic:
-                    return draftState.periodicTime
-                case .task:
-                    return draftState.taskTime
-                case .project:
-                    return nil
-                }
-            },
-            set: { newValue in
-                switch draftState.category {
-                case .periodic:
-                    draftState.periodicTime = newValue
-                case .task:
-                    draftState.taskTime = newValue
-                case .project:
-                    break
-                }
-            }
-        )
-    }
-
-    private var timeAnchorDate: Date {
-        switch draftState.category {
-        case .periodic:
-            return draftState.periodicAnchorDate
-        case .task:
-            return draftState.taskDate
-        case .project:
-            return draftState.projectTargetDate ?? draftState.taskDate
         }
+
+        if didEditTime {
+            switch draftState.category {
+            case .periodic:
+                draftState.periodicTime = stagedSelectedTime
+            case .task:
+                draftState.taskTime = stagedSelectedTime
+            case .project:
+                break
+            }
+        }
+
+        if didEditPriority {
+            draftState.priority = stagedPriority
+        }
+
+        if didEditReminder {
+            switch draftState.category {
+            case .periodic:
+                draftState.periodicReminderOffset = stagedReminderOffset
+            case .task:
+                draftState.taskReminderOffset = stagedReminderOffset
+            case .project:
+                break
+            }
+        }
+
+        if didEditRepeatRule, draftState.category == .periodic {
+            draftState.repeatRule = stagedRepeatRule
+        }
+
+        onDismiss()
+    }
+
+    private var stagedDateBinding: Binding<Date> {
+        Binding(
+            get: { stagedSelectedDate },
+            set: { newValue in
+                stagedSelectedDate = newValue
+                didEditDate = true
+            }
+        )
+    }
+
+    private var stagedTimeBinding: Binding<Date?> {
+        Binding(
+            get: { stagedSelectedTime },
+            set: { newValue in
+                stagedSelectedTime = newValue
+                didEditTime = true
+            }
+        )
     }
 
     private var reminderMenuOptions: [TaskEditorOptionRow] {
-        [TaskEditorOptionRow(title: "不提醒", isSelected: draftState.reminderSummaryText(for: draftState.category) == "提醒") {
+        [TaskEditorOptionRow(title: "不提醒", isSelected: stagedReminderOffset == nil) {
             setReminder(nil)
         }] + TaskEditorReminderPreset.allCases.map { preset in
             TaskEditorOptionRow(
                 title: preset.title,
-                isSelected: draftState.reminderSummaryText(for: draftState.category) == preset.title,
+                isSelected: stagedReminderOffset == preset.secondsBeforeTarget,
                 action: {
                     setReminder(preset.secondsBeforeTarget)
                 }
@@ -1830,15 +1892,36 @@ private struct ComposerEditorMenuSheet: View {
         }
     }
 
-    private func setReminder(_ seconds: TimeInterval?) {
-        switch draftState.category {
-        case .periodic:
-            draftState.periodicReminderOffset = seconds
-        case .task:
-            draftState.taskReminderOffset = seconds
-        case .project:
-            break
+    private var priorityMenuOptions: [TaskEditorOptionRow] {
+        ItemPriority.allCases.map { priority in
+            TaskEditorOptionRow(
+                title: priority.title,
+                isSelected: stagedPriority == priority,
+                action: {
+                    stagedPriority = priority
+                    didEditPriority = true
+                }
+            )
         }
+    }
+
+    private var repeatRuleMenuOptions: [TaskEditorOptionRow] {
+        TaskEditorRepeatPreset.allCases.map { preset in
+            let title = preset.title(anchorDate: stagedSelectedDate)
+            return TaskEditorOptionRow(
+                title: title,
+                isSelected: title == stagedRepeatRule.title(anchorDate: stagedSelectedDate, calendar: .current),
+                action: {
+                    stagedRepeatRule = preset.makeRule(anchorDate: stagedSelectedDate)
+                    didEditRepeatRule = true
+                }
+            )
+        }
+    }
+
+    private func setReminder(_ seconds: TimeInterval?) {
+        stagedReminderOffset = seconds
+        didEditReminder = true
     }
 }
 

@@ -150,8 +150,37 @@ extension Item {
     }
 
     nonisolated func isCompleted(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
+        if repeatRule != nil {
+            if occurrenceCompletions.contains(where: { calendar.isDate($0.occurrenceDate, inSameDayAs: referenceDate) }) {
+                return true
+            }
+
+            guard let completedAt else { return false }
+            return calendar.isDate(completedAt, inSameDayAs: referenceDate)
+        }
+
         guard let completedAt else { return false }
         return calendar.isDate(completedAt, inSameDayAs: referenceDate)
+    }
+
+    nonisolated func completionDate(on referenceDate: Date, calendar: Calendar = .current) -> Date? {
+        if repeatRule != nil {
+            if let occurrenceCompletion = occurrenceCompletions.first(where: {
+                calendar.isDate($0.occurrenceDate, inSameDayAs: referenceDate)
+            }) {
+                return occurrenceCompletion.completedAt
+            }
+
+            guard let completedAt, calendar.isDate(completedAt, inSameDayAs: referenceDate) else {
+                return nil
+            }
+            return completedAt
+        }
+
+        guard let completedAt, calendar.isDate(completedAt, inSameDayAs: referenceDate) else {
+            return nil
+        }
+        return completedAt
     }
 
     nonisolated func appearsOnHome(for referenceDate: Date, includeOverdue: Bool, calendar: Calendar = .current) -> Bool {
@@ -172,6 +201,7 @@ extension Item {
     }
 
     nonisolated func isOverdue(on referenceDate: Date, calendar: Calendar = .current) -> Bool {
+        guard isCompleted(on: referenceDate, calendar: calendar) == false else { return false }
         guard status != .completed else { return false }
 
         if repeatRule != nil {

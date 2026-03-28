@@ -25,5 +25,6 @@ enum CalendarRoute: Hashable {
 
 enum ProfileRoute: Hashable {
     case notificationSettings
+    case completedHistory
     case futureCollaboration
 }

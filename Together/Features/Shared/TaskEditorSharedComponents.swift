@@ -75,15 +75,28 @@ enum TaskEditorMenuContext: Equatable {
     }
 
     var detents: Set<PresentationDetent> {
+        [.height(unifiedPresentationHeight)]
+    }
+
+    private var unifiedPresentationHeight: CGFloat {
         switch self {
         case .task:
-            return [.custom(TaskEditorTaskMenuDetent.self)]
+            return TaskEditorTimePickerSheet.preferredHeight(
+                showsQuickPresets: true,
+                showsPrimaryButton: false
+            ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         case .periodic:
-            return [.custom(TaskEditorPeriodicMenuDetent.self)]
+            return TaskEditorTimePickerSheet.preferredHeight(
+                showsQuickPresets: true,
+                showsPrimaryButton: false
+            ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         case .project:
-            return [.custom(TaskEditorProjectMenuDetent.self)]
+            return max(
+                TaskEditorDatePickerSheet.preferredHeight,
+                492
+            ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         case .template:
-            return [.custom(TaskEditorTemplateMenuDetent.self)]
+            return 440
         }
     }
 }
@@ -323,6 +336,16 @@ struct TaskEditorOptionList: View {
     }
 }
 
+extension TaskEditorOptionList {
+    static func preferredHeight(optionCount: Int) -> CGFloat {
+        let clampedCount = max(optionCount, 1)
+        let rowsHeight = CGFloat(clampedCount) * TaskEditorMenuOptionMetrics.height
+        let spacingHeight = CGFloat(max(clampedCount - 1, 0)) * 10
+        let verticalPadding = TaskEditorMenuOptionMetrics.outerInset * 2
+        return rowsHeight + spacingHeight + verticalPadding
+    }
+}
+
 private struct TaskEditorMenuOptionSurfaceModifier: ViewModifier {
     let isEnabled: Bool
 
@@ -512,6 +535,8 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
     let selectionFeedback: () -> Void
     let headerTitle: String?
     let switcherPlacement: TaskEditorMenuSwitcherPlacement
+    let onClose: () -> Void
+    let onSave: (() -> Void)?
     @ViewBuilder let content: (TaskEditorMenu) -> Content
 
     @State private var displayedMenu: TaskEditorMenu
@@ -524,6 +549,8 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
         selectionFeedback: @escaping () -> Void,
         headerTitle: String? = nil,
         switcherPlacement: TaskEditorMenuSwitcherPlacement = .top,
+        onClose: @escaping () -> Void = {},
+        onSave: (() -> Void)? = nil,
         @ViewBuilder content: @escaping (TaskEditorMenu) -> Content
     ) {
         self.context = context
@@ -532,22 +559,17 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
         self.selectionFeedback = selectionFeedback
         self.headerTitle = headerTitle
         self.switcherPlacement = switcherPlacement
+        self.onClose = onClose
+        self.onSave = onSave
         self.content = content
         _displayedMenu = State(initialValue: activeMenu.wrappedValue)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if let headerTitle {
-                Text(headerTitle)
-                    .font(AppTheme.typography.sized(20, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 18)
-                    .padding(.bottom, 12)
-            } else if switcherPlacement == .top {
+            topBar
+
+            if headerTitle == nil, switcherPlacement == .top {
                 switcherView
             }
 
@@ -564,7 +586,6 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(AppTheme.colors.surface)
         .onChange(of: activeMenu) { oldValue, newValue in
             guard oldValue != newValue else { return }
             transitionDirection = transitionDirectionForMenuChange(to: newValue)
@@ -610,6 +631,60 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
         .padding(.horizontal, 18)
         .padding(.top, switcherPlacement == .bottom ? 0 : 14)
         .padding(.bottom, switcherPlacement == .bottom ? 10 : 10)
+    }
+
+    private var currentTitle: String {
+        headerTitle ?? displayedMenu.accessibilityTitle
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            topBarButton(systemImage: "xmark", accessibilityLabel: "关闭", action: onClose)
+
+            Spacer(minLength: 0)
+
+            titleView
+
+            Spacer(minLength: 0)
+
+            topBarButton(
+                systemImage: "checkmark",
+                accessibilityLabel: "保存",
+                action: {
+                    onSave?()
+                }
+            )
+            .opacity(onSave == nil ? 0.35 : 1)
+            .allowsHitTesting(onSave != nil)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
+    }
+
+    private var titleView: some View {
+        ZStack {
+            Text(currentTitle)
+                .id(currentTitle)
+                .font(AppTheme.typography.sized(18, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+        }
+        .animation(.easeInOut(duration: 0.22), value: currentTitle)
+    }
+
+    private func topBarButton(systemImage: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(AppTheme.typography.sized(16, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 
@@ -723,6 +798,7 @@ enum TaskEditorToolbarMetrics {
 struct TaskEditorDatePickerSheet: View {
     static let gridRowHeight: CGFloat = 36
     static let gridRowSpacing: CGFloat = 6
+    static let sixWeekGridRowSpacing: CGFloat = 4
     static let gridColumnSpacing: CGFloat = 0
     static let weekdayRowHeight: CGFloat = 28
     static let headerHeight: CGFloat = 36
@@ -731,24 +807,27 @@ struct TaskEditorDatePickerSheet: View {
     static let bottomPadding: CGFloat = 0
     static let contentSpacing: CGFloat = 6
     static let headerToGridSpacing: CGFloat = 6
-    static let calendarGridHeight: CGFloat = (gridRowHeight * 6) + (gridRowSpacing * 5)
+    static let calendarGridHeight: CGFloat = (gridRowHeight * 5) + (gridRowSpacing * 4)
     static let preferredHeight: CGFloat =
         topPadding + bottomPadding + headerHeight + headerToGridSpacing + weekdayRowHeight + contentSpacing + calendarGridHeight
 
     @Binding var selectedDate: Date
     let selectionFeedback: () -> Void
     let onDismiss: () -> Void
+    let dismissesOnSelection: Bool
     @State private var displayedMonth: Date
     @State private var transitionDirection: TaskEditorMonthTransitionDirection = .forward
 
     init(
         selectedDate: Binding<Date>,
         selectionFeedback: @escaping () -> Void,
-        onDismiss: @escaping () -> Void
+        onDismiss: @escaping () -> Void,
+        dismissesOnSelection: Bool = true
     ) {
         _selectedDate = selectedDate
         self.selectionFeedback = selectionFeedback
         self.onDismiss = onDismiss
+        self.dismissesOnSelection = dismissesOnSelection
         let calendar = Calendar.current
         let initialDate = selectedDate.wrappedValue
         _displayedMonth = State(
@@ -895,7 +974,9 @@ struct TaskEditorDatePickerSheet: View {
     }
 
     private var monthGrid: some View {
-        LazyVGrid(columns: calendarColumns, spacing: Self.gridRowSpacing) {
+        let metrics = monthGridMetrics
+
+        return LazyVGrid(columns: calendarColumns, spacing: metrics.rowSpacing) {
             ForEach(monthCells) { cell in
                 Button {
                     selectionFeedback()
@@ -913,17 +994,40 @@ struct TaskEditorDatePickerSheet: View {
                             )
 
                         Text("\(Calendar.current.component(.day, from: cell.date))")
-                            .font(AppTheme.typography.sized(18, weight: .semibold))
+                            .font(AppTheme.typography.sized(metrics.dayFontSize, weight: .semibold))
                             .foregroundStyle(dayTextColor(for: cell))
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: Self.gridRowHeight)
+                    .frame(height: metrics.rowHeight)
                 }
                 .buttonStyle(.plain)
             }
         }
         .id(monthIdentity)
         .transition(monthTransition)
+    }
+
+    private var monthGridMetrics: TaskEditorDatePickerMonthGridMetrics {
+        let weekCount = max(monthCells.count / 7, 1)
+        guard weekCount > 5 else {
+            return TaskEditorDatePickerMonthGridMetrics(
+                rowHeight: Self.gridRowHeight,
+                rowSpacing: Self.gridRowSpacing,
+                dayFontSize: 18
+            )
+        }
+
+        let rowSpacing = Self.sixWeekGridRowSpacing
+        let rowHeight = max(
+            (Self.calendarGridHeight - (rowSpacing * CGFloat(weekCount - 1))) / CGFloat(weekCount),
+            28
+        )
+
+        return TaskEditorDatePickerMonthGridMetrics(
+            rowHeight: rowHeight,
+            rowSpacing: rowSpacing,
+            dayFontSize: 16
+        )
     }
 
     private func calendarButton(systemName: String, action: @escaping () -> Void) -> some View {
@@ -956,7 +1060,9 @@ struct TaskEditorDatePickerSheet: View {
 
     private func selectDate(_ date: Date) {
         selectedDate = Calendar.current.startOfDay(for: date)
-        onDismiss()
+        if dismissesOnSelection {
+            onDismiss()
+        }
     }
 
     private func isSelected(_ date: Date) -> Bool {
@@ -979,6 +1085,8 @@ struct TaskEditorTimePickerSheet: View {
     let anchorDate: Date
     let quickPresetMinutes: [Int]
     let showsQuickPresets: Bool
+    let savesOnQuickPresetSelection: Bool
+    let showsPrimaryButton: Bool
     let primaryButtonTitle: String
     let selectionFeedback: () -> Void
     let primaryFeedback: () -> Void
@@ -991,6 +1099,8 @@ struct TaskEditorTimePickerSheet: View {
         anchorDate: Date,
         quickPresetMinutes: [Int],
         showsQuickPresets: Bool = true,
+        savesOnQuickPresetSelection: Bool = true,
+        showsPrimaryButton: Bool = true,
         primaryButtonTitle: String = "添加",
         selectionFeedback: @escaping () -> Void,
         primaryFeedback: @escaping () -> Void,
@@ -1001,6 +1111,8 @@ struct TaskEditorTimePickerSheet: View {
         self.anchorDate = anchorDate
         self.quickPresetMinutes = NotificationSettings.normalizedQuickTimePresetMinutes(quickPresetMinutes)
         self.showsQuickPresets = showsQuickPresets
+        self.savesOnQuickPresetSelection = savesOnQuickPresetSelection
+        self.showsPrimaryButton = showsPrimaryButton
         self.primaryButtonTitle = primaryButtonTitle
         self.selectionFeedback = selectionFeedback
         self.primaryFeedback = primaryFeedback
@@ -1049,33 +1161,35 @@ struct TaskEditorTimePickerSheet: View {
                 .padding(.top, showsQuickPresets ? 0 : TaskEditorTimePickerMetrics.verticalInset)
                 .padding(.bottom, TaskEditorTimePickerMetrics.contentSpacing)
 
-                HStack {
-                    Button {
-                        primaryFeedback()
-                        saveSelection()
-                    } label: {
-                        HStack {
-                            Spacer(minLength: 0)
-                            Text(primaryButtonTitle)
-                                .font(AppTheme.typography.sized(17, weight: .semibold))
-                                .foregroundStyle(AppTheme.colors.title)
-                            Spacer(minLength: 0)
+                if showsPrimaryButton {
+                    HStack {
+                        Button {
+                            primaryFeedback()
+                            saveSelection()
+                        } label: {
+                            HStack {
+                                Spacer(minLength: 0)
+                                Text(primaryButtonTitle)
+                                    .font(AppTheme.typography.sized(17, weight: .semibold))
+                                    .foregroundStyle(AppTheme.colors.title)
+                                Spacer(minLength: 0)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: TaskEditorMenuOptionMetrics.height)
+                            .contentShape(
+                                RoundedRectangle(
+                                    cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                                    style: .continuous
+                                )
+                            )
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                        .contentShape(
-                            RoundedRectangle(
-                                cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
-                                style: .continuous
-                            )
-                        )
+                        .buttonStyle(TaskEditorMenuOptionButtonStyle())
+                        .modifier(TaskEditorMenuOptionGlassModifier())
                     }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(TaskEditorMenuOptionButtonStyle())
-                    .modifier(TaskEditorMenuOptionGlassModifier())
+                    .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
+                    .padding(.bottom, TaskEditorTimePickerMetrics.verticalInset)
                 }
-                .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
-                .padding(.bottom, TaskEditorTimePickerMetrics.verticalInset)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -1113,7 +1227,9 @@ struct TaskEditorTimePickerSheet: View {
     private func applyQuickPreset(_ minutes: Int) {
         let presetTime = Self.offsetTimeSeed(minutesFromNow: minutes, for: anchorDate)
         stagedTime = presetTime
-        saveSelection(presetTime)
+        if savesOnQuickPresetSelection {
+            saveSelection(presetTime)
+        }
     }
 
     private func relativePresetTitle(_ minutes: Int) -> String {
@@ -1129,9 +1245,13 @@ struct TaskEditorTimePickerSheet: View {
             ? (TaskEditorTimePickerMetrics.verticalInset + 48 + TaskEditorTimePickerMetrics.contentSpacing)
             : 0
         let bottomBlockHeight =
-            TaskEditorMenuOptionMetrics.height
-            + TaskEditorTimePickerMetrics.verticalInset
-            + TaskEditorTimePickerMetrics.contentSpacing
+            showsPrimaryButton
+            ? (
+                TaskEditorMenuOptionMetrics.height
+                + TaskEditorTimePickerMetrics.verticalInset
+                + TaskEditorTimePickerMetrics.contentSpacing
+            )
+            : TaskEditorTimePickerMetrics.verticalInset
         let topInset = showsQuickPresets ? 0 : TaskEditorTimePickerMetrics.verticalInset
         let availablePickerHeight = availableHeight - presetBlockHeight - bottomBlockHeight - topInset
 
@@ -1145,6 +1265,30 @@ struct TaskEditorTimePickerSheet: View {
         selectedTime = value ?? stagedTime
         onTimeSaved?()
         onDismiss()
+    }
+}
+
+extension TaskEditorTimePickerSheet {
+    static func preferredHeight(
+        showsQuickPresets: Bool = true,
+        showsPrimaryButton: Bool = false
+    ) -> CGFloat {
+        let presetBlockHeight =
+            showsQuickPresets
+            ? (TaskEditorTimePickerMetrics.verticalInset + 48 + TaskEditorTimePickerMetrics.contentSpacing)
+            : 0
+        let topInset = showsQuickPresets ? 0 : TaskEditorTimePickerMetrics.verticalInset
+        let pickerBlockHeight = TaskEditorTimePickerMetrics.pickerHeight + TaskEditorTimePickerMetrics.contentSpacing
+        let bottomBlockHeight =
+            showsPrimaryButton
+            ? (
+                TaskEditorMenuOptionMetrics.height
+                + TaskEditorTimePickerMetrics.verticalInset
+                + TaskEditorTimePickerMetrics.contentSpacing
+            )
+            : TaskEditorTimePickerMetrics.verticalInset
+
+        return presetBlockHeight + topInset + pickerBlockHeight + bottomBlockHeight
     }
 }
 
@@ -2280,38 +2424,63 @@ enum TaskEditorChipAnimation {
     static let widthExpansionLead: TimeInterval = 0.12
 }
 
-private struct TaskEditorDateMenuDetent: CustomPresentationDetent {
+struct TaskEditorDateMenuDetent: CustomPresentationDetent {
     static func height(in context: Context) -> CGFloat? {
         min(
-            TaskEditorDatePickerSheet.preferredHeight + 12,
+            TaskEditorDatePickerSheet.preferredHeight + TaskEditorUnifiedMenuMetrics.topBarHeight,
             context.maxDetentValue * 0.72
         )
     }
 }
 
-private struct TaskEditorTaskMenuDetent: CustomPresentationDetent {
+struct TaskEditorTaskMenuDetent: CustomPresentationDetent {
     static func height(in context: Context) -> CGFloat? {
-        min(
-            TaskEditorDatePickerSheet.preferredHeight + TaskEditorUnifiedMenuMetrics.sheetChromeHeight,
+        let optionHeight = TaskEditorOptionList.preferredHeight(optionCount: 7)
+        let contentHeight = max(
+            TaskEditorDatePickerSheet.preferredHeight,
+            TaskEditorTimePickerSheet.preferredHeight(showsQuickPresets: true, showsPrimaryButton: false),
+            optionHeight
+        )
+        return min(
+            contentHeight + TaskEditorUnifiedMenuMetrics.sheetChromeHeight,
+            context.maxDetentValue * 0.88
+        )
+    }
+}
+
+struct TaskEditorPeriodicMenuDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        let optionHeight = TaskEditorOptionList.preferredHeight(optionCount: 7)
+        let contentHeight = max(
+            TaskEditorTimePickerSheet.preferredHeight(showsQuickPresets: true, showsPrimaryButton: false),
+            optionHeight
+        )
+        return min(
+            contentHeight + TaskEditorUnifiedMenuMetrics.sheetChromeHeight,
+            context.maxDetentValue * 0.88
+        )
+    }
+}
+
+struct TaskEditorProjectMenuDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        let optionHeight = TaskEditorOptionList.preferredHeight(optionCount: 3)
+        let contentHeight = max(
+            TaskEditorDatePickerSheet.preferredHeight,
+            optionHeight,
+            492
+        )
+        return min(
+            contentHeight + TaskEditorUnifiedMenuMetrics.sheetChromeHeight,
             context.maxDetentValue * 0.82
         )
     }
 }
 
-private struct TaskEditorPeriodicMenuDetent: CustomPresentationDetent {
-    static func height(in context: Context) -> CGFloat? {
-        min(452, context.maxDetentValue * 0.66)
-    }
-}
-
-private struct TaskEditorProjectMenuDetent: CustomPresentationDetent {
-    static func height(in context: Context) -> CGFloat? {
-        min(492, context.maxDetentValue * 0.7)
-    }
-}
-
 enum TaskEditorUnifiedMenuMetrics {
-    static let sheetChromeHeight: CGFloat = 78
+    static let topBarHeight: CGFloat = 64
+    static let bottomSwitcherHeight: CGFloat = 58
+    static let sheetChromeHeight: CGFloat = topBarHeight + bottomSwitcherHeight
 }
 
 private struct TaskEditorCalendarDayCell: Identifiable {
@@ -2535,6 +2704,11 @@ private struct TaskEditorAnimatedChipTitle: View {
                     .monospacedDigit()
                     .contentTransition(.numericText(countsDown: direction == .down))
                     .lineLimit(1)
+            case .priority:
+                Text(value)
+                    .font(font)
+                    .contentTransition(.interpolate)
+                    .lineLimit(1)
             case .interpolated:
                 Text(value)
                     .font(font)
@@ -2552,7 +2726,9 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder:
             return .numeric
-        case .priority, .repeatRule, .subtasks:
+        case .priority:
+            return .priority
+        case .repeatRule, .subtasks:
             return .interpolated
         }
     }
@@ -2601,8 +2777,15 @@ private struct TaskEditorAnimatedChipTitle: View {
 
 private enum TaskEditorChipContentTransitionStyle {
     case numeric
+    case priority
     case interpolated
     case none
+}
+
+private struct TaskEditorDatePickerMonthGridMetrics {
+    let rowHeight: CGFloat
+    let rowSpacing: CGFloat
+    let dayFontSize: CGFloat
 }
 
 extension ItemPriority {
