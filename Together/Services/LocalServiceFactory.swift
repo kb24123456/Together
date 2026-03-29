@@ -3,17 +3,20 @@ import Foundation
 enum LocalServiceFactory {
     @MainActor
     static func makeContainer() -> AppContainer {
-        makeContainer(persistence: .shared)
+        StartupTrace.mark("LocalServiceFactory.makeContainer.begin")
+        return makeContainer(persistence: .shared)
     }
 
     @MainActor
     static func makeContainer(
         persistence: PersistenceController
     ) -> AppContainer {
+        StartupTrace.mark("LocalServiceFactory.makeContainer.withPersistence.begin")
         let modelContainer = persistence.container
         let notificationService = LocalNotificationService()
         let reminderScheduler = LocalReminderScheduler(notificationService: notificationService)
         let syncCoordinator = LocalSyncCoordinator(container: modelContainer)
+        let userProfileRepository = LocalUserProfileRepository(container: modelContainer)
         let itemRepository = LocalItemRepository(container: modelContainer)
         let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
         let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
@@ -30,7 +33,7 @@ enum LocalServiceFactory {
             reminderScheduler: reminderScheduler
         )
 
-        return AppContainer(
+        let container = AppContainer(
             authService: MockAuthService(),
             spaceService: LocalSpaceService(container: modelContainer),
             taskApplicationService: taskApplicationService,
@@ -38,6 +41,7 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator,
             syncOrchestrator: syncOrchestrator,
             relationshipService: MockRelationshipService(),
+            userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
             taskTemplateRepository: taskTemplateRepository,
             taskListRepository: LocalTaskListRepository(container: modelContainer),
@@ -50,5 +54,7 @@ enum LocalServiceFactory {
             notificationService: notificationService,
             reminderScheduler: reminderScheduler
         )
+        StartupTrace.mark("LocalServiceFactory.makeContainer.end")
+        return container
     }
 }

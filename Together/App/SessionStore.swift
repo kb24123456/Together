@@ -6,7 +6,12 @@ import Observation
 final class SessionStore {
     var authState: AuthState = .signedOut
     var bindingState: BindingState = .singleTrial
-    var currentUser: User?
+    var currentUser: User? {
+        didSet {
+            userProfileRevision = UUID()
+        }
+    }
+    var userProfileRevision = UUID()
     var currentSpace: Space?
     var availableSpaces: [Space] = []
     var currentPairSpace: PairSpace?

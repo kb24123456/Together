@@ -1,13 +1,26 @@
 import Foundation
 
+enum UserAvatarAsset: Hashable, Sendable {
+    case system(String)
+    case photo(fileName: String)
+}
+
 struct User: Identifiable, Hashable, Sendable {
     let id: UUID
     var appleUserID: String?
     var displayName: String
     var avatarSystemName: String?
+    var avatarPhotoFileName: String? = nil
     var createdAt: Date
     var updatedAt: Date
     var preferences: NotificationSettings
+
+    var avatarAsset: UserAvatarAsset {
+        if let avatarPhotoFileName {
+            return .photo(fileName: avatarPhotoFileName)
+        }
+        return .system(avatarSystemName ?? "person.crop.circle.fill")
+    }
 }
 
 struct NotificationSettings: Hashable, Sendable {

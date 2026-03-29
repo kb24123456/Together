@@ -204,7 +204,7 @@ final class CompletedHistoryViewModel {
             sessionStore.currentUser?.preferences.completedTaskAutoArchiveDays
             ?? NotificationSettings.defaultCompletedTaskAutoArchiveDays
         )
-        try? await itemRepository.archiveCompletedItemsIfNeeded(
+        _ = try? await itemRepository.archiveCompletedItemsIfNeeded(
             spaceID: spaceID,
             referenceDate: .now,
             autoArchiveDays: days

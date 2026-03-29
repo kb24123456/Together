@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -40,7 +37,7 @@ struct HomeView: View {
     private let monthCompressedTopPadding: CGFloat = 6
     private let monthDayTextVerticalOffset: CGFloat = 0
     private let calendarTopSpacing: CGFloat = 10
-    private let homeCanvasColor = AppTheme.colors.homeBackground
+    private let homeCanvasColor = AppTheme.colors.background
 
     var body: some View {
         GeometryReader { proxy in
@@ -50,6 +47,9 @@ struct HomeView: View {
                 contentCard
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, contentTopInset(safeAreaTop: proxy.safeAreaInsets.top))
+                    .mask {
+                        bottomChromeContentMask(bottomInset: proxy.safeAreaInsets.bottom)
+                    }
                     .offset(y: contentCardVerticalOffset)
                     .scaleEffect(contentCardScale, anchor: .top)
 
@@ -73,9 +73,7 @@ struct HomeView: View {
         .task {
             await viewModel.loadIfNeeded()
             updateTodayJumpButtonVisibility()
-            if projectsViewModel.loadState == .idle {
-                await projectsViewModel.load()
-            }
+            await viewModel.performDeferredMaintenanceIfNeeded()
         }
         .task(id: viewModel.selectedDateKey) {
             await viewModel.reload()
@@ -104,6 +102,35 @@ struct HomeView: View {
         .ignoresSafeArea()
     }
 
+    private func bottomChromeContentMask(bottomInset: CGFloat) -> some View {
+        let fadeHeight = max(78, bottomInset + 42)
+
+        return GeometryReader { proxy in
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(.white)
+                    .frame(height: max(0, proxy.size.height - fadeHeight))
+
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white, location: 0),
+                                .init(color: .white, location: 0.72),
+                                .init(color: .white.opacity(0.94), location: 0.84),
+                                .init(color: .white.opacity(0.72), location: 0.92),
+                                .init(color: .white.opacity(0.34), location: 0.97),
+                                .init(color: .white.opacity(0.12), location: 1)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(height: fadeHeight)
+            }
+        }
+    }
+
     private func topChrome(safeAreaTop: CGFloat) -> some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
@@ -117,22 +144,11 @@ struct HomeView: View {
                     .padding(.top, calendarTopSpacing)
             }
             .padding(.bottom, isProjectModePresented ? 10 : 14)
-            .background(topChromeBackground)
+            .background(homeCanvasColor)
 
             Spacer(minLength: 0)
         }
         .ignoresSafeArea(edges: .top)
-    }
-
-    @ViewBuilder
-    private var topChromeBackground: some View {
-        if #available(iOS 26.0, *) {
-            Rectangle()
-                .fill(.clear)
-                .background(.bar)
-        } else {
-            NativeHomeChromeBlur()
-        }
     }
 
     private var headerSection: some View {
@@ -214,6 +230,7 @@ struct HomeView: View {
                 triggerSoftDateFeedback()
             }
         )
+        .id(viewModel.currentUserRevision)
         .compositingGroup()
     }
 
@@ -265,7 +282,7 @@ struct HomeView: View {
             showsHeader: false,
             isPresented: isProjectModePresented,
             contentTopPadding: 14,
-            contentBottomPadding: 168
+            contentBottomPadding: 104
         )
     }
 
@@ -1357,22 +1374,12 @@ private struct TopRevealMotionModifier: ViewModifier {
     }
 }
 
-private struct NativeHomeChromeBlur: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIVisualEffectView {
-        UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
-    }
-
-    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
-        uiView.effect = UIBlurEffect(style: .systemUltraThinMaterial)
-    }
-}
-
 private extension View {
     @ViewBuilder
     func applyScrollEdgeProtection() -> some View {
         if #available(iOS 26.0, *) {
             self
-                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
+                .scrollEdgeEffectStyle(.hard, for: [.top])
         } else {
             self
         }
@@ -1399,7 +1406,7 @@ private extension View {
 
 @MainActor
 private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
-    let context = AppContext.bootstrap()
+    let context = AppContext.makeBootstrappedContext()
     if let selectedDateOffset {
         context.homeViewModel.selectDate(
             Calendar.current.date(byAdding: .day, value: selectedDateOffset, to: MockDataFactory.now) ?? MockDataFactory.now
@@ -1663,14 +1670,15 @@ private struct HomeAvatarToggleButton: View {
 
     @ViewBuilder
     private func avatarBadge(_ avatar: HomeAvatar, zIndex: Double) -> some View {
-        Image(systemName: avatar.systemImageName)
-            .font(AppTheme.typography.sized(16, weight: .semibold))
-            .foregroundStyle(foregroundColor)
+        UserAvatarView(
+            avatarAsset: avatar.avatarAsset,
+            displayName: avatar.displayName,
+            size: 30,
+            fillColor: AppTheme.colors.surfaceElevated,
+            symbolColor: foregroundColor,
+            symbolFont: AppTheme.typography.sized(16, weight: .semibold)
+        )
             .frame(width: 30, height: 30)
-            .background(
-                Circle()
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
             .overlay {
                 Circle()
                     .stroke(AppTheme.colors.outlineStrong.opacity(0.32), lineWidth: 1.2)

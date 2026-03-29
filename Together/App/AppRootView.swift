@@ -43,7 +43,7 @@ struct AppRootView: View {
                 overlayChrome(bottomInset: proxy.safeAreaInsets.bottom, router: router)
             }
             .background(
-                AppTheme.colors.homeBackground.ignoresSafeArea()
+                AppTheme.colors.background.ignoresSafeArea()
             )
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -165,6 +165,9 @@ struct AppRootView: View {
         } message: {
             Text(quickCaptureDebugMessage ?? "")
         }
+        .task {
+            StartupTrace.mark("AppRootView.visible")
+        }
     }
 
     @ViewBuilder
@@ -232,6 +235,15 @@ struct AppRootView: View {
             }
 
             if !isQuickCapturePresented {
+                if shouldShowBottomChromeFade(for: router) {
+                    bottomChromeFadeOverlay(
+                        bottomInset: dockPeripheralInset,
+                        tint: bottomChromeFadeTint(for: router)
+                    )
+                    .transition(.opacity)
+                    .zIndex(1.6)
+                }
+
                 if isDockHubExpanded {
                     dockHubActionTray(bottomPadding: dockPeripheralInset + 74)
                         .transition(
@@ -292,6 +304,43 @@ struct AppRootView: View {
         reduceMotion
             ? .easeInOut(duration: 0.18)
             : .spring(response: 0.38, dampingFraction: 0.88)
+    }
+
+    private func shouldShowBottomChromeFade(for router: AppRouter) -> Bool {
+        switch router.currentSurface {
+        case .today, .projects, .calendar:
+            return true
+        }
+    }
+
+    private func bottomChromeFadeTint(for router: AppRouter) -> Color {
+        switch router.currentSurface {
+        case .calendar:
+            return AppTheme.colors.background
+        case .today, .projects:
+            return AppTheme.colors.background
+        }
+    }
+
+    private func bottomChromeFadeOverlay(bottomInset: CGFloat, tint: Color) -> some View {
+        let fadeHeight = max(118, bottomInset + 106)
+
+        return Rectangle()
+            .fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: tint.opacity(0.16), location: 0.18),
+                        .init(color: tint.opacity(0.58), location: 0.62),
+                        .init(color: tint.opacity(0.96), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .frame(height: fadeHeight, alignment: .bottom)
+            .allowsHitTesting(false)
     }
 
     private var shouldShowQuickCaptureTranscriptPreview: Bool {

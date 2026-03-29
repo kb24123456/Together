@@ -5,7 +5,7 @@ import SwiftUI
 struct HomeAvatar: Identifiable, Hashable {
     let id: UUID
     let displayName: String
-    let systemImageName: String
+    let avatarAsset: UserAvatarAsset
 }
 
 struct HomeTimelineEntry: Identifiable, Hashable {
@@ -81,6 +81,7 @@ final class HomeViewModel {
 
     private var detailSaveTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
+    private var hasCompletedDeferredMaintenance = false
     private(set) var selectedDateTransitionEdge: Edge = .trailing
     private(set) var selectedDateTransitionStyle: HomeDateTransitionStyle = .sameWeek
 
@@ -88,8 +89,6 @@ final class HomeViewModel {
     var selectedDate: Date = Date()
     var displayedMonth: Date = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     var items: [Item] = []
-    var currentUserAvatar: HomeAvatar
-    var pairPreviewAvatar: HomeAvatar
     var showsPairAvatarPreview = false
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
@@ -112,18 +111,10 @@ final class HomeViewModel {
         self.itemRepository = itemRepository
         self.quickCaptureParser = quickCaptureParser
         self.taskTemplateRepository = taskTemplateRepository
-        let currentUser = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
-        self.currentUserAvatar = HomeAvatar(
-            id: currentUser.id,
-            displayName: currentUser.displayName,
-            systemImageName: currentUser.avatarSystemName ?? "person.crop.circle.fill"
-        )
-        let pairPreviewUser = MockDataFactory.makePartnerUser()
-        self.pairPreviewAvatar = HomeAvatar(
-            id: pairPreviewUser.id,
-            displayName: pairPreviewUser.displayName,
-            systemImageName: pairPreviewUser.avatarSystemName ?? "person.2.circle.fill"
-        )
+    }
+
+    var currentUserRevision: UUID {
+        sessionStore.userProfileRevision
     }
 
     var headerDateText: String {
@@ -274,6 +265,24 @@ final class HomeViewModel {
         return [currentUserAvatar]
     }
 
+    var currentUserAvatar: HomeAvatar {
+        let currentUser = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
+        return HomeAvatar(
+            id: currentUser.id,
+            displayName: currentUser.displayName,
+            avatarAsset: currentUser.avatarAsset
+        )
+    }
+
+    var pairPreviewAvatar: HomeAvatar {
+        let pairPreviewUser = MockDataFactory.makePartnerUser()
+        return HomeAvatar(
+            id: pairPreviewUser.id,
+            displayName: pairPreviewUser.displayName,
+            avatarAsset: pairPreviewUser.avatarAsset
+        )
+    }
+
     func selectDate(_ date: Date) {
         let oldDay = calendar.startOfDay(for: selectedDate)
         let newDay = calendar.startOfDay(for: date)
@@ -416,6 +425,24 @@ final class HomeViewModel {
         await reload()
     }
 
+    func performDeferredMaintenanceIfNeeded() async {
+        guard hasCompletedDeferredMaintenance == false else { return }
+        hasCompletedDeferredMaintenance = true
+
+        await Task.yield()
+
+        guard let spaceID = sessionStore.currentSpace?.id else { return }
+
+        do {
+            let didArchiveItems = try await archiveCompletedItemsIfNeeded(in: spaceID)
+            if didArchiveItems {
+                await reload()
+            }
+        } catch {
+            return
+        }
+    }
+
     func reload() async {
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
@@ -423,7 +450,6 @@ final class HomeViewModel {
         }
 
         do {
-            try await archiveCompletedItemsIfNeeded(in: spaceID)
             items = try await taskApplicationService.tasks(
                 in: spaceID,
                 scope: scope(for: selectedDate)
@@ -1018,6 +1044,9 @@ final class HomeViewModel {
 
     private func urgency(for item: Item, isCompleted: Bool) -> HomeTimelineUrgency {
         guard isCompleted == false else { return .normal }
+        guard sessionStore.currentUser?.preferences.taskReminderEnabled ?? true else {
+            return .normal
+        }
         let dueAt = item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt
         guard let dueAt else { return .normal }
         guard item.hasExplicitTime else { return .normal }
@@ -1131,16 +1160,16 @@ final class HomeViewModel {
         item.isCompleted(on: referenceDate, calendar: calendar) || item.status == .completed
     }
 
-    private func archiveCompletedItemsIfNeeded(in spaceID: UUID) async throws {
+    private func archiveCompletedItemsIfNeeded(in spaceID: UUID) async throws -> Bool {
         guard sessionStore.currentUser?.preferences.completedTaskAutoArchiveEnabled ?? true else {
-            return
+            return false
         }
 
         let days = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(
             sessionStore.currentUser?.preferences.completedTaskAutoArchiveDays
             ?? NotificationSettings.defaultCompletedTaskAutoArchiveDays
         )
-        try await itemRepository.archiveCompletedItemsIfNeeded(
+        return try await itemRepository.archiveCompletedItemsIfNeeded(
             spaceID: spaceID,
             referenceDate: .now,
             autoArchiveDays: days

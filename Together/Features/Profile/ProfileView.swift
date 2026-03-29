@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
     @Bindable var viewModel: ProfileViewModel
     @State private var topChromeProgress: CGFloat = 0
+    @Namespace private var profileTransition
 
     var body: some View {
         GeometryReader { proxy in
@@ -10,12 +11,17 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
                     ProfileScrollOffsetProbe()
 
-                    ProfileUserCard(
-                        displayName: viewModel.currentUser?.displayName ?? "未加载用户",
-                        spaceName: viewModel.spaceSummary,
-                        bindingTitle: viewModel.bindingState.description,
-                        avatarSystemName: viewModel.currentUser?.avatarSystemName ?? "person.crop.circle.fill"
-                    )
+                    NavigationLink(value: ProfileRoute.editProfile) {
+                        ProfileUserCard(
+                            primaryName: viewModel.profileCardPrimaryName,
+                            secondaryName: viewModel.profileCardSecondaryName,
+                            primaryAvatar: viewModel.profileCardPrimaryAvatar,
+                            secondaryAvatarState: viewModel.profileCardSecondaryAvatarState
+                        )
+                        .id(viewModel.currentUserRevision)
+                        .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
+                    }
+                    .buttonStyle(.plain)
 
                     executionPreferencesSection
                     historyAndReminderSection
@@ -39,6 +45,9 @@ struct ProfileView: View {
         .font(AppTheme.typography.body)
         .navigationDestination(for: ProfileRoute.self) { route in
             switch route {
+            case .editProfile:
+                EditProfileView(viewModel: viewModel.makeEditProfileViewModel())
+                    .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel())
             case .notificationSettings, .futureCollaboration:
@@ -48,6 +57,14 @@ struct ProfileView: View {
         .task {
             await viewModel.load()
         }
+        .sheet(item: $viewModel.customDurationSheet) { kind in
+            ProfileDurationPickerSheet(
+                title: kind.title,
+                initialMinutes: viewModel.customDurationInitialMinutes,
+                onSave: { viewModel.applyCustomDuration($0) },
+                onDismiss: { viewModel.dismissCustomDurationSheet() }
+            )
+        }
         .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
             let progress = min(max(-offset / 56, 0), 1)
             topChromeProgress = progress
@@ -56,30 +73,7 @@ struct ProfileView: View {
     }
 
     private var backgroundView: some View {
-        LinearGradient(
-            colors: [
-                AppTheme.colors.homeBackgroundSoft,
-                AppTheme.colors.backgroundSoft,
-                AppTheme.colors.background
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(AppTheme.colors.accentSoft.opacity(0.78))
-                .frame(width: 220, height: 220)
-                .blur(radius: 24)
-                .offset(x: 88, y: -96)
-        }
-        .overlay(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 56, style: .continuous)
-                .fill(AppTheme.colors.secondaryAccent.opacity(0.10))
-                .frame(width: 180, height: 180)
-                .rotationEffect(.degrees(18))
-                .offset(x: -54, y: -70)
-                .blur(radius: 8)
-        }
+        AppTheme.colors.background
     }
 
     private func topChromeGradientMask(safeAreaTop: CGFloat) -> some View {
@@ -102,36 +96,40 @@ struct ProfileView: View {
         ProfileSettingsGroupCard(title: "执行偏好") {
             ProfileSettingsRow(
                 title: "临期任务提醒",
-                value: viewModel.taskUrgencySummary
-            ) {
-                Picker(
-                    "临期窗口",
-                    selection: Binding(
-                        get: { viewModel.taskUrgencyWindowMinutes },
-                        set: { viewModel.updateTaskUrgencyWindow(minutes: $0) }
-                    )
+                isOn: Binding(
+                    get: { viewModel.taskReminderEnabled },
+                    set: { viewModel.updateTaskReminderEnabled($0) }
+                )
+            )
+
+            if viewModel.taskReminderEnabled {
+                expandableSelectionRow(
+                    title: "提醒时间",
+                    value: viewModel.taskUrgencySummary,
+                    setting: .taskUrgency
                 ) {
-                    ForEach(viewModel.taskUrgencyOptions, id: \.self) { minutes in
-                        Text(viewModel.taskUrgencyLabel(minutes: minutes)).tag(minutes)
-                    }
+                    selectionContent(
+                        options: viewModel.taskUrgencyOptions,
+                        selectedValue: viewModel.taskUrgencyWindowMinutes,
+                        label: { viewModel.taskUrgencyLabel(minutes: $0) },
+                        onSelect: { viewModel.updateTaskUrgencyWindow(minutes: $0) },
+                        onCustom: { viewModel.presentCustomDurationSheet(.taskUrgency) }
+                    )
                 }
             }
 
-            ProfileSettingsRow(
+            expandableSelectionRow(
                 title: "默认推迟时间",
-                value: viewModel.defaultSnoozeSummary
+                value: viewModel.defaultSnoozeSummary,
+                setting: .defaultSnooze
             ) {
-                Picker(
-                    "默认推迟时间",
-                    selection: Binding(
-                        get: { viewModel.defaultSnoozeMinutes },
-                        set: { viewModel.updateDefaultSnoozeMinutes($0) }
-                    )
-                ) {
-                    ForEach(viewModel.snoozeMinuteOptions, id: \.self) { option in
-                        Text(viewModel.relativeTimeLabel(minutes: option)).tag(option)
-                    }
-                }
+                selectionContent(
+                    options: viewModel.snoozeMinuteOptions,
+                    selectedValue: viewModel.defaultSnoozeMinutes,
+                    label: { viewModel.relativeTimeLabel(minutes: $0) },
+                    onSelect: { viewModel.updateDefaultSnoozeMinutes($0) },
+                    onCustom: { viewModel.presentCustomDurationSheet(.defaultSnooze) }
+                )
             }
 
             ProfileSettingsRow(
@@ -142,21 +140,18 @@ struct ProfileView: View {
                 )
             )
 
-            ProfileSettingsRow(
-                title: "归档时间",
-                value: viewModel.completedArchiveSummary,
-                isEnabled: viewModel.completedTaskAutoArchiveEnabled
-            ) {
-                Picker(
-                    "归档时间",
-                    selection: Binding(
-                        get: { viewModel.completedTaskAutoArchiveDays },
-                        set: { viewModel.updateCompletedTaskAutoArchiveDays($0) }
-                    )
+            if viewModel.completedTaskAutoArchiveEnabled {
+                expandableSelectionRow(
+                    title: "归档时间",
+                    value: viewModel.completedArchiveSummary,
+                    setting: .completedArchive
                 ) {
-                    ForEach(viewModel.completedTaskAutoArchiveOptions, id: \.self) { option in
-                        Text("\(option)天后").tag(option)
-                    }
+                    selectionContent(
+                        options: viewModel.completedTaskAutoArchiveOptions,
+                        selectedValue: viewModel.completedTaskAutoArchiveDays,
+                        label: { "\($0)天后" },
+                        onSelect: { viewModel.updateCompletedTaskAutoArchiveDays($0) }
+                    )
                 }
             }
         }
@@ -208,6 +203,52 @@ struct ProfileView: View {
             )
         }
     }
+
+    private func expandableSelectionRow<Content: View>(
+        title: String,
+        value: String,
+        setting: ProfileExpandedSetting,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ProfileExpandableSettingRow(
+            title: title,
+            value: value,
+            isExpanded: viewModel.expandedSetting == setting,
+            onToggle: { viewModel.toggleExpandedSetting(setting) },
+            content: content
+        )
+    }
+
+    private func selectionContent(
+        options: [Int],
+        selectedValue: Int,
+        label: @escaping (Int) -> String,
+        onSelect: @escaping (Int) -> Void,
+        onCustom: (() -> Void)? = nil
+    ) -> some View {
+        VStack(spacing: 8) {
+            ForEach(options, id: \.self) { option in
+                ProfileInlineOptionButton(
+                    title: label(option),
+                    isSelected: selectedValue == option
+                ) {
+                    onSelect(option)
+                }
+            }
+
+            if let onCustom {
+                ProfileInlineOptionButton(
+                    title: "自定义",
+                    isSelected: options.contains(selectedValue) == false,
+                    action: onCustom
+                )
+            }
+        }
+    }
+}
+
+private enum ProfileTransitionSource {
+    static let profileCard = "profile-card"
 }
 
 private struct ProfileScrollOffsetProbe: View {
@@ -234,6 +275,95 @@ private struct ProfileScrollOffsetKey: PreferenceKey {
 
 #Preview("Profile") {
     NavigationStack {
-        ProfileView(viewModel: AppContext.bootstrap().profileViewModel)
+        ProfileView(viewModel: AppContext.makeBootstrappedContext().profileViewModel)
+    }
+}
+
+private struct ProfileExpandableSettingRow<Content: View>: View {
+    let title: String
+    let value: String
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    @ViewBuilder let content: Content
+
+    init(
+        title: String,
+        value: String,
+        isExpanded: Bool,
+        onToggle: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.value = value
+        self.isExpanded = isExpanded
+        self.onToggle = onToggle
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button(action: onToggle) {
+                ProfileSettingsRow(
+                    title: title,
+                    value: value,
+                    showsChevron: true,
+                    chevronSystemName: isExpanded ? "chevron.up" : "chevron.down"
+                )
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 8) {
+                    Divider()
+                        .overlay(AppTheme.colors.outline.opacity(0.45))
+                        .padding(.bottom, 2)
+
+                    content
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .opacity
+                    )
+                )
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: isExpanded)
+    }
+}
+
+private struct ProfileInlineOptionButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Text(title)
+                    .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.title)
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(AppTheme.typography.sized(13, weight: .bold))
+                        .foregroundStyle(AppTheme.colors.accent)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        isSelected
+                        ? AppTheme.colors.accent.opacity(0.12)
+                        : AppTheme.colors.backgroundSoft.opacity(0.92)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

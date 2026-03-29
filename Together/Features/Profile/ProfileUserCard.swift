@@ -1,54 +1,149 @@
 import SwiftUI
 
-struct ProfileUserCard: View {
+struct ProfileCardAvatar: Hashable {
     let displayName: String
-    let spaceName: String
-    let bindingTitle: String
-    let avatarSystemName: String
+    let avatarAsset: UserAvatarAsset
+}
+
+enum ProfileCardSecondaryAvatarState: Hashable {
+    case placeholder
+    case user(ProfileCardAvatar)
+}
+
+struct ProfileUserCard: View {
+    private let avatarDiameter: CGFloat = 84
+    private let cardHeight: CGFloat = 116
+    private let avatarLeadingInset: CGFloat = 18
+    private let avatarRevealWidth: CGFloat = 32
+    private let avatarTextGap: CGFloat = 14
+
+    let primaryName: String
+    let secondaryName: String?
+    let primaryAvatar: ProfileCardAvatar
+    let secondaryAvatarState: ProfileCardSecondaryAvatarState
 
     var body: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            AppTheme.colors.avatarWarm,
-                            AppTheme.colors.surface
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay {
-                    Image(systemName: avatarSystemName)
-                        .font(AppTheme.typography.sized(36, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title.opacity(0.84))
-                }
-                .frame(width: 86, height: 86)
+        HStack(alignment: .center, spacing: 0) {
+            avatarGroup
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(displayName)
-                    .font(AppTheme.typography.sized(28, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .lineLimit(1)
-
-                Text(spaceName)
-                    .font(AppTheme.typography.textStyle(.headline, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.74))
-                    .lineLimit(1)
-
-                StatusBadge(title: bindingTitle, tint: AppTheme.colors.accent)
-            }
-
-            Spacer(minLength: 0)
+            textColumn
+                .padding(.leading, avatarTextGap)
+                .padding(.trailing, 22)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        .padding(22)
+        .frame(height: cardHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
+            Capsule(style: .continuous)
                 .fill(Color.white.opacity(0.96))
         )
-        .shadow(color: AppTheme.colors.shadow.opacity(0.34), radius: 16, y: 7)
-        .accessibilityElement(children: .combine)
+        .shadow(color: AppTheme.colors.shadow.opacity(0.2), radius: 10, y: 5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var avatarGroup: some View {
+        ZStack(alignment: .leading) {
+            switch secondaryAvatarState {
+            case .placeholder:
+                placeholderBadge
+                    .offset(x: secondaryAvatarOffset)
+            case .user(let avatar):
+                avatarBadge(avatar, fillColor: AppTheme.colors.avatarNeutral)
+                    .offset(x: secondaryAvatarOffset)
+            }
+
+            avatarBadge(primaryAvatar, fillColor: AppTheme.colors.avatarWarm)
+        }
+        .frame(width: avatarTrackWidth, height: cardHeight, alignment: .leading)
+        .padding(.leading, avatarLeadingInset)
+    }
+
+    private func avatarBadge(_ avatar: ProfileCardAvatar, fillColor: Color) -> some View {
+        UserAvatarView(
+            avatarAsset: avatar.avatarAsset,
+            displayName: avatar.displayName,
+            size: avatarDiameter,
+            fillColor: fillColor,
+            symbolColor: AppTheme.colors.title.opacity(0.82),
+            symbolFont: AppTheme.typography.sized(28, weight: .semibold)
+        )
+            .overlay {
+                Circle()
+                    .stroke(Color.white.opacity(0.94), lineWidth: 2)
+            }
+            .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 8, y: 4)
+            .accessibilityLabel(avatar.displayName)
+            .zIndex(2)
+    }
+
+    private var placeholderBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Color.white.opacity(0.01))
+
+            Circle()
+                .stroke(
+                    AppTheme.colors.outlineStrong.opacity(0.5),
+                    style: StrokeStyle(lineWidth: 2, dash: [6, 5])
+                )
+
+            Image(systemName: "plus")
+                .font(AppTheme.typography.sized(24, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+        }
+        .frame(width: avatarDiameter, height: avatarDiameter)
+        .shadow(color: AppTheme.colors.shadow.opacity(0.12), radius: 6, y: 3)
+        .accessibilityLabel("等待另一位加入")
+        .zIndex(1)
+    }
+
+    private var secondaryAvatarOffset: CGFloat {
+        avatarDiameter - avatarRevealWidth
+    }
+
+    private var avatarTrackWidth: CGFloat {
+        avatarDiameter + secondaryAvatarOffset
+    }
+
+    @ViewBuilder
+    private var textColumn: some View {
+        if let secondaryName {
+            VStack(alignment: .center, spacing: 0) {
+                Text(primaryName)
+                    .font(AppTheme.typography.sized(18, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Text("&")
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.56))
+                    .lineLimit(1)
+
+                Text(secondaryName)
+                    .font(AppTheme.typography.sized(18, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        } else {
+            Text(primaryName)
+                .font(AppTheme.typography.sized(22, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+
+    private var accessibilityLabel: String {
+        if let secondaryName {
+            return "\(primaryName) 和 \(secondaryName)"
+        }
+        return primaryName
     }
 }

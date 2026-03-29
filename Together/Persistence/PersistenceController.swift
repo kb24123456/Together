@@ -8,11 +8,14 @@ struct PersistenceController {
     static let preview = PersistenceController(inMemory: true)
 
     init(inMemory: Bool = false) {
+        StartupTrace.mark("PersistenceController.init.begin inMemory=\(inMemory)")
         var resolvedContainer: ModelContainer
 
         do {
             resolvedContainer = try Self.makeContainer(inMemory: inMemory)
+            StartupTrace.mark("PersistenceController.container.created")
             try Self.seedIfNeeded(container: resolvedContainer)
+            StartupTrace.mark("PersistenceController.seed.complete")
         } catch {
             guard inMemory == false else {
                 fatalError("Failed to initialize in-memory persistence: \(error)")
@@ -20,14 +23,18 @@ struct PersistenceController {
 
             do {
                 try Self.resetPersistentStore()
+                StartupTrace.mark("PersistenceController.store.reset")
                 resolvedContainer = try Self.makeContainer(inMemory: false)
+                StartupTrace.mark("PersistenceController.container.recreated")
                 try Self.seedIfNeeded(container: resolvedContainer)
+                StartupTrace.mark("PersistenceController.seed.afterReset.complete")
             } catch {
                 fatalError("Failed to initialize persistence after reset: \(    error)")
             }
         }
 
         self.container = resolvedContainer
+        StartupTrace.mark("PersistenceController.init.end")
     }
 
     private static func makeContainer(inMemory: Bool) throws -> ModelContainer {
@@ -40,7 +47,8 @@ struct PersistenceController {
         }
 
         return try ModelContainer(
-            for: PersistentSpace.self,
+            for: PersistentUserProfile.self,
+            PersistentSpace.self,
             PersistentTaskList.self,
             PersistentProject.self,
             PersistentProjectSubtask.self,

@@ -45,11 +45,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         spaceID: UUID?,
         referenceDate: Date,
         autoArchiveDays: Int
-    ) async throws {
+    ) async throws -> Bool {
         let context = ModelContext(container)
         let thresholdDays = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(autoArchiveDays)
         guard let cutoffDate = calendar.date(byAdding: .day, value: -thresholdDays, to: referenceDate) else {
-            return
+            return false
         }
 
         let records = try activeRecords(spaceID: spaceID, context: context)
@@ -68,6 +68,8 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         if hasChanges {
             try context.save()
         }
+
+        return hasChanges
     }
 
     func restoreArchivedItem(itemID: UUID) async throws -> Item {
@@ -90,7 +92,8 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
     func fetchOccurrenceCompletions(itemIDs: [UUID]) async throws -> [UUID: [ItemOccurrenceCompletion]] {
         let context = ModelContext(container)
-        return try occurrenceCompletionMap(itemIDs: itemIDs, context: context)
+        let itemRecords = try fetchRecords(itemIDs: itemIDs, context: context)
+        return try occurrenceCompletionMap(itemIDs: itemIDs, itemRecords: itemRecords, context: context)
     }
 
     func isCompleted(itemID: UUID, on referenceDate: Date) async throws -> Bool {
@@ -241,6 +244,14 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return try context.fetch(descriptor).first
     }
 
+    private func fetchRecords(itemIDs: [UUID], context: ModelContext) throws -> [PersistentItem] {
+        guard itemIDs.isEmpty == false else { return [] }
+        let descriptor = FetchDescriptor<PersistentItem>(
+            predicate: #Predicate<PersistentItem> { itemIDs.contains($0.id) }
+        )
+        return try context.fetch(descriptor)
+    }
+
     private func activeRecords(spaceID: UUID?, context: ModelContext) throws -> [PersistentItem] {
         let descriptor: FetchDescriptor<PersistentItem>
 
@@ -283,14 +294,22 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         from records: [PersistentItem],
         context: ModelContext
     ) throws -> [Item] {
-        let completions = try occurrenceCompletionMap(itemIDs: records.map(\.id), context: context)
+        let completions = try occurrenceCompletionMap(
+            itemIDs: records.map(\.id),
+            itemRecords: records,
+            context: context
+        )
         return try records.map { record in
             try hydratedItem(from: record, occurrenceCompletions: completions[record.id] ?? [], context: context)
         }
     }
 
     private func hydratedItem(from record: PersistentItem, context: ModelContext) throws -> Item {
-        let completions = try occurrenceCompletionMap(itemIDs: [record.id], context: context)
+        let completions = try occurrenceCompletionMap(
+            itemIDs: [record.id],
+            itemRecords: [record],
+            context: context
+        )
         return try hydratedItem(from: record, occurrenceCompletions: completions[record.id] ?? [], context: context)
     }
 
@@ -312,6 +331,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
     private func occurrenceCompletionMap(
         itemIDs: [UUID],
+        itemRecords: [PersistentItem],
         context: ModelContext
     ) throws -> [UUID: [ItemOccurrenceCompletion]] {
         guard itemIDs.isEmpty == false else { return [:] }
@@ -325,8 +345,6 @@ actor LocalItemRepository: ItemRepositoryProtocol {
                 )
             )
         }
-        let itemRecords = try activeRecords(spaceID: nil, context: context)
-            .filter { itemIDs.contains($0.id) }
         for itemRecord in itemRecords {
             for legacyCompletion in try legacyOccurrenceCompletions(for: itemRecord, context: context) {
                 let existing = result[itemRecord.id, default: []]

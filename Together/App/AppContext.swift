@@ -15,6 +15,7 @@ final class AppContext {
     let profileViewModel: ProfileViewModel
 
     private(set) var hasBootstrapped = false
+    private var hasCompletedPostLaunchWork = false
     private var hasSyncedReminderNotifications = false
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter) {
@@ -44,6 +45,7 @@ final class AppContext {
             sessionStore: sessionStore,
             authService: container.authService,
             relationshipService: container.relationshipService,
+            userProfileRepository: container.userProfileRepository,
             notificationService: container.notificationService,
             itemRepository: container.itemRepository,
             taskApplicationService: container.taskApplicationService,
@@ -53,16 +55,16 @@ final class AppContext {
         )
     }
 
-    static func bootstrap() -> AppContext {
+    static func makeBootstrappedContext() -> AppContext {
+        StartupTrace.mark("AppContext.make.begin")
         let container = LocalServiceFactory.makeContainer()
+        StartupTrace.mark("AppContext.make.containerReady")
         let sessionStore = SessionStore()
         let router = AppRouter()
         let context = AppContext(container: container, sessionStore: sessionStore, router: router)
         context.seedMockSession()
         context.hasBootstrapped = true
-        Task {
-            await context.syncReminderNotificationsIfNeeded()
-        }
+        StartupTrace.mark("AppContext.make.end")
         return context
     }
 
@@ -73,8 +75,23 @@ final class AppContext {
             authService: container.authService,
             spaceService: container.spaceService
         )
+        await restorePersistedUserProfile()
         hasBootstrapped = true
+    }
+
+    func performPostLaunchWorkIfNeeded() async {
+        guard hasCompletedPostLaunchWork == false else { return }
+        hasCompletedPostLaunchWork = true
+        StartupTrace.mark("AppContext.postLaunch.begin")
+        await restorePersistedUserProfile()
         await syncReminderNotificationsIfNeeded()
+        StartupTrace.mark("AppContext.postLaunch.end")
+    }
+
+    func restorePersistedUserProfile() async {
+        let mergedUser = await container.userProfileRepository.mergedUser(sessionStore.currentUser)
+        guard let mergedUser else { return }
+        sessionStore.currentUser = mergedUser
     }
 
     func syncReminderNotificationsIfNeeded(force: Bool = false) async {

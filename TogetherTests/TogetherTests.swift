@@ -1241,6 +1241,89 @@ struct TogetherTests {
         #expect(decoded.projectID == item.projectID)
         #expect(decoded.responseHistory == item.responseHistory)
     }
+
+    @Test
+    func localUserProfileRepositoryPersistsNotificationPreferences() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalUserProfileRepository(container: persistence.container)
+        let user = MockDataFactory.makeCurrentUser()
+        let customPreferences = NotificationSettings(
+            taskReminderEnabled: false,
+            dailySummaryEnabled: true,
+            calendarReminderEnabled: true,
+            futureCollaborationInviteEnabled: true,
+            taskUrgencyWindowMinutes: 33,
+            defaultSnoozeMinutes: 67,
+            quickTimePresetMinutes: [7, 31, 62, 95],
+            completedTaskAutoArchiveEnabled: false,
+            completedTaskAutoArchiveDays: 14
+        )
+
+        _ = try await repository.savePreferences(for: user, preferences: customPreferences)
+        let mergedUser = await repository.mergedUser(user)
+        let restoredUser = try #require(mergedUser)
+
+        #expect(restoredUser.preferences.taskReminderEnabled == false)
+        #expect(restoredUser.preferences.taskUrgencyWindowMinutes == 35)
+        #expect(restoredUser.preferences.defaultSnoozeMinutes == 65)
+        #expect(restoredUser.preferences.quickTimePresetMinutes == [5, 30, 60])
+        #expect(restoredUser.preferences.completedTaskAutoArchiveEnabled == false)
+        #expect(restoredUser.preferences.completedTaskAutoArchiveDays == 14)
+    }
+
+    @Test @MainActor
+    func homeViewModelSuppressesImminentUrgencyWhenTaskReminderIsDisabled() async throws {
+        let sessionStore = SessionStore()
+        var user = MockDataFactory.makeCurrentUser()
+        user.preferences.taskReminderEnabled = false
+        user.preferences.taskUrgencyWindowMinutes = 30
+        sessionStore.currentUser = user
+        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        let now = Date.now
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "临期任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: now.addingTimeInterval(5 * 60),
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: now,
+            updatedAt: now,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+
+        viewModel.selectedDate = now
+        viewModel.items = [item]
+
+        #expect(viewModel.timelineEntries.first?.urgency == .normal)
+    }
+
+    @Test
+    func notificationSettingsNormalizesCustomMinutesToFiveMinuteSteps() {
+        #expect(NotificationSettings.normalizedSnoozeMinutes(3) == 5)
+        #expect(NotificationSettings.normalizedSnoozeMinutes(33) == 35)
+        #expect(NotificationSettings.normalizedSnoozeMinutes(188) == 180)
+    }
 }
 
 actor TestSyncCoordinator: SyncCoordinatorProtocol {
@@ -1341,12 +1424,13 @@ actor TestItemRepository: ItemRepositoryProtocol {
         spaceID: UUID?,
         referenceDate: Date,
         autoArchiveDays: Int
-    ) async throws {
+    ) async throws -> Bool {
         let thresholdDays = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(autoArchiveDays)
         guard let cutoffDate = calendar.date(byAdding: .day, value: -thresholdDays, to: referenceDate) else {
-            return
+            return false
         }
 
+        var didArchiveItems = false
         items = items.map { item in
             guard item.spaceID == spaceID else { return item }
             guard item.isArchived == false, let completedAt = item.completedAt else { return item }
@@ -1356,8 +1440,10 @@ actor TestItemRepository: ItemRepositoryProtocol {
             copy.isArchived = true
             copy.archivedAt = referenceDate
             copy.isPinned = false
+            didArchiveItems = true
             return copy
         }
+        return didArchiveItems
     }
 
     func restoreArchivedItem(itemID: UUID) async throws -> Item {

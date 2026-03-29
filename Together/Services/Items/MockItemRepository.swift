@@ -45,12 +45,13 @@ final class MockItemRepository: ItemRepositoryProtocol {
         spaceID: UUID?,
         referenceDate: Date,
         autoArchiveDays: Int
-    ) async throws {
+    ) async throws -> Bool {
         let thresholdDays = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(autoArchiveDays)
         guard let cutoffDate = calendar.date(byAdding: .day, value: -thresholdDays, to: referenceDate) else {
-            return
+            return false
         }
 
+        var didArchiveItems = false
         items = items.map { item in
             guard item.spaceID == spaceID else { return item }
             guard item.isArchived == false, let completedAt = item.completedAt else { return item }
@@ -60,8 +61,10 @@ final class MockItemRepository: ItemRepositoryProtocol {
             copy.isArchived = true
             copy.archivedAt = referenceDate
             copy.isPinned = false
+            didArchiveItems = true
             return copy
         }
+        return didArchiveItems
     }
 
     func restoreArchivedItem(itemID: UUID) async throws -> Item {

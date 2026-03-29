@@ -12,7 +12,7 @@ protocol ItemRepositoryProtocol: Sendable {
         spaceID: UUID?,
         referenceDate: Date,
         autoArchiveDays: Int
-    ) async throws
+    ) async throws -> Bool
     func restoreArchivedItem(itemID: UUID) async throws -> Item
     func fetchItem(itemID: UUID) async throws -> Item?
     func fetchOccurrenceCompletions(itemIDs: [UUID]) async throws -> [UUID: [ItemOccurrenceCompletion]]

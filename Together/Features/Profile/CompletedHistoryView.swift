@@ -184,5 +184,5 @@ struct CompletedHistoryView: View {
             )
         )
     }
-    .environment(AppContext.bootstrap())
+    .environment(AppContext.makeBootstrappedContext())
 }

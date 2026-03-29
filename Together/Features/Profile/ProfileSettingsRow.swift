@@ -1,78 +1,53 @@
 import SwiftUI
 
-struct ProfileSettingsRow<MenuContent: View>: View {
+struct ProfileSettingsRow: View {
     private enum Style {
         case value(String)
         case toggle(Binding<Bool>)
-        case menu(String)
     }
 
     private let title: String
     private let style: Style
     private let isEnabled: Bool
     private let showsChevron: Bool
-    @ViewBuilder private let menuContent: MenuContent
+    private let chevronSystemName: String
 
     init(
         title: String,
         value: String,
         isEnabled: Bool = true,
-        showsChevron: Bool = true,
-        @ViewBuilder menuContent: () -> MenuContent
+        showsChevron: Bool = false,
+        chevronSystemName: String = "chevron.right"
     ) {
-        self.title = title
-        self.style = .menu(value)
-        self.isEnabled = isEnabled
-        self.showsChevron = showsChevron
-        self.menuContent = menuContent()
-    }
-
-    init(
-        title: String,
-        value: String,
-        isEnabled: Bool = true,
-        showsChevron: Bool = false
-    ) where MenuContent == EmptyView {
         self.title = title
         self.style = .value(value)
         self.isEnabled = isEnabled
         self.showsChevron = showsChevron
-        self.menuContent = EmptyView()
+        self.chevronSystemName = chevronSystemName
     }
 
     init(
         title: String,
         isOn: Binding<Bool>,
         isEnabled: Bool = true
-    ) where MenuContent == EmptyView {
+    ) {
         self.title = title
         self.style = .toggle(isOn)
         self.isEnabled = isEnabled
         self.showsChevron = false
-        self.menuContent = EmptyView()
+        self.chevronSystemName = "chevron.right"
     }
 
     var body: some View {
-        switch style {
-        case let .value(value):
-            rowShell {
+        rowShell {
+            switch style {
+            case let .value(value):
                 valueAccessory(value: value)
-            }
-        case let .toggle(isOn):
-            rowShell {
+            case let .toggle(isOn):
                 Toggle("", isOn: isOn)
                     .labelsHidden()
                     .tint(AppTheme.colors.accent)
             }
-        case let .menu(value):
-            Menu {
-                menuContent
-            } label: {
-                rowShell {
-                    valueAccessory(value: value)
-                }
-            }
-            .disabled(!isEnabled)
         }
     }
 
@@ -84,7 +59,7 @@ struct ProfileSettingsRow<MenuContent: View>: View {
                 .lineLimit(1)
 
             if showsChevron {
-                Image(systemName: "chevron.right")
+                Image(systemName: chevronSystemName)
                     .font(AppTheme.typography.sized(12, weight: .bold))
                     .foregroundStyle(AppTheme.colors.body.opacity(isEnabled ? 0.36 : 0.22))
             }
