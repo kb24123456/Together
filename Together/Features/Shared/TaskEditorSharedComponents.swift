@@ -31,7 +31,7 @@ enum TaskEditorMenu: String, Identifiable {
         case .subtasks:
             return "checklist"
         case .template:
-            return "square.stack.3d.up"
+            return "bookmark"
         }
     }
 

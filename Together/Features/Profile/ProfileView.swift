@@ -2,23 +2,34 @@ import SwiftUI
 
 struct ProfileView: View {
     @Bindable var viewModel: ProfileViewModel
+    @State private var topChromeProgress: CGFloat = 0
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                heroSection
-                historySection
-                preferencesSection
-                systemSection
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+                    ProfileScrollOffsetProbe()
+
+                    heroSection
+                    historySection
+                    preferencesSection
+                    systemSection
+                }
+                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.top, AppTheme.spacing.md)
+                .padding(.bottom, AppTheme.spacing.xxl)
             }
-            .padding(.horizontal, AppTheme.spacing.xl)
-            .padding(.top, AppTheme.spacing.md)
-            .padding(.bottom, AppTheme.spacing.xxl)
+            .coordinateSpace(name: ProfileScrollOffsetKey.coordinateSpaceName)
+            .background(backgroundView.ignoresSafeArea())
+            .overlay(alignment: .top) {
+                topChromeGradientMask(safeAreaTop: proxy.safeAreaInsets.top)
+            }
         }
-        .background(backgroundView.ignoresSafeArea())
         .navigationTitle("我")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(.regularMaterial, for: .navigationBar)
+        .toolbarBackground(topChromeProgress > 0.02 ? .visible : .hidden, for: .navigationBar)
         .font(AppTheme.typography.body)
         .navigationDestination(for: ProfileRoute.self) { route in
             switch route {
@@ -31,6 +42,11 @@ struct ProfileView: View {
         .task {
             await viewModel.load()
         }
+        .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
+            let progress = min(max(-offset / 56, 0), 1)
+            topChromeProgress = progress
+        }
+        .animation(.easeOut(duration: 0.18), value: topChromeProgress)
     }
 
     private var backgroundView: some View {
@@ -58,6 +74,22 @@ struct ProfileView: View {
                 .offset(x: -54, y: -70)
                 .blur(radius: 8)
         }
+    }
+
+    private func topChromeGradientMask(safeAreaTop: CGFloat) -> some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        AppTheme.colors.background.opacity(0.16 * topChromeProgress),
+                        .clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(height: safeAreaTop + 44)
+            .allowsHitTesting(false)
     }
 
     private var heroSection: some View {
@@ -465,6 +497,28 @@ struct ProfileView: View {
             return "\(minutes / 60)小时后"
         }
         return "\(minutes)分钟后"
+    }
+}
+
+private struct ProfileScrollOffsetProbe: View {
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .preference(
+                    key: ProfileScrollOffsetKey.self,
+                    value: proxy.frame(in: .named(ProfileScrollOffsetKey.coordinateSpaceName)).minY
+                )
+        }
+        .frame(height: 0)
+    }
+}
+
+private struct ProfileScrollOffsetKey: PreferenceKey {
+    static let coordinateSpaceName = "profile-scroll"
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

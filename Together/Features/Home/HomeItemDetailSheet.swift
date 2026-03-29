@@ -415,7 +415,7 @@ struct HomeItemDetailSheet: View {
                 } else {
                     compactActionContent(
                         title: "存模板",
-                        systemImage: "square.stack.3d.up.fill",
+                        systemImage: "bookmark",
                         tint: AppTheme.colors.body
                     )
                     .transition(.asymmetric(

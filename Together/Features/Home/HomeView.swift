@@ -8,8 +8,6 @@ struct HomeView: View {
     @Bindable var viewModel: HomeViewModel
     @Bindable var projectsViewModel: ProjectsViewModel
     let isProjectModePresented: Bool
-    let onOpenProjectsMode: () -> Void
-    let onCloseProjectsMode: () -> Void
     let onCreateTaskTapped: () -> Void
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isWeekPagerSettling = false
@@ -26,7 +24,7 @@ struct HomeView: View {
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineDividerLeadingInset: CGFloat = AppTheme.spacing.xl + 44
-    private let timelineBottomInset: CGFloat = 144
+    private let timelineBottomInset: CGFloat = 188
     private let homeCanvasColor = AppTheme.colors.homeBackground
 
     var body: some View {
@@ -34,24 +32,14 @@ struct HomeView: View {
             ZStack(alignment: .top) {
                 backgroundView
 
-                VStack(spacing: 0) {
-                    headerSection
-                        .padding(.horizontal, horizontalContentPadding)
-                        .padding(.top, headerTopPadding(safeAreaTop: proxy.safeAreaInsets.top))
-                        .offset(y: headerVerticalOffset)
-                        .zIndex(2)
+                contentCard
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, contentTopInset(safeAreaTop: proxy.safeAreaInsets.top))
+                    .offset(y: contentCardVerticalOffset)
+                    .scaleEffect(contentCardScale, anchor: .top)
 
-                    weekCalendarContainer
-                        .padding(.horizontal, horizontalContentPadding)
-                        .padding(.top, 0)
-                        .padding(.bottom, 0)
-                        .zIndex(1)
-
-                    contentCard
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .offset(y: contentCardVerticalOffset)
-                        .scaleEffect(contentCardScale, anchor: .top)
-                }
+                topChrome(safeAreaTop: proxy.safeAreaInsets.top)
+                    .zIndex(2)
 
                 if viewModel.selectedItemID != nil {
                     Color.clear
@@ -99,6 +87,48 @@ struct HomeView: View {
             homeCanvasColor
         }
         .ignoresSafeArea()
+    }
+
+    private func topChrome(safeAreaTop: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                headerSection
+                    .padding(.horizontal, horizontalContentPadding)
+                    .padding(.top, headerTopPadding(safeAreaTop: safeAreaTop))
+                    .offset(y: headerVerticalOffset)
+
+                weekCalendarContainer
+                    .padding(.horizontal, horizontalContentPadding)
+            }
+            .padding(.bottom, isProjectModePresented ? 10 : 14)
+            .background(topChromeBackground)
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [
+                        AppTheme.colors.homeBackground.opacity(0.22),
+                        AppTheme.colors.homeBackground.opacity(0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 26)
+                .allowsHitTesting(false)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+
+    @ViewBuilder
+    private var topChromeBackground: some View {
+        if #available(iOS 26.0, *) {
+            Rectangle()
+                .fill(.clear)
+                .background(.bar)
+        } else {
+            NativeHomeChromeBlur()
+        }
     }
 
     private var headerSection: some View {
@@ -213,6 +243,7 @@ struct HomeView: View {
                 .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isProjectModePresented)
+                .applyScrollEdgeProtection()
                 .transition(timelineTransition)
             } else {
                 timelineList
@@ -229,8 +260,8 @@ struct HomeView: View {
             style: .screen,
             showsHeader: false,
             isPresented: isProjectModePresented,
-            contentTopPadding: 16,
-            contentBottomPadding: 44
+            contentTopPadding: 14,
+            contentBottomPadding: 168
         )
     }
 
@@ -303,6 +334,7 @@ struct HomeView: View {
         .environment(\.defaultMinListRowHeight, 0)
         .safeAreaPadding(.top, 0)
         .background(homeCanvasColor)
+        .applyScrollEdgeProtection()
     }
 
     private var todayJumpButton: some View {
@@ -739,6 +771,10 @@ struct HomeView: View {
         AppTheme.spacing.xl
     }
 
+    private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
+        safeAreaTop + (isProjectModePresented ? 78 : 154)
+    }
+
     private var projectModeDateLine: String {
         viewModel.selectedWeekdayAndDateText.replacingOccurrences(of: "\n", with: " · ")
     }
@@ -926,42 +962,53 @@ struct HomeView: View {
 
 }
 
+private struct NativeHomeChromeBlur: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+    }
+
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
+        uiView.effect = UIBlurEffect(style: .systemUltraThinMaterial)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyScrollEdgeProtection() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
+        } else {
+            self
+        }
+    }
+}
+
 #Preview("Home Default") {
-    let context = AppContext.bootstrap()
-    HomeView(
-        viewModel: context.homeViewModel,
-        projectsViewModel: context.projectsViewModel,
-        isProjectModePresented: false,
-        onOpenProjectsMode: {},
-        onCloseProjectsMode: {},
-        onCreateTaskTapped: {}
-    )
+    makeHomePreview()
 }
 
 #Preview("Home No Overdue Capsule") {
-    let context = AppContext.bootstrap()
-    context.homeViewModel.selectDate(Calendar.current.date(byAdding: .day, value: 1, to: MockDataFactory.now) ?? MockDataFactory.now)
-
-    return HomeView(
-        viewModel: context.homeViewModel,
-        projectsViewModel: context.projectsViewModel,
-        isProjectModePresented: false,
-        onOpenProjectsMode: {},
-        onCloseProjectsMode: {},
-        onCreateTaskTapped: {}
-    )
+    makeHomePreview(selectedDateOffset: 1)
 }
 
 #Preview("Home Empty State") {
+    makeHomePreview(selectedDateOffset: 14)
+}
+
+@MainActor
+private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
     let context = AppContext.bootstrap()
-    context.homeViewModel.selectDate(Calendar.current.date(byAdding: .day, value: 14, to: MockDataFactory.now) ?? MockDataFactory.now)
+    if let selectedDateOffset {
+        context.homeViewModel.selectDate(
+            Calendar.current.date(byAdding: .day, value: selectedDateOffset, to: MockDataFactory.now) ?? MockDataFactory.now
+        )
+    }
 
     return HomeView(
         viewModel: context.homeViewModel,
         projectsViewModel: context.projectsViewModel,
         isProjectModePresented: false,
-        onOpenProjectsMode: {},
-        onCloseProjectsMode: {},
         onCreateTaskTapped: {}
     )
 }

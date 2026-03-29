@@ -15,7 +15,8 @@ struct AppRootView: View {
     @State private var quickCaptureFieldHeight: CGFloat = 52
     @State private var quickCaptureSpeechRecognizer = QuickCaptureSpeechRecognizer()
     @State private var pendingQuickCaptureConfirmation: QuickCapturePendingConfirmation?
-    @State private var isProjectButtonReturning = false
+    @State private var isDockHubExpanded = false
+    @State private var dockHubNotice: DockHubNotice?
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
 
     private let quickCaptureTranscriptPreviewThreshold = 16
@@ -28,23 +29,7 @@ struct AppRootView: View {
         GeometryReader { proxy in
             ZStack(alignment: .bottom) {
                 NavigationStack {
-                    HomeView(
-                        viewModel: appContext.homeViewModel,
-                        projectsViewModel: appContext.projectsViewModel,
-                        isProjectModePresented: router.isProjectModePresented,
-                        onOpenProjectsMode: {
-                            openProjectsMode(router: router)
-                        },
-                        onCloseProjectsMode: {
-                            closeProjectsMode(router: router)
-                        },
-                        onCreateTaskTapped: {
-                            closeProjectsMode(router: router)
-                            dismissQuickCapture()
-                            router.pendingComposerTitle = nil
-                            router.activeComposer = .newTask
-                        }
-                    )
+                    rootSurfaceView(router: router)
                 }
                 .blur(radius: isQuickCapturePresented ? 8 : 0)
                 .allowsHitTesting(!isQuickCapturePresented)
@@ -98,6 +83,13 @@ struct AppRootView: View {
         }) { confirmation in
             quickCaptureConfirmationSheet(confirmation)
         }
+        .alert(item: $dockHubNotice) { notice in
+            Alert(
+                title: Text(notice.title),
+                message: Text(notice.message),
+                dismissButton: .default(Text("知道了"))
+            )
+        }
         .environment(\.symbolVariants, .none)
         .font(AppTheme.typography.body)
         .tint(AppTheme.colors.title)
@@ -122,9 +114,22 @@ struct AppRootView: View {
                 quickCaptureSpeechRecognizer.stopListening()
                 quickCaptureSpeechRecognizer.clearError()
             } else {
+                collapseDockHub()
                 quickCaptureText = ""
                 quickCaptureSpeechRecognizer.resetDraft()
             }
+        }
+        .onChange(of: router.currentSurface) { _, _ in
+            syncDockHubPresentation(router: router)
+        }
+        .onChange(of: router.isProfilePresented) { _, _ in
+            syncDockHubPresentation(router: router)
+        }
+        .onChange(of: router.activeComposer?.id) { _, _ in
+            syncDockHubPresentation(router: router)
+        }
+        .onChange(of: pendingQuickCaptureConfirmation?.id) { _, _ in
+            syncDockHubPresentation(router: router)
         }
         .alert(
             "语音输入不可用",
@@ -163,9 +168,32 @@ struct AppRootView: View {
     }
 
     @ViewBuilder
+    private func rootSurfaceView(router: AppRouter) -> some View {
+        switch router.currentSurface {
+        case .today, .projects:
+            HomeView(
+                viewModel: appContext.homeViewModel,
+                projectsViewModel: appContext.projectsViewModel,
+                isProjectModePresented: router.isProjectModePresented,
+                onCreateTaskTapped: {
+                    closeProjectsMode(router: router)
+                    collapseDockHub()
+                    dismissQuickCapture()
+                    router.pendingComposerTitle = nil
+                    router.activeComposer = .newTask
+                }
+            )
+        case .calendar:
+            CalendarView(
+                viewModel: appContext.calendarViewModel,
+                showsNavigationChrome: false
+            )
+        }
+    }
+
+    @ViewBuilder
     private func overlayChrome(bottomInset: CGFloat, router: AppRouter) -> some View {
-        let collapsedDockBottom = max(4, bottomInset - 28)
-        let projectModeDockBottom = bottomInset + 12
+        let dockPeripheralInset = max(8, bottomInset - 26)
         let pinnedKeyboardOverlap =
             keyboardObserver.overlap > 0
             ? keyboardObserver.overlap
@@ -173,6 +201,16 @@ struct AppRootView: View {
         let captureBottom = pinnedKeyboardOverlap > 0 ? pinnedKeyboardOverlap + 8 : bottomInset + 8
 
         ZStack(alignment: .bottom) {
+            if isDockHubExpanded && !isQuickCapturePresented {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        collapseDockHub()
+                    }
+                    .transition(.opacity)
+            }
+
             if let debugMessage = quickCaptureDebugMessage, isQuickCapturePresented {
                 quickCaptureDebugPanel(debugMessage)
                     .padding(.horizontal, AppTheme.spacing.xl)
@@ -194,38 +232,41 @@ struct AppRootView: View {
             }
 
             if !isQuickCapturePresented {
+                if isDockHubExpanded {
+                    dockHubActionTray(bottomPadding: dockPeripheralInset + 74)
+                        .transition(
+                            .move(edge: .bottom)
+                            .combined(with: .opacity)
+                            .combined(with: .scale(scale: 0.96, anchor: .bottom))
+                        )
+                        .zIndex(1.7)
+                }
+
                 HomeDockBar(
-                    isQuickCapturePresented: false,
-                    isProjectModePresented: router.isProjectModePresented,
-                    isProjectButtonReturning: isProjectButtonReturning,
+                    edgeInset: dockPeripheralInset,
+                    selectedDestination: router.selectedDockDestination,
+                    isHubExpanded: isDockHubExpanded,
+                    isInteractionEnabled: pendingQuickCaptureConfirmation == nil,
                     onProfileTapped: {
-                        closeProjectsMode(router: router)
+                        collapseDockHub()
                         dismissQuickCapture()
                         router.isProfilePresented = true
                     },
-                    onComposeTapped: {
-                        closeProjectsMode(router: router)
-                        dismissQuickCapture()
-                        router.pendingComposerTitle = nil
-                        router.activeComposer = .newTask
+                    onCalendarTapped: {
+                        toggleCalendarSurface(router: router)
                     },
-                    onQuickCaptureTapped: {
-                        toggleQuickCapture()
+                    onHubPrimaryTapped: {
+                        openTaskComposer(router: router)
+                    },
+                    onHubLongPressed: {
+                        toggleDockHub()
                     },
                     onProjectsTapped: {
-                        if router.isProjectModePresented {
-                            closeProjectsMode(router: router)
-                        } else {
-                            openProjectsMode(router: router)
-                        }
+                        toggleProjectsSurface(router: router)
                     }
                 )
-                .padding(.bottom, router.isProjectModePresented ? projectModeDockBottom : collapsedDockBottom)
-                .transition(
-                    .move(edge: .bottom)
-                    .combined(with: .opacity)
-                    .combined(with: .scale(scale: 0.96, anchor: .bottom))
-                )
+                .padding(.bottom, dockPeripheralInset)
+                .zIndex(1.8)
             }
 
             if isQuickCapturePresented {
@@ -241,7 +282,7 @@ struct AppRootView: View {
         .animation(.spring(response: 0.38, dampingFraction: 0.86), value: isQuickCapturePresented)
         .animation(.easeOut(duration: 0.2), value: quickCaptureDebugMessage)
         .animation(.spring(response: 0.34, dampingFraction: 0.84), value: shouldShowQuickCaptureTranscriptPreview)
-        .animation(projectModeAnimation, value: router.isProjectModePresented)
+        .animation(projectModeAnimation, value: router.currentSurface)
         .allowsHitTesting(true)
     }
 
@@ -411,8 +452,138 @@ struct AppRootView: View {
         .animation(.spring(response: 0.26, dampingFraction: 0.84), value: quickCaptureFieldHeight)
     }
 
+    private func dockHubActionTray(bottomPadding: CGFloat) -> some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: 10) {
+                    dockHubActionTrayContent
+                }
+            } else {
+                dockHubActionTrayContent
+            }
+        }
+        .padding(.horizontal, AppTheme.spacing.xl)
+        .padding(.bottom, bottomPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+    }
+
+    private var dockHubActionTrayContent: some View {
+        VStack(spacing: 10) {
+            ForEach(DockHubAction.allCases) { action in
+                Button {
+                    performDockHubAction(action)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: action.systemImage)
+                            .font(AppTheme.typography.sized(17, weight: .semibold))
+                            .frame(width: 22, height: 22)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(action.title)
+                                .font(AppTheme.typography.sized(16, weight: .semibold))
+
+                            Text(action.subtitle)
+                                .font(AppTheme.typography.sized(12, weight: .medium))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.58))
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(action.isAvailable ? AppTheme.colors.body : AppTheme.colors.body.opacity(0.42))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .modifier(DockHubActionGlassModifier(isAvailable: action.isAvailable))
+                .accessibilityLabel(action.title)
+                .accessibilityHint(action.accessibilityHint)
+            }
+        }
+    }
+
+    private func performDockHubAction(_ action: DockHubAction) {
+        switch action {
+        case .quickCapture:
+            toggleQuickCapture()
+        case .newProject:
+            openProjectComposer(router: appContext.router)
+        case .agent:
+            collapseDockHub()
+            dockHubNotice = DockHubNotice(
+                title: "Agent 即将到来",
+                message: "这里会承接未来的 Agent 入口，本轮先保留信息架构占位。"
+            )
+        }
+    }
+
+    private func toggleDockHub() {
+        let shouldExpand = !isDockHubExpanded
+        guard shouldExpand || !DockHubPresentationState(
+            isProjectModePresented: appContext.router.currentSurface != .today,
+            isQuickCapturePresented: isQuickCapturePresented,
+            isProfilePresented: appContext.router.isProfilePresented,
+            hasActiveComposer: appContext.router.activeComposer != nil,
+            hasPendingQuickCaptureConfirmation: pendingQuickCaptureConfirmation != nil
+        ).shouldCollapseHub else {
+            return
+        }
+
+        withAnimation(dockHubAnimation) {
+            isDockHubExpanded = shouldExpand
+        }
+    }
+
+    private func collapseDockHub(animated: Bool = true) {
+        guard isDockHubExpanded else { return }
+        if animated {
+            withAnimation(dockHubAnimation) {
+                isDockHubExpanded = false
+            }
+        } else {
+            isDockHubExpanded = false
+        }
+    }
+
+    private func syncDockHubPresentation(router: AppRouter) {
+        let state = DockHubPresentationState(
+            isProjectModePresented: router.currentSurface != .today,
+            isQuickCapturePresented: isQuickCapturePresented,
+            isProfilePresented: router.isProfilePresented,
+            hasActiveComposer: router.activeComposer != nil,
+            hasPendingQuickCaptureConfirmation: pendingQuickCaptureConfirmation != nil
+        )
+
+        if state.shouldCollapseHub {
+            collapseDockHub(animated: false)
+        }
+    }
+
+    private func openTaskComposer(router: AppRouter) {
+        closeProjectsMode(router: router)
+        collapseDockHub()
+        dismissQuickCapture()
+        router.pendingComposerTitle = nil
+        router.activeComposer = .newTask
+    }
+
+    private func openProjectComposer(router: AppRouter) {
+        closeProjectsMode(router: router)
+        collapseDockHub()
+        dismissQuickCapture()
+        router.pendingComposerTitle = nil
+        router.activeComposer = .newProject
+    }
+
+    private var dockHubAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.16)
+            : .spring(response: 0.3, dampingFraction: 0.86)
+    }
+
     private func toggleQuickCapture() {
-        appContext.router.isProjectModePresented = false
+        appContext.router.currentSurface = .today
+        collapseDockHub()
         withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
             isQuickCapturePresented.toggle()
         }
@@ -421,7 +592,7 @@ struct AppRootView: View {
             quickCaptureText = ""
             quickCaptureHasVisibleText = false
             quickCaptureSpeechRecognizer.resetDraft()
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 isQuickCaptureFocused = true
             }
         } else {
@@ -450,24 +621,41 @@ struct AppRootView: View {
         guard router.activeComposer == nil else { return }
         guard router.isProjectModePresented == false else { return }
 
+        collapseDockHub()
         HomeInteractionFeedback.selection()
         withAnimation(projectModeAnimation) {
-            router.isProjectModePresented = true
-            isProjectButtonReturning = false
+            router.currentSurface = .projects
         }
     }
 
     private func closeProjectsMode(router: AppRouter) {
         guard router.isProjectModePresented else { return }
 
+        collapseDockHub()
         HomeInteractionFeedback.selection()
-        isProjectButtonReturning = true
         withAnimation(projectModeAnimation) {
-            router.isProjectModePresented = false
+            router.currentSurface = .today
         }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(420))
-            isProjectButtonReturning = false
+    }
+
+    private func toggleProjectsSurface(router: AppRouter) {
+        if router.currentSurface == .projects {
+            closeProjectsMode(router: router)
+        } else {
+            openProjectsMode(router: router)
+        }
+    }
+
+    private func toggleCalendarSurface(router: AppRouter) {
+        guard !isQuickCapturePresented else { return }
+        guard pendingQuickCaptureConfirmation == nil else { return }
+        guard router.isProfilePresented == false else { return }
+        guard router.activeComposer == nil else { return }
+
+        collapseDockHub()
+        HomeInteractionFeedback.selection()
+        withAnimation(projectModeAnimation) {
+            router.currentSurface = router.currentSurface == .calendar ? .today : .calendar
         }
     }
 
@@ -553,7 +741,7 @@ struct AppRootView: View {
         HomeInteractionFeedback.selection()
         pendingQuickCaptureConfirmation = nil
         guard restoreFocus else { return }
-        DispatchQueue.main.async {
+        Task { @MainActor in
             isQuickCaptureFocused = true
         }
     }
@@ -684,6 +872,89 @@ private struct NativeBackdropBlur: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
         uiView.effect = UIBlurEffect(style: style)
+    }
+}
+
+struct DockHubPresentationState: Equatable {
+    let isProjectModePresented: Bool
+    let isQuickCapturePresented: Bool
+    let isProfilePresented: Bool
+    let hasActiveComposer: Bool
+    let hasPendingQuickCaptureConfirmation: Bool
+
+    var shouldCollapseHub: Bool {
+        isProjectModePresented
+            || isQuickCapturePresented
+            || isProfilePresented
+            || hasActiveComposer
+            || hasPendingQuickCaptureConfirmation
+    }
+}
+
+private struct DockHubNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
+private enum DockHubAction: String, CaseIterable, Identifiable {
+    case quickCapture
+    case newProject
+    case agent
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .quickCapture:
+            "快速捕捉"
+        case .newProject:
+            "新建项目"
+        case .agent:
+            "Agent（即将到来）"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .quickCapture:
+            "快速记下一件事，稍后再整理"
+        case .newProject:
+            "为中周期目标建立项目容器"
+        case .agent:
+            "预留给后续智能执行入口"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .quickCapture:
+            "square.and.pencil"
+        case .newProject:
+            "folder.badge.plus"
+        case .agent:
+            "sparkles"
+        }
+    }
+
+    var isAvailable: Bool {
+        switch self {
+        case .agent:
+            false
+        case .quickCapture, .newProject:
+            true
+        }
+    }
+
+    var accessibilityHint: String {
+        switch self {
+        case .quickCapture:
+            "打开快速捕捉输入栏"
+        case .newProject:
+            "打开新建项目表单"
+        case .agent:
+            "该入口暂未开放"
+        }
     }
 }
 
@@ -1060,6 +1331,36 @@ private struct QuickCaptureTranscriptPreviewGlassModifier: ViewModifier {
                         .stroke(.white.opacity(0.62), lineWidth: 1)
                 }
                 .shadow(color: AppTheme.colors.shadow.opacity(0.1), radius: 16, y: 8)
+        }
+    }
+}
+
+private struct DockHubActionGlassModifier: ViewModifier {
+    let isAvailable: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            if isAvailable {
+                content
+                    .buttonStyle(.glass)
+            } else {
+                content
+                    .glassEffect(
+                        .regular.tint(.white.opacity(0.08)),
+                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    )
+            }
+        } else {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(.white.opacity(isAvailable ? 0.84 : 0.72))
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(.white.opacity(0.62), lineWidth: 1)
+                }
+                .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 14, y: 6)
         }
     }
 }

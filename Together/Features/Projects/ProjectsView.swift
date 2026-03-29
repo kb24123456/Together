@@ -50,73 +50,87 @@ struct ProjectsListContent: View {
     let isPresented: Bool
     let contentTopPadding: CGFloat
     let contentBottomPadding: CGFloat
-    @State private var expandedProjectID: UUID?
+    @State private var expansionState = ProjectExpansionPresentationState()
     @State private var editingProjectID: UUID?
     @State private var titleDraft = ""
     @State private var datePickerProjectID: UUID?
     @State private var stagedTargetDate = Date()
     @State private var showsArchivedProjects = false
+    @State private var hasAppliedEntryExpansion = false
     private let horizontalInset = AppTheme.spacing.xl
     private let expandAnimation = Animation.snappy(duration: 0.42, extraBounce: 0.06)
     private let collapseAnimation = Animation.snappy(duration: 0.28, extraBounce: 0)
     private let projectHeaderProtectionHeight: CGFloat = 126
 
     var body: some View {
-        ZStack {
-            if expandedProjectID != nil {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        HomeInteractionFeedback.selection()
-                        withAnimation(collapseAnimation) {
-                            expandedProjectID = nil
+        GeometryReader { proxy in
+            ZStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+                        if showsHeader {
+                            headerSection
                         }
-                        editingProjectID = nil
-                        titleDraft = ""
-                    }
-            }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                    if showsHeader {
-                        headerSection
-                    }
-
-                    projectSection(
-                        projects: viewModel.activeProjects,
-                        sectionIndex: 0,
-                        topInset: projectModeTopProtectionInset
-                    )
-
-                    if viewModel.archivedProjects.isEmpty == false {
-                        archivedProjectsEntry(sectionIndex: 1)
-                    }
-
-                    if showsArchivedProjects, viewModel.archivedProjects.isEmpty == false {
                         projectSection(
-                            projects: viewModel.archivedProjects,
-                            sectionIndex: 2,
-                            topInset: 0
+                            projects: viewModel.activeProjects,
+                            sectionIndex: 0,
+                            topInset: projectModeTopProtectionInset
                         )
-                    }
-                }
-                .padding(.top, contentTopPadding)
-                .padding(.bottom, contentBottomPadding)
-            }
 
-            if style == .layer {
-                Rectangle()
-                    .fill(AppTheme.colors.projectLayerBackground)
-                    .frame(height: projectHeaderProtectionHeight)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .allowsHitTesting(false)
+                        if viewModel.archivedProjects.isEmpty == false {
+                            archivedProjectsEntry(sectionIndex: 1)
+                        }
+
+                        if showsArchivedProjects, viewModel.archivedProjects.isEmpty == false {
+                            projectSection(
+                                projects: viewModel.archivedProjects,
+                                sectionIndex: 2,
+                                topInset: 0
+                            )
+                        }
+                    }
+                    .padding(.top, contentTopPadding)
+                    .padding(.bottom, contentBottomPadding)
+                }
+                .applyProjectScrollEdgeProtection()
+
+                if style == .layer {
+                    Rectangle()
+                        .fill(AppTheme.colors.projectLayerBackground)
+                        .frame(height: projectHeaderProtectionHeight)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .allowsHitTesting(false)
+                }
             }
         }
-        .sensoryFeedback(.selection, trigger: expandedProjectID)
+        .sensoryFeedback(.selection, trigger: expansionState.animationBatch)
         .task {
             guard viewModel.loadState == .idle else { return }
             await viewModel.load()
+        }
+        .onAppear {
+            applyEntryExpansionIfNeeded()
+        }
+        .onChange(of: isPresented) { _, presented in
+            if presented {
+                applyEntryExpansionIfNeeded()
+            } else {
+                hasAppliedEntryExpansion = false
+                editingProjectID = nil
+                titleDraft = ""
+            }
+        }
+        .onChange(of: visibleProjectIDs) { _, _ in
+            if isPresented, hasAppliedEntryExpansion == false {
+                applyEntryExpansionIfNeeded()
+            } else {
+                expansionState.syncVisibleProjectIDs(visibleProjectIDs)
+            }
+        }
+        .onChange(of: showsArchivedProjects) { _, isShowing in
+            if isShowing {
+                expansionState.syncVisibleProjectIDs(visibleProjectIDs)
+            }
         }
         .sheet(item: datePickerBinding) { project in
             ProjectDeadlinePickerSheet(
@@ -155,24 +169,18 @@ struct ProjectsListContent: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
-                        let isExpanded = expandedProjectID == project.id
-                        let hasExpandedProject = expandedProjectID != nil
-                        let isDimmed = hasExpandedProject && !isExpanded
+                        let isExpanded = expansionState.expandedProjectIDs.contains(project.id)
 
                         ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 6 + index + 1) {
                             ProjectListRow(
                                 project: project,
                                 style: style,
                                 isExpanded: isExpanded,
-                                hasExpandedProject: hasExpandedProject,
-                                isDimmed: isDimmed,
                                 isEditingTitle: editingProjectID == project.id,
+                                animationBatch: expansionState.animationBatch,
                                 titleDraft: titleBinding(for: project.id),
                                 onToggleExpanded: {
                                     toggleExpanded(project.id)
-                                },
-                                onCollapseExpanded: {
-                                    collapseExpandedProject()
                                 },
                                 onToggleCompletion: {
                                     Task {
@@ -215,26 +223,18 @@ struct ProjectsListContent: View {
                                     toggleExpanded(project.id)
                                 },
                                 onRequestAddSubtask: {
-                                    withAnimation(expandedProjectID == project.id ? collapseAnimation : expandAnimation) {
-                                        if expandedProjectID == project.id {
-                                            expandedProjectID = nil
-                                        } else {
-                                            expandedProjectID = project.id
-                                        }
-                                    }
+                                    toggleExpanded(project.id)
                                 }
                             )
                         }
                         .padding(.top, index == 0 ? topInset : 0)
-                        .padding(.vertical, isExpanded ? 40 : 0)
 
-                        if index < projects.count - 1, shouldShowDivider(for: project.id, nextProjectID: projects[index + 1].id) {
+                        if index < projects.count - 1 {
                             ProjectDashedDivider()
                                 .stroke(separatorColor, style: StrokeStyle(lineWidth: 1.4, dash: [3, 8]))
                                 .frame(height: 1)
                                 .padding(.leading, 62)
                                 .padding(.trailing, horizontalInset)
-                                .opacity(isDimmed ? 0.28 : 1)
                         }
                     }
                 }
@@ -300,34 +300,24 @@ struct ProjectsListContent: View {
     }
 
     private func toggleExpanded(_ projectID: UUID) {
-        let targetIsExpanded = expandedProjectID != projectID
+        let targetIsExpanded = expansionState.expandedProjectIDs.contains(projectID) == false
         withAnimation(targetIsExpanded ? expandAnimation : collapseAnimation) {
             editingProjectID = nil
             titleDraft = ""
-            if expandedProjectID == projectID {
-                expandedProjectID = nil
-            } else {
-                expandedProjectID = projectID
-            }
+            expansionState.toggle(projectID)
         }
-    }
-
-    private func collapseExpandedProject() {
-        guard expandedProjectID != nil else { return }
-        withAnimation(collapseAnimation) {
-            expandedProjectID = nil
-        }
-        editingProjectID = nil
-        titleDraft = ""
-    }
-
-    private func shouldShowDivider(for projectID: UUID, nextProjectID: UUID) -> Bool {
-        guard let expandedProjectID else { return true }
-        return expandedProjectID != projectID && expandedProjectID != nextProjectID
     }
 
     private var projectModeTopProtectionInset: CGFloat {
         showsHeader ? 0 : 4
+    }
+
+    private var visibleProjectIDs: [UUID] {
+        var ids = viewModel.activeProjects.map(\.id)
+        if showsArchivedProjects {
+            ids.append(contentsOf: viewModel.archivedProjects.map(\.id))
+        }
+        return ids
     }
 
     private var datePickerBinding: Binding<Project?> {
@@ -372,18 +362,38 @@ struct ProjectsListContent: View {
         updatedProject.targetDate = nextDate
         await viewModel.updateProject(updatedProject)
     }
+
+    private func applyEntryExpansionIfNeeded() {
+        guard isPresented else { return }
+        guard visibleProjectIDs.isEmpty == false else {
+            hasAppliedEntryExpansion = false
+            return
+        }
+        expansionState.resetForEntry(visibleProjectIDs: visibleProjectIDs)
+        hasAppliedEntryExpansion = true
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyProjectScrollEdgeProtection() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
+        } else {
+            self
+        }
+    }
 }
 
 private struct ProjectListRow: View {
     let project: Project
     let style: ProjectsPresentationStyle
     let isExpanded: Bool
-    let hasExpandedProject: Bool
-    let isDimmed: Bool
     let isEditingTitle: Bool
+    let animationBatch: Int
     @Binding var titleDraft: String
     let onToggleExpanded: () -> Void
-    let onCollapseExpanded: () -> Void
     let onToggleCompletion: () -> Void
     let onToggleSubtask: (UUID) -> Void
     let onUpdateSubtask: (UUID, String) -> Void
@@ -432,6 +442,7 @@ private struct ProjectListRow: View {
                     ProjectSubtasksSection(
                         project: project,
                         style: style,
+                        animationBatch: animationBatch,
                         shouldFocusInput: project.subtasks.isEmpty,
                         onToggleSubtask: onToggleSubtask,
                         onUpdateSubtask: onUpdateSubtask,
@@ -448,17 +459,9 @@ private struct ProjectListRow: View {
             }
         }
         .padding(.horizontal, horizontalInset)
-        .padding(.vertical, isExpanded ? 42 : 14)
-        .background(expandedBackground)
-        .opacity(isDimmed ? 0.36 : 1)
-        .scaleEffect(isExpanded ? 1.012 : 1, anchor: .center)
-        .zIndex(isExpanded ? 3 : 0)
+        .padding(.vertical, 14)
         .contentShape(Rectangle())
         .animation(isExpanded ? expandedStateAnimation : collapseStateAnimation, value: isExpanded)
-        .onTapGesture {
-            guard hasExpandedProject, !isExpanded else { return }
-            onCollapseExpanded()
-        }
         .onChange(of: project.name) { _, newValue in
             if isEditingTitle == false {
                 titleDraft = newValue
@@ -488,18 +491,6 @@ private struct ProjectListRow: View {
 
     private var subtitleActionTextColor: Color {
         subtitleColor
-    }
-
-    private var expandedShadowColor: Color {
-        AppTheme.colors.shadow.opacity(isEditingTitle ? 0.16 : 0.42)
-    }
-
-    private var expandedShadowRadius: CGFloat {
-        isEditingTitle ? 18 : 48
-    }
-
-    private var expandedShadowYOffset: CGFloat {
-        isEditingTitle ? 8 : 24
     }
 
     private var deadlineColor: Color {
@@ -604,9 +595,7 @@ private struct ProjectListRow: View {
 
     private var subtitleAction: some View {
         Button {
-            if hasExpandedProject, !isExpanded {
-                onCollapseExpanded()
-            } else if isExpanded == false {
+            if isExpanded == false {
                 onToggleExpanded()
             } else if project.subtasks.isEmpty {
                 onRequestAddSubtask()
@@ -650,36 +639,7 @@ private struct ProjectListRow: View {
         .buttonStyle(.plain)
     }
 
-    @ViewBuilder
-    private var expandedBackground: some View {
-        if isExpanded {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(backgroundColor)
-                .shadow(
-                    color: expandedShadowColor,
-                    radius: expandedShadowRadius,
-                    y: expandedShadowYOffset
-                )
-                .overlay {
-                    Color.clear
-                        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        .onTapGesture {
-                            onToggleExpanded()
-                        }
-                }
-                .transition(.opacity)
-        }
-    }
-
-    private var backgroundColor: Color {
-        style == .layer ? AppTheme.colors.projectLayerSurface.opacity(0.18) : AppTheme.colors.surface.opacity(0.94)
-    }
-
     private func titleAction() {
-        if hasExpandedProject, !isExpanded {
-            onCollapseExpanded()
-            return
-        }
         if isExpanded {
             onBeginTitleEditing()
         } else {
@@ -688,10 +648,6 @@ private struct ProjectListRow: View {
     }
 
     private func deadlineAction() {
-        if hasExpandedProject, !isExpanded {
-            onCollapseExpanded()
-            return
-        }
         onOpenDeadlineEditor()
     }
 }
@@ -725,6 +681,7 @@ private struct ProjectSubtasksSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let project: Project
     let style: ProjectsPresentationStyle
+    let animationBatch: Int
     let shouldFocusInput: Bool
     let onToggleSubtask: (UUID) -> Void
     let onUpdateSubtask: (UUID, String) -> Void
@@ -739,7 +696,11 @@ private struct ProjectSubtasksSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: verticalSpacing) {
             ForEach(Array(project.subtasks.enumerated()), id: \.element.id) { index, subtask in
-                ProjectSubtaskCascadeRow(index: index, reduceMotion: reduceMotion) {
+                ProjectSubtaskCascadeRow(
+                    index: index,
+                    animationBatch: animationBatch,
+                    reduceMotion: reduceMotion
+                ) {
                     HStack(alignment: .center, spacing: 10) {
                         Button {
                             if subtask.isCompleted {
@@ -792,7 +753,11 @@ private struct ProjectSubtasksSection: View {
                 }
             }
 
-            ProjectSubtaskCascadeRow(index: project.subtasks.count, reduceMotion: reduceMotion) {
+            ProjectSubtaskCascadeRow(
+                index: project.subtasks.count,
+                animationBatch: animationBatch,
+                reduceMotion: reduceMotion
+            ) {
                 HStack(spacing: 10) {
                     Button(action: addSubtask) {
                         Image(systemName: "plus.circle.fill")
@@ -871,21 +836,25 @@ private struct ProjectSubtasksSection: View {
 private struct ProjectSubtaskCascadeRow<Content: View>: View {
     @State private var isVisible = false
     let index: Int
+    let animationBatch: Int
     let reduceMotion: Bool
     @ViewBuilder let content: Content
 
     init(
         index: Int,
+        animationBatch: Int,
         reduceMotion: Bool,
         @ViewBuilder content: () -> Content
     ) {
         self.index = index
+        self.animationBatch = animationBatch
         self.reduceMotion = reduceMotion
         self.content = content()
     }
 
     var body: some View {
         content
+            .id("\(animationBatch)-\(index)")
             .opacity(isVisible ? 1 : 0)
             .offset(y: isVisible ? 0 : 18)
             .scaleEffect(isVisible ? 1 : 0.965, anchor: .center)
@@ -905,10 +874,11 @@ private struct ProjectSubtaskCascadeRow<Content: View>: View {
     }
 }
 
+
 private struct ProjectProgressBar: View {
     let progress: Double
     let tint: Color
-    private let barWidth: CGFloat = 40
+    private let barWidth: CGFloat = 48
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -921,6 +891,29 @@ private struct ProjectProgressBar: View {
         }
         .frame(width: barWidth, height: 6)
         .animation(.smooth(duration: 0.2), value: progress)
+    }
+}
+
+struct ProjectExpansionPresentationState {
+    private(set) var expandedProjectIDs: Set<UUID> = []
+    private(set) var animationBatch = 0
+
+    mutating func resetForEntry(visibleProjectIDs: [UUID]) {
+        expandedProjectIDs = []
+        animationBatch += 1
+    }
+
+    mutating func syncVisibleProjectIDs(_ visibleProjectIDs: [UUID]) {
+        let visibleIDs = Set(visibleProjectIDs)
+        expandedProjectIDs = expandedProjectIDs.intersection(visibleIDs)
+    }
+
+    mutating func toggle(_ projectID: UUID) {
+        if expandedProjectIDs.contains(projectID) {
+            expandedProjectIDs.remove(projectID)
+        } else {
+            expandedProjectIDs.insert(projectID)
+        }
     }
 }
 

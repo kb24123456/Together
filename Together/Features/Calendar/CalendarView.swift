@@ -2,6 +2,15 @@ import SwiftUI
 
 struct CalendarView: View {
     @Bindable var viewModel: CalendarViewModel
+    let showsNavigationChrome: Bool
+
+    init(
+        viewModel: CalendarViewModel,
+        showsNavigationChrome: Bool = true
+    ) {
+        self.viewModel = viewModel
+        self.showsNavigationChrome = showsNavigationChrome
+    }
 
     var body: some View {
         ScrollView {
@@ -53,10 +62,11 @@ struct CalendarView: View {
                 }
             }
             .padding(AppTheme.spacing.xl)
+            .padding(.bottom, showsNavigationChrome ? AppTheme.spacing.xl : 164)
         }
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("日历")
-        .toolbar(.visible, for: .navigationBar)
+        .toolbar(showsNavigationChrome ? .visible : .hidden, for: .navigationBar)
         .task {
             guard viewModel.loadState == .idle else { return }
             await viewModel.load()

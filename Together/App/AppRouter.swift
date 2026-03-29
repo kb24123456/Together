@@ -7,5 +7,24 @@ final class AppRouter {
     var activeComposer: ComposerRoute?
     var pendingComposerTitle: String?
     var isProfilePresented = false
-    var isProjectModePresented = false
+    var currentSurface: RootSurface = .today
+
+    var isProjectModePresented: Bool {
+        currentSurface == .projects
+    }
+
+    var selectedDockDestination: DockDestination? {
+        if isProfilePresented {
+            return .profile
+        }
+
+        switch currentSurface {
+        case .today:
+            return nil
+        case .calendar:
+            return .calendar
+        case .projects:
+            return .projects
+        }
+    }
 }

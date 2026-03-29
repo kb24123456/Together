@@ -212,7 +212,7 @@ struct ComposerPlaceholderSheet: View {
             openMenu(.template)
         } label: {
             HStack(spacing: 3) {
-                Image(systemName: "square.stack.3d.up.fill")
+                Image(systemName: "bookmark")
                     .font(AppTheme.typography.sized(14, weight: .semibold))
                     .padding(.trailing, 2)
                 Text("模板")

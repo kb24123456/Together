@@ -3,180 +3,199 @@ import SwiftUI
 struct HomeDockBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @Namespace private var projectButtonNamespace
-    let isQuickCapturePresented: Bool
-    let isProjectModePresented: Bool
-    let isProjectButtonReturning: Bool
+    @Namespace private var selectionNamespace
+    @Namespace private var glassNamespace
+
+    let edgeInset: CGFloat
+    let selectedDestination: DockDestination?
+    let isHubExpanded: Bool
+    let isInteractionEnabled: Bool
     let onProfileTapped: () -> Void
-    let onComposeTapped: () -> Void
-    let onQuickCaptureTapped: () -> Void
+    let onCalendarTapped: () -> Void
+    let onHubPrimaryTapped: () -> Void
+    let onHubLongPressed: () -> Void
     let onProjectsTapped: () -> Void
 
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            dockShell
-                .frame(maxWidth: .infinity, alignment: .center)
+    @State private var suppressHubPrimaryTap = false
 
-            floatingProjectButton
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .allowsHitTesting(isProjectModePresented)
+    private let groupedControlHeight: CGFloat = 40
+    private let groupedCapsuleVerticalPadding: CGFloat = 6
+    private let hubButtonDiameter: CGFloat = 48
+    private let buttonWidth: CGFloat = 54
+    private let selectionCornerRadius: CGFloat = 20
+    private let dockSymbolSize: CGFloat = 22
+    private let hubHitTargetSize: CGFloat = 60
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 32) {
+            groupedButtons
+            hubPrimaryButton
         }
-        .animation(dockAnimation, value: isProjectModePresented)
-        .animation(dockAnimation, value: isProjectButtonReturning)
+        .padding(.horizontal, edgeInset)
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(isInteractionEnabled)
+        .animation(selectionAnimation, value: selectedDestination)
+        .animation(selectionAnimation, value: isHubExpanded)
     }
 
-    private var dockShell: some View {
+    private var groupedButtons: some View {
         Group {
             if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: AppTheme.spacing.lg) {
-                    dockContent
+                GlassEffectContainer(spacing: 18) {
+                    groupedButtonsContent
                 }
-                .padding(.horizontal, AppTheme.spacing.xl)
             } else {
-                dockContent
-                    .padding(.horizontal, AppTheme.spacing.lg)
-                    .padding(.vertical, 12)
-                    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .stroke(.white.opacity(0.55), lineWidth: 1)
-                    }
-                    .shadow(color: AppTheme.colors.shadow.opacity(0.9), radius: 24, y: 12)
-                    .padding(.horizontal, AppTheme.spacing.xl)
+                groupedButtonsContent
             }
         }
     }
 
-    private var dockContent: some View {
-        HStack(spacing: 0) {
-            dockSlot {
-                circleButton(
-                    systemImage: "person.crop.circle",
-                    accessibilityLabel: "打开个人页",
-                    action: onProfileTapped
-                )
-                .offset(x: isProjectModePresented ? -18 : 0, y: isProjectModePresented ? 72 : 0)
-                .opacity(isProjectModePresented ? 0 : 1)
-                .scaleEffect(isProjectModePresented ? 0.84 : 1)
-                .allowsHitTesting(!isProjectModePresented)
-            }
-
-            dockSlot {
-                primaryButton
-                    .offset(y: isProjectModePresented ? 88 : 0)
-                    .opacity(isProjectModePresented ? 0 : 1)
-                    .scaleEffect(isProjectModePresented ? 0.88 : 1)
-                    .allowsHitTesting(!isProjectModePresented)
-            }
-
-            dockSlot {
-                projectToggleButton(isReturning: false)
-                    .opacity(isProjectModePresented ? 0 : 1)
-                    .scaleEffect(isProjectModePresented ? 0.92 : 1)
-                    .allowsHitTesting(!isProjectModePresented)
-            }
-
-            dockSlot {
-                circleButton(
-                    systemImage: isQuickCapturePresented ? "xmark" : "square.and.pencil",
-                    accessibilityLabel: isQuickCapturePresented ? "关闭快速捕捉" : "打开快速捕捉",
-                    action: onQuickCaptureTapped
-                )
-                .offset(x: isProjectModePresented ? 18 : 0, y: isProjectModePresented ? 72 : 0)
-                .opacity(isProjectModePresented ? 0 : 1)
-                .scaleEffect(isProjectModePresented ? 0.84 : 1)
-                .allowsHitTesting(!isProjectModePresented)
-            }
+    private var groupedButtonsContent: some View {
+        HStack(spacing: 4) {
+            dockButton(
+                destination: .profile,
+                systemImage: "gearshape",
+                activeSystemImage: "gearshape",
+                accessibilityLabel: "打开个人页",
+                isDisabled: false,
+                action: onProfileTapped
+            )
+            dockButton(
+                destination: .calendar,
+                systemImage: "calendar",
+                activeSystemImage: "calendar",
+                accessibilityLabel: "打开月历",
+                isDisabled: false,
+                action: onCalendarTapped
+            )
+            dockButton(
+                destination: .agent,
+                systemImage: "sparkles",
+                activeSystemImage: "sparkles",
+                accessibilityLabel: "Agent 即将到来",
+                isDisabled: true,
+                action: {}
+            )
+            dockButton(
+                destination: .projects,
+                systemImage: "square.stack",
+                activeSystemImage: "square.stack",
+                accessibilityLabel: selectedDestination == .projects ? "返回 Today" : "打开项目",
+                isDisabled: false,
+                action: onProjectsTapped
+            )
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, groupedCapsuleVerticalPadding)
+        .modifier(DockGroupedCapsuleModifier())
     }
 
-    private func dockSlot<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .frame(maxWidth: .infinity, alignment: .center)
-    }
-
-    private var primaryButton: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            onComposeTapped()
-        } label: {
-            Image(systemName: "plus")
-                .font(AppTheme.typography.sized(28, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body)
-                .frame(width: 120, height: 64)
-        }
-        .buttonStyle(.plain)
-        .modifier(GlassCapsuleModifier())
-        .accessibilityLabel("新建任务")
-    }
-
-    private var floatingProjectButton: some View {
-        projectToggleButton(isReturning: true)
-            .padding(.trailing, AppTheme.spacing.xl)
-            .opacity(isProjectModePresented ? 1 : 0)
-            .offset(y: isProjectModePresented ? 0 : 88)
-    }
-
-    private func projectToggleButton(isReturning: Bool) -> some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            onProjectsTapped()
-        } label: {
-            Image(systemName: isReturning ? "arrow.uturn.backward.circle.fill" : "square.stack.3d.up.fill")
-                .font(AppTheme.typography.sized(isReturning ? 21 : 22, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body)
-                .frame(width: 64, height: 64)
-        }
-        .buttonStyle(.plain)
-        .modifier(GlassCircleModifier())
-        .matchedGeometryEffect(id: "home-project-toggle", in: projectButtonNamespace)
-        .accessibilityLabel(isReturning ? "返回 Today" : "打开项目模式")
-        .accessibilityHint(isReturning ? "返回任务视图" : "切换到项目视图")
-    }
-
-    private var dockAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: 0.2)
-            : .spring(response: isProjectButtonReturning ? 0.42 : 0.38, dampingFraction: 0.86)
-    }
-
-    private func circleButton(
+    private func dockButton(
+        destination: DockDestination,
         systemImage: String,
+        activeSystemImage: String,
         accessibilityLabel: String,
+        isDisabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button {
+        let isSelected = selectedDestination == destination
+
+        return Button {
+            guard !isDisabled else { return }
             HomeInteractionFeedback.selection()
             action()
         } label: {
-            Image(systemName: systemImage)
-                .font(AppTheme.typography.sized(22, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body)
-                .frame(width: 64, height: 64)
+            ZStack {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: selectionCornerRadius, style: .continuous)
+                        .fill(AppTheme.colors.surface.opacity(0.84))
+                        .matchedGeometryEffect(id: "dock-selection", in: selectionNamespace)
+                        .frame(width: buttonWidth, height: groupedControlHeight)
+                        .glassEffectIfAvailable(in: glassNamespace, id: "dock-selection-bg")
+                }
+
+                Image(systemName: isSelected ? activeSystemImage : systemImage)
+                    .font(AppTheme.typography.sized(dockSymbolSize, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(foregroundColor(isSelected: isSelected, isDisabled: isDisabled))
+                    .frame(width: buttonWidth, height: groupedControlHeight)
+                    .contentTransition(.symbolEffect(.replace))
+                    .blurReplaceTransition(value: isSelected)
+            }
+            .contentShape(Rectangle())
+            .opacity(isDisabled ? 0.42 : 1)
+            .scaleEffect(isSelected ? 1.02 : 1)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(isDisabled ? "该入口暂未开放" : "")
+    }
+
+    private var hubPrimaryButton: some View {
+        Button {
+            if suppressHubPrimaryTap {
+                suppressHubPrimaryTap = false
+                return
+            }
+            HomeInteractionFeedback.selection()
+            onHubPrimaryTapped()
+        } label: {
+            Image(systemName: "plus")
+                .font(AppTheme.typography.sized(22, weight: .regular))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(width: hubButtonDiameter, height: hubButtonDiameter)
+                .scaleEffect(isHubExpanded ? 0.94 : 1)
+                .rotationEffect(.degrees(isHubExpanded ? 45 : 0))
+                .animation(selectionAnimation, value: isHubExpanded)
         }
         .buttonStyle(.plain)
         .modifier(GlassCircleModifier())
-        .accessibilityLabel(accessibilityLabel)
+        .padding(6)
+        .frame(width: hubHitTargetSize, height: hubHitTargetSize)
+        .contentShape(Rectangle())
+        .padding(-6)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.35)
+                .onEnded { _ in
+                    suppressHubPrimaryTap = true
+                    HomeInteractionFeedback.selection()
+                    onHubLongPressed()
+                }
+        )
+        .accessibilityLabel(isHubExpanded ? "关闭更多入口" : "新建任务")
+        .accessibilityHint("轻点新建任务，长按打开更多入口")
+    }
+
+    private func foregroundColor(isSelected: Bool, isDisabled: Bool) -> Color {
+        if isDisabled {
+            return AppTheme.colors.title.opacity(0.32)
+        }
+        return AppTheme.colors.title
+    }
+
+    private var selectionAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.18)
+            : .spring(response: 0.34, dampingFraction: 0.82)
     }
 }
 
-private struct GlassCapsuleModifier: ViewModifier {
+private struct DockGroupedCapsuleModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
-                .buttonStyle(.glassProminent)
+                .glassEffect(.regular.interactive(), in: Capsule())
         } else {
             content
                 .background(
                     Capsule(style: .continuous)
-                        .fill(.white.opacity(0.74))
+                        .fill(.white.opacity(0.84))
                 )
                 .overlay {
                     Capsule(style: .continuous)
-                        .stroke(.white.opacity(0.65), lineWidth: 1)
+                        .stroke(.white.opacity(0.76), lineWidth: 1)
                 }
+                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
         }
     }
 }
@@ -185,17 +204,37 @@ private struct GlassCircleModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
-                .buttonStyle(.glass)
+                .glassEffect(.regular.interactive(), in: Circle())
         } else {
             content
                 .background(
                     Circle()
-                        .fill(.white.opacity(0.74))
+                        .fill(.white.opacity(0.84))
                 )
                 .overlay {
                     Circle()
-                        .stroke(.white.opacity(0.65), lineWidth: 1)
+                        .stroke(.white.opacity(0.76), lineWidth: 1)
                 }
+                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func glassEffectIfAvailable(in namespace: Namespace.ID, id: String) -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .glassEffect(.regular.tint(.white.opacity(0.2)), in: .rect(cornerRadius: 18))
+                .glassEffectID(id, in: namespace)
+        } else {
+            self
+        }
+    }
+
+    func blurReplaceTransition<T: Equatable>(value: T) -> some View {
+        self
+            .transition(.blurReplace)
+            .animation(.easeInOut(duration: 0.2), value: value)
     }
 }

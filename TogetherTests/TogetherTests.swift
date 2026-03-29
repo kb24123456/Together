@@ -221,6 +221,26 @@ struct TogetherTests {
     }
 
     @Test
+    func projectExpansionPresentationStateStartsCollapsedAndAdvancesAnimationBatch() {
+        let first = UUID()
+        let second = UUID()
+        var state = ProjectExpansionPresentationState()
+
+        state.resetForEntry(visibleProjectIDs: [first, second])
+
+        #expect(state.expandedProjectIDs.isEmpty)
+        #expect(state.animationBatch == 1)
+
+        state.toggle(first)
+        #expect(state.expandedProjectIDs == Set([first]))
+
+        state.resetForEntry(visibleProjectIDs: [second])
+
+        #expect(state.expandedProjectIDs.isEmpty)
+        #expect(state.animationBatch == 2)
+    }
+
+    @Test
     func taskApplicationServiceCreatesAndQueriesTasks() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
@@ -989,6 +1009,32 @@ struct TogetherTests {
         let completedIDs = await taskService.completedTaskIDs()
         #expect(completedIDs == [item.id])
         #expect(viewModel.items.first?.isCompleted(on: baseDate, calendar: Calendar.current) == true)
+    }
+
+    @Test
+    func dockHubPresentationStateCollapsesWhenBlockingChromeAppears() {
+        let state = DockHubPresentationState(
+            isProjectModePresented: false,
+            isQuickCapturePresented: true,
+            isProfilePresented: false,
+            hasActiveComposer: false,
+            hasPendingQuickCaptureConfirmation: false
+        )
+
+        #expect(state.shouldCollapseHub == true)
+    }
+
+    @Test
+    func dockHubPresentationStateStaysExpandedInDefaultTodayContext() {
+        let state = DockHubPresentationState(
+            isProjectModePresented: false,
+            isQuickCapturePresented: false,
+            isProfilePresented: false,
+            hasActiveComposer: false,
+            hasPendingQuickCaptureConfirmation: false
+        )
+
+        #expect(state.shouldCollapseHub == false)
     }
 
     @Test
