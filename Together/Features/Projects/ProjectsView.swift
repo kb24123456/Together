@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 enum ProjectsPresentationStyle {
     case screen
@@ -95,11 +98,7 @@ struct ProjectsListContent: View {
                 .applyProjectScrollEdgeProtection()
 
                 if style == .layer {
-                    Rectangle()
-                        .fill(AppTheme.colors.projectLayerBackground)
-                        .frame(height: projectHeaderProtectionHeight)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .allowsHitTesting(false)
+                    projectChromeOverlay(proxy: proxy)
                 }
             }
         }
@@ -301,11 +300,27 @@ struct ProjectsListContent: View {
 
     private func toggleExpanded(_ projectID: UUID) {
         let targetIsExpanded = expansionState.expandedProjectIDs.contains(projectID) == false
+        HomeInteractionFeedback.soft()
         withAnimation(targetIsExpanded ? expandAnimation : collapseAnimation) {
             editingProjectID = nil
             titleDraft = ""
             expansionState.toggle(projectID)
         }
+    }
+
+    private func projectChromeOverlay(proxy: GeometryProxy) -> some View {
+        ZStack {
+            ProjectToolbarBackground()
+                .frame(height: projectHeaderProtectionHeight + proxy.safeAreaInsets.top)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+            ProjectToolbarBackground(reverseGradient: true)
+                .frame(height: max(94, proxy.safeAreaInsets.bottom + 84))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+        .allowsHitTesting(false)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .animation(.spring(response: 0.38, dampingFraction: 0.88), value: isPresented)
     }
 
     private var projectModeTopProtectionInset: CGFloat {
@@ -383,6 +398,46 @@ private extension View {
         } else {
             self
         }
+    }
+}
+
+private struct ProjectToolbarBackground: View {
+    var reverseGradient = false
+
+    var body: some View {
+        ZStack {
+            if #available(iOS 26.0, *) {
+                Rectangle()
+                    .fill(.clear)
+                    .background(.bar)
+            } else {
+                ProjectToolbarBlur()
+            }
+
+            LinearGradient(
+                colors: reverseGradient
+                    ? [
+                        AppTheme.colors.projectLayerBackground.opacity(0),
+                        AppTheme.colors.projectLayerBackground.opacity(0.82)
+                    ]
+                    : [
+                        AppTheme.colors.projectLayerBackground.opacity(0.88),
+                        AppTheme.colors.projectLayerBackground.opacity(0)
+                    ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+    }
+}
+
+private struct ProjectToolbarBlur: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+    }
+
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {
+        uiView.effect = UIBlurEffect(style: .systemUltraThinMaterial)
     }
 }
 

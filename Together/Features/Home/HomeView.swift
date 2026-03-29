@@ -16,15 +16,30 @@ struct HomeView: View {
     @State private var isCompletedVisibilityButtonCompressed = false
     @State private var isCompletedSectionVisible = true
     @State private var isCompletedSectionTransitioning = false
+    @State private var monthPagerOffset: CGFloat = 0
+    @State private var isMonthPagerSettling = false
 
     private let weekPageBreathingGap: CGFloat = 0
-    private let weekDateSpacing: CGFloat = AppTheme.spacing.sm
+    private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
+    private let calendarGridHorizontalInset: CGFloat = 4
+    private let calendarWeekdayHeight: CGFloat = 20
     private let weekMiddleIndex = 3
     private let contentCardCornerRadius: CGFloat = 40
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineDividerLeadingInset: CGFloat = AppTheme.spacing.xl + 44
     private let timelineBottomInset: CGFloat = 188
+    private let monthGridSpacing: CGFloat = 8
+    private let monthCompressedGridSpacing: CGFloat = 4
+    private let monthDayCellHeight: CGFloat = 46
+    private let monthCompressedDayCellHeight: CGFloat = 37
+    private let monthDayCircleSize: CGFloat = 34
+    private let monthCompressedDayCircleSize: CGFloat = 28
+    private let monthIndicatorSize: CGFloat = 4
+    private let monthIndicatorSpacing: CGFloat = 6
+    private let monthCompressedTopPadding: CGFloat = 6
+    private let monthDayTextVerticalOffset: CGFloat = 0
+    private let calendarTopSpacing: CGFloat = 10
     private let homeCanvasColor = AppTheme.colors.homeBackground
 
     var body: some View {
@@ -99,21 +114,10 @@ struct HomeView: View {
 
                 weekCalendarContainer
                     .padding(.horizontal, horizontalContentPadding)
+                    .padding(.top, calendarTopSpacing)
             }
             .padding(.bottom, isProjectModePresented ? 10 : 14)
             .background(topChromeBackground)
-            .overlay(alignment: .bottom) {
-                LinearGradient(
-                    colors: [
-                        AppTheme.colors.homeBackground.opacity(0.22),
-                        AppTheme.colors.homeBackground.opacity(0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 26)
-                .allowsHitTesting(false)
-            }
 
             Spacer(minLength: 0)
         }
@@ -266,13 +270,14 @@ struct HomeView: View {
     }
 
     private var weekCalendarContainer: some View {
-        weekCalendarSection
-            .frame(height: isProjectModePresented ? 0 : 76, alignment: .top)
+        calendarSection
+            .frame(height: isProjectModePresented ? 0 : calendarContainerHeight, alignment: .top)
             .offset(y: weekSectionVerticalOffset)
             .opacity(isProjectModePresented ? 0 : 1)
             .clipped()
             .allowsHitTesting(!isProjectModePresented)
             .animation(projectModeAnimation, value: isProjectModePresented)
+            .animation(calendarModeAnimation, value: viewModel.calendarDisplayMode)
     }
 
     private var timelineList: some View {
@@ -528,6 +533,27 @@ struct HomeView: View {
         }
     }
 
+    private var calendarSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            calendarWeekdayHeader
+                .padding(.bottom, 8)
+
+            if viewModel.isMonthMode {
+                monthCalendarGrid
+                    .transition(monthCalendarTransition)
+            } else {
+                weekCalendarSection
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity,
+                            removal: .opacity
+                        )
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
     private var weekCalendarSection: some View {
         GeometryReader { proxy in
             let pageWidth = max(proxy.size.width, 1)
@@ -547,13 +573,12 @@ struct HomeView: View {
         }
         .frame(height: 76)
         .clipped()
-        .animation(projectModeAnimation, value: isProjectModePresented)
     }
 
     private func weekPage(for offset: Int) -> some View {
         let dates = viewModel.weekDates(shiftedByWeeks: offset)
 
-        return HStack(spacing: weekDateSpacing) {
+        return LazyVGrid(columns: calendarColumns, spacing: 0) {
             ForEach(Array(dates.enumerated()), id: \.element) { index, date in
                 let isSelected = weekDateIsSelected(date, index: index)
                 Button {
@@ -564,7 +589,7 @@ struct HomeView: View {
                     }
                     triggerSoftDateFeedback()
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 0) {
                         Text(date, format: .dateTime.day())
                             .font(
                                 AppTheme.typography.sized(
@@ -577,24 +602,188 @@ struct HomeView: View {
                                 ? AppTheme.colors.title
                                 : AppTheme.colors.textTertiary
                             )
-
-                        Text(viewModel.weekdayLabel(for: date))
-                            .font(AppTheme.typography.sized(isProjectModePresented ? 11 : 12, weight: .semibold))
-                            .foregroundStyle(
-                                isSelected
-                                ? AppTheme.colors.coral
-                                : AppTheme.colors.body.opacity(0.7)
-                            )
                     }
                     .scaleEffect(isSelected ? 1.16 : 1.0)
                     .scaleEffect(isProjectModePresented ? 0.92 : 1, anchor: .center)
                     .frame(maxWidth: .infinity)
-                    .frame(height: isProjectModePresented ? 66 : 84)
+                    .frame(height: isProjectModePresented ? 40 : 48)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, calendarGridHorizontalInset)
+    }
+
+    private var calendarWeekdayHeader: some View {
+        let symbols = viewModel.weekdaySymbols
+
+        return LazyVGrid(columns: calendarColumns, spacing: 0) {
+            ForEach(symbols, id: \.self) { symbol in
+                Text(symbol)
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                    .foregroundStyle(headerSecondaryColor)
+                    .frame(maxWidth: .infinity, minHeight: calendarWeekdayHeight)
+            }
+        }
+        .padding(.horizontal, calendarGridHorizontalInset)
+    }
+
+    private var monthCalendarGrid: some View {
+        GeometryReader { proxy in
+            let pageWidth = max(proxy.size.width, 1)
+
+            HStack(spacing: 0) {
+                ForEach([-1, 0, 1], id: \.self) { offset in
+                    monthPage(for: offset)
+                        .frame(width: pageWidth)
+                        .overlay(alignment: .trailing) {
+                            monthPageDividerOverlay
+                        }
+                        .opacity(monthPageOpacity(for: offset, pageWidth: pageWidth))
+                }
+            }
+            .frame(width: pageWidth * 3, alignment: .leading)
+            .offset(x: -pageWidth + monthPagerOffset)
+            .contentShape(Rectangle())
+            .highPriorityGesture(monthPagerDragGesture(pageWidth: pageWidth))
+        }
+        .frame(height: monthGridContainerHeight)
+        .clipped()
+    }
+
+    private func monthPage(for offset: Int) -> some View {
+        let days = viewModel.monthDays(shiftedByMonths: offset)
+        let rowCount = viewModel.monthRowCount(shiftedByMonths: offset)
+        let layout = monthLayoutMetrics(for: rowCount)
+
+        return LazyVGrid(
+            columns: calendarColumns,
+            spacing: layout.rowSpacing
+        ) {
+            ForEach(days) { day in
+                monthDayButton(day, metrics: layout)
+            }
+        }
+        .padding(.horizontal, calendarGridHorizontalInset)
+        .padding(.top, layout.topPadding)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private func monthDayButton(_ day: HomeMonthDay, metrics: MonthLayoutMetrics) -> some View {
+        let isSelected = viewModel.isSelectedDate(day.date)
+        let isToday = Calendar.current.isDateInToday(day.date)
+        let hasIndicator = viewModel.hasNonRecurringItems(on: day.date)
+        let showsSelectedRing = isSelected && !isToday
+        let showsIndicator = hasIndicator && !isSelected
+        let textColor = monthDayForegroundColor(day, isSelected: isSelected)
+        let dayNumber = "\(Calendar.current.component(.day, from: day.date))"
+
+        return Button {
+            guard !isMonthPagerInteracting else { return }
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                viewModel.selectDate(day.date)
+            }
+            triggerSoftDateFeedback()
+        } label: {
+            VStack(spacing: monthIndicatorSpacing) {
+                ZStack {
+                    if isToday {
+                        Circle()
+                            .fill(AppTheme.colors.coral)
+                            .frame(width: metrics.circleSize, height: metrics.circleSize)
+                    }
+
+                    if showsSelectedRing {
+                        Circle()
+                            .stroke(AppTheme.colors.coral, lineWidth: 1.6)
+                            .frame(width: metrics.circleSize, height: metrics.circleSize)
+                            .blurReplaceTransition(value: showsSelectedRing)
+                    }
+
+                    monthDayNumberLabel(
+                        dayNumber,
+                        isToday: isToday,
+                        isSelected: isSelected,
+                        metrics: metrics,
+                        textColor: textColor
+                    )
+                }
+                .compositingGroup()
+                .frame(width: metrics.circleSize, height: metrics.circleSize)
+                .frame(maxWidth: .infinity)
+
+                if showsIndicator {
+                    Circle()
+                        .fill(AppTheme.colors.coral.opacity(0.8))
+                        .frame(width: monthIndicatorSize, height: monthIndicatorSize)
+                        .transition(.opacity)
+                } else {
+                    Color.clear
+                        .frame(width: monthIndicatorSize, height: monthIndicatorSize)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: metrics.cellHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(day.date.formatted(.dateTime.year().month().day().weekday()))
+    }
+
+    private func monthDayNumberLabel(
+        _ dayNumber: String,
+        isToday: Bool,
+        isSelected: Bool,
+        metrics: MonthLayoutMetrics,
+        textColor: Color
+    ) -> some View {
+        if isToday {
+            return AnyView(
+                todayMonthDayNumberLabel(
+                    dayNumber,
+                    metrics: metrics,
+                    textColor: textColor
+                )
+            )
+        }
+
+        return AnyView(
+            Text(dayNumber)
+                .font(AppTheme.typography.sized(metrics.fontSize, weight: isSelected ? .bold : .semibold))
+                .foregroundStyle(textColor)
+                .frame(width: metrics.circleSize, height: metrics.circleSize, alignment: .center)
+                .offset(y: monthDayTextVerticalOffset)
+        )
+    }
+
+    private func todayMonthDayNumberLabel(
+        _ dayNumber: String,
+        metrics: MonthLayoutMetrics,
+        textColor: Color
+    ) -> some View {
+        Text(dayNumber)
+            .font(AppTheme.typography.sized(metrics.fontSize - 1, weight: .bold))
+            .monospacedDigit()
+            .foregroundStyle(textColor)
+            .frame(width: metrics.circleSize, height: metrics.circleSize, alignment: .center)
+            .offset(y: monthDayTextVerticalOffset)
+    }
+
+    private func monthDayForegroundColor(_ day: HomeMonthDay, isSelected: Bool) -> Color {
+        if Calendar.current.isDateInToday(day.date) {
+            return .white
+        }
+
+        if isSelected {
+            return AppTheme.colors.title
+        }
+
+        if day.isInDisplayedMonth {
+            return AppTheme.colors.title.opacity(Calendar.current.isDateInToday(day.date) ? 0.94 : 0.84)
+        }
+
+        return AppTheme.colors.textTertiary.opacity(0.5)
     }
 
     private var timelineSection: some View {
@@ -736,7 +925,11 @@ struct HomeView: View {
     }
 
     private var weekSectionVerticalOffset: CGFloat {
-        isProjectModePresented ? -14 : 0
+        if isProjectModePresented {
+            return -14
+        }
+
+        return viewModel.isMonthMode ? 2 : 0
     }
 
     private var contentCardVerticalOffset: CGFloat {
@@ -757,6 +950,12 @@ struct HomeView: View {
             : .easeOut(duration: 0.16)
     }
 
+    private var calendarModeAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.18)
+            : .spring(response: 0.42, dampingFraction: 0.84)
+    }
+
     private var projectModeAnimation: Animation {
         reduceMotion
             ? .easeInOut(duration: 0.2)
@@ -772,7 +971,36 @@ struct HomeView: View {
     }
 
     private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + (isProjectModePresented ? 78 : 154)
+        safeAreaTop + (isProjectModePresented ? 78 : (78 + calendarContainerHeight))
+    }
+
+    private var calendarContainerHeight: CGFloat {
+        viewModel.isMonthMode ? monthCalendarExpandedHeight : 76
+    }
+
+    private var monthCalendarExpandedHeight: CGFloat {
+        20 + monthGridContainerHeight
+    }
+
+    private var monthGridContainerHeight: CGFloat {
+        (5 * monthDayCellHeight) + (4 * monthGridSpacing)
+    }
+
+    private var monthPageDividerOverlay: some View {
+        Rectangle()
+            .fill(homeCanvasColor.opacity(0.14))
+            .frame(width: 1)
+            .overlay {
+                Rectangle()
+                    .fill(homeCanvasColor.opacity(0.08))
+                    .frame(width: 3)
+                    .blur(radius: 1.4)
+            }
+        .allowsHitTesting(false)
+    }
+
+    private var calendarColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: calendarColumnSpacing), count: 7)
     }
 
     private var projectModeDateLine: String {
@@ -819,6 +1047,13 @@ struct HomeView: View {
     }
 
     private var timelineTransition: AnyTransition {
+        if viewModel.isMonthMode {
+            return .asymmetric(
+                insertion: .offset(y: 14).combined(with: .opacity),
+                removal: .offset(y: -12).combined(with: .opacity)
+            )
+        }
+
         let direction: CGFloat = viewModel.selectedDateTransitionEdge == .trailing ? 1 : -1
 
         switch viewModel.selectedDateTransitionStyle {
@@ -847,6 +1082,141 @@ struct HomeView: View {
 
     private var completedRowTransition: AnyTransition {
         .opacity
+    }
+
+    private var monthCalendarTransition: AnyTransition {
+        .asymmetric(
+            insertion: .modifier(
+                active: TopRevealMotionModifier(scaleY: 0.84, opacity: 0),
+                identity: TopRevealMotionModifier(scaleY: 1, opacity: 1)
+            ),
+            removal: .opacity
+        )
+    }
+
+    private func monthPagerDragGesture(pageWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .local)
+            .onChanged { value in
+                guard viewModel.isMonthMode else { return }
+                guard !isMonthPagerSettling else { return }
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                monthPagerOffset = resistedMonthPagerOffset(for: value.translation.width, pageWidth: pageWidth)
+            }
+            .onEnded { value in
+                guard viewModel.isMonthMode else { return }
+                guard !isMonthPagerSettling else { return }
+                let horizontalTravel = value.translation.width
+                guard abs(horizontalTravel) > abs(value.translation.height) else {
+                    settleMonthPager(to: 0, pageWidth: pageWidth)
+                    return
+                }
+
+                let projectedTravel = value.predictedEndTranslation.width
+                let targetDirection = monthPagerTargetDirection(
+                    translation: horizontalTravel,
+                    predictedTranslation: projectedTravel,
+                    pageWidth: pageWidth
+                )
+
+                settleMonthPager(to: targetDirection, pageWidth: pageWidth)
+            }
+    }
+
+    private func monthPagerTargetDirection(
+        translation: CGFloat,
+        predictedTranslation: CGFloat,
+        pageWidth: CGFloat
+    ) -> Int {
+        let distanceThreshold = pageWidth * 0.16
+        let projectedThreshold = pageWidth * 0.3
+
+        if translation <= -distanceThreshold || predictedTranslation <= -projectedThreshold {
+            return -1
+        }
+
+        if translation >= distanceThreshold || predictedTranslation >= projectedThreshold {
+            return 1
+        }
+
+        return 0
+    }
+
+    private func settleMonthPager(to direction: Int, pageWidth: CGFloat) {
+        isMonthPagerSettling = true
+
+        withAnimation(calendarModeAnimation) {
+            monthPagerOffset = CGFloat(direction) * pageWidth
+        }
+
+        let settleDelay = direction == 0 ? 0.2 : 0.28
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(settleDelay))
+
+            if direction != 0 {
+                var resetTransaction = Transaction()
+                resetTransaction.animation = nil
+                withTransaction(resetTransaction) {
+                    viewModel.shiftDisplayedMonth(by: -direction)
+                    monthPagerOffset = 0
+                    isMonthPagerSettling = false
+                }
+                triggerSoftDateFeedback()
+                return
+            }
+
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                monthPagerOffset = 0
+                isMonthPagerSettling = false
+            }
+        }
+    }
+
+    private func monthPageOpacity(for offset: Int, pageWidth: CGFloat) -> Double {
+        let distance = monthPageDistance(for: offset, pageWidth: pageWidth)
+        return 1 - (distance * 0.06)
+    }
+
+    private func monthPageDistance(for offset: Int, pageWidth: CGFloat) -> CGFloat {
+        guard pageWidth > 0 else { return 0 }
+        let relativeOffset = (CGFloat(offset) * pageWidth + monthPagerOffset) / pageWidth
+        return min(abs(relativeOffset), 1)
+    }
+
+    private var isMonthPagerInteracting: Bool {
+        isMonthPagerSettling || abs(monthPagerOffset) > 0.5
+    }
+
+    private func resistedMonthPagerOffset(for translation: CGFloat, pageWidth: CGFloat) -> CGFloat {
+        let limit = pageWidth * 0.92
+        guard abs(translation) > limit else { return translation }
+
+        let overflow = abs(translation) - limit
+        let resistedOverflow = overflow * 0.24
+        return translation.sign == .minus
+            ? -(limit + resistedOverflow)
+            : limit + resistedOverflow
+    }
+
+    private func monthLayoutMetrics(for rowCount: Int) -> MonthLayoutMetrics {
+        if rowCount >= 6 {
+            return MonthLayoutMetrics(
+                cellHeight: monthCompressedDayCellHeight,
+                rowSpacing: monthCompressedGridSpacing,
+                fontSize: 17,
+                circleSize: monthCompressedDayCircleSize,
+                topPadding: monthCompressedTopPadding
+            )
+        }
+
+        return MonthLayoutMetrics(
+            cellHeight: monthDayCellHeight,
+            rowSpacing: monthGridSpacing,
+            fontSize: 19,
+            circleSize: monthDayCircleSize,
+            topPadding: 0
+        )
     }
 
     private func weekPagerDragGesture(pageWidth: CGFloat) -> some Gesture {
@@ -962,6 +1332,25 @@ struct HomeView: View {
 
 }
 
+private struct MonthLayoutMetrics {
+    let cellHeight: CGFloat
+    let rowSpacing: CGFloat
+    let fontSize: CGFloat
+    let circleSize: CGFloat
+    let topPadding: CGFloat
+}
+
+private struct TopRevealMotionModifier: ViewModifier {
+    let scaleY: CGFloat
+    let opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(x: 1, y: scaleY, anchor: .top)
+            .opacity(opacity)
+    }
+}
+
 private struct NativeHomeChromeBlur: UIViewRepresentable {
     func makeUIView(context: Context) -> UIVisualEffectView {
         UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
@@ -981,6 +1370,12 @@ private extension View {
         } else {
             self
         }
+    }
+
+    func blurReplaceTransition<T: Equatable>(value: T) -> some View {
+        self
+            .transition(.blurReplace)
+            .animation(.easeInOut(duration: 0.2), value: value)
     }
 }
 

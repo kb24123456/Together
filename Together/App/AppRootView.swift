@@ -245,6 +245,8 @@ struct AppRootView: View {
                 HomeDockBar(
                     edgeInset: dockPeripheralInset,
                     selectedDestination: router.selectedDockDestination,
+                    isMonthModeActive: appContext.homeViewModel.isMonthMode,
+                    isProjectsModeActive: router.isProjectModePresented,
                     isHubExpanded: isDockHubExpanded,
                     isInteractionEnabled: pendingQuickCaptureConfirmation == nil,
                     onProfileTapped: {
@@ -624,6 +626,7 @@ struct AppRootView: View {
         collapseDockHub()
         HomeInteractionFeedback.selection()
         withAnimation(projectModeAnimation) {
+            appContext.homeViewModel.setCalendarDisplayMode(.week)
             router.currentSurface = .projects
         }
     }
@@ -654,8 +657,15 @@ struct AppRootView: View {
 
         collapseDockHub()
         HomeInteractionFeedback.selection()
+
         withAnimation(projectModeAnimation) {
-            router.currentSurface = router.currentSurface == .calendar ? .today : .calendar
+            if router.currentSurface == .projects {
+                router.currentSurface = .today
+                appContext.homeViewModel.setCalendarDisplayMode(.month)
+            } else {
+                router.currentSurface = .today
+                appContext.homeViewModel.toggleCalendarDisplayMode()
+            }
         }
     }
 

@@ -31,6 +31,20 @@ enum HomeDateTransitionStyle: Hashable {
     case crossWeek
 }
 
+enum HomeCalendarDisplayMode: Hashable {
+    case week
+    case month
+}
+
+struct HomeMonthDay: Identifiable, Hashable {
+    let date: Date
+    let isInDisplayedMonth: Bool
+
+    var id: TimeInterval {
+        date.timeIntervalSince1970
+    }
+}
+
 private struct HomeItemOccurrenceKey: Hashable {
     let itemID: UUID
     let dayStart: Date
@@ -70,7 +84,9 @@ final class HomeViewModel {
     private(set) var selectedDateTransitionEdge: Edge = .trailing
     private(set) var selectedDateTransitionStyle: HomeDateTransitionStyle = .sameWeek
 
+    var calendarDisplayMode: HomeCalendarDisplayMode = .week
     var selectedDate: Date = Date()
+    var displayedMonth: Date = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     var items: [Item] = []
     var currentUserAvatar: HomeAvatar
     var pairPreviewAvatar: HomeAvatar
@@ -137,6 +153,71 @@ final class HomeViewModel {
         weekDates(shiftedByWeeks: 0)
     }
 
+    var isMonthMode: Bool {
+        calendarDisplayMode == .month
+    }
+
+    var weekdaySymbols: [String] {
+        ["日", "一", "二", "三", "四", "五", "六"]
+    }
+
+    var displayedMonthTitle: String {
+        displayedMonth.formatted(
+            .dateTime
+            .locale(Locale(identifier: "zh_CN"))
+            .month(.wide)
+        )
+    }
+
+    var displayedMonthKey: String {
+        let components = calendar.dateComponents([.year, .month], from: displayedMonth)
+        return "\(components.year ?? 0)-\(components.month ?? 0)"
+    }
+
+    var monthDays: [HomeMonthDay] {
+        monthDays(shiftedByMonths: 0)
+    }
+
+    var monthRowCount: Int {
+        monthRowCount(shiftedByMonths: 0)
+    }
+
+    func monthDays(shiftedByMonths offset: Int) -> [HomeMonthDay] {
+        let targetMonth = monthDate(shiftedByMonths: offset)
+
+        guard
+            let monthInterval = calendar.dateInterval(of: .month, for: targetMonth),
+            let firstWeek = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.start),
+            let lastWeek = calendar.dateInterval(
+                of: .weekOfMonth,
+                for: monthInterval.end.addingTimeInterval(-1)
+            )
+        else {
+            return []
+        }
+
+        var days: [HomeMonthDay] = []
+        var current = firstWeek.start
+
+        while current < lastWeek.end {
+            days.append(
+                HomeMonthDay(
+                    date: current,
+                    isInDisplayedMonth: calendar.isDate(current, equalTo: targetMonth, toGranularity: .month)
+                )
+            )
+
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = nextDay
+        }
+
+        return days
+    }
+
+    func monthRowCount(shiftedByMonths offset: Int) -> Int {
+        max(monthDays(shiftedByMonths: offset).count / 7, 1)
+    }
+
     func weekDates(shiftedByWeeks offset: Int) -> [Date] {
         let anchorDate: Date
         if offset == 0 {
@@ -201,6 +282,7 @@ final class HomeViewModel {
             ? .sameWeek
             : .crossWeek
         selectedDate = date
+        syncDisplayedMonthToSelectedDate()
         showsOverdueOnly = false
     }
 
@@ -216,6 +298,34 @@ final class HomeViewModel {
 
     func toggleAvatarPreview() {
         showsPairAvatarPreview.toggle()
+    }
+
+    func toggleCalendarDisplayMode() {
+        if isMonthMode {
+            calendarDisplayMode = .week
+        } else {
+            syncDisplayedMonthToSelectedDate()
+            calendarDisplayMode = .month
+        }
+    }
+
+    func setCalendarDisplayMode(_ mode: HomeCalendarDisplayMode) {
+        guard calendarDisplayMode != mode else { return }
+        if mode == .month {
+            syncDisplayedMonthToSelectedDate()
+        }
+        calendarDisplayMode = mode
+    }
+
+    func shiftDisplayedMonth(by offset: Int) {
+        guard offset != 0 else { return }
+        guard let nextMonth = calendar.date(byAdding: .month, value: offset, to: displayedMonth) else { return }
+        let nextStart = startOfMonth(for: nextMonth)
+        displayedMonth = nextStart
+        selectedDateTransitionEdge = offset > 0 ? .trailing : .leading
+        selectedDateTransitionStyle = .crossWeek
+        selectedDate = nextStart
+        showsOverdueOnly = false
     }
 
     func returnToToday() {
@@ -635,6 +745,23 @@ final class HomeViewModel {
         calendar.isDate(date, inSameDayAs: selectedDate)
     }
 
+    func hasItems(on date: Date) -> Bool {
+        items.contains { item in
+            item.appearsOnHome(
+                for: date,
+                includeOverdue: calendar.isDate(date, inSameDayAs: .now),
+                calendar: calendar
+            )
+        }
+    }
+
+    func hasNonRecurringItems(on date: Date) -> Bool {
+        items.contains { item in
+            guard item.repeatRule == nil, let dueAt = item.dueAt else { return false }
+            return calendar.isDate(dueAt, inSameDayAs: date)
+        }
+    }
+
     func weekdayLabel(for date: Date) -> String {
         switch calendar.component(.weekday, from: date) {
         case 1: return "周日"
@@ -982,6 +1109,22 @@ final class HomeViewModel {
             itemID: itemID,
             dayStart: calendar.startOfDay(for: referenceDate)
         )
+    }
+
+    private func syncDisplayedMonthToSelectedDate() {
+        displayedMonth = startOfMonth(for: selectedDate)
+    }
+
+    private func startOfMonth(for date: Date) -> Date {
+        calendar.dateInterval(of: .month, for: date)?.start ?? date
+    }
+
+    private func monthDate(shiftedByMonths offset: Int) -> Date {
+        guard offset != 0 else { return displayedMonth }
+        guard let date = calendar.date(byAdding: .month, value: offset, to: displayedMonth) else {
+            return displayedMonth
+        }
+        return startOfMonth(for: date)
     }
 
     private func isCompleted(_ item: Item, on referenceDate: Date) -> Bool {

@@ -8,6 +8,8 @@ struct HomeDockBar: View {
 
     let edgeInset: CGFloat
     let selectedDestination: DockDestination?
+    let isMonthModeActive: Bool
+    let isProjectsModeActive: Bool
     let isHubExpanded: Bool
     let isInteractionEnabled: Bool
     let onProfileTapped: () -> Void
@@ -63,8 +65,8 @@ struct HomeDockBar: View {
             dockButton(
                 destination: .calendar,
                 systemImage: "calendar",
-                activeSystemImage: "calendar",
-                accessibilityLabel: "打开月历",
+                activeSystemImage: "arrow.counterclockwise",
+                accessibilityLabel: isMonthModeActive ? "收起月历" : "打开月历",
                 isDisabled: false,
                 action: onCalendarTapped
             )
@@ -79,8 +81,8 @@ struct HomeDockBar: View {
             dockButton(
                 destination: .projects,
                 systemImage: "square.stack",
-                activeSystemImage: "square.stack",
-                accessibilityLabel: selectedDestination == .projects ? "返回 Today" : "打开项目",
+                activeSystemImage: "arrow.counterclockwise",
+                accessibilityLabel: isProjectsModeActive ? "返回 Today" : "打开项目",
                 isDisabled: false,
                 action: onProjectsTapped
             )
@@ -98,7 +100,7 @@ struct HomeDockBar: View {
         isDisabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        let isSelected = selectedDestination == destination
+        let isSelected = isDestinationSelected(destination)
 
         return Button {
             guard !isDisabled else { return }
@@ -106,7 +108,7 @@ struct HomeDockBar: View {
             action()
         } label: {
             ZStack {
-                if isSelected {
+                if isSelected && showsSelectionBackground(for: destination) {
                     RoundedRectangle(cornerRadius: selectionCornerRadius, style: .continuous)
                         .fill(AppTheme.colors.surface.opacity(0.84))
                         .matchedGeometryEffect(id: "dock-selection", in: selectionNamespace)
@@ -171,6 +173,26 @@ struct HomeDockBar: View {
             return AppTheme.colors.title.opacity(0.32)
         }
         return AppTheme.colors.title
+    }
+
+    private func isDestinationSelected(_ destination: DockDestination) -> Bool {
+        switch destination {
+        case .calendar:
+            return isMonthModeActive
+        case .projects:
+            return isProjectsModeActive
+        default:
+            return selectedDestination == destination
+        }
+    }
+
+    private func showsSelectionBackground(for destination: DockDestination) -> Bool {
+        switch destination {
+        case .calendar, .projects:
+            return false
+        default:
+            return true
+        }
     }
 
     private var selectionAnimation: Animation {

@@ -995,6 +995,7 @@ struct TaskEditorDatePickerSheet: View {
 
                         Text("\(Calendar.current.component(.day, from: cell.date))")
                             .font(AppTheme.typography.sized(metrics.dayFontSize, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundStyle(dayTextColor(for: cell))
                     }
                     .frame(maxWidth: .infinity)
@@ -1636,6 +1637,7 @@ struct TaskEditorSettingsMonthPage: View {
 
                         Text("\(Calendar.current.component(.day, from: cell.date))")
                             .font(AppTheme.typography.sized(18, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundStyle(dayTextColor(for: cell))
                     }
                     .frame(maxWidth: .infinity)

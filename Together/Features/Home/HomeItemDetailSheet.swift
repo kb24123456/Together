@@ -1560,6 +1560,7 @@ private struct HomeDetailDatePickerSheet: View {
 
                                     Text("\(Calendar.current.component(.day, from: cell.date))")
                                         .font(AppTheme.typography.sized(18, weight: .semibold))
+                                        .monospacedDigit()
                                         .foregroundStyle(dayTextColor(for: cell))
                                 }
                                 .frame(maxWidth: .infinity)
