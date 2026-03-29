@@ -56,6 +56,26 @@ final class ProfileViewModel {
         }
     }
 
+    var taskUrgencySummary: String {
+        taskUrgencyLabel(minutes: taskUrgencyWindowMinutes)
+    }
+
+    var defaultSnoozeSummary: String {
+        relativeTimeLabel(minutes: defaultSnoozeMinutes)
+    }
+
+    var completedArchiveSummary: String {
+        "\(completedTaskAutoArchiveDays)天后"
+    }
+
+    var spaceSummary: String {
+        currentSpace?.displayName ?? "我的任务空间"
+    }
+
+    var collaborationSummary: String {
+        bindingState.supportsSharedCollaboration ? bindingState.description : "后续开放"
+    }
+
     var taskUrgencyWindowMinutes: Int {
         sessionStore.currentUser?.preferences.taskUrgencyWindowMinutes ?? 30
     }
@@ -147,5 +167,19 @@ final class ProfileViewModel {
         sessionStore.currentSpace = nil
         sessionStore.availableSpaces = []
         sessionStore.currentPairSpace = nil
+    }
+
+    func taskUrgencyLabel(minutes: Int) -> String {
+        if minutes >= 60, minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)小时"
+        }
+        return "\(minutes)分钟"
+    }
+
+    func relativeTimeLabel(minutes: Int) -> String {
+        if minutes >= 60, minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)小时后"
+        }
+        return "\(minutes)分钟后"
     }
 }
