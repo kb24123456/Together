@@ -650,11 +650,11 @@ final class HomeViewModel {
             case .inlineControl:
                 if didCompleteOccurrence {
                     animatingCompletionOccurrenceKeys.insert(occurrenceKey)
-                    try? await Task.sleep(for: .milliseconds(280))
-                    withAnimation(.bouncy(duration: 0.62, extraBounce: 0.08)) {
+                    try? await Task.sleep(for: .milliseconds(320))
+                    withAnimation(.bouncy(duration: 0.68, extraBounce: 0.14)) {
                         replaceItemPreservingOrder(saved)
                     }
-                    try? await Task.sleep(for: .milliseconds(120))
+                    try? await Task.sleep(for: .milliseconds(140))
                 } else {
                     withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
                         replaceItemPreservingOrder(saved)

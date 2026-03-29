@@ -1081,7 +1081,13 @@ struct HomeView: View {
     }
 
     private var completedRowTransition: AnyTransition {
-        .opacity
+        .asymmetric(
+            insertion: .modifier(
+                active: VerticalMotionModifier(offsetY: -18, scale: 0.984, opacity: 0),
+                identity: VerticalMotionModifier(offsetY: 0, scale: 1, opacity: 1)
+            ),
+            removal: .opacity
+        )
     }
 
     private var monthCalendarTransition: AnyTransition {
@@ -1409,13 +1415,18 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
 }
 
 private struct HomeTimelineRow: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: HomeTimelineEntry
     let isAnimatingCompletion: Bool
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
-    @State private var checkmarkProgress: CGFloat = 1
+    @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
+    @State private var badgeFillScale: CGFloat = 0.5
+    @State private var badgeFillOpacity = 0.0
+    @State private var rowScale: CGFloat = 1
+    @State private var rowVerticalOffset: CGFloat = 0
 
     var body: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
@@ -1452,33 +1463,56 @@ private struct HomeTimelineRow: View {
             }
             .buttonStyle(.plain)
         }
+        .scaleEffect(rowScale, anchor: .center)
+        .offset(y: rowVerticalOffset)
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue else { return }
 
-            checkmarkProgress = 0
-            badgeScale = 0.84
+            completionAnimationCount += 1
             badgeOutlineOpacity = 1
+            badgeFillScale = 0.42
+            badgeFillOpacity = reduceMotion ? 0.12 : 0.2
+            badgeScale = reduceMotion ? 1 : 0.82
+            rowScale = reduceMotion ? 1 : 0.988
+            rowVerticalOffset = reduceMotion ? 0 : -1
 
-            withAnimation(.spring(response: 0.16, dampingFraction: 0.72)) {
-                badgeScale = 0.84
+            withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.1)) {
+                badgeOutlineOpacity = reduceMotion ? 0.18 : 0
             }
 
             Task { @MainActor in
-                withAnimation(.easeOut(duration: 0.1)) {
-                    badgeOutlineOpacity = 0
+                if reduceMotion {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        badgeFillScale = 1
+                        badgeFillOpacity = 0
+                    }
+                    return
                 }
 
-                try? await Task.sleep(for: .milliseconds(55))
-                withAnimation(.easeOut(duration: 0.24)) {
-                    checkmarkProgress = 1
+                try? await Task.sleep(for: .milliseconds(72))
+                withAnimation(.spring(response: 0.24, dampingFraction: 0.5)) {
+                    badgeScale = 1.16
+                    badgeFillScale = 1.02
+                    rowScale = 0.982
                 }
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.56)) {
-                    badgeScale = 1.08
+                withAnimation(.easeOut(duration: 0.18)) {
+                    badgeFillOpacity = 0.26
                 }
 
-                try? await Task.sleep(for: .milliseconds(140))
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.66)) {
+                try? await Task.sleep(for: .milliseconds(120))
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.68)) {
                     badgeScale = 1
+                    rowScale = 1
+                    rowVerticalOffset = 2
+                }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    badgeFillScale = 1.34
+                    badgeFillOpacity = 0
+                }
+
+                try? await Task.sleep(for: .milliseconds(84))
+                withAnimation(.easeOut(duration: 0.12)) {
+                    rowVerticalOffset = 0
                 }
             }
         }
@@ -1509,20 +1543,22 @@ private struct HomeTimelineRow: View {
     private var checkmarkBadge: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(AppTheme.colors.coral.opacity(0.14))
+                .scaleEffect(badgeFillScale)
+                .opacity(entry.isCompleted ? 0 : badgeFillOpacity)
+
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(
                     ringColor,
                     style: StrokeStyle(lineWidth: isAnimatingCompletion ? 1.8 : 1.6, dash: [3.6, 4.4])
                 )
                 .opacity(outlineOpacity)
 
-            AnimatedCheckmarkShape()
-                .trim(from: 0, to: checkmarkTrim)
-                .stroke(
-                    AppTheme.colors.coral,
-                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round)
-                )
-                .frame(width: 18, height: 18)
-                .rotationEffect(.degrees(-4))
+            Image(systemName: "checkmark")
+                .font(AppTheme.typography.sized(17, weight: .bold))
+                .foregroundStyle(AppTheme.colors.coral)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, options: .speed(1.15), value: completionAnimationCount)
                 .opacity(checkmarkOpacity)
         }
         .scaleEffect(isAnimatingCompletion ? badgeScale : 1)
@@ -1556,23 +1592,8 @@ private struct HomeTimelineRow: View {
         return 1
     }
 
-    private var checkmarkTrim: CGFloat {
-        if isAnimatingCompletion { return checkmarkProgress }
-        return entry.isCompleted ? 1 : 0
-    }
-
     private var checkmarkOpacity: Double {
         (entry.isCompleted || isAnimatingCompletion) ? 1 : 0
-    }
-}
-
-private struct AnimatedCheckmarkShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.minY + rect.height * 0.56))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.minY + rect.height * 0.80))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.86, y: rect.minY + rect.height * 0.22))
-        return path
     }
 }
 
