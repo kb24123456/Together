@@ -66,45 +66,10 @@ struct ProjectsListContent: View {
     private let projectHeaderProtectionHeight: CGFloat = 126
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                        if showsHeader {
-                            headerSection
-                        }
-
-                        projectSection(
-                            projects: viewModel.activeProjects,
-                            sectionIndex: 0,
-                            topInset: projectModeTopProtectionInset
-                        )
-
-                        if viewModel.archivedProjects.isEmpty == false {
-                            archivedProjectsEntry(sectionIndex: 1)
-                        }
-
-                        if showsArchivedProjects, viewModel.archivedProjects.isEmpty == false {
-                            projectSection(
-                                projects: viewModel.archivedProjects,
-                                sectionIndex: 2,
-                                topInset: 0
-                            )
-                        }
-                    }
-                    .padding(.top, contentTopPadding)
-                    .padding(.bottom, contentBottomPadding)
-                }
-                .applyProjectScrollEdgeProtection()
-
-                if style == .layer {
-                    projectChromeOverlay(proxy: proxy)
-                }
-            }
-        }
-        .sensoryFeedback(.selection, trigger: expansionState.animationBatch)
-        .task {
-            guard viewModel.loadState == .idle else { return }
+        rootContent
+            .sensoryFeedback(.selection, trigger: expansionState.animationBatch)
+            .task {
+                guard viewModel.loadState == .idle else { return }
             await viewModel.load()
         }
         .onAppear {
@@ -131,23 +96,77 @@ struct ProjectsListContent: View {
                 expansionState.syncVisibleProjectIDs(visibleProjectIDs)
             }
         }
-        .sheet(item: datePickerBinding) { project in
-            ProjectDeadlinePickerSheet(
-                selectedDate: Binding(
-                    get: { stagedTargetDate },
-                    set: { stagedTargetDate = $0 }
-                ),
-                onDismiss: {
+        .modifier(
+            ProjectDeadlineSheetModifier(
+                project: datePickerBinding,
+                stagedTargetDate: $stagedTargetDate,
+                onDismiss: { project in
                     datePickerProjectID = nil
                     Task {
                         await commitTargetDate(for: project.id, value: stagedTargetDate)
                     }
                 }
             )
-            .presentationDetents([.height(TaskEditorDatePickerSheet.preferredHeight + 88)])
-            .presentationDragIndicator(.hidden)
-            .presentationBackground(AppTheme.colors.surface)
+        )
+    }
+
+    private var rootContent: some View {
+        GeometryReader { proxy in
+            contentStack(proxy: proxy)
         }
+    }
+
+    private func contentStack(proxy: GeometryProxy) -> some View {
+        ZStack {
+            scrollContent
+
+            if style == .layer {
+                projectChromeOverlay(proxy: proxy)
+            }
+        }
+    }
+
+    private var scrollContent: some View {
+        ScrollView {
+            scrollSections
+                .padding(.top, contentTopPadding)
+                .padding(.bottom, contentBottomPadding)
+        }
+        .applyProjectScrollEdgeProtection()
+    }
+
+    private var scrollSections: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+            if showsHeader {
+                headerSection
+            }
+
+            activeProjectsSection
+
+            if viewModel.archivedProjects.isEmpty == false {
+                archivedProjectsEntry(sectionIndex: 1)
+            }
+
+            if showsArchivedProjects, viewModel.archivedProjects.isEmpty == false {
+                archivedProjectsSection
+            }
+        }
+    }
+
+    private var activeProjectsSection: some View {
+        projectSection(
+            projects: viewModel.activeProjects,
+            sectionIndex: 0,
+            topInset: projectModeTopProtectionInset
+        )
+    }
+
+    private var archivedProjectsSection: some View {
+        projectSection(
+            projects: viewModel.archivedProjects,
+            sectionIndex: 2,
+            topInset: 0
+        )
     }
 
     @ViewBuilder
@@ -182,6 +201,11 @@ struct ProjectsListContent: View {
                                     toggleExpanded(project.id)
                                 },
                                 onToggleCompletion: {
+                                    if project.status != .completed, isExpanded {
+                                        withAnimation(collapseAnimation) {
+                                            expansionState.toggle(project.id)
+                                        }
+                                    }
                                     Task {
                                         await viewModel.toggleProjectCompletion(projectID: project.id)
                                     }
@@ -226,6 +250,17 @@ struct ProjectsListContent: View {
                                 }
                             )
                         }
+                        .projectContextMenu(
+                            project: project,
+                            onDelete: {
+                                HomeInteractionFeedback.selection()
+                                editingProjectID = nil
+                                titleDraft = ""
+                                Task {
+                                    await viewModel.deleteProject(projectID: project.id)
+                                }
+                            }
+                        )
                         .padding(.top, index == 0 ? topInset : 0)
 
                         if index < projects.count - 1 {
@@ -389,6 +424,29 @@ struct ProjectsListContent: View {
     }
 }
 
+private struct ProjectDeadlineSheetModifier: ViewModifier {
+    let project: Binding<Project?>
+    @Binding var stagedTargetDate: Date
+    let onDismiss: (Project) -> Void
+
+    func body(content: Content) -> some View {
+        content.sheet(item: project) { project in
+            ProjectDeadlinePickerSheet(
+                selectedDate: Binding(
+                    get: { stagedTargetDate },
+                    set: { stagedTargetDate = $0 }
+                ),
+                onDismiss: {
+                    onDismiss(project)
+                }
+            )
+            .presentationDetents([.height(TaskEditorDatePickerSheet.preferredHeight + 88)])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(AppTheme.colors.surface)
+        }
+    }
+}
+
 private extension View {
     @ViewBuilder
     func applyProjectScrollEdgeProtection() -> some View {
@@ -463,6 +521,9 @@ private struct ProjectListRow: View {
     private let expandedStateAnimation = Animation.snappy(duration: 0.42, extraBounce: 0.06)
     private let collapseStateAnimation = Animation.snappy(duration: 0.28, extraBounce: 0)
     private let subtaskAnimation = Animation.smooth(duration: 0.22).delay(0.04)
+    private var canExpandInteractions: Bool {
+        project.status != .completed
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
@@ -650,6 +711,7 @@ private struct ProjectListRow: View {
 
     private var subtitleAction: some View {
         Button {
+            guard canExpandInteractions else { return }
             if isExpanded == false {
                 onToggleExpanded()
             } else if project.subtasks.isEmpty {
@@ -695,6 +757,7 @@ private struct ProjectListRow: View {
     }
 
     private func titleAction() {
+        guard canExpandInteractions else { return }
         if isExpanded {
             onBeginTitleEditing()
         } else {
@@ -703,7 +766,27 @@ private struct ProjectListRow: View {
     }
 
     private func deadlineAction() {
+        guard canExpandInteractions else { return }
         onOpenDeadlineEditor()
+    }
+}
+
+private extension View {
+    func projectContextMenu(
+        project: Project,
+        onDelete: @escaping () -> Void
+    ) -> some View {
+        simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45)
+                .onEnded { _ in
+                    HomeInteractionFeedback.soft()
+                }
+        )
+        .contextMenu {
+            Button(role: .destructive, action: onDelete) {
+                Label("删除项目", systemImage: "trash")
+            }
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
+    @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var viewModel: HomeViewModel
     @Bindable var projectsViewModel: ProjectsViewModel
@@ -230,7 +231,7 @@ struct HomeView: View {
                 triggerSoftDateFeedback()
             }
         )
-        .id(viewModel.currentUserRevision)
+        .id(appContext.sessionStore.userProfileRevision)
         .compositingGroup()
     }
 
@@ -523,6 +524,12 @@ struct HomeView: View {
             )
             .listRowBackground(isCompletedRow ? Color.clear : homeCanvasColor)
             .listRowSeparator(.hidden)
+            .insertedListItemMotion(
+                isInserted: viewModel.isAnimatingInsertion(for: entry.id),
+                onAnimationCompleted: {
+                    viewModel.completeInsertionAnimation(for: entry.id)
+                }
+            )
             .applyTransition(rowTransition)
             .applyCompletedSectionVisibility(
                 sectionVisibility.map { $0.rowVisibility(for: index) }
@@ -1644,7 +1651,7 @@ private struct HomeTimelineTimeText: View {
 }
 
 private struct HomeAvatarToggleButton: View {
-    private let controlHeight: CGFloat = 42
+    private let controlHeight: CGFloat = 38
     let avatars: [HomeAvatar]
     let foregroundColor: Color
     let secondaryForegroundColor: Color
@@ -1653,13 +1660,13 @@ private struct HomeAvatarToggleButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: -12) {
+            HStack(spacing: -10) {
                 ForEach(Array(avatars.enumerated()), id: \.element.id) { index, avatar in
                     avatarBadge(avatar, zIndex: Double(avatars.count - index))
                 }
             }
-            .padding(.horizontal, avatars.count > 1 ? 14 : 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, avatars.count > 1 ? 6 : 4)
+            .padding(.vertical, 1.5)
             .frame(minHeight: controlHeight)
         }
         .buttonStyle(.plain)
@@ -1676,7 +1683,8 @@ private struct HomeAvatarToggleButton: View {
             size: 30,
             fillColor: AppTheme.colors.surfaceElevated,
             symbolColor: foregroundColor,
-            symbolFont: AppTheme.typography.sized(16, weight: .semibold)
+            symbolFont: AppTheme.typography.sized(16, weight: .semibold),
+            overrideImage: avatar.overrideImage
         )
             .frame(width: 30, height: 30)
             .overlay {

@@ -90,6 +90,24 @@ final class ProjectsViewModel {
         }
     }
 
+    func archiveProject(projectID: UUID) async {
+        do {
+            let archived = try await projectRepository.archiveProject(projectID: projectID)
+            replaceProject(archived)
+        } catch {
+            loadState = .failed(error.localizedDescription)
+        }
+    }
+
+    func deleteProject(projectID: UUID) async {
+        do {
+            try await projectRepository.deleteProject(projectID: projectID)
+            projects.removeAll { $0.id == projectID }
+        } catch {
+            loadState = .failed(error.localizedDescription)
+        }
+    }
+
     func updateProject(_ project: Project) async {
         do {
             let updated = try await projectRepository.saveProject(project)

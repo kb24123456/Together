@@ -6,6 +6,19 @@ struct HomeAvatar: Identifiable, Hashable {
     let id: UUID
     let displayName: String
     let avatarAsset: UserAvatarAsset
+    let overrideImage: UIImage?
+
+    static func == (lhs: HomeAvatar, rhs: HomeAvatar) -> Bool {
+        lhs.id == rhs.id
+            && lhs.displayName == rhs.displayName
+            && lhs.avatarAsset == rhs.avatarAsset
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(displayName)
+        hasher.combine(avatarAsset)
+    }
 }
 
 struct HomeTimelineEntry: Identifiable, Hashable {
@@ -82,6 +95,7 @@ final class HomeViewModel {
     private var detailSaveTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
     private var hasCompletedDeferredMaintenance = false
+    private var insertedItemIDs: Set<UUID> = []
     private(set) var selectedDateTransitionEdge: Edge = .trailing
     private(set) var selectedDateTransitionStyle: HomeDateTransitionStyle = .sameWeek
 
@@ -234,6 +248,14 @@ final class HomeViewModel {
         return items.first(where: { $0.id == selectedItemID })
     }
 
+    func isAnimatingInsertion(for itemID: UUID) -> Bool {
+        insertedItemIDs.contains(itemID)
+    }
+
+    func completeInsertionAnimation(for itemID: UUID) {
+        insertedItemIDs.remove(itemID)
+    }
+
     var hasUnsavedDetailChanges: Bool {
         guard detailDetent == .large, let detailDraft else { return false }
         return detailDraft != savedDetailDraft
@@ -270,7 +292,8 @@ final class HomeViewModel {
         return HomeAvatar(
             id: currentUser.id,
             displayName: currentUser.displayName,
-            avatarAsset: currentUser.avatarAsset
+            avatarAsset: currentUser.avatarAsset,
+            overrideImage: nil
         )
     }
 
@@ -279,7 +302,8 @@ final class HomeViewModel {
         return HomeAvatar(
             id: pairPreviewUser.id,
             displayName: pairPreviewUser.displayName,
-            avatarAsset: pairPreviewUser.avatarAsset
+            avatarAsset: pairPreviewUser.avatarAsset,
+            overrideImage: nil
         )
     }
 
@@ -378,12 +402,12 @@ final class HomeViewModel {
         )
 
         do {
-            _ = try await taskApplicationService.createTask(
+            let item = try await taskApplicationService.createTask(
                 in: spaceID,
                 actorID: actorID,
                 draft: draft
             )
-            await reload()
+            await reload(insertedItemIDs: [item.id])
             return .saved
         } catch {
             return .failed
@@ -408,12 +432,12 @@ final class HomeViewModel {
         )
 
         do {
-            _ = try await taskApplicationService.createTask(
+            let item = try await taskApplicationService.createTask(
                 in: spaceID,
                 actorID: actorID,
                 draft: draft
             )
-            await reload()
+            await reload(insertedItemIDs: [item.id])
             return true
         } catch {
             return false
@@ -443,22 +467,30 @@ final class HomeViewModel {
         }
     }
 
-    func reload() async {
+    func reload(insertedItemIDs expectedInsertedItemIDs: Set<UUID> = []) async {
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
+            insertedItemIDs = []
             return
         }
 
         do {
-            items = try await taskApplicationService.tasks(
+            let fetchedItems = try await taskApplicationService.tasks(
                 in: spaceID,
                 scope: scope(for: selectedDate)
             )
+            let visibleItemIDs = Set(fetchedItems.map(\.id))
+            let persistedInsertedIDs = insertedItemIDs.intersection(visibleItemIDs)
+            let nextInsertedIDs = expectedInsertedItemIDs.intersection(visibleItemIDs)
+
+            items = fetchedItems
+            insertedItemIDs = persistedInsertedIDs.union(nextInsertedIDs)
             if overdueEntryCount == 0 {
                 showsOverdueOnly = false
             }
         } catch {
             items = []
+            insertedItemIDs = []
         }
     }
 

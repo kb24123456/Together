@@ -258,10 +258,34 @@ final class EditProfileViewModel {
                 displayName: displayName,
                 avatarUpdate: avatarUpdate
             )
+
+            #if canImport(UIKit)
+            switch avatarUpdate {
+            case .replacePhoto:
+                if let fileName = updatedUser.avatarPhotoFileName, let draftAvatarImage {
+                    UserAvatarRuntimeStore.store(draftAvatarImage, for: fileName)
+                }
+                if let previousFileName = originalUser.avatarPhotoFileName,
+                   previousFileName != updatedUser.avatarPhotoFileName
+                {
+                    UserAvatarRuntimeStore.remove(fileName: previousFileName)
+                }
+            case .removeCustomPhoto:
+                if let previousFileName = originalUser.avatarPhotoFileName {
+                    UserAvatarRuntimeStore.remove(fileName: previousFileName)
+                }
+            case .preserveExisting:
+                break
+            }
+            #endif
+
             sessionStore.currentUser = updatedUser
             return true
         } catch {
-            errorMessage = "保存失败，请稍后重试。"
+            #if DEBUG
+            print("[EditProfile] save failed: \(error)")
+            #endif
+            errorMessage = error.localizedDescription
             return false
         }
     }

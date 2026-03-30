@@ -4,6 +4,7 @@ protocol ProjectRepositoryProtocol: Sendable {
     func fetchProjects(spaceID: UUID?) async throws -> [Project]
     func saveProject(_ project: Project) async throws -> Project
     func archiveProject(projectID: UUID) async throws -> Project
+    func deleteProject(projectID: UUID) async throws
     func setProjectCompleted(projectID: UUID, isCompleted: Bool) async throws -> Project
     func addSubtask(projectID: UUID, title: String, isCompleted: Bool) async throws -> Project
     func toggleSubtask(projectID: UUID, subtaskID: UUID) async throws -> Project

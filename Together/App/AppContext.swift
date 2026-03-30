@@ -17,6 +17,7 @@ final class AppContext {
     private(set) var hasBootstrapped = false
     private var hasCompletedPostLaunchWork = false
     private var hasSyncedReminderNotifications = false
+    private var hasRestoredPersistedUserProfile = false
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter) {
         self.container = container
@@ -75,7 +76,7 @@ final class AppContext {
             authService: container.authService,
             spaceService: container.spaceService
         )
-        await restorePersistedUserProfile()
+        await restorePersistedUserProfileIfNeeded()
         hasBootstrapped = true
     }
 
@@ -83,15 +84,33 @@ final class AppContext {
         guard hasCompletedPostLaunchWork == false else { return }
         hasCompletedPostLaunchWork = true
         StartupTrace.mark("AppContext.postLaunch.begin")
-        await restorePersistedUserProfile()
+        await restorePersistedUserProfileIfNeeded()
         await syncReminderNotificationsIfNeeded()
         StartupTrace.mark("AppContext.postLaunch.end")
     }
 
-    func restorePersistedUserProfile() async {
+    func restorePersistedUserProfileIfNeeded(force: Bool = false) async {
+        guard force || hasRestoredPersistedUserProfile == false else { return }
+        #if DEBUG
+        let currentUserDescription = sessionStore.currentUser.map {
+            "id=\($0.id.uuidString.lowercased()) avatarFile=\($0.avatarPhotoFileName ?? "nil")"
+        } ?? "nil"
+        StartupTrace.mark("AppContext.restoreUser.begin currentUser=\(currentUserDescription)")
+        #endif
         let mergedUser = await container.userProfileRepository.mergedUser(sessionStore.currentUser)
-        guard let mergedUser else { return }
+        guard let mergedUser else {
+            #if DEBUG
+            StartupTrace.mark("AppContext.restoreUser.end mergedUser=nil")
+            #endif
+            return
+        }
+        hasRestoredPersistedUserProfile = true
         sessionStore.currentUser = mergedUser
+        #if DEBUG
+        StartupTrace.mark(
+            "AppContext.restoreUser.end mergedAvatarFile=\(mergedUser.avatarPhotoFileName ?? "nil")"
+        )
+        #endif
     }
 
     func syncReminderNotificationsIfNeeded(force: Bool = false) async {

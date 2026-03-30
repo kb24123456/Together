@@ -569,6 +569,9 @@ private struct CameraCaptureView: UIViewControllerRepresentable {
         picker.delegate = context.coordinator
         picker.allowsEditing = false
         picker.modalPresentationStyle = .fullScreen
+        picker.overrideUserInterfaceStyle = .dark
+        picker.view.backgroundColor = .black
+        picker.view.clipsToBounds = true
         return picker
     }
 

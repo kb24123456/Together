@@ -1,6 +1,10 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import Together
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct TogetherTests {
     @Test func itemStateMachineMovesPendingToInProgressWhenPartnerAgrees() async throws {
@@ -1271,6 +1275,285 @@ struct TogetherTests {
         #expect(restoredUser.preferences.completedTaskAutoArchiveDays == 14)
     }
 
+    @Test
+    func localUserProfileRepositoryPersistsAvatarPhotoFileAcrossMerge() async throws {
+        #if canImport(UIKit)
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalUserProfileRepository(container: persistence.container)
+        let user = makeAvatarTestUser()
+        let data = try #require(makeAvatarTestImage(fillColor: .systemPink).jpegData(compressionQuality: 0.9))
+
+        let savedUser = try await repository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(data)
+        )
+        let fileName = try #require(savedUser.avatarPhotoFileName)
+        let restoredUser = try #require(await repository.mergedUser(user))
+
+        #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        #expect(restoredUser.avatarPhotoFileName == fileName)
+        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #else
+        Issue.record("UIKit unavailable for avatar persistence test")
+        #endif
+    }
+
+    @Test
+    func localUserProfileRepositoryRestoresAvatarAcrossOnDiskRelaunch() async throws {
+        #if canImport(UIKit)
+        let storeURL = makeAvatarTestStoreURL(testName: "AvatarRelaunch")
+        let repository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        let user = makeAvatarTestUser()
+        let data = try #require(makeAvatarTestImage(fillColor: .systemOrange).jpegData(compressionQuality: 0.9))
+
+        let savedUser = try await repository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(data)
+        )
+        let fileName = try #require(savedUser.avatarPhotoFileName)
+        let relaunchedRepository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        let restoredUser = try #require(await relaunchedRepository.mergedUser(user))
+
+        #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        #expect(restoredUser.avatarPhotoFileName == fileName)
+        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #else
+        Issue.record("UIKit unavailable for avatar relaunch persistence test")
+        #endif
+    }
+
+    @Test
+    func localUserProfileRepositoryRebuildsMissingAvatarFileFromPersistentPayload() async throws {
+        #if canImport(UIKit)
+        let storeURL = makeAvatarTestStoreURL(testName: "AvatarRebuildFromPayload")
+        let repository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        let user = makeAvatarTestUser()
+        let data = try #require(makeAvatarTestImage(fillColor: .systemPurple).jpegData(compressionQuality: 0.9))
+
+        let savedUser = try await repository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(data)
+        )
+        let fileName = try #require(savedUser.avatarPhotoFileName)
+        try FileManager.default.removeItem(at: UserAvatarStorage.fileURL(fileName: fileName))
+
+        let relaunchedRepository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        let restoredUser = try #require(await relaunchedRepository.mergedUser(user))
+        let verificationContext = ModelContext(try makeUserProfileContainer(storeURL: storeURL))
+        let userID = user.id
+        let descriptor = FetchDescriptor<PersistentUserProfile>(
+            predicate: #Predicate { $0.userID == userID }
+        )
+        let repairedRecord = try #require(try verificationContext.fetch(descriptor).first)
+
+        #expect(restoredUser.avatarPhotoFileName == fileName)
+        #expect(repairedRecord.avatarPhotoFileName == fileName)
+        #expect(repairedRecord.avatarPhotoData == data)
+        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #else
+        Issue.record("UIKit unavailable for avatar rebuild test")
+        #endif
+    }
+
+    @Test
+    func localUserProfileRepositoryRewritesCorruptedAvatarFileFromPersistentPayload() async throws {
+        #if canImport(UIKit)
+        let storeURL = makeAvatarTestStoreURL(testName: "AvatarRepairCorruptedFile")
+        let repository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        let user = makeAvatarTestUser()
+        let data = try #require(makeAvatarTestImage(fillColor: .systemRed).jpegData(compressionQuality: 0.9))
+
+        let savedUser = try await repository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(data)
+        )
+        let fileName = try #require(savedUser.avatarPhotoFileName)
+        let fileURL = UserAvatarStorage.fileURL(fileName: fileName)
+        try Data([0x00, 0x01, 0x02]).write(to: fileURL, options: .atomic)
+
+        let relaunchedRepository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        let restoredUser = try #require(await relaunchedRepository.mergedUser(user))
+        let repairedData = try Data(contentsOf: fileURL)
+
+        #expect(restoredUser.avatarPhotoFileName == fileName)
+        #expect(repairedData == data)
+        #else
+        Issue.record("UIKit unavailable for avatar corrupted-file repair test")
+        #endif
+    }
+
+    @Test @MainActor
+    func localUserProfileRepositoryPreloadsRuntimeAvatarCacheFromPersistentPayload() async throws {
+        #if canImport(UIKit)
+        let storeURL = makeAvatarTestStoreURL(testName: "AvatarRuntimeCacheWarmup")
+        let repository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        let user = makeAvatarTestUser()
+        let data = try #require(makeAvatarTestImage(fillColor: .systemIndigo).jpegData(compressionQuality: 0.9))
+
+        let savedUser = try await repository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(data)
+        )
+        let fileName = try #require(savedUser.avatarPhotoFileName)
+        UserAvatarRuntimeStore.remove(fileName: fileName)
+
+        let relaunchedRepository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
+        _ = await relaunchedRepository.mergedUser(user)
+
+        #expect(UserAvatarRuntimeStore.image(for: fileName) != nil)
+        #else
+        Issue.record("UIKit unavailable for avatar runtime cache warmup test")
+        #endif
+    }
+
+    @Test @MainActor
+    func localUserProfileRepositoryKeepsAvatarWhenPayloadExistsButFileRepairFails() async throws {
+        #if canImport(UIKit)
+        let persistence = PersistenceController(inMemory: true)
+        let failingStore = FailingRepairAvatarMediaStore()
+        let repository = LocalUserProfileRepository(
+            container: persistence.container,
+            avatarMediaStore: failingStore
+        )
+        let user = makeAvatarTestUser()
+        let fileName = failingStore.canonicalFileName(for: user.id)
+        let data = try #require(makeAvatarTestImage(fillColor: .systemTeal).jpegData(compressionQuality: 0.9))
+        let context = ModelContext(persistence.container)
+
+        UserAvatarRuntimeStore.remove(fileName: fileName)
+        context.insert(
+            PersistentUserProfile(
+                userID: user.id,
+                displayName: user.displayName,
+                avatarSystemName: nil,
+                avatarPhotoFileName: fileName,
+                avatarPhotoData: data,
+                taskReminderEnabled: user.preferences.taskReminderEnabled,
+                dailySummaryEnabled: user.preferences.dailySummaryEnabled,
+                calendarReminderEnabled: user.preferences.calendarReminderEnabled,
+                futureCollaborationInviteEnabled: user.preferences.futureCollaborationInviteEnabled,
+                taskUrgencyWindowMinutes: user.preferences.taskUrgencyWindowMinutes,
+                defaultSnoozeMinutes: user.preferences.defaultSnoozeMinutes,
+                quickTimePresetMinutes: user.preferences.quickTimePresetMinutes,
+                completedTaskAutoArchiveEnabled: user.preferences.completedTaskAutoArchiveEnabled,
+                completedTaskAutoArchiveDays: user.preferences.completedTaskAutoArchiveDays,
+                updatedAt: user.updatedAt
+            )
+        )
+        try context.save()
+
+        let restoredUser = try #require(await repository.mergedUser(user))
+
+        #expect(restoredUser.avatarPhotoFileName == fileName)
+        #expect(UserAvatarRuntimeStore.image(for: fileName) != nil)
+        #else
+        Issue.record("UIKit unavailable for avatar payload fallback test")
+        #endif
+    }
+
+    @Test
+    func localUserProfileRepositoryRecoversAvatarFromCanonicalFileWhenProfileRecordIsMissing() async throws {
+        #if canImport(UIKit)
+        let firstStoreURL = makeAvatarTestStoreURL(testName: "AvatarRecoverFromFileWrite")
+        let secondStoreURL = makeAvatarTestStoreURL(testName: "AvatarRecoverFromFileRead")
+        let savingRepository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: firstStoreURL))
+        let recoveringRepository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: secondStoreURL))
+        let user = makeAvatarTestUser()
+        let data = try #require(makeAvatarTestImage(fillColor: .systemGreen).jpegData(compressionQuality: 0.9))
+
+        let savedUser = try await savingRepository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(data)
+        )
+        let fileName = try #require(savedUser.avatarPhotoFileName)
+        let recoveredUser = try #require(await recoveringRepository.mergedUser(user))
+        let verificationContext = ModelContext(try makeUserProfileContainer(storeURL: secondStoreURL))
+        let userID = user.id
+        let descriptor = FetchDescriptor<PersistentUserProfile>(
+            predicate: #Predicate { $0.userID == userID }
+        )
+        let repairedRecord = try #require(try verificationContext.fetch(descriptor).first)
+
+        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #expect(recoveredUser.avatarPhotoFileName == fileName)
+        #expect(repairedRecord.avatarPhotoFileName == fileName)
+        #else
+        Issue.record("UIKit unavailable for avatar recovery test")
+        #endif
+    }
+
+    @Test
+    func localUserProfileRepositoryReplacesExistingCanonicalAvatarFile() async throws {
+        #if canImport(UIKit)
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalUserProfileRepository(container: persistence.container)
+        let user = makeAvatarTestUser()
+        let firstData = try #require(makeAvatarTestImage(fillColor: .systemPink).jpegData(compressionQuality: 0.9))
+        let secondData = try #require(makeAvatarTestImage(fillColor: .systemBlue).jpegData(compressionQuality: 0.9))
+
+        let firstSave = try await repository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(firstData)
+        )
+        let secondSave = try await repository.saveProfile(
+            for: firstSave,
+            displayName: firstSave.displayName,
+            avatarUpdate: .replacePhoto(secondData)
+        )
+
+        let fileName = try #require(secondSave.avatarPhotoFileName)
+        let fileURL = UserAvatarStorage.fileURL(fileName: fileName)
+        let savedData = try Data(contentsOf: fileURL)
+
+        #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        #expect(savedData == secondData)
+        #else
+        Issue.record("UIKit unavailable for avatar replace test")
+        #endif
+    }
+
+    @Test
+    func localUserProfileRepositoryRepairsLegacyAvatarPayloadAndClearsBlob() async throws {
+        #if canImport(UIKit)
+        let storeURL = makeAvatarTestStoreURL(testName: "AvatarLegacyRepair")
+        let container = try makeUserProfileContainer(storeURL: storeURL)
+        let repository = LocalUserProfileRepository(container: container)
+        let user = makeAvatarTestUser()
+        let legacyFileName = "\(user.id.uuidString.lowercased())-avatar-legacy.jpg"
+        let data = try #require(makeAvatarTestImage(fillColor: .systemTeal).jpegData(compressionQuality: 0.9))
+
+        let context = ModelContext(container)
+        let record = PersistentUserProfile(user: user)
+        record.avatarPhotoFileName = legacyFileName
+        record.avatarPhotoData = data
+        context.insert(record)
+        try context.save()
+
+        let restoredUser = try #require(await repository.mergedUser(user))
+        let repairedFileName = try #require(restoredUser.avatarPhotoFileName)
+        let verificationContext = ModelContext(container)
+        let userID = user.id
+        let descriptor = FetchDescriptor<PersistentUserProfile>(
+            predicate: #Predicate { $0.userID == userID }
+        )
+        let repairedRecord = try #require(try verificationContext.fetch(descriptor).first)
+
+        #expect(repairedFileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        #expect(repairedRecord.avatarPhotoFileName == repairedFileName)
+        #expect(repairedRecord.avatarPhotoData == data)
+        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: repairedFileName).path()))
+        #else
+        Issue.record("UIKit unavailable for avatar legacy repair test")
+        #endif
+    }
+
     @Test @MainActor
     func homeViewModelSuppressesImminentUrgencyWhenTaskReminderIsDisabled() async throws {
         let sessionStore = SessionStore()
@@ -1323,6 +1606,95 @@ struct TogetherTests {
         #expect(NotificationSettings.normalizedSnoozeMinutes(3) == 5)
         #expect(NotificationSettings.normalizedSnoozeMinutes(33) == 35)
         #expect(NotificationSettings.normalizedSnoozeMinutes(188) == 180)
+    }
+
+    @Test
+    func stagedReminderContextEnablesReminderAfterTimeSelection() {
+        let calendar = Calendar.current
+        let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30)) ?? .now
+        let selectedTime = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30, hour: 18, minute: 45)) ?? .now
+        let context = TaskEditorStagedReminderContext(
+            selectedDate: selectedDate,
+            selectedTime: selectedTime,
+            reminderOffset: 1_800
+        )
+
+        #expect(context.isReminderMenuDisabled == false)
+        #expect(calendar.component(.hour, from: context.reminderTargetDate) == 18)
+        #expect(calendar.component(.minute, from: context.reminderTargetDate) == 45)
+        #expect(calendar.component(.hour, from: context.remindAt ?? .distantPast) == 18)
+        #expect(calendar.component(.minute, from: context.remindAt ?? .distantPast) == 15)
+    }
+
+    @Test
+    func stagedReminderContextDisablesReminderWithoutExplicitTime() {
+        let calendar = Calendar.current
+        let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30)) ?? .now
+        let context = TaskEditorStagedReminderContext(
+            selectedDate: selectedDate,
+            selectedTime: nil,
+            reminderOffset: 1_800
+        )
+
+        #expect(context.isReminderMenuDisabled)
+        #expect(calendar.component(.hour, from: context.reminderTargetDate) == 9)
+        #expect(calendar.component(.minute, from: context.reminderTargetDate) == 0)
+        #expect(calendar.component(.hour, from: context.remindAt ?? .distantPast) == 8)
+        #expect(calendar.component(.minute, from: context.remindAt ?? .distantPast) == 30)
+    }
+
+    @Test
+    func stagedReminderContextRecomputesReminderFromLatestStagedTime() {
+        let calendar = Calendar.current
+        let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30)) ?? .now
+        let originalTime = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30, hour: 9, minute: 0)) ?? .now
+        let updatedTime = calendar.date(from: DateComponents(year: 2026, month: 3, day: 30, hour: 14, minute: 20)) ?? .now
+
+        let originalContext = TaskEditorStagedReminderContext(
+            selectedDate: selectedDate,
+            selectedTime: originalTime,
+            reminderOffset: 900
+        )
+        let updatedContext = TaskEditorStagedReminderContext(
+            selectedDate: selectedDate,
+            selectedTime: updatedTime,
+            reminderOffset: 900
+        )
+
+        #expect(calendar.component(.hour, from: originalContext.remindAt ?? .distantPast) == 8)
+        #expect(calendar.component(.minute, from: originalContext.remindAt ?? .distantPast) == 45)
+        #expect(calendar.component(.hour, from: updatedContext.remindAt ?? .distantPast) == 14)
+        #expect(calendar.component(.minute, from: updatedContext.remindAt ?? .distantPast) == 5)
+    }
+}
+
+private struct FailingRepairAvatarMediaStore: UserAvatarMediaStoreProtocol {
+    let baseStore = LocalUserAvatarMediaStore()
+
+    nonisolated func canonicalFileName(for userID: UUID) -> String {
+        baseStore.canonicalFileName(for: userID)
+    }
+
+    nonisolated func avatarData(named fileName: String) throws -> Data {
+        try baseStore.avatarData(named: fileName)
+    }
+
+    nonisolated func persistAvatarData(_ data: Data, fileName: String) throws {
+        struct SimulatedWriteFailure: LocalizedError {
+            var errorDescription: String? { "simulated avatar repair failure" }
+        }
+
+        throw SimulatedWriteFailure()
+    }
+
+    nonisolated func migrateAvatarIfNeeded(from sourceFileName: String, to destinationFileName: String) throws {}
+
+    nonisolated func removeAvatar(named fileName: String) throws {
+        try baseStore.removeAvatar(named: fileName)
+    }
+
+    nonisolated func fileExists(named fileName: String) -> Bool {
+        false
     }
 }
 
@@ -1713,4 +2085,46 @@ actor TestRemoteSyncApplier: RemoteSyncApplierProtocol {
         appliedTasks.append(contentsOf: payload.tasks)
         return payload.tasks.count
     }
+}
+
+#if canImport(UIKit)
+private func makeAvatarTestUser(id: UUID = UUID()) -> User {
+    var user = MockDataFactory.makeCurrentUser()
+    user = User(
+        id: id,
+        appleUserID: user.appleUserID,
+        displayName: user.displayName,
+        avatarSystemName: user.avatarSystemName,
+        avatarPhotoFileName: nil,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        preferences: user.preferences
+    )
+    return user
+}
+
+private func makeAvatarTestImage(fillColor: UIColor) -> UIImage {
+    let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+    return renderer.image { context in
+        fillColor.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+    }
+}
+#endif
+
+private func makeAvatarTestStoreURL(testName: String) -> URL {
+    let fileName = "\(testName)-\(UUID().uuidString).store"
+    return FileManager.default.temporaryDirectory
+        .appending(path: "TogetherAvatarTests", directoryHint: .isDirectory)
+        .appending(path: fileName)
+}
+
+private func makeUserProfileContainer(storeURL: URL) throws -> ModelContainer {
+    try FileManager.default.createDirectory(
+        at: storeURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+
+    let configuration = ModelConfiguration("AvatarTestStore", url: storeURL)
+    return try ModelContainer(for: PersistentUserProfile.self, configurations: configuration)
 }

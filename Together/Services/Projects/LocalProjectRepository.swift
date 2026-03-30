@@ -68,6 +68,25 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return archivedProject
     }
 
+    func deleteProject(projectID: UUID) async throws {
+        let context = ModelContext(container)
+        guard let record = try fetchRecord(projectID: projectID, context: context) else {
+            throw RepositoryError.notFound
+        }
+
+        let subtaskDescriptor = FetchDescriptor<PersistentProjectSubtask>(
+            predicate: #Predicate<PersistentProjectSubtask> { $0.projectID == projectID }
+        )
+        let subtaskRecords = try context.fetch(subtaskDescriptor)
+        for subtaskRecord in subtaskRecords {
+            context.delete(subtaskRecord)
+        }
+        context.delete(record)
+        try context.save()
+
+        await reminderScheduler.removeProjectReminder(for: projectID)
+    }
+
     func setProjectCompleted(projectID: UUID, isCompleted: Bool) async throws -> Project {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {

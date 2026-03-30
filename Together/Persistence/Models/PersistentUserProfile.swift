@@ -7,6 +7,8 @@ final class PersistentUserProfile {
     var displayName: String
     var avatarSystemName: String?
     var avatarPhotoFileName: String?
+    // Authoritative avatar payload. Disk files are treated as a rebuildable runtime cache.
+    @Attribute(.externalStorage) var avatarPhotoData: Data?
     var taskReminderEnabled: Bool
     var dailySummaryEnabled: Bool
     var calendarReminderEnabled: Bool
@@ -23,6 +25,7 @@ final class PersistentUserProfile {
         displayName: String,
         avatarSystemName: String?,
         avatarPhotoFileName: String?,
+        avatarPhotoData: Data?,
         taskReminderEnabled: Bool,
         dailySummaryEnabled: Bool,
         calendarReminderEnabled: Bool,
@@ -38,6 +41,7 @@ final class PersistentUserProfile {
         self.displayName = displayName
         self.avatarSystemName = avatarSystemName
         self.avatarPhotoFileName = avatarPhotoFileName
+        self.avatarPhotoData = avatarPhotoData
         self.taskReminderEnabled = taskReminderEnabled
         self.dailySummaryEnabled = dailySummaryEnabled
         self.calendarReminderEnabled = calendarReminderEnabled
@@ -58,6 +62,7 @@ extension PersistentUserProfile {
             displayName: user.displayName,
             avatarSystemName: user.avatarSystemName,
             avatarPhotoFileName: user.avatarPhotoFileName,
+            avatarPhotoData: nil,
             taskReminderEnabled: user.preferences.taskReminderEnabled,
             dailySummaryEnabled: user.preferences.dailySummaryEnabled,
             calendarReminderEnabled: user.preferences.calendarReminderEnabled,

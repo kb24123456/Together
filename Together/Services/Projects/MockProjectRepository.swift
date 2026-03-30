@@ -43,6 +43,15 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         return projects[index]
     }
 
+    func deleteProject(projectID: UUID) async throws {
+        guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
+            throw RepositoryError.notFound
+        }
+
+        projects.remove(at: index)
+        await reminderScheduler.removeProjectReminder(for: projectID)
+    }
+
     func setProjectCompleted(projectID: UUID, isCompleted: Bool) async throws -> Project {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound

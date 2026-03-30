@@ -606,12 +606,12 @@ struct ComposerPlaceholderSheet: View {
         do {
             switch draftState.category {
             case .periodic, .task:
-                _ = try await appContext.container.taskApplicationService.createTask(
+                let item = try await appContext.container.taskApplicationService.createTask(
                     in: spaceID,
                     actorID: actorID,
                     draft: draftState.taskDraft()
                 )
-                await appContext.homeViewModel.reload()
+                await appContext.homeViewModel.reload(insertedItemIDs: [item.id])
             case .project:
                 let project = try await appContext.container.projectRepository.saveProject(
                     draftState.projectDraft(spaceID: spaceID)
@@ -1745,7 +1745,7 @@ private struct ComposerEditorMenuSheet: View {
         TaskEditorUnifiedMenuSheet(
             context: context,
             activeMenu: $activeMenu,
-            disabledMenus: disabledMenus,
+            disabledMenus: stagedDisabledMenus,
             selectionFeedback: ComposerButtonHaptics.selection,
             headerTitle: context == .template ? "选择模板" : nil,
             switcherPlacement: .bottom,
@@ -1848,6 +1848,19 @@ private struct ComposerEditorMenuSheet: View {
         }
 
         onDismiss()
+    }
+
+    private var stagedReminderContext: TaskEditorStagedReminderContext {
+        TaskEditorStagedReminderContext(
+            selectedDate: stagedSelectedDate,
+            selectedTime: stagedSelectedTime,
+            reminderOffset: stagedReminderOffset
+        )
+    }
+
+    private var stagedDisabledMenus: Set<TaskEditorMenu> {
+        guard context == .task || context == .periodic else { return disabledMenus }
+        return stagedReminderContext.isReminderMenuDisabled ? [.reminder] : []
     }
 
     private var stagedDateBinding: Binding<Date> {

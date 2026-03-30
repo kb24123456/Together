@@ -214,6 +214,41 @@ enum TaskEditorChipTextTransitionDirection {
     case down
 }
 
+struct TaskEditorStagedReminderContext: Equatable {
+    let selectedDate: Date
+    let selectedTime: Date?
+    let reminderOffset: TimeInterval?
+
+    var hasExplicitTime: Bool {
+        selectedTime != nil
+    }
+
+    var isReminderMenuDisabled: Bool {
+        selectedTime == nil
+    }
+
+    var reminderTargetDate: Date {
+        let calendar = Calendar.current
+        guard let selectedTime else {
+            return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        }
+
+        let dayComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: selectedTime)
+        return calendar.date(from: DateComponents(
+            year: dayComponents.year,
+            month: dayComponents.month,
+            day: dayComponents.day,
+            hour: timeComponents.hour,
+            minute: timeComponents.minute
+        )) ?? selectedDate
+    }
+
+    var remindAt: Date? {
+        reminderOffset.map { reminderTargetDate.addingTimeInterval(-$0) }
+    }
+}
+
 struct TaskEditorChipRow: View {
     let chips: [TaskEditorRenderedChip]
     let namespace: Namespace.ID
@@ -1195,6 +1230,10 @@ struct TaskEditorTimePickerSheet: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(maxWidth: .infinity, alignment: .top)
+        .onChange(of: stagedTime) { oldValue, newValue in
+            guard showsPrimaryButton == false, oldValue != newValue else { return }
+            selectedTime = newValue
+        }
     }
 
     private static func roundedTimeSeed(for date: Date) -> Date? {

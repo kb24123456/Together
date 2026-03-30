@@ -1263,7 +1263,7 @@ private struct HomeDetailMenuSheet: View {
         TaskEditorUnifiedMenuSheet(
             context: context,
             activeMenu: $activeMenu,
-            disabledMenus: disabledMenus,
+            disabledMenus: stagedDisabledMenus,
             selectionFeedback: HomeInteractionFeedback.selection,
             switcherPlacement: .bottom,
             onClose: onDismiss,
@@ -1389,12 +1389,11 @@ private struct HomeDetailMenuSheet: View {
         }
 
         if didEditReminder {
-            if let offset = stagedReminderOffset {
+            if let remindAt = stagedReminderContext.remindAt {
                 if viewModel.detailDraft?.dueAt == nil, didEditDate == false, didEditTime == false {
                     ensureDueDateExists()
                 }
-                let reminderTarget = reminderTargetDate()
-                viewModel.updateDraftReminder(reminderTarget.addingTimeInterval(-offset))
+                viewModel.updateDraftReminder(remindAt)
             } else {
                 viewModel.setDraftReminderEnabled(false)
             }
@@ -1414,27 +1413,22 @@ private struct HomeDetailMenuSheet: View {
         onDismiss()
     }
 
+    private var stagedReminderContext: TaskEditorStagedReminderContext {
+        TaskEditorStagedReminderContext(
+            selectedDate: stagedDate,
+            selectedTime: stagedTime,
+            reminderOffset: stagedReminderOffset
+        )
+    }
+
+    private var stagedDisabledMenus: Set<TaskEditorMenu> {
+        guard context == .task || context == .periodic else { return disabledMenus }
+        return stagedReminderContext.isReminderMenuDisabled ? [.reminder] : []
+    }
+
     private func ensureDueDateExists() {
         guard viewModel.detailDraft?.dueAt == nil else { return }
         viewModel.setDraftDueDateEnabled(true)
-    }
-
-    private func reminderTargetDate() -> Date {
-        let dueAt = stagedTime.map { merge(date: stagedDate, timeSource: $0) } ?? stagedDate
-        if stagedTime != nil {
-            return dueAt
-        }
-        return Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
-    }
-
-    private func merge(date: Date, timeSource: Date) -> Date {
-        let calendar = Calendar.current
-        return calendar.date(
-            bySettingHour: calendar.component(.hour, from: timeSource),
-            minute: calendar.component(.minute, from: timeSource),
-            second: 0,
-            of: date
-        ) ?? date
     }
 
     private static func reminderOffset(for draft: TaskDraft?, fallbackDate: Date) -> TimeInterval? {

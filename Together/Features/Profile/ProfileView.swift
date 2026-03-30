@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ProfileView: View {
+    @Environment(AppContext.self) private var appContext
     @Bindable var viewModel: ProfileViewModel
     @State private var topChromeProgress: CGFloat = 0
     @Namespace private var profileTransition
@@ -18,7 +19,7 @@ struct ProfileView: View {
                             primaryAvatar: viewModel.profileCardPrimaryAvatar,
                             secondaryAvatarState: viewModel.profileCardSecondaryAvatarState
                         )
-                        .id(viewModel.currentUserRevision)
+                        .id(appContext.sessionStore.userProfileRevision)
                         .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
                     }
                     .buttonStyle(.plain)

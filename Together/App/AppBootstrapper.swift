@@ -27,7 +27,7 @@ final class AppBootstrapper {
         StartupTrace.mark("AppBootstrapper.bootstrap.afterYield")
 
         let appContext = AppContext.makeBootstrappedContext()
-        await appContext.restorePersistedUserProfile()
+        await appContext.restorePersistedUserProfileIfNeeded()
         self.appContext = appContext
         phase = .ready
         StartupTrace.mark("AppBootstrapper.bootstrap.ready")

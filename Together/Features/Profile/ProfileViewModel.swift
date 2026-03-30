@@ -88,7 +88,8 @@ final class ProfileViewModel {
     var profileCardPrimaryAvatar: ProfileCardAvatar {
         ProfileCardAvatar(
             displayName: currentUserDisplayName,
-            avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill")
+            avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
+            overrideImage: nil
         )
     }
 
@@ -100,7 +101,8 @@ final class ProfileViewModel {
         return .user(
             ProfileCardAvatar(
                 displayName: partnerName,
-                avatarAsset: .system("person.crop.circle.fill")
+                avatarAsset: .system("person.crop.circle.fill"),
+                overrideImage: nil
             )
         )
     }
