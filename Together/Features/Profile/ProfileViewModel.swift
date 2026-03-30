@@ -107,10 +107,11 @@ final class ProfileViewModel {
         )
     }
 
-    func makeEditProfileViewModel() -> EditProfileViewModel {
+    func makeEditProfileViewModel(user: User?) -> EditProfileViewModel {
         EditProfileViewModel(
             sessionStore: sessionStore,
-            userProfileRepository: userProfileRepository
+            userProfileRepository: userProfileRepository,
+            user: user
         )
     }
 

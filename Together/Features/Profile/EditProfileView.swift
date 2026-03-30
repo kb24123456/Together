@@ -604,9 +604,12 @@ private struct CameraCaptureView: UIViewControllerRepresentable {
 #endif
 
 #Preview("Edit Profile") {
+    let context = AppContext.makeBootstrappedContext()
     NavigationStack {
         EditProfileView(
-            viewModel: AppContext.makeBootstrappedContext().profileViewModel.makeEditProfileViewModel()
+            viewModel: context.profileViewModel.makeEditProfileViewModel(
+                user: context.sessionStore.currentUser
+            )
         )
     }
 }

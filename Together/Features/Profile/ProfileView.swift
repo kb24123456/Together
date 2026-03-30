@@ -7,6 +7,8 @@ struct ProfileView: View {
     @Namespace private var profileTransition
 
     var body: some View {
+        let currentUser = appContext.sessionStore.currentUser
+
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
@@ -14,9 +16,13 @@ struct ProfileView: View {
 
                     NavigationLink(value: ProfileRoute.editProfile) {
                         ProfileUserCard(
-                            primaryName: viewModel.profileCardPrimaryName,
+                            primaryName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
                             secondaryName: viewModel.profileCardSecondaryName,
-                            primaryAvatar: viewModel.profileCardPrimaryAvatar,
+                            primaryAvatar: ProfileCardAvatar(
+                                displayName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
+                                avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
+                                overrideImage: nil
+                            ),
                             secondaryAvatarState: viewModel.profileCardSecondaryAvatarState
                         )
                         .id(appContext.sessionStore.userProfileRevision)
@@ -47,7 +53,10 @@ struct ProfileView: View {
         .navigationDestination(for: ProfileRoute.self) { route in
             switch route {
             case .editProfile:
-                EditProfileView(viewModel: viewModel.makeEditProfileViewModel())
+                EditProfileView(
+                    viewModel: viewModel.makeEditProfileViewModel(user: appContext.sessionStore.currentUser)
+                )
+                    .id(appContext.sessionStore.userProfileRevision)
                     .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel())

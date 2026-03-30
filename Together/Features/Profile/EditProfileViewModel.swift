@@ -39,18 +39,19 @@ final class EditProfileViewModel {
 
     init(
         sessionStore: SessionStore,
-        userProfileRepository: UserProfileRepositoryProtocol
+        userProfileRepository: UserProfileRepositoryProtocol,
+        user: User? = nil
     ) {
         self.sessionStore = sessionStore
         self.userProfileRepository = userProfileRepository
-        let user = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
-        self.originalUser = user
-        self.displayName = user.displayName
+        let resolvedUser = user ?? sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
+        self.originalUser = resolvedUser
+        self.displayName = resolvedUser.displayName
 
-        if let avatarPhotoFileName = user.avatarPhotoFileName {
+        if let avatarPhotoFileName = resolvedUser.avatarPhotoFileName {
             self.avatarDraftState = .existingPhoto(avatarPhotoFileName)
         } else {
-            self.avatarDraftState = .existingSystem(user.avatarSystemName ?? "person.crop.circle.fill")
+            self.avatarDraftState = .existingSystem(resolvedUser.avatarSystemName ?? "person.crop.circle.fill")
         }
     }
 
