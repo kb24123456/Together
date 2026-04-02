@@ -27,6 +27,10 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let notes: String?
     let timeText: String
     let statusText: String
+    let assigneeText: String?
+    let messagePreview: String?
+    let responseStateText: String?
+    let needsResponse: Bool
     let accentColorName: String
     let isMuted: Bool
     let isCompleted: Bool
@@ -136,6 +140,10 @@ final class HomeViewModel {
 
     var currentUserRevision: UUID {
         sessionStore.userProfileRevision
+    }
+
+    var currentUserID: UUID? {
+        sessionStore.currentUser?.id
     }
 
     var headerDateText: String {
@@ -286,8 +294,32 @@ final class HomeViewModel {
         calendar.isDate(selectedDate, inSameDayAs: .now)
     }
 
+    var isPairModeActive: Bool {
+        sessionStore.activeMode == .pair
+    }
+
+    var hasPairModeAvailable: Bool {
+        sessionStore.availableModeStates.contains(.pair)
+    }
+
+    var partnerDisplayName: String? {
+        sessionStore.pairSpaceSummary?.partner?.displayName
+    }
+
+    var spaceDisplayName: String {
+        sessionStore.currentSpace?.displayName ?? (isPairModeActive ? "双人模式" : "我的任务空间")
+    }
+
+    var pairBannerText: String? {
+        guard isPairModeActive else { return nil }
+        if let partnerDisplayName {
+            return "和 \(partnerDisplayName) 的共享任务空间"
+        }
+        return "进入双人模式后共享任务会显示在这里"
+    }
+
     var headerAvatars: [HomeAvatar] {
-        if showsPairAvatarPreview {
+        if hasPairModeAvailable {
             return [currentUserAvatar, pairPreviewAvatar]
         }
 
@@ -305,7 +337,7 @@ final class HomeViewModel {
     }
 
     var pairPreviewAvatar: HomeAvatar {
-        let pairPreviewUser = MockDataFactory.makePartnerUser()
+        let pairPreviewUser = sessionStore.pairSpaceSummary?.partner ?? MockDataFactory.makePartnerUser()
         return HomeAvatar(
             id: pairPreviewUser.id,
             displayName: pairPreviewUser.displayName,
@@ -337,7 +369,47 @@ final class HomeViewModel {
     }
 
     func toggleAvatarPreview() {
-        showsPairAvatarPreview.toggle()
+        guard hasPairModeAvailable else { return }
+        sessionStore.switchMode(to: isPairModeActive ? .single : .pair)
+        showsPairAvatarPreview = sessionStore.activeMode == .pair
+        Task {
+            await reload()
+        }
+    }
+
+    func updateDraftAssigneeMode(_ assigneeMode: TaskAssigneeMode) {
+        detailDraft?.assigneeMode = assigneeMode
+        detailDraft?.executionRole = assigneeMode.legacyExecutionRole
+        detailDraft?.assignmentState = assigneeMode == .partner ? .pendingResponse : .active
+        detailDraft?.status = detailDraft?.assignmentState.legacyStatus ?? .inProgress
+        scheduleDetailSave(immediately: true)
+    }
+
+    func updateDraftAssignmentNote(_ note: String) {
+        detailDraft?.assignmentNote = note
+        scheduleDetailSave()
+    }
+
+    func respondToSelectedItem(response: ItemResponseKind, message: String?) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id,
+            let selectedItemID
+        else { return }
+
+        do {
+            let saved = try await taskApplicationService.respondToTask(
+                in: spaceID,
+                taskID: selectedItemID,
+                actorID: actorID,
+                response: response,
+                message: message
+            )
+            let refreshedDraft = TaskDraft(item: saved)
+            detailDraft = refreshedDraft
+            savedDetailDraft = refreshedDraft
+            replaceItem(saved)
+        } catch {}
     }
 
     func toggleCalendarDisplayMode() {
@@ -1156,6 +1228,13 @@ final class HomeViewModel {
             notes: item.notes,
             timeText: timeText(for: item),
             statusText: statusText(for: item, isCompleted: isCompleted),
+            assigneeText: item.executionRole.label(
+                for: sessionStore.currentUser?.id ?? item.creatorID,
+                creatorID: item.creatorID
+            ),
+            messagePreview: item.assignmentMessages.last?.body,
+            responseStateText: responseStateText(for: item),
+            needsResponse: item.requiresResponse && item.canActorRespond(sessionStore.currentUser?.id ?? item.creatorID),
             accentColorName: accentColorName(for: item),
             isMuted: isCompleted,
             isCompleted: isCompleted,
@@ -1212,6 +1291,24 @@ final class HomeViewModel {
             return 2
         case .normal:
             return 1
+        }
+    }
+
+    private func responseStateText(for item: Item) -> String? {
+        guard isPairModeActive else { return nil }
+        switch item.assignmentState {
+        case .pendingResponse:
+            return item.canActorRespond(sessionStore.currentUser?.id ?? item.creatorID) ? "待我回应" : "等待对方回应"
+        case .accepted:
+            return "已接受"
+        case .snoozed:
+            return "已推迟"
+        case .declined:
+            return "已拒绝"
+        case .active:
+            return item.assigneeMode == .both ? "一起处理中" : "进行中"
+        case .completed:
+            return "已完成"
         }
     }
 

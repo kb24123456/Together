@@ -15,6 +15,7 @@ struct PairMember: Hashable, Sendable {
 
 struct PairSpace: Identifiable, Hashable, Sendable {
     let id: UUID
+    var sharedSpaceID: UUID
     var status: PairSpaceStatus
     var memberA: PairMember
     var memberB: PairMember?

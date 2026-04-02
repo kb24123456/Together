@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentSyncChange {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var entityKindRawValue: String
     var operationRawValue: String
     var recordID: UUID

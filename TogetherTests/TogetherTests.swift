@@ -48,11 +48,13 @@ struct TogetherTests {
         #expect(next == .noConsensusYet)
     }
 
-    @Test func mockSpaceServiceProvidesSingleSpaceContext() async throws {
+    @Test @MainActor
+    func mockSpaceServiceProvidesSingleSpaceContext() async throws {
         let context = await MockSpaceService().currentSpaceContext(for: MockDataFactory.currentUserID)
 
-        #expect(context.currentSpace?.type == .single)
-        #expect(context.availableSpaces.count == 1)
+        #expect(context.singleSpace?.type == .single)
+        #expect(context.availableSpaces.count == 2)
+        #expect(context.pairSpaceSummary?.sharedSpace.id == MockDataFactory.pairSharedSpaceID)
     }
 
     @Test @MainActor
@@ -61,12 +63,14 @@ struct TogetherTests {
 
         await sessionStore.bootstrap(
             authService: MockAuthService(),
-            spaceService: MockSpaceService()
+            spaceService: MockSpaceService(),
+            pairingService: MockRelationshipService()
         )
 
         #expect(sessionStore.authState == .signedIn)
         #expect(sessionStore.currentSpace?.id == MockDataFactory.singleSpaceID)
-        #expect(sessionStore.bindingState == .singleTrial)
+        #expect(sessionStore.bindingState == .paired)
+        #expect(sessionStore.availableModeStates == [.single, .pair])
     }
 
     @Test @MainActor
@@ -87,7 +91,7 @@ struct TogetherTests {
         #expect(projects.contains { $0.status == .completed })
     }
 
-    @Test
+    @Test @MainActor
     func localRepositoriesSeedSingleSpaceTodoData() async throws {
         let persistence = PersistenceController(inMemory: true)
         let spaceService = LocalSpaceService(container: persistence.container)
@@ -102,9 +106,11 @@ struct TogetherTests {
         let items = try await itemRepository.fetchItems(spaceID: MockDataFactory.singleSpaceID)
         let lists = try await listRepository.fetchTaskLists(spaceID: MockDataFactory.singleSpaceID)
         let projects = try await projectRepository.fetchProjects(spaceID: MockDataFactory.singleSpaceID)
-        let expectedActiveItemCount = MockDataFactory.makeItems().filter { $0.isArchived == false }.count
+        let expectedActiveItemCount = MockDataFactory.makeItems().filter {
+            $0.isArchived == false && $0.spaceID == MockDataFactory.singleSpaceID
+        }.count
 
-        #expect(spaceContext.currentSpace?.id == MockDataFactory.singleSpaceID)
+        #expect(spaceContext.singleSpace?.id == MockDataFactory.singleSpaceID)
         #expect(items.count == expectedActiveItemCount)
         #expect(lists.contains { $0.id == MockDataFactory.todayListID && $0.taskCount == 3 })
         #expect(projects.contains { $0.id == MockDataFactory.focusProjectID && $0.taskCount == 3 })
@@ -114,21 +120,45 @@ struct TogetherTests {
     func localItemRepositoryPersistsStatusTransitions() async throws {
         let persistence = PersistenceController(inMemory: true)
         let repository = LocalItemRepository(container: persistence.container)
-        let targetID = UUID(uuidString: "66666666-6666-6666-6666-666666666664")!
+        let targetID = UUID(uuidString: "77777777-7777-7777-7777-777777777772")!
 
         let afterResponse = try await repository.updateItemStatus(
             itemID: targetID,
-            response: .acknowledged,
-            actorID: MockDataFactory.currentUserID
+            response: .willing,
+            message: "今晚我来处理",
+            actorID: MockDataFactory.partnerUserID
         )
         let afterCompletion = try await repository.markCompleted(
             itemID: targetID,
-            actorID: MockDataFactory.currentUserID
+            actorID: MockDataFactory.partnerUserID
         )
 
         #expect(afterResponse.status == .inProgress)
+        #expect(afterResponse.assignmentState == .accepted)
+        #expect(afterResponse.latestResponse?.message == "今晚我来处理")
         #expect(afterCompletion.status == .completed)
         #expect(afterCompletion.completedAt != nil)
+    }
+
+    @Test
+    func localItemRepositoryRejectsUnauthorizedPairResponse() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalItemRepository(container: persistence.container)
+        let targetID = UUID(uuidString: "77777777-7777-7777-7777-777777777772")!
+
+        do {
+            _ = try await repository.updateItemStatus(
+                itemID: targetID,
+                response: .willing,
+                message: "我自己先接了",
+                actorID: MockDataFactory.currentUserID
+            )
+            Issue.record("Expected unauthorized pair response to fail.")
+        } catch RepositoryError.notFound {
+            #expect(Bool(true))
+        } catch {
+            Issue.record("Expected RepositoryError.notFound, got: \(error)")
+        }
     }
 
     @Test
@@ -923,7 +953,8 @@ struct TogetherTests {
     func homeViewModelAllowsBackToBackCompletionAcrossDifferentItems() async throws {
         let sessionStore = SessionStore()
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .single
 
         let taskService = TestHomeTaskApplicationService()
         let itemRepository = TestItemRepository()
@@ -1001,7 +1032,8 @@ struct TogetherTests {
     func homeViewModelIgnoresDuplicateCompletionWhileSameOccurrenceIsInFlight() async throws {
         let sessionStore = SessionStore()
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .single
 
         let taskService = TestHomeTaskApplicationService()
         let itemRepository = TestItemRepository()
@@ -1327,7 +1359,11 @@ struct TogetherTests {
 
         #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
         #expect(restoredUser.avatarPhotoFileName == fileName)
-        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+            )
+        )
         #else
         Issue.record("UIKit unavailable for avatar persistence test")
         #endif
@@ -1352,7 +1388,11 @@ struct TogetherTests {
 
         #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
         #expect(restoredUser.avatarPhotoFileName == fileName)
-        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+            )
+        )
         #else
         Issue.record("UIKit unavailable for avatar relaunch persistence test")
         #endif
@@ -1386,7 +1426,11 @@ struct TogetherTests {
         #expect(restoredUser.avatarPhotoFileName == fileName)
         #expect(repairedRecord.avatarPhotoFileName == fileName)
         #expect(repairedRecord.avatarPhotoData == data)
-        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+            )
+        )
         #else
         Issue.record("UIKit unavailable for avatar rebuild test")
         #endif
@@ -1514,7 +1558,11 @@ struct TogetherTests {
         )
         let repairedRecord = try #require(try verificationContext.fetch(descriptor).first)
 
-        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path()))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+            )
+        )
         #expect(recoveredUser.avatarPhotoFileName == fileName)
         #expect(repairedRecord.avatarPhotoFileName == fileName)
         #else
@@ -1582,7 +1630,11 @@ struct TogetherTests {
         #expect(repairedFileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
         #expect(repairedRecord.avatarPhotoFileName == repairedFileName)
         #expect(repairedRecord.avatarPhotoData == data)
-        #expect(FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: repairedFileName).path()))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: UserAvatarStorage.fileURL(fileName: repairedFileName).path(percentEncoded: false)
+            )
+        )
         #else
         Issue.record("UIKit unavailable for avatar legacy repair test")
         #endif
@@ -1595,7 +1647,8 @@ struct TogetherTests {
         user.preferences.taskReminderEnabled = false
         user.preferences.taskUrgencyWindowMinutes = 30
         sessionStore.currentUser = user
-        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .single
 
         let viewModel = HomeViewModel(
             sessionStore: sessionStore,
@@ -1639,7 +1692,8 @@ struct TogetherTests {
     func homeViewModelDoesNotShowOverdueCapsuleForPastSelectedDate() async throws {
         let sessionStore = SessionStore()
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .single
 
         let viewModel = HomeViewModel(
             sessionStore: sessionStore,
@@ -1736,7 +1790,8 @@ struct TogetherTests {
     func homeViewModelKeepsTodayOverdueItemsInSummaryInsteadOfMainTimeline() async throws {
         let sessionStore = SessionStore()
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .single
 
         let viewModel = HomeViewModel(
             sessionStore: sessionStore,
@@ -1810,7 +1865,8 @@ struct TogetherTests {
     func homeViewModelAnimatesHistoricalCompletionForOneOffOverdueTask() async throws {
         let sessionStore = SessionStore()
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .single
 
         let taskService = TestHistoricalOneOffCompletionTaskService()
         let viewModel = HomeViewModel(
@@ -2111,7 +2167,7 @@ actor TestItemRepository: ItemRepositoryProtocol {
         return hydratedItem(item).isCompleted(on: referenceDate, calendar: calendar)
     }
 
-    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, actorID: UUID) async throws -> Item {
+    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, message: String?, actorID: UUID) async throws -> Item {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else {
             throw RepositoryError.notFound
         }
@@ -2121,7 +2177,7 @@ actor TestItemRepository: ItemRepositoryProtocol {
             let responseRecord = ItemResponse(
                 responderID: actorID,
                 kind: response,
-                message: nil,
+                message: message,
                 respondedAt: .now
             )
             item.latestResponse = responseRecord
@@ -2131,6 +2187,12 @@ actor TestItemRepository: ItemRepositoryProtocol {
                 executionRole: item.executionRole,
                 response: response
             )
+            item.assignmentState = ItemStateMachine.nextAssignmentState(
+                from: item.assignmentState,
+                response: response
+            )
+            item.lastActionByUserID = actorID
+            item.lastActionAt = .now
         }
         item.updatedAt = .now
         items[index] = item
@@ -2149,11 +2211,17 @@ actor TestItemRepository: ItemRepositoryProtocol {
                 executionRole: item.executionRole,
                 isCompletion: true
             )
+            item.assignmentState = ItemStateMachine.nextAssignmentState(
+                from: item.assignmentState,
+                isCompletion: true
+            )
             item.completedAt = Date.now
         } else {
             upsertOccurrenceCompletion(itemID: itemID, referenceDate: referenceDate, completedAt: Date.now)
             item.completedAt = nil
         }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = .now
@@ -2172,10 +2240,13 @@ actor TestItemRepository: ItemRepositoryProtocol {
             if item.status == .completed {
                 item.status = .inProgress
             }
+            item.assignmentState = .active
         } else {
             deleteOccurrenceCompletion(itemID: itemID, referenceDate: referenceDate)
             item.completedAt = nil
         }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = .now
@@ -2298,7 +2369,13 @@ actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
 
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item { throw RepositoryError.notFound }
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {}
-    func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item { throw RepositoryError.notFound }
+    func respondToTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        response: ItemResponseKind,
+        message: String?
+    ) async throws -> Item { throw RepositoryError.notFound }
 
     func completedTaskIDs() -> [UUID] {
         completed
@@ -2366,7 +2443,13 @@ actor TestHistoricalOneOffCompletionTaskService: TaskApplicationServiceProtocol 
 
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item { throw RepositoryError.notFound }
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {}
-    func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item { throw RepositoryError.notFound }
+    func respondToTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        response: ItemResponseKind,
+        message: String?
+    ) async throws -> Item { throw RepositoryError.notFound }
 }
 
 enum TestCloudSyncGatewayError: Error {

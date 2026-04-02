@@ -15,6 +15,32 @@ struct CalendarView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+                if viewModel.isPairModeActive {
+                    CardSection(title: "当前是共享日历视图", subtitle: viewModel.spaceSummary) {
+                        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(CalendarPairTaskFilter.allCases, id: \.self) { filter in
+                                        Button(filter.title) {
+                                            viewModel.setPairTaskFilter(filter)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(
+                                            viewModel.pairTaskFilter == filter
+                                            ? AppTheme.colors.coral
+                                            : AppTheme.colors.surfaceElevated
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text("筛选双人空间里的我负责、对方负责、一起以及待我回应任务。")
+                                .font(AppTheme.typography.textStyle(.body, weight: .medium))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.74))
+                        }
+                    }
+                }
+
                 CardSection(
                     title: viewModel.isMonthMode ? "月视图骨架" : "周视图骨架",
                     subtitle: "先把焦点日期和任务映射跑通，再补完整日历栅格与切换动效"

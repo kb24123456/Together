@@ -124,7 +124,9 @@ private struct AvatarPhotoView: View {
 
         await Task.yield()
 
-        guard let image = UIImage(contentsOfFile: UserAvatarStorage.fileURL(fileName: fileName).path()) else {
+        guard let image = UIImage(
+            contentsOfFile: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+        ) else {
             loadedImage = nil
             return
         }

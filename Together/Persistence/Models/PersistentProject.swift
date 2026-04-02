@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentProject {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var spaceID: UUID
     var name: String
     var notes: String?

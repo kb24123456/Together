@@ -304,10 +304,16 @@ struct HomeItemDetailSheet: View {
     }
 
     private var compactMetaSection: some View {
-        Text(currentStateText)
-            .font(AppTheme.typography.sized(15, weight: .semibold))
-            .foregroundStyle(statusTextColor)
-            .padding(.top, 38)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(currentStateText)
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+                .foregroundStyle(statusTextColor)
+
+            if viewModel.isPairModeActive {
+                detailAssignmentSection
+            }
+        }
+        .padding(.top, 38)
     }
 
     private var compactChipSection: some View {
@@ -551,8 +557,97 @@ struct HomeItemDetailSheet: View {
                 placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.74)),
                 maximumNumberOfLines: 8
             )
+
+            if viewModel.isPairModeActive {
+                detailAssignmentSection
+                    .padding(.top, 10)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var detailAssignmentSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("归属与回应")
+                .font(AppTheme.typography.sized(14, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
+            Picker(
+                "归属与回应",
+                selection: Binding(
+                    get: { viewModel.detailDraft?.assigneeMode ?? .self },
+                    set: { viewModel.updateDraftAssigneeMode($0) }
+                )
+            ) {
+                Text("自己").tag(TaskAssigneeMode.`self`)
+                Text("对方").tag(TaskAssigneeMode.partner)
+                Text("一起").tag(TaskAssigneeMode.both)
+            }
+            .pickerStyle(.segmented)
+
+            if viewModel.detailDraft?.assigneeMode == .partner {
+                TextField(
+                    "补一句说明或留言",
+                    text: Binding(
+                        get: { viewModel.detailDraft?.assignmentNote ?? "" },
+                        set: { viewModel.updateDraftAssignmentNote($0) }
+                    ),
+                    axis: .vertical
+                )
+                .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.82))
+                .lineLimit(1...3)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(AppTheme.colors.surfaceElevated)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
+                }
+            }
+
+            if selectedItemNeedsResponse {
+                HStack(spacing: 10) {
+                    responseActionButton(title: "接受", tint: AppTheme.colors.title) {
+                        Task { await viewModel.respondToSelectedItem(response: .willing, message: nil) }
+                    }
+                    responseActionButton(title: "推迟", tint: AppTheme.colors.body) {
+                        Task { await viewModel.respondToSelectedItem(response: .notAvailableNow, message: "稍后处理") }
+                    }
+                    responseActionButton(title: "拒绝", tint: AppTheme.colors.coral) {
+                        Task { await viewModel.respondToSelectedItem(response: .notSuitable, message: "这次不合适") }
+                    }
+                }
+            }
+        }
+    }
+
+    private var selectedItemNeedsResponse: Bool {
+        guard let item = viewModel.selectedItem else { return false }
+        guard let actorID = viewModel.currentUserID else { return false }
+        return item.requiresResponse && item.canActorRespond(actorID)
+    }
+
+    private func responseActionButton(title: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(AppTheme.typography.sized(14, weight: .bold))
+                .foregroundStyle(tint)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(AppTheme.colors.surfaceElevated)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
     }
 
     private func chipRow(action: @escaping (TaskEditorMenu) -> Void) -> some View {

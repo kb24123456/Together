@@ -243,7 +243,78 @@ struct ProfileView: View {
                 title: "双人模式",
                 value: viewModel.collaborationSummary
             )
+
+            Text(viewModel.collaborationDetailText)
+                .font(AppTheme.typography.sized(14, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+
+            Text(viewModel.activeModeSummary)
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.textTertiary)
+                .padding(.horizontal, 4)
+
+            collaborationActionRow
         }
+    }
+
+    @ViewBuilder
+    private var collaborationActionRow: some View {
+        switch viewModel.bindingState {
+        case .singleTrial, .unbound:
+            Button {
+                HomeInteractionFeedback.selection()
+                Task { await viewModel.createInvite() }
+            } label: {
+                collaborationButtonLabel(title: "发起双人邀请", tint: AppTheme.colors.title)
+            }
+            .buttonStyle(.plain)
+        case .invitePending:
+            collaborationButtonLabel(title: "等待对方接受邀请", tint: AppTheme.colors.body)
+        case .inviteReceived:
+            HStack(spacing: 10) {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    Task { await viewModel.acceptInvite() }
+                } label: {
+                    collaborationButtonLabel(title: "接受邀请", tint: AppTheme.colors.title)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    HomeInteractionFeedback.selection()
+                    Task { await viewModel.declineInvite() }
+                } label: {
+                    collaborationButtonLabel(title: "拒绝", tint: AppTheme.colors.coral)
+                }
+                .buttonStyle(.plain)
+            }
+        case .paired:
+            Button {
+                HomeInteractionFeedback.selection()
+                Task { await viewModel.unbindPairSpace() }
+            } label: {
+                collaborationButtonLabel(title: "解绑双人空间", tint: AppTheme.colors.coral)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func collaborationButtonLabel(title: String, tint: Color) -> some View {
+        Text(title)
+            .font(AppTheme.typography.sized(14, weight: .bold))
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(AppTheme.colors.surfaceElevated)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
+            }
     }
 
     private func expandableSelectionRow<Content: View>(

@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentItemOccurrenceCompletion {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var itemID: UUID
     var occurrenceDate: Date
     var completedAt: Date

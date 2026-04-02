@@ -37,7 +37,7 @@ enum ProfileCustomDurationKind: Hashable, Identifiable {
 final class ProfileViewModel {
     private let sessionStore: SessionStore
     private let authService: AuthServiceProtocol
-    private let relationshipService: RelationshipServiceProtocol
+    private let pairingService: PairingServiceProtocol
     private let userProfileRepository: UserProfileRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
@@ -54,7 +54,7 @@ final class ProfileViewModel {
     init(
         sessionStore: SessionStore,
         authService: AuthServiceProtocol,
-        relationshipService: RelationshipServiceProtocol,
+        pairingService: PairingServiceProtocol,
         userProfileRepository: UserProfileRepositoryProtocol,
         notificationService: NotificationServiceProtocol,
         itemRepository: ItemRepositoryProtocol,
@@ -65,7 +65,7 @@ final class ProfileViewModel {
     ) {
         self.sessionStore = sessionStore
         self.authService = authService
-        self.relationshipService = relationshipService
+        self.pairingService = pairingService
         self.userProfileRepository = userProfileRepository
         self.notificationService = notificationService
         self.itemRepository = itemRepository
@@ -144,7 +144,24 @@ final class ProfileViewModel {
     }
 
     var collaborationSummary: String {
-        bindingState.supportsSharedCollaboration ? bindingState.description : "后续开放"
+        bindingState.description
+    }
+
+    var collaborationDetailText: String {
+        switch bindingState {
+        case .paired:
+            return pairSpaceSummaryText
+        case .invitePending:
+            return activeInvite.map { "邀请码：\($0.inviteCode)" } ?? "邀请已发出"
+        case .inviteReceived:
+            return "收到邀请，等待你的处理"
+        case .singleTrial, .unbound:
+            return "创建共享任务空间后，你们会看到同一套双人任务数据"
+        }
+    }
+
+    var activeModeSummary: String {
+        sessionStore.activeMode == .pair ? "当前在双人模式" : "当前在单人模式"
     }
 
     var taskUrgencyWindowMinutes: Int {
@@ -206,7 +223,27 @@ final class ProfileViewModel {
 
     func createInvite() async {
         guard let inviterID = currentUser?.id else { return }
-        _ = try? await relationshipService.createInvite(from: inviterID)
+        guard let invite = try? await pairingService.createInvite(from: inviterID) else { return }
+        sessionStore.pairingContext.activeInvite = invite
+        sessionStore.pairingContext.state = .invitePending
+    }
+
+    func acceptInvite() async {
+        guard let inviteID = activeInvite?.id, let userID = currentUser?.id else { return }
+        guard let pairingContext = try? await pairingService.acceptInvite(inviteID: inviteID, responderID: userID) else { return }
+        apply(pairingContext: pairingContext)
+    }
+
+    func declineInvite() async {
+        guard let inviteID = activeInvite?.id, let userID = currentUser?.id else { return }
+        guard let pairingContext = try? await pairingService.declineInvite(inviteID: inviteID, responderID: userID) else { return }
+        apply(pairingContext: pairingContext)
+    }
+
+    func unbindPairSpace() async {
+        guard let pairSpaceID = pairSpace?.id, let userID = currentUser?.id else { return }
+        guard let pairingContext = try? await pairingService.unbind(pairSpaceID: pairSpaceID, actorID: userID) else { return }
+        apply(pairingContext: pairingContext)
     }
 
     func updateTaskUrgencyWindow(minutes: Int) {
@@ -282,11 +319,12 @@ final class ProfileViewModel {
     func signOut() async {
         await authService.signOut()
         sessionStore.authState = .signedOut
-        sessionStore.bindingState = .singleTrial
         sessionStore.currentUser = nil
-        sessionStore.currentSpace = nil
-        sessionStore.availableSpaces = []
-        sessionStore.currentPairSpace = nil
+        sessionStore.singleSpace = nil
+        sessionStore.pairSpaceSummary = nil
+        sessionStore.availableModeStates = [.single]
+        sessionStore.pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+        sessionStore.activeMode = .single
     }
 
     func taskUrgencyLabel(minutes: Int) -> String {
@@ -327,5 +365,21 @@ final class ProfileViewModel {
             return nil
         }
         return nickname.isEmpty ? nil : nickname
+    }
+
+    private var pairSpaceSummaryText: String {
+        if let linkedPartnerDisplayName {
+            return "已与 \(linkedPartnerDisplayName) 共享"
+        }
+        return "双人空间已开启"
+    }
+
+    private func apply(pairingContext: PairingContext) {
+        sessionStore.pairingContext = pairingContext
+        sessionStore.pairSpaceSummary = pairingContext.pairSpaceSummary
+        sessionStore.availableModeStates = pairingContext.pairSpaceSummary == nil ? [.single, .pair] : [.single, .pair]
+        if pairingContext.pairSpaceSummary == nil, sessionStore.activeMode == .pair {
+            sessionStore.activeMode = .single
+        }
     }
 }

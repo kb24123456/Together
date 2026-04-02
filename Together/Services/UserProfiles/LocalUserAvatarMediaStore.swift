@@ -23,14 +23,14 @@ struct LocalUserAvatarMediaStore: UserAvatarMediaStoreProtocol {
 
         let sourceURL = UserAvatarStorage.fileURL(fileName: sourceFileName)
         let destinationURL = UserAvatarStorage.fileURL(fileName: destinationFileName)
-        guard FileManager.default.fileExists(atPath: sourceURL.path()) else { return }
+        guard FileManager.default.fileExists(atPath: sourceURL.path(percentEncoded: false)) else { return }
 
         try FileManager.default.createDirectory(
             at: destinationURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
 
-        if FileManager.default.fileExists(atPath: destinationURL.path()) {
+        if FileManager.default.fileExists(atPath: destinationURL.path(percentEncoded: false)) {
             try FileManager.default.removeItem(at: destinationURL)
         }
 
@@ -39,12 +39,14 @@ struct LocalUserAvatarMediaStore: UserAvatarMediaStoreProtocol {
 
     nonisolated func removeAvatar(named fileName: String) throws {
         let fileURL = UserAvatarStorage.fileURL(fileName: fileName)
-        guard FileManager.default.fileExists(atPath: fileURL.path()) else { return }
+        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return }
         try FileManager.default.removeItem(at: fileURL)
     }
 
     nonisolated func fileExists(named fileName: String) -> Bool {
-        FileManager.default.fileExists(atPath: UserAvatarStorage.fileURL(fileName: fileName).path())
+        FileManager.default.fileExists(
+            atPath: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+        )
     }
 }
 

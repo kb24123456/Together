@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentSpace {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var typeRawValue: String
     var displayName: String
     var ownerUserID: UUID

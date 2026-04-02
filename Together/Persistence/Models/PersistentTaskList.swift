@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentTaskList {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var spaceID: UUID
     var name: String
     var kindRawValue: String

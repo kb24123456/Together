@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentTaskTemplate {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var spaceID: UUID?
     var title: String
     var notes: String?

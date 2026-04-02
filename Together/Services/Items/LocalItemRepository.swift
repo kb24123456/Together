@@ -106,7 +106,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return item.isCompleted(on: referenceDate, calendar: calendar)
     }
 
-    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, actorID: UUID) async throws -> Item {
+    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, message: String?, actorID: UUID) async throws -> Item {
         let context = ModelContext(container)
         guard let record = try fetchRecord(itemID: itemID, context: context) else {
             throw RepositoryError.notFound
@@ -114,14 +114,27 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
         var item = record.domainModel()
         if let response {
+            guard item.canActorRespond(actorID) else {
+                throw RepositoryError.notFound
+            }
+            let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
             let responseRecord = ItemResponse(
                 responderID: actorID,
                 kind: response,
-                message: nil,
+                message: trimmedMessage,
                 respondedAt: .now
             )
             item.latestResponse = responseRecord
             item.responseHistory.append(responseRecord)
+            if let trimmedMessage, trimmedMessage.isEmpty == false {
+                item.assignmentMessages.append(
+                    TaskAssignmentMessage(authorID: actorID, body: trimmedMessage, createdAt: .now)
+                )
+            }
+            item.assignmentState = ItemStateMachine.nextAssignmentState(
+                from: item.assignmentState,
+                response: response
+            )
             item.status = ItemStateMachine.nextStatus(
                 from: item.status,
                 executionRole: item.executionRole,
@@ -129,6 +142,8 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             )
         }
 
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
         item.updatedAt = .now
         record.update(from: item)
         try context.save()
@@ -143,6 +158,10 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
         var item = record.domainModel()
         if item.repeatRule == nil {
+            guard item.canActorComplete(actorID) || item.assigneeMode == .both else {
+                throw RepositoryError.notFound
+            }
+            item.assignmentState = .completed
             item.status = ItemStateMachine.nextStatus(
                 from: item.status,
                 executionRole: item.executionRole,
@@ -158,6 +177,8 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             )
             item.completedAt = nil
         }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = .now
@@ -175,6 +196,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         var item = record.domainModel()
         if item.repeatRule == nil {
             item.completedAt = nil
+            item.assignmentState = .active
             if item.status == .completed {
                 item.status = .inProgress
             }
@@ -182,6 +204,8 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             try deleteOccurrenceCompletion(itemID: itemID, referenceDate: referenceDate, context: context)
             item.completedAt = nil
         }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = .now

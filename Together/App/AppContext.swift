@@ -45,7 +45,7 @@ final class AppContext {
         self.profileViewModel = ProfileViewModel(
             sessionStore: sessionStore,
             authService: container.authService,
-            relationshipService: container.relationshipService,
+            pairingService: container.pairingService,
             userProfileRepository: container.userProfileRepository,
             notificationService: container.notificationService,
             itemRepository: container.itemRepository,
@@ -74,7 +74,8 @@ final class AppContext {
 
         await sessionStore.bootstrap(
             authService: container.authService,
-            spaceService: container.spaceService
+            spaceService: container.spaceService,
+            pairingService: container.pairingService
         )
         await restorePersistedUserProfileIfNeeded()
         hasBootstrapped = true
@@ -168,11 +169,15 @@ final class AppContext {
 
     private func seedMockSession() {
         sessionStore.authState = .signedIn
-        sessionStore.bindingState = .singleTrial
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
-        sessionStore.availableSpaces = [MockDataFactory.makeSingleSpace()]
-        sessionStore.currentPairSpace = nil
-        sessionStore.activeInvite = nil
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
+        sessionStore.availableModeStates = [.single, .pair]
+        sessionStore.pairingContext = PairingContext(
+            state: .paired,
+            pairSpaceSummary: MockDataFactory.makePairSpaceSummary(),
+            activeInvite: nil
+        )
+        sessionStore.activeMode = .single
     }
 }

@@ -7,7 +7,7 @@ struct AppContainer {
     let quickCaptureParser: QuickCaptureParserProtocol
     let syncCoordinator: SyncCoordinatorProtocol
     let syncOrchestrator: SyncOrchestratorProtocol
-    let relationshipService: RelationshipServiceProtocol
+    let pairingService: PairingServiceProtocol
     let userProfileRepository: UserProfileRepositoryProtocol
     let itemRepository: ItemRepositoryProtocol
     let taskTemplateRepository: TaskTemplateRepositoryProtocol

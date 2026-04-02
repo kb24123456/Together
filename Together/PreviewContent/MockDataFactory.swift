@@ -12,6 +12,7 @@ enum MockDataFactory {
     static let focusProjectID = UUID(uuidString: "99999999-9999-9999-9999-999999999994")!
     static let launchProjectID = UUID(uuidString: "99999999-9999-9999-9999-999999999995")!
     static let migrationProjectID = UUID(uuidString: "99999999-9999-9999-9999-999999999997")!
+    static let pairSharedSpaceID = UUID(uuidString: "99999999-9999-9999-9999-999999999998")!
 
     static let now = Date(timeIntervalSince1970: 1_773_000_000)
 
@@ -75,6 +76,7 @@ enum MockDataFactory {
     static func makePairSpace() -> PairSpace {
         PairSpace(
             id: pairSpaceID,
+            sharedSpaceID: pairSharedSpaceID,
             status: .active,
             memberA: PairMember(
                 userID: currentUserID,
@@ -90,6 +92,27 @@ enum MockDataFactory {
             createdAt: now.addingTimeInterval(-86_400 * 120),
             activatedAt: now.addingTimeInterval(-86_400 * 115),
             endedAt: nil
+        )
+    }
+
+    static func makePairSharedSpace() -> Space {
+        Space(
+            id: pairSharedSpaceID,
+            type: .pair,
+            displayName: "一起的任务空间",
+            ownerUserID: currentUserID,
+            status: .active,
+            createdAt: now.addingTimeInterval(-86_400 * 115),
+            updatedAt: now,
+            archivedAt: nil
+        )
+    }
+
+    static func makePairSpaceSummary() -> PairSpaceSummary {
+        PairSpaceSummary(
+            sharedSpace: makePairSharedSpace(),
+            pairSpace: makePairSpace(),
+            partner: makePartnerUser()
         )
     }
 
@@ -318,6 +341,120 @@ enum MockDataFactory {
                 isDraft: false,
                 isArchived: true,
                 archivedAt: dayStart.addingTimeInterval(-86_400 * 5)
+            ),
+            Item(
+                id: UUID(uuidString: "77777777-7777-7777-7777-777777777771")!,
+                spaceID: pairSharedSpaceID,
+                listID: todayListID,
+                projectID: nil,
+                creatorID: currentUserID,
+                title: "一起确认周末出行清单",
+                notes: "今晚一起把行李、证件和路线再过一遍。",
+                locationText: "双人空间",
+                executionRole: .both,
+                assigneeMode: .both,
+                priority: .important,
+                dueAt: dayStart.addingTimeInterval(3_600 * 19),
+                hasExplicitTime: true,
+                remindAt: dayStart.addingTimeInterval(3_600 * 18 + 1_800),
+                status: .inProgress,
+                assignmentState: .active,
+                latestResponse: nil,
+                responseHistory: [],
+                assignmentMessages: [
+                    TaskAssignmentMessage(
+                        authorID: currentUserID,
+                        body: "一起确认下别漏东西。",
+                        createdAt: dayStart.addingTimeInterval(3_600 * 11)
+                    )
+                ],
+                lastActionByUserID: currentUserID,
+                lastActionAt: dayStart.addingTimeInterval(3_600 * 11),
+                createdAt: dayStart.addingTimeInterval(-18_000),
+                updatedAt: dayStart.addingTimeInterval(3_600 * 11),
+                completedAt: nil,
+                isPinned: true,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(uuidString: "77777777-7777-7777-7777-777777777772")!,
+                spaceID: pairSharedSpaceID,
+                listID: planningListID,
+                projectID: nil,
+                creatorID: currentUserID,
+                title: "请 TA 订好明晚餐厅",
+                notes: "想找安静一点、步行可达的地方。",
+                locationText: "双人空间",
+                executionRole: .recipient,
+                assigneeMode: .partner,
+                priority: .normal,
+                dueAt: dayStart.addingTimeInterval(3_600 * 17),
+                hasExplicitTime: true,
+                remindAt: dayStart.addingTimeInterval(3_600 * 16 + 1_800),
+                status: .pendingConfirmation,
+                assignmentState: .pendingResponse,
+                latestResponse: nil,
+                responseHistory: [],
+                assignmentMessages: [
+                    TaskAssignmentMessage(
+                        authorID: currentUserID,
+                        body: "你来挑一家更适合聊天的店吧。",
+                        createdAt: dayStart.addingTimeInterval(3_600 * 9)
+                    )
+                ],
+                lastActionByUserID: currentUserID,
+                lastActionAt: dayStart.addingTimeInterval(3_600 * 9),
+                createdAt: dayStart.addingTimeInterval(-12_000),
+                updatedAt: dayStart.addingTimeInterval(3_600 * 9),
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(uuidString: "77777777-7777-7777-7777-777777777773")!,
+                spaceID: pairSharedSpaceID,
+                listID: planningListID,
+                projectID: nil,
+                creatorID: partnerUserID,
+                title: "我来补齐旅行药品包",
+                notes: "已经买好创可贴和常用药。",
+                locationText: "双人空间",
+                executionRole: .initiator,
+                assigneeMode: .self,
+                priority: .normal,
+                dueAt: dayStart.addingTimeInterval(3_600 * 20),
+                hasExplicitTime: true,
+                remindAt: dayStart.addingTimeInterval(3_600 * 19 + 1_800),
+                status: .inProgress,
+                assignmentState: .active,
+                latestResponse: ItemResponse(
+                    responderID: partnerUserID,
+                    kind: .acknowledged,
+                    message: "我今晚顺手搞定",
+                    respondedAt: dayStart.addingTimeInterval(3_600 * 10)
+                ),
+                responseHistory: [
+                    ItemResponse(
+                        responderID: partnerUserID,
+                        kind: .acknowledged,
+                        message: "我今晚顺手搞定",
+                        respondedAt: dayStart.addingTimeInterval(3_600 * 10)
+                    )
+                ],
+                assignmentMessages: [
+                    TaskAssignmentMessage(
+                        authorID: partnerUserID,
+                        body: "我今晚顺手搞定",
+                        createdAt: dayStart.addingTimeInterval(3_600 * 10)
+                    )
+                ],
+                lastActionByUserID: partnerUserID,
+                lastActionAt: dayStart.addingTimeInterval(3_600 * 10),
+                createdAt: dayStart.addingTimeInterval(-20_000),
+                updatedAt: dayStart.addingTimeInterval(3_600 * 10),
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
             )
         ]
     }

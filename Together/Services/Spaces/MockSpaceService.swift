@@ -3,9 +3,12 @@ import Foundation
 struct MockSpaceService: SpaceServiceProtocol {
     func currentSpaceContext(for userID: UUID?) async -> SpaceContext {
         let currentSpace = MockDataFactory.makeSingleSpace()
+        let pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
         return SpaceContext(
-            currentSpace: currentSpace,
-            availableSpaces: [currentSpace]
+            singleSpace: currentSpace,
+            pairSpaceSummary: pairSpaceSummary,
+            activeMode: .single,
+            availableModes: [.single, .pair]
         )
     }
 }

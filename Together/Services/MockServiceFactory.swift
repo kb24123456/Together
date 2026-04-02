@@ -30,7 +30,7 @@ enum MockServiceFactory {
             quickCaptureParser: quickCaptureParser,
             syncCoordinator: syncCoordinator,
             syncOrchestrator: syncOrchestrator,
-            relationshipService: MockRelationshipService(),
+            pairingService: MockRelationshipService(),
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
             taskTemplateRepository: taskTemplateRepository,

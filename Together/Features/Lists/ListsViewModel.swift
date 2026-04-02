@@ -23,6 +23,14 @@ final class ListsViewModel {
         taskLists.filter { $0.kind == .custom }
     }
 
+    var isPairModeActive: Bool {
+        sessionStore.activeMode == .pair
+    }
+
+    var spaceSummary: String {
+        sessionStore.currentSpace?.displayName ?? (isPairModeActive ? "双人空间" : "我的任务空间")
+    }
+
     func load() async {
         loadState = .loading
 

@@ -19,8 +19,10 @@ enum CloudKitTaskRecordCodec {
         record["notes"] = item.notes as CKRecordValue?
         record["locationText"] = item.locationText as CKRecordValue?
         record["executionRole"] = item.executionRole.rawValue as CKRecordValue
+        record["assigneeMode"] = item.assigneeMode.rawValue as CKRecordValue
         record["priority"] = item.priority.rawValue as CKRecordValue
         record["status"] = item.status.rawValue as CKRecordValue
+        record["assignmentState"] = item.assignmentState.rawValue as CKRecordValue
         record["dueAt"] = item.dueAt as CKRecordValue?
         record["hasExplicitTime"] = item.hasExplicitTime as CKRecordValue
         record["remindAt"] = item.remindAt as CKRecordValue?
@@ -34,6 +36,9 @@ enum CloudKitTaskRecordCodec {
         record["repeatRuleJSON"] = try encode(item.repeatRule) as CKRecordValue?
         record["latestResponseJSON"] = try encode(item.latestResponse) as CKRecordValue?
         record["responseHistoryJSON"] = try encode(item.responseHistory) as CKRecordValue
+        record["assignmentMessagesJSON"] = try encode(item.assignmentMessages) as CKRecordValue
+        record["lastActionByUserID"] = item.lastActionByUserID?.uuidString as CKRecordValue?
+        record["lastActionAt"] = item.lastActionAt as CKRecordValue?
         return record
     }
 
@@ -44,8 +49,10 @@ enum CloudKitTaskRecordCodec {
             let creatorID = UUID(uuidString: creatorIDRaw),
             let title = record["title"] as? String,
             let executionRoleRaw = record["executionRole"] as? String,
+            let assigneeModeRaw = (record["assigneeMode"] as? String) ?? ItemExecutionRole(rawValue: executionRoleRaw)?.assigneeMode.rawValue,
             let priorityRaw = record["priority"] as? String,
             let statusRaw = record["status"] as? String,
+            let assignmentStateRaw = (record["assignmentState"] as? String) ?? ItemStatus(rawValue: statusRaw)?.assignmentState.rawValue,
             let createdAt = record["createdAt"] as? Date,
             let updatedAt = record["updatedAt"] as? Date
         else {
@@ -53,6 +60,7 @@ enum CloudKitTaskRecordCodec {
         }
 
         let responseHistoryJSON = (record["responseHistoryJSON"] as? String) ?? "[]"
+        let assignmentMessagesJSON = (record["assignmentMessagesJSON"] as? String) ?? "[]"
 
         return Item(
             id: id,
@@ -64,13 +72,18 @@ enum CloudKitTaskRecordCodec {
             notes: record["notes"] as? String,
             locationText: record["locationText"] as? String,
             executionRole: ItemExecutionRole(rawValue: executionRoleRaw) ?? .initiator,
+            assigneeMode: TaskAssigneeMode(rawValue: assigneeModeRaw) ?? .self,
             priority: ItemPriority(rawValue: priorityRaw) ?? .normal,
             dueAt: record["dueAt"] as? Date,
             hasExplicitTime: record["hasExplicitTime"] as? Bool ?? false,
             remindAt: record["remindAt"] as? Date,
             status: ItemStatus(rawValue: statusRaw) ?? .pendingConfirmation,
+            assignmentState: TaskAssignmentState(rawValue: assignmentStateRaw) ?? .active,
             latestResponse: try decodeOptional((record["latestResponseJSON"] as? String), as: ItemResponse.self),
             responseHistory: try decode(responseHistoryJSON, as: [ItemResponse].self),
+            assignmentMessages: try decode(assignmentMessagesJSON, as: [TaskAssignmentMessage].self),
+            lastActionByUserID: UUID(uuidString: (record["lastActionByUserID"] as? String) ?? ""),
+            lastActionAt: record["lastActionAt"] as? Date,
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: record["completedAt"] as? Date,

@@ -1,5 +1,44 @@
 import Foundation
 
+enum TaskAssigneeMode: String, CaseIterable, Hashable, Sendable, Codable {
+    case `self`
+    case partner
+    case both
+
+    nonisolated var legacyExecutionRole: ItemExecutionRole {
+        switch self {
+        case .self:
+            return .initiator
+        case .partner:
+            return .recipient
+        case .both:
+            return .both
+        }
+    }
+}
+
+enum TaskAssignmentState: String, CaseIterable, Hashable, Sendable, Codable {
+    case pendingResponse
+    case accepted
+    case snoozed
+    case declined
+    case active
+    case completed
+
+    nonisolated var legacyStatus: ItemStatus {
+        switch self {
+        case .pendingResponse:
+            return .pendingConfirmation
+        case .accepted, .active:
+            return .inProgress
+        case .snoozed, .declined:
+            return .declinedOrBlocked
+        case .completed:
+            return .completed
+        }
+    }
+}
+
 enum ItemExecutionRole: String, Hashable, Sendable, Codable {
     case initiator
     case recipient
@@ -13,6 +52,19 @@ enum ItemExecutionRole: String, Hashable, Sendable, Codable {
             return viewerID == creatorID ? "对方负责" : "我负责"
         case .both:
             return "一起做"
+        }
+    }
+}
+
+extension ItemExecutionRole {
+    nonisolated var assigneeMode: TaskAssigneeMode {
+        switch self {
+        case .initiator:
+            return .self
+        case .recipient:
+            return .partner
+        case .both:
+            return .both
         }
     }
 }
@@ -70,6 +122,21 @@ enum ItemStatus: String, Hashable, Sendable, Codable {
             return "已完成"
         case .declinedOrBlocked:
             return "未同意/无法完成"
+        }
+    }
+}
+
+extension ItemStatus {
+    nonisolated var assignmentState: TaskAssignmentState {
+        switch self {
+        case .pendingConfirmation:
+            return .pendingResponse
+        case .inProgress:
+            return .active
+        case .completed:
+            return .completed
+        case .declinedOrBlocked:
+            return .declined
         }
     }
 }

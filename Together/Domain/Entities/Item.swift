@@ -47,6 +47,14 @@ struct ItemOccurrenceCompletion: Hashable, Sendable, Codable {
     var completedAt: Date
 }
 
+struct TaskAssignmentMessage: Hashable, Sendable, Codable {
+    let authorID: UUID
+    var body: String
+    var createdAt: Date
+}
+
+typealias TaskAssignmentResponse = ItemResponse
+
 struct Item: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     var spaceID: UUID?
@@ -57,13 +65,18 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     var notes: String?
     var locationText: String? = nil
     var executionRole: ItemExecutionRole
+    var assigneeMode: TaskAssigneeMode = .self
     var priority: ItemPriority
     var dueAt: Date?
     var hasExplicitTime: Bool = false
     var remindAt: Date?
     var status: ItemStatus
+    var assignmentState: TaskAssignmentState = .active
     var latestResponse: ItemResponse?
     var responseHistory: [ItemResponse]
+    var assignmentMessages: [TaskAssignmentMessage] = []
+    var lastActionByUserID: UUID?
+    var lastActionAt: Date?
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
@@ -73,4 +86,23 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     var isArchived: Bool = false
     var archivedAt: Date? = nil
     var repeatRule: ItemRepeatRule? = nil
+
+    nonisolated var requiresResponse: Bool {
+        assigneeMode == .partner && assignmentState == .pendingResponse
+    }
+
+    nonisolated func canActorRespond(_ actorID: UUID) -> Bool {
+        assigneeMode == .partner && creatorID != actorID
+    }
+
+    nonisolated func canActorComplete(_ actorID: UUID) -> Bool {
+        switch assigneeMode {
+        case .self:
+            return creatorID == actorID
+        case .partner:
+            return creatorID != actorID
+        case .both:
+            return true
+        }
+    }
 }

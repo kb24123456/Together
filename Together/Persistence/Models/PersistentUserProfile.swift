@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentUserProfile {
-    @Attribute(.unique) var userID: UUID
+    var userID: UUID
     var displayName: String
     var avatarSystemName: String?
     var avatarPhotoFileName: String?

@@ -39,7 +39,13 @@ protocol TaskApplicationServiceProtocol: Sendable {
     ) async throws -> Item
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws
-    func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item
+    func respondToTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        response: ItemResponseKind,
+        message: String?
+    ) async throws -> Item
 }
 
 extension TaskApplicationServiceProtocol {

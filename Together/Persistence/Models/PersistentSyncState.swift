@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentSyncState {
-    @Attribute(.unique) var spaceID: UUID
+    var spaceID: UUID
     var cursorToken: String?
     var cursorUpdatedAt: Date?
     var lastSyncedAt: Date?

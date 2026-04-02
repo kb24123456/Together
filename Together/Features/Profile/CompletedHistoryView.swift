@@ -168,9 +168,9 @@ struct CompletedHistoryView: View {
                 sessionStore: {
                     let store = SessionStore()
                     store.authState = .signedIn
-                    store.bindingState = .singleTrial
                     store.currentUser = MockDataFactory.makeCurrentUser()
-                    store.currentSpace = MockDataFactory.makeSingleSpace()
+                    store.singleSpace = MockDataFactory.makeSingleSpace()
+                    store.pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
                     return store
                 }(),
                 itemRepository: MockItemRepository(),

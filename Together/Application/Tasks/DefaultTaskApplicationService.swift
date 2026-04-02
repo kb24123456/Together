@@ -50,6 +50,14 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 
     func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
         let now = Date.now
+        let assignmentState = draft.assigneeMode == .partner
+            ? .pendingResponse
+            : ItemStateMachine.initialAssignmentState(for: draft.assigneeMode)
+        let assignmentMessages: [TaskAssignmentMessage] = draft.assignmentNote
+            .flatMap { note in
+                let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : [TaskAssignmentMessage(authorID: actorID, body: trimmed, createdAt: now)]
+            } ?? []
         let item = Item(
             id: UUID(),
             spaceID: spaceID,
@@ -59,14 +67,19 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: draft.notes,
             locationText: nil,
-            executionRole: draft.executionRole,
+            executionRole: draft.assigneeMode.legacyExecutionRole,
+            assigneeMode: draft.assigneeMode,
             priority: draft.priority,
             dueAt: draft.dueAt,
             hasExplicitTime: draft.hasExplicitTime,
             remindAt: draft.remindAt,
-            status: draft.status,
+            status: assignmentState.legacyStatus,
+            assignmentState: assignmentState,
             latestResponse: nil,
             responseHistory: [],
+            assignmentMessages: assignmentMessages,
+            lastActionByUserID: actorID,
+            lastActionAt: now,
             createdAt: now,
             updatedAt: now,
             completedAt: nil,
@@ -98,12 +111,21 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.dueAt = draft.dueAt
         item.remindAt = draft.remindAt
         item.priority = draft.priority
-        item.executionRole = draft.executionRole
-        item.status = draft.status
+        item.executionRole = draft.assigneeMode.legacyExecutionRole
+        item.assigneeMode = draft.assigneeMode
+        item.assignmentState = draft.assigneeMode == .partner && item.responseHistory.isEmpty
+            ? .pendingResponse
+            : draft.assignmentState
+        item.status = item.assignmentState.legacyStatus
         item.hasExplicitTime = draft.hasExplicitTime
         item.isPinned = draft.isPinned
         item.isDraft = draft.isDraft
         item.repeatRule = draft.repeatRule
+        if let note = draft.assignmentNote?.trimmingCharacters(in: .whitespacesAndNewlines), note.isEmpty == false {
+            item.assignmentMessages.append(TaskAssignmentMessage(authorID: actorID, body: note, createdAt: .now))
+        }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
         item.updatedAt = .now
 
         let saved = try await itemRepository.saveItem(item)
@@ -298,8 +320,19 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         await reminderScheduler.removeTaskReminder(for: taskID)
     }
 
-    func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item {
-        let item = try await itemRepository.updateItemStatus(itemID: taskID, response: response, actorID: actorID)
+    func respondToTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        response: ItemResponseKind,
+        message: String?
+    ) async throws -> Item {
+        let item = try await itemRepository.updateItemStatus(
+            itemID: taskID,
+            response: response,
+            message: message,
+            actorID: actorID
+        )
         await syncCoordinator.recordLocalChange(
             SyncChange(
                 entityKind: .task,

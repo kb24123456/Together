@@ -97,27 +97,42 @@ final class MockItemRepository: ItemRepositoryProtocol {
         return hydratedItem(item).isCompleted(on: referenceDate, calendar: calendar)
     }
 
-    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, actorID: UUID) async throws -> Item {
+    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, message: String?, actorID: UUID) async throws -> Item {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else {
             throw RepositoryError.notFound
         }
 
         var item = items[index]
         if let response {
+            guard item.canActorRespond(actorID) else {
+                throw RepositoryError.notFound
+            }
+            let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
             let record = ItemResponse(
                 responderID: actorID,
                 kind: response,
-                message: nil,
+                message: trimmedMessage,
                 respondedAt: MockDataFactory.now
             )
             item.latestResponse = record
             item.responseHistory.append(record)
+            if let trimmedMessage, trimmedMessage.isEmpty == false {
+                item.assignmentMessages.append(
+                    TaskAssignmentMessage(authorID: actorID, body: trimmedMessage, createdAt: MockDataFactory.now)
+                )
+            }
+            item.assignmentState = ItemStateMachine.nextAssignmentState(
+                from: item.assignmentState,
+                response: response
+            )
             item.status = ItemStateMachine.nextStatus(
                 from: item.status,
                 executionRole: item.executionRole,
                 response: response
             )
         }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = MockDataFactory.now
         item.updatedAt = MockDataFactory.now
         items[index] = item
         return hydratedItem(item)
@@ -130,6 +145,10 @@ final class MockItemRepository: ItemRepositoryProtocol {
 
         var item = items[index]
         if item.repeatRule == nil {
+            guard item.canActorComplete(actorID) || item.assigneeMode == .both else {
+                throw RepositoryError.notFound
+            }
+            item.assignmentState = .completed
             item.status = ItemStateMachine.nextStatus(
                 from: item.status,
                 executionRole: item.executionRole,
@@ -140,6 +159,8 @@ final class MockItemRepository: ItemRepositoryProtocol {
             upsertOccurrenceCompletion(itemID: itemID, referenceDate: referenceDate, completedAt: MockDataFactory.now)
             item.completedAt = nil
         }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = MockDataFactory.now
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = MockDataFactory.now
@@ -155,6 +176,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
         var item = items[index]
         if item.repeatRule == nil {
             item.completedAt = nil
+            item.assignmentState = .active
             if item.status == .completed {
                 item.status = .inProgress
             }
@@ -162,6 +184,8 @@ final class MockItemRepository: ItemRepositoryProtocol {
             deleteOccurrenceCompletion(itemID: itemID, referenceDate: referenceDate)
             item.completedAt = nil
         }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = MockDataFactory.now
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = MockDataFactory.now

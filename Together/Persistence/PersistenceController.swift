@@ -49,6 +49,9 @@ struct PersistenceController {
         return try ModelContainer(
             for: PersistentUserProfile.self,
             PersistentSpace.self,
+            PersistentPairSpace.self,
+            PersistentPairMembership.self,
+            PersistentInvite.self,
             PersistentTaskList.self,
             PersistentProject.self,
             PersistentProjectSubtask.self,
@@ -99,6 +102,24 @@ struct PersistenceController {
         guard spaceCount == 0 else { return }
 
         context.insert(PersistentSpace(space: MockDataFactory.makeSingleSpace()))
+        context.insert(PersistentSpace(space: MockDataFactory.makePairSharedSpace()))
+        context.insert(PersistentPairSpace(pairSpace: MockDataFactory.makePairSpace()))
+        context.insert(
+            PersistentPairMembership(
+                pairSpaceID: MockDataFactory.makePairSpace().id,
+                userID: MockDataFactory.currentUserID,
+                nickname: MockDataFactory.makeCurrentUser().displayName,
+                joinedAt: MockDataFactory.now.addingTimeInterval(-86_400 * 120)
+            )
+        )
+        context.insert(
+            PersistentPairMembership(
+                pairSpaceID: MockDataFactory.makePairSpace().id,
+                userID: MockDataFactory.partnerUserID,
+                nickname: MockDataFactory.makePartnerUser().displayName,
+                joinedAt: MockDataFactory.now.addingTimeInterval(-86_400 * 115)
+            )
+        )
 
         for list in MockDataFactory.makeTaskLists() {
             context.insert(PersistentTaskList(list: list))

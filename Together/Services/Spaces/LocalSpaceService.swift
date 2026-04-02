@@ -10,21 +10,66 @@ actor LocalSpaceService: SpaceServiceProtocol {
 
     func currentSpaceContext(for userID: UUID?) async -> SpaceContext {
         let context = ModelContext(container)
-        let descriptor = FetchDescriptor<PersistentSpace>(
-            sortBy: [SortDescriptor(\PersistentSpace.updatedAt, order: .reverse)]
-        )
+        let spaceRecords = (try? context.fetch(
+            FetchDescriptor<PersistentSpace>(
+                sortBy: [SortDescriptor(\PersistentSpace.updatedAt, order: .reverse)]
+            )
+        )) ?? []
+        let pairSpaceRecords = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+        let membershipRecords = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
 
-        let records = (try? context.fetch(descriptor)) ?? []
-        let availableSpaces = records
+        let singleSpace = spaceRecords
             .map(\.domainModel)
-            .filter { space in
-                if let userID {
-                    return space.ownerUserID == userID && space.status != .archived
-                }
-                return space.status != .archived
+            .first { space in
+                guard space.type == .single, space.status != .archived else { return false }
+                guard let userID else { return true }
+                return space.ownerUserID == userID
             }
 
-        let currentSpace = availableSpaces.first(where: { $0.status == .active }) ?? availableSpaces.first
-        return SpaceContext(currentSpace: currentSpace, availableSpaces: availableSpaces)
+        let pairSummary: PairSpaceSummary? = {
+            guard let userID else { return nil }
+            let pairSpaceIDs = Set(membershipRecords.filter { $0.userID == userID }.map(\.pairSpaceID))
+            guard
+                let pairRecord = pairSpaceRecords.first(where: { pairSpaceIDs.contains($0.id) && $0.endedAt == nil }),
+                let pairSpace = pairRecord.domainModel(
+                    memberships: membershipRecords.filter { $0.pairSpaceID == pairRecord.id }
+                ),
+                let sharedSpaceRecord = spaceRecords.first(where: { $0.id == pairRecord.sharedSpaceID })
+            else {
+                return nil
+            }
+
+            let partnerMembership = membershipRecords.first { $0.pairSpaceID == pairRecord.id && $0.userID != userID }
+            let partner = partnerMembership.map {
+                User(
+                    id: $0.userID,
+                    appleUserID: nil,
+                    displayName: $0.nickname,
+                    avatarSystemName: "person.crop.circle.fill",
+                    createdAt: $0.joinedAt,
+                    updatedAt: $0.joinedAt,
+                    preferences: NotificationSettings(
+                        taskReminderEnabled: true,
+                        dailySummaryEnabled: true,
+                        calendarReminderEnabled: true,
+                        futureCollaborationInviteEnabled: true
+                    )
+                )
+            }
+
+            return PairSpaceSummary(
+                sharedSpace: sharedSpaceRecord.domainModel,
+                pairSpace: pairSpace,
+                partner: partner
+            )
+        }()
+
+        let availableModes: [AppMode] = pairSummary == nil ? [.single] : [.single, .pair]
+        return SpaceContext(
+            singleSpace: singleSpace,
+            pairSpaceSummary: pairSummary,
+            activeMode: .single,
+            availableModes: availableModes
+        )
     }
 }

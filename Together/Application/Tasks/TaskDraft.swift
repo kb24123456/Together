@@ -10,7 +10,10 @@ struct TaskDraft: Hashable, Sendable {
     var remindAt: Date?
     var priority: ItemPriority
     var executionRole: ItemExecutionRole
+    var assigneeMode: TaskAssigneeMode
     var status: ItemStatus
+    var assignmentState: TaskAssignmentState
+    var assignmentNote: String?
     var isPinned: Bool
     var isDraft: Bool
     var repeatRule: ItemRepeatRule?
@@ -25,7 +28,10 @@ struct TaskDraft: Hashable, Sendable {
         remindAt: Date? = nil,
         priority: ItemPriority = .normal,
         executionRole: ItemExecutionRole = .initiator,
+        assigneeMode: TaskAssigneeMode = .self,
         status: ItemStatus = .inProgress,
+        assignmentState: TaskAssignmentState = .active,
+        assignmentNote: String? = nil,
         isPinned: Bool = false,
         isDraft: Bool = false,
         repeatRule: ItemRepeatRule? = nil
@@ -39,7 +45,10 @@ struct TaskDraft: Hashable, Sendable {
         self.remindAt = remindAt
         self.priority = priority
         self.executionRole = executionRole
+        self.assigneeMode = assigneeMode
         self.status = status
+        self.assignmentState = assignmentState
+        self.assignmentNote = assignmentNote
         self.isPinned = isPinned
         self.isDraft = isDraft
         self.repeatRule = repeatRule
@@ -58,7 +67,10 @@ extension TaskDraft {
             remindAt: item.remindAt,
             priority: item.priority,
             executionRole: item.executionRole,
+            assigneeMode: item.assigneeMode,
             status: item.status,
+            assignmentState: item.assignmentState,
+            assignmentNote: item.assignmentMessages.last?.body,
             isPinned: item.isPinned,
             isDraft: item.isDraft,
             repeatRule: item.repeatRule

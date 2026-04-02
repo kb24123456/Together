@@ -163,6 +163,11 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: isProjectModePresented ? 6 : 0) {
             headerTopRow(compact: isProjectModePresented)
 
+            if !isProjectModePresented {
+                spaceModeLine
+                    .padding(.top, 6)
+            }
+
             if isProjectModePresented {
                 projectModeHeaderMeta
             }
@@ -170,6 +175,38 @@ struct HomeView: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
         .animation(.spring(response: 0.34, dampingFraction: 0.82), value: viewModel.showsPairAvatarPreview)
+    }
+
+    private var spaceModeLine: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                    .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(
+                                viewModel.isPairModeActive
+                                ? AppTheme.colors.coral.opacity(0.12)
+                                : AppTheme.colors.surfaceElevated
+                            )
+                    )
+
+                Text(viewModel.spaceDisplayName)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(headerSecondaryColor)
+                    .lineLimit(1)
+            }
+
+            if let pairBannerText = viewModel.pairBannerText {
+                Text(pairBannerText)
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(headerSecondaryColor)
+                    .lineLimit(1)
+            }
+        }
     }
 
     private func headerTopRow(compact: Bool) -> some View {
@@ -807,7 +844,7 @@ struct HomeView: View {
         ZStack {
             if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                    Text("今天暂时没有非做不可的事")
+                    Text(viewModel.isPairModeActive ? "共享空间里暂时没有待办" : "今天暂时没有非做不可的事")
                         .font(AppTheme.typography.textStyle(.body, weight: .medium))
                         .foregroundStyle(AppTheme.colors.body.opacity(0.78))
                         .fixedSize(horizontal: false, vertical: true)
@@ -1455,6 +1492,32 @@ private struct HomeTimelineRow: View {
                             .minimumScaleFactor(titleMinimumScaleFactor)
                             .allowsTightening(true)
 
+                        if entry.assigneeText != nil || entry.needsResponse {
+                            HStack(spacing: 8) {
+                                if let assigneeText = entry.assigneeText {
+                                    Text(assigneeText)
+                                        .font(AppTheme.typography.sized(12, weight: .bold))
+                                        .foregroundStyle(entry.needsResponse ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.72))
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(
+                                                    entry.needsResponse
+                                                    ? AppTheme.colors.coral.opacity(0.12)
+                                                    : AppTheme.colors.surfaceElevated
+                                                )
+                                        )
+                                }
+
+                                if entry.needsResponse {
+                                    Text("待你回应")
+                                        .font(AppTheme.typography.sized(12, weight: .bold))
+                                        .foregroundStyle(AppTheme.colors.coral)
+                                }
+                            }
+                        }
+
                         Text(displaySubtitle)
                             .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
                             .foregroundStyle(subtitleColor)
@@ -1527,10 +1590,17 @@ private struct HomeTimelineRow: View {
     }
 
     private var displaySubtitle: String {
-        guard let notes = entry.notes, notes.isEmpty == false else {
-            return entry.statusText
+        if let messagePreview = entry.messagePreview?.trimmingCharacters(in: .whitespacesAndNewlines),
+           messagePreview.isEmpty == false {
+            return messagePreview
         }
-        return notes
+        if let notes = entry.notes, notes.isEmpty == false {
+            return notes
+        }
+        if let responseStateText = entry.responseStateText {
+            return responseStateText
+        }
+        return entry.statusText
     }
 
     private var subtitleColor: Color {
@@ -1785,6 +1855,10 @@ private struct HomeOverdueSummarySheet: View {
                     notes: entry.detailText,
                     timeText: entry.timeText,
                     statusText: "已逾期",
+                    assigneeText: nil,
+                    messagePreview: nil,
+                    responseStateText: nil,
+                    needsResponse: false,
                     accentColorName: "coral",
                     isMuted: false,
                     isCompleted: false,

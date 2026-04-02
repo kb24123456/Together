@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class PersistentItem {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var spaceID: UUID?
     var listID: UUID?
     var projectID: UUID?
@@ -12,13 +12,18 @@ final class PersistentItem {
     var notes: String?
     var locationText: String?
     var executionRoleRawValue: String
+    var assigneeModeRawValue: String
     var priorityRawValue: String
     var dueAt: Date?
     var hasExplicitTime: Bool
     var remindAt: Date?
     var statusRawValue: String
+    var assignmentStateRawValue: String
     var latestResponseData: Data?
     var responseHistoryData: Data
+    var assignmentMessagesData: Data
+    var lastActionByUserID: UUID?
+    var lastActionAt: Date?
     var createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
@@ -38,13 +43,18 @@ final class PersistentItem {
         notes: String?,
         locationText: String?,
         executionRoleRawValue: String,
+        assigneeModeRawValue: String,
         priorityRawValue: String,
         dueAt: Date?,
         hasExplicitTime: Bool,
         remindAt: Date?,
         statusRawValue: String,
+        assignmentStateRawValue: String,
         latestResponseData: Data?,
         responseHistoryData: Data,
+        assignmentMessagesData: Data,
+        lastActionByUserID: UUID?,
+        lastActionAt: Date?,
         createdAt: Date,
         updatedAt: Date,
         completedAt: Date?,
@@ -63,13 +73,18 @@ final class PersistentItem {
         self.notes = notes
         self.locationText = locationText
         self.executionRoleRawValue = executionRoleRawValue
+        self.assigneeModeRawValue = assigneeModeRawValue
         self.priorityRawValue = priorityRawValue
         self.dueAt = dueAt
         self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
         self.statusRawValue = statusRawValue
+        self.assignmentStateRawValue = assignmentStateRawValue
         self.latestResponseData = latestResponseData
         self.responseHistoryData = responseHistoryData
+        self.assignmentMessagesData = assignmentMessagesData
+        self.lastActionByUserID = lastActionByUserID
+        self.lastActionAt = lastActionAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt
@@ -93,13 +108,18 @@ extension PersistentItem {
             notes: item.notes,
             locationText: item.locationText,
             executionRoleRawValue: item.executionRole.rawValue,
+            assigneeModeRawValue: item.assigneeMode.rawValue,
             priorityRawValue: item.priority.rawValue,
             dueAt: item.dueAt,
             hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
             statusRawValue: item.status.rawValue,
+            assignmentStateRawValue: item.assignmentState.rawValue,
             latestResponseData: Self.encode(item.latestResponse),
             responseHistoryData: Self.encode(item.responseHistory),
+            assignmentMessagesData: Self.encode(item.assignmentMessages),
+            lastActionByUserID: item.lastActionByUserID,
+            lastActionAt: item.lastActionAt,
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
             completedAt: item.completedAt,
@@ -122,13 +142,19 @@ extension PersistentItem {
             notes: notes,
             locationText: locationText,
             executionRole: ItemExecutionRole(rawValue: executionRoleRawValue) ?? .initiator,
+            assigneeMode: TaskAssigneeMode(rawValue: assigneeModeRawValue) ?? .self,
             priority: ItemPriority(rawValue: priorityRawValue) ?? .normal,
             dueAt: dueAt,
             hasExplicitTime: hasExplicitTime,
             remindAt: remindAt,
             status: ItemStatus(rawValue: statusRawValue) ?? .pendingConfirmation,
+            assignmentState: TaskAssignmentState(rawValue: assignmentStateRawValue)
+                ?? (ItemStatus(rawValue: statusRawValue) ?? .pendingConfirmation).assignmentState,
             latestResponse: Self.decode(latestResponseData, defaultValue: nil),
             responseHistory: Self.decode(responseHistoryData, defaultValue: []),
+            assignmentMessages: Self.decode(assignmentMessagesData, defaultValue: []),
+            lastActionByUserID: lastActionByUserID,
+            lastActionAt: lastActionAt,
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: repeatRuleData == nil ? completedAt : nil,
@@ -149,13 +175,18 @@ extension PersistentItem {
         notes = item.notes
         locationText = item.locationText
         executionRoleRawValue = item.executionRole.rawValue
+        assigneeModeRawValue = item.assigneeMode.rawValue
         priorityRawValue = item.priority.rawValue
         dueAt = item.dueAt
         hasExplicitTime = item.hasExplicitTime
         remindAt = item.remindAt
         statusRawValue = item.status.rawValue
+        assignmentStateRawValue = item.assignmentState.rawValue
         latestResponseData = Self.encode(item.latestResponse)
         responseHistoryData = Self.encode(item.responseHistory)
+        assignmentMessagesData = Self.encode(item.assignmentMessages)
+        lastActionByUserID = item.lastActionByUserID
+        lastActionAt = item.lastActionAt
         updatedAt = item.updatedAt
         completedAt = item.repeatRule == nil ? item.completedAt : nil
         isPinned = item.isPinned

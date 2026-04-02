@@ -54,6 +54,7 @@ struct ComposerPlaceholderSheet: View {
                 ComposerPage(
                     category: draftState.category,
                     draftState: $draftState,
+                    isPairMode: appContext.sessionStore.activeMode == .pair,
                     focusedField: $focusedField,
                     focusCoordinator: focusCoordinator
                 )
@@ -682,6 +683,8 @@ private struct ComposerDraftState: Hashable {
     var notes = ""
     var linkedListID: UUID?
     var linkedProjectID: UUID?
+    var assigneeMode: TaskAssigneeMode = .self
+    var assignmentNote = ""
     var taskDate: Date
     var taskTime: Date?
     var periodicAnchorDate: Date
@@ -770,6 +773,11 @@ private struct ComposerDraftState: Hashable {
                 hasExplicitTime: periodicTime != nil,
                 remindAt: remindAt,
                 priority: priority,
+                assigneeMode: assigneeMode,
+                assignmentState: assigneeMode == .partner ? .pendingResponse : .active,
+                assignmentNote: assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines),
                 isPinned: isPinned,
                 repeatRule: repeatRule
             )
@@ -788,6 +796,11 @@ private struct ComposerDraftState: Hashable {
                 hasExplicitTime: taskTime != nil,
                 remindAt: remindAt,
                 priority: priority,
+                assigneeMode: assigneeMode,
+                assignmentState: assigneeMode == .partner ? .pendingResponse : .active,
+                assignmentNote: assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines),
                 isPinned: isPinned
             )
         case .project:
@@ -840,6 +853,8 @@ private struct ComposerDraftState: Hashable {
         linkedProjectID = template.projectID
         priority = template.priority
         isPinned = template.isPinned
+        assigneeMode = .self
+        assignmentNote = ""
         projectSubtasks = []
         projectSubtaskInput = ""
         projectTargetDate = nil
@@ -1031,6 +1046,7 @@ private struct ComposerTemplateRow: View {
 private struct ComposerPage: View {
     let category: ComposerCategory
     @Binding var draftState: ComposerDraftState
+    let isPairMode: Bool
     @Binding var focusedField: ComposerField?
     let focusCoordinator: ComposerTextInputFocusCoordinator
 
@@ -1060,9 +1076,46 @@ private struct ComposerPage: View {
                 maximumNumberOfLines: 8
             )
 
+            if isPairMode, category != .project {
+                composerAssignmentSection
+                    .padding(.top, 10)
+            }
+
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var composerAssignmentSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("归属给")
+                .font(AppTheme.typography.sized(14, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
+            Picker("归属给", selection: $draftState.assigneeMode) {
+                Text("自己").tag(TaskAssigneeMode.`self`)
+                Text("对方").tag(TaskAssigneeMode.partner)
+                Text("一起").tag(TaskAssigneeMode.both)
+            }
+            .pickerStyle(.segmented)
+
+            if draftState.assigneeMode == .partner {
+                TextField("补一句说明或留言", text: $draftState.assignmentNote, axis: .vertical)
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.82))
+                    .lineLimit(1...3)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(AppTheme.colors.surfaceElevated)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
+                    }
+            }
+        }
     }
 }
 

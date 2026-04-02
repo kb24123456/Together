@@ -17,7 +17,7 @@ protocol ItemRepositoryProtocol: Sendable {
     func fetchItem(itemID: UUID) async throws -> Item?
     func fetchOccurrenceCompletions(itemIDs: [UUID]) async throws -> [UUID: [ItemOccurrenceCompletion]]
     func isCompleted(itemID: UUID, on referenceDate: Date) async throws -> Bool
-    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, actorID: UUID) async throws -> Item
+    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, message: String?, actorID: UUID) async throws -> Item
     func markCompleted(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
     func markIncomplete(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
     func saveItem(_ item: Item) async throws -> Item
