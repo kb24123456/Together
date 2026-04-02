@@ -137,17 +137,17 @@ private struct AvatarPhotoView: View {
 
 #if canImport(UIKit)
 enum UserAvatarRuntimeStore {
-    private static let cache = NSCache<NSString, UIImage>()
+    nonisolated(unsafe) private static let cache = NSCache<NSString, UIImage>()
 
-    static func image(for fileName: String) -> UIImage? {
+    nonisolated static func image(for fileName: String) -> UIImage? {
         cache.object(forKey: fileName as NSString)
     }
 
-    static func store(_ image: UIImage, for fileName: String) {
+    nonisolated static func store(_ image: UIImage, for fileName: String) {
         cache.setObject(image, forKey: fileName as NSString)
     }
 
-    static func remove(fileName: String) {
+    nonisolated static func remove(fileName: String) {
         cache.removeObject(forKey: fileName as NSString)
     }
 }

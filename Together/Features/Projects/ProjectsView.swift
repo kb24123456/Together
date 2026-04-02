@@ -263,13 +263,6 @@ struct ProjectsListContent: View {
                         )
                         .padding(.top, index == 0 ? topInset : 0)
 
-                        if index < projects.count - 1 {
-                            ProjectDashedDivider()
-                                .stroke(separatorColor, style: StrokeStyle(lineWidth: 1.4, dash: [3, 8]))
-                                .frame(height: 1)
-                                .padding(.leading, 62)
-                                .padding(.trailing, horizontalInset)
-                        }
                     }
                 }
             }
@@ -327,10 +320,6 @@ struct ProjectsListContent: View {
 
     private var sectionSubtitleColor: Color {
         style == .layer ? AppTheme.colors.projectLayerSecondaryText : AppTheme.colors.body
-    }
-
-    private var separatorColor: Color {
-        style == .layer ? AppTheme.colors.projectLayerOutline.opacity(0.8) : AppTheme.colors.separator
     }
 
     private func toggleExpanded(_ projectID: UUID) {
@@ -1086,15 +1075,6 @@ private struct AnimatedProjectCheckmarkShape: Shape {
         path.move(to: CGPoint(x: rect.minX + rect.width * 0.16, y: rect.minY + rect.height * 0.56))
         path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.minY + rect.height * 0.80))
         path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.86, y: rect.minY + rect.height * 0.22))
-        return path
-    }
-}
-
-private struct ProjectDashedDivider: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
         return path
     }
 }

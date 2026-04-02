@@ -25,7 +25,6 @@ struct HomeView: View {
     private let contentCardCornerRadius: CGFloat = 40
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
-    private let timelineDividerLeadingInset: CGFloat = AppTheme.spacing.xl + 44
     private let timelineBottomInset: CGFloat = 188
     private let monthGridSpacing: CGFloat = 8
     private let monthCompressedGridSpacing: CGFloat = 4
@@ -535,25 +534,6 @@ struct HomeView: View {
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
 
-            if index < entries.count - 1 {
-                DashedDivider()
-                    .stroke(AppTheme.colors.separator, style: StrokeStyle(lineWidth: 1.5, dash: [3, 8]))
-                    .frame(height: 1)
-                    .padding(.leading, 2)
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: 0,
-                            leading: timelineDividerLeadingInset,
-                            bottom: 0,
-                            trailing: timelineRowHorizontalInset
-                        )
-                    )
-                    .listRowBackground(sectionVisibility == nil ? homeCanvasColor : Color.clear)
-                    .listRowSeparator(.hidden)
-                    .applyCompletedSectionVisibility(
-                        sectionVisibility.map { $0.rowVisibility(for: index) }
-                    )
-            }
         }
     }
 
@@ -1709,15 +1689,6 @@ private struct HomeAvatarGlassModifier: ViewModifier {
                         .stroke(AppTheme.colors.outlineStrong.opacity(0.22), lineWidth: 1)
                 }
         }
-    }
-}
-
-private struct DashedDivider: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        return path
     }
 }
 

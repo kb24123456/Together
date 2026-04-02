@@ -1,13 +1,11 @@
 import Foundation
 
 enum StartupTrace {
-    private static let startUptime = ProcessInfo.processInfo.systemUptime
-
-    static func mark(_ name: String) {
+    nonisolated static func mark(_ name: String) {
         #if DEBUG
-        let elapsed = ProcessInfo.processInfo.systemUptime - startUptime
-        let formatted = String(format: "%.3f", elapsed)
-        print("[StartupTrace +\(formatted)s] \(name)")
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let formatted = String(format: "%.3f", uptime)
+        print("[StartupTrace uptime=\(formatted)s] \(name)")
         #endif
     }
 }
