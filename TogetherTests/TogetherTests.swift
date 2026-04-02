@@ -644,6 +644,40 @@ struct TogetherTests {
     }
 
     @Test
+    func oneOffTaskCompletedAfterItsDueDayStillCountsAsCompletedOnScheduledDate() {
+        let calendar = Calendar.current
+        let scheduledDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? .now
+        let dueAt = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: scheduledDate) ?? scheduledDate
+        let completedAt = calendar.date(byAdding: .day, value: 1, to: dueAt) ?? dueAt
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "补完成的历史任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: dueAt,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .completed,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: dueAt,
+            updatedAt: completedAt,
+            completedAt: completedAt,
+            isPinned: false,
+            isDraft: false
+        )
+
+        #expect(item.isCompleted(on: scheduledDate, calendar: calendar))
+        #expect(item.completionDate(on: scheduledDate, calendar: calendar) == completedAt)
+    }
+
+    @Test
     func nonPeriodicTaskCompletionStillUsesActualCompletionDay() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
@@ -1601,6 +1635,235 @@ struct TogetherTests {
         #expect(viewModel.timelineEntries.first?.urgency == .normal)
     }
 
+    @Test @MainActor
+    func homeViewModelDoesNotShowOverdueCapsuleForPastSelectedDate() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        let calendar = Calendar.current
+        let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? .now
+        let firstDueAt = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        let secondDueAt = calendar.date(bySettingHour: 14, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        let completedAt = calendar.date(byAdding: .day, value: 1, to: firstDueAt) ?? firstDueAt
+
+        viewModel.selectedDate = selectedDate
+        viewModel.items = [
+            Item(
+                id: UUID(),
+                spaceID: MockDataFactory.singleSpaceID,
+                listID: nil,
+                projectID: nil,
+                creatorID: MockDataFactory.currentUserID,
+                title: "历史逾期任务 A",
+                notes: nil,
+                locationText: nil,
+                executionRole: .initiator,
+                priority: .normal,
+                dueAt: firstDueAt,
+                hasExplicitTime: true,
+                remindAt: nil,
+                status: .inProgress,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: firstDueAt,
+                updatedAt: firstDueAt,
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(),
+                spaceID: MockDataFactory.singleSpaceID,
+                listID: nil,
+                projectID: nil,
+                creatorID: MockDataFactory.currentUserID,
+                title: "历史逾期任务 B",
+                notes: nil,
+                locationText: nil,
+                executionRole: .initiator,
+                priority: .important,
+                dueAt: secondDueAt,
+                hasExplicitTime: true,
+                remindAt: nil,
+                status: .inProgress,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: secondDueAt,
+                updatedAt: secondDueAt,
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(),
+                spaceID: MockDataFactory.singleSpaceID,
+                listID: nil,
+                projectID: nil,
+                creatorID: MockDataFactory.currentUserID,
+                title: "同日已完成任务",
+                notes: nil,
+                locationText: nil,
+                executionRole: .initiator,
+                priority: .normal,
+                dueAt: firstDueAt,
+                hasExplicitTime: true,
+                remindAt: nil,
+                status: .completed,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: firstDueAt,
+                updatedAt: completedAt,
+                completedAt: completedAt,
+                isPinned: false,
+                isDraft: false
+            )
+        ]
+
+        #expect(viewModel.overdueEntryCount == 2)
+        #expect(viewModel.showsOverdueCapsule == false)
+        #expect(viewModel.overdueSummaryEntries.isEmpty)
+    }
+
+    @Test @MainActor
+    func homeViewModelKeepsTodayOverdueItemsInSummaryInsteadOfMainTimeline() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let overdueDueAt = calendar.date(byAdding: .hour, value: -3, to: today) ?? today
+        let todayDueAt = calendar.date(byAdding: .hour, value: 9, to: today) ?? today
+
+        viewModel.selectedDate = Date.now
+        viewModel.items = [
+            Item(
+                id: UUID(),
+                spaceID: MockDataFactory.singleSpaceID,
+                listID: nil,
+                projectID: nil,
+                creatorID: MockDataFactory.currentUserID,
+                title: "昨天没完成",
+                notes: nil,
+                locationText: nil,
+                executionRole: .initiator,
+                priority: .normal,
+                dueAt: overdueDueAt,
+                hasExplicitTime: true,
+                remindAt: nil,
+                status: .inProgress,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: overdueDueAt,
+                updatedAt: overdueDueAt,
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            ),
+            Item(
+                id: UUID(),
+                spaceID: MockDataFactory.singleSpaceID,
+                listID: nil,
+                projectID: nil,
+                creatorID: MockDataFactory.currentUserID,
+                title: "今天要做",
+                notes: nil,
+                locationText: nil,
+                executionRole: .initiator,
+                priority: .normal,
+                dueAt: todayDueAt,
+                hasExplicitTime: true,
+                remindAt: nil,
+                status: .inProgress,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: todayDueAt,
+                updatedAt: todayDueAt,
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            )
+        ]
+
+        #expect(viewModel.showsOverdueCapsule)
+        #expect(viewModel.overdueSummaryEntries.count == 1)
+        #expect(viewModel.activeTimelineEntries.count == 1)
+        #expect(viewModel.activeTimelineEntries.first?.title == "今天要做")
+    }
+
+    @Test @MainActor
+    func homeViewModelAnimatesHistoricalCompletionForOneOffOverdueTask() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.currentSpace = MockDataFactory.makeSingleSpace()
+
+        let taskService = TestHistoricalOneOffCompletionTaskService()
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: taskService,
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        let calendar = Calendar.current
+        let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? .now
+        let dueAt = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "历史逾期单次任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: dueAt,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: dueAt,
+            updatedAt: dueAt,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+
+        viewModel.selectedDate = selectedDate
+        viewModel.items = [item]
+
+        let completionTask = Task {
+            await viewModel.completeItem(item.id)
+        }
+
+        try? await Task.sleep(for: .milliseconds(80))
+        #expect(viewModel.isAnimatingCompletion(for: item.id, on: selectedDate))
+
+        await completionTask.value
+
+        #expect(viewModel.isAnimatingCompletion(for: item.id, on: selectedDate) == false)
+        #expect(viewModel.items.first?.isCompleted(on: selectedDate, calendar: calendar) == true)
+        #expect(viewModel.completedEntryCount == 1)
+    }
+
     @Test
     func notificationSettingsNormalizesCustomMinutesToFiveMinuteSteps() {
         #expect(NotificationSettings.normalizedSnoozeMinutes(3) == 5)
@@ -2040,6 +2303,70 @@ actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
     func completedTaskIDs() -> [UUID] {
         completed
     }
+}
+
+actor TestHistoricalOneOffCompletionTaskService: TaskApplicationServiceProtocol {
+    func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] { [] }
+    func todaySummary(in spaceID: UUID, referenceDate: Date) async throws -> TaskTodaySummary {
+        TaskTodaySummary(
+            referenceDate: referenceDate,
+            actionableCount: 0,
+            overdueCount: 0,
+            dueTodayCount: 0,
+            completedTodayCount: 0,
+            pinnedCount: 0
+        )
+    }
+    func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item { throw RepositoryError.notFound }
+    func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item { throw RepositoryError.notFound }
+    func moveTask(in spaceID: UUID, taskID: UUID, actorID: UUID, listID: UUID?, projectID: UUID?) async throws -> Item { throw RepositoryError.notFound }
+    func rescheduleTask(in spaceID: UUID, taskID: UUID, actorID: UUID, dueAt: Date?, remindAt: Date?) async throws -> Item { throw RepositoryError.notFound }
+    func snoozeTask(in spaceID: UUID, taskID: UUID, actorID: UUID, option: TaskSnoozeOption) async throws -> Item { throw RepositoryError.notFound }
+
+    func toggleTaskCompletion(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        referenceDate: Date
+    ) async throws -> Item {
+        let dueAt = Calendar.current.date(bySettingHour: 11, minute: 0, second: 0, of: referenceDate) ?? referenceDate
+        return Item(
+            id: taskID,
+            spaceID: spaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: actorID,
+            title: "已完成的历史单次任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: dueAt,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .completed,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: dueAt,
+            updatedAt: .now,
+            completedAt: .now,
+            isPinned: false,
+            isDraft: false
+        )
+    }
+
+    func completeTask(in spaceID: UUID, taskID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item {
+        try await toggleTaskCompletion(
+            in: spaceID,
+            taskID: taskID,
+            actorID: actorID,
+            referenceDate: referenceDate
+        )
+    }
+
+    func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item { throw RepositoryError.notFound }
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {}
+    func respondToTask(in spaceID: UUID, taskID: UUID, actorID: UUID, response: ItemResponseKind) async throws -> Item { throw RepositoryError.notFound }
 }
 
 enum TestCloudSyncGatewayError: Error {

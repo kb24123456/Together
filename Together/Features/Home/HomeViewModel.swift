@@ -33,6 +33,13 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let urgency: HomeTimelineUrgency
 }
 
+struct HomeOverdueEntry: Identifiable, Hashable {
+    let id: UUID
+    let title: String
+    let detailText: String
+    let timeText: String
+}
+
 enum HomeTimelineUrgency: Hashable {
     case normal
     case imminent
@@ -111,7 +118,7 @@ final class HomeViewModel {
     private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     var showsCompletedItems = true
     var isPerformingSnooze = false
-    var showsOverdueOnly = false
+    var isOverdueSheetPresented = false
 
     init(
         sessionStore: SessionStore,
@@ -316,7 +323,7 @@ final class HomeViewModel {
             : .crossWeek
         selectedDate = date
         syncDisplayedMonthToSelectedDate()
-        showsOverdueOnly = false
+        isOverdueSheetPresented = false
     }
 
     func shiftSelectedWeek(by offset: Int) {
@@ -358,16 +365,20 @@ final class HomeViewModel {
         selectedDateTransitionEdge = offset > 0 ? .trailing : .leading
         selectedDateTransitionStyle = .crossWeek
         selectedDate = nextStart
-        showsOverdueOnly = false
+        isOverdueSheetPresented = false
     }
 
     func returnToToday() {
         selectDate(Date())
     }
 
-    func toggleOverdueFocus() {
-        guard overdueEntryCount > 0 else { return }
-        showsOverdueOnly.toggle()
+    func presentOverdueSheet() {
+        guard showsOverdueCapsule else { return }
+        isOverdueSheetPresented = true
+    }
+
+    func dismissOverdueSheet() {
+        isOverdueSheetPresented = false
     }
 
     func createQuickCaptureTask(title: String) async -> QuickCaptureTaskCreationResult {
@@ -486,7 +497,7 @@ final class HomeViewModel {
             items = fetchedItems
             insertedItemIDs = persistedInsertedIDs.union(nextInsertedIDs)
             if overdueEntryCount == 0 {
-                showsOverdueOnly = false
+                isOverdueSheetPresented = false
             }
         } catch {
             items = []
@@ -778,7 +789,7 @@ final class HomeViewModel {
                 dismissItemDetail()
             }
             if overdueEntryCount == 0 {
-                showsOverdueOnly = false
+                isOverdueSheetPresented = false
             }
         } catch {
             return
@@ -838,19 +849,20 @@ final class HomeViewModel {
     }
 
     var overdueEntryCount: Int {
-        guard isViewingToday else { return 0 }
         return incompleteTimelineItems.filter { $0.isOverdue(on: selectedDate, calendar: calendar) }.count
     }
 
     var showsOverdueCapsule: Bool {
-        overdueEntryCount > 0
+        isViewingToday && overdueEntryCount > 0
     }
 
     var overdueCapsuleTitle: String {
-        if showsOverdueOnly {
-            return "显示全部任务"
-        }
         return "有 \(overdueEntryCount) 件任务已逾期"
+    }
+
+    var overdueSummaryEntries: [HomeOverdueEntry] {
+        guard isViewingToday else { return [] }
+        return overdueTimelineItems.map(makeOverdueEntry)
     }
 
     var hasCompletedEntries: Bool {
@@ -862,7 +874,7 @@ final class HomeViewModel {
     }
 
     var activeTimelineEntries: [HomeTimelineEntry] {
-        filteredIncompleteTimelineItems.map(makeTimelineEntry)
+        primaryIncompleteTimelineItems.map(makeTimelineEntry)
     }
 
     var completedTimelineEntries: [HomeTimelineEntry] {
@@ -959,7 +971,7 @@ final class HomeViewModel {
     }
 
     private func scope(for date: Date) -> TaskScope {
-        if calendar.isDate(date, inSameDayAs: MockDataFactory.now) {
+        if calendar.isDate(date, inSameDayAs: .now) {
             return .today(referenceDate: date)
         }
         return .scheduled(on: date)
@@ -1029,9 +1041,14 @@ final class HomeViewModel {
         visibleTimelineItems.filter { !isCompleted($0, on: selectedDate) }
     }
 
-    private var filteredIncompleteTimelineItems: [Item] {
-        guard showsOverdueOnly else { return incompleteTimelineItems }
+    private var overdueTimelineItems: [Item] {
+        guard isViewingToday else { return [] }
         return incompleteTimelineItems.filter { $0.isOverdue(on: selectedDate, calendar: calendar) }
+    }
+
+    private var primaryIncompleteTimelineItems: [Item] {
+        guard isViewingToday else { return incompleteTimelineItems }
+        return incompleteTimelineItems.filter { $0.isOverdue(on: selectedDate, calendar: calendar) == false }
     }
 
     private var completedTimelineItems: [Item] {
@@ -1146,8 +1163,45 @@ final class HomeViewModel {
         )
     }
 
+    private func makeOverdueEntry(for item: Item) -> HomeOverdueEntry {
+        HomeOverdueEntry(
+            id: item.id,
+            title: item.title,
+            detailText: overdueDetailText(for: item),
+            timeText: timeText(for: item)
+        )
+    }
+
     private func timelineSortDate(for item: Item) -> Date {
         item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt ?? .distantFuture
+    }
+
+    private func overdueDetailText(for item: Item) -> String {
+        guard let dueAt = item.dueAt else {
+            return item.hasExplicitTime ? "已超时" : "已逾期"
+        }
+
+        let dueDay = calendar.startOfDay(for: dueAt)
+        let todayStart = calendar.startOfDay(for: selectedDate)
+        let overdueText = item.hasExplicitTime ? "已超时" : "已逾期"
+        let dayOffset = calendar.dateComponents([.day], from: dueDay, to: todayStart).day ?? 0
+
+        let dayText: String
+        switch dayOffset {
+        case 1:
+            dayText = "昨天"
+        case 2:
+            dayText = "前天"
+        default:
+            dayText = dueAt.formatted(
+                .dateTime
+                    .locale(Locale(identifier: "zh_CN"))
+                    .month(.defaultDigits)
+                    .day()
+            )
+        }
+
+        return "\(dayText) · \(overdueText)"
     }
 
     private func priorityRank(_ priority: ItemPriority) -> Int {

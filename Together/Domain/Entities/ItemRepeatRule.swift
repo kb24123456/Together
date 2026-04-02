@@ -193,6 +193,12 @@ extension Item {
             return calendar.isDate(completedAt, inSameDayAs: referenceDate)
         }
 
+        guard completedAt != nil || status == .completed else { return false }
+
+        if let dueAt {
+            return calendar.isDate(dueAt, inSameDayAs: referenceDate)
+        }
+
         guard let completedAt else { return false }
         return calendar.isDate(completedAt, inSameDayAs: referenceDate)
     }
@@ -211,9 +217,13 @@ extension Item {
             return completedAt
         }
 
-        guard let completedAt, calendar.isDate(completedAt, inSameDayAs: referenceDate) else {
-            return nil
+        guard let completedAt else { return nil }
+
+        if let dueAt, calendar.isDate(dueAt, inSameDayAs: referenceDate) {
+            return completedAt
         }
+
+        guard calendar.isDate(completedAt, inSameDayAs: referenceDate) else { return nil }
         return completedAt
     }
 

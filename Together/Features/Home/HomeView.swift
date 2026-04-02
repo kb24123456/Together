@@ -87,6 +87,14 @@ struct HomeView: View {
         ) {
             HomeItemDetailSheet(viewModel: viewModel)
         }
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isOverdueSheetPresented },
+                set: { if !$0 { viewModel.dismissOverdueSheet() } }
+            )
+        ) {
+            HomeOverdueSummarySheet(viewModel: viewModel)
+        }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
         }
@@ -317,6 +325,7 @@ struct HomeView: View {
                     )
                     .listRowBackground(homeCanvasColor)
                     .listRowSeparator(.hidden)
+
             }
 
             timelineRows(
@@ -459,6 +468,8 @@ struct HomeView: View {
                     HomeTimelineRow(
                         entry: entry,
                         isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
+                        titleLineLimit: 2,
+                        titleMinimumScaleFactor: 0.84,
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -477,6 +488,8 @@ struct HomeView: View {
                     HomeTimelineRow(
                         entry: entry,
                         isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
+                        titleLineLimit: 2,
+                        titleMinimumScaleFactor: 0.84,
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -889,12 +902,10 @@ struct HomeView: View {
     private var overdueReminderCapsule: some View {
         Button {
             HomeInteractionFeedback.selection()
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
-                viewModel.toggleOverdueFocus()
-            }
+            viewModel.presentOverdueSheet()
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: viewModel.showsOverdueOnly ? "line.3.horizontal.decrease.circle.fill" : "exclamationmark.circle.fill")
+                Image(systemName: "exclamationmark.circle.fill")
                     .font(AppTheme.typography.sized(16, weight: .semibold))
 
                 Text(viewModel.overdueCapsuleTitle)
@@ -902,11 +913,9 @@ struct HomeView: View {
 
                 Spacer(minLength: 0)
 
-                if viewModel.showsOverdueOnly == false {
-                    Text("尽快处理")
-                        .font(AppTheme.typography.sized(12, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.coral.opacity(0.8))
-                }
+                Text("查看全部")
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.coral.opacity(0.8))
             }
             .foregroundStyle(AppTheme.colors.coral)
             .padding(.horizontal, 16)
@@ -1412,6 +1421,8 @@ private struct HomeTimelineRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: HomeTimelineEntry
     let isAnimatingCompletion: Bool
+    let titleLineLimit: Int
+    let titleMinimumScaleFactor: CGFloat
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
     @State private var completionAnimationCount = 0
@@ -1440,6 +1451,9 @@ private struct HomeTimelineRow: View {
                         Text(entry.title)
                             .font(AppTheme.typography.sized(19, weight: .bold))
                             .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+                            .lineLimit(titleLineLimit)
+                            .minimumScaleFactor(titleMinimumScaleFactor)
+                            .allowsTightening(true)
 
                         Text(displaySubtitle)
                             .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
@@ -1689,6 +1703,149 @@ private struct HomeAvatarGlassModifier: ViewModifier {
                         .stroke(AppTheme.colors.outlineStrong.opacity(0.22), lineWidth: 1)
                 }
         }
+    }
+}
+
+private struct HomeOverdueSummarySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var viewModel: HomeViewModel
+    @State private var displayedEntries: [HomeOverdueEntry] = []
+    @State private var animatingCompletionIDs: Set<UUID> = []
+
+    private var entries: [HomeOverdueEntry] {
+        viewModel.overdueSummaryEntries
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.top, 22)
+                .padding(.bottom, 10)
+
+            overdueList
+                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            syncDisplayedEntries(with: entries)
+        }
+        .onChange(of: entries) { _, newValue in
+            syncDisplayedEntries(with: newValue)
+            dismissIfFinished()
+        }
+        .onChange(of: viewModel.overdueEntryCount) { _, newValue in
+            guard newValue == 0 else { return }
+            dismissIfFinished()
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.hidden)
+        .presentationContentInteraction(.scrolls)
+        .presentationCornerRadius(nil)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("逾期任务")
+                    .font(AppTheme.typography.sized(24, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+
+                Text("统一在这里处理所有已逾期任务")
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+
+                Text("共 \(entries.count) 项")
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.coral.opacity(0.84))
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var overdueList: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                overdueRows
+            }
+            .padding(.top, 2)
+            .padding(.bottom, 10)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var overdueRows: some View {
+        ForEach(displayedEntries) { entry in
+            HomeTimelineRow(
+                entry: HomeTimelineEntry(
+                    id: entry.id,
+                    title: entry.title,
+                    notes: entry.detailText,
+                    timeText: entry.timeText,
+                    statusText: "已逾期",
+                    accentColorName: "coral",
+                    isMuted: false,
+                    isCompleted: false,
+                    urgency: .overdue
+                ),
+                isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
+                titleLineLimit: 1,
+                titleMinimumScaleFactor: 0.68,
+                onToggleCompletion: {
+                    HomeInteractionFeedback.completion()
+                    Task {
+                        await handleCompletion(for: entry.id)
+                    }
+                },
+                onOpenDetail: {
+                    viewModel.presentItemDetail(entry.id)
+                }
+            )
+            .padding(.vertical, 12)
+        }
+    }
+
+    private func handleCompletion(for itemID: UUID) async {
+        guard animatingCompletionIDs.insert(itemID).inserted else { return }
+
+        async let completionTask: Void = viewModel.completeItem(itemID)
+
+        try? await Task.sleep(for: .milliseconds(520))
+
+        withAnimation(.bouncy(duration: 0.54, extraBounce: 0.08)) {
+            displayedEntries.removeAll { $0.id == itemID }
+        }
+
+        _ = await completionTask
+        animatingCompletionIDs.remove(itemID)
+        dismissIfFinished()
+    }
+
+    private func syncDisplayedEntries(with sourceEntries: [HomeOverdueEntry]) {
+        var remainingEntries = Dictionary(uniqueKeysWithValues: sourceEntries.map { ($0.id, $0) })
+        var nextEntries: [HomeOverdueEntry] = []
+
+        for entry in displayedEntries {
+            if let updatedEntry = remainingEntries.removeValue(forKey: entry.id) {
+                nextEntries.append(updatedEntry)
+            } else if animatingCompletionIDs.contains(entry.id) {
+                nextEntries.append(entry)
+            }
+        }
+
+        for entry in sourceEntries where remainingEntries[entry.id] != nil {
+            nextEntries.append(entry)
+            remainingEntries.removeValue(forKey: entry.id)
+        }
+
+        displayedEntries = nextEntries
+    }
+
+    private func dismissIfFinished() {
+        guard displayedEntries.isEmpty, viewModel.overdueEntryCount == 0 else { return }
+        dismiss()
     }
 }
 
