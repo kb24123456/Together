@@ -46,7 +46,8 @@ struct ProfileSettingsRow: View {
             case let .toggle(isOn):
                 Toggle("", isOn: isOn)
                     .labelsHidden()
-                    .tint(AppTheme.colors.accent)
+                    .tint(AppTheme.colors.profileAccent)
+                    .sensoryFeedback(.selection, trigger: isOn.wrappedValue)
             }
         }
     }

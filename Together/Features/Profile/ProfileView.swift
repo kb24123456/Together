@@ -29,12 +29,17 @@ struct ProfileView: View {
                         .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
                     }
                     .buttonStyle(.plain)
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            HomeInteractionFeedback.selection()
+                        }
+                    )
 
                     executionPreferencesSection
                     historyAndReminderSection
                     systemAndCollaborationSection
                 }
-                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.top, AppTheme.spacing.md)
                 .padding(.bottom, AppTheme.spacing.xxl)
             }
@@ -123,9 +128,13 @@ struct ProfileView: View {
                         selectedValue: viewModel.taskUrgencyWindowMinutes,
                         label: { viewModel.taskUrgencyLabel(minutes: $0) },
                         onSelect: { viewModel.updateTaskUrgencyWindow(minutes: $0) },
-                        onCustom: { viewModel.presentCustomDurationSheet(.taskUrgency) }
+                        onCustom: {
+                            HomeInteractionFeedback.selection()
+                            viewModel.presentCustomDurationSheet(.taskUrgency)
+                        }
                     )
                 }
+                .transition(profileListRowTransition)
             }
 
             expandableSelectionRow(
@@ -138,7 +147,10 @@ struct ProfileView: View {
                     selectedValue: viewModel.defaultSnoozeMinutes,
                     label: { viewModel.relativeTimeLabel(minutes: $0) },
                     onSelect: { viewModel.updateDefaultSnoozeMinutes($0) },
-                    onCustom: { viewModel.presentCustomDurationSheet(.defaultSnooze) }
+                    onCustom: {
+                        HomeInteractionFeedback.selection()
+                        viewModel.presentCustomDurationSheet(.defaultSnooze)
+                    }
                 )
             }
 
@@ -163,8 +175,22 @@ struct ProfileView: View {
                         onSelect: { viewModel.updateCompletedTaskAutoArchiveDays($0) }
                     )
                 }
+                .transition(profileListRowTransition)
             }
         }
+        .animation(profileListAnimation, value: viewModel.taskReminderEnabled)
+        .animation(profileListAnimation, value: viewModel.completedTaskAutoArchiveEnabled)
+    }
+
+    private var profileListAnimation: Animation {
+        .spring(response: 0.34, dampingFraction: 0.86)
+    }
+
+    private var profileListRowTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.985, anchor: .top)),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
     }
 
     private var historyAndReminderSection: some View {
@@ -177,6 +203,11 @@ struct ProfileView: View {
                 )
             }
             .buttonStyle(.plain)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    HomeInteractionFeedback.selection()
+                }
+            )
 
             if viewModel.notificationAuthorization == .authorized {
                 ProfileSettingsRow(
@@ -185,6 +216,7 @@ struct ProfileView: View {
                 )
             } else {
                 Button {
+                    HomeInteractionFeedback.selection()
                     Task {
                         await viewModel.requestNotifications()
                     }
@@ -220,11 +252,19 @@ struct ProfileView: View {
         setting: ProfileExpandedSetting,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        ProfileExpandableSettingRow(
+        ProfileExpandableDisclosureRow(
             title: title,
             value: value,
-            isExpanded: viewModel.expandedSetting == setting,
-            onToggle: { viewModel.toggleExpandedSetting(setting) },
+            isExpanded: Binding(
+                get: { viewModel.expandedSetting == setting },
+                set: { isExpanded in
+                    if isExpanded {
+                        viewModel.expandedSetting = setting
+                    } else if viewModel.expandedSetting == setting {
+                        viewModel.expandedSetting = nil
+                    }
+                }
+            ),
             content: content
         )
     }
@@ -242,6 +282,7 @@ struct ProfileView: View {
                     title: label(option),
                     isSelected: selectedValue == option
                 ) {
+                    HomeInteractionFeedback.selection()
                     onSelect(option)
                 }
             }
@@ -289,56 +330,75 @@ private struct ProfileScrollOffsetKey: PreferenceKey {
     }
 }
 
-private struct ProfileExpandableSettingRow<Content: View>: View {
+private struct ProfileExpandableDisclosureRow<Content: View>: View {
     let title: String
     let value: String
-    let isExpanded: Bool
-    let onToggle: () -> Void
+    @Binding var isExpanded: Bool
     @ViewBuilder let content: Content
 
     init(
         title: String,
         value: String,
-        isExpanded: Bool,
-        onToggle: @escaping () -> Void,
+        isExpanded: Binding<Bool>,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.value = value
-        self.isExpanded = isExpanded
-        self.onToggle = onToggle
+        self._isExpanded = isExpanded
         self.content = content()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button(action: onToggle) {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(spacing: 8) {
+                Divider()
+                    .overlay(AppTheme.colors.outline.opacity(0.45))
+                    .padding(.bottom, 2)
+
+                content
+            }
+            .padding(.top, 10)
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
                 ProfileSettingsRow(
                     title: title,
-                    value: value,
-                    showsChevron: true,
-                    chevronSystemName: isExpanded ? "chevron.up" : "chevron.down"
+                    value: value
                 )
+
+                Spacer(minLength: 0)
+            }
+        }
+        .disclosureGroupStyle(ProfilePlainDisclosureGroupStyle())
+        .tint(AppTheme.colors.body.opacity(0.48))
+        .contentShape(Rectangle())
+    }
+}
+
+private struct ProfilePlainDisclosureGroupStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                HomeInteractionFeedback.selection()
+                withAnimation(.easeOut(duration: 0.2)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: 12) {
+                    configuration.label
+
+                    Image(systemName: "chevron.down")
+                        .font(AppTheme.typography.sized(12, weight: .bold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.36))
+                        .rotationEffect(.degrees(configuration.isExpanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
-            if isExpanded {
-                VStack(spacing: 8) {
-                    Divider()
-                        .overlay(AppTheme.colors.outline.opacity(0.45))
-                        .padding(.bottom, 2)
-
-                    content
-                }
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .top).combined(with: .opacity),
-                        removal: .opacity
-                    )
-                )
+            if configuration.isExpanded {
+                configuration.content
             }
         }
-        .animation(.easeOut(duration: 0.18), value: isExpanded)
     }
 }
 
@@ -359,7 +419,7 @@ private struct ProfileInlineOptionButton: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(AppTheme.typography.sized(13, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.accent)
+                        .foregroundStyle(AppTheme.colors.profileAccent)
                 }
             }
             .padding(.horizontal, 14)
@@ -369,7 +429,7 @@ private struct ProfileInlineOptionButton: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(
                         isSelected
-                        ? AppTheme.colors.accent.opacity(0.12)
+                        ? AppTheme.colors.profileAccentSoft
                         : AppTheme.colors.backgroundSoft.opacity(0.92)
                     )
             )

@@ -29,15 +29,18 @@ struct EditProfileView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("返回") {
+                    HomeInteractionFeedback.selection()
                     handleDismissTapped()
                 }
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("保存") {
-                    Task {
+                    HomeInteractionFeedback.selection()
+                    Task { @MainActor in
                         let didSave = await viewModel.save()
                         if didSave {
+                            HomeInteractionFeedback.completion()
                             dismiss()
                         }
                     }
@@ -46,8 +49,11 @@ struct EditProfileView: View {
             }
         }
         .alert("放弃未保存的修改？", isPresented: $showsDiscardAlert) {
-            Button("继续编辑", role: .cancel) {}
+            Button("继续编辑", role: .cancel) {
+                HomeInteractionFeedback.selection()
+            }
             Button("放弃修改", role: .destructive) {
+                HomeInteractionFeedback.selection()
                 dismiss()
             }
         } message: {
@@ -65,6 +71,7 @@ struct EditProfileView: View {
             )
         ) {
             Button("知道了", role: .cancel) {
+                HomeInteractionFeedback.selection()
                 viewModel.clearError()
             }
         } message: {
@@ -147,8 +154,14 @@ struct EditProfileView: View {
                         .background(Color.white.opacity(0.92), in: Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        HomeInteractionFeedback.selection()
+                    }
+                )
 
                 Button("拍照") {
+                    HomeInteractionFeedback.selection()
                     cameraCaptureToken = UUID()
                     Task {
                         await viewModel.handleCameraTapped()
@@ -170,12 +183,14 @@ struct EditProfileView: View {
 
                     if viewModel.shouldShowCameraSettingsAction {
                         Button("去设置") {
+                            HomeInteractionFeedback.selection()
                             viewModel.openSystemSettings()
                         }
                         .font(AppTheme.typography.textStyle(.footnote, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.title)
                     } else {
                         Button("知道了") {
+                            HomeInteractionFeedback.selection()
                             viewModel.clearCameraError()
                         }
                         .font(AppTheme.typography.textStyle(.footnote, weight: .semibold))
@@ -189,6 +204,7 @@ struct EditProfileView: View {
 
             if viewModel.canRemovePhoto {
                 Button {
+                    HomeInteractionFeedback.selection()
                     viewModel.removePhoto()
                 } label: {
                     Text("移除照片")
@@ -331,6 +347,7 @@ private struct AvatarCropperView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") {
+                        HomeInteractionFeedback.selection()
                         onCancel()
                         dismiss()
                     }
@@ -409,6 +426,7 @@ private struct AvatarCropperView: View {
     private func cropActionBar(layout: CropLayout) -> some View {
         HStack(spacing: AppTheme.spacing.md) {
             Button("取消") {
+                HomeInteractionFeedback.selection()
                 onCancel()
                 dismiss()
             }
@@ -418,6 +436,11 @@ private struct AvatarCropperView: View {
                 Text("重新选择")
                     .frame(maxWidth: .infinity)
             }
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    HomeInteractionFeedback.selection()
+                }
+            )
 
             Button("完成") {
                 if let croppedImage = makeCroppedImage(
@@ -426,6 +449,7 @@ private struct AvatarCropperView: View {
                     effectiveScale: layout.effectiveScale,
                     clampedOffset: layout.clampedOffset
                 ) {
+                    HomeInteractionFeedback.completion()
                     onComplete(croppedImage)
                     dismiss()
                 }
