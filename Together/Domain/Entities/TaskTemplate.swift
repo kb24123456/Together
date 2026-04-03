@@ -1,10 +1,5 @@
 import Foundation
 
-enum TaskTemplateCategory: String, Codable, Sendable {
-    case task
-    case periodic
-}
-
 struct TaskTemplateClockTime: Hashable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case hour
@@ -61,7 +56,6 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
     var notes: String?
     var listID: UUID?
     var projectID: UUID?
-    var priority: ItemPriority
     var isPinned: Bool
     var hasExplicitTime: Bool
     var time: TaskTemplateClockTime?
@@ -77,7 +71,6 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         notes: String? = nil,
         listID: UUID? = nil,
         projectID: UUID? = nil,
-        priority: ItemPriority = .normal,
         isPinned: Bool = false,
         hasExplicitTime: Bool = false,
         time: TaskTemplateClockTime? = nil,
@@ -92,7 +85,6 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         self.notes = notes
         self.listID = listID
         self.projectID = projectID
-        self.priority = priority
         self.isPinned = isPinned
         self.hasExplicitTime = hasExplicitTime
         self.time = time
@@ -131,7 +123,6 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
             notes: trimmedNotes?.isEmpty == true ? nil : trimmedNotes,
             listID: draft.listID,
             projectID: draft.projectID,
-            priority: draft.priority,
             isPinned: draft.isPinned,
             hasExplicitTime: draft.hasExplicitTime,
             time: resolvedTime,
@@ -140,10 +131,6 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
             createdAt: createdAt,
             updatedAt: createdAt
         )
-    }
-
-    nonisolated var category: TaskTemplateCategory {
-        repeatRule == nil ? .task : .periodic
     }
 
     nonisolated func makeTaskDraft(for referenceDate: Date, calendar: Calendar = .current) -> TaskDraft {
@@ -166,7 +153,6 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
             dueAt: dueAt,
             hasExplicitTime: hasExplicitTime,
             remindAt: remindAt,
-            priority: priority,
             isPinned: isPinned,
             repeatRule: repeatRule
         )
@@ -177,7 +163,6 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         && notes == other.notes
         && listID == other.listID
         && projectID == other.projectID
-        && priority == other.priority
         && isPinned == other.isPinned
         && hasExplicitTime == other.hasExplicitTime
         && time == other.time

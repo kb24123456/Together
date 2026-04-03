@@ -669,11 +669,6 @@ final class HomeViewModel {
         scheduleDetailSave(immediately: true)
     }
 
-    func updateDraftPriority(_ priority: ItemPriority) {
-        detailDraft?.priority = priority
-        scheduleDetailSave(immediately: true)
-    }
-
     func updateDraftPinned(_ isPinned: Bool) {
         detailDraft?.isPinned = isPinned
         scheduleDetailSave(immediately: true)
@@ -702,6 +697,37 @@ final class HomeViewModel {
 
     func saveCurrentDraftAsTemplate() async -> Bool {
         await saveCurrentDraftAsTemplateResult() != nil
+    }
+
+    func fetchTaskTemplates() async -> [TaskTemplate] {
+        guard let spaceID = sessionStore.currentSpace?.id else { return [] }
+
+        do {
+            return try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
+        } catch {
+            return []
+        }
+    }
+
+    func createTask(from template: TaskTemplate) async -> Bool {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else {
+            return false
+        }
+
+        do {
+            let item = try await taskApplicationService.createTask(
+                in: spaceID,
+                actorID: actorID,
+                draft: template.makeTaskDraft(for: selectedDate, calendar: calendar)
+            )
+            await reload(insertedItemIDs: [item.id])
+            return true
+        } catch {
+            return false
+        }
     }
 
     func saveCurrentDraftAsTemplateResult() async -> TaskTemplateSaveResult? {
@@ -1092,7 +1118,7 @@ final class HomeViewModel {
     }
 
     private func accentColorName(for item: Item) -> String {
-        if item.isPinned || item.priority == .critical {
+        if item.isPinned {
             return "coral"
         }
 
@@ -1145,10 +1171,6 @@ final class HomeViewModel {
             let rhsDueAt = timelineSortDate(for: rhs)
             if lhsDueAt != rhsDueAt {
                 return lhsDueAt < rhsDueAt
-            }
-
-            if lhs.priority != rhs.priority {
-                return priorityRank(lhs.priority) > priorityRank(rhs.priority)
             }
 
             if lhs.createdAt != rhs.createdAt {
@@ -1278,17 +1300,6 @@ final class HomeViewModel {
         }
 
         return "\(dayText) · \(overdueText)"
-    }
-
-    private func priorityRank(_ priority: ItemPriority) -> Int {
-        switch priority {
-        case .critical:
-            return 3
-        case .important:
-            return 2
-        case .normal:
-            return 1
-        }
     }
 
     private func responseStateText(for item: Item) -> String? {

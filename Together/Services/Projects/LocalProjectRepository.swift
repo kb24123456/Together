@@ -281,7 +281,6 @@ private extension Project {
             status: status,
             targetDate: targetDate,
             remindAt: remindAt,
-            priority: priority,
             taskCount: subtasks.count,
             subtasks: subtasks,
             createdAt: createdAt,

@@ -131,7 +131,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: completedAt,
             hasExplicitTime: false,
             remindAt: nil,
@@ -282,7 +281,6 @@ struct TogetherTests {
                 status: .active,
                 targetDate: .now.addingTimeInterval(86_400),
                 remindAt: .now.addingTimeInterval(82_800),
-                priority: .important,
                 taskCount: 0,
                 createdAt: .now,
                 updatedAt: .now,
@@ -335,7 +333,6 @@ struct TogetherTests {
                 listID: MockDataFactory.todayListID,
                 projectID: MockDataFactory.focusProjectID,
                 dueAt: MockDataFactory.now,
-                priority: .important,
                 status: .inProgress,
                 isPinned: true
             )
@@ -404,7 +401,6 @@ struct TogetherTests {
                 dueAt: dueAt,
                 hasExplicitTime: true,
                 remindAt: remindAt,
-                priority: .important,
                 isPinned: true,
                 repeatRule: ItemRepeatRule(frequency: .daily)
             ),
@@ -415,11 +411,10 @@ struct TogetherTests {
         #expect(template.notes == "复盘今天 3 个关键结果")
         #expect(template.listID == MockDataFactory.todayListID)
         #expect(template.projectID == MockDataFactory.focusProjectID)
-        #expect(template.priority == .important)
         #expect(template.isPinned == true)
         #expect(template.time == TaskTemplateClockTime(hour: 20, minute: 45))
         #expect(template.reminderOffset == 1_800)
-        #expect(template.category == .periodic)
+        #expect(template.repeatRule == ItemRepeatRule(frequency: .daily))
     }
 
     @Test
@@ -431,7 +426,6 @@ struct TogetherTests {
             notes: "整理阻塞点和下周计划",
             listID: MockDataFactory.todayListID,
             projectID: MockDataFactory.focusProjectID,
-            priority: .critical,
             isPinned: true,
             hasExplicitTime: true,
             time: TaskTemplateClockTime(hour: 9, minute: 30),
@@ -456,7 +450,6 @@ struct TogetherTests {
         #expect(draft.remindAt == (draft.dueAt?.addingTimeInterval(-900)))
         #expect(draft.listID == MockDataFactory.todayListID)
         #expect(draft.projectID == MockDataFactory.focusProjectID)
-        #expect(draft.priority == .critical)
         #expect(draft.isPinned == true)
     }
 
@@ -468,7 +461,6 @@ struct TogetherTests {
             spaceID: MockDataFactory.singleSpaceID,
             title: "每周清单整理",
             notes: "先清 inbox，再排优先级",
-            priority: .important,
             hasExplicitTime: true,
             time: TaskTemplateClockTime(hour: 8, minute: 0),
             reminderOffset: 1_800
@@ -504,7 +496,6 @@ struct TogetherTests {
                 projectID: MockDataFactory.launchProjectID,
                 dueAt: MockDataFactory.now.addingTimeInterval(3_600),
                 remindAt: MockDataFactory.now.addingTimeInterval(1_800),
-                priority: .critical,
                 status: .inProgress,
                 isPinned: false
             )
@@ -546,7 +537,6 @@ struct TogetherTests {
                 dueAt: MockDataFactory.now.addingTimeInterval(3_600 * 14),
                 hasExplicitTime: true,
                 remindAt: MockDataFactory.now.addingTimeInterval(3_600 * 13 + 1_800),
-                priority: .important,
                 status: .inProgress
             )
         )
@@ -730,7 +720,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: dueAt,
             hasExplicitTime: true,
             remindAt: nil,
@@ -1018,7 +1007,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: baseDate,
             hasExplicitTime: true,
             remindAt: nil,
@@ -1042,7 +1030,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: baseDate.addingTimeInterval(60),
             hasExplicitTime: true,
             remindAt: nil,
@@ -1097,7 +1084,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: baseDate,
             hasExplicitTime: true,
             remindAt: nil,
@@ -1702,7 +1688,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: completedAt,
             hasExplicitTime: false,
             remindAt: nil,
@@ -1764,7 +1749,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: now.addingTimeInterval(5 * 60),
             hasExplicitTime: true,
             remindAt: nil,
@@ -1816,7 +1800,6 @@ struct TogetherTests {
                 notes: nil,
                 locationText: nil,
                 executionRole: .initiator,
-                priority: .normal,
                 dueAt: firstDueAt,
                 hasExplicitTime: true,
                 remindAt: nil,
@@ -1839,7 +1822,6 @@ struct TogetherTests {
                 notes: nil,
                 locationText: nil,
                 executionRole: .initiator,
-                priority: .important,
                 dueAt: secondDueAt,
                 hasExplicitTime: true,
                 remindAt: nil,
@@ -1862,7 +1844,6 @@ struct TogetherTests {
                 notes: nil,
                 locationText: nil,
                 executionRole: .initiator,
-                priority: .normal,
                 dueAt: firstDueAt,
                 hasExplicitTime: true,
                 remindAt: nil,
@@ -1913,7 +1894,6 @@ struct TogetherTests {
                 notes: nil,
                 locationText: nil,
                 executionRole: .initiator,
-                priority: .normal,
                 dueAt: overdueDueAt,
                 hasExplicitTime: true,
                 remindAt: nil,
@@ -1936,7 +1916,6 @@ struct TogetherTests {
                 notes: nil,
                 locationText: nil,
                 executionRole: .initiator,
-                priority: .normal,
                 dueAt: todayDueAt,
                 hasExplicitTime: true,
                 remindAt: nil,
@@ -1985,7 +1964,6 @@ struct TogetherTests {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: dueAt,
             hasExplicitTime: true,
             remindAt: nil,
@@ -2467,7 +2445,6 @@ actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: referenceDate,
             hasExplicitTime: true,
             remindAt: nil,
@@ -2548,7 +2525,6 @@ actor TestHistoricalOneOffCompletionTaskService: TaskApplicationServiceProtocol 
             notes: nil,
             locationText: nil,
             executionRole: .initiator,
-            priority: .normal,
             dueAt: dueAt,
             hasExplicitTime: true,
             remindAt: nil,

@@ -8,7 +8,6 @@ struct TaskDraft: Hashable, Sendable {
     var dueAt: Date?
     var hasExplicitTime: Bool
     var remindAt: Date?
-    var priority: ItemPriority
     var executionRole: ItemExecutionRole
     var assigneeMode: TaskAssigneeMode
     var status: ItemStatus
@@ -26,7 +25,6 @@ struct TaskDraft: Hashable, Sendable {
         dueAt: Date? = nil,
         hasExplicitTime: Bool = false,
         remindAt: Date? = nil,
-        priority: ItemPriority = .normal,
         executionRole: ItemExecutionRole = .initiator,
         assigneeMode: TaskAssigneeMode = .self,
         status: ItemStatus = .inProgress,
@@ -43,7 +41,6 @@ struct TaskDraft: Hashable, Sendable {
         self.dueAt = dueAt
         self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
-        self.priority = priority
         self.executionRole = executionRole
         self.assigneeMode = assigneeMode
         self.status = status
@@ -65,7 +62,6 @@ extension TaskDraft {
             dueAt: item.dueAt,
             hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
-            priority: item.priority,
             executionRole: item.executionRole,
             assigneeMode: item.assigneeMode,
             status: item.status,

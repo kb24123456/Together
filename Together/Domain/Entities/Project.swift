@@ -16,7 +16,6 @@ struct Project: Identifiable, Hashable, Sendable {
     var status: ProjectStatus
     var targetDate: Date?
     var remindAt: Date?
-    var priority: ItemPriority
     var taskCount: Int
     var subtasks: [ProjectSubtask]
     let createdAt: Date
@@ -32,7 +31,6 @@ struct Project: Identifiable, Hashable, Sendable {
         status: ProjectStatus,
         targetDate: Date?,
         remindAt: Date?,
-        priority: ItemPriority,
         taskCount: Int,
         subtasks: [ProjectSubtask] = [],
         createdAt: Date,
@@ -47,7 +45,6 @@ struct Project: Identifiable, Hashable, Sendable {
         self.status = status
         self.targetDate = targetDate
         self.remindAt = remindAt
-        self.priority = priority
         self.taskCount = taskCount
         self.subtasks = subtasks
         self.createdAt = createdAt

@@ -14,6 +14,8 @@ struct HomeItemDetailSheet: View {
     @State private var focusCoordinator = DetailTextInputFocusCoordinator()
     @State private var saveFeedbackNonce = 0
     @State private var isSaveButtonAnimating = false
+    @State private var taskTemplates: [TaskTemplate] = []
+    @State private var isLoadingTemplates = false
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
     @Namespace private var chipRowNamespace
     @Namespace private var categorySwitcherNamespace
@@ -25,7 +27,7 @@ struct HomeItemDetailSheet: View {
 
     private enum DetailCategory {
         case task
-        case periodic
+        case project
     }
 
     private enum DetailEntryAction {
@@ -72,6 +74,20 @@ struct HomeItemDetailSheet: View {
                     context: menuContext,
                     activeMenu: menuBinding,
                     viewModel: viewModel,
+                    templates: taskTemplates,
+                    isLoadingTemplates: isLoadingTemplates,
+                    onTemplatePicked: { template in
+                        let created = await viewModel.createTask(from: template)
+                        if created {
+                            dismissActiveMenu()
+                        }
+                    },
+                    onTemplateDeleted: { template in
+                        let deleted = await viewModel.deleteTaskTemplate(template.id)
+                        if deleted {
+                            taskTemplates.removeAll { $0.id == template.id }
+                        }
+                    },
                     disabledMenus: disabledMenus,
                     onDismiss: dismissActiveMenu
                 )
@@ -146,11 +162,15 @@ struct HomeItemDetailSheet: View {
 
     private var expandedCategorySwitcher: some View {
         HStack(spacing: 10) {
-            ForEach(["周期性", "任务", "项目"], id: \.self) { title in
+            ForEach(["模板", "任务", "项目"], id: \.self) { title in
                 let isActive = expandedCategoryTitle == title
 
                 Button {
-                    if isActive {
+                    if title == "模板" {
+                        Task {
+                            await openTemplateLibrary()
+                        }
+                    } else if isActive {
                         HomeInteractionFeedback.selection()
                         focusedField = .title
                     }
@@ -536,7 +556,7 @@ struct HomeItemDetailSheet: View {
                 focusedField: $focusedField,
                 focusCoordinator: focusCoordinator,
                 field: .title,
-                placeholder: detailCategory == .periodic ? "周期任务标题" : "任务标题",
+                placeholder: detailCategory == .project ? "项目标题" : "任务标题",
                 font: AppTheme.typography.sizedUIFont(30, weight: .bold),
                 textColor: UIColor(AppTheme.colors.title),
                 placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.62)),
@@ -665,11 +685,11 @@ struct HomeItemDetailSheet: View {
     }
 
     private var detailCategory: DetailCategory {
-        viewModel.detailDraft?.repeatRule == nil ? .task : .periodic
+        .task
     }
 
     private var menuContext: TaskEditorMenuContext {
-        detailCategory == .periodic ? .periodic : .task
+        activeMenu == .template ? .templates : .task
     }
 
     private var disabledMenus: Set<TaskEditorMenu> {
@@ -697,10 +717,10 @@ struct HomeItemDetailSheet: View {
 
     private var expandedCategoryTitle: String {
         switch detailCategory {
-        case .periodic:
-            return "周期性"
         case .task:
             return "任务"
+        case .project:
+            return "项目"
         }
     }
 
@@ -732,16 +752,6 @@ struct HomeItemDetailSheet: View {
                     semanticValue: .reminder(reminderOffset)
                 ),
                 TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.priority.rawValue,
-                    title: viewModel.detailDraft?.priority.title ?? "普通",
-                    systemImage: "flag",
-                    menu: .priority,
-                    semanticValue: .priority(viewModel.detailDraft?.priority.animationRank ?? 0)
-                )
-            ]
-        case .periodic:
-            snapshots = [
-                TaskEditorChipSnapshot(
                     id: TaskEditorMenu.repeatRule.rawValue,
                     title: repeatTitle,
                     systemImage: "arrow.triangle.2.circlepath",
@@ -750,23 +760,10 @@ struct HomeItemDetailSheet: View {
                         title: repeatTitle,
                         rank: viewModel.detailDraft?.repeatRule?.animationRank ?? 0
                     )
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.time.rawValue,
-                    title: taskTimeTitle,
-                    systemImage: "clock",
-                    menu: .time,
-                    semanticValue: .time(viewModel.detailDraft?.dueAt),
-                    showsTrailingClear: showsTimeClearButton
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.reminder.rawValue,
-                    title: reminderTitle,
-                    systemImage: "bell",
-                    menu: .reminder,
-                    semanticValue: .reminder(reminderOffset)
                 )
             ]
+        case .project:
+            snapshots = []
         }
 
         return makeRenderedChips(from: snapshots)
@@ -981,6 +978,15 @@ struct HomeItemDetailSheet: View {
         withTransaction(HomeDetailMenuAnimation.presentationTransaction) {
             activeMenu = menu
         }
+    }
+
+    @MainActor
+    private func openTemplateLibrary() async {
+        HomeInteractionFeedback.selection()
+        isLoadingTemplates = true
+        taskTemplates = await viewModel.fetchTaskTemplates()
+        isLoadingTemplates = false
+        openMenu(.template)
     }
 
     private func dismissActiveMenu() {
@@ -1284,7 +1290,6 @@ private enum HomeDetailMenu: String, Identifiable {
     case date
     case time
     case reminder
-    case priority
     case repeatRule
 
     var id: String { rawValue }
@@ -1295,7 +1300,7 @@ private enum HomeDetailMenu: String, Identifiable {
             return [.custom(HomeDetailDateMenuDetent.self)]
         case .time:
             return [.custom(TaskEditorTaskMenuDetent.self)]
-        case .reminder, .priority, .repeatRule:
+        case .reminder, .repeatRule:
             return [.custom(TaskEditorTaskMenuDetent.self)]
         }
     }
@@ -1314,31 +1319,41 @@ private struct HomeDetailMenuSheet: View {
     let context: TaskEditorMenuContext
     @Binding var activeMenu: TaskEditorMenu
     @Bindable var viewModel: HomeViewModel
+    let templates: [TaskTemplate]
+    let isLoadingTemplates: Bool
+    let onTemplatePicked: (TaskTemplate) async -> Void
+    let onTemplateDeleted: (TaskTemplate) async -> Void
     let disabledMenus: Set<TaskEditorMenu>
     let onDismiss: () -> Void
 
     @State private var stagedDate: Date
     @State private var stagedTime: Date?
     @State private var stagedReminderOffset: TimeInterval?
-    @State private var stagedPriority: ItemPriority
     @State private var stagedRepeatRule: ItemRepeatRule?
 
     @State private var didEditDate = false
     @State private var didEditTime = false
     @State private var didEditReminder = false
-    @State private var didEditPriority = false
     @State private var didEditRepeatRule = false
 
     init(
         context: TaskEditorMenuContext,
         activeMenu: Binding<TaskEditorMenu>,
         viewModel: HomeViewModel,
+        templates: [TaskTemplate],
+        isLoadingTemplates: Bool,
+        onTemplatePicked: @escaping (TaskTemplate) async -> Void,
+        onTemplateDeleted: @escaping (TaskTemplate) async -> Void,
         disabledMenus: Set<TaskEditorMenu>,
         onDismiss: @escaping () -> Void
     ) {
         self.context = context
         _activeMenu = activeMenu
         self.viewModel = viewModel
+        self.templates = templates
+        self.isLoadingTemplates = isLoadingTemplates
+        self.onTemplatePicked = onTemplatePicked
+        self.onTemplateDeleted = onTemplateDeleted
         self.disabledMenus = disabledMenus
         self.onDismiss = onDismiss
 
@@ -1350,7 +1365,6 @@ private struct HomeDetailMenuSheet: View {
         _stagedDate = State(initialValue: initialDate)
         _stagedTime = State(initialValue: initialTime)
         _stagedReminderOffset = State(initialValue: Self.reminderOffset(for: draft, fallbackDate: initialDate))
-        _stagedPriority = State(initialValue: draft?.priority ?? .normal)
         _stagedRepeatRule = State(initialValue: draft?.repeatRule)
     }
 
@@ -1395,11 +1409,6 @@ private struct HomeDetailMenuSheet: View {
                 options: reminderOptions,
                 selectionFeedback: HomeInteractionFeedback.selection
             )
-        case .priority:
-            TaskEditorOptionList(
-                options: priorityOptions,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
         case .repeatRule:
             TaskEditorOptionList(
                 options: repeatOptions,
@@ -1408,7 +1417,14 @@ private struct HomeDetailMenuSheet: View {
         case .subtasks:
             EmptyView()
         case .template:
-            EmptyView()
+            ComposerTemplatePickerSheet(
+                templates: templates,
+                isLoading: isLoadingTemplates,
+                onSelect: { template in
+                    Task { await onTemplatePicked(template) }
+                },
+                onDelete: onTemplateDeleted
+            )
         }
     }
 
@@ -1423,18 +1439,6 @@ private struct HomeDetailMenuSheet: View {
             ) {
                 stagedReminderOffset = preset.secondsBeforeTarget
                 didEditReminder = true
-            }
-        }
-    }
-
-    private var priorityOptions: [TaskEditorOptionRow] {
-        ItemPriority.allCases.map { priority in
-            TaskEditorOptionRow(
-                title: priority.title,
-                isSelected: stagedPriority == priority
-            ) {
-                stagedPriority = priority
-                didEditPriority = true
             }
         }
     }
@@ -1494,10 +1498,6 @@ private struct HomeDetailMenuSheet: View {
             }
         }
 
-        if didEditPriority {
-            viewModel.updateDraftPriority(stagedPriority)
-        }
-
         if didEditRepeatRule {
             if stagedRepeatRule != nil, viewModel.detailDraft?.dueAt == nil, didEditDate == false, didEditTime == false {
                 ensureDueDateExists()
@@ -1517,7 +1517,7 @@ private struct HomeDetailMenuSheet: View {
     }
 
     private var stagedDisabledMenus: Set<TaskEditorMenu> {
-        guard context == .task || context == .periodic else { return disabledMenus }
+        guard context == .task else { return disabledMenus }
         return stagedReminderContext.isReminderMenuDisabled ? [.reminder] : []
     }
 

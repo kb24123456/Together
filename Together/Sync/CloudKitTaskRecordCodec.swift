@@ -20,7 +20,6 @@ enum CloudKitTaskRecordCodec {
         record["locationText"] = item.locationText as CKRecordValue?
         record["executionRole"] = item.executionRole.rawValue as CKRecordValue
         record["assigneeMode"] = item.assigneeMode.rawValue as CKRecordValue
-        record["priority"] = item.priority.rawValue as CKRecordValue
         record["status"] = item.status.rawValue as CKRecordValue
         record["assignmentState"] = item.assignmentState.rawValue as CKRecordValue
         record["dueAt"] = item.dueAt as CKRecordValue?
@@ -50,7 +49,6 @@ enum CloudKitTaskRecordCodec {
             let title = record["title"] as? String,
             let executionRoleRaw = record["executionRole"] as? String,
             let assigneeModeRaw = (record["assigneeMode"] as? String) ?? ItemExecutionRole(rawValue: executionRoleRaw)?.assigneeMode.rawValue,
-            let priorityRaw = record["priority"] as? String,
             let statusRaw = record["status"] as? String,
             let assignmentStateRaw = (record["assignmentState"] as? String) ?? ItemStatus(rawValue: statusRaw)?.assignmentState.rawValue,
             let createdAt = record["createdAt"] as? Date,
@@ -73,7 +71,6 @@ enum CloudKitTaskRecordCodec {
             locationText: record["locationText"] as? String,
             executionRole: ItemExecutionRole(rawValue: executionRoleRaw) ?? .initiator,
             assigneeMode: TaskAssigneeMode(rawValue: assigneeModeRaw) ?? .self,
-            priority: ItemPriority(rawValue: priorityRaw) ?? .normal,
             dueAt: record["dueAt"] as? Date,
             hasExplicitTime: record["hasExplicitTime"] as? Bool ?? false,
             remindAt: record["remindAt"] as? Date,

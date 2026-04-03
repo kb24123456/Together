@@ -9,7 +9,6 @@ enum TaskEditorMenu: String, Identifiable {
     case date
     case time
     case reminder
-    case priority
     case repeatRule
     case subtasks
     case template
@@ -24,8 +23,6 @@ enum TaskEditorMenu: String, Identifiable {
             return "clock"
         case .reminder:
             return "bell"
-        case .priority:
-            return "flag"
         case .repeatRule:
             return "repeat"
         case .subtasks:
@@ -43,8 +40,6 @@ enum TaskEditorMenu: String, Identifiable {
             return "时间"
         case .reminder:
             return "提醒"
-        case .priority:
-            return "优先级"
         case .repeatRule:
             return "重复"
         case .subtasks:
@@ -56,20 +51,17 @@ enum TaskEditorMenu: String, Identifiable {
 }
 
 enum TaskEditorMenuContext: Equatable {
-    case periodic
+    case templates
     case task
     case project
-    case template
 
     var menus: [TaskEditorMenu] {
         switch self {
-        case .periodic:
-            return [.repeatRule, .time, .reminder]
         case .task:
-            return [.date, .time, .reminder, .priority]
+            return [.date, .time, .reminder, .repeatRule]
         case .project:
-            return [.date, .priority, .subtasks]
-        case .template:
+            return [.date, .subtasks]
+        case .templates:
             return [.template]
         }
     }
@@ -85,17 +77,12 @@ enum TaskEditorMenuContext: Equatable {
                 showsQuickPresets: true,
                 showsPrimaryButton: false
             ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
-        case .periodic:
-            return TaskEditorTimePickerSheet.preferredHeight(
-                showsQuickPresets: true,
-                showsPrimaryButton: false
-            ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         case .project:
             return max(
                 TaskEditorDatePickerSheet.preferredHeight,
                 492
             ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
-        case .template:
+        case .templates:
             return 440
         }
     }
@@ -147,7 +134,6 @@ enum TaskEditorChipSemanticValue: Equatable {
     case optionalDate(Date?)
     case time(Date?)
     case reminder(TimeInterval?)
-    case priority(Int)
     case repeatRule(title: String, rank: Int)
     case subtasks(Int)
 
@@ -168,8 +154,6 @@ enum TaskEditorChipSemanticValue: Equatable {
             return compare(date: oldDate, with: newDate)
         case let (.reminder(oldOffset), .reminder(newOffset)):
             return compare(value: oldOffset, with: newOffset)
-        case let (.priority(oldRank), .priority(newRank)):
-            return newRank >= oldRank ? .up : .down
         case let (.repeatRule(_, oldRank), .repeatRule(_, newRank)):
             return newRank >= oldRank ? .up : .down
         case let (.subtasks(oldCount), .subtasks(newCount)):
@@ -2574,7 +2558,7 @@ private struct TaskEditorChipTextLayout: Equatable {
             }
         case let .time(date):
             segments = Self.timeSegments(for: date, placeholder: text)
-        case .reminder, .priority, .repeatRule, .subtasks:
+        case .reminder, .repeatRule, .subtasks:
             segments = [TaskEditorChipTextSegment(id: "main", text: text, kind: .text)]
         }
     }
@@ -2745,11 +2729,6 @@ private struct TaskEditorAnimatedChipTitle: View {
                     .monospacedDigit()
                     .contentTransition(.numericText(countsDown: direction == .down))
                     .lineLimit(1)
-            case .priority:
-                Text(value)
-                    .font(font)
-                    .contentTransition(.interpolate)
-                    .lineLimit(1)
             case .interpolated:
                 Text(value)
                     .font(font)
@@ -2767,8 +2746,6 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder:
             return .numeric
-        case .priority:
-            return .priority
         case .repeatRule, .subtasks:
             return .interpolated
         }
@@ -2810,7 +2787,7 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder:
             return true
-        case .priority, .repeatRule, .subtasks:
+        case .repeatRule, .subtasks:
             return false
         }
     }
@@ -2818,7 +2795,6 @@ private struct TaskEditorAnimatedChipTitle: View {
 
 private enum TaskEditorChipContentTransitionStyle {
     case numeric
-    case priority
     case interpolated
     case none
 }
@@ -2827,19 +2803,6 @@ private struct TaskEditorDatePickerMonthGridMetrics {
     let rowHeight: CGFloat
     let rowSpacing: CGFloat
     let dayFontSize: CGFloat
-}
-
-extension ItemPriority {
-    var animationRank: Int {
-        switch self {
-        case .normal:
-            return 0
-        case .important:
-            return 1
-        case .critical:
-            return 2
-        }
-    }
 }
 
 extension ItemRepeatRule {

@@ -3,6 +3,7 @@ import SwiftData
 
 struct PersistenceController {
     let container: ModelContainer
+    private static let legacyPeriodicDataCleanupKey = "didCleanupLegacyPeriodicData.v1"
 
     static let shared = PersistenceController()
     static let preview = PersistenceController(inMemory: true)
@@ -12,6 +13,8 @@ struct PersistenceController {
         do {
             let resolvedContainer = try Self.makeContainer(inMemory: inMemory)
             StartupTrace.mark("PersistenceController.container.created")
+            try Self.cleanupLegacyPeriodicDataIfNeeded(container: resolvedContainer, inMemory: inMemory)
+            StartupTrace.mark("PersistenceController.legacyPeriodicCleanup.complete")
             try Self.seedIfNeeded(container: resolvedContainer)
             StartupTrace.mark("PersistenceController.seed.complete")
             self.container = resolvedContainer
@@ -20,6 +23,41 @@ struct PersistenceController {
             fatalError("Failed to initialize persistence at \(storePath). Existing store was preserved. Error: \(error)")
         }
         StartupTrace.mark("PersistenceController.init.end")
+    }
+
+    private static func cleanupLegacyPeriodicDataIfNeeded(
+        container: ModelContainer,
+        inMemory: Bool
+    ) throws {
+        guard inMemory == false else { return }
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: legacyPeriodicDataCleanupKey) == false else { return }
+
+        let context = ModelContext(container)
+        let periodicItems = try context.fetch(
+            FetchDescriptor<PersistentItem>(
+                predicate: #Predicate<PersistentItem> { $0.repeatRuleData != nil }
+            )
+        )
+        let periodicTemplates = try context.fetch(
+            FetchDescriptor<PersistentTaskTemplate>(
+                predicate: #Predicate<PersistentTaskTemplate> { $0.repeatRuleData != nil }
+            )
+        )
+
+        for record in periodicItems {
+            context.delete(record)
+        }
+
+        for record in periodicTemplates {
+            context.delete(record)
+        }
+
+        if periodicItems.isEmpty == false || periodicTemplates.isEmpty == false {
+            try context.save()
+        }
+
+        defaults.set(true, forKey: legacyPeriodicDataCleanupKey)
     }
 
     private static func makeContainer(inMemory: Bool) throws -> ModelContainer {

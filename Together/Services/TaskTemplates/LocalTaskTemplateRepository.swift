@@ -35,7 +35,6 @@ actor LocalTaskTemplateRepository: TaskTemplateRepositoryProtocol {
             notes: template.notes,
             listID: template.listID,
             projectID: template.projectID,
-            priority: template.priority,
             isPinned: template.isPinned,
             hasExplicitTime: template.hasExplicitTime,
             time: template.time,

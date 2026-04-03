@@ -9,7 +9,6 @@ final class PersistentTaskTemplate {
     var notes: String?
     var listID: UUID?
     var projectID: UUID?
-    var priorityRawValue: String
     var isPinned: Bool
     var hasExplicitTime: Bool
     var timeData: Data?
@@ -25,7 +24,6 @@ final class PersistentTaskTemplate {
         notes: String?,
         listID: UUID?,
         projectID: UUID?,
-        priorityRawValue: String,
         isPinned: Bool,
         hasExplicitTime: Bool,
         timeData: Data?,
@@ -40,7 +38,6 @@ final class PersistentTaskTemplate {
         self.notes = notes
         self.listID = listID
         self.projectID = projectID
-        self.priorityRawValue = priorityRawValue
         self.isPinned = isPinned
         self.hasExplicitTime = hasExplicitTime
         self.timeData = timeData
@@ -60,7 +57,6 @@ extension PersistentTaskTemplate {
             notes: template.notes,
             listID: template.listID,
             projectID: template.projectID,
-            priorityRawValue: template.priority.rawValue,
             isPinned: template.isPinned,
             hasExplicitTime: template.hasExplicitTime,
             timeData: Self.encode(template.time),
@@ -79,7 +75,6 @@ extension PersistentTaskTemplate {
             notes: notes,
             listID: listID,
             projectID: projectID,
-            priority: ItemPriority(rawValue: priorityRawValue) ?? .normal,
             isPinned: isPinned,
             hasExplicitTime: hasExplicitTime,
             time: Self.decode(timeData, defaultValue: nil),
@@ -96,7 +91,6 @@ extension PersistentTaskTemplate {
         notes = template.notes
         listID = template.listID
         projectID = template.projectID
-        priorityRawValue = template.priority.rawValue
         isPinned = template.isPinned
         hasExplicitTime = template.hasExplicitTime
         timeData = Self.encode(template.time)

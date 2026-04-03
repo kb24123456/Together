@@ -66,7 +66,6 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     var locationText: String? = nil
     var executionRole: ItemExecutionRole
     var assigneeMode: TaskAssigneeMode = .self
-    var priority: ItemPriority
     var dueAt: Date?
     var hasExplicitTime: Bool = false
     var remindAt: Date?

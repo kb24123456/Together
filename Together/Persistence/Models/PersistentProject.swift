@@ -11,7 +11,6 @@ final class PersistentProject {
     var statusRawValue: String
     var targetDate: Date?
     var remindAt: Date?
-    var priorityRawValue: String
     var createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
@@ -25,7 +24,6 @@ final class PersistentProject {
         statusRawValue: String,
         targetDate: Date?,
         remindAt: Date?,
-        priorityRawValue: String,
         createdAt: Date,
         updatedAt: Date,
         completedAt: Date?
@@ -38,7 +36,6 @@ final class PersistentProject {
         self.statusRawValue = statusRawValue
         self.targetDate = targetDate
         self.remindAt = remindAt
-        self.priorityRawValue = priorityRawValue
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt
@@ -56,7 +53,6 @@ extension PersistentProject {
             statusRawValue: project.status.rawValue,
             targetDate: project.targetDate,
             remindAt: project.remindAt,
-            priorityRawValue: project.priority.rawValue,
             createdAt: project.createdAt,
             updatedAt: project.updatedAt,
             completedAt: project.completedAt
@@ -73,7 +69,6 @@ extension PersistentProject {
             status: ProjectStatus(rawValue: statusRawValue) ?? .active,
             targetDate: targetDate,
             remindAt: remindAt,
-            priority: ItemPriority(rawValue: priorityRawValue) ?? .normal,
             taskCount: taskCount,
             subtasks: [],
             createdAt: createdAt,
@@ -90,7 +85,6 @@ extension PersistentProject {
         statusRawValue = project.status.rawValue
         targetDate = project.targetDate
         remindAt = project.remindAt
-        priorityRawValue = project.priority.rawValue
         updatedAt = project.updatedAt
         completedAt = project.completedAt
     }

@@ -13,7 +13,6 @@ final class PersistentItem {
     var locationText: String?
     var executionRoleRawValue: String
     var assigneeModeRawValue: String
-    var priorityRawValue: String
     var dueAt: Date?
     var hasExplicitTime: Bool
     var remindAt: Date?
@@ -44,7 +43,6 @@ final class PersistentItem {
         locationText: String?,
         executionRoleRawValue: String,
         assigneeModeRawValue: String,
-        priorityRawValue: String,
         dueAt: Date?,
         hasExplicitTime: Bool,
         remindAt: Date?,
@@ -74,7 +72,6 @@ final class PersistentItem {
         self.locationText = locationText
         self.executionRoleRawValue = executionRoleRawValue
         self.assigneeModeRawValue = assigneeModeRawValue
-        self.priorityRawValue = priorityRawValue
         self.dueAt = dueAt
         self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
@@ -109,7 +106,6 @@ extension PersistentItem {
             locationText: item.locationText,
             executionRoleRawValue: item.executionRole.rawValue,
             assigneeModeRawValue: item.assigneeMode.rawValue,
-            priorityRawValue: item.priority.rawValue,
             dueAt: item.dueAt,
             hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
@@ -143,7 +139,6 @@ extension PersistentItem {
             locationText: locationText,
             executionRole: ItemExecutionRole(rawValue: executionRoleRawValue) ?? .initiator,
             assigneeMode: TaskAssigneeMode(rawValue: assigneeModeRawValue) ?? .self,
-            priority: ItemPriority(rawValue: priorityRawValue) ?? .normal,
             dueAt: dueAt,
             hasExplicitTime: hasExplicitTime,
             remindAt: remindAt,
@@ -176,7 +171,6 @@ extension PersistentItem {
         locationText = item.locationText
         executionRoleRawValue = item.executionRole.rawValue
         assigneeModeRawValue = item.assigneeMode.rawValue
-        priorityRawValue = item.priority.rawValue
         dueAt = item.dueAt
         hasExplicitTime = item.hasExplicitTime
         remindAt = item.remindAt

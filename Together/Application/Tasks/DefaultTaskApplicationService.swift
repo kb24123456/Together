@@ -69,7 +69,6 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             locationText: nil,
             executionRole: draft.assigneeMode.legacyExecutionRole,
             assigneeMode: draft.assigneeMode,
-            priority: draft.priority,
             dueAt: draft.dueAt,
             hasExplicitTime: draft.hasExplicitTime,
             remindAt: draft.remindAt,
@@ -110,7 +109,6 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.projectID = draft.projectID
         item.dueAt = draft.dueAt
         item.remindAt = draft.remindAt
-        item.priority = draft.priority
         item.executionRole = draft.assigneeMode.legacyExecutionRole
         item.assigneeMode = draft.assigneeMode
         item.assignmentState = draft.assigneeMode == .partner && item.responseHistory.isEmpty
@@ -435,22 +433,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             return lhsDue < rhsDue
         }
 
-        if lhs.priority != rhs.priority {
-            return priorityRank(lhs.priority) > priorityRank(rhs.priority)
-        }
-
         return lhs.updatedAt > rhs.updatedAt
-    }
-
-    private func priorityRank(_ priority: ItemPriority) -> Int {
-        switch priority {
-        case .critical:
-            return 3
-        case .important:
-            return 2
-        case .normal:
-            return 1
-        }
     }
 
     private func isDueOnReferenceDay(_ item: Item, referenceDate: Date) -> Bool {

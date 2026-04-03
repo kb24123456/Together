@@ -69,23 +69,6 @@ extension ItemExecutionRole {
     }
 }
 
-enum ItemPriority: String, CaseIterable, Hashable, Sendable, Codable {
-    case normal
-    case important
-    case critical
-
-    var title: String {
-        switch self {
-        case .normal:
-            return "普通"
-        case .important:
-            return "重要"
-        case .critical:
-            return "很重要"
-        }
-    }
-}
-
 enum ItemResponseKind: String, CaseIterable, Hashable, Sendable, Codable {
     case willing
     case notAvailableNow

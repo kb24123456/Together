@@ -172,6 +172,7 @@ struct HomeView: View {
                     projectModeHeaderMeta
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 0)
 
@@ -239,23 +240,38 @@ struct HomeView: View {
 
     private var projectModeHeaderMeta: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            Text(projectModeDateLine)
-                .font(AppTheme.typography.sized(14, weight: .medium))
-                .foregroundStyle(headerSecondaryColor)
-                .lineLimit(1)
-
-            Spacer(minLength: 12)
+            projectModeIndicator
+                .layoutPriority(2)
 
             Text(projectModeProjectsSummary)
                 .font(AppTheme.typography.sized(13, weight: .semibold))
                 .foregroundStyle(headerSecondaryColor)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .multilineTextAlignment(.trailing)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isProjectModePresented ? 1 : 0)
         .offset(y: isProjectModePresented ? 0 : projectModeContentTransitionOffset)
         .allowsHitTesting(false)
         .animation(projectModeAnimation, value: isProjectModePresented)
+    }
+
+    private var projectModeIndicator: some View {
+        Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
+            .font(AppTheme.typography.sized(12, weight: .bold))
+            .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(
+                        viewModel.isPairModeActive
+                        ? AppTheme.colors.coral.opacity(0.12)
+                        : AppTheme.colors.surfaceElevated
+                    )
+            )
     }
 
     private func headerTitle(compact: Bool) -> some View {
@@ -986,7 +1002,7 @@ struct HomeView: View {
 
     private var weekSectionVerticalOffset: CGFloat {
         if isProjectModePresented {
-            return -14
+            return 0
         }
 
         return viewModel.isMonthMode ? 2 : 0
@@ -1031,15 +1047,19 @@ struct HomeView: View {
     }
 
     private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + topChromeReservedHeight + calendarContainerHeight
+        safeAreaTop + topChromeReservedHeight + visibleCalendarContainerHeight
     }
 
     private var topChromeReservedHeight: CGFloat {
         if isProjectModePresented {
-            return 78
+            return 64
         }
 
         return viewModel.isPairModeActive ? 112 : 104
+    }
+
+    private var visibleCalendarContainerHeight: CGFloat {
+        isProjectModePresented ? 0 : calendarContainerHeight
     }
 
     private var calendarContainerHeight: CGFloat {

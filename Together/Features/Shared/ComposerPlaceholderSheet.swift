@@ -55,6 +55,12 @@ struct ComposerPlaceholderSheet: View {
                     category: draftState.category,
                     draftState: $draftState,
                     isPairMode: appContext.sessionStore.activeMode == .pair,
+                    templates: taskTemplates,
+                    isLoadingTemplates: isLoadingTemplates,
+                    onTemplatePicked: applyTemplate,
+                    onTemplateDeleted: { template in
+                        await deleteTemplate(template)
+                    },
                     focusedField: $focusedField,
                     focusCoordinator: focusCoordinator
                 )
@@ -125,6 +131,12 @@ struct ComposerPlaceholderSheet: View {
                 applyRenderedChips(newSnapshots, animated: !displayedChips.isEmpty)
             }
         }
+        .onChange(of: draftState.category) { _, newCategory in
+            guard newCategory == .template else { return }
+            Task {
+                await loadTemplates()
+            }
+        }
     }
 
     private var categorySwitcher: some View {
@@ -180,11 +192,13 @@ struct ComposerPlaceholderSheet: View {
                     templateCapsuleButton
                 }
 
-                HStack(alignment: .center, spacing: 12) {
-                    chipRow(trailingInset: 0)
+                if draftState.category != .template {
+                    HStack(alignment: .center, spacing: 12) {
+                        chipRow(trailingInset: 0)
+                    }
                 }
 
-                if draftState.hasMeaningfulContent {
+                if draftState.category != .template, draftState.hasMeaningfulContent {
                     stackedPrimaryActionButton
                 }
             }
@@ -204,7 +218,7 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private var showsTemplateButton: Bool {
-        draftState.category != .project
+        false
     }
 
     private var templateCapsuleButton: some View {
@@ -327,34 +341,8 @@ struct ComposerPlaceholderSheet: View {
 
     private var currentChipSnapshots: [TaskEditorChipSnapshot] {
         switch draftState.category {
-        case .periodic:
-            return [
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.repeatRule.rawValue,
-                    title: draftState.repeatSummaryText,
-                    systemImage: "arrow.triangle.2.circlepath",
-                    menu: .repeatRule,
-                    semanticValue: .repeatRule(
-                        title: draftState.repeatSummaryText,
-                        rank: draftState.repeatRule.animationRank
-                    )
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.time.rawValue,
-                    title: draftState.periodicTimeText,
-                    systemImage: "clock",
-                    menu: .time,
-                    semanticValue: .time(draftState.periodicTime),
-                    showsTrailingClear: draftState.periodicTime != nil
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.reminder.rawValue,
-                    title: draftState.reminderSummaryText(for: .periodic),
-                    systemImage: "bell",
-                    menu: .reminder,
-                    semanticValue: .reminder(draftState.periodicReminderOffset)
-                )
-            ]
+        case .template:
+            return []
         case .task:
             return [
                 TaskEditorChipSnapshot(
@@ -380,11 +368,14 @@ struct ComposerPlaceholderSheet: View {
                     semanticValue: .reminder(draftState.taskReminderOffset)
                 ),
                 TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.priority.rawValue,
-                    title: draftState.priority.title,
-                    systemImage: "flag",
-                    menu: .priority,
-                    semanticValue: .priority(draftState.priority.animationRank)
+                    id: TaskEditorMenu.repeatRule.rawValue,
+                    title: draftState.repeatSummaryText,
+                    systemImage: "arrow.triangle.2.circlepath",
+                    menu: .repeatRule,
+                    semanticValue: .repeatRule(
+                        title: draftState.repeatSummaryText,
+                        rank: draftState.repeatRule?.animationRank ?? 0
+                    )
                 )
             ]
         case .project:
@@ -395,13 +386,6 @@ struct ComposerPlaceholderSheet: View {
                     systemImage: "calendar",
                     menu: .date,
                     semanticValue: .optionalDate(draftState.projectTargetDate)
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.priority.rawValue,
-                    title: draftState.priority.title,
-                    systemImage: "flag",
-                    menu: .priority,
-                    semanticValue: .priority(draftState.priority.animationRank)
                 ),
                 TaskEditorChipSnapshot(
                     id: TaskEditorMenu.subtasks.rawValue,
@@ -467,12 +451,12 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private var menuContext: TaskEditorMenuContext {
-        if activeMenu == .template {
-            return .template
+        if activeMenu == .template || draftState.category == .template {
+            return .templates
         }
         switch draftState.category {
-        case .periodic:
-            return .periodic
+        case .template:
+            return .templates
         case .task:
             return .task
         case .project:
@@ -482,8 +466,8 @@ struct ComposerPlaceholderSheet: View {
 
     private var disabledMenus: Set<TaskEditorMenu> {
         switch draftState.category {
-        case .periodic:
-            return draftState.periodicTime == nil ? [.reminder] : []
+        case .template:
+            return []
         case .task:
             return draftState.taskTime == nil ? [.reminder] : []
         case .project:
@@ -542,8 +526,6 @@ struct ComposerPlaceholderSheet: View {
         case (.task, .time):
             draftState.taskTime = nil
             draftState.taskReminderOffset = nil
-        case (.periodic, .time):
-            draftState.periodicTime = nil
         default:
             break
         }
@@ -606,7 +588,9 @@ struct ComposerPlaceholderSheet: View {
 
         do {
             switch draftState.category {
-            case .periodic, .task:
+            case .template:
+                return
+            case .task:
                 let item = try await appContext.container.taskApplicationService.createTask(
                     in: spaceID,
                     actorID: actorID,
@@ -636,7 +620,7 @@ struct ComposerPlaceholderSheet: View {
 }
 
 private enum ComposerCategory: Int, CaseIterable, Identifiable {
-    case periodic
+    case template
     case task
     case project
 
@@ -644,8 +628,8 @@ private enum ComposerCategory: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .periodic:
-            return "周期性"
+        case .template:
+            return "模板"
         case .task:
             return "任务"
         case .project:
@@ -655,8 +639,8 @@ private enum ComposerCategory: Int, CaseIterable, Identifiable {
 
     var titlePlaceholder: String {
         switch self {
-        case .periodic:
-            return "周期性标题"
+        case .template:
+            return "从模板创建"
         case .task:
             return "任务标题"
         case .project:
@@ -687,14 +671,10 @@ private struct ComposerDraftState: Hashable {
     var assignmentNote = ""
     var taskDate: Date
     var taskTime: Date?
-    var periodicAnchorDate: Date
-    var periodicTime: Date?
     var projectTargetDate: Date?
-    var priority: ItemPriority = .normal
     var isPinned = false
-    var periodicReminderOffset: TimeInterval?
     var taskReminderOffset: TimeInterval?
-    var repeatRule: ItemRepeatRule
+    var repeatRule: ItemRepeatRule?
     var projectSubtasks: [ProjectSubtaskDraft] = []
     var projectSubtaskInput = ""
 
@@ -702,8 +682,7 @@ private struct ComposerDraftState: Hashable {
         self.category = initialCategory
         let calendar = Calendar.current
         self.taskDate = calendar.startOfDay(for: referenceDate)
-        self.periodicAnchorDate = calendar.startOfDay(for: referenceDate)
-        self.repeatRule = ItemRepeatRule(frequency: .daily)
+        self.repeatRule = nil
     }
 
     var hasMeaningfulContent: Bool {
@@ -720,18 +699,13 @@ private struct ComposerDraftState: Hashable {
         return taskTime.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
-    var periodicTimeText: String {
-        guard let periodicTime else { return "时间" }
-        return periodicTime.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-    }
-
     var projectDateText: String {
         guard let projectTargetDate else { return "截止日期" }
         return Self.localizedRelativeMonthDayText(projectTargetDate)
     }
 
     var repeatSummaryText: String {
-        repeatRule.title(anchorDate: periodicAnchorDate, calendar: .current)
+        repeatRule?.title(anchorDate: taskDate, calendar: .current) ?? "重复"
     }
 
     var projectSubtaskSummaryText: String {
@@ -744,8 +718,8 @@ private struct ComposerDraftState: Hashable {
     func reminderSummaryText(for category: ComposerCategory) -> String {
         let offset: TimeInterval?
         switch category {
-        case .periodic:
-            offset = periodicReminderOffset
+        case .template:
+            offset = nil
         case .task:
             offset = taskReminderOffset
         case .project:
@@ -759,28 +733,8 @@ private struct ComposerDraftState: Hashable {
     func taskDraft() -> TaskDraft {
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         switch category {
-        case .periodic:
-            let dueAt = periodicTime.map { Self.merge(date: periodicAnchorDate, timeSource: $0) }
-                ?? Calendar.current.startOfDay(for: periodicAnchorDate)
-            let reminderTarget = Self.reminderTargetDate(for: dueAt, hasExplicitTime: periodicTime != nil)
-            let remindAt = periodicReminderOffset.map { reminderTarget.addingTimeInterval(-$0) }
-            return TaskDraft(
-                title: title,
-                notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-                listID: linkedListID,
-                projectID: linkedProjectID,
-                dueAt: dueAt,
-                hasExplicitTime: periodicTime != nil,
-                remindAt: remindAt,
-                priority: priority,
-                assigneeMode: assigneeMode,
-                assignmentState: assigneeMode == .partner ? .pendingResponse : .active,
-                assignmentNote: assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? nil
-                    : assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines),
-                isPinned: isPinned,
-                repeatRule: repeatRule
-            )
+        case .template:
+            return TaskDraft(title: title)
         case .task:
             let mergedDate = taskTime.map { Self.merge(date: taskDate, timeSource: $0) }
             let fallbackDate = Calendar.current.startOfDay(for: taskDate)
@@ -795,13 +749,13 @@ private struct ComposerDraftState: Hashable {
                 dueAt: dueAt,
                 hasExplicitTime: taskTime != nil,
                 remindAt: remindAt,
-                priority: priority,
                 assigneeMode: assigneeMode,
                 assignmentState: assigneeMode == .partner ? .pendingResponse : .active,
                 assignmentNote: assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? nil
                     : assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines),
-                isPinned: isPinned
+                isPinned: isPinned,
+                repeatRule: repeatRule
             )
         case .project:
             return TaskDraft(title: title, notes: trimmedNotes.isEmpty ? nil : trimmedNotes)
@@ -819,7 +773,6 @@ private struct ComposerDraftState: Hashable {
             status: .active,
             targetDate: projectTargetDate,
             remindAt: nil,
-            priority: priority,
             taskCount: projectSubtasks.count,
             createdAt: .now,
             updatedAt: .now,
@@ -851,33 +804,17 @@ private struct ComposerDraftState: Hashable {
         notes = template.notes ?? ""
         linkedListID = template.listID
         linkedProjectID = template.projectID
-        priority = template.priority
         isPinned = template.isPinned
         assigneeMode = .self
         assignmentNote = ""
         projectSubtasks = []
         projectSubtaskInput = ""
         projectTargetDate = nil
-
-        switch template.category {
-        case .task:
-            category = .task
-            taskDate = anchorDate
-            taskTime = template.hasExplicitTime ? template.time?.date(on: anchorDate, calendar: calendar) : nil
-            taskReminderOffset = template.reminderOffset
-            periodicAnchorDate = anchorDate
-            periodicTime = nil
-            periodicReminderOffset = nil
-        case .periodic:
-            category = .periodic
-            periodicAnchorDate = anchorDate
-            periodicTime = template.hasExplicitTime ? template.time?.date(on: anchorDate, calendar: calendar) : nil
-            periodicReminderOffset = template.reminderOffset
-            repeatRule = template.repeatRule ?? ItemRepeatRule(frequency: .daily)
-            taskDate = anchorDate
-            taskTime = nil
-            taskReminderOffset = nil
-        }
+        category = .task
+        taskDate = anchorDate
+        taskTime = template.hasExplicitTime ? template.time?.date(on: anchorDate, calendar: calendar) : nil
+        taskReminderOffset = template.reminderOffset
+        repeatRule = template.repeatRule
     }
 
     private static func merge(date: Date, timeSource: Date) -> Date {
@@ -919,7 +856,7 @@ private struct ComposerDraftState: Hashable {
     }
 }
 
-private struct ComposerTemplatePickerSheet: View {
+struct ComposerTemplatePickerSheet: View {
     let templates: [TaskTemplate]
     let isLoading: Bool
     let onSelect: (TaskTemplate) -> Void
@@ -968,7 +905,7 @@ private struct ComposerTemplatePickerSheet: View {
     }
 }
 
-private struct ComposerTemplateRow: View {
+struct ComposerTemplateRow: View {
     let template: TaskTemplate
 
     var body: some View {
@@ -991,8 +928,7 @@ private struct ComposerTemplateRow: View {
                 alignment: .leading,
                 spacing: 8
             ) {
-                templateBadge(title: template.category == .periodic ? "周期性" : "任务", systemImage: "square.stack.3d.up")
-                templateBadge(title: template.priority.title, systemImage: "flag")
+                templateBadge(title: "任务", systemImage: "square.stack.3d.up")
                 if let time = template.time {
                     templateBadge(
                         title: String(format: "%02d:%02d", time.hour, time.minute),
@@ -1047,10 +983,29 @@ private struct ComposerPage: View {
     let category: ComposerCategory
     @Binding var draftState: ComposerDraftState
     let isPairMode: Bool
+    let templates: [TaskTemplate]
+    let isLoadingTemplates: Bool
+    let onTemplatePicked: (TaskTemplate) -> Void
+    let onTemplateDeleted: (TaskTemplate) async -> Void
     @Binding var focusedField: ComposerField?
     let focusCoordinator: ComposerTextInputFocusCoordinator
 
     var body: some View {
+        Group {
+            if category == .template {
+                ComposerTemplatePickerSheet(
+                    templates: templates,
+                    isLoading: isLoadingTemplates,
+                    onSelect: onTemplatePicked,
+                    onDelete: onTemplateDeleted
+                )
+            } else {
+                editorPage
+            }
+        }
+    }
+
+    private var editorPage: some View {
         VStack(alignment: .leading, spacing: 12) {
             ComposerFocusableTextView(
                 text: $draftState.title,
@@ -1331,7 +1286,6 @@ private enum ComposerChipSemanticValue: Equatable {
     case optionalDate(Date?)
     case time(Date?)
     case reminder(TimeInterval?)
-    case priority(Int)
     case repeatRule(title: String, rank: Int)
 
     static func direction(from oldValue: Self, to newValue: Self) -> ComposerChipTextTransitionDirection {
@@ -1344,8 +1298,6 @@ private enum ComposerChipSemanticValue: Equatable {
             return compare(oldTime, newTime)
         case let (.reminder(oldOffset), .reminder(newOffset)):
             return (newOffset ?? -.infinity) >= (oldOffset ?? -.infinity) ? .up : .down
-        case let (.priority(oldRank), .priority(newRank)):
-            return newRank >= oldRank ? .up : .down
         case let (.repeatRule(oldTitle, oldRank), .repeatRule(newTitle, newRank)):
             if newRank != oldRank {
                 return newRank >= oldRank ? .up : .down
@@ -1406,7 +1358,7 @@ private struct ComposerChipTextLayout: Equatable {
             }
         case let .time(date):
             segments = Self.timeSegments(for: date, placeholder: text)
-        case .reminder, .priority, .repeatRule:
+        case .reminder, .repeatRule:
             segments = [ComposerChipTextSegment(id: "main", text: text, kind: .text)]
         }
     }
@@ -1607,11 +1559,6 @@ private struct ComposerAnimatedChipTitle: View {
                     .monospacedDigit()
                     .contentTransition(.numericText(countsDown: direction == .down))
                     .lineLimit(1)
-            case .priority:
-                Text(value)
-                    .font(font)
-                    .contentTransition(.interpolate)
-                    .lineLimit(1)
             case .interpolated:
                 Text(value)
                     .font(font)
@@ -1631,8 +1578,6 @@ private struct ComposerAnimatedChipTitle: View {
             return .numeric
         case .reminder:
             return .numeric
-        case .priority:
-            return .priority
         case .repeatRule:
             return .interpolated
         }
@@ -1677,7 +1622,7 @@ private struct ComposerAnimatedChipTitle: View {
             return true
         case .reminder:
             return true
-        case .priority, .repeatRule:
+        case .repeatRule:
             return false
         }
     }
@@ -1685,7 +1630,6 @@ private struct ComposerAnimatedChipTitle: View {
 
 private enum ComposerChipContentTransitionStyle {
     case numeric
-    case priority
     case interpolated
     case none
 }
@@ -1694,7 +1638,6 @@ private enum ComposerMenu: String, Identifiable {
     case date
     case time
     case reminder
-    case priority
     case repeatRule
 
     var id: String { rawValue }
@@ -1705,7 +1648,7 @@ private enum ComposerMenu: String, Identifiable {
             return [.custom(ComposerDateMenuDetent.self)]
         case .time:
             return [.custom(TaskEditorTaskMenuDetent.self)]
-        case .reminder, .priority, .repeatRule:
+        case .reminder, .repeatRule:
             return [.custom(TaskEditorTaskMenuDetent.self)]
         }
     }
@@ -1734,13 +1677,11 @@ private struct ComposerEditorMenuSheet: View {
 
     @State private var stagedSelectedDate: Date
     @State private var stagedSelectedTime: Date?
-    @State private var stagedPriority: ItemPriority
     @State private var stagedReminderOffset: TimeInterval?
-    @State private var stagedRepeatRule: ItemRepeatRule
+    @State private var stagedRepeatRule: ItemRepeatRule?
 
     @State private var didEditDate = false
     @State private var didEditTime = false
-    @State private var didEditPriority = false
     @State private var didEditReminder = false
     @State private var didEditRepeatRule = false
 
@@ -1773,10 +1714,10 @@ private struct ComposerEditorMenuSheet: View {
         let initialReminder: TimeInterval?
 
         switch currentDraft.category {
-        case .periodic:
-            initialDate = currentDraft.periodicAnchorDate
-            initialTime = currentDraft.periodicTime
-            initialReminder = currentDraft.periodicReminderOffset
+        case .template:
+            initialDate = currentDraft.taskDate
+            initialTime = nil
+            initialReminder = nil
         case .task:
             initialDate = currentDraft.taskDate
             initialTime = currentDraft.taskTime
@@ -1789,7 +1730,6 @@ private struct ComposerEditorMenuSheet: View {
 
         _stagedSelectedDate = State(initialValue: initialDate)
         _stagedSelectedTime = State(initialValue: initialTime)
-        _stagedPriority = State(initialValue: currentDraft.priority)
         _stagedReminderOffset = State(initialValue: initialReminder)
         _stagedRepeatRule = State(initialValue: currentDraft.repeatRule)
     }
@@ -1800,10 +1740,10 @@ private struct ComposerEditorMenuSheet: View {
             activeMenu: $activeMenu,
             disabledMenus: stagedDisabledMenus,
             selectionFeedback: ComposerButtonHaptics.selection,
-            headerTitle: context == .template ? "选择模板" : nil,
+            headerTitle: context == .templates ? "选择模板" : nil,
             switcherPlacement: .bottom,
             onClose: onDismiss,
-            onSave: context == .template ? onDismiss : applyChangesAndDismiss
+            onSave: context == .templates ? onDismiss : applyChangesAndDismiss
         ) { menu in
             menuContent(for: menu)
         }
@@ -1836,11 +1776,6 @@ private struct ComposerEditorMenuSheet: View {
                 options: reminderMenuOptions,
                 selectionFeedback: ComposerButtonHaptics.selection
             )
-        case .priority:
-            TaskEditorOptionList(
-                options: priorityMenuOptions,
-                selectionFeedback: ComposerButtonHaptics.selection
-            )
         case .repeatRule:
             TaskEditorOptionList(
                 options: repeatRuleMenuOptions,
@@ -1861,8 +1796,8 @@ private struct ComposerEditorMenuSheet: View {
     private func applyChangesAndDismiss() {
         if didEditDate {
             switch draftState.category {
-            case .periodic:
-                draftState.periodicAnchorDate = stagedSelectedDate
+            case .template:
+                break
             case .task:
                 draftState.taskDate = stagedSelectedDate
             case .project:
@@ -1872,8 +1807,8 @@ private struct ComposerEditorMenuSheet: View {
 
         if didEditTime {
             switch draftState.category {
-            case .periodic:
-                draftState.periodicTime = stagedSelectedTime
+            case .template:
+                break
             case .task:
                 draftState.taskTime = stagedSelectedTime
             case .project:
@@ -1881,14 +1816,10 @@ private struct ComposerEditorMenuSheet: View {
             }
         }
 
-        if didEditPriority {
-            draftState.priority = stagedPriority
-        }
-
         if didEditReminder {
             switch draftState.category {
-            case .periodic:
-                draftState.periodicReminderOffset = stagedReminderOffset
+            case .template:
+                break
             case .task:
                 draftState.taskReminderOffset = stagedReminderOffset
             case .project:
@@ -1896,7 +1827,7 @@ private struct ComposerEditorMenuSheet: View {
             }
         }
 
-        if didEditRepeatRule, draftState.category == .periodic {
+        if didEditRepeatRule, draftState.category == .task {
             draftState.repeatRule = stagedRepeatRule
         }
 
@@ -1912,7 +1843,7 @@ private struct ComposerEditorMenuSheet: View {
     }
 
     private var stagedDisabledMenus: Set<TaskEditorMenu> {
-        guard context == .task || context == .periodic else { return disabledMenus }
+        guard context == .task else { return disabledMenus }
         return stagedReminderContext.isReminderMenuDisabled ? [.reminder] : []
     }
 
@@ -1950,25 +1881,19 @@ private struct ComposerEditorMenuSheet: View {
         }
     }
 
-    private var priorityMenuOptions: [TaskEditorOptionRow] {
-        ItemPriority.allCases.map { priority in
-            TaskEditorOptionRow(
-                title: priority.title,
-                isSelected: stagedPriority == priority,
-                action: {
-                    stagedPriority = priority
-                    didEditPriority = true
-                }
-            )
-        }
-    }
-
     private var repeatRuleMenuOptions: [TaskEditorOptionRow] {
-        TaskEditorRepeatPreset.allCases.map { preset in
+        [TaskEditorOptionRow(
+            title: "不重复",
+            isSelected: stagedRepeatRule == nil,
+            action: {
+                stagedRepeatRule = nil
+                didEditRepeatRule = true
+            }
+        )] + TaskEditorRepeatPreset.allCases.map { preset in
             let title = preset.title(anchorDate: stagedSelectedDate)
             return TaskEditorOptionRow(
                 title: title,
-                isSelected: title == stagedRepeatRule.title(anchorDate: stagedSelectedDate, calendar: .current),
+                isSelected: title == stagedRepeatRule?.title(anchorDate: stagedSelectedDate, calendar: .current),
                 action: {
                     stagedRepeatRule = preset.makeRule(anchorDate: stagedSelectedDate)
                     didEditRepeatRule = true
@@ -2121,28 +2046,15 @@ private struct ComposerMenuSheet: View {
             optionList(
                 options: reminderMenuOptions
             )
-        case .priority:
-            optionList(
-                options: ItemPriority.allCases.map { priority in
-                    ComposerOptionRow(
-                        title: priority.title,
-                        isSelected: draftState.priority == priority,
-                        action: {
-                            draftState.priority = priority
-                            onDismiss()
-                        }
-                    )
-                }
-            )
         case .repeatRule:
             optionList(
                 options: RepeatPreset.allCases.map { preset in
-                    let title = preset.title(anchorDate: draftState.periodicAnchorDate)
+                    let title = preset.title(anchorDate: draftState.taskDate)
                     return ComposerOptionRow(
                         title: title,
                         isSelected: title == draftState.repeatSummaryText,
                         action: {
-                            draftState.repeatRule = preset.makeRule(anchorDate: draftState.periodicAnchorDate)
+                            draftState.repeatRule = preset.makeRule(anchorDate: draftState.taskDate)
                             onDismiss()
                         }
                     )
@@ -2207,8 +2119,8 @@ private struct ComposerMenuSheet: View {
 
     private func setReminder(_ seconds: TimeInterval?) {
         switch draftState.category {
-        case .periodic:
-            draftState.periodicReminderOffset = seconds
+        case .template:
+            break
         case .task:
             draftState.taskReminderOffset = seconds
         case .project:
@@ -2251,8 +2163,8 @@ private struct ComposerDatePickerSheet: View {
         let calendar = Calendar.current
         let initialDate: Date
         switch draftState.wrappedValue.category {
-        case .periodic:
-            initialDate = draftState.wrappedValue.periodicAnchorDate
+        case .template:
+            initialDate = draftState.wrappedValue.taskDate
         case .task:
             initialDate = draftState.wrappedValue.taskDate
         case .project:
@@ -2383,8 +2295,8 @@ private struct ComposerDatePickerSheet: View {
 
     private var selectedDate: Date {
         switch draftState.category {
-        case .periodic:
-            return draftState.periodicAnchorDate
+        case .template:
+            return draftState.taskDate
         case .task:
             return draftState.taskDate
         case .project:
@@ -2482,8 +2394,8 @@ private struct ComposerDatePickerSheet: View {
     private func selectDate(_ date: Date) {
         let normalized = Calendar.current.startOfDay(for: date)
         switch draftState.category {
-        case .periodic:
-            draftState.periodicAnchorDate = normalized
+        case .template:
+            draftState.taskDate = normalized
         case .task:
             draftState.taskDate = normalized
         case .project:
