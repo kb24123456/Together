@@ -160,17 +160,22 @@ struct HomeView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: isProjectModePresented ? 6 : 0) {
-            headerTopRow(compact: isProjectModePresented)
+        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+            VStack(alignment: .leading, spacing: isProjectModePresented ? 6 : 6) {
+                headerTitle(compact: isProjectModePresented)
 
-            if !isProjectModePresented {
-                spaceModeLine
-                    .padding(.top, 6)
+                if !isProjectModePresented {
+                    spaceModeLine
+                }
+
+                if isProjectModePresented {
+                    projectModeHeaderMeta
+                }
             }
 
-            if isProjectModePresented {
-                projectModeHeaderMeta
-            }
+            Spacer(minLength: 0)
+
+            headerControls(compact: isProjectModePresented)
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
@@ -178,34 +183,38 @@ struct HomeView: View {
     }
 
     private var spaceModeLine: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
-                    .font(AppTheme.typography.sized(12, weight: .bold))
-                    .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(
-                                viewModel.isPairModeActive
-                                ? AppTheme.colors.coral.opacity(0.12)
-                                : AppTheme.colors.surfaceElevated
-                            )
-                    )
+        HStack(spacing: 8) {
+            Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(
+                            viewModel.isPairModeActive
+                            ? AppTheme.colors.coral.opacity(0.12)
+                            : AppTheme.colors.surfaceElevated
+                        )
+                )
 
-                Text(viewModel.spaceDisplayName)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .foregroundStyle(headerSecondaryColor)
-                    .lineLimit(1)
+            Text(viewModel.spaceDisplayName)
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(headerSecondaryColor)
+                .lineLimit(1)
+        }
+    }
+
+    private func headerControls(compact: Bool) -> some View {
+        HStack(alignment: .top, spacing: AppTheme.spacing.sm) {
+            if compact == false, isTodayJumpButtonVisible {
+                todayJumpButton
+                    .transition(todayJumpTransition)
+                    .padding(.top, 8)
+                    .layoutPriority(2)
             }
 
-            if let pairBannerText = viewModel.pairBannerText {
-                Text(pairBannerText)
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(headerSecondaryColor)
-                    .lineLimit(1)
-            }
+            headerAvatarButton(compact: compact)
         }
     }
 
@@ -275,6 +284,7 @@ struct HomeView: View {
                 triggerSoftDateFeedback()
             }
         )
+        .padding(.top, compact ? 0 : 2)
         .id(appContext.sessionStore.userProfileRevision)
         .compositingGroup()
     }
@@ -420,7 +430,7 @@ struct HomeView: View {
         .frame(minHeight: 42)
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
-        .modifier(HomeAvatarGlassModifier())
+        .modifier(HomeAvatarGlassModifier(isCircular: false))
         .buttonStyle(.plain)
         .accessibilityLabel("返回今天")
     }
@@ -1021,7 +1031,15 @@ struct HomeView: View {
     }
 
     private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + (isProjectModePresented ? 78 : (78 + calendarContainerHeight))
+        safeAreaTop + topChromeReservedHeight + calendarContainerHeight
+    }
+
+    private var topChromeReservedHeight: CGFloat {
+        if isProjectModePresented {
+            return 78
+        }
+
+        return viewModel.isPairModeActive ? 112 : 104
     }
 
     private var calendarContainerHeight: CGFloat {
@@ -1715,7 +1733,8 @@ private struct HomeTimelineTimeText: View {
 }
 
 private struct HomeAvatarToggleButton: View {
-    private let controlHeight: CGFloat = 38
+    private let compactAvatarSize: CGFloat = 30
+    private let regularAvatarSize: CGFloat = 40
     let avatars: [HomeAvatar]
     let foregroundColor: Color
     let secondaryForegroundColor: Color
@@ -1724,19 +1743,43 @@ private struct HomeAvatarToggleButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: -10) {
+            HStack(spacing: overlapSpacing) {
                 ForEach(Array(avatars.enumerated()), id: \.element.id) { index, avatar in
                     avatarBadge(avatar, zIndex: Double(avatars.count - index))
                 }
             }
-            .padding(.horizontal, avatars.count > 1 ? 6 : 4)
-            .padding(.vertical, 1.5)
+            .padding(.horizontal, edgeInset)
+            .padding(.vertical, edgeInset)
             .frame(minHeight: controlHeight)
         }
         .buttonStyle(.plain)
-        .modifier(HomeAvatarGlassModifier())
+        .modifier(HomeAvatarGlassModifier(isCircular: isCircular))
         .scaleEffect(compact ? 0.86 : 1, anchor: .trailing)
-        .frame(minHeight: controlHeight)
+        .frame(width: isCircular ? controlHeight : nil, height: controlHeight)
+    }
+
+    private var controlHeight: CGFloat {
+        avatarSize + (edgeInset * 2)
+    }
+
+    private var avatarSize: CGFloat {
+        compact ? compactAvatarSize : regularAvatarSize
+    }
+
+    private var isCircular: Bool {
+        avatars.count == 1
+    }
+
+    private var overlapSpacing: CGFloat {
+        avatars.count > 1 ? -14 : 0
+    }
+
+    private var edgeInset: CGFloat {
+        if compact {
+            return avatars.count > 1 ? 4 : 3
+        }
+
+        return avatars.count > 1 ? 4 : 4
     }
 
     @ViewBuilder
@@ -1744,13 +1787,13 @@ private struct HomeAvatarToggleButton: View {
         UserAvatarView(
             avatarAsset: avatar.avatarAsset,
             displayName: avatar.displayName,
-            size: 30,
+            size: avatarSize,
             fillColor: AppTheme.colors.surfaceElevated,
             symbolColor: foregroundColor,
             symbolFont: AppTheme.typography.sized(16, weight: .semibold),
             overrideImage: avatar.overrideImage
         )
-            .frame(width: 30, height: 30)
+            .frame(width: avatarSize, height: avatarSize)
             .overlay {
                 Circle()
                     .stroke(AppTheme.colors.outlineStrong.opacity(0.32), lineWidth: 1.2)
@@ -1761,15 +1804,23 @@ private struct HomeAvatarToggleButton: View {
 }
 
 private struct HomeAvatarGlassModifier: ViewModifier {
+    let isCircular: Bool
+
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
-                .glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
+                .glassEffect(
+                    .regular.interactive(),
+                    in: isCircular ? AnyShape(Circle()) : AnyShape(Capsule(style: .continuous))
+                )
         } else {
             content
-                .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
+                .background(
+                    AppTheme.colors.surfaceElevated,
+                    in: isCircular ? AnyShape(Circle()) : AnyShape(Capsule(style: .continuous))
+                )
                 .overlay {
-                    Capsule(style: .continuous)
+                    (isCircular ? AnyShape(Circle()) : AnyShape(Capsule(style: .continuous)))
                         .stroke(AppTheme.colors.outlineStrong.opacity(0.22), lineWidth: 1)
                 }
         }

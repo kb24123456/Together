@@ -41,6 +41,35 @@ final class MockItemRepository: ItemRepositoryProtocol {
             .map { $0 }
     }
 
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item] {
+        let normalizedLimit = max(limit, 1)
+        let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return items
+            .filter { item in
+                guard item.spaceID == spaceID else { return false }
+                guard let completedAt = item.completedAt else { return false }
+                let cursorDate = item.archivedAt ?? completedAt
+                if let before, cursorDate >= before {
+                    return false
+                }
+                guard let normalizedSearch, normalizedSearch.isEmpty == false else {
+                    return true
+                }
+                return item.title.localizedStandardContains(normalizedSearch)
+            }
+            .sorted {
+                ($0.archivedAt ?? $0.completedAt ?? .distantPast) > ($1.archivedAt ?? $1.completedAt ?? .distantPast)
+            }
+            .prefix(normalizedLimit)
+            .map { $0 }
+    }
+
     func archiveCompletedItemsIfNeeded(
         spaceID: UUID?,
         referenceDate: Date,

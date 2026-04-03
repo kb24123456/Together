@@ -24,12 +24,14 @@ struct CompletedHistoryView: View {
                                 await viewModel.loadMoreIfNeeded(currentItem: item)
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("移回当前列表", systemImage: "arrow.uturn.backward.circle") {
-                                    Task {
-                                        await viewModel.restore(item)
+                                if viewModel.isArchived(item) {
+                                    Button("移回当前列表", systemImage: "arrow.uturn.backward.circle") {
+                                        Task {
+                                            await viewModel.restore(item)
+                                        }
                                     }
+                                    .tint(AppTheme.colors.sky)
                                 }
-                                .tint(AppTheme.colors.sky)
 
                                 Button("删除", systemImage: "trash") {
                                     Task {
@@ -101,7 +103,9 @@ struct CompletedHistoryView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(viewModel.completedDateText(for: item))
-                Text(viewModel.archivedDateText(for: item))
+                if viewModel.isArchived(item) {
+                    Text(viewModel.archivedDateText(for: item))
+                }
             }
             .font(AppTheme.typography.textStyle(.caption1))
             .foregroundStyle(AppTheme.colors.body.opacity(0.64))
@@ -116,8 +120,10 @@ struct CompletedHistoryView: View {
                     VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
                         Text(viewModel.completedDateText(for: item))
                             .foregroundStyle(AppTheme.colors.body)
-                        Text(viewModel.archivedDateText(for: item))
-                            .foregroundStyle(AppTheme.colors.body)
+                        if viewModel.isArchived(item) {
+                            Text(viewModel.archivedDateText(for: item))
+                                .foregroundStyle(AppTheme.colors.body)
+                        }
 
                         if let notes = item.notes, notes.isEmpty == false {
                             Divider()
@@ -128,14 +134,16 @@ struct CompletedHistoryView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Button("移回当前列表", systemImage: "arrow.uturn.backward.circle") {
-                        Task {
-                            await viewModel.restore(item)
-                            selectedItem = nil
+                    if viewModel.isArchived(item) {
+                        Button("移回当前列表", systemImage: "arrow.uturn.backward.circle") {
+                            Task {
+                                await viewModel.restore(item)
+                                selectedItem = nil
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.colors.accent)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.colors.accent)
 
                     Button("删除任务", systemImage: "trash") {
                         Task {

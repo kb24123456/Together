@@ -311,15 +311,11 @@ final class HomeViewModel {
     }
 
     var pairBannerText: String? {
-        guard isPairModeActive else { return nil }
-        if let partnerDisplayName {
-            return "和 \(partnerDisplayName) 的共享任务空间"
-        }
-        return "进入双人模式后共享任务会显示在这里"
+        nil
     }
 
     var headerAvatars: [HomeAvatar] {
-        if hasPairModeAvailable {
+        if isPairModeActive {
             return [currentUserAvatar, pairPreviewAvatar]
         }
 
@@ -1221,6 +1217,8 @@ final class HomeViewModel {
 
     private func makeTimelineEntry(for item: Item) -> HomeTimelineEntry {
         let isCompleted = isCompleted(item, on: selectedDate)
+        let viewerID = sessionStore.currentUser?.id ?? item.creatorID
+        let isPairMode = isPairModeActive
 
         return HomeTimelineEntry(
             id: item.id,
@@ -1228,13 +1226,12 @@ final class HomeViewModel {
             notes: item.notes,
             timeText: timeText(for: item),
             statusText: statusText(for: item, isCompleted: isCompleted),
-            assigneeText: item.executionRole.label(
-                for: sessionStore.currentUser?.id ?? item.creatorID,
-                creatorID: item.creatorID
-            ),
-            messagePreview: item.assignmentMessages.last?.body,
+            assigneeText: isPairMode
+                ? item.executionRole.label(for: viewerID, creatorID: item.creatorID)
+                : nil,
+            messagePreview: isPairMode ? item.assignmentMessages.last?.body : nil,
             responseStateText: responseStateText(for: item),
-            needsResponse: item.requiresResponse && item.canActorRespond(sessionStore.currentUser?.id ?? item.creatorID),
+            needsResponse: isPairMode && item.requiresResponse && item.canActorRespond(viewerID),
             accentColorName: accentColorName(for: item),
             isMuted: isCompleted,
             isCompleted: isCompleted,

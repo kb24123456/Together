@@ -2,6 +2,12 @@ import Foundation
 
 protocol ItemRepositoryProtocol: Sendable {
     func fetchActiveItems(spaceID: UUID?) async throws -> [Item]
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item]
     func fetchArchivedCompletedItems(
         spaceID: UUID?,
         searchText: String?,

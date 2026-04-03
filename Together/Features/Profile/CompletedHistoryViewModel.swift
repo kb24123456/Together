@@ -43,13 +43,13 @@ final class CompletedHistoryViewModel {
 
     var sections: [CompletedHistorySection] {
         let grouped = Dictionary(grouping: items) { item in
-            monthKey(for: item.archivedAt ?? item.completedAt ?? item.updatedAt)
+            monthKey(for: item.historySortDate)
         }
 
         return grouped.keys.sorted(by: >).compactMap { key in
             guard let sectionItems = grouped[key] else { return nil }
             let sortedItems = sectionItems.sorted {
-                ($0.archivedAt ?? $0.completedAt ?? .distantPast) > ($1.archivedAt ?? $1.completedAt ?? .distantPast)
+                $0.historySortDate > $1.historySortDate
             }
 
             return CompletedHistorySection(
@@ -84,7 +84,7 @@ final class CompletedHistoryViewModel {
         await runAutoArchiveIfNeeded(spaceID: spaceID)
 
         do {
-            let fetched = try await itemRepository.fetchArchivedCompletedItems(
+            let fetched = try await itemRepository.fetchCompletedItems(
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
                 before: nil,
@@ -157,6 +157,10 @@ final class CompletedHistoryViewModel {
         return "归档于 \(archivedAt.formatted(date: .abbreviated, time: .omitted))"
     }
 
+    func isArchived(_ item: Item) -> Bool {
+        item.isArchived && item.archivedAt != nil
+    }
+
     private var normalizedSearchText: String? {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -164,13 +168,13 @@ final class CompletedHistoryViewModel {
 
     private func loadMore() async {
         guard let spaceID = sessionStore.currentSpace?.id else { return }
-        let cursor = items.last?.archivedAt ?? items.last?.completedAt
+        let cursor = items.last?.historySortDate
 
         isLoading = true
         defer { isLoading = false }
 
         do {
-            let fetched = try await itemRepository.fetchArchivedCompletedItems(
+            let fetched = try await itemRepository.fetchCompletedItems(
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
                 before: cursor,
@@ -223,5 +227,11 @@ final class CompletedHistoryViewModel {
         let parts = key.split(separator: "-")
         guard parts.count == 2 else { return key }
         return "\(parts[0])年\(parts[1])月"
+    }
+}
+
+private extension Item {
+    var historySortDate: Date {
+        archivedAt ?? completedAt ?? updatedAt
     }
 }

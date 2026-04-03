@@ -116,6 +116,47 @@ struct TogetherTests {
         #expect(projects.contains { $0.id == MockDataFactory.focusProjectID && $0.taskCount == 3 })
     }
 
+    @Test @MainActor
+    func localItemRepositoryFetchCompletedItemsIncludesNonArchivedCompletedTasks() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let completedAt = Date.now
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "未归档但已完成",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: completedAt,
+            hasExplicitTime: false,
+            remindAt: nil,
+            status: .completed,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: completedAt,
+            updatedAt: completedAt,
+            completedAt: completedAt,
+            isPinned: false,
+            isDraft: false
+        )
+
+        _ = try await itemRepository.saveItem(item)
+        let fetched = try await itemRepository.fetchCompletedItems(
+            spaceID: MockDataFactory.singleSpaceID,
+            searchText: "未归档但已完成",
+            before: nil,
+            limit: 10
+        )
+
+        #expect(fetched.contains { $0.id == item.id })
+        #expect(fetched.first(where: { $0.id == item.id })?.isArchived == false)
+    }
+
     @Test
     func localItemRepositoryPersistsStatusTransitions() async throws {
         let persistence = PersistenceController(inMemory: true)
@@ -1641,6 +1682,61 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func completedHistoryViewModelShowsCompletedTasksBeforeArchive() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let sessionStore = SessionStore()
+        sessionStore.authState = .signedIn
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .single
+
+        let completedAt = Date.now
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "历史页应显示未归档完成任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            priority: .normal,
+            dueAt: completedAt,
+            hasExplicitTime: false,
+            remindAt: nil,
+            status: .completed,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: completedAt,
+            updatedAt: completedAt,
+            completedAt: completedAt,
+            isPinned: false,
+            isDraft: false
+        )
+        _ = try await itemRepository.saveItem(item)
+
+        let viewModel = CompletedHistoryViewModel(
+            sessionStore: sessionStore,
+            itemRepository: itemRepository,
+            taskApplicationService: DefaultTaskApplicationService(
+                itemRepository: itemRepository,
+                syncCoordinator: NoOpSyncCoordinator(),
+                reminderScheduler: MockReminderScheduler()
+            ),
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler())
+        )
+
+        await viewModel.reload()
+
+        #expect(viewModel.items.contains { $0.id == item.id })
+        let fetched = try #require(viewModel.items.first(where: { $0.id == item.id }))
+        #expect(viewModel.isArchived(fetched) == false)
+    }
+
+    @Test @MainActor
     func homeViewModelSuppressesImminentUrgencyWhenTaskReminderIsDisabled() async throws {
         let sessionStore = SessionStore()
         var user = MockDataFactory.makeCurrentUser()
@@ -1910,8 +2006,14 @@ struct TogetherTests {
             await viewModel.completeItem(item.id)
         }
 
-        try? await Task.sleep(for: .milliseconds(80))
-        #expect(viewModel.isAnimatingCompletion(for: item.id, on: selectedDate))
+        var didEnterAnimatingState = viewModel.isAnimatingCompletion(for: item.id, on: selectedDate)
+        if didEnterAnimatingState == false {
+            for _ in 0..<8 where didEnterAnimatingState == false {
+                try? await Task.sleep(for: .milliseconds(20))
+                didEnterAnimatingState = viewModel.isAnimatingCompletion(for: item.id, on: selectedDate)
+            }
+        }
+        #expect(didEnterAnimatingState)
 
         await completionTask.value
 
@@ -2107,6 +2209,35 @@ actor TestItemRepository: ItemRepositoryProtocol {
                 return item.title.localizedStandardContains(normalizedSearch)
             }
             .sorted { ($0.archivedAt ?? .distantPast) > ($1.archivedAt ?? .distantPast) }
+            .prefix(normalizedLimit)
+            .map { $0 }
+    }
+
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item] {
+        let normalizedLimit = max(limit, 1)
+        let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return items
+            .filter { item in
+                guard item.spaceID == spaceID else { return false }
+                guard let completedAt = item.completedAt else { return false }
+                let cursorDate = item.archivedAt ?? completedAt
+                if let before, cursorDate >= before {
+                    return false
+                }
+                guard let normalizedSearch, normalizedSearch.isEmpty == false else {
+                    return true
+                }
+                return item.title.localizedStandardContains(normalizedSearch)
+            }
+            .sorted {
+                ($0.archivedAt ?? $0.completedAt ?? .distantPast) > ($1.archivedAt ?? $1.completedAt ?? .distantPast)
+            }
             .prefix(normalizedLimit)
             .map { $0 }
     }

@@ -41,6 +41,32 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return Array(filtered.prefix(normalizedLimit)).map { $0.domainModel() }
     }
 
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item] {
+        let context = ModelContext(container)
+        let normalizedLimit = max(limit, 1)
+        let records = try completedRecords(spaceID: spaceID, context: context)
+
+        let filtered = records.filter { record in
+            guard let completedAt = record.completedAt else { return false }
+            let cursorDate = record.archivedAt ?? completedAt
+            if let before, cursorDate >= before {
+                return false
+            }
+            guard let searchText = searchText?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !searchText.isEmpty else {
+                return true
+            }
+            return record.title.localizedStandardContains(searchText)
+        }
+
+        return Array(filtered.prefix(normalizedLimit)).map { $0.domainModel() }
+    }
+
     func archiveCompletedItemsIfNeeded(
         spaceID: UUID?,
         referenceDate: Date,
@@ -312,6 +338,30 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         }
 
         return try context.fetch(descriptor)
+    }
+
+    private func completedRecords(spaceID: UUID?, context: ModelContext) throws -> [PersistentItem] {
+        let records: [PersistentItem]
+
+        if let spaceID {
+            let descriptor = FetchDescriptor<PersistentItem>(
+                predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID && $0.completedAt != nil },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
+            )
+            records = try context.fetch(descriptor)
+        } else {
+            let descriptor = FetchDescriptor<PersistentItem>(
+                predicate: #Predicate<PersistentItem> { $0.completedAt != nil },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
+            )
+            records = try context.fetch(descriptor)
+        }
+
+        return records.sorted { lhs, rhs in
+            let lhsDate = lhs.archivedAt ?? lhs.completedAt ?? .distantPast
+            let rhsDate = rhs.archivedAt ?? rhs.completedAt ?? .distantPast
+            return lhsDate > rhsDate
+        }
     }
 
     private func hydrateItems(

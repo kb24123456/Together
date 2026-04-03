@@ -9,31 +9,16 @@ struct PersistenceController {
 
     init(inMemory: Bool = false) {
         StartupTrace.mark("PersistenceController.init.begin inMemory=\(inMemory)")
-        var resolvedContainer: ModelContainer
-
         do {
-            resolvedContainer = try Self.makeContainer(inMemory: inMemory)
+            let resolvedContainer = try Self.makeContainer(inMemory: inMemory)
             StartupTrace.mark("PersistenceController.container.created")
             try Self.seedIfNeeded(container: resolvedContainer)
             StartupTrace.mark("PersistenceController.seed.complete")
+            self.container = resolvedContainer
         } catch {
-            guard inMemory == false else {
-                fatalError("Failed to initialize in-memory persistence: \(error)")
-            }
-
-            do {
-                try Self.resetPersistentStore()
-                StartupTrace.mark("PersistenceController.store.reset")
-                resolvedContainer = try Self.makeContainer(inMemory: false)
-                StartupTrace.mark("PersistenceController.container.recreated")
-                try Self.seedIfNeeded(container: resolvedContainer)
-                StartupTrace.mark("PersistenceController.seed.afterReset.complete")
-            } catch {
-                fatalError("Failed to initialize persistence after reset: \(    error)")
-            }
+            let storePath = inMemory ? "in-memory" : Self.persistentStoreURL.path(percentEncoded: false)
+            fatalError("Failed to initialize persistence at \(storePath). Existing store was preserved. Error: \(error)")
         }
-
-        self.container = resolvedContainer
         StartupTrace.mark("PersistenceController.init.end")
     }
 
@@ -78,23 +63,6 @@ struct PersistenceController {
 
         return directory.appendingPathComponent("Together.store")
     }
-
-    private static func resetPersistentStore() throws {
-        let storeURL = persistentStoreURL
-        let sidecarURLs = [
-            storeURL,
-            storeURL.appendingPathExtension("sqlite"),
-            storeURL.appendingPathExtension("sqlite-shm"),
-            storeURL.appendingPathExtension("sqlite-wal"),
-            storeURL.appendingPathExtension("shm"),
-            storeURL.appendingPathExtension("wal")
-        ]
-
-        for url in sidecarURLs where FileManager.default.fileExists(atPath: url.path) {
-            try FileManager.default.removeItem(at: url)
-        }
-    }
-
     private static func seedIfNeeded(container: ModelContainer) throws {
         let context = ModelContext(container)
         let spaceCount = try context.fetchCount(FetchDescriptor<PersistentSpace>())
