@@ -211,13 +211,13 @@ private struct DockGroupedCapsuleModifier: ViewModifier {
             content
                 .background(
                     Capsule(style: .continuous)
-                        .fill(.white.opacity(0.84))
+                        .fill(AppTheme.colors.surfaceElevated.opacity(0.84))
                 )
                 .overlay {
                     Capsule(style: .continuous)
-                        .stroke(.white.opacity(0.76), lineWidth: 1)
+                        .stroke(AppTheme.colors.surfaceElevated.opacity(0.76), lineWidth: 1)
                 }
-                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                .shadow(color: AppTheme.colors.shadow, radius: 10, y: 4)
         }
     }
 }
@@ -231,13 +231,13 @@ private struct GlassCircleModifier: ViewModifier {
             content
                 .background(
                     Circle()
-                        .fill(.white.opacity(0.84))
+                        .fill(AppTheme.colors.surfaceElevated.opacity(0.84))
                 )
                 .overlay {
                     Circle()
-                        .stroke(.white.opacity(0.76), lineWidth: 1)
+                        .stroke(AppTheme.colors.surfaceElevated.opacity(0.76), lineWidth: 1)
                 }
-                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                .shadow(color: AppTheme.colors.shadow, radius: 10, y: 4)
         }
     }
 }

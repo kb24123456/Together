@@ -37,7 +37,7 @@ enum ItemStateMachine {
         response: ItemResponseKind? = nil,
         isCompletion: Bool = false
     ) -> ItemStatus {
-        if isCompletion, currentStatus == .inProgress {
+        if isCompletion {
             return .completed
         }
 

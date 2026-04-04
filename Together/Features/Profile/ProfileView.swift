@@ -35,6 +35,7 @@ struct ProfileView: View {
                         }
                     )
 
+                    appearanceSection
                     executionPreferencesSection
                     historyAndReminderSection
                     systemAndCollaborationSection
@@ -105,6 +106,45 @@ struct ProfileView: View {
             )
             .frame(height: safeAreaTop + 44)
             .allowsHitTesting(false)
+    }
+
+    private var appearanceSection: some View {
+        ProfileSettingsGroupCard(title: "外观") {
+            HStack(spacing: 0) {
+                ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                    let isSelected = appContext.appearanceManager.mode == mode
+
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            appContext.appearanceManager.mode = mode
+                        }
+                    } label: {
+                        VStack(spacing: 8) {
+                            Image(systemName: mode.icon)
+                                .font(AppTheme.typography.sized(18, weight: .semibold))
+                                .foregroundStyle(isSelected ? AppTheme.colors.title : AppTheme.colors.textTertiary)
+
+                            Text(mode.title)
+                                .font(AppTheme.typography.sized(13, weight: .semibold))
+                                .foregroundStyle(isSelected ? AppTheme.colors.title : AppTheme.colors.body)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(isSelected ? AppTheme.colors.background : .clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(isSelected ? AppTheme.colors.outline : .clear, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 4)
+        }
     }
 
     private var executionPreferencesSection: some View {

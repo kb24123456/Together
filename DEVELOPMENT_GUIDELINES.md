@@ -40,6 +40,9 @@
 - 非必要不引入 `GeometryReader`；优先评估 `containerRelativeFrame()`、`visualEffect()` 等新 API。
 - 列表与滚动场景避免 `AnyView`。
 - SwiftUI 中避免直接使用 UIKit 颜色。
+- 只要实现自定义动画，必须按“状态驱动的分阶段连续动画”实现：先定义状态，再拆成 2 到 3 个阶段，优先动画 `opacity / scale / offset / frame` 等低成本属性。
+- 动画关键路径禁止同步保存、重查询、重排序、重布局；列表重排必须晚于局部状态变化。
+- 自定义动画默认优先 SwiftUI 原生 API；仅当原生能力无法合理实现时，才局部补充 UIKit。
 
 ### 3.2 SwiftData 与测试约束
 - 只要当前模块使用 SwiftData，就优先沿用 SwiftData，不要随手回退到 Core Data。
@@ -103,6 +106,7 @@
 - 关键 ViewModel 行为必须可单测。
 - 首页 / 日历 / 项目关键页面必须有 Preview + mock data。
 - 只要涉及动效状态切换，就至少做一次真机构建或 Preview 回归。
+- 只要新增或重构自定义动画，就必须验证状态切换、阶段衔接、Reduce Motion 降级和连续触发下无明显掉帧。
 
 ## 10. 禁止事项
 - 禁止继续把绑定流、邀请流、双人决策流当首版主目标。

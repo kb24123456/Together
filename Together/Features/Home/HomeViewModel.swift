@@ -140,6 +140,7 @@ final class HomeViewModel {
     var detailDetent: PresentationDetent = .height(316)
     private var completingOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
+    private var animatingReopeningOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     var showsCompletedItems = true
     var isPerformingSnooze = false
     var isOverdueSheetPresented = false
@@ -898,9 +899,14 @@ final class HomeViewModel {
                     }
                     try? await Task.sleep(for: .milliseconds(140))
                 } else {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                    animatingReopeningOccurrenceKeys.insert(occurrenceKey)
+                    try? await Task.sleep(for: .milliseconds(220))
+                    var transaction = Transaction()
+                    transaction.animation = nil
+                    withTransaction(transaction) {
                         replaceItemPreservingOrder(saved)
                     }
+                    try? await Task.sleep(for: .milliseconds(90))
                 }
             case .swipeAction:
                 if didCompleteOccurrence {
@@ -919,10 +925,15 @@ final class HomeViewModel {
 
         completingOccurrenceKeys.remove(occurrenceKey)
         animatingCompletionOccurrenceKeys.remove(occurrenceKey)
+        animatingReopeningOccurrenceKeys.remove(occurrenceKey)
     }
 
     func isAnimatingCompletion(for itemID: UUID, on referenceDate: Date) -> Bool {
         animatingCompletionOccurrenceKeys.contains(occurrenceKey(for: itemID, on: referenceDate))
+    }
+
+    func isAnimatingReopening(for itemID: UUID, on referenceDate: Date) -> Bool {
+        animatingReopeningOccurrenceKeys.contains(occurrenceKey(for: itemID, on: referenceDate))
     }
 
     func deleteSelectedItem() async {
@@ -1485,7 +1496,7 @@ final class HomeViewModel {
             if item.creatorID == viewerID {
                 return ("\(partner?.displayName ?? "对方")待处理", partnerAvatar, nil)
             }
-            return ("\(partner?.displayName ?? "对方")发给你", partnerAvatar, nil)
+            return ("\(partner?.displayName ?? "对方")发给你", currentUserAvatar, nil)
         case .both:
             return (nil, currentUserAvatar, partnerAvatar)
         case .self:

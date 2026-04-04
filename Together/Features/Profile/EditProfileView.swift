@@ -137,7 +137,7 @@ struct EditProfileView: View {
         VStack(spacing: AppTheme.spacing.md) {
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.94))
+                    .fill(AppTheme.colors.surfaceElevated)
                     .frame(width: 128, height: 128)
 
                 avatarPreview
@@ -151,7 +151,7 @@ struct EditProfileView: View {
                         .foregroundStyle(AppTheme.colors.title)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color.white.opacity(0.92), in: Capsule(style: .continuous))
+                        .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .simultaneousGesture(
@@ -171,7 +171,7 @@ struct EditProfileView: View {
                 .foregroundStyle(AppTheme.colors.title)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.white.opacity(0.92), in: Capsule(style: .continuous))
+                .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
             }
 
             if let cameraErrorMessage = viewModel.cameraErrorMessage {
@@ -199,7 +199,7 @@ struct EditProfileView: View {
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, AppTheme.spacing.sm)
-                .background(Color.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
 
             if viewModel.canRemovePhoto {
@@ -262,7 +262,7 @@ struct EditProfileView: View {
                 .disableAutocorrection(true)
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, 16)
-                .background(Color.white.opacity(0.96), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             if let validationMessage = viewModel.nameValidationMessage {
                 Text(validationMessage)

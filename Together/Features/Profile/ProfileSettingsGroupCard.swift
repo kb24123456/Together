@@ -22,7 +22,7 @@ struct ProfileSettingsGroupCard<Content: View>: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(Color.white.opacity(0.96))
+                    .fill(AppTheme.colors.surfaceElevated)
             )
             .shadow(color: AppTheme.colors.shadow.opacity(0.34), radius: 14, y: 6)
         }

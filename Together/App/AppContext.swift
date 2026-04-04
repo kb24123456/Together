@@ -8,6 +8,7 @@ final class AppContext {
     let container: AppContainer
     let sessionStore: SessionStore
     let router: AppRouter
+    let appearanceManager: AppearanceManager
     let homeViewModel: HomeViewModel
     let listsViewModel: ListsViewModel
     let projectsViewModel: ProjectsViewModel
@@ -19,10 +20,11 @@ final class AppContext {
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
 
-    init(container: AppContainer, sessionStore: SessionStore, router: AppRouter) {
+    init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
         self.sessionStore = sessionStore
         self.router = router
+        self.appearanceManager = appearanceManager
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,

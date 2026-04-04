@@ -249,8 +249,12 @@ struct TaskEditorChipRow: View {
                             onChipTap(chip.menu)
                         } label: {
                             HStack(spacing: 3) {
-                                Image(systemName: chip.systemImage)
-                                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                                TaskEditorAnimatedChipIcon(
+                                    systemImage: chip.systemImage,
+                                    menu: chip.menu,
+                                    semanticValue: chip.semanticValue,
+                                    font: AppTheme.typography.sized(14, weight: .semibold)
+                                )
 
                                 TaskEditorAnimatedChipTitle(
                                     text: chip.title,
@@ -2695,6 +2699,16 @@ private struct TaskEditorAnimatedChipTitle: View {
         let token = UUID()
         transitionToken = token
 
+        if contentTransitionStyle == .interpolated {
+            withAnimation(TaskEditorChipAnimation.textSpring) {
+                displayedText = newText
+            }
+            withAnimation(TaskEditorChipAnimation.layoutSpring) {
+                displayedWidth = targetWidth
+            }
+            return
+        }
+
         if targetWidth > displayedWidth {
             withAnimation(TaskEditorChipAnimation.layoutSpring) {
                 displayedWidth = targetWidth
@@ -2746,7 +2760,9 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder:
             return .numeric
-        case .repeatRule, .subtasks:
+        case .repeatRule:
+            return .numeric
+        case .subtasks:
             return .interpolated
         }
     }
@@ -2785,9 +2801,9 @@ private struct TaskEditorAnimatedChipTitle: View {
 
     private static func usesNumericTransition(for semanticValue: TaskEditorChipSemanticValue) -> Bool {
         switch semanticValue {
-        case .date, .optionalDate, .time, .reminder:
+        case .date, .optionalDate, .time, .reminder, .repeatRule:
             return true
-        case .repeatRule, .subtasks:
+        case .subtasks:
             return false
         }
     }
@@ -2797,6 +2813,85 @@ private enum TaskEditorChipContentTransitionStyle {
     case numeric
     case interpolated
     case none
+}
+
+private enum TaskEditorChipIconEffectKind {
+    case rotate
+    case wiggle
+    case none
+}
+
+private struct TaskEditorAnimatedChipIcon: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let systemImage: String
+    let menu: TaskEditorMenu
+    let semanticValue: TaskEditorChipSemanticValue
+    let font: Font
+
+    @State private var previousSemanticValue: TaskEditorChipSemanticValue?
+    @State private var effectTrigger = 0
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(font)
+            .applyTaskEditorChipIconEffect(
+                kind: effectKind,
+                trigger: effectTrigger,
+                reduceMotion: reduceMotion
+            )
+            .onAppear {
+                previousSemanticValue = semanticValue
+            }
+            .onChange(of: semanticValue) { oldValue, newValue in
+                let baseline = previousSemanticValue ?? oldValue
+                previousSemanticValue = newValue
+                guard baseline != newValue else { return }
+                guard effectKind != .none else { return }
+                effectTrigger += 1
+            }
+    }
+
+    private var effectKind: TaskEditorChipIconEffectKind {
+        switch menu {
+        case .time, .repeatRule:
+            return .rotate
+        case .reminder:
+            return .wiggle
+        case .date, .subtasks, .template:
+            return .none
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyTaskEditorChipIconEffect(
+        kind: TaskEditorChipIconEffectKind,
+        trigger: Int,
+        reduceMotion: Bool
+    ) -> some View {
+        if reduceMotion {
+            self
+        } else {
+            switch kind {
+            case .rotate:
+                if #available(iOS 18.0, *) {
+                    self.symbolEffect(.rotate.clockwise, options: .speed(1.12), value: trigger)
+                } else {
+                    self.symbolEffect(.bounce, options: .speed(1.08), value: trigger)
+                }
+            case .wiggle:
+                if #available(iOS 18.0, *) {
+                    self.symbolEffect(.wiggle.clockwise, options: .speed(1.12), value: trigger)
+                } else {
+                    self.symbolEffect(.bounce, options: .speed(1.1), value: trigger)
+                }
+            case .none:
+                self
+            }
+        }
+    }
 }
 
 private struct TaskEditorDatePickerMonthGridMetrics {

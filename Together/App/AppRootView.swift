@@ -93,6 +93,7 @@ struct AppRootView: View {
         .environment(\.symbolVariants, .none)
         .font(AppTheme.typography.body)
         .tint(AppTheme.colors.title)
+        .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
         .onChange(of: quickCaptureSpeechRecognizer.transcript) { _, newValue in
             guard !newValue.isEmpty else { return }
             quickCaptureText = newValue

@@ -48,7 +48,7 @@ struct ProfileUserCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Capsule(style: .continuous)
-                .fill(Color.white.opacity(0.96))
+                .fill(AppTheme.colors.surfaceElevated)
         )
         .shadow(color: AppTheme.colors.shadow.opacity(0.2), radius: 10, y: 5)
         .accessibilityElement(children: .ignore)
@@ -84,7 +84,7 @@ struct ProfileUserCard: View {
         )
             .overlay {
                 Circle()
-                    .stroke(Color.white.opacity(0.94), lineWidth: 2)
+                    .stroke(AppTheme.colors.surfaceElevated.opacity(0.94), lineWidth: 2)
             }
             .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 8, y: 4)
             .accessibilityLabel(avatar.displayName)
@@ -94,7 +94,7 @@ struct ProfileUserCard: View {
     private var placeholderBadge: some View {
         ZStack {
             Circle()
-                .fill(Color.white.opacity(0.01))
+                .fill(AppTheme.colors.surface.opacity(0.01))
 
             Circle()
                 .stroke(

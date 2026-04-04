@@ -228,7 +228,6 @@ struct HomeItemDetailSheet: View {
             .padding(.horizontal, 18)
             .padding(.top, 12)
             .padding(.bottom, 16)
-            .background(DetailBottomActionBackground())
         }
         .padding(.bottom, bottomInset)
         .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: isExpandedEditor)
@@ -491,27 +490,10 @@ struct HomeItemDetailSheet: View {
                 }
             }
         } label: {
-            ZStack {
-                if isAwaitingDeleteConfirmation {
-                    compactDeleteContent(
-                        title: "确认",
-                        systemImage: "checkmark"
-                    )
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
-                } else {
-                    compactDeleteContent(
-                        title: "移除",
-                        systemImage: "trash"
-                    )
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .top).combined(with: .opacity),
-                        removal: .move(edge: .bottom).combined(with: .opacity)
-                    ))
-                }
-            }
+            compactDeleteContent(
+                title: compactDeleteButtonTitle,
+                systemImage: compactDeleteButtonSystemImage
+            )
             .frame(maxWidth: .infinity)
             .frame(minHeight: 84)
             .background(
@@ -526,6 +508,14 @@ struct HomeItemDetailSheet: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isAwaitingDeleteConfirmation)
         }
         .buttonStyle(.plain)
+    }
+
+    private var compactDeleteButtonTitle: String {
+        isAwaitingDeleteConfirmation ? "确认" : "移除"
+    }
+
+    private var compactDeleteButtonSystemImage: String {
+        isAwaitingDeleteConfirmation ? "checkmark" : "trash"
     }
 
     private func compactDeleteContent(
@@ -1633,7 +1623,10 @@ private struct HomeDetailMenuSheet: View {
     private var repeatOptions: [TaskEditorOptionRow] {
         let anchorDate = stagedDate
         let selectedTitle = stagedRepeatRule?.title(anchorDate: anchorDate, calendar: .current) ?? "不重复"
-        return TaskEditorRepeatPreset.allCases.map { preset in
+        return [TaskEditorOptionRow(title: "不重复", isSelected: stagedRepeatRule == nil) {
+            stagedRepeatRule = nil
+            didEditRepeatRule = true
+        }] + TaskEditorRepeatPreset.allCases.map { preset in
             let title = preset.title(anchorDate: anchorDate)
             return TaskEditorOptionRow(title: title, isSelected: selectedTitle == title) {
                 stagedRepeatRule = preset.makeRule(anchorDate: anchorDate)
@@ -2429,32 +2422,13 @@ private struct HomeDetailMenuOptionGlassModifier: ViewModifier {
 
 private struct DetailBottomActionBackground: View {
     var body: some View {
-        ZStack {
-            if #available(iOS 26.0, *) {
+        Rectangle()
+            .fill(AppTheme.colors.surfaceElevated)
+            .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(.clear)
-                    .background(.bar)
-            } else {
-                Rectangle()
-                    .fill(AppTheme.colors.surface.opacity(0.92))
+                    .fill(AppTheme.colors.textTertiary.opacity(0.12))
+                    .frame(height: 1)
             }
-
-            LinearGradient(
-                stops: [
-                    .init(color: AppTheme.colors.surface.opacity(0), location: 0),
-                    .init(color: AppTheme.colors.surface.opacity(0.28), location: 0.24),
-                    .init(color: AppTheme.colors.surface.opacity(0.72), location: 0.66),
-                    .init(color: AppTheme.colors.surface.opacity(0.94), location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(.white.opacity(0.44))
-                .frame(height: 1)
-        }
     }
 }
 

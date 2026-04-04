@@ -5,41 +5,98 @@ import UIKit
 
 enum AppTheme {
     enum colors {
-        static let background = Color(red: 0.965, green: 0.961, blue: 0.949)
-        static let backgroundSoft = Color(red: 0.982, green: 0.979, blue: 0.972)
+        // MARK: - Backgrounds & Surfaces
+
+        static let background = Color(light: .init(red: 0.965, green: 0.961, blue: 0.949),
+                                      dark: .init(red: 0.11, green: 0.11, blue: 0.12))
+
+        static let backgroundSoft = Color(light: .init(red: 0.982, green: 0.979, blue: 0.972),
+                                          dark: .init(red: 0.13, green: 0.13, blue: 0.14))
+
         static let homeBackground = background
         static let homeBackgroundSoft = backgroundSoft
+
+        static let surface = Color(light: .white,
+                                   dark: .init(red: 0.16, green: 0.16, blue: 0.17))
+
+        static let surfaceElevated = Color(light: .init(red: 0.979, green: 0.977, blue: 0.969),
+                                           dark: .init(red: 0.20, green: 0.20, blue: 0.22))
+
+        static let pillSurface = Color(light: .init(red: 0.973, green: 0.972, blue: 0.966),
+                                       dark: .init(red: 0.22, green: 0.22, blue: 0.24))
+
+        static let pillOutline = Color(light: .white.opacity(0.9),
+                                       dark: .white.opacity(0.10))
+
+        // MARK: - Project Layer (always dark)
+
         static let projectLayerBackground = Color(red: 0.15, green: 0.16, blue: 0.18)
         static let projectLayerSurface = Color(red: 0.20, green: 0.22, blue: 0.25)
         static let projectLayerOutline = Color.white.opacity(0.10)
         static let projectLayerText = Color(red: 0.95, green: 0.96, blue: 0.98)
         static let projectLayerSecondaryText = Color(red: 0.74, green: 0.76, blue: 0.80)
-        static let surface = Color.white
-        static let surfaceElevated = Color(red: 0.979, green: 0.977, blue: 0.969)
-        static let pillSurface = Color(red: 0.973, green: 0.972, blue: 0.966)
-        static let pillOutline = Color.white.opacity(0.9)
-        static let accent = Color(red: 0.24, green: 0.47, blue: 0.42)
-        static let accentSoft = Color(red: 0.92, green: 0.96, blue: 0.94)
-        static let profileAccent = Color(red: 0.29, green: 0.31, blue: 0.34)
-        static let profileAccentSoft = Color(red: 0.16, green: 0.18, blue: 0.19).opacity(0.08)
+
+        // MARK: - Text
+
+        static let title = Color(light: .init(red: 0.16, green: 0.18, blue: 0.19),
+                                 dark: .init(red: 0.95, green: 0.95, blue: 0.96))
+
+        static let body = Color(light: .init(red: 0.34, green: 0.36, blue: 0.38),
+                                dark: .init(red: 0.72, green: 0.72, blue: 0.74))
+
+        static let textTertiary = Color(light: .init(red: 0.70, green: 0.70, blue: 0.70),
+                                        dark: .init(red: 0.46, green: 0.46, blue: 0.48))
+
+        static let timeText = Color(light: .init(red: 0.72, green: 0.72, blue: 0.73),
+                                    dark: .init(red: 0.50, green: 0.50, blue: 0.52))
+
+        // MARK: - Accent & Brand
+
+        static let accent = Color(light: .init(red: 0.24, green: 0.47, blue: 0.42),
+                                  dark: .init(red: 0.38, green: 0.68, blue: 0.60))
+
+        static let accentSoft = Color(light: .init(red: 0.92, green: 0.96, blue: 0.94),
+                                      dark: .init(red: 0.18, green: 0.26, blue: 0.24))
+
+        static let profileAccent = Color(light: .init(red: 0.29, green: 0.31, blue: 0.34),
+                                         dark: .init(red: 0.78, green: 0.78, blue: 0.80))
+
+        static let profileAccentSoft = Color(light: .init(red: 0.16, green: 0.18, blue: 0.19).opacity(0.08),
+                                             dark: .init(red: 0.90, green: 0.90, blue: 0.92).opacity(0.10))
+
+        // MARK: - Semantic Colors
+
         static let sky = Color(red: 0.42, green: 0.70, blue: 0.98)
         static let secondaryAccent = Color(red: 0.86, green: 0.78, blue: 0.67)
         static let coral = Color(red: 0.87, green: 0.48, blue: 0.41)
         static let sun = Color(red: 0.93, green: 0.74, blue: 0.18)
         static let violet = Color(red: 0.44, green: 0.28, blue: 0.91)
-        static let avatarWarm = Color(red: 0.96, green: 0.88, blue: 0.84)
-        static let avatarNeutral = Color(red: 0.92, green: 0.92, blue: 0.93)
-        static let title = Color(red: 0.16, green: 0.18, blue: 0.19)
-        static let body = Color(red: 0.34, green: 0.36, blue: 0.38)
-        static let textTertiary = Color(red: 0.70, green: 0.70, blue: 0.70)
-        static let timeText = Color(red: 0.72, green: 0.72, blue: 0.73)
+
         static let success = Color(red: 0.25, green: 0.61, blue: 0.44)
         static let warning = Color(red: 0.82, green: 0.56, blue: 0.26)
         static let danger = Color(red: 0.74, green: 0.35, blue: 0.32)
-        static let outline = Color.black.opacity(0.08)
-        static let outlineStrong = Color(red: 0.74, green: 0.74, blue: 0.74)
-        static let separator = Color(red: 0.87, green: 0.86, blue: 0.84)
-        static let shadow = Color(red: 0.10, green: 0.10, blue: 0.09).opacity(0.08)
+
+        // MARK: - Avatar
+
+        static let avatarWarm = Color(light: .init(red: 0.96, green: 0.88, blue: 0.84),
+                                      dark: .init(red: 0.38, green: 0.30, blue: 0.26))
+
+        static let avatarNeutral = Color(light: .init(red: 0.92, green: 0.92, blue: 0.93),
+                                         dark: .init(red: 0.30, green: 0.30, blue: 0.32))
+
+        // MARK: - Borders & Shadows
+
+        static let outline = Color(light: .black.opacity(0.08),
+                                   dark: .white.opacity(0.10))
+
+        static let outlineStrong = Color(light: .init(red: 0.74, green: 0.74, blue: 0.74),
+                                         dark: .init(red: 0.36, green: 0.36, blue: 0.38))
+
+        static let separator = Color(light: .init(red: 0.87, green: 0.86, blue: 0.84),
+                                     dark: .init(red: 0.26, green: 0.26, blue: 0.28))
+
+        static let shadow = Color(light: .init(red: 0.10, green: 0.10, blue: 0.09).opacity(0.08),
+                                  dark: .black.opacity(0.30))
     }
 
     enum spacing {
@@ -126,5 +183,17 @@ enum AppTheme {
             #endif
         }
         #endif
+    }
+}
+
+// MARK: - Adaptive Color Helper
+
+extension Color {
+    init(light: Color, dark: Color) {
+        self.init(UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark
+                ? UIColor(dark)
+                : UIColor(light)
+        })
     }
 }

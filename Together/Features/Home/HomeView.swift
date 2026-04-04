@@ -154,6 +154,17 @@ struct HomeView: View {
             .padding(.bottom, isProjectModePresented ? 10 : 14)
             .background(homeCanvasColor)
 
+            LinearGradient(
+                stops: [
+                    .init(color: homeCanvasColor, location: 0),
+                    .init(color: homeCanvasColor.opacity(0), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 28)
+            .allowsHitTesting(false)
+
             Spacer(minLength: 0)
         }
         .ignoresSafeArea(edges: .top)
@@ -599,6 +610,7 @@ struct HomeView: View {
                     HomeTimelineRow(
                         entry: entry,
                         isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
+                        isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.id, on: viewModel.selectedDate),
                         titleLineLimit: 1,
                         titleMinimumScaleFactor: 0.72,
                         onToggleCompletion: {
@@ -619,6 +631,7 @@ struct HomeView: View {
                     HomeTimelineRow(
                         entry: entry,
                         isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
+                        isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.id, on: viewModel.selectedDate),
                         titleLineLimit: 2,
                         titleMinimumScaleFactor: 0.84,
                         onToggleCompletion: {
@@ -1594,7 +1607,7 @@ private extension View {
     func applyScrollEdgeProtection() -> some View {
         if #available(iOS 26.0, *) {
             self
-                .scrollEdgeEffectStyle(.hard, for: [.top])
+                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
         } else {
             self
         }
@@ -1640,6 +1653,7 @@ private struct HomeTimelineRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: HomeTimelineEntry
     let isAnimatingCompletion: Bool
+    let isAnimatingReopening: Bool
     let titleLineLimit: Int
     let titleMinimumScaleFactor: CGFloat
     let onToggleCompletion: () -> Void
@@ -1651,6 +1665,8 @@ private struct HomeTimelineRow: View {
     @State private var badgeFillOpacity = 0.0
     @State private var rowScale: CGFloat = 1
     @State private var rowVerticalOffset: CGFloat = 0
+    @State private var rowOpacity: Double = 1
+    @State private var reopeningCheckmarkOpacity: Double = 1
 
     var body: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
@@ -1718,6 +1734,7 @@ private struct HomeTimelineRow: View {
         }
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
+        .opacity(rowOpacity)
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue else { return }
 
@@ -1766,6 +1783,34 @@ private struct HomeTimelineRow: View {
                 try? await Task.sleep(for: .milliseconds(84))
                 withAnimation(.easeOut(duration: 0.12)) {
                     rowVerticalOffset = 0
+                }
+            }
+        }
+        .onChange(of: isAnimatingReopening) { _, newValue in
+            guard newValue else { return }
+
+            if reduceMotion {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    reopeningCheckmarkOpacity = 0
+                    badgeOutlineOpacity = 1
+                }
+                return
+            }
+
+            reopeningCheckmarkOpacity = 1
+            badgeOutlineOpacity = 0.14
+
+            withAnimation(.easeOut(duration: 0.18)) {
+                reopeningCheckmarkOpacity = 0
+                badgeOutlineOpacity = 1
+            }
+
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                    rowScale = 1
+                    rowVerticalOffset = 0
+                    rowOpacity = 1
                 }
             }
         }
@@ -1830,6 +1875,15 @@ private struct HomeTimelineRow: View {
     }
 
     private var ringColor: Color {
+        if isAnimatingReopening {
+            switch entry.accentColorName {
+            case "coral":
+                return AppTheme.colors.coral.opacity(0.58)
+            default:
+                return AppTheme.colors.body.opacity(0.44)
+            }
+        }
+
         if entry.isCompleted {
             return .clear
         }
@@ -1847,13 +1901,15 @@ private struct HomeTimelineRow: View {
     }
 
     private var outlineOpacity: Double {
+        if isAnimatingReopening { return badgeOutlineOpacity }
         if entry.isCompleted { return 0 }
         if isAnimatingCompletion { return badgeOutlineOpacity }
         return 1
     }
 
     private var checkmarkOpacity: Double {
-        (entry.isCompleted || isAnimatingCompletion) ? 1 : 0
+        guard entry.isCompleted || isAnimatingCompletion || isAnimatingReopening else { return 0 }
+        return isAnimatingReopening ? reopeningCheckmarkOpacity : 1
     }
 }
 
@@ -1900,13 +1956,22 @@ private struct PairTimelineCard: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackground)
+        .background(AppTheme.colors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(cardStroke, lineWidth: 1)
-        )
-        .shadow(color: AppTheme.colors.shadow.opacity(0.06), radius: 14, y: 8)
+        .overlay(alignment: .leading) {
+            if effectivePairCardStyle == .shared {
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 28,
+                    bottomLeadingRadius: 28,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                )
+                .fill(AppTheme.colors.sky.opacity(0.36))
+                .frame(width: 5)
+            }
+        }
+        .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 16, y: 10)
         .scaleEffect(rowScale)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
@@ -2808,6 +2873,7 @@ private struct HomeOverdueSummarySheet: View {
                     latestMessageAuthorName: nil
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
+                isAnimatingReopening: false,
                 titleLineLimit: 1,
                 titleMinimumScaleFactor: 0.68,
                 onToggleCompletion: {

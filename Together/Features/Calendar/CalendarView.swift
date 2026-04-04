@@ -135,6 +135,7 @@ struct CalendarView: View {
                 }
             }
         }
+        .applyCalendarScrollEdgeProtection()
     }
 
     private func trailingText(for item: Item) -> String? {
@@ -434,6 +435,18 @@ private struct PairCalendarAvatarStrip: View {
         .overlay {
             Circle()
                 .stroke(.white.opacity(0.92), lineWidth: 2)
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyCalendarScrollEdgeProtection() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
+        } else {
+            self
         }
     }
 }
