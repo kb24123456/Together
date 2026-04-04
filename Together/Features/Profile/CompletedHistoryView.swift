@@ -95,6 +95,9 @@ struct CompletedHistoryView: View {
             Text(item.title)
                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .allowsTightening(true)
                 .multilineTextAlignment(.leading)
 
             Text(viewModel.subtitle(for: item))

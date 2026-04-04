@@ -35,6 +35,26 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let isMuted: Bool
     let isCompleted: Bool
     let urgency: HomeTimelineUrgency
+    let pairCardStyle: HomePairCardStyle
+    let relationText: String?
+    let primaryAvatar: HomeAvatar?
+    let secondaryAvatar: HomeAvatar?
+    let latestMessageAuthorName: String?
+}
+
+enum HomePairCardStyle: Hashable {
+    case standard
+    case request
+    case assigned
+    case shared
+    case sent
+}
+
+struct HomeTimelineSection: Identifiable, Hashable {
+    let title: String
+    let entries: [HomeTimelineEntry]
+
+    var id: String { title }
 }
 
 struct HomeOverdueEntry: Identifiable, Hashable {
@@ -374,10 +394,12 @@ final class HomeViewModel {
     }
 
     func updateDraftAssigneeMode(_ assigneeMode: TaskAssigneeMode) {
-        detailDraft?.assigneeMode = assigneeMode
-        detailDraft?.executionRole = assigneeMode.legacyExecutionRole
-        detailDraft?.assignmentState = assigneeMode == .partner ? .pendingResponse : .active
-        detailDraft?.status = detailDraft?.assignmentState.legacyStatus ?? .inProgress
+        guard var draft = detailDraft else { return }
+        draft.assigneeMode = assigneeMode
+        draft.executionRole = assigneeMode.legacyExecutionRole
+        draft.assignmentState = assigneeMode == .partner ? .pendingResponse : .active
+        draft.status = draft.assignmentState.legacyStatus
+        detailDraft = draft
         scheduleDetailSave(immediately: true)
     }
 
@@ -388,22 +410,79 @@ final class HomeViewModel {
 
     func respondToSelectedItem(response: ItemResponseKind, message: String?) async {
         guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id,
             let selectedItemID
+        else { return }
+
+        await respondToItem(selectedItemID, response: response, message: message, updatesDetailDraft: true)
+    }
+
+    func respondToItem(
+        _ itemID: UUID,
+        response: ItemResponseKind,
+        message: String?,
+        updatesDetailDraft: Bool = false
+    ) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
         else { return }
 
         do {
             let saved = try await taskApplicationService.respondToTask(
                 in: spaceID,
-                taskID: selectedItemID,
+                taskID: itemID,
                 actorID: actorID,
                 response: response,
                 message: message
             )
-            let refreshedDraft = TaskDraft(item: saved)
-            detailDraft = refreshedDraft
-            savedDetailDraft = refreshedDraft
+            if updatesDetailDraft || selectedItemID == itemID {
+                let refreshedDraft = TaskDraft(item: saved)
+                detailDraft = refreshedDraft
+                savedDetailDraft = refreshedDraft
+            }
+            replaceItem(saved)
+        } catch {}
+    }
+
+    func appendAssignmentMessage(to itemID: UUID, message: String) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+
+        do {
+            let saved = try await taskApplicationService.appendAssignmentMessage(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID,
+                message: message
+            )
+            if selectedItemID == itemID {
+                let refreshedDraft = TaskDraft(item: saved)
+                detailDraft = refreshedDraft
+                savedDetailDraft = refreshedDraft
+            }
+            replaceItem(saved)
+        } catch {}
+    }
+
+    func requeueDeclinedItem(_ itemID: UUID) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+
+        do {
+            let saved = try await taskApplicationService.requeueDeclinedTask(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID
+            )
+            if selectedItemID == itemID {
+                let refreshedDraft = TaskDraft(item: saved)
+                detailDraft = refreshedDraft
+                savedDetailDraft = refreshedDraft
+            }
             replaceItem(saved)
         } catch {}
     }
@@ -910,7 +989,8 @@ final class HomeViewModel {
 
     func hasItems(on date: Date) -> Bool {
         items.contains { item in
-            item.appearsOnHome(
+            guard shouldDisplayInCurrentTimeline(item) else { return false }
+            return item.appearsOnHome(
                 for: date,
                 includeOverdue: calendar.isDate(date, inSameDayAs: .now),
                 calendar: calendar
@@ -969,6 +1049,25 @@ final class HomeViewModel {
 
     var activeTimelineEntries: [HomeTimelineEntry] {
         primaryIncompleteTimelineItems.map(makeTimelineEntry)
+    }
+
+    var pairTimelineSections: [HomeTimelineSection] {
+        guard isPairModeActive else { return [] }
+
+        let activeEntries = activeTimelineEntries
+        guard activeEntries.isEmpty == false else { return [] }
+
+        let sections: [(String, [HomeTimelineEntry])] = [
+            ("等你回应", activeEntries.filter { $0.pairCardStyle == .request }),
+            ("你负责", activeEntries.filter { $0.pairCardStyle == .assigned }),
+            ("一起做", activeEntries.filter { $0.pairCardStyle == .shared }),
+            ("你发出的", activeEntries.filter { $0.pairCardStyle == .sent })
+        ]
+
+        return sections.compactMap { title, entries in
+            guard entries.isEmpty == false else { return nil }
+            return HomeTimelineSection(title: title, entries: entries)
+        }
     }
 
     var completedTimelineEntries: [HomeTimelineEntry] {
@@ -1126,7 +1225,7 @@ final class HomeViewModel {
     }
 
     private var visibleTimelineItems: [Item] {
-        let sortedItems = sortedItemsForTimeline
+        let sortedItems = sortedItemsForTimeline.filter(shouldDisplayInCurrentTimeline)
         guard showsCompletedItems == false else { return sortedItems }
         return sortedItems.filter { !isCompleted($0, on: selectedDate) }
     }
@@ -1179,6 +1278,18 @@ final class HomeViewModel {
 
             return lhs.id.uuidString < rhs.id.uuidString
         }
+    }
+
+    private func shouldDisplayInCurrentTimeline(_ item: Item) -> Bool {
+        guard isPairModeActive else { return true }
+        guard let viewerID = sessionStore.currentUser?.id else { return true }
+        guard item.assigneeMode == .partner else { return true }
+
+        if item.assignmentState == .declined {
+            return item.creatorID == viewerID
+        }
+
+        return true
     }
 
     private func urgency(for item: Item, isCompleted: Bool) -> HomeTimelineUrgency {
@@ -1241,6 +1352,8 @@ final class HomeViewModel {
         let isCompleted = isCompleted(item, on: selectedDate)
         let viewerID = sessionStore.currentUser?.id ?? item.creatorID
         let isPairMode = isPairModeActive
+        let pairCardStyle = pairCardStyle(for: item, viewerID: viewerID, isCompleted: isCompleted)
+        let relationship = pairRelationship(for: item, viewerID: viewerID)
 
         return HomeTimelineEntry(
             id: item.id,
@@ -1257,7 +1370,12 @@ final class HomeViewModel {
             accentColorName: accentColorName(for: item),
             isMuted: isCompleted,
             isCompleted: isCompleted,
-            urgency: urgency(for: item, isCompleted: isCompleted)
+            urgency: urgency(for: item, isCompleted: isCompleted),
+            pairCardStyle: pairCardStyle,
+            relationText: relationship.relationText,
+            primaryAvatar: relationship.primaryAvatar,
+            secondaryAvatar: relationship.secondaryAvatar,
+            latestMessageAuthorName: latestMessageAuthorName(for: item)
         )
     }
 
@@ -1318,6 +1436,82 @@ final class HomeViewModel {
         case .completed:
             return "已完成"
         }
+    }
+
+    private func pairCardStyle(for item: Item, viewerID: UUID, isCompleted: Bool) -> HomePairCardStyle {
+        guard isPairModeActive, isCompleted == false else { return .standard }
+
+        if item.assigneeMode == .partner {
+            if item.requiresResponse {
+                return item.canActorRespond(viewerID) ? .request : .sent
+            }
+
+            if item.creatorID == viewerID {
+                return .sent
+            }
+
+            return .assigned
+        }
+
+        if item.assigneeMode == .both {
+            return .shared
+        }
+
+        return .standard
+    }
+
+    private func pairRelationship(for item: Item, viewerID: UUID) -> (
+        relationText: String?,
+        primaryAvatar: HomeAvatar?,
+        secondaryAvatar: HomeAvatar?
+    ) {
+        guard isPairModeActive else {
+            return (nil, nil, nil)
+        }
+
+        let currentUser = sessionStore.currentUser
+        let partner = sessionStore.pairSpaceSummary?.partner
+        let currentUserAvatar = avatarMetadata(
+            id: currentUser?.id ?? viewerID,
+            displayName: currentUser?.displayName ?? "我",
+            user: currentUser
+        )
+        let partnerAvatar = partner.map {
+            avatarMetadata(id: $0.id, displayName: $0.displayName, user: $0)
+        }
+
+        switch item.assigneeMode {
+        case .partner:
+            if item.creatorID == viewerID {
+                return ("\(partner?.displayName ?? "对方")待处理", partnerAvatar, nil)
+            }
+            return ("\(partner?.displayName ?? "对方")发给你", partnerAvatar, nil)
+        case .both:
+            return (nil, currentUserAvatar, partnerAvatar)
+        case .self:
+            return (nil, currentUserAvatar, nil)
+        }
+    }
+
+    private func latestMessageAuthorName(for item: Item) -> String? {
+        guard let message = item.assignmentMessages.last else { return nil }
+        let currentUserID = sessionStore.currentUser?.id
+        if message.authorID == currentUserID {
+            return "你"
+        }
+        if let partner = sessionStore.pairSpaceSummary?.partner, message.authorID == partner.id {
+            return partner.displayName
+        }
+        return nil
+    }
+
+    private func avatarMetadata(id: UUID, displayName: String, user: User?) -> HomeAvatar {
+        HomeAvatar(
+            id: id,
+            displayName: displayName,
+            avatarAsset: user?.avatarAsset ?? .system("person.crop.circle.fill"),
+            overrideImage: nil
+        )
     }
 
     private func removeItem(withID itemID: UUID) {

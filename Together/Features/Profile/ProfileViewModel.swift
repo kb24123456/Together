@@ -5,6 +5,7 @@ enum ProfileExpandedSetting: Hashable {
     case taskUrgency
     case defaultSnooze
     case completedArchive
+    case pairQuickReplies
 }
 
 enum ProfileCustomDurationKind: Hashable, Identifiable {
@@ -195,6 +196,13 @@ final class ProfileViewModel {
         )
     }
 
+    var pairQuickReplyMessages: [String] {
+        NotificationSettings.normalizedPairQuickReplyMessages(
+            sessionStore.currentUser?.preferences.pairQuickReplyMessages
+            ?? NotificationSettings.defaultPairQuickReplyMessages
+        )
+    }
+
     var customDurationInitialMinutes: Int {
         switch customDurationSheet {
         case .taskUrgency:
@@ -277,6 +285,12 @@ final class ProfileViewModel {
         if isEnabled == false, expandedSetting == .taskUrgency {
             expandedSetting = nil
         }
+    }
+
+    func updatePairQuickReplyMessages(_ messages: [String]) {
+        guard var user = sessionStore.currentUser else { return }
+        user.preferences.pairQuickReplyMessages = NotificationSettings.normalizedPairQuickReplyMessages(messages)
+        applyUpdatedPreferences(user.preferences, to: user)
     }
 
     func toggleExpandedSetting(_ setting: ProfileExpandedSetting) {

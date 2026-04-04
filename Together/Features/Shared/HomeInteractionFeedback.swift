@@ -6,6 +6,7 @@ import UIKit
 @MainActor
 enum HomeInteractionFeedback {
     private static let softGenerator = UIImpactFeedbackGenerator(style: .soft)
+    private static let selectionGenerator = UISelectionFeedbackGenerator()
 
     static func selection() {
         #if canImport(UIKit)
@@ -50,6 +51,13 @@ enum HomeInteractionFeedback {
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.prepare()
         generator.impactOccurred(intensity: 0.9)
+        #endif
+    }
+
+    static func assigneeChange() {
+        #if canImport(UIKit)
+        selectionGenerator.prepare()
+        selectionGenerator.selectionChanged()
         #endif
     }
 }

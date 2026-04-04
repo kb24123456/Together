@@ -21,13 +21,16 @@ enum UserProfileSaveError: LocalizedError {
 actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
     private let container: ModelContainer
     private let avatarMediaStore: UserAvatarMediaStoreProtocol
+    private let defaults: UserDefaults
 
     init(
         container: ModelContainer,
-        avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore()
+        avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore(),
+        defaults: UserDefaults = .standard
     ) {
         self.container = container
         self.avatarMediaStore = avatarMediaStore
+        self.defaults = defaults
     }
 
     func mergedUser(_ user: User?) async -> User? {
@@ -48,11 +51,13 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
             #if DEBUG
             StartupTrace.mark("UserProfileRepository.merge.recordMissing")
             #endif
-            return recoverAvatarFromCanonicalFileIfNeeded(
+            var recoveredUser = recoverAvatarFromCanonicalFileIfNeeded(
                 user: user,
                 canonicalFileName: canonicalFileName,
                 context: context
             )
+            recoveredUser.preferences.pairQuickReplyMessages = storedPairQuickReplyMessages(for: userID)
+            return recoveredUser
         }
 
         #if DEBUG
@@ -90,6 +95,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
             "UserProfileRepository.merge.end mergedAvatarFile=\(mergedUser.avatarPhotoFileName ?? "nil") canonicalExists=\(avatarMediaStore.fileExists(named: canonicalFileName))"
         )
         #endif
+        mergedUser.preferences.pairQuickReplyMessages = storedPairQuickReplyMessages(for: userID)
         return mergedUser
     }
 
@@ -149,6 +155,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         }
 
         do {
+            persistPairQuickReplyMessages(updatedUser.preferences.pairQuickReplyMessages, for: userID)
             if let existingRecord = try context.fetch(descriptor).first {
                 existingRecord.update(from: updatedUser)
                 applyAvatarPayload(to: existingRecord, avatarUpdate: avatarUpdate)
@@ -178,7 +185,11 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
 
         var updatedUser = user
         updatedUser.preferences = preferences
+        updatedUser.preferences.pairQuickReplyMessages = NotificationSettings.normalizedPairQuickReplyMessages(
+            preferences.pairQuickReplyMessages
+        )
         updatedUser.updatedAt = .now
+        persistPairQuickReplyMessages(updatedUser.preferences.pairQuickReplyMessages, for: userID)
 
         if let existingRecord = try context.fetch(descriptor).first {
             existingRecord.update(from: updatedUser)
@@ -285,6 +296,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
 
         var recoveredUser = user
         recoveredUser.avatarPhotoFileName = canonicalFileName
+        recoveredUser.preferences.pairQuickReplyMessages = storedPairQuickReplyMessages(for: user.id)
         recoveredUser.updatedAt = .now
 
         context.insert(PersistentUserProfile(user: recoveredUser))
@@ -297,6 +309,20 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         guard let image = UIImage(data: data) else { return }
         UserAvatarRuntimeStore.store(image, for: fileName)
         #endif
+    }
+
+    private func pairQuickReplyMessagesKey(for userID: UUID) -> String {
+        "profile.pairQuickReplyMessages.\(userID.uuidString.lowercased())"
+    }
+
+    private func storedPairQuickReplyMessages(for userID: UUID) -> [String] {
+        let stored = defaults.stringArray(forKey: pairQuickReplyMessagesKey(for: userID)) ?? []
+        return NotificationSettings.normalizedPairQuickReplyMessages(stored)
+    }
+
+    private func persistPairQuickReplyMessages(_ values: [String], for userID: UUID) {
+        let normalized = NotificationSettings.normalizedPairQuickReplyMessages(values)
+        defaults.set(normalized, forKey: pairQuickReplyMessagesKey(for: userID))
     }
 }
 

@@ -342,6 +342,66 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return item
     }
 
+    func requeueDeclinedTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item {
+        var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard item.creatorID == actorID else { throw RepositoryError.notFound }
+        guard item.assigneeMode == .partner else { throw RepositoryError.notFound }
+        guard item.assignmentState == .declined else { throw RepositoryError.notFound }
+
+        item.assignmentState = .pendingResponse
+        item.status = .pendingConfirmation
+        item.latestResponse = nil
+        item.responseHistory = []
+        item.assignmentMessages.removeAll { $0.authorID != actorID }
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
+        item.updatedAt = .now
+
+        let saved = try await itemRepository.saveItem(item)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .task,
+                operation: .upsert,
+                recordID: saved.id,
+                spaceID: spaceID
+            )
+        )
+        return saved
+    }
+
+    func appendAssignmentMessage(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        message: String
+    ) async throws -> Item {
+        var item = try await existingTask(in: spaceID, taskID: taskID)
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedMessage.isEmpty == false else { return item }
+
+        item.assignmentMessages.append(
+            TaskAssignmentMessage(authorID: actorID, body: trimmedMessage, createdAt: .now)
+        )
+        item.lastActionByUserID = actorID
+        item.lastActionAt = .now
+        item.updatedAt = .now
+
+        let saved = try await itemRepository.saveItem(item)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .task,
+                operation: .upsert,
+                recordID: saved.id,
+                spaceID: spaceID
+            )
+        )
+        return saved
+    }
+
     private func existingTask(in spaceID: UUID, taskID: UUID) async throws -> Item {
         let items = try await itemRepository.fetchActiveItems(spaceID: spaceID)
         guard let item = items.first(where: { $0.id == taskID }) else {

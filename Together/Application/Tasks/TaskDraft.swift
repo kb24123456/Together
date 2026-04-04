@@ -66,7 +66,8 @@ extension TaskDraft {
             assigneeMode: item.assigneeMode,
             status: item.status,
             assignmentState: item.assignmentState,
-            assignmentNote: item.assignmentMessages.last?.body,
+            // Existing collaboration messages belong to the task history, not the editable draft.
+            assignmentNote: nil,
             isPinned: item.isPinned,
             isDraft: item.isDraft,
             repeatRule: item.repeatRule

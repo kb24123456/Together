@@ -46,6 +46,17 @@ protocol TaskApplicationServiceProtocol: Sendable {
         response: ItemResponseKind,
         message: String?
     ) async throws -> Item
+    func requeueDeclinedTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item
+    func appendAssignmentMessage(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        message: String
+    ) async throws -> Item
 }
 
 extension TaskApplicationServiceProtocol {

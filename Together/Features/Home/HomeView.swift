@@ -248,8 +248,8 @@ struct HomeView: View {
                 .foregroundStyle(headerSecondaryColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(isProjectModePresented ? 1 : 0)
@@ -369,6 +369,16 @@ struct HomeView: View {
     }
 
     private var timelineList: some View {
+        Group {
+            if viewModel.isPairModeActive {
+                pairTimelineList
+            } else {
+                standardTimelineList
+            }
+        }
+    }
+
+    private var standardTimelineList: some View {
         List {
             Color.clear
                 .frame(height: 0)
@@ -427,6 +437,64 @@ struct HomeView: View {
         .scrollDisabled(isProjectModePresented)
         .environment(\.defaultMinListRowHeight, 0)
         .safeAreaPadding(.top, 0)
+        .background(homeCanvasColor)
+        .applyScrollEdgeProtection()
+    }
+
+    private var pairTimelineList: some View {
+        List {
+            Color.clear
+                .frame(height: 0)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(homeCanvasColor)
+                .listRowSeparator(.hidden)
+
+            if viewModel.showsOverdueCapsule {
+                overdueReminderCapsule
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 10,
+                            leading: timelineRowHorizontalInset,
+                            bottom: 8,
+                            trailing: timelineRowHorizontalInset
+                        )
+                    )
+                    .listRowBackground(homeCanvasColor)
+                    .listRowSeparator(.hidden)
+            }
+
+            pairTimelineRows(viewModel.activeTimelineEntries)
+
+            if viewModel.hasCompletedEntries {
+                completedVisibilityButton
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 12,
+                            leading: timelineRowHorizontalInset,
+                            bottom: viewModel.completedTimelineEntries.isEmpty ? timelineBottomInset : 10,
+                            trailing: timelineRowHorizontalInset
+                        )
+                    )
+                    .listRowBackground(homeCanvasColor)
+                    .listRowSeparator(.hidden)
+
+                if viewModel.showsCompletedItems, viewModel.completedTimelineEntries.isEmpty == false {
+                    completedTimelineSection
+                }
+            } else {
+                Color.clear
+                    .frame(height: timelineBottomInset)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(homeCanvasColor)
+                    .listRowSeparator(.hidden)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
+        .scrollDisabled(isProjectModePresented)
+        .environment(\.defaultMinListRowHeight, 0)
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
     }
@@ -531,8 +599,8 @@ struct HomeView: View {
                     HomeTimelineRow(
                         entry: entry,
                         isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
-                        titleLineLimit: 2,
-                        titleMinimumScaleFactor: 0.84,
+                        titleLineLimit: 1,
+                        titleMinimumScaleFactor: 0.72,
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -610,6 +678,82 @@ struct HomeView: View {
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
 
+        }
+    }
+
+    @ViewBuilder
+    private func pairTimelineRows(_ entries: [HomeTimelineEntry]) -> some View {
+        ForEach(entries) { entry in
+            PairTimelineCard(
+                entry: entry,
+                quickReplyMessages: appContext.sessionStore.currentUser?.preferences.pairQuickReplyMessages
+                    ?? NotificationSettings.defaultPairQuickReplyMessages,
+                onPrimaryAction: {
+                    switch entry.pairCardStyle {
+                    case .request:
+                        HomeInteractionFeedback.selection()
+                        Task {
+                            await viewModel.respondToItem(entry.id, response: .willing, message: nil)
+                        }
+                    default:
+                        if entry.isCompleted {
+                            HomeInteractionFeedback.selection()
+                        } else {
+                            HomeInteractionFeedback.completion()
+                        }
+                        Task {
+                            await viewModel.completeItem(entry.id)
+                        }
+                    }
+                },
+                onSecondaryAction: {
+                    HomeInteractionFeedback.selection()
+                    Task {
+                        await viewModel.respondToItem(entry.id, response: .notSuitable, message: nil)
+                    }
+                },
+                onOpenDetail: {
+                    viewModel.presentItemDetail(entry.id)
+                },
+                onQuickMessage: { message in
+                    Task {
+                        switch entry.pairCardStyle {
+                        case .request:
+                            await viewModel.respondToItem(entry.id, response: .notSuitable, message: message)
+                        case .sent:
+                            await viewModel.appendAssignmentMessage(to: entry.id, message: message)
+                        case .assigned, .shared, .standard:
+                            break
+                        }
+                    }
+                },
+                onResend: {
+                    Task {
+                        await viewModel.requeueDeclinedItem(entry.id)
+                    }
+                },
+                onDelete: {
+                    Task {
+                        await viewModel.deleteItem(entry.id)
+                    }
+                }
+            )
+            .listRowInsets(
+                EdgeInsets(
+                    top: 8,
+                    leading: timelineRowHorizontalInset,
+                    bottom: 8,
+                    trailing: timelineRowHorizontalInset
+                )
+            )
+            .listRowBackground(homeCanvasColor)
+            .listRowSeparator(.hidden)
+            .insertedListItemMotion(
+                isInserted: viewModel.isAnimatingInsertion(for: entry.id),
+                onAnimationCompleted: {
+                    viewModel.completeInsertionAnimation(for: entry.id)
+                }
+            )
         }
     }
 
@@ -997,7 +1141,7 @@ struct HomeView: View {
     private var headerSecondaryColor: Color { AppTheme.colors.body.opacity(0.62) }
 
     private var headerVerticalOffset: CGFloat {
-        isProjectModePresented ? -10 : 0
+        isProjectModePresented ? -6 : 0
     }
 
     private var weekSectionVerticalOffset: CGFloat {
@@ -1052,7 +1196,7 @@ struct HomeView: View {
 
     private var topChromeReservedHeight: CGFloat {
         if isProjectModePresented {
-            return 64
+            return 92
         }
 
         return viewModel.isPairModeActive ? 112 : 104
@@ -1530,7 +1674,7 @@ private struct HomeTimelineRow: View {
                             .minimumScaleFactor(titleMinimumScaleFactor)
                             .allowsTightening(true)
 
-                        if entry.assigneeText != nil || entry.needsResponse {
+                        if (entry.assigneeText != nil || entry.needsResponse), entry.isCompleted == false {
                             HStack(spacing: 8) {
                                 if let assigneeText = entry.assigneeText {
                                     Text(assigneeText)
@@ -1710,6 +1854,720 @@ private struct HomeTimelineRow: View {
 
     private var checkmarkOpacity: Double {
         (entry.isCompleted || isAnimatingCompletion) ? 1 : 0
+    }
+}
+
+private struct PairTimelineCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let entry: HomeTimelineEntry
+    let quickReplyMessages: [String]
+    let onPrimaryAction: () -> Void
+    let onSecondaryAction: () -> Void
+    let onOpenDetail: () -> Void
+    let onQuickMessage: (String) -> Void
+    let onResend: () -> Void
+    let onDelete: () -> Void
+    @State private var isMorphingToAssigned = false
+    @State private var completionAnimationCount = 0
+    @State private var completionBadgeScale: CGFloat = 1
+    @State private var completionFillScale: CGFloat = 0.5
+    @State private var completionFillOpacity = 0.0
+    @State private var completionOutlineOpacity = 1.0
+    @State private var rowScale: CGFloat = 1
+    @State private var rowVerticalOffset: CGFloat = 0
+    @State private var rowOpacity: Double = 1
+    @State private var transientBubbleText: String?
+    @State private var bubbleScale: CGFloat = 1
+    @State private var bubbleOpacity: Double = 1
+    @State private var lastSentAnimationSignature = ""
+    @State private var showsKeepForLaterAction = true
+    @State private var isAwaitingCompletionCommit = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Button(action: handleCardTap) {
+                VStack(alignment: .leading, spacing: 14) {
+                    headerRow
+                    subtitleLine
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            bottomRow
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(cardStroke, lineWidth: 1)
+        )
+        .shadow(color: AppTheme.colors.shadow.opacity(0.06), radius: 14, y: 8)
+        .scaleEffect(rowScale)
+        .offset(y: rowVerticalOffset)
+        .opacity(rowOpacity)
+        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: effectivePairCardStyle)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: entry.responseStateText)
+        .modifier(
+            PairNativeContextMenuModifier(
+                messages: supportsLongPressMenu ? quickReplyMessages : [],
+                onSelectMessage: handleQuickMessage
+            )
+        )
+        .onChange(of: entry.isCompleted) { _, isCompleted in
+            guard isCompleted else {
+                resetCompletionBadgeState()
+                return
+            }
+            if isAwaitingCompletionCommit {
+                isAwaitingCompletionCommit = false
+                return
+            }
+            runCompletionAnimation()
+        }
+        .onAppear {
+            lastSentAnimationSignature = sentAnimationSignature
+            showsKeepForLaterAction = entry.pairCardStyle == .sent ? entry.responseStateText == "已拒绝" : true
+        }
+        .onChange(of: sentAnimationSignature) { oldValue, newValue in
+            guard oldValue != newValue else { return }
+            lastSentAnimationSignature = newValue
+            guard entry.pairCardStyle == .sent else { return }
+            guard newValue.isEmpty == false else { return }
+            runSentCardMessageAnimation()
+        }
+        .onChange(of: entry.responseStateText) { _, newValue in
+            guard entry.pairCardStyle == .sent else { return }
+            showsKeepForLaterAction = newValue == "已拒绝"
+        }
+    }
+
+    private var supportsLongPressMenu: Bool {
+        entry.pairCardStyle == .request || supportsSentQuickReplyMenu
+    }
+
+    private var supportsSentQuickReplyMenu: Bool {
+        entry.pairCardStyle == .sent && entry.responseStateText == "已拒绝"
+    }
+
+    @ViewBuilder
+    private var headerRow: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text(entry.title)
+                .font(AppTheme.typography.sized(20, weight: .bold))
+                .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.42) : AppTheme.colors.title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .allowsTightening(true)
+
+            Spacer(minLength: 0)
+
+            if entry.timeText.isEmpty == false {
+                Text(entry.timeText)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(timeColor)
+            }
+        }
+    }
+
+    private var subtitleLine: some View {
+        Text(subtitleText)
+            .font(AppTheme.typography.sized(14, weight: .medium))
+            .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+            .lineLimit(1)
+            .minimumScaleFactor(0.84)
+    }
+
+    @ViewBuilder
+    private var bottomRow: some View {
+        switch entry.pairCardStyle {
+        case .request:
+            HStack(alignment: .center, spacing: 12) {
+                messageIdentityRow
+
+                Spacer(minLength: 0)
+
+                if isMorphingToAssigned {
+                    PairCompletionBadge(
+                        isCompleted: false,
+                        isAnimatingCompletion: false,
+                        accentColor: AppTheme.colors.coral,
+                        scale: 1,
+                        fillScale: 1,
+                        fillOpacity: 0.12,
+                        outlineOpacity: 0.2,
+                        animationCount: 0,
+                        action: {}
+                    )
+                    .transition(.scale(scale: 0.86).combined(with: .opacity))
+                } else {
+                    PairCardPillButton(title: "拒绝", isPrimary: false, action: handleSecondaryAction)
+                    PairCardPillButton(title: "接受", isPrimary: true, action: handlePrimaryAction)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+        case .sent:
+            HStack(alignment: .center, spacing: 12) {
+                messageIdentityRow
+                Spacer(minLength: 0)
+
+                if entry.responseStateText == "已拒绝" {
+                    PairCardPillButton(title: "删除", isPrimary: false, action: handleDeleteAction)
+                    if showsKeepForLaterAction {
+                        PairCardPillButton(title: "暂留", isPrimary: false, action: handleKeepForLaterAction)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                    PairCardPillButton(title: "再发", isPrimary: true, action: handleResendAction)
+                }
+            }
+        case .assigned, .shared, .standard:
+            HStack(alignment: .center, spacing: 12) {
+                messageIdentityRow
+
+                Spacer(minLength: 0)
+
+                PairCompletionBadge(
+                    isCompleted: entry.isCompleted,
+                    isAnimatingCompletion: isAwaitingCompletionCommit,
+                    accentColor: entry.pairCardStyle == .shared ? AppTheme.colors.sky : AppTheme.colors.coral,
+                    scale: completionBadgeScale,
+                    fillScale: completionFillScale,
+                    fillOpacity: completionFillOpacity,
+                    outlineOpacity: completionOutlineOpacity,
+                    animationCount: completionAnimationCount,
+                    action: handleCompletionAction
+                )
+            }
+        }
+    }
+
+    private var messageIdentityRow: some View {
+        HStack(alignment: .center, spacing: 10) {
+            PairTimelineAvatarStrip(
+                primaryAvatar: entry.primaryAvatar,
+                secondaryAvatar: entry.secondaryAvatar,
+                style: effectivePairCardStyle
+            )
+
+            messageTextView
+        }
+    }
+
+    private var messageTextView: some View {
+        Group {
+            if shouldShowMessageBubble {
+                Text(displayedMessageText)
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.84))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.84)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(alignment: .bottomLeading) {
+                        PairMessageBubbleBackground(fill: bubbleFillColor)
+                    }
+                    .scaleEffect(bubbleScale)
+                    .opacity(bubbleOpacity)
+            } else {
+                Text(displayedMessageText)
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(messagePreview == nil ? AppTheme.colors.body.opacity(0.5) : AppTheme.colors.body.opacity(0.74))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.84)
+            }
+        }
+    }
+
+    private var messagePreview: String? {
+        if let transientBubbleText {
+            return transientBubbleText
+        }
+        guard let message = entry.messagePreview?.trimmingCharacters(in: .whitespacesAndNewlines),
+              message.isEmpty == false else {
+            return nil
+        }
+
+        if let author = entry.latestMessageAuthorName {
+            return "\(author)：\(message)"
+        }
+        return message
+    }
+
+    private var subtitleText: String {
+        if let responseStateText = entry.responseStateText, responseStateText.isEmpty == false {
+            return responseStateText
+        }
+        if let relationText = entry.relationText, relationText.isEmpty == false {
+            return relationText
+        }
+        return "轻点展开详情"
+    }
+
+    private var fallbackMessageText: String {
+        if let notes = entry.notes?.trimmingCharacters(in: .whitespacesAndNewlines), notes.isEmpty == false {
+            return notes
+        }
+        if let responseStateText = entry.responseStateText, responseStateText.isEmpty == false {
+            return responseStateText
+        }
+        return "暂时还没有留言"
+    }
+
+    private var displayedMessageText: String {
+        messagePreview ?? fallbackMessageText
+    }
+
+    private var shouldShowMessageBubble: Bool {
+        if effectivePairCardStyle == .assigned || effectivePairCardStyle == .standard {
+            return false
+        }
+        if transientBubbleText != nil {
+            return true
+        }
+        return entry.messagePreview?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private var bubbleFillColor: Color {
+        switch effectivePairCardStyle {
+        case .request:
+            return AppTheme.colors.surfaceElevated
+        case .sent:
+            return AppTheme.colors.surfaceElevated
+        case .shared:
+            return AppTheme.colors.surfaceElevated
+        case .assigned, .standard:
+            return AppTheme.colors.surfaceElevated
+        }
+    }
+
+    private var relationColor: Color {
+        switch effectivePairCardStyle {
+        case .request:
+            return AppTheme.colors.coral
+        case .shared:
+            return AppTheme.colors.sky
+        case .sent:
+            return AppTheme.colors.body.opacity(0.74)
+        case .assigned, .standard:
+            return AppTheme.colors.title.opacity(0.76)
+        }
+    }
+
+    private var timeColor: Color {
+        switch entry.urgency {
+        case .overdue:
+            return AppTheme.colors.coral
+        case .imminent:
+            return AppTheme.colors.sky
+        case .normal:
+            return AppTheme.colors.body.opacity(0.58)
+        }
+    }
+
+    private var cardBackground: some ShapeStyle {
+        switch effectivePairCardStyle {
+        case .request:
+            return AppTheme.colors.background
+        case .shared:
+            return AppTheme.colors.sky.opacity(0.08)
+        case .sent:
+            return AppTheme.colors.surfaceElevated.opacity(0.9)
+        case .assigned, .standard:
+            return AppTheme.colors.background
+        }
+    }
+
+    private var cardStroke: Color {
+        switch effectivePairCardStyle {
+        case .request:
+            return AppTheme.colors.outlineStrong.opacity(0.1)
+        case .shared:
+            return AppTheme.colors.sky.opacity(0.16)
+        case .sent:
+            return AppTheme.colors.outlineStrong.opacity(0.12)
+        case .assigned, .standard:
+            return AppTheme.colors.outlineStrong.opacity(0.1)
+        }
+    }
+
+    private var effectivePairCardStyle: HomePairCardStyle {
+        isMorphingToAssigned ? .assigned : entry.pairCardStyle
+    }
+
+    private var sentAnimationSignature: String {
+        guard entry.pairCardStyle == .sent else { return "" }
+        return "\(entry.responseStateText ?? "")|\(entry.messagePreview ?? "")"
+    }
+
+    private func handleCardTap() {
+        onOpenDetail()
+    }
+
+    private func handlePrimaryAction() {
+        guard entry.pairCardStyle == .request else {
+            onPrimaryAction()
+            return
+        }
+
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
+            isMorphingToAssigned = true
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(190))
+            onPrimaryAction()
+            try? await Task.sleep(for: .milliseconds(280))
+            isMorphingToAssigned = false
+        }
+    }
+
+    private func handleSecondaryAction() {
+        guard entry.pairCardStyle == .request else {
+            onSecondaryAction()
+            return
+        }
+
+        Task { @MainActor in
+            if reduceMotion == false {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                    rowScale = 0.98
+                    rowVerticalOffset = -8
+                    rowOpacity = 0
+                }
+                try? await Task.sleep(for: .milliseconds(140))
+            }
+            onSecondaryAction()
+        }
+    }
+
+    private func handleQuickMessage(_ message: String) {
+        guard entry.pairCardStyle == .request || supportsSentQuickReplyMenu else { return }
+        HomeInteractionFeedback.menuTap()
+        transientBubbleText = message
+        runMessageBubbleEntranceAnimation()
+
+        Task { @MainActor in
+            if entry.pairCardStyle == .request, reduceMotion == false {
+                try? await Task.sleep(for: .milliseconds(220))
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                    rowScale = 0.98
+                    rowVerticalOffset = -8
+                    rowOpacity = 0
+                }
+                try? await Task.sleep(for: .milliseconds(120))
+            }
+            onQuickMessage(message)
+        }
+    }
+
+    private func handleResendAction() {
+        HomeInteractionFeedback.selection()
+        Task { @MainActor in
+            if reduceMotion == false {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
+                    rowScale = 1.02
+                }
+                try? await Task.sleep(for: .milliseconds(110))
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                    rowScale = 1
+                }
+            }
+            onResend()
+        }
+    }
+
+    private func handleKeepForLaterAction() {
+        HomeInteractionFeedback.selection()
+        guard entry.pairCardStyle == .sent else {
+            return
+        }
+
+        if reduceMotion {
+            showsKeepForLaterAction = false
+            return
+        }
+
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+            showsKeepForLaterAction = false
+            rowScale = 0.992
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                rowScale = 1
+            }
+        }
+    }
+
+    private func handleDeleteAction() {
+        HomeInteractionFeedback.selection()
+        Task { @MainActor in
+            if reduceMotion == false {
+                withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                    rowScale = 0.98
+                    rowOpacity = 0
+                }
+                try? await Task.sleep(for: .milliseconds(140))
+            }
+            onDelete()
+        }
+    }
+
+    private func handleCompletionAction() {
+        guard entry.isCompleted == false else {
+            onPrimaryAction()
+            return
+        }
+
+        isAwaitingCompletionCommit = true
+        runCompletionAnimation()
+
+        Task { @MainActor in
+            if reduceMotion == false {
+                try? await Task.sleep(for: .milliseconds(70))
+            }
+            onPrimaryAction()
+        }
+    }
+
+    private func runMessageBubbleEntranceAnimation() {
+        guard reduceMotion == false else {
+            bubbleScale = 1
+            bubbleOpacity = 1
+            return
+        }
+
+        bubbleScale = 0.92
+        bubbleOpacity = 0.28
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.76)) {
+            bubbleScale = 1
+            bubbleOpacity = 1
+            rowScale = 1
+            rowVerticalOffset = 0
+        }
+    }
+
+    private func runSentCardMessageAnimation() {
+        guard reduceMotion == false else {
+            bubbleScale = 1
+            bubbleOpacity = 1
+            return
+        }
+
+        bubbleScale = 0.9
+        bubbleOpacity = 0.18
+        rowScale = 0.992
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
+            bubbleScale = 1
+            bubbleOpacity = 1
+            rowScale = 1
+        }
+    }
+
+    private func runCompletionAnimation() {
+        completionAnimationCount += 1
+        completionOutlineOpacity = 1
+        completionFillScale = 0.42
+        completionFillOpacity = reduceMotion ? 0.12 : 0.2
+        completionBadgeScale = reduceMotion ? 1 : 0.82
+        rowScale = reduceMotion ? 1 : 0.988
+        rowVerticalOffset = reduceMotion ? 0 : -1
+
+        withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.1)) {
+            completionOutlineOpacity = reduceMotion ? 0.18 : 0
+        }
+
+        Task { @MainActor in
+            if reduceMotion {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    completionFillScale = 1
+                    completionFillOpacity = 0
+                }
+                return
+            }
+
+            try? await Task.sleep(for: .milliseconds(72))
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.5)) {
+                completionBadgeScale = 1.16
+                completionFillScale = 1.02
+                rowScale = 0.982
+            }
+            withAnimation(.easeOut(duration: 0.18)) {
+                completionFillOpacity = 0.26
+            }
+
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.68)) {
+                completionBadgeScale = 1
+                rowScale = 1
+                rowVerticalOffset = 2
+            }
+            withAnimation(.easeOut(duration: 0.2)) {
+                completionFillScale = 1.34
+                completionFillOpacity = 0
+            }
+
+            try? await Task.sleep(for: .milliseconds(84))
+            withAnimation(.easeOut(duration: 0.12)) {
+                rowVerticalOffset = 0
+            }
+        }
+    }
+
+    private func resetCompletionBadgeState() {
+        completionBadgeScale = 1
+        completionFillScale = 0.5
+        completionFillOpacity = 0
+        completionOutlineOpacity = 1
+        rowScale = 1
+        rowVerticalOffset = 0
+        rowOpacity = 1
+        isAwaitingCompletionCommit = false
+    }
+}
+
+private struct PairMessageBubbleBackground: View {
+    let fill: Color
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(fill)
+    }
+}
+
+private struct PairTimelineAvatarStrip: View {
+    let primaryAvatar: HomeAvatar?
+    let secondaryAvatar: HomeAvatar?
+    let style: HomePairCardStyle
+
+    var body: some View {
+        HStack(spacing: secondaryAvatar == nil ? 0 : -8) {
+            if let primaryAvatar {
+                avatar(primaryAvatar, fillColor: AppTheme.colors.surfaceElevated)
+            }
+
+            if let secondaryAvatar {
+                avatar(secondaryAvatar, fillColor: AppTheme.colors.avatarWarm)
+            }
+        }
+        .frame(width: stripWidth, height: 34, alignment: .leading)
+    }
+
+    private var stripWidth: CGFloat {
+        switch style {
+        case .shared:
+            return 58
+        default:
+            return 34
+        }
+    }
+
+    private func avatar(_ avatar: HomeAvatar, fillColor: Color) -> some View {
+        UserAvatarView(
+            avatarAsset: avatar.avatarAsset,
+            displayName: avatar.displayName,
+            size: 34,
+            fillColor: fillColor,
+            symbolColor: AppTheme.colors.title,
+            symbolFont: AppTheme.typography.sized(13, weight: .semibold),
+            overrideImage: avatar.overrideImage
+        )
+        .frame(width: 34, height: 34)
+        .overlay {
+            Circle()
+                .stroke(.white.opacity(0.92), lineWidth: 2)
+        }
+    }
+}
+
+private struct PairCardPillButton: View {
+    let title: String
+    let isPrimary: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(AppTheme.typography.sized(13, weight: .bold))
+                .foregroundStyle(isPrimary ? Color.white : AppTheme.colors.title)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isPrimary ? AppTheme.colors.coral : AppTheme.colors.surfaceElevated)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+
+private struct PairNativeContextMenuModifier: ViewModifier {
+    let messages: [String]
+    let onSelectMessage: (String) -> Void
+
+    func body(content: Content) -> some View {
+        if messages.isEmpty {
+            content
+        } else {
+            content.contextMenu {
+                ForEach(messages, id: \.self) { message in
+                    Button(message) {
+                        onSelectMessage(message)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct PairCompletionBadge: View {
+    let isCompleted: Bool
+    let isAnimatingCompletion: Bool
+    let accentColor: Color
+    let scale: CGFloat
+    let fillScale: CGFloat
+    let fillOpacity: Double
+    let outlineOpacity: Double
+    let animationCount: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(accentColor.opacity(0.14))
+                    .scaleEffect(fillScale)
+                    .opacity(isCompleted ? 0 : fillOpacity)
+
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(
+                        accentColor.opacity(0.58),
+                        style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                    )
+                    .opacity(isCompleted ? 0 : outlineOpacity)
+
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(17, weight: .bold))
+                    .foregroundStyle(accentColor)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, options: .speed(1.15), value: animationCount)
+                    .opacity((isCompleted || isAnimatingCompletion) ? 1 : 0)
+            }
+            .frame(width: 40, height: 40)
+            .scaleEffect(scale)
+            .shadow(
+                color: accentColor.opacity(isCompleted ? 0 : 0.2),
+                radius: isCompleted ? 0 : 12,
+                y: isCompleted ? 0 : 5
+            )
+        }
+        .frame(width: 56, height: 56)
+        .contentShape(Rectangle())
+        .buttonStyle(.plain)
     }
 }
 
@@ -1933,7 +2791,12 @@ private struct HomeOverdueSummarySheet: View {
                     accentColorName: "coral",
                     isMuted: false,
                     isCompleted: false,
-                    urgency: .overdue
+                    urgency: .overdue,
+                    pairCardStyle: .standard,
+                    relationText: nil,
+                    primaryAvatar: nil,
+                    secondaryAvatar: nil,
+                    latestMessageAuthorName: nil
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
                 titleLineLimit: 1,

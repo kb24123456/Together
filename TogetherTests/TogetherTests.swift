@@ -349,6 +349,84 @@ struct TogetherTests {
     }
 
     @Test
+    func taskApplicationServiceRejectsPendingTaskWhenQuickReplyIsSent() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "等你确认",
+                assigneeMode: .partner
+            )
+        )
+
+        let updated = try await service.respondToTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.partnerUserID,
+            response: .notSuitable,
+            message: "有点忙"
+        )
+
+        #expect(updated.assignmentState == .declined)
+        #expect(updated.status == .declinedOrBlocked)
+        #expect(updated.responseHistory.count == 1)
+        #expect(updated.latestResponse?.kind == .notSuitable)
+        #expect(updated.assignmentMessages.last?.body == "有点忙")
+    }
+
+    @Test
+    func taskApplicationServiceCanRequeueDeclinedPartnerTask() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "重新发一次",
+                assigneeMode: .partner,
+                assignmentNote: "麻烦你确认"
+            )
+        )
+
+        _ = try await service.respondToTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.partnerUserID,
+            response: .notSuitable,
+            message: "有点忙"
+        )
+
+        let requeued = try await service.requeueDeclinedTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID
+        )
+
+        #expect(requeued.assignmentState == .pendingResponse)
+        #expect(requeued.status == .pendingConfirmation)
+        #expect(requeued.latestResponse == nil)
+        #expect(requeued.responseHistory.isEmpty)
+        #expect(requeued.assignmentMessages.map(\.authorID) == [MockDataFactory.currentUserID])
+        #expect(requeued.assignmentMessages.last?.body == "麻烦你确认")
+    }
+
+    @Test
     func taskApplicationServiceCreatesPeriodicTaskWithExplicitTime() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
@@ -553,6 +631,78 @@ struct TogetherTests {
 
         #expect(restored.completedAt == nil)
         #expect(restored.status == .inProgress)
+    }
+
+    @Test
+    func taskDraftFromExistingPairTaskDoesNotReuseLastMessageAsAssignmentNote() async throws {
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: MockDataFactory.todayListID,
+            projectID: nil,
+            creatorID: MockDataFactory.partnerUserID,
+            title: "测试双人任务",
+            notes: "纯牛奶",
+            locationText: nil,
+            executionRole: .recipient,
+            assigneeMode: .partner,
+            dueAt: .now,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .pendingConfirmation,
+            assignmentState: .pendingResponse,
+            latestResponse: nil,
+            responseHistory: [],
+            assignmentMessages: [
+                TaskAssignmentMessage(
+                    authorID: MockDataFactory.partnerUserID,
+                    body: "这是一条已有留言",
+                    createdAt: .now
+                )
+            ],
+            createdAt: .now,
+            updatedAt: .now,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+
+        let draft = TaskDraft(item: item)
+
+        #expect(draft.assignmentNote == nil)
+        #expect(draft.notes == "纯牛奶")
+    }
+
+    @Test @MainActor
+    func homeViewModelUpdatesDetailDraftAssigneeModeWithoutExclusivityConflict() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
+        sessionStore.activeMode = .pair
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        viewModel.detailDraft = TaskDraft(
+            title: "测试任务",
+            assigneeMode: .self,
+            assignmentState: .active
+        )
+
+        viewModel.updateDraftAssigneeMode(.partner)
+        #expect(viewModel.detailDraft?.assigneeMode == .partner)
+        #expect(viewModel.detailDraft?.assignmentState == .pendingResponse)
+        #expect(viewModel.detailDraft?.status == .pendingConfirmation)
+
+        viewModel.updateDraftAssigneeMode(.both)
+        #expect(viewModel.detailDraft?.assigneeMode == .both)
+        #expect(viewModel.detailDraft?.assignmentState == .active)
+        #expect(viewModel.detailDraft?.status == .inProgress)
     }
 
     @Test
@@ -1057,6 +1207,82 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func homeViewModelHidesDeclinedPartnerTaskForReceiverButKeepsItForSender() {
+        let receiverSession = SessionStore()
+        receiverSession.currentUser = MockDataFactory.makeCurrentUser()
+        receiverSession.singleSpace = MockDataFactory.makeSingleSpace()
+        receiverSession.pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
+        receiverSession.activeMode = .pair
+
+        let senderSession = SessionStore()
+        senderSession.currentUser = MockDataFactory.makePartnerUser()
+        senderSession.singleSpace = MockDataFactory.makeSingleSpace()
+        senderSession.pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
+        senderSession.activeMode = .pair
+
+        let declinedTask = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.partnerUserID,
+            title: "被拒绝的请求",
+            notes: nil,
+            locationText: nil,
+            executionRole: .recipient,
+            assigneeMode: .partner,
+            dueAt: Date.now,
+            hasExplicitTime: false,
+            remindAt: nil,
+            status: .declinedOrBlocked,
+            assignmentState: .declined,
+            latestResponse: ItemResponse(
+                responderID: MockDataFactory.currentUserID,
+                kind: .notSuitable,
+                message: "有点忙",
+                respondedAt: Date.now
+            ),
+            responseHistory: [],
+            assignmentMessages: [
+                TaskAssignmentMessage(
+                    authorID: MockDataFactory.currentUserID,
+                    body: "有点忙",
+                    createdAt: Date.now
+                )
+            ],
+            lastActionByUserID: MockDataFactory.currentUserID,
+            lastActionAt: Date.now,
+            createdAt: Date.now,
+            updatedAt: Date.now,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+
+        let receiverViewModel = HomeViewModel(
+            sessionStore: receiverSession,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        receiverViewModel.items = [declinedTask]
+
+        let senderViewModel = HomeViewModel(
+            sessionStore: senderSession,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        senderViewModel.items = [declinedTask]
+
+        #expect(receiverViewModel.activeTimelineEntries.isEmpty)
+        #expect(senderViewModel.activeTimelineEntries.count == 1)
+        #expect(senderViewModel.activeTimelineEntries.first?.responseStateText == "已拒绝")
+    }
+
+    @Test @MainActor
     func homeViewModelIgnoresDuplicateCompletionWhileSameOccurrenceIsInFlight() async throws {
         let sessionStore = SessionStore()
         sessionStore.currentUser = MockDataFactory.makeCurrentUser()
@@ -1352,6 +1578,7 @@ struct TogetherTests {
             taskUrgencyWindowMinutes: 33,
             defaultSnoozeMinutes: 67,
             quickTimePresetMinutes: [7, 31, 62, 95],
+            pairQuickReplyMessages: ["不想做", "没时间", "有点忙"],
             completedTaskAutoArchiveEnabled: false,
             completedTaskAutoArchiveDays: 14
         )
@@ -1880,7 +2107,7 @@ struct TogetherTests {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         let overdueDueAt = calendar.date(byAdding: .hour, value: -3, to: today) ?? today
-        let todayDueAt = calendar.date(byAdding: .hour, value: 9, to: today) ?? today
+        let todayDueAt = calendar.date(byAdding: .hour, value: 23, to: today) ?? today
 
         viewModel.selectedDate = Date.now
         viewModel.items = [
@@ -2005,6 +2232,18 @@ struct TogetherTests {
         #expect(NotificationSettings.normalizedSnoozeMinutes(3) == 5)
         #expect(NotificationSettings.normalizedSnoozeMinutes(33) == 35)
         #expect(NotificationSettings.normalizedSnoozeMinutes(188) == 180)
+    }
+
+    @Test
+    func notificationSettingsNormalizesPairQuickReplyMessages() {
+        let normalized = NotificationSettings.normalizedPairQuickReplyMessages([
+            "  不想做  ",
+            "",
+            "有点忙",
+            "没时间"
+        ])
+
+        #expect(normalized == ["不想做", "有点忙", "没时间"])
     }
 
     @Test
@@ -2484,6 +2723,17 @@ actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
         response: ItemResponseKind,
         message: String?
     ) async throws -> Item { throw RepositoryError.notFound }
+    func requeueDeclinedTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item { throw RepositoryError.notFound }
+    func appendAssignmentMessage(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        message: String
+    ) async throws -> Item { throw RepositoryError.notFound }
 
     func completedTaskIDs() -> [UUID] {
         completed
@@ -2556,6 +2806,17 @@ actor TestHistoricalOneOffCompletionTaskService: TaskApplicationServiceProtocol 
         actorID: UUID,
         response: ItemResponseKind,
         message: String?
+    ) async throws -> Item { throw RepositoryError.notFound }
+    func requeueDeclinedTask(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item { throw RepositoryError.notFound }
+    func appendAssignmentMessage(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        message: String
     ) async throws -> Item { throw RepositoryError.notFound }
 }
 

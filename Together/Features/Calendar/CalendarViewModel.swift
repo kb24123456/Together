@@ -53,6 +53,14 @@ final class CalendarViewModel {
         sessionStore.activeMode == .pair
     }
 
+    var currentUser: User? {
+        sessionStore.currentUser
+    }
+
+    var partner: User? {
+        sessionStore.pairSpaceSummary?.partner
+    }
+
     var spaceSummary: String {
         sessionStore.currentSpace?.displayName ?? (isPairModeActive ? "双人空间" : "我的任务空间")
     }

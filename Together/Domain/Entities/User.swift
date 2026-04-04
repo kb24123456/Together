@@ -25,6 +25,7 @@ struct User: Identifiable, Hashable, Sendable {
 
 struct NotificationSettings: Hashable, Sendable {
     nonisolated static let defaultQuickTimePresetMinutes: [Int] = [5, 30, 60]
+    nonisolated static let defaultPairQuickReplyMessages: [String] = ["不想做", "没时间", "有点忙"]
     nonisolated static let defaultSnoozeMinutes: Int = 30
     nonisolated static let defaultCompletedTaskAutoArchiveDays: Int = 30
     nonisolated static let completedTaskAutoArchiveDayOptions: [Int] = [7, 14, 30, 90]
@@ -36,6 +37,7 @@ struct NotificationSettings: Hashable, Sendable {
     var taskUrgencyWindowMinutes: Int = 30
     var defaultSnoozeMinutes: Int = NotificationSettings.defaultSnoozeMinutes
     var quickTimePresetMinutes: [Int] = NotificationSettings.defaultQuickTimePresetMinutes
+    var pairQuickReplyMessages: [String] = NotificationSettings.defaultPairQuickReplyMessages
     var completedTaskAutoArchiveEnabled: Bool = true
     var completedTaskAutoArchiveDays: Int = NotificationSettings.defaultCompletedTaskAutoArchiveDays
 
@@ -53,6 +55,18 @@ struct NotificationSettings: Hashable, Sendable {
         var normalized = Array(sanitized.prefix(3))
         if normalized.count < 3 {
             normalized.append(contentsOf: defaultQuickTimePresetMinutes.dropFirst(normalized.count))
+        }
+        return normalized
+    }
+
+    nonisolated static func normalizedPairQuickReplyMessages(_ values: [String]) -> [String] {
+        let trimmed = values.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let filtered = trimmed.filter { !$0.isEmpty }
+        var normalized = Array(filtered.prefix(3))
+        if normalized.count < 3 {
+            normalized.append(contentsOf: defaultPairQuickReplyMessages.dropFirst(normalized.count))
         }
         return normalized
     }

@@ -5,6 +5,7 @@ import UIKit
 
 struct HomeItemDetailSheet: View {
     @Bindable var viewModel: HomeViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var focusedField: Field?
     @State private var activeMenu: TaskEditorMenu?
     @State private var pendingAction: DetailEntryAction?
@@ -16,6 +17,9 @@ struct HomeItemDetailSheet: View {
     @State private var isSaveButtonAnimating = false
     @State private var taskTemplates: [TaskTemplate] = []
     @State private var isLoadingTemplates = false
+    @State private var showsInlineAssigneeOptions = false
+    @State private var visibleAssigneeModes: [TaskAssigneeMode] = []
+    @State private var assigneeAnimationTask: Task<Void, Never>?
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
     @Namespace private var chipRowNamespace
     @Namespace private var categorySwitcherNamespace
@@ -111,6 +115,9 @@ struct HomeItemDetailSheet: View {
         .onChange(of: viewModel.detailDetent) { _, newValue in
             guard newValue == .large else { return }
             performPendingActionIfNeeded()
+        }
+        .onDisappear {
+            assigneeAnimationTask?.cancel()
         }
     }
 
@@ -302,10 +309,12 @@ struct HomeItemDetailSheet: View {
                 expandToLarge(for: .focus(.title))
             } label: {
                 Text(viewModel.detailDraft?.title ?? "")
-                    .font(AppTheme.typography.sized(32, weight: .bold))
+                    .font(adaptiveCompactTitleFont)
                     .foregroundStyle(AppTheme.colors.title)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
             .buttonStyle(.plain)
 
@@ -318,6 +327,8 @@ struct HomeItemDetailSheet: View {
                     .foregroundStyle(compactNotesColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .buttonStyle(.plain)
         }
@@ -325,12 +336,19 @@ struct HomeItemDetailSheet: View {
 
     private var compactMetaSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(currentStateText)
-                .font(AppTheme.typography.sized(15, weight: .semibold))
-                .foregroundStyle(statusTextColor)
+            HStack(alignment: .center, spacing: 12) {
+                Text(currentStateText)
+                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                    .foregroundStyle(statusTextColor)
 
-            if viewModel.isPairModeActive {
-                detailAssignmentSection
+                if viewModel.isPairModeActive {
+                    Spacer(minLength: 0)
+                    compactAssignmentAvatarButton
+                }
+            }
+
+            if viewModel.isPairModeActive, selectedItemNeedsResponse {
+                compactResponseActionRow
             }
         }
         .padding(.top, 38)
@@ -588,60 +606,216 @@ struct HomeItemDetailSheet: View {
 
     private var detailAssignmentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("归属与回应")
-                .font(AppTheme.typography.sized(14, weight: .bold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-
-            Picker(
-                "归属与回应",
-                selection: Binding(
-                    get: { viewModel.detailDraft?.assigneeMode ?? .self },
-                    set: { viewModel.updateDraftAssigneeMode($0) }
-                )
-            ) {
-                Text("自己").tag(TaskAssigneeMode.`self`)
-                Text("对方").tag(TaskAssigneeMode.partner)
-                Text("一起").tag(TaskAssigneeMode.both)
-            }
-            .pickerStyle(.segmented)
-
-            if viewModel.detailDraft?.assigneeMode == .partner {
-                TextField(
-                    "补一句说明或留言",
-                    text: Binding(
-                        get: { viewModel.detailDraft?.assignmentNote ?? "" },
-                        set: { viewModel.updateDraftAssignmentNote($0) }
-                    ),
-                    axis: .vertical
-                )
-                .font(AppTheme.typography.sized(15, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.82))
-                .lineLimit(1...3)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(AppTheme.colors.surfaceElevated)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
-                }
-            }
+            assignmentAvatarControl
 
             if selectedItemNeedsResponse {
-                HStack(spacing: 10) {
-                    responseActionButton(title: "接受", tint: AppTheme.colors.title) {
-                        Task { await viewModel.respondToSelectedItem(response: .willing, message: nil) }
-                    }
-                    responseActionButton(title: "推迟", tint: AppTheme.colors.body) {
-                        Task { await viewModel.respondToSelectedItem(response: .notAvailableNow, message: "稍后处理") }
-                    }
-                    responseActionButton(title: "拒绝", tint: AppTheme.colors.coral) {
-                        Task { await viewModel.respondToSelectedItem(response: .notSuitable, message: "这次不合适") }
-                    }
+                compactResponseActionRow
+            }
+        }
+    }
+
+    private var compactAssignmentAvatarButton: some View {
+        assignmentAvatarControl
+    }
+
+    private var assignmentAvatarControl: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            toggleInlineAssigneeOptions()
+        } label: {
+            HStack(spacing: 12) {
+                PairDetailAvatarStrip(
+                    primaryAvatar: pairDetailPrimaryAvatar,
+                    secondaryAvatar: pairDetailSecondaryAvatar,
+                    showsPair: pairDetailSecondaryAvatar != nil,
+                    animatesChanges: !reduceMotion
+                )
+
+                if showsInlineAssigneeOptions {
+                    assigneeInlineOptions
+                        .clipped()
+                }
+
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(assigneeAccessibilityLabel)
+        .accessibilityHint("点按后更改任务归属")
+    }
+
+    private var compactResponseActionRow: some View {
+        HStack(spacing: 10) {
+            responseActionButton(title: "接受", tint: AppTheme.colors.title) {
+                Task { await viewModel.respondToSelectedItem(response: .willing, message: nil) }
+            }
+            responseActionButton(title: "拒绝", tint: AppTheme.colors.coral) {
+                Task { await viewModel.respondToSelectedItem(response: .notSuitable, message: nil) }
+            }
+        }
+    }
+
+    private var assigneeInlineOptions: some View {
+        HStack(spacing: 8) {
+            ForEach(orderedAssigneeModes, id: \.self) { mode in
+                if visibleAssigneeModes.contains(mode) {
+                    assigneeOptionChip(title: assigneeTitle(for: mode), mode: mode)
+                        .transition(assigneeOptionTransition(for: mode))
                 }
             }
+        }
+        .animation(assigneeOptionsSpring, value: visibleAssigneeModes)
+    }
+
+    private func assigneeOptionChip(title: String, mode: TaskAssigneeMode) -> some View {
+        let isSelected = (viewModel.detailDraft?.assigneeMode ?? .self) == mode
+
+        return Button {
+            viewModel.updateDraftAssigneeMode(mode)
+            HomeInteractionFeedback.assigneeChange()
+            if reduceMotion {
+                collapseInlineAssigneeOptions()
+            } else {
+                assigneeAnimationTask?.cancel()
+                assigneeAnimationTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(120))
+                    guard !Task.isCancelled else { return }
+                    collapseInlineAssigneeOptions()
+                }
+            }
+        } label: {
+            Text(title)
+                .font(AppTheme.typography.sized(13, weight: .bold))
+                .foregroundStyle(isSelected ? Color.white : AppTheme.colors.title)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isSelected ? AppTheme.colors.coral : AppTheme.colors.surfaceElevated)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var orderedAssigneeModes: [TaskAssigneeMode] {
+        [.self, .partner, .both]
+    }
+
+    private var assigneeOptionsSpring: Animation {
+        .spring(response: 0.3, dampingFraction: 0.84)
+    }
+
+    private func assigneeOptionTransition(for mode: TaskAssigneeMode) -> AnyTransition {
+        let distance: CGFloat
+        let scale: CGFloat
+
+        switch mode {
+        case .self:
+            distance = -8
+            scale = 0.97
+        case .partner:
+            distance = -16
+            scale = 0.94
+        case .both:
+            distance = -24
+            scale = 0.9
+        }
+
+        return .offset(x: distance)
+            .combined(with: .scale(scale: scale, anchor: .leading))
+            .combined(with: .opacity)
+    }
+
+    private func assigneeTitle(for mode: TaskAssigneeMode) -> String {
+        switch mode {
+        case .self:
+            return "自己"
+        case .partner:
+            return "对方"
+        case .both:
+            return "一起"
+        }
+    }
+
+    private func toggleInlineAssigneeOptions() {
+        showsInlineAssigneeOptions ? collapseInlineAssigneeOptions() : expandInlineAssigneeOptions()
+    }
+
+    private func expandInlineAssigneeOptions() {
+        assigneeAnimationTask?.cancel()
+        if reduceMotion {
+            visibleAssigneeModes = orderedAssigneeModes
+            showsInlineAssigneeOptions = true
+            return
+        }
+
+        visibleAssigneeModes = []
+        withAnimation(assigneeOptionsSpring) {
+            showsInlineAssigneeOptions = true
+        }
+
+        assigneeAnimationTask = Task { @MainActor in
+            for (index, mode) in orderedAssigneeModes.enumerated() {
+                if index > 0 {
+                    let delay = index == 1 ? 42 : 56
+                    try? await Task.sleep(for: .milliseconds(delay))
+                }
+                guard !Task.isCancelled else { return }
+                withAnimation(assigneeOptionsSpring) {
+                    visibleAssigneeModes.append(mode)
+                }
+            }
+        }
+    }
+
+    private func collapseInlineAssigneeOptions() {
+        assigneeAnimationTask?.cancel()
+        if reduceMotion {
+            visibleAssigneeModes = []
+            showsInlineAssigneeOptions = false
+            return
+        }
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            visibleAssigneeModes = []
+        }
+
+        assigneeAnimationTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(160))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.16)) {
+                showsInlineAssigneeOptions = false
+            }
+        }
+    }
+
+    private var pairDetailPrimaryAvatar: HomeAvatar {
+        switch viewModel.detailDraft?.assigneeMode ?? .self {
+        case .partner:
+            return viewModel.pairPreviewAvatar
+        case .both, .self:
+            return viewModel.currentUserAvatar
+        }
+    }
+
+    private var pairDetailSecondaryAvatar: HomeAvatar? {
+        switch viewModel.detailDraft?.assigneeMode ?? .self {
+        case .both:
+            return viewModel.pairPreviewAvatar
+        case .partner, .self:
+            return nil
+        }
+    }
+
+    private var assigneeAccessibilityLabel: String {
+        switch viewModel.selectedItem?.assigneeMode ?? viewModel.detailDraft?.assigneeMode ?? .self {
+        case .partner:
+            return viewModel.partnerDisplayName ?? "对方"
+        case .both:
+            return "一起做"
+        case .self:
+            return "自己"
         }
     }
 
@@ -840,6 +1014,21 @@ struct HomeItemDetailSheet: View {
         return notes.isEmpty ? AppTheme.colors.textTertiary.opacity(0.74) : AppTheme.colors.body.opacity(0.78)
     }
 
+    private var adaptiveCompactTitleFont: Font {
+        let titleCount = (viewModel.detailDraft?.title ?? "").count
+
+        switch titleCount {
+        case 0...16:
+            return AppTheme.typography.sized(32, weight: .bold)
+        case 17...28:
+            return AppTheme.typography.sized(29, weight: .bold)
+        case 29...42:
+            return AppTheme.typography.sized(26, weight: .bold)
+        default:
+            return AppTheme.typography.sized(23, weight: .bold)
+        }
+    }
+
     private var currentStateText: String {
         "\(statusDateText) · \(statusLabelText)"
     }
@@ -870,6 +1059,10 @@ struct HomeItemDetailSheet: View {
     }
 
     private func cancelInlineActions() {
+        if showsInlineAssigneeOptions {
+            collapseInlineAssigneeOptions()
+        }
+
         if isAwaitingDeleteConfirmation {
             withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
                 isAwaitingDeleteConfirmation = false
@@ -2164,6 +2357,48 @@ private enum HomeDetailRepeatPreset: CaseIterable, Identifiable {
                 dayOfMonth: calendar.component(.day, from: anchorDate)
             )
         }
+    }
+}
+
+private struct PairDetailAvatarStrip: View {
+    let primaryAvatar: HomeAvatar
+    let secondaryAvatar: HomeAvatar?
+    let showsPair: Bool
+    let animatesChanges: Bool
+
+    var body: some View {
+        HStack(spacing: showsPair ? -8 : 0) {
+            avatar(primaryAvatar, fillColor: AppTheme.colors.surfaceElevated)
+            if let secondaryAvatar {
+                avatar(secondaryAvatar, fillColor: AppTheme.colors.avatarWarm)
+                    .transition(.scale(scale: 0.88, anchor: .leading).combined(with: .opacity))
+            }
+        }
+        .frame(width: showsPair ? 62 : 36, height: 36, alignment: .leading)
+        .animation(animatesChanges ? .spring(response: 0.28, dampingFraction: 0.82) : nil, value: showsPair)
+        .animation(animatesChanges ? .spring(response: 0.28, dampingFraction: 0.82) : nil, value: primaryAvatar.id)
+        .animation(animatesChanges ? .spring(response: 0.28, dampingFraction: 0.82) : nil, value: secondaryAvatar?.id)
+    }
+
+    private func avatar(_ avatar: HomeAvatar, fillColor: Color) -> some View {
+        ZStack {
+            UserAvatarView(
+                avatarAsset: avatar.avatarAsset,
+                displayName: avatar.displayName,
+                size: 36,
+                fillColor: fillColor,
+                symbolColor: AppTheme.colors.title,
+                symbolFont: AppTheme.typography.sized(13, weight: .semibold),
+                overrideImage: avatar.overrideImage
+            )
+            .id(avatar.id)
+            .transition(.scale(scale: 0.9).combined(with: .opacity))
+        }
+        .overlay {
+            Circle()
+                .stroke(.white.opacity(0.92), lineWidth: 2)
+        }
+        .compositingGroup()
     }
 }
 

@@ -154,6 +154,20 @@ struct ProfileView: View {
                 )
             }
 
+            expandableSelectionRow(
+                title: "双人预设留言",
+                value: viewModel.pairQuickReplyMessages.joined(separator: " / "),
+                setting: .pairQuickReplies
+            ) {
+                ProfileQuickReplyEditor(
+                    initialMessages: viewModel.pairQuickReplyMessages,
+                    onSave: { messages in
+                        HomeInteractionFeedback.selection()
+                        viewModel.updatePairQuickReplyMessages(messages)
+                    }
+                )
+            }
+
             ProfileSettingsRow(
                 title: "已完成自动归档",
                 isOn: Binding(
@@ -365,6 +379,51 @@ struct ProfileView: View {
                     action: onCustom
                 )
             }
+        }
+    }
+}
+
+private struct ProfileQuickReplyEditor: View {
+    let initialMessages: [String]
+    let onSave: ([String]) -> Void
+
+    @State private var messages: [String]
+
+    init(initialMessages: [String], onSave: @escaping ([String]) -> Void) {
+        self.initialMessages = NotificationSettings.normalizedPairQuickReplyMessages(initialMessages)
+        self.onSave = onSave
+        _messages = State(initialValue: NotificationSettings.normalizedPairQuickReplyMessages(initialMessages))
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(messages.indices, id: \.self) { index in
+                TextField("预设留言", text: Binding(
+                    get: { messages[index] },
+                    set: { messages[index] = $0 }
+                ))
+                .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
+                .foregroundStyle(AppTheme.colors.title)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(AppTheme.colors.backgroundSoft.opacity(0.92))
+                )
+            }
+
+            Button("保存预设") {
+                onSave(messages)
+                messages = NotificationSettings.normalizedPairQuickReplyMessages(messages)
+            }
+            .font(AppTheme.typography.sized(14, weight: .bold))
+            .foregroundStyle(AppTheme.colors.title)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(AppTheme.colors.surfaceElevated)
+            )
         }
     }
 }
