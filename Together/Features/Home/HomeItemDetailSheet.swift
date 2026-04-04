@@ -228,13 +228,7 @@ struct HomeItemDetailSheet: View {
             .padding(.horizontal, 18)
             .padding(.top, 12)
             .padding(.bottom, 16)
-            .background(
-                LinearGradient(
-                    colors: [.clear, AppTheme.colors.surface.opacity(0.97)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            .background(DetailBottomActionBackground())
         }
         .padding(.bottom, bottomInset)
         .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: isExpandedEditor)
@@ -2429,6 +2423,37 @@ private struct HomeDetailMenuOptionGlassModifier: ViewModifier {
                     )
                         .stroke(.white.opacity(0.66), lineWidth: 1)
                 }
+        }
+    }
+}
+
+private struct DetailBottomActionBackground: View {
+    var body: some View {
+        ZStack {
+            if #available(iOS 26.0, *) {
+                Rectangle()
+                    .fill(.clear)
+                    .background(.bar)
+            } else {
+                Rectangle()
+                    .fill(AppTheme.colors.surface.opacity(0.92))
+            }
+
+            LinearGradient(
+                stops: [
+                    .init(color: AppTheme.colors.surface.opacity(0), location: 0),
+                    .init(color: AppTheme.colors.surface.opacity(0.28), location: 0.24),
+                    .init(color: AppTheme.colors.surface.opacity(0.72), location: 0.66),
+                    .init(color: AppTheme.colors.surface.opacity(0.94), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.white.opacity(0.44))
+                .frame(height: 1)
         }
     }
 }

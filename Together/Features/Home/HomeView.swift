@@ -1932,6 +1932,9 @@ private struct PairTimelineCard: View {
         .onAppear {
             lastSentAnimationSignature = sentAnimationSignature
             showsKeepForLaterAction = entry.pairCardStyle == .sent ? entry.responseStateText == "已拒绝" : true
+            if entry.isCompleted == false {
+                resetCompletionBadgeState()
+            }
         }
         .onChange(of: sentAnimationSignature) { oldValue, newValue in
             guard oldValue != newValue else { return }
@@ -1943,6 +1946,12 @@ private struct PairTimelineCard: View {
         .onChange(of: entry.responseStateText) { _, newValue in
             guard entry.pairCardStyle == .sent else { return }
             showsKeepForLaterAction = newValue == "已拒绝"
+        }
+        .onChange(of: effectivePairCardStyle) { _, newValue in
+            guard newValue == .assigned || newValue == .shared || newValue == .standard else { return }
+            if entry.isCompleted == false {
+                resetCompletionBadgeState()
+            }
         }
     }
 

@@ -205,7 +205,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
         var item = items[index]
         if item.repeatRule == nil {
             item.completedAt = nil
-            item.assignmentState = .active
+            item.assignmentState = item.assigneeMode == .partner ? .accepted : .active
             if item.status == .completed {
                 item.status = .inProgress
             }
