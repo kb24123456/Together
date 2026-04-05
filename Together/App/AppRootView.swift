@@ -272,6 +272,8 @@ struct AppRootView: View {
                     }
                 )
                 .padding(.bottom, dockPeripheralInset)
+                .offset(y: appContext.homeViewModel.isDockHidden ? 120 : 0)
+                .opacity(appContext.homeViewModel.isDockHidden ? 0 : 1)
                 .zIndex(1.8)
             }
 

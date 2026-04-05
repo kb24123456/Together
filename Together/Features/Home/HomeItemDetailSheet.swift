@@ -775,9 +775,19 @@ struct HomeItemDetailSheet: View {
     }
 
     private var pairDetailPrimaryAvatar: HomeAvatar {
-        switch viewModel.detailDraft?.assigneeMode ?? .self {
+        let assigneeMode = viewModel.detailDraft?.assigneeMode ?? .self
+        let isCurrentUserCreator: Bool = {
+            guard let item = viewModel.selectedItem,
+                  let currentUserID = viewModel.currentUserID else { return true }
+            return item.creatorID == currentUserID
+        }()
+
+        switch assigneeMode {
         case .partner:
-            return viewModel.pairPreviewAvatar
+            // "partner" is relative to the creator.
+            // If I created it → the partner is the assignee → show partner avatar.
+            // If partner created it → I am the "partner" assignee → show my avatar.
+            return isCurrentUserCreator ? viewModel.pairPreviewAvatar : viewModel.currentUserAvatar
         case .both, .self:
             return viewModel.currentUserAvatar
         }
@@ -1582,9 +1592,13 @@ private struct HomeDetailMenuSheet: View {
                 onDismiss: {}
             )
         case .reminder:
-            TaskEditorOptionList(
-                options: reminderOptions,
-                selectionFeedback: HomeInteractionFeedback.selection
+            TaskEditorReminderOptionList(
+                selectedOffset: stagedReminderOffset,
+                selectionFeedback: HomeInteractionFeedback.selection,
+                onSelect: { offset in
+                    stagedReminderOffset = offset
+                    didEditReminder = true
+                }
             )
         case .repeatRule:
             TaskEditorOptionList(

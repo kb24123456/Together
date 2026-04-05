@@ -144,6 +144,7 @@ final class HomeViewModel {
     var showsCompletedItems = true
     var isPerformingSnooze = false
     var isOverdueSheetPresented = false
+    var isDockHidden = false
 
     init(
         sessionStore: SessionStore,

@@ -24,7 +24,7 @@ enum TaskEditorMenu: String, Identifiable {
         case .reminder:
             return "bell"
         case .repeatRule:
-            return "repeat"
+            return "arrow.triangle.2.circlepath"
         case .subtasks:
             return "checklist"
         case .template:
@@ -266,7 +266,7 @@ struct TaskEditorChipRow: View {
                             }
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TaskEditorChipButtonStyle())
 
                         if chip.showsTrailingClear {
                             Button {
@@ -366,6 +366,203 @@ extension TaskEditorOptionList {
         let spacingHeight = CGFloat(max(clampedCount - 1, 0)) * 10
         let verticalPadding = TaskEditorMenuOptionMetrics.outerInset * 2
         return rowsHeight + spacingHeight + verticalPadding
+    }
+}
+
+struct TaskEditorReminderOptionList: View {
+    let selectedOffset: TimeInterval?
+    let selectionFeedback: () -> Void
+    let onSelect: (TimeInterval?) -> Void
+
+    @State private var isCustomExpanded = false
+    @State private var customValue: Int = 10
+    @State private var customUnit: CustomReminderUnit = .minutes
+
+    enum CustomReminderUnit: String, CaseIterable {
+        case minutes = "分钟"
+        case hours = "小时"
+        case days = "天"
+
+        var secondsPerUnit: TimeInterval {
+            switch self {
+            case .minutes: return 60
+            case .hours: return 3600
+            case .days: return 86400
+            }
+        }
+    }
+
+    private var isCustomSelected: Bool {
+        guard let offset = selectedOffset else { return false }
+        return TaskEditorReminderPreset.preset(for: offset) == nil && offset > 0
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                // "No reminder" option
+                optionButton(title: "不提醒", isSelected: selectedOffset == nil) {
+                    onSelect(nil)
+                }
+
+                // Preset options
+                ForEach(TaskEditorReminderPreset.allCases) { preset in
+                    optionButton(title: preset.title, isSelected: selectedOffset == preset.secondsBeforeTarget) {
+                        onSelect(preset.secondsBeforeTarget)
+                    }
+                }
+
+                // Custom option
+                VStack(spacing: 0) {
+                    Button {
+                        selectionFeedback()
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            isCustomExpanded.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Text("自定义")
+                                .font(AppTheme.typography.sized(17, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.title)
+                            Spacer(minLength: 0)
+                            if isCustomSelected {
+                                Image(systemName: "checkmark")
+                                    .font(AppTheme.typography.sized(14, weight: .bold))
+                                    .foregroundStyle(AppTheme.colors.coral)
+                            }
+                            Image(systemName: "chevron.down")
+                                .font(AppTheme.typography.sized(12, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.4))
+                                .rotationEffect(.degrees(isCustomExpanded ? 180 : 0))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minHeight: TaskEditorMenuOptionMetrics.height)
+                        .padding(.horizontal, 18)
+                        .contentShape(
+                            RoundedRectangle(
+                                cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                                style: .continuous
+                            )
+                        )
+                    }
+                    .buttonStyle(TaskEditorMenuOptionButtonStyle())
+
+                    if isCustomExpanded {
+                        customPickerRow
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+                .modifier(TaskEditorMenuOptionGlassModifier())
+                .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isCustomExpanded)
+            }
+            .padding(TaskEditorMenuOptionMetrics.outerInset)
+        }
+        .scrollIndicators(.hidden)
+        .background(.clear)
+    }
+
+    private func optionButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            selectionFeedback()
+            action()
+        } label: {
+            HStack {
+                Text(title)
+                    .font(AppTheme.typography.sized(17, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                Spacer(minLength: 0)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(AppTheme.typography.sized(14, weight: .bold))
+                        .foregroundStyle(AppTheme.colors.coral)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: TaskEditorMenuOptionMetrics.height)
+            .padding(.horizontal, 18)
+            .contentShape(
+                RoundedRectangle(
+                    cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                    style: .continuous
+                )
+            )
+        }
+        .frame(maxWidth: .infinity)
+        .buttonStyle(TaskEditorMenuOptionButtonStyle())
+        .modifier(TaskEditorMenuOptionGlassModifier())
+    }
+
+    private var customPickerRow: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 4) {
+                Button {
+                    selectionFeedback()
+                    customValue = max(1, customValue - 1)
+                    applyCustomValue()
+                } label: {
+                    Image(systemName: "minus")
+                        .font(AppTheme.typography.sized(14, weight: .semibold))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.colors.body.opacity(0.7))
+
+                Text("\(customValue)")
+                    .font(AppTheme.typography.sized(20, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .frame(minWidth: 36)
+                    .contentTransition(.numericText(value: Double(customValue)))
+                    .animation(.snappy(duration: 0.2), value: customValue)
+
+                Button {
+                    selectionFeedback()
+                    customValue = min(99, customValue + 1)
+                    applyCustomValue()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(AppTheme.typography.sized(14, weight: .semibold))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(AppTheme.colors.body.opacity(0.7))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
+            )
+
+            HStack(spacing: 6) {
+                ForEach(CustomReminderUnit.allCases, id: \.rawValue) { unit in
+                    Button {
+                        selectionFeedback()
+                        customUnit = unit
+                        applyCustomValue()
+                    } label: {
+                        Text(unit.rawValue)
+                            .font(AppTheme.typography.sized(14, weight: .semibold))
+                            .foregroundStyle(customUnit == unit ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.5))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(customUnit == unit ? AppTheme.colors.pillSurface : Color.clear)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 14)
+    }
+
+    private func applyCustomValue() {
+        let seconds = TimeInterval(customValue) * customUnit.secondsPerUnit
+        onSelect(seconds)
     }
 }
 
@@ -760,11 +957,16 @@ private struct TaskEditorMenuSwitcher: View {
     let presentation: (TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation
     let onSelect: (TaskEditorMenu) -> Void
 
+    @State private var rotateTrigger = 0
+    @State private var wiggleTrigger = 0
+    @State private var lastRotatedMenu: TaskEditorMenu? = nil
+
     var body: some View {
         HStack(spacing: 10) {
             ForEach(menus) { menu in
                 let itemPresentation = presentation(menu)
                 Button {
+                    triggerSymbolEffect(for: menu)
                     onSelect(menu)
                 } label: {
                     ZStack {
@@ -772,6 +974,16 @@ private struct TaskEditorMenuSwitcher: View {
                             Image(systemName: systemImage)
                                 .font(AppTheme.typography.sized(18, weight: .semibold))
                                 .transition(.opacity.combined(with: .scale(scale: 0.88)))
+                                .symbolEffect(
+                                    .rotate.byLayer,
+                                    options: .nonRepeating,
+                                    value: menu == lastRotatedMenu ? rotateTrigger : 0
+                                )
+                                .symbolEffect(
+                                    .wiggle.byLayer,
+                                    options: .nonRepeating,
+                                    value: menu == .reminder ? wiggleTrigger : 0
+                                )
                         }
 
                         if let title = itemPresentation.title {
@@ -803,6 +1015,18 @@ private struct TaskEditorMenuSwitcher: View {
                 .opacity(disabledMenus.contains(menu) ? 0.34 : 1)
                 .accessibilityLabel(itemPresentation.accessibilityTitle)
             }
+        }
+    }
+
+    private func triggerSymbolEffect(for menu: TaskEditorMenu) {
+        switch menu {
+        case .time, .repeatRule:
+            lastRotatedMenu = menu
+            rotateTrigger += 1
+        case .reminder:
+            wiggleTrigger += 1
+        default:
+            break
         }
     }
 
@@ -2295,6 +2519,15 @@ struct TaskEditorMenuOptionGlassModifier: ViewModifier {
                     .stroke(.white.opacity(0.66), lineWidth: 1)
                 }
         }
+    }
+}
+
+struct TaskEditorChipButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.78), value: configuration.isPressed)
     }
 }
 

@@ -661,6 +661,158 @@ private struct ProjectSubtaskDraft: Identifiable, Hashable {
     }
 }
 
+private struct ComposerSmartSuggestionBar: View {
+    let title: String
+    let currentTime: Date?
+    let currentRepeatRule: ItemRepeatRule?
+    let onSetTime: (Date) -> Void
+    let onSetRepeatRule: (ItemRepeatRule) -> Void
+    let onSetDate: (Date) -> Void
+
+    private var suggestions: [SmartSuggestion] {
+        guard !title.isEmpty else { return [] }
+        var result: [SmartSuggestion] = []
+        let lowered = title.lowercased()
+
+        // Time detection
+        if currentTime == nil {
+            if let time = detectTime(in: lowered) {
+                let formatted = time.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+                result.append(.setTime(time, display: "设为 \(formatted)"))
+            }
+        }
+
+        // Repeat detection
+        if currentRepeatRule == nil {
+            if lowered.contains("每天") || lowered.contains("每日") {
+                result.append(.setRepeat(.daily, display: "设为每天重复"))
+            } else if lowered.contains("每周") {
+                result.append(.setRepeat(.weekly, display: "设为每周重复"))
+            } else if lowered.contains("每月") {
+                result.append(.setRepeat(.monthly, display: "设为每月重复"))
+            } else if lowered.contains("工作日") {
+                result.append(.setRepeat(.weekdays, display: "设为工作日重复"))
+            }
+        }
+
+        // Date detection
+        if lowered.contains("明天") {
+            if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
+                result.append(.setDate(tomorrow, display: "设为明天"))
+            }
+        } else if lowered.contains("后天") {
+            if let dayAfter = Calendar.current.date(byAdding: .day, value: 2, to: Date()) {
+                result.append(.setDate(dayAfter, display: "设为后天"))
+            }
+        } else if lowered.contains("下周") {
+            if let nextWeek = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: Date()) {
+                result.append(.setDate(nextWeek, display: "设为下周"))
+            }
+        }
+
+        return result
+    }
+
+    var body: some View {
+        if !suggestions.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(suggestions) { suggestion in
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            applySuggestion(suggestion)
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: suggestion.icon)
+                                    .font(AppTheme.typography.sized(11, weight: .semibold))
+                                Text(suggestion.display)
+                                    .font(AppTheme.typography.sized(13, weight: .medium))
+                            }
+                            .foregroundStyle(AppTheme.colors.coral)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(AppTheme.colors.coral.opacity(0.1))
+                            )
+                        }
+                        .buttonStyle(TaskEditorChipButtonStyle())
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: suggestions.map(\.id))
+        }
+    }
+
+    private func applySuggestion(_ suggestion: SmartSuggestion) {
+        switch suggestion {
+        case .setTime(let time, _):
+            onSetTime(time)
+        case .setRepeat(let preset, _):
+            onSetRepeatRule(preset.makeRule(anchorDate: Date()))
+        case .setDate(let date, _):
+            onSetDate(date)
+        }
+    }
+
+    private func detectTime(in text: String) -> Date? {
+        let patterns: [(String, Int, Int)] = [
+            ("上午(\\d{1,2})点", 0, 0),
+            ("下午(\\d{1,2})点", 12, 0),
+            ("晚上(\\d{1,2})点", 12, 0),
+            ("(\\d{1,2})点半", 0, 30),
+            ("(\\d{1,2})点", 0, 0),
+        ]
+
+        for (pattern, hourOffset, minuteDefault) in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+               let hourRange = Range(match.range(at: 1), in: text) {
+                var hour = Int(text[hourRange]) ?? 0
+                hour += hourOffset
+                if hour > 23 { hour -= 12 }
+                let minute = minuteDefault
+
+                var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+                components.hour = hour
+                components.minute = minute
+                return Calendar.current.date(from: components)
+            }
+        }
+
+        return nil
+    }
+
+    enum SmartSuggestion: Identifiable {
+        case setTime(Date, display: String)
+        case setRepeat(TaskEditorRepeatPreset, display: String)
+        case setDate(Date, display: String)
+
+        var id: String {
+            switch self {
+            case .setTime(_, let d): return "time-\(d)"
+            case .setRepeat(_, let d): return "repeat-\(d)"
+            case .setDate(_, let d): return "date-\(d)"
+            }
+        }
+
+        var display: String {
+            switch self {
+            case .setTime(_, let d), .setRepeat(_, let d), .setDate(_, let d): return d
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .setTime: return "clock"
+            case .setRepeat: return "arrow.triangle.2.circlepath"
+            case .setDate: return "calendar"
+            }
+        }
+    }
+}
+
 private struct ComposerDraftState: Hashable {
     var category: ComposerCategory
     var title = ""
@@ -1018,6 +1170,23 @@ private struct ComposerPage: View {
                 placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.62)),
                 maximumNumberOfLines: 3
             )
+
+            if category == .task {
+                ComposerSmartSuggestionBar(
+                    title: draftState.title,
+                    currentTime: draftState.taskTime,
+                    currentRepeatRule: draftState.repeatRule,
+                    onSetTime: { time in
+                        draftState.taskTime = time
+                    },
+                    onSetRepeatRule: { rule in
+                        draftState.repeatRule = rule
+                    },
+                    onSetDate: { date in
+                        draftState.taskDate = date
+                    }
+                )
+            }
 
             ComposerFocusableTextView(
                 text: $draftState.notes,
@@ -1772,9 +1941,12 @@ private struct ComposerEditorMenuSheet: View {
                 onDismiss: {}
             )
         case .reminder:
-            TaskEditorOptionList(
-                options: reminderMenuOptions,
-                selectionFeedback: ComposerButtonHaptics.selection
+            TaskEditorReminderOptionList(
+                selectedOffset: stagedReminderOffset,
+                selectionFeedback: ComposerButtonHaptics.selection,
+                onSelect: { offset in
+                    setReminder(offset)
+                }
             )
         case .repeatRule:
             TaskEditorOptionList(
@@ -2043,8 +2215,12 @@ private struct ComposerMenuSheet: View {
                 onDismiss: onDismiss
             )
         case .reminder:
-            optionList(
-                options: reminderMenuOptions
+            TaskEditorReminderOptionList(
+                selectedOffset: draftState.taskReminderOffset,
+                selectionFeedback: ComposerButtonHaptics.selection,
+                onSelect: { offset in
+                    setReminder(offset)
+                }
             )
         case .repeatRule:
             optionList(

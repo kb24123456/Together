@@ -16,6 +16,8 @@ struct HomeView: View {
     @State private var isCompletedSectionTransitioning = false
     @State private var monthPagerOffset: CGFloat = 0
     @State private var isMonthPagerSettling = false
+    @State private var previousScrollOffset: CGFloat = 0
+    @State private var dockHideTask: Task<Void, Never>?
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -151,7 +153,7 @@ struct HomeView: View {
                     .padding(.horizontal, horizontalContentPadding)
                     .padding(.top, calendarTopSpacing)
             }
-            .padding(.bottom, isProjectModePresented ? 10 : 14)
+            .padding(.bottom, isProjectModePresented ? 4 : 0)
             .background(homeCanvasColor)
 
             LinearGradient(
@@ -162,7 +164,7 @@ struct HomeView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 28)
+            .frame(height: 20)
             .allowsHitTesting(false)
 
             Spacer(minLength: 0)
@@ -450,6 +452,11 @@ struct HomeView: View {
         .safeAreaPadding(.top, 0)
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentOffset.y + geo.contentInsets.top
+        } action: { oldOffset, newOffset in
+            handleScrollOffsetChange(from: oldOffset, to: newOffset)
+        }
     }
 
     private var pairTimelineList: some View {
@@ -508,6 +515,11 @@ struct HomeView: View {
         .environment(\.defaultMinListRowHeight, 0)
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentOffset.y + geo.contentInsets.top
+        } action: { oldOffset, newOffset in
+            handleScrollOffsetChange(from: oldOffset, to: newOffset)
+        }
     }
 
     private var todayJumpButton: some View {
@@ -1026,33 +1038,46 @@ struct HomeView: View {
     private var timelineSection: some View {
         ZStack {
             if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                    Text(viewModel.isPairModeActive ? "共享空间里暂时没有待办" : "今天暂时没有非做不可的事")
-                        .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.78))
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 28) {
+                    VStack(spacing: 12) {
+                        Image(systemName: viewModel.isPairModeActive ? "leaf.fill" : "sun.max.fill")
+                            .font(.system(size: 36, weight: .light))
+                            .foregroundStyle(
+                                viewModel.isPairModeActive
+                                    ? AppTheme.colors.sky.opacity(0.5)
+                                    : AppTheme.colors.coral.opacity(0.4)
+                            )
+                            .symbolEffect(.breathe.plain, options: .repeating)
+
+                        Text(viewModel.isPairModeActive ? "共享空间暂无待办" : "今天没有待办事项")
+                            .font(AppTheme.typography.sized(17, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.6))
+
+                        Text(viewModel.isPairModeActive ? "和对方一起创建任务吧" : "享受当下，或规划新任务")
+                            .font(AppTheme.typography.sized(14, weight: .medium))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.38))
+                    }
 
                     Button {
                         HomeInteractionFeedback.selection()
                         onCreateTaskTapped()
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(AppTheme.typography.sized(16, weight: .semibold))
+                            Image(systemName: "plus")
+                                .font(AppTheme.typography.sized(14, weight: .semibold))
 
                             Text("新建任务")
-                                .font(AppTheme.typography.sized(16, weight: .semibold))
+                                .font(AppTheme.typography.sized(15, weight: .semibold))
                         }
                         .foregroundStyle(AppTheme.colors.title)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 11)
                         .background(
                             Capsule(style: .continuous)
                                 .fill(AppTheme.colors.surfaceElevated)
                         )
                     }
                     .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity, alignment: .center)
 
                     if viewModel.hasCompletedEntries {
                         Button {
@@ -1064,19 +1089,15 @@ struct HomeView: View {
                             }
                             toggleCompletedSectionVisibility()
                         } label: {
-                            HStack(spacing: 6) {
-                                Text("查看已完成")
-                                Text("\(viewModel.completedEntryCount)")
-                                Text("项")
-                            }
-                            .font(AppTheme.typography.sized(14, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                            Text("查看已完成 \(viewModel.completedEntryCount) 项")
+                                .font(AppTheme.typography.sized(13, weight: .medium))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.5))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, AppTheme.spacing.xxl)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 60)
             } else {
                 EmptyView()
             }
@@ -1096,15 +1117,23 @@ struct HomeView: View {
             }
             toggleCompletedSectionVisibility()
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Text(viewModel.completedVisibilityButtonTitle)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.76))
 
                 Text("\(viewModel.completedEntryCount)")
+                    .font(AppTheme.typography.sized(11, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.56))
+                    .frame(minWidth: 20, minHeight: 20)
+                    .background(
+                        Circle()
+                            .fill(AppTheme.colors.background.opacity(0.8))
+                    )
             }
-            .font(AppTheme.typography.sized(13, weight: .semibold))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.76))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
+            .padding(.vertical, 7)
             .background(
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.surfaceElevated)
@@ -1209,10 +1238,10 @@ struct HomeView: View {
 
     private var topChromeReservedHeight: CGFloat {
         if isProjectModePresented {
-            return 92
+            return 86
         }
 
-        return viewModel.isPairModeActive ? 112 : 104
+        return viewModel.isPairModeActive ? 98 : 90
     }
 
     private var visibleCalendarContainerHeight: CGFloat {
@@ -1579,6 +1608,43 @@ struct HomeView: View {
         }
 
         return viewModel.isSelectedDate(date)
+    }
+
+    // MARK: - Dock Auto-Hide on Scroll
+
+    private func handleScrollOffsetChange(from oldOffset: CGFloat, to newOffset: CGFloat) {
+        let delta = newOffset - oldOffset
+        let scrollThreshold: CGFloat = 6
+
+        guard abs(delta) > scrollThreshold else { return }
+
+        let isScrollingUp = delta > 0   // content moving up = finger dragging up
+        let shouldHide = isScrollingUp && newOffset > 30  // only hide after some scroll
+
+        dockHideTask?.cancel()
+
+        if shouldHide {
+            if !viewModel.isDockHidden {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    viewModel.isDockHidden = true
+                }
+            }
+            // Auto-restore after 1.8s of no scroll activity
+            dockHideTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.8))
+                guard !Task.isCancelled else { return }
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                    viewModel.isDockHidden = false
+                }
+            }
+        } else {
+            // Scrolling down → show dock immediately
+            if viewModel.isDockHidden {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                    viewModel.isDockHidden = false
+                }
+            }
+        }
     }
 
 }
