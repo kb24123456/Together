@@ -665,18 +665,21 @@ private struct ComposerSmartSuggestionBar: View {
     let title: String
     let currentTime: Date?
     let currentRepeatRule: ItemRepeatRule?
+    let currentDate: Date
     let onSetTime: (Date) -> Void
     let onSetRepeatRule: (ItemRepeatRule) -> Void
     let onSetDate: (Date) -> Void
 
+    @State private var appliedIDs: Set<String> = []
+
     private var suggestions: [SmartSuggestion] {
         guard !title.isEmpty else { return [] }
         var result: [SmartSuggestion] = []
-        let lowered = title.lowercased()
+        let text = title
 
         // Time detection
         if currentTime == nil {
-            if let time = detectTime(in: lowered) {
+            if let time = detectTime(in: text) {
                 let formatted = time.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
                 result.append(.setTime(time, display: "设为 \(formatted)"))
             }
@@ -684,33 +687,60 @@ private struct ComposerSmartSuggestionBar: View {
 
         // Repeat detection
         if currentRepeatRule == nil {
-            if lowered.contains("每天") || lowered.contains("每日") {
-                result.append(.setRepeat(.daily, display: "设为每天重复"))
-            } else if lowered.contains("每周") {
-                result.append(.setRepeat(.weekly, display: "设为每周重复"))
-            } else if lowered.contains("每月") {
-                result.append(.setRepeat(.monthly, display: "设为每月重复"))
-            } else if lowered.contains("工作日") {
-                result.append(.setRepeat(.weekdays, display: "设为工作日重复"))
+            if text.contains("每天") || text.contains("每日") {
+                result.append(.setRepeat(.daily, display: "每天重复"))
+            } else if text.contains("每周") {
+                result.append(.setRepeat(.weekly, display: "每周重复"))
+            } else if text.contains("每月") {
+                result.append(.setRepeat(.monthly, display: "每月重复"))
+            } else if text.contains("工作日") {
+                result.append(.setRepeat(.weekdays, display: "工作日重复"))
             }
         }
 
-        // Date detection
-        if lowered.contains("明天") {
-            if let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) {
-                result.append(.setDate(tomorrow, display: "设为明天"))
-            }
-        } else if lowered.contains("后天") {
-            if let dayAfter = Calendar.current.date(byAdding: .day, value: 2, to: Date()) {
-                result.append(.setDate(dayAfter, display: "设为后天"))
-            }
-        } else if lowered.contains("下周") {
-            if let nextWeek = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: Date()) {
-                result.append(.setDate(nextWeek, display: "设为下周"))
+        // Date detection — "周X" weekday references
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let isAlreadyToday = calendar.isDate(currentDate, inSameDayAs: today)
+
+        let weekdayMap: [(String, Int)] = [
+            ("周一", 2), ("周二", 3), ("周三", 4), ("周四", 5),
+            ("周五", 6), ("周六", 7), ("周日", 1), ("周天", 1),
+        ]
+        for (keyword, targetWeekday) in weekdayMap {
+            if text.contains(keyword) {
+                if let date = nextDateForWeekday(targetWeekday) {
+                    let label = Self.relativeLabel(for: date)
+                    result.append(.setDate(date, display: "设为\(label)"))
+                }
+                break
             }
         }
 
-        return result
+        // "周末" → next Saturday
+        if text.contains("周末") && !text.contains("周一") {
+            if let date = nextDateForWeekday(7) { // Saturday
+                let label = Self.relativeLabel(for: date)
+                result.append(.setDate(date, display: "设为\(label)"))
+            }
+        }
+
+        // Explicit relative dates
+        if text.contains("明天") {
+            if let d = calendar.date(byAdding: .day, value: 1, to: today), isAlreadyToday {
+                result.append(.setDate(d, display: "设为明天"))
+            }
+        } else if text.contains("后天") {
+            if let d = calendar.date(byAdding: .day, value: 2, to: today) {
+                result.append(.setDate(d, display: "设为后天"))
+            }
+        } else if text.contains("下周") && !weekdayMap.contains(where: { text.contains($0.0) }) {
+            if let d = calendar.date(byAdding: .weekOfYear, value: 1, to: today) {
+                result.append(.setDate(d, display: "设为下周"))
+            }
+        }
+
+        return result.filter { !appliedIDs.contains($0.id) }
     }
 
     var body: some View {
@@ -720,6 +750,9 @@ private struct ComposerSmartSuggestionBar: View {
                     ForEach(suggestions) { suggestion in
                         Button {
                             HomeInteractionFeedback.selection()
+                            withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
+                                appliedIDs.insert(suggestion.id)
+                            }
                             applySuggestion(suggestion)
                         } label: {
                             HStack(spacing: 5) {
@@ -737,11 +770,17 @@ private struct ComposerSmartSuggestionBar: View {
                             )
                         }
                         .buttonStyle(TaskEditorChipButtonStyle())
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                        .transition(
+                            .asymmetric(
+                                insertion: .scale(scale: 0.8).combined(with: .opacity),
+                                removal: .scale(scale: 0.85).combined(with: .opacity)
+                            )
+                        )
                     }
                 }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: suggestions.map(\.id))
+            .transition(.opacity.combined(with: .offset(y: 4)))
+            .animation(.spring(response: 0.32, dampingFraction: 0.84), value: suggestions.map(\.id))
         }
     }
 
@@ -750,9 +789,32 @@ private struct ComposerSmartSuggestionBar: View {
         case .setTime(let time, _):
             onSetTime(time)
         case .setRepeat(let preset, _):
-            onSetRepeatRule(preset.makeRule(anchorDate: Date()))
+            onSetRepeatRule(preset.makeRule(anchorDate: currentDate))
         case .setDate(let date, _):
             onSetDate(date)
+        }
+    }
+
+    private func nextDateForWeekday(_ weekday: Int) -> Date? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let todayWeekday = calendar.component(.weekday, from: today)
+        var daysAhead = weekday - todayWeekday
+        if daysAhead <= 0 { daysAhead += 7 }
+        return calendar.date(byAdding: .day, value: daysAhead, to: today)
+    }
+
+    private static func relativeLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: date)).day ?? 0
+        switch days {
+        case 1: return "明天"
+        case 2: return "后天"
+        default:
+            let weekday = calendar.component(.weekday, from: date)
+            let names = ["日", "一", "二", "三", "四", "五", "六"]
+            return "周\(names[weekday - 1])"
         }
     }
 
@@ -761,6 +823,7 @@ private struct ComposerSmartSuggestionBar: View {
             ("上午(\\d{1,2})点", 0, 0),
             ("下午(\\d{1,2})点", 12, 0),
             ("晚上(\\d{1,2})点", 12, 0),
+            ("早上(\\d{1,2})点", 0, 0),
             ("(\\d{1,2})点半", 0, 30),
             ("(\\d{1,2})点", 0, 0),
         ]
@@ -772,11 +835,10 @@ private struct ComposerSmartSuggestionBar: View {
                 var hour = Int(text[hourRange]) ?? 0
                 hour += hourOffset
                 if hour > 23 { hour -= 12 }
-                let minute = minuteDefault
 
                 var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
                 components.hour = hour
-                components.minute = minute
+                components.minute = minuteDefault
                 return Calendar.current.date(from: components)
             }
         }
@@ -1176,6 +1238,7 @@ private struct ComposerPage: View {
                     title: draftState.title,
                     currentTime: draftState.taskTime,
                     currentRepeatRule: draftState.repeatRule,
+                    currentDate: draftState.taskDate,
                     onSetTime: { time in
                         draftState.taskTime = time
                     },

@@ -398,67 +398,81 @@ struct TaskEditorReminderOptionList: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                // "No reminder" option
-                optionButton(title: "不提醒", isSelected: selectedOffset == nil) {
-                    onSelect(nil)
-                }
-
-                // Preset options
-                ForEach(TaskEditorReminderPreset.allCases) { preset in
-                    optionButton(title: preset.title, isSelected: selectedOffset == preset.secondsBeforeTarget) {
-                        onSelect(preset.secondsBeforeTarget)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 10) {
+                    optionButton(title: "不提醒", isSelected: selectedOffset == nil) {
+                        onSelect(nil)
                     }
-                }
 
-                // Custom option
-                VStack(spacing: 0) {
-                    Button {
-                        selectionFeedback()
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                            isCustomExpanded.toggle()
+                    ForEach(TaskEditorReminderPreset.allCases) { preset in
+                        optionButton(title: preset.title, isSelected: selectedOffset == preset.secondsBeforeTarget) {
+                            onSelect(preset.secondsBeforeTarget)
                         }
-                    } label: {
-                        HStack {
-                            Text("自定义")
-                                .font(AppTheme.typography.sized(17, weight: .semibold))
-                                .foregroundStyle(AppTheme.colors.title)
-                            Spacer(minLength: 0)
-                            if isCustomSelected {
-                                Image(systemName: "checkmark")
-                                    .font(AppTheme.typography.sized(14, weight: .bold))
-                                    .foregroundStyle(AppTheme.colors.coral)
+                    }
+
+                    // Custom option
+                    VStack(spacing: 0) {
+                        Button {
+                            selectionFeedback()
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                                isCustomExpanded.toggle()
                             }
-                            Image(systemName: "chevron.down")
-                                .font(AppTheme.typography.sized(12, weight: .semibold))
-                                .foregroundStyle(AppTheme.colors.body.opacity(0.4))
-                                .rotationEffect(.degrees(isCustomExpanded ? 180 : 0))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                        .padding(.horizontal, 18)
-                        .contentShape(
-                            RoundedRectangle(
-                                cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
-                                style: .continuous
+                            if isCustomExpanded {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
+                                        proxy.scrollTo("custom-bottom", anchor: .bottom)
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text("自定义")
+                                    .font(AppTheme.typography.sized(17, weight: .semibold))
+                                    .foregroundStyle(AppTheme.colors.title)
+                                Spacer(minLength: 0)
+                                if isCustomSelected {
+                                    Image(systemName: "checkmark")
+                                        .font(AppTheme.typography.sized(14, weight: .bold))
+                                        .foregroundStyle(AppTheme.colors.coral)
+                                }
+                                Image(systemName: "chevron.down")
+                                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                                    .foregroundStyle(AppTheme.colors.body.opacity(0.4))
+                                    .rotationEffect(.degrees(isCustomExpanded ? 180 : 0))
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(minHeight: TaskEditorMenuOptionMetrics.height)
+                            .padding(.horizontal, 18)
+                            .contentShape(
+                                RoundedRectangle(
+                                    cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                                    style: .continuous
+                                )
                             )
-                        )
-                    }
-                    .buttonStyle(TaskEditorMenuOptionButtonStyle())
+                        }
+                        .buttonStyle(TaskEditorMenuOptionButtonStyle())
 
-                    if isCustomExpanded {
-                        customPickerRow
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        if isCustomExpanded {
+                            customPickerRow
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                .id("custom-bottom")
+                        }
                     }
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                            style: .continuous
+                        )
+                        .fill(AppTheme.colors.surfaceElevated.opacity(0.6))
+                    )
+                    .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isCustomExpanded)
                 }
-                .modifier(TaskEditorMenuOptionGlassModifier())
-                .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isCustomExpanded)
+                .padding(TaskEditorMenuOptionMetrics.outerInset)
             }
-            .padding(TaskEditorMenuOptionMetrics.outerInset)
+            .scrollIndicators(.hidden)
+            .background(.clear)
         }
-        .scrollIndicators(.hidden)
-        .background(.clear)
     }
 
     private func optionButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
@@ -489,7 +503,13 @@ struct TaskEditorReminderOptionList: View {
         }
         .frame(maxWidth: .infinity)
         .buttonStyle(TaskEditorMenuOptionButtonStyle())
-        .modifier(TaskEditorMenuOptionGlassModifier())
+        .background(
+            RoundedRectangle(
+                cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                style: .continuous
+            )
+            .fill(AppTheme.colors.surfaceElevated.opacity(0.6))
+        )
     }
 
     private var customPickerRow: some View {
@@ -545,8 +565,8 @@ struct TaskEditorReminderOptionList: View {
                         Text(unit.rawValue)
                             .font(AppTheme.typography.sized(14, weight: .semibold))
                             .foregroundStyle(customUnit == unit ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.5))
+                            .frame(maxHeight: .infinity)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(customUnit == unit ? AppTheme.colors.pillSurface : Color.clear)
@@ -555,6 +575,12 @@ struct TaskEditorReminderOptionList: View {
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, 4)
+            .frame(maxHeight: .infinity)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
+            )
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 14)
