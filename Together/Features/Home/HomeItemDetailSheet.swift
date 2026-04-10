@@ -1616,6 +1616,8 @@ private struct HomeDetailMenuSheet: View {
                 },
                 onDelete: onTemplateDeleted
             )
+        case .periodicReminder:
+            EmptyView()
         }
     }
 

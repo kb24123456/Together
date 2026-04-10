@@ -9,11 +9,13 @@ struct HomeDockBar: View {
     let edgeInset: CGFloat
     let selectedDestination: DockDestination?
     let isMonthModeActive: Bool
+    let isRoutinesModeActive: Bool
     let isProjectsModeActive: Bool
     let isHubExpanded: Bool
     let isInteractionEnabled: Bool
     let onProfileTapped: () -> Void
     let onCalendarTapped: () -> Void
+    let onRoutinesTapped: () -> Void
     let onHubPrimaryTapped: () -> Void
     let onHubLongPressed: () -> Void
     let onProjectsTapped: () -> Void
@@ -71,12 +73,12 @@ struct HomeDockBar: View {
                 action: onCalendarTapped
             )
             dockButton(
-                destination: .agent,
-                systemImage: "sparkles",
-                activeSystemImage: "sparkles",
-                accessibilityLabel: "Agent 即将到来",
-                isDisabled: true,
-                action: {}
+                destination: .routines,
+                systemImage: "arrow.triangle.2.circlepath",
+                activeSystemImage: "arrow.counterclockwise",
+                accessibilityLabel: isRoutinesModeActive ? "返回 Today" : "打开例行事务",
+                isDisabled: false,
+                action: onRoutinesTapped
             )
             dockButton(
                 destination: .projects,
@@ -179,6 +181,8 @@ struct HomeDockBar: View {
         switch destination {
         case .calendar:
             return isMonthModeActive
+        case .routines:
+            return isRoutinesModeActive
         case .projects:
             return isProjectsModeActive
         default:
@@ -188,7 +192,7 @@ struct HomeDockBar: View {
 
     private func showsSelectionBackground(for destination: DockDestination) -> Bool {
         switch destination {
-        case .calendar, .projects:
+        case .calendar, .routines, .projects:
             return false
         default:
             return true

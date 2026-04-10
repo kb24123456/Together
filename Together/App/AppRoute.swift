@@ -3,6 +3,7 @@ import Foundation
 enum ComposerRoute: String, Identifiable {
     case newTask
     case newProject
+    case newPeriodicTask
 
     var id: String { rawValue }
 }
@@ -21,6 +22,10 @@ enum ProjectRoute: Hashable {
 
 enum CalendarRoute: Hashable {
     case detail(Date)
+}
+
+enum RoutinesRoute: Hashable {
+    case detail(UUID)
 }
 
 enum ProfileRoute: Hashable {

@@ -12,6 +12,7 @@ enum TaskEditorMenu: String, Identifiable {
     case repeatRule
     case subtasks
     case template
+    case periodicReminder
 
     var id: String { rawValue }
 
@@ -29,6 +30,8 @@ enum TaskEditorMenu: String, Identifiable {
             return "checklist"
         case .template:
             return "bookmark"
+        case .periodicReminder:
+            return "bell"
         }
     }
 
@@ -46,6 +49,8 @@ enum TaskEditorMenu: String, Identifiable {
             return "子任务"
         case .template:
             return "模板"
+        case .periodicReminder:
+            return "提醒规则"
         }
     }
 }
@@ -54,6 +59,7 @@ enum TaskEditorMenuContext: Equatable {
     case templates
     case task
     case project
+    case periodic
 
     var menus: [TaskEditorMenu] {
         switch self {
@@ -63,6 +69,8 @@ enum TaskEditorMenuContext: Equatable {
             return [.date, .subtasks]
         case .templates:
             return [.template]
+        case .periodic:
+            return [.periodicReminder, .subtasks]
         }
     }
 
@@ -84,6 +92,8 @@ enum TaskEditorMenuContext: Equatable {
             ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         case .templates:
             return 440
+        case .periodic:
+            return 492 + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         }
     }
 }
@@ -136,6 +146,7 @@ enum TaskEditorChipSemanticValue: Equatable {
     case reminder(TimeInterval?)
     case repeatRule(title: String, rank: Int)
     case subtasks(Int)
+    case periodicReminder(Bool)
 
     static func direction(
         from previousValue: TaskEditorChipSemanticValue,
@@ -2821,7 +2832,7 @@ private struct TaskEditorChipTextLayout: Equatable {
             }
         case let .time(date):
             segments = Self.timeSegments(for: date, placeholder: text)
-        case .reminder, .repeatRule, .subtasks:
+        case .reminder, .periodicReminder, .repeatRule, .subtasks:
             segments = [TaskEditorChipTextSegment(id: "main", text: text, kind: .text)]
         }
     }
@@ -3017,7 +3028,7 @@ private struct TaskEditorAnimatedChipTitle: View {
 
     private var contentTransitionStyle: TaskEditorChipContentTransitionStyle {
         switch semanticValue {
-        case .date, .optionalDate, .time, .reminder:
+        case .date, .optionalDate, .time, .reminder, .periodicReminder:
             return .numeric
         case .repeatRule:
             return .numeric
@@ -3060,7 +3071,7 @@ private struct TaskEditorAnimatedChipTitle: View {
 
     private static func usesNumericTransition(for semanticValue: TaskEditorChipSemanticValue) -> Bool {
         switch semanticValue {
-        case .date, .optionalDate, .time, .reminder, .repeatRule:
+        case .date, .optionalDate, .time, .reminder, .periodicReminder, .repeatRule:
             return true
         case .subtasks:
             return false
@@ -3115,7 +3126,7 @@ private struct TaskEditorAnimatedChipIcon: View {
         switch menu {
         case .time, .repeatRule:
             return .rotate
-        case .reminder:
+        case .reminder, .periodicReminder:
             return .wiggle
         case .date, .subtasks, .template:
             return .none

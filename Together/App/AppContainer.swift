@@ -17,4 +17,6 @@ struct AppContainer {
     let anniversaryRepository: AnniversaryRepositoryProtocol
     let notificationService: NotificationServiceProtocol
     let reminderScheduler: ReminderSchedulerProtocol
+    let periodicTaskRepository: PeriodicTaskRepositoryProtocol
+    let periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
 }

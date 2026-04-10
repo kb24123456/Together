@@ -14,6 +14,7 @@ final class AppContext {
     let projectsViewModel: ProjectsViewModel
     let calendarViewModel: CalendarViewModel
     let profileViewModel: ProfileViewModel
+    let routinesViewModel: RoutinesViewModel
 
     private(set) var hasBootstrapped = false
     private var hasCompletedPostLaunchWork = false
@@ -43,6 +44,10 @@ final class AppContext {
         self.calendarViewModel = CalendarViewModel(
             sessionStore: sessionStore,
             itemRepository: container.itemRepository
+        )
+        self.routinesViewModel = RoutinesViewModel(
+            sessionStore: sessionStore,
+            periodicTaskApplicationService: container.periodicTaskApplicationService
         )
         self.profileViewModel = ProfileViewModel(
             sessionStore: sessionStore,
@@ -88,6 +93,7 @@ final class AppContext {
         hasCompletedPostLaunchWork = true
         StartupTrace.mark("AppContext.postLaunch.begin")
         await restorePersistedUserProfileIfNeeded()
+        await routinesViewModel.load()
         await syncReminderNotificationsIfNeeded()
         StartupTrace.mark("AppContext.postLaunch.end")
     }
@@ -124,6 +130,12 @@ final class AppContext {
         let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
 
         await container.reminderScheduler.resync(tasks: tasks, projects: projects)
+
+        let periodicTasks = (try? await container.periodicTaskRepository.fetchActiveTasks(spaceID: spaceID)) ?? []
+        for periodicTask in periodicTasks {
+            await container.reminderScheduler.syncPeriodicTaskReminder(for: periodicTask, referenceDate: .now)
+        }
+
         hasSyncedReminderNotifications = true
     }
 

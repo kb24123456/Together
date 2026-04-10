@@ -33,6 +33,11 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator,
             reminderScheduler: reminderScheduler
         )
+        let periodicTaskRepository = LocalPeriodicTaskRepository(container: modelContainer)
+        let periodicTaskApplicationService = DefaultPeriodicTaskApplicationService(
+            repository: periodicTaskRepository,
+            reminderScheduler: reminderScheduler
+        )
 
         let container = AppContainer(
             authService: MockAuthService(),
@@ -53,7 +58,9 @@ enum LocalServiceFactory {
             decisionRepository: MockDecisionRepository(),
             anniversaryRepository: MockAnniversaryRepository(),
             notificationService: notificationService,
-            reminderScheduler: reminderScheduler
+            reminderScheduler: reminderScheduler,
+            periodicTaskRepository: periodicTaskRepository,
+            periodicTaskApplicationService: periodicTaskApplicationService
         )
         StartupTrace.mark("LocalServiceFactory.makeContainer.end")
         return container

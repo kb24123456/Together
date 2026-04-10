@@ -84,6 +84,7 @@ struct PersistenceController {
             PersistentTaskTemplate.self,
             PersistentSyncChange.self,
             PersistentSyncState.self,
+            PersistentPeriodicTask.self,
             configurations: configuration
         )
     }

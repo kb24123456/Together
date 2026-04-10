@@ -5,7 +5,9 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var viewModel: HomeViewModel
     @Bindable var projectsViewModel: ProjectsViewModel
+    @Bindable var routinesViewModel: RoutinesViewModel
     let isProjectModePresented: Bool
+    let isRoutinesModePresented: Bool
     let onCreateTaskTapped: () -> Void
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isWeekPagerSettling = false
@@ -153,7 +155,7 @@ struct HomeView: View {
                     .padding(.horizontal, horizontalContentPadding)
                     .padding(.top, calendarTopSpacing)
             }
-            .padding(.bottom, isProjectModePresented ? 4 : 0)
+            .padding(.bottom, isOverlayModeActive ? 4 : 0)
             .background(homeCanvasColor)
 
             LinearGradient(
@@ -174,22 +176,26 @@ struct HomeView: View {
 
     private var headerSection: some View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: isProjectModePresented ? 6 : 6) {
-                headerTitle(compact: isProjectModePresented)
+            VStack(alignment: .leading, spacing: 6) {
+                headerTitle(compact: isOverlayModeActive)
 
-                if !isProjectModePresented {
+                if !isOverlayModeActive {
                     spaceModeLine
                 }
 
                 if isProjectModePresented {
                     projectModeHeaderMeta
                 }
+
+                if isRoutinesModePresented {
+                    routinesModeHeaderMeta
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 0)
 
-            headerControls(compact: isProjectModePresented)
+            headerControls(compact: isOverlayModeActive)
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
@@ -287,6 +293,42 @@ struct HomeView: View {
             )
     }
 
+    private var routinesModeHeaderMeta: some View {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            Text("例行事务")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .foregroundStyle(AppTheme.colors.accent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(AppTheme.colors.accent.opacity(0.12))
+                )
+                .layoutPriority(2)
+
+            Text(routinesModeSummary)
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(headerSecondaryColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(isRoutinesModePresented ? 1 : 0)
+        .offset(y: isRoutinesModePresented ? 0 : projectModeContentTransitionOffset)
+        .allowsHitTesting(false)
+        .animation(projectModeAnimation, value: isRoutinesModePresented)
+    }
+
+    private var routinesModeSummary: String {
+        let summary = routinesViewModel.pendingSummary(referenceDate: routinesViewModel.referenceDate)
+        let totalPending = summary.reduce(0) { $0 + $1.1 }
+        if totalPending > 0 {
+            return "还有 \(totalPending) 项待完成"
+        }
+        return "全部完成"
+    }
+
     private func headerTitle(compact: Bool) -> some View {
         Text(viewModel.headerDateText)
             .font(AppTheme.typography.sized(36, weight: .bold))
@@ -321,17 +363,24 @@ struct HomeView: View {
     private var contentCard: some View {
         ZStack(alignment: .top) {
             tasksContent
-                .opacity(isProjectModePresented ? 0 : 1)
-                .allowsHitTesting(!isProjectModePresented)
-                .animation(modeFadeAnimation, value: isProjectModePresented)
+                .opacity(isOverlayModeActive ? 0 : 1)
+                .allowsHitTesting(!isOverlayModeActive)
+                .animation(modeFadeAnimation, value: isOverlayModeActive)
 
             if isProjectModePresented {
                 projectsModeContent
                     .transition(.opacity.combined(with: .offset(y: 10)))
                     .allowsHitTesting(true)
             }
+
+            if isRoutinesModePresented {
+                routinesModeContent
+                    .transition(.opacity.combined(with: .offset(y: 10)))
+                    .allowsHitTesting(true)
+            }
         }
         .animation(projectModeAnimation, value: isProjectModePresented)
+        .animation(projectModeAnimation, value: isRoutinesModePresented)
     }
 
     private var tasksContent: some View {
@@ -339,6 +388,18 @@ struct HomeView: View {
             if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
+                        if appContext.routinesViewModel.hasPendingTasks {
+                            RoutinesSummaryCard(
+                                viewModel: appContext.routinesViewModel,
+                                onNavigateToRoutines: {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
+                                        viewModel.setCalendarDisplayMode(.week)
+                                        appContext.router.currentSurface = .routines
+                                    }
+                                }
+                            )
+                        }
+
                         timelineSection
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)
@@ -347,7 +408,7 @@ struct HomeView: View {
                 }
                 .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
-                .scrollDisabled(isProjectModePresented)
+                .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
                 .transition(timelineTransition)
             } else {
@@ -370,14 +431,23 @@ struct HomeView: View {
         )
     }
 
+    private var routinesModeContent: some View {
+        RoutinesListContent(
+            viewModel: routinesViewModel,
+            isPresented: isRoutinesModePresented,
+            contentTopPadding: 14,
+            contentBottomPadding: 104
+        )
+    }
+
     private var weekCalendarContainer: some View {
         calendarSection
-            .frame(height: isProjectModePresented ? 0 : calendarContainerHeight, alignment: .top)
+            .frame(height: isOverlayModeActive ? 0 : calendarContainerHeight, alignment: .top)
             .offset(y: weekSectionVerticalOffset)
-            .opacity(isProjectModePresented ? 0 : 1)
+            .opacity(isOverlayModeActive ? 0 : 1)
             .clipped()
-            .allowsHitTesting(!isProjectModePresented)
-            .animation(projectModeAnimation, value: isProjectModePresented)
+            .allowsHitTesting(!isOverlayModeActive)
+            .animation(projectModeAnimation, value: isOverlayModeActive)
             .animation(calendarModeAnimation, value: viewModel.calendarDisplayMode)
     }
 
@@ -414,6 +484,25 @@ struct HomeView: View {
 
             }
 
+            if appContext.routinesViewModel.hasPendingTasks {
+                RoutinesSummaryCard(
+                    viewModel: appContext.routinesViewModel,
+                    onNavigateToRoutines: {
+                        appContext.router.currentSurface = .routines
+                    }
+                )
+                .listRowInsets(
+                    EdgeInsets(
+                        top: 6,
+                        leading: timelineRowHorizontalInset,
+                        bottom: 8,
+                        trailing: timelineRowHorizontalInset
+                    )
+                )
+                .listRowBackground(homeCanvasColor)
+                .listRowSeparator(.hidden)
+            }
+
             timelineRows(
                 viewModel.activeTimelineEntries,
                 rowTransition: activeRowTransition
@@ -447,7 +536,7 @@ struct HomeView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
-        .scrollDisabled(isProjectModePresented)
+        .scrollDisabled(isOverlayModeActive)
         .environment(\.defaultMinListRowHeight, 0)
         .safeAreaPadding(.top, 0)
         .background(homeCanvasColor)
@@ -481,6 +570,25 @@ struct HomeView: View {
                     .listRowSeparator(.hidden)
             }
 
+            if appContext.routinesViewModel.hasPendingTasks {
+                RoutinesSummaryCard(
+                    viewModel: appContext.routinesViewModel,
+                    onNavigateToRoutines: {
+                        appContext.router.currentSurface = .routines
+                    }
+                )
+                .listRowInsets(
+                    EdgeInsets(
+                        top: 6,
+                        leading: timelineRowHorizontalInset,
+                        bottom: 8,
+                        trailing: timelineRowHorizontalInset
+                    )
+                )
+                .listRowBackground(homeCanvasColor)
+                .listRowSeparator(.hidden)
+            }
+
             pairTimelineRows(viewModel.activeTimelineEntries)
 
             if viewModel.hasCompletedEntries {
@@ -511,7 +619,7 @@ struct HomeView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
-        .scrollDisabled(isProjectModePresented)
+        .scrollDisabled(isOverlayModeActive)
         .environment(\.defaultMinListRowHeight, 0)
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
@@ -579,7 +687,7 @@ struct HomeView: View {
     }
 
     private var shouldShowTodayJumpButton: Bool {
-        guard !viewModel.isViewingToday, !isProjectModePresented else {
+        guard !viewModel.isViewingToday, !isOverlayModeActive else {
             return false
         }
 
@@ -842,7 +950,7 @@ struct HomeView: View {
                         Text(date, format: .dateTime.day())
                             .font(
                                 AppTheme.typography.sized(
-                                    isProjectModePresented ? 18 : 22,
+                                    isOverlayModeActive ? 18 : 22,
                                     weight: isSelected ? .bold : .semibold
                                 )
                             )
@@ -853,9 +961,9 @@ struct HomeView: View {
                             )
                     }
                     .scaleEffect(isSelected ? 1.16 : 1.0)
-                    .scaleEffect(isProjectModePresented ? 0.92 : 1, anchor: .center)
+                    .scaleEffect(isOverlayModeActive ? 0.92 : 1, anchor: .center)
                     .frame(maxWidth: .infinity)
-                    .frame(height: isProjectModePresented ? 40 : 48)
+                    .frame(height: isOverlayModeActive ? 40 : 48)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -1183,11 +1291,11 @@ struct HomeView: View {
     private var headerSecondaryColor: Color { AppTheme.colors.body.opacity(0.62) }
 
     private var headerVerticalOffset: CGFloat {
-        isProjectModePresented ? -6 : 0
+        isOverlayModeActive ? -6 : 0
     }
 
     private var weekSectionVerticalOffset: CGFloat {
-        if isProjectModePresented {
+        if isOverlayModeActive {
             return 0
         }
 
@@ -1224,8 +1332,12 @@ struct HomeView: View {
             : .spring(response: 0.4, dampingFraction: 0.86)
     }
 
+    private var isOverlayModeActive: Bool {
+        isProjectModePresented || isRoutinesModePresented
+    }
+
     private func headerTopPadding(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + (isProjectModePresented ? 16 : AppTheme.spacing.sm)
+        safeAreaTop + (isOverlayModeActive ? 16 : AppTheme.spacing.sm)
     }
 
     private var horizontalContentPadding: CGFloat {
@@ -1237,7 +1349,7 @@ struct HomeView: View {
     }
 
     private var topChromeReservedHeight: CGFloat {
-        if isProjectModePresented {
+        if isOverlayModeActive {
             return 86
         }
 
@@ -1245,7 +1357,7 @@ struct HomeView: View {
     }
 
     private var visibleCalendarContainerHeight: CGFloat {
-        isProjectModePresented ? 0 : calendarContainerHeight
+        isOverlayModeActive ? 0 : calendarContainerHeight
     }
 
     private var calendarContainerHeight: CGFloat {
@@ -1710,7 +1822,9 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
     return HomeView(
         viewModel: context.homeViewModel,
         projectsViewModel: context.projectsViewModel,
+        routinesViewModel: context.routinesViewModel,
         isProjectModePresented: false,
+        isRoutinesModePresented: false,
         onCreateTaskTapped: {}
     )
 }

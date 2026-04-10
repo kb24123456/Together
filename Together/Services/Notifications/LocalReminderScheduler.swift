@@ -186,4 +186,75 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         guard hasExplicitTime == false else { return dueAt }
         return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
     }
+
+    // MARK: - Periodic Task Reminders
+
+    func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async {
+        let periodKey = PeriodicCycleCalculator.periodKey(for: task.cycle, date: referenceDate, calendar: calendar)
+        let notificationID = periodicTaskNotificationID(taskID: task.id, periodKey: periodKey)
+
+        guard task.isActive, !task.isCompleted(forPeriodKey: periodKey) else {
+            await notificationService.cancel([notificationID])
+            return
+        }
+
+        guard let notification = makePeriodicTaskNotification(for: task, referenceDate: referenceDate, periodKey: periodKey) else {
+            await notificationService.cancel([notificationID])
+            return
+        }
+
+        try? await notificationService.schedule([notification])
+    }
+
+    func removePeriodicTaskReminder(for taskID: UUID) async {
+        let periodKey = PeriodicCycleCalculator.periodKey(for: .weekly, date: .now, calendar: calendar)
+        let ids = PeriodicCycle.allCases.map { cycle in
+            let key = PeriodicCycleCalculator.periodKey(for: cycle, date: .now, calendar: calendar)
+            return periodicTaskNotificationID(taskID: taskID, periodKey: key)
+        }
+        await notificationService.cancel(ids)
+    }
+
+    private func makePeriodicTaskNotification(
+        for task: PeriodicTask,
+        referenceDate: Date,
+        periodKey: String
+    ) -> AppNotification? {
+        let now = Date.now
+        var earliestTrigger: Date?
+
+        for rule in task.reminderRules {
+            guard let triggerDate = PeriodicCycleCalculator.reminderTriggerDate(
+                rule: rule,
+                cycle: task.cycle,
+                date: referenceDate,
+                calendar: calendar
+            ) else { continue }
+
+            if triggerDate > now {
+                if earliestTrigger == nil || triggerDate < earliestTrigger! {
+                    earliestTrigger = triggerDate
+                }
+            }
+        }
+
+        guard let scheduledAt = earliestTrigger else { return nil }
+
+        return AppNotification(
+            id: UUID(),
+            spaceID: task.spaceID,
+            targetID: task.id,
+            targetType: .periodicTask,
+            channel: .localNotification,
+            status: .scheduled,
+            title: task.title,
+            body: "\(task.cycle.currentPeriodPrefix)还未完成",
+            scheduledAt: scheduledAt,
+            deliveredAt: nil
+        )
+    }
+
+    private func periodicTaskNotificationID(taskID: UUID, periodKey: String) -> String {
+        "local.periodicTask.\(taskID.uuidString).\(periodKey)"
+    }
 }

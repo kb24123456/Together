@@ -13,6 +13,10 @@ final class AppRouter {
         currentSurface == .projects
     }
 
+    var isRoutinesModePresented: Bool {
+        currentSurface == .routines
+    }
+
     var selectedDockDestination: DockDestination? {
         if isProfilePresented {
             return .profile
@@ -23,6 +27,8 @@ final class AppRouter {
             return nil
         case .calendar:
             return .calendar
+        case .routines:
+            return .routines
         case .projects:
             return .projects
         }

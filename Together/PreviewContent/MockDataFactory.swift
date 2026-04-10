@@ -662,4 +662,123 @@ enum MockDataFactory {
             )
         ]
     }
+
+    // MARK: - Periodic Tasks
+
+    static func makePeriodicTasks() -> [PeriodicTask] {
+        [
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "整理桌面和工作区",
+                notes: nil,
+                cycle: .weekly,
+                reminderRules: [PeriodicReminderRule(timing: .daysBeforeEnd(1))],
+                completions: [],
+                sortOrder: 0,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 30),
+                updatedAt: now
+            ),
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAB")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "回顾本周计划",
+                notes: "检查进度、调整优先级",
+                cycle: .weekly,
+                reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(5))],
+                completions: [],
+                sortOrder: 1,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 30),
+                updatedAt: now
+            ),
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAC")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "检查月度预算",
+                notes: nil,
+                cycle: .monthly,
+                reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(20))],
+                completions: [],
+                sortOrder: 0,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 60),
+                updatedAt: now
+            ),
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAD")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "信用卡还款",
+                notes: nil,
+                cycle: .monthly,
+                reminderRules: [PeriodicReminderRule(timing: .businessDayOfPeriod(3))],
+                completions: [],
+                sortOrder: 1,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 60),
+                updatedAt: now
+            ),
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAE")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "备份重要文件",
+                notes: "照片、文档、代码仓库",
+                cycle: .monthly,
+                reminderRules: [PeriodicReminderRule(timing: .daysBeforeEnd(5))],
+                completions: [],
+                sortOrder: 2,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 60),
+                updatedAt: now
+            ),
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAF")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "牙科检查",
+                notes: nil,
+                cycle: .quarterly,
+                reminderRules: [PeriodicReminderRule(timing: .daysBeforeEnd(14))],
+                completions: [],
+                sortOrder: 0,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 90),
+                updatedAt: now
+            ),
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAA0A")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "更新个人简历",
+                notes: nil,
+                cycle: .quarterly,
+                reminderRules: [],
+                completions: [],
+                sortOrder: 1,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 90),
+                updatedAt: now
+            ),
+            PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAA0B")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "年度体检",
+                notes: nil,
+                cycle: .yearly,
+                reminderRules: [PeriodicReminderRule(timing: .daysBeforeEnd(30))],
+                completions: [],
+                sortOrder: 0,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 365),
+                updatedAt: now
+            )
+        ]
+    }
 }

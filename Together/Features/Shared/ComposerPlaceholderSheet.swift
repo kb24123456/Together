@@ -31,8 +31,15 @@ struct ComposerPlaceholderSheet: View {
         self.route = route
         self.appContext = appContext
         self.initialTitle = initialTitle
+        let initialCategory: ComposerCategory = {
+            switch route {
+            case .newProject: return .project
+            case .newPeriodicTask: return .periodic
+            case .newTask: return .task
+            }
+        }()
         let initialDraft = ComposerDraftState(
-            initialCategory: route == .newProject ? .project : .task,
+            initialCategory: initialCategory,
             referenceDate: appContext.homeViewModel.selectedDate
         )
         var seededDraft = initialDraft
@@ -378,6 +385,23 @@ struct ComposerPlaceholderSheet: View {
                     )
                 )
             ]
+        case .periodic:
+            return [
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.periodicReminder.rawValue,
+                    title: draftState.periodicReminderSummaryText,
+                    systemImage: "bell",
+                    menu: .periodicReminder,
+                    semanticValue: .periodicReminder(draftState.periodicReminderEnabled)
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.subtasks.rawValue,
+                    title: draftState.periodicSubtaskSummaryText,
+                    systemImage: "checklist",
+                    menu: .subtasks,
+                    semanticValue: .subtasks(draftState.periodicSubtasks.count)
+                )
+            ]
         case .project:
             return [
                 TaskEditorChipSnapshot(
@@ -447,7 +471,12 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private var addButtonTitle: String {
-        draftState.category == .project ? "创建" : "添加"
+        switch draftState.category {
+        case .project, .periodic:
+            return "创建"
+        default:
+            return "添加"
+        }
     }
 
     private var menuContext: TaskEditorMenuContext {
@@ -459,6 +488,8 @@ struct ComposerPlaceholderSheet: View {
             return .templates
         case .task:
             return .task
+        case .periodic:
+            return .periodic
         case .project:
             return .project
         }
@@ -470,6 +501,8 @@ struct ComposerPlaceholderSheet: View {
             return []
         case .task:
             return draftState.taskTime == nil ? [.reminder] : []
+        case .periodic:
+            return []
         case .project:
             return []
         }
@@ -597,6 +630,14 @@ struct ComposerPlaceholderSheet: View {
                     draft: draftState.taskDraft()
                 )
                 await appContext.homeViewModel.reload(insertedItemIDs: [item.id])
+            case .periodic:
+                let draft = draftState.periodicTaskDraft()
+                _ = try await appContext.container.periodicTaskApplicationService.createTask(
+                    in: spaceID,
+                    actorID: actorID,
+                    draft: draft
+                )
+                await appContext.routinesViewModel.load()
             case .project:
                 let project = try await appContext.container.projectRepository.saveProject(
                     draftState.projectDraft(spaceID: spaceID)
@@ -622,6 +663,7 @@ struct ComposerPlaceholderSheet: View {
 private enum ComposerCategory: Int, CaseIterable, Identifiable {
     case template
     case task
+    case periodic
     case project
 
     var id: Int { rawValue }
@@ -632,6 +674,8 @@ private enum ComposerCategory: Int, CaseIterable, Identifiable {
             return "模板"
         case .task:
             return "任务"
+        case .periodic:
+            return "周期"
         case .project:
             return "项目"
         }
@@ -643,6 +687,8 @@ private enum ComposerCategory: Int, CaseIterable, Identifiable {
             return "从模板创建"
         case .task:
             return "任务标题"
+        case .periodic:
+            return "事务标题"
         case .project:
             return "项目标题"
         }
@@ -891,6 +937,11 @@ private struct ComposerDraftState: Hashable {
     var repeatRule: ItemRepeatRule?
     var projectSubtasks: [ProjectSubtaskDraft] = []
     var projectSubtaskInput = ""
+    var periodicCycle: PeriodicCycle = .monthly
+    var periodicReminderEnabled: Bool = false
+    var periodicReminderRules: [PeriodicReminderRule] = []
+    var periodicSubtasks: [ProjectSubtaskDraft] = []
+    var periodicSubtaskInput = ""
 
     init(initialCategory: ComposerCategory, referenceDate: Date) {
         self.category = initialCategory
@@ -936,6 +987,8 @@ private struct ComposerDraftState: Hashable {
             offset = nil
         case .task:
             offset = taskReminderOffset
+        case .periodic:
+            offset = nil
         case .project:
             offset = nil
         }
@@ -971,6 +1024,8 @@ private struct ComposerDraftState: Hashable {
                 isPinned: isPinned,
                 repeatRule: repeatRule
             )
+        case .periodic:
+            return TaskDraft(title: title)
         case .project:
             return TaskDraft(title: title, notes: trimmedNotes.isEmpty ? nil : trimmedNotes)
         }
@@ -1008,6 +1063,47 @@ private struct ComposerDraftState: Hashable {
 
     mutating func removeProjectSubtask(_ id: UUID) {
         projectSubtasks.removeAll { $0.id == id }
+    }
+
+    // MARK: - Periodic Subtasks
+
+    mutating func addPeriodicSubtask() {
+        let trimmed = periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        periodicSubtasks.append(ProjectSubtaskDraft(title: trimmed))
+        periodicSubtaskInput = ""
+    }
+
+    mutating func togglePeriodicSubtask(_ id: UUID) {
+        guard let index = periodicSubtasks.firstIndex(where: { $0.id == id }) else { return }
+        periodicSubtasks[index].isCompleted.toggle()
+    }
+
+    mutating func removePeriodicSubtask(_ id: UUID) {
+        periodicSubtasks.removeAll { $0.id == id }
+    }
+
+    var periodicReminderSummaryText: String {
+        periodicReminderEnabled && !periodicReminderRules.isEmpty ? "已设置" : "提醒"
+    }
+
+    var periodicSubtaskSummaryText: String {
+        let total = periodicSubtasks.count
+        guard total > 0 else { return "子任务" }
+        return "\(total) 项"
+    }
+
+    func periodicTaskDraft() -> PeriodicTaskDraft {
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return PeriodicTaskDraft(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+            cycle: periodicCycle,
+            reminderRules: periodicReminderEnabled ? periodicReminderRules : [],
+            subtasks: periodicSubtasks.map {
+                PeriodicSubtask(id: $0.id, title: $0.title, isCompleted: $0.isCompleted)
+            }
+        )
     }
 
     mutating func apply(template: TaskTemplate, referenceDate: Date) {
@@ -1251,6 +1347,10 @@ private struct ComposerPage: View {
                 )
             }
 
+            if category == .periodic {
+                periodicCyclePicker
+            }
+
             ComposerFocusableTextView(
                 text: $draftState.notes,
                 focusedField: $focusedField,
@@ -1263,7 +1363,7 @@ private struct ComposerPage: View {
                 maximumNumberOfLines: 8
             )
 
-            if isPairMode, category != .project {
+            if isPairMode, category != .project, category != .periodic {
                 composerAssignmentSection
                     .padding(.top, 10)
             }
@@ -1271,6 +1371,22 @@ private struct ComposerPage: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var periodicCyclePicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("周期")
+                .font(AppTheme.typography.sized(14, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
+            Picker("周期", selection: $draftState.periodicCycle) {
+                ForEach(PeriodicCycle.allCases, id: \.self) { cycle in
+                    Text(cycle.title).tag(cycle)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.top, 4)
     }
 
     private var composerAssignmentSection: some View {
@@ -1954,6 +2070,10 @@ private struct ComposerEditorMenuSheet: View {
             initialDate = currentDraft.taskDate
             initialTime = currentDraft.taskTime
             initialReminder = currentDraft.taskReminderOffset
+        case .periodic:
+            initialDate = currentDraft.taskDate
+            initialTime = nil
+            initialReminder = nil
         case .project:
             initialDate = currentDraft.projectTargetDate ?? currentDraft.taskDate
             initialTime = nil
@@ -2017,7 +2137,13 @@ private struct ComposerEditorMenuSheet: View {
                 selectionFeedback: ComposerButtonHaptics.selection
             )
         case .subtasks:
-            ComposerProjectSubtasksPanel(draftState: $draftState)
+            if draftState.category == .periodic {
+                ComposerPeriodicSubtasksPanel(draftState: $draftState)
+            } else {
+                ComposerProjectSubtasksPanel(draftState: $draftState)
+            }
+        case .periodicReminder:
+            ComposerPeriodicReminderPanel(draftState: $draftState)
         case .template:
             ComposerTemplatePickerSheet(
                 templates: templates,
@@ -2031,7 +2157,7 @@ private struct ComposerEditorMenuSheet: View {
     private func applyChangesAndDismiss() {
         if didEditDate {
             switch draftState.category {
-            case .template:
+            case .template, .periodic:
                 break
             case .task:
                 draftState.taskDate = stagedSelectedDate
@@ -2042,7 +2168,7 @@ private struct ComposerEditorMenuSheet: View {
 
         if didEditTime {
             switch draftState.category {
-            case .template:
+            case .template, .periodic:
                 break
             case .task:
                 draftState.taskTime = stagedSelectedTime
@@ -2053,7 +2179,7 @@ private struct ComposerEditorMenuSheet: View {
 
         if didEditReminder {
             switch draftState.category {
-            case .template:
+            case .template, .periodic:
                 break
             case .task:
                 draftState.taskReminderOffset = stagedReminderOffset
@@ -2255,6 +2381,203 @@ private struct ComposerProjectSubtasksPanel: View {
     }
 }
 
+// MARK: - Periodic Subtasks Panel
+
+private struct ComposerPeriodicSubtasksPanel: View {
+    @Binding var draftState: ComposerDraftState
+    @FocusState private var isInputFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if draftState.periodicSubtasks.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("拆分步骤")
+                        .font(AppTheme.typography.sized(16, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title)
+
+                    Text("每个周期开始时，子任务会自动重置为未完成。")
+                        .font(AppTheme.typography.textStyle(.subheadline))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+            } else {
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(draftState.periodicSubtasks) { subtask in
+                            HStack(spacing: 12) {
+                                Button {
+                                    ComposerButtonHaptics.selection()
+                                    draftState.togglePeriodicSubtask(subtask.id)
+                                } label: {
+                                    Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                                        .font(AppTheme.typography.sized(20, weight: .semibold))
+                                        .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
+                                        .frame(width: 28, height: 28)
+                                }
+                                .buttonStyle(.plain)
+
+                                Text(subtask.title)
+                                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                                    .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 1))
+                                    .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.36))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                Button {
+                                    ComposerButtonHaptics.selection()
+                                    draftState.removePeriodicSubtask(subtask.id)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(AppTheme.typography.sized(11, weight: .bold))
+                                        .foregroundStyle(AppTheme.colors.body.opacity(0.66))
+                                        .frame(width: 18, height: 18)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 58)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .modifier(TaskEditorMenuOptionGlassModifier())
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
+                }
+                .scrollIndicators(.hidden)
+            }
+
+            HStack(spacing: 12) {
+                TextField("添加子任务", text: $draftState.periodicSubtaskInput)
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($isInputFocused)
+                    .onSubmit {
+                        addSubtask()
+                    }
+
+                Button("添加") {
+                    addSubtask()
+                }
+                .buttonStyle(.plain)
+                .font(AppTheme.typography.sized(15, weight: .bold))
+                .foregroundStyle(draftState.periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
+                .disabled(draftState.periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 18)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func addSubtask() {
+        ComposerButtonHaptics.primary()
+        draftState.addPeriodicSubtask()
+        if draftState.periodicSubtaskInput.isEmpty {
+            isInputFocused = true
+        }
+    }
+}
+
+// MARK: - Periodic Reminder Panel
+
+private struct ComposerPeriodicReminderPanel: View {
+    @Binding var draftState: ComposerDraftState
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Toggle(isOn: $draftState.periodicReminderEnabled) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "bell")
+                            .font(AppTheme.typography.sized(16, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.accent)
+                        Text("设置提醒")
+                            .font(AppTheme.typography.sized(16, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.title)
+                    }
+                }
+                .tint(AppTheme.colors.accent)
+                .onChange(of: draftState.periodicReminderEnabled) { _, enabled in
+                    if enabled && draftState.periodicReminderRules.isEmpty {
+                        let defaultRule: PeriodicReminderRule
+                        switch draftState.periodicCycle {
+                        case .weekly:
+                            defaultRule = PeriodicReminderRule(timing: .dayOfPeriod(3))
+                        case .monthly:
+                            defaultRule = PeriodicReminderRule(timing: .dayOfPeriod(20))
+                        case .quarterly:
+                            defaultRule = PeriodicReminderRule(timing: .daysBeforeEnd(14))
+                        case .yearly:
+                            defaultRule = PeriodicReminderRule(timing: .daysBeforeEnd(30))
+                        }
+                        draftState.periodicReminderRules = [defaultRule]
+                    }
+                }
+
+                if draftState.periodicReminderEnabled {
+                    VStack(spacing: 12) {
+                        ForEach(draftState.periodicReminderRules.indices, id: \.self) { index in
+                            RoutinesReminderRulePicker(
+                                rule: $draftState.periodicReminderRules[index],
+                                cycle: draftState.periodicCycle
+                            )
+
+                            if index < draftState.periodicReminderRules.count - 1 {
+                                Divider()
+                                    .padding(.horizontal, 4)
+                            }
+                        }
+
+                        Button {
+                            ComposerButtonHaptics.selection()
+                            draftState.periodicReminderRules.append(
+                                PeriodicReminderRule(timing: .daysBeforeEnd(3))
+                            )
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                                Text("添加提醒规则")
+                                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                            }
+                            .foregroundStyle(AppTheme.colors.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(AppTheme.colors.surfaceElevated)
+                    )
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 20)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
 private struct ComposerMenuSheet: View {
     let menu: ComposerMenu
     @Binding var draftState: ComposerDraftState
@@ -2362,6 +2685,8 @@ private struct ComposerMenuSheet: View {
             break
         case .task:
             draftState.taskReminderOffset = seconds
+        case .periodic:
+            break
         case .project:
             break
         }
@@ -2405,6 +2730,8 @@ private struct ComposerDatePickerSheet: View {
         case .template:
             initialDate = draftState.wrappedValue.taskDate
         case .task:
+            initialDate = draftState.wrappedValue.taskDate
+        case .periodic:
             initialDate = draftState.wrappedValue.taskDate
         case .project:
             initialDate = draftState.wrappedValue.projectTargetDate ?? draftState.wrappedValue.taskDate
@@ -2538,6 +2865,8 @@ private struct ComposerDatePickerSheet: View {
             return draftState.taskDate
         case .task:
             return draftState.taskDate
+        case .periodic:
+            return draftState.taskDate
         case .project:
             return draftState.projectTargetDate ?? draftState.taskDate
         }
@@ -2636,6 +2965,8 @@ private struct ComposerDatePickerSheet: View {
         case .template:
             draftState.taskDate = normalized
         case .task:
+            draftState.taskDate = normalized
+        case .periodic:
             draftState.taskDate = normalized
         case .project:
             draftState.projectTargetDate = normalized

@@ -22,6 +22,11 @@ enum MockServiceFactory {
             syncCoordinator: syncCoordinator,
             reminderScheduler: reminderScheduler
         )
+        let periodicTaskRepository = MockPeriodicTaskRepository()
+        let periodicTaskApplicationService = DefaultPeriodicTaskApplicationService(
+            repository: periodicTaskRepository,
+            reminderScheduler: reminderScheduler
+        )
 
         return AppContainer(
             authService: MockAuthService(),
@@ -39,7 +44,9 @@ enum MockServiceFactory {
             decisionRepository: MockDecisionRepository(),
             anniversaryRepository: MockAnniversaryRepository(),
             notificationService: notificationService,
-            reminderScheduler: reminderScheduler
+            reminderScheduler: reminderScheduler,
+            periodicTaskRepository: periodicTaskRepository,
+            periodicTaskApplicationService: periodicTaskApplicationService
         )
     }
 }

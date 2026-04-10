@@ -174,11 +174,13 @@ struct AppRootView: View {
     @ViewBuilder
     private func rootSurfaceView(router: AppRouter) -> some View {
         switch router.currentSurface {
-        case .today, .projects:
+        case .today, .projects, .routines:
             HomeView(
                 viewModel: appContext.homeViewModel,
                 projectsViewModel: appContext.projectsViewModel,
+                routinesViewModel: appContext.routinesViewModel,
                 isProjectModePresented: router.isProjectModePresented,
+                isRoutinesModePresented: router.isRoutinesModePresented,
                 onCreateTaskTapped: {
                     closeProjectsMode(router: router)
                     collapseDockHub()
@@ -250,6 +252,7 @@ struct AppRootView: View {
                     edgeInset: dockPeripheralInset,
                     selectedDestination: router.selectedDockDestination,
                     isMonthModeActive: appContext.homeViewModel.isMonthMode,
+                    isRoutinesModeActive: router.currentSurface == .routines,
                     isProjectsModeActive: router.isProjectModePresented,
                     isHubExpanded: isDockHubExpanded,
                     isInteractionEnabled: pendingQuickCaptureConfirmation == nil,
@@ -261,8 +264,11 @@ struct AppRootView: View {
                     onCalendarTapped: {
                         toggleCalendarSurface(router: router)
                     },
+                    onRoutinesTapped: {
+                        toggleRoutinesSurface(router: router)
+                    },
                     onHubPrimaryTapped: {
-                        openTaskComposer(router: router)
+                        openContextualComposer(router: router)
                     },
                     onHubLongPressed: {
                         toggleDockHub()
@@ -583,6 +589,20 @@ struct AppRootView: View {
         router.activeComposer = .newProject
     }
 
+    private func openContextualComposer(router: AppRouter) {
+        collapseDockHub()
+        dismissQuickCapture()
+        router.pendingComposerTitle = nil
+        switch router.currentSurface {
+        case .today, .calendar:
+            router.activeComposer = .newTask
+        case .projects:
+            router.activeComposer = .newProject
+        case .routines:
+            router.activeComposer = .newPeriodicTask
+        }
+    }
+
     private var dockHubAnimation: Animation {
         reduceMotion
             ? .easeInOut(duration: 0.16)
@@ -652,6 +672,25 @@ struct AppRootView: View {
             closeProjectsMode(router: router)
         } else {
             openProjectsMode(router: router)
+        }
+    }
+
+    private func toggleRoutinesSurface(router: AppRouter) {
+        guard !isQuickCapturePresented else { return }
+        guard pendingQuickCaptureConfirmation == nil else { return }
+        guard router.isProfilePresented == false else { return }
+        guard router.activeComposer == nil else { return }
+
+        collapseDockHub()
+        HomeInteractionFeedback.selection()
+
+        withAnimation(projectModeAnimation) {
+            if router.currentSurface == .routines {
+                router.currentSurface = .today
+            } else {
+                appContext.homeViewModel.setCalendarDisplayMode(.week)
+                router.currentSurface = .routines
+            }
         }
     }
 
