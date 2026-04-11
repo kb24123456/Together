@@ -50,6 +50,7 @@ struct CompletedHistoryView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .applyScrollEdgeProtection()
         .scrollContentBackground(.hidden)
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("历史任务")

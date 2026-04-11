@@ -13,75 +13,99 @@ struct RoutinesTaskRow: View {
     }
 
     var body: some View {
-        HStack(spacing: AppTheme.spacing.sm) {
-            completionToggle
-            taskContent
-            Spacer(minLength: 4)
-            urgencyIndicator
-        }
-        .padding(.vertical, AppTheme.spacing.sm)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            viewModel.presentEditor(for: task)
-        }
-    }
-
-    private var completionToggle: some View {
-        Button {
-            Task {
-                await viewModel.toggleCompletion(taskID: task.id)
-            }
-        } label: {
-            ZStack {
-                Circle()
-                    .stroke(isCompleted ? AppTheme.colors.success : AppTheme.colors.outlineStrong, lineWidth: 1.5)
-                    .frame(width: 22, height: 22)
-
-                if isCompleted {
-                    Circle()
-                        .fill(AppTheme.colors.success)
-                        .frame(width: 22, height: 22)
-
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            Button {
+                Task {
+                    await viewModel.toggleCompletion(taskID: task.id)
                 }
+            } label: {
+                completionSymbol
+                    .frame(width: 40, height: 40)
             }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+
+            Button {
+                viewModel.presentDetail(for: task)
+            } label: {
+                HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(task.title)
+                            .font(AppTheme.typography.sized(19, weight: .bold))
+                            .foregroundStyle(isCompleted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+                            .lineLimit(2)
+                            .allowsTightening(true)
+
+                        if !task.reminderRules.isEmpty {
+                            Text(reminderDescription)
+                                .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+
+                    urgencyBadge
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 
-    private var taskContent: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(task.title)
-                .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                .foregroundStyle(isCompleted ? AppTheme.colors.textTertiary : AppTheme.colors.title)
-                .strikethrough(isCompleted, color: AppTheme.colors.textTertiary)
+    private var completionSymbol: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(
+                    isCompleted ? AppTheme.colors.success.opacity(0.58) : accentColor.opacity(0.58),
+                    style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                )
+                .opacity(isCompleted ? 0 : 1)
 
-            if !task.reminderRules.isEmpty {
-                Text(reminderDescription)
-                    .font(AppTheme.typography.textStyle(.caption1))
-                    .foregroundStyle(AppTheme.colors.textTertiary)
+            if isCompleted {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(AppTheme.colors.success.opacity(0.15))
+
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(17, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.success)
             }
         }
-        .opacity(isCompleted ? 0.6 : 1.0)
     }
 
     @ViewBuilder
-    private var urgencyIndicator: some View {
+    private var urgencyBadge: some View {
         switch urgency {
         case .pastReminder:
-            Circle()
-                .fill(AppTheme.colors.coral)
-                .frame(width: 8, height: 8)
+            Text("逾期")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .foregroundStyle(AppTheme.colors.coral)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(AppTheme.colors.coral.opacity(0.12))
+                )
         case .approaching:
-            Circle()
-                .fill(AppTheme.colors.warning)
-                .frame(width: 8, height: 8)
-        case .completed:
+            Text("临近")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .foregroundStyle(AppTheme.colors.warning)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(AppTheme.colors.warning.opacity(0.12))
+                )
+        case .completed, .normal:
             EmptyView()
-        case .normal:
-            EmptyView()
+        }
+    }
+
+    private var accentColor: Color {
+        switch urgency {
+        case .pastReminder: AppTheme.colors.coral
+        case .approaching: AppTheme.colors.warning
+        default: AppTheme.colors.body
         }
     }
 

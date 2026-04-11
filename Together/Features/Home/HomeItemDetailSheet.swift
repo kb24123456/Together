@@ -169,7 +169,7 @@ struct HomeItemDetailSheet: View {
 
     private var expandedCategorySwitcher: some View {
         HStack(spacing: 10) {
-            ForEach(["模板", "任务", "项目"], id: \.self) { title in
+            ForEach(["模板", "任务", "周期", "项目"], id: \.self) { title in
                 let isActive = expandedCategoryTitle == title
 
                 Button {

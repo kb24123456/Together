@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 enum PeriodicTaskUrgency: Hashable, Sendable {
     case normal
@@ -13,6 +14,7 @@ enum PeriodicTaskUrgency: Hashable, Sendable {
 final class RoutinesViewModel {
     private let sessionStore: SessionStore
     private let periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
+    private let taskTemplateRepository: TaskTemplateRepositoryProtocol
     private let calendar = Calendar.current
 
     var tasks: [PeriodicTask] = []
@@ -21,12 +23,19 @@ final class RoutinesViewModel {
     var isEditorPresented = false
     var editingTask: PeriodicTask?
 
+    // Detail sheet (two-stage: compact → expanded)
+    var isDetailPresented = false
+    var detailTask: PeriodicTask?
+    var detailDetent: PresentationDetent = .height(316)
+
     init(
         sessionStore: SessionStore,
-        periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
+        periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol,
+        taskTemplateRepository: TaskTemplateRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.periodicTaskApplicationService = periodicTaskApplicationService
+        self.taskTemplateRepository = taskTemplateRepository
     }
 
     // MARK: - Grouped Tasks
@@ -195,5 +204,57 @@ final class RoutinesViewModel {
     func dismissEditor() {
         isEditorPresented = false
         editingTask = nil
+    }
+
+    func presentDetail(for task: PeriodicTask) {
+        detailTask = task
+        detailDetent = .height(316)
+        isDetailPresented = true
+    }
+
+    func dismissDetail() {
+        isDetailPresented = false
+        detailTask = nil
+        detailDetent = .height(316)
+    }
+
+    func expandDetailToEdit() {
+        detailDetent = .large
+    }
+
+    // MARK: - Templates
+
+    func saveAsTemplate(task: PeriodicTask) async -> RoutinesTemplateSaveResult? {
+        guard let spaceID = sessionStore.currentSpace?.id else { return nil }
+        let trimmedTitle = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return nil }
+
+        let template = TaskTemplate(
+            spaceID: spaceID,
+            title: trimmedTitle,
+            notes: task.notes
+        )
+
+        do {
+            let existing = try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
+                .first { $0.title == template.title }
+
+            if let existing {
+                return RoutinesTemplateSaveResult(templateID: existing.id, isNewlyCreated: false)
+            }
+
+            let saved = try await taskTemplateRepository.saveTaskTemplate(template)
+            return RoutinesTemplateSaveResult(templateID: saved.id, isNewlyCreated: true)
+        } catch {
+            return nil
+        }
+    }
+
+    func deleteTemplate(templateID: UUID) async {
+        do {
+            try await taskTemplateRepository.deleteTaskTemplate(templateID: templateID)
+        } catch {
+            // silently ignore
+        }
     }
 }

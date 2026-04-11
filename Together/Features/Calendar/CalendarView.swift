@@ -77,6 +77,7 @@ struct CalendarView: View {
             .padding(AppTheme.spacing.xl)
             .padding(.bottom, showsNavigationChrome ? AppTheme.spacing.xl : 164)
         }
+        .applyScrollEdgeProtection()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("日历")
         .toolbar(showsNavigationChrome ? .visible : .hidden, for: .navigationBar)

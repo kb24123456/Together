@@ -135,7 +135,7 @@ struct ProjectsListContent: View {
                 .padding(.top, contentTopPadding)
                 .padding(.bottom, contentBottomPadding)
         }
-        .applyProjectScrollEdgeProtection()
+        .applyScrollEdgeProtection()
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             geo.contentOffset.y + geo.contentInsets.top
         } action: { _, newOffset in
@@ -468,18 +468,6 @@ private struct ProjectDeadlineSheetModifier: ViewModifier {
             .presentationDetents([.height(TaskEditorDatePickerSheet.preferredHeight + 88)])
             .presentationDragIndicator(.hidden)
             .presentationBackground(AppTheme.colors.surface)
-        }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func applyProjectScrollEdgeProtection() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
-        } else {
-            self
         }
     }
 }

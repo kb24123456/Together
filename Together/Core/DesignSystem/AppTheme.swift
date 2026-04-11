@@ -197,3 +197,16 @@ extension Color {
         })
     }
 }
+
+// MARK: - Scroll Edge Protection
+
+extension View {
+    @ViewBuilder
+    func applyScrollEdgeProtection() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
+        } else {
+            self
+        }
+    }
+}

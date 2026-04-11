@@ -6,176 +6,244 @@ struct RoutinesEditorSheet: View {
     @State private var title: String = ""
     @State private var notes: String = ""
     @State private var cycle: PeriodicCycle = .monthly
-    @State private var reminderEnabled = false
     @State private var reminderRules: [PeriodicReminderRule] = []
-    @State private var showDeleteConfirmation = false
+
+    @State private var activeMenu: TaskEditorMenu?
+    @State private var primaryActionFeedbackNonce = 0
+    @State private var isPrimaryActionAnimating = false
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: Field?
+    @Namespace private var chipRowNamespace
 
-    private var isEditing: Bool {
-        viewModel.editingTask != nil
+    enum Field: Hashable {
+        case title
+        case notes
+    }
+
+    private var hasMeaningfulContent: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: AppTheme.spacing.lg) {
-                    titleSection
-                    cycleSection
-                    reminderSection
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        TextField("事务名称", text: $title, axis: .vertical)
+                            .font(AppTheme.typography.sized(28, weight: .bold))
+                            .foregroundStyle(AppTheme.colors.title)
+                            .focused($focusedField, equals: .title)
 
-                    if isEditing {
-                        deleteSection
+                        TextField("添加备注...", text: $notes, axis: .vertical)
+                            .font(AppTheme.typography.sized(16, weight: .medium))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.78))
+                            .focused($focusedField, equals: .notes)
                     }
+                    .padding(.horizontal, 26)
+                    .padding(.top, 18)
+                    .padding(.bottom, 160)
                 }
-                .padding(.horizontal, AppTheme.spacing.lg)
-                .padding(.top, AppTheme.spacing.md)
+                .scrollIndicators(.hidden)
             }
-            .background(AppTheme.colors.background)
-            .navigationTitle(isEditing ? "编辑例行事务" : "新建例行事务")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
-                        dismiss()
-                        viewModel.dismissEditor()
-                    }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(AppTheme.colors.surface)
+            .overlay(alignment: .bottom) {
+                bottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, 8))
+            }
+            .overlay {
+                if activeMenu != nil {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { dismissActiveMenu() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        save()
-                    }
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .fontWeight(.semibold)
-                }
+            }
+            .ignoresSafeArea(edges: .bottom)
+        }
+        .sheet(isPresented: isMenuSheetPresented) {
+            if let menuBinding = activeMenuBinding {
+                RoutinesEditorMenuSheet(
+                    activeMenu: menuBinding,
+                    cycle: $cycle,
+                    reminderRules: $reminderRules,
+                    onDismiss: dismissActiveMenu
+                )
+                .presentationDetents(TaskEditorMenuContext.periodic.detents)
+                .presentationContentInteraction(.scrolls)
+                .presentationBackgroundInteraction(.enabled)
+                .presentationDragIndicator(.hidden)
+                .interactiveDismissDisabled(false)
+                .modifier(TaskEditorMenuPresentationSizingModifier())
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(AppTheme.colors.surface)
         .onAppear {
-            if let task = viewModel.editingTask {
-                title = task.title
-                notes = task.notes ?? ""
-                cycle = task.cycle
-                reminderRules = task.reminderRules
-                reminderEnabled = !task.reminderRules.isEmpty
+            DispatchQueue.main.async {
+                focusedField = .title
             }
-        }
-        .confirmationDialog("确定删除？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-            Button("删除", role: .destructive) {
-                deleteAndDismiss()
-            }
-        } message: {
-            Text("删除后无法恢复")
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Bottom Action Area
 
-    private var titleSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            TextField("事务名称", text: $title)
-                .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                .padding(AppTheme.spacing.md)
-                .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: 12))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(AppTheme.colors.outline)
+    private func bottomActionArea(bottomInset: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            VStack(alignment: .leading, spacing: hasMeaningfulContent ? 12 : 0) {
+                chipRow { menu in
+                    HomeInteractionFeedback.selection()
+                    openMenu(menu)
                 }
 
-            TextField("备注（可选）", text: $notes, axis: .vertical)
-                .font(AppTheme.typography.textStyle(.subheadline))
-                .lineLimit(3...6)
-                .padding(AppTheme.spacing.md)
-                .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: 12))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(AppTheme.colors.outline)
+                if hasMeaningfulContent {
+                    primaryActionButton
                 }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
+            .background(
+                LinearGradient(
+                    colors: [.clear, AppTheme.colors.surface.opacity(0.97)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+        .padding(.bottom, bottomInset)
+        .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: hasMeaningfulContent)
+    }
+
+    // MARK: - Chip Row
+
+    private func chipRow(action: @escaping (TaskEditorMenu) -> Void) -> some View {
+        TaskEditorChipRow(
+            chips: chips,
+            namespace: chipRowNamespace,
+            trailingInset: 0,
+            onChipTap: action,
+            onClearTap: { _ in }
+        )
+    }
+
+    private var chips: [TaskEditorRenderedChip] {
+        let snapshots: [TaskEditorChipSnapshot] = [
+            TaskEditorChipSnapshot(
+                id: TaskEditorMenu.periodicCycle.rawValue,
+                title: cycle.title,
+                systemImage: "arrow.clockwise",
+                menu: .periodicCycle,
+                semanticValue: .periodicCycle(cycle)
+            ),
+            TaskEditorChipSnapshot(
+                id: TaskEditorMenu.periodicReminder.rawValue,
+                title: reminderChipTitle,
+                systemImage: "bell",
+                menu: .periodicReminder,
+                semanticValue: .periodicReminder(!reminderRules.isEmpty)
+            )
+        ]
+        return snapshots.map { snapshot in
+            TaskEditorRenderedChip(
+                id: snapshot.id,
+                title: snapshot.title,
+                systemImage: snapshot.systemImage,
+                menu: snapshot.menu,
+                showsTrailingClear: false,
+                transitionDirection: .up,
+                semanticValue: snapshot.semanticValue
+            )
         }
     }
 
-    private var cycleSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            Text("周期")
-                .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body)
-
-            Picker("周期", selection: $cycle) {
-                ForEach(PeriodicCycle.allCases, id: \.self) { c in
-                    Text(c.title).tag(c)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-        .padding(AppTheme.spacing.lg)
-        .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(AppTheme.colors.outline)
+    private var reminderChipTitle: String {
+        guard let rule = reminderRules.first else { return "提醒" }
+        let timeString = String(format: "%02d:%02d", rule.hour, rule.minute)
+        switch rule.timing {
+        case .dayOfPeriod(let day):
+            return "第\(day)天 \(timeString)"
+        case .businessDayOfPeriod(let day):
+            return "第\(day)工作日"
+        case .daysBeforeEnd(let days):
+            return "前\(days)天 \(timeString)"
         }
     }
 
-    private var reminderSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            Toggle(isOn: $reminderEnabled) {
-                Text("设置提醒")
-                    .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body)
-            }
-            .tint(AppTheme.colors.accent)
-            .onChange(of: reminderEnabled) { _, enabled in
-                if enabled && reminderRules.isEmpty {
-                    reminderRules.append(defaultReminderRule(for: cycle))
-                } else if !enabled {
-                    reminderRules.removeAll()
-                }
-            }
+    // MARK: - Primary Action Button
 
-            if reminderEnabled {
-                ForEach(reminderRules.indices, id: \.self) { index in
-                    RoutinesReminderRulePicker(
-                        rule: $reminderRules[index],
-                        cycle: cycle,
-                        onDelete: reminderRules.count > 1 ? {
-                            reminderRules.remove(at: index)
-                        } : nil
-                    )
-                }
-
-                Button {
-                    reminderRules.append(defaultReminderRule(for: cycle))
-                } label: {
-                    Label("添加提醒规则", systemImage: "plus.circle")
-                        .font(AppTheme.typography.textStyle(.subheadline))
-                        .foregroundStyle(AppTheme.colors.accent)
-                }
-            }
-        }
-        .padding(AppTheme.spacing.lg)
-        .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(AppTheme.colors.outline)
-        }
-    }
-
-    private var deleteSection: some View {
-        Button(role: .destructive) {
-            showDeleteConfirmation = true
+    private var primaryActionButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            triggerPrimaryActionAnimation()
+            save()
         } label: {
-            Text("删除例行事务")
-                .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                .foregroundStyle(AppTheme.colors.danger)
-                .frame(maxWidth: .infinity)
-                .padding(AppTheme.spacing.md)
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(13, weight: .bold))
+                    .symbolEffect(.bounce, value: primaryActionFeedbackNonce)
+                Text("创建")
+                    .font(AppTheme.typography.sized(15, weight: .bold))
+            }
+            .foregroundStyle(AppTheme.colors.title)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 72)
+            .padding(.horizontal, 18)
+            .background(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(AppTheme.colors.pillSurface)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+            }
         }
-        .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(AppTheme.colors.outline)
+        .buttonStyle(.plain)
+        .scaleEffect(isPrimaryActionAnimating ? 0.95 : 1)
+        .brightness(isPrimaryActionAnimating ? -0.015 : 0)
+        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
+        .animation(.spring(response: 0.24, dampingFraction: 0.62), value: isPrimaryActionAnimating)
+        .padding(.horizontal, 10)
+        .transition(.offset(y: 18).combined(with: .opacity))
+    }
+
+    private func triggerPrimaryActionAnimation() {
+        primaryActionFeedbackNonce += 1
+        isPrimaryActionAnimating = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            isPrimaryActionAnimating = false
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Menu Management
+
+    private var isMenuSheetPresented: Binding<Bool> {
+        Binding(
+            get: { activeMenu != nil },
+            set: { if !$0 { dismissActiveMenu() } }
+        )
+    }
+
+    private var activeMenuBinding: Binding<TaskEditorMenu>? {
+        guard let activeMenu else { return nil }
+        return Binding(
+            get: { self.activeMenu ?? activeMenu },
+            set: { self.activeMenu = $0 }
+        )
+    }
+
+    private func openMenu(_ menu: TaskEditorMenu) {
+        focusedField = nil
+        activeMenu = menu
+    }
+
+    private func dismissActiveMenu() {
+        activeMenu = nil
+    }
+
+    // MARK: - Save
 
     private func save() {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -185,39 +253,125 @@ struct RoutinesEditorSheet: View {
             title: trimmedTitle,
             notes: notes.isEmpty ? nil : notes,
             cycle: cycle,
-            reminderRules: reminderEnabled ? reminderRules : []
+            reminderRules: reminderRules
         )
 
         Task {
-            if let existing = viewModel.editingTask {
-                await viewModel.updateTask(taskID: existing.id, draft: draft)
-            } else {
-                await viewModel.createTask(draft: draft)
+            await viewModel.createTask(draft: draft)
+            dismiss()
+            viewModel.dismissEditor()
+        }
+    }
+}
+
+// MARK: - Routines Editor Menu Sheet
+
+private struct RoutinesEditorMenuSheet: View {
+    @Binding var activeMenu: TaskEditorMenu
+    @Binding var cycle: PeriodicCycle
+    @Binding var reminderRules: [PeriodicReminderRule]
+    let onDismiss: () -> Void
+
+    var body: some View {
+        TaskEditorUnifiedMenuSheet(
+            context: .periodic,
+            activeMenu: $activeMenu,
+            selectionFeedback: HomeInteractionFeedback.selection,
+            switcherPlacement: .bottom,
+            onClose: onDismiss,
+            onSave: onDismiss
+        ) { menu in
+            menuContent(for: menu)
+        }
+    }
+
+    @ViewBuilder
+    private func menuContent(for menu: TaskEditorMenu) -> some View {
+        switch menu {
+        case .periodicCycle:
+            periodicCyclePanel
+        case .periodicReminder:
+            periodicReminderPanel
+        default:
+            EmptyView()
+        }
+    }
+
+    private var periodicCyclePanel: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(PeriodicCycle.allCases, id: \.self) { c in
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        cycle = c
+                    } label: {
+                        HStack {
+                            Text(c.title)
+                                .font(AppTheme.typography.sized(17, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.title)
+                            Spacer(minLength: 0)
+                            if cycle == c {
+                                Image(systemName: "checkmark")
+                                    .font(AppTheme.typography.sized(14, weight: .bold))
+                                    .foregroundStyle(AppTheme.colors.coral)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minHeight: TaskEditorMenuOptionMetrics.height)
+                        .padding(.horizontal, 18)
+                        .contentShape(
+                            RoundedRectangle(
+                                cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                                style: .continuous
+                            )
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(TaskEditorMenuOptionButtonStyle())
+                    .modifier(TaskEditorMenuOptionGlassModifier())
+                }
             }
-            dismiss()
-            viewModel.dismissEditor()
+            .padding(TaskEditorMenuOptionMetrics.outerInset)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var periodicReminderPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(reminderRules.indices, id: \.self) { index in
+                    RoutinesReminderRulePicker(
+                        rule: $reminderRules[index],
+                        cycle: cycle
+                    )
+                    .padding(.horizontal, 20)
+
+                    if index < reminderRules.count - 1 {
+                        Divider()
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                    }
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 20)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            if reminderRules.isEmpty {
+                reminderRules = [defaultRule(for: cycle)]
+            }
         }
     }
 
-    private func deleteAndDismiss() {
-        guard let task = viewModel.editingTask else { return }
-        Task {
-            await viewModel.deleteTask(taskID: task.id)
-            dismiss()
-            viewModel.dismissEditor()
-        }
-    }
-
-    private func defaultReminderRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
+    private func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
         switch cycle {
-        case .weekly:
-            return PeriodicReminderRule(timing: .daysBeforeEnd(1))
-        case .monthly:
-            return PeriodicReminderRule(timing: .dayOfPeriod(20))
-        case .quarterly:
-            return PeriodicReminderRule(timing: .daysBeforeEnd(14))
-        case .yearly:
-            return PeriodicReminderRule(timing: .daysBeforeEnd(30))
+        case .weekly: PeriodicReminderRule(timing: .dayOfPeriod(3))
+        case .monthly: PeriodicReminderRule(timing: .dayOfPeriod(20))
+        case .quarterly: PeriodicReminderRule(timing: .daysBeforeEnd(14))
+        case .yearly: PeriodicReminderRule(timing: .daysBeforeEnd(30))
         }
     }
 }

@@ -407,7 +407,7 @@ struct HomeView: View {
                         timelineSection
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)
-                    .padding(.top, 0)
+                    .padding(.top, 14)
                     .padding(.bottom, 144)
                 }
                 .id("empty-\(viewModel.selectedDateKey)")
@@ -439,7 +439,7 @@ struct HomeView: View {
         RoutinesListContent(
             viewModel: routinesViewModel,
             isPresented: isRoutinesModePresented,
-            contentTopPadding: 14,
+            contentTopPadding: 24,
             contentBottomPadding: 104
         )
     }
@@ -468,7 +468,7 @@ struct HomeView: View {
     private var standardTimelineList: some View {
         List {
             Color.clear
-                .frame(height: 0)
+                .frame(height: 10)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 .listRowBackground(homeCanvasColor)
                 .listRowSeparator(.hidden)
@@ -562,7 +562,7 @@ struct HomeView: View {
     private var pairTimelineList: some View {
         List {
             Color.clear
-                .frame(height: 0)
+                .frame(height: 10)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 .listRowBackground(homeCanvasColor)
                 .listRowSeparator(.hidden)
@@ -1886,16 +1886,6 @@ private struct TopRevealMotionModifier: ViewModifier {
 }
 
 private extension View {
-    @ViewBuilder
-    func applyScrollEdgeProtection() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
-        } else {
-            self
-        }
-    }
-
     func blurReplaceTransition<T: Equatable>(value: T) -> some View {
         self
             .transition(.blurReplace)

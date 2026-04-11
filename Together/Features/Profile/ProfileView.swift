@@ -47,6 +47,7 @@ struct ProfileView: View {
                 .padding(.bottom, AppTheme.spacing.xxl)
             }
             .coordinateSpace(name: ProfileScrollOffsetKey.coordinateSpaceName)
+            .applyScrollEdgeProtection()
             .background(backgroundView.ignoresSafeArea())
             .overlay(alignment: .top) {
                 topChromeGradientMask(safeAreaTop: proxy.safeAreaInsets.top)

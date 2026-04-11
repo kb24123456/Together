@@ -51,7 +51,8 @@ final class AppContext {
         )
         self.routinesViewModel = RoutinesViewModel(
             sessionStore: sessionStore,
-            periodicTaskApplicationService: container.periodicTaskApplicationService
+            periodicTaskApplicationService: container.periodicTaskApplicationService,
+            taskTemplateRepository: container.taskTemplateRepository
         )
         self.profileViewModel = ProfileViewModel(
             sessionStore: sessionStore,
