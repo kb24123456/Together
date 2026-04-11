@@ -7,10 +7,10 @@ struct RoutinesListContent: View {
     let contentBottomPadding: CGFloat
 
     @Environment(AppContext.self) private var appContext
-    @State private var selectedCycle: PeriodicCycle = .monthly
+    @State private var selectedCycle: PeriodicCycle = .weekly
 
     private var cycleTabs: [PeriodicCycle] {
-        [.monthly, .quarterly, .yearly]
+        [.weekly, .monthly, .quarterly, .yearly]
     }
 
     private var currentTasks: [PeriodicTask] {
@@ -36,7 +36,7 @@ struct RoutinesListContent: View {
 
             periodInfoBar
                 .padding(.horizontal, AppTheme.spacing.xl)
-                .padding(.top, 12)
+                .padding(.top, 8)
                 .padding(.bottom, 4)
 
             if viewModel.tasks.isEmpty && viewModel.loadState == .loaded {
@@ -129,7 +129,7 @@ struct RoutinesListContent: View {
                     .frame(width: proxy.size.width * progress)
             }
         }
-        .frame(width: 48, height: 4)
+        .frame(width: 80, height: 4)
     }
 
     // MARK: - Task List (today style)

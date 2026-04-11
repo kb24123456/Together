@@ -58,6 +58,7 @@ struct AppRootView: View {
                         }
                 }
             }
+            .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
         }
         .sheet(item: $router.activeComposer, onDismiss: {
             router.pendingComposerTitle = nil

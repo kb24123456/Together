@@ -57,6 +57,8 @@ final class ProfileViewModel {
     var isCheckingInvite: Bool = false
     var acceptInviteError: String?
     var createInviteError: String?
+    var iCloudStatus: ICloudStatus = .couldNotDetermine
+    var isAccountDeletionInProgress: Bool = false
 
     init(
         sessionStore: SessionStore,
@@ -189,7 +191,10 @@ final class ProfileViewModel {
     }
 
     var spaceSummary: String {
-        currentSpace?.displayName ?? "我的任务空间"
+        if isPairMode, let pairName = pairSpace?.displayName, !pairName.isEmpty {
+            return pairName
+        }
+        return currentSpace?.displayName ?? "我的任务空间"
     }
 
     var collaborationSummary: String {
@@ -252,10 +257,46 @@ final class ProfileViewModel {
         biometricAuthService.biometricTypeName()
     }
 
+    var iCloudStatusSummary: String {
+        switch iCloudStatus {
+        case .available: return "已连接"
+        case .noAccount: return "未登录 iCloud"
+        case .restricted: return "受限"
+        case .couldNotDetermine: return "检查中…"
+        case .temporarilyUnavailable: return "暂时不可用"
+        }
+    }
+
+    var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "\(version) (\(build))"
+    }
+
+    var cacheSizeString: String {
+        let cacheSize = URLCache.shared.currentDiskUsage
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useKB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(cacheSize))
+    }
+
     func updateAppLockEnabled(_ isEnabled: Bool) {
-        guard var user = sessionStore.currentUser else { return }
-        user.preferences.appLockEnabled = isEnabled
-        applyUpdatedPreferences(user.preferences, to: user)
+        if isEnabled {
+            // 开启前先验证生物识别身份
+            Task {
+                let success = (try? await biometricAuthService.authenticate(
+                    reason: "验证身份以启用应用锁定"
+                )) ?? false
+                guard success, var user = sessionStore.currentUser else { return }
+                user.preferences.appLockEnabled = true
+                applyUpdatedPreferences(user.preferences, to: user)
+            }
+        } else {
+            guard var user = sessionStore.currentUser else { return }
+            user.preferences.appLockEnabled = false
+            applyUpdatedPreferences(user.preferences, to: user)
+        }
     }
 
     var pairQuickReplyMessages: [String] {
@@ -278,8 +319,56 @@ final class ProfileViewModel {
 
     func load() async {
         loadState = .loading
-        notificationAuthorization = await notificationService.authorizationStatus()
+        async let notifStatus = notificationService.authorizationStatus()
+        async let cloudStatus = ICloudStatusService.checkStatus()
+        notificationAuthorization = await notifStatus
+        iCloudStatus = await cloudStatus
         loadState = .loaded
+    }
+
+    func checkICloudStatus() async {
+        iCloudStatus = await ICloudStatusService.checkStatus()
+    }
+
+    func clearCache() {
+        URLCache.shared.removeAllCachedResponses()
+    }
+
+    func requestAccountDeletion() async {
+        isAccountDeletionInProgress = true
+        let userID = currentUser?.id
+        let spaceID = currentSpace?.id
+
+        // 1. 如果配对状态，先解绑
+        if let pairSpaceID = pairSpace?.id, let userID {
+            _ = try? await pairingService.unbind(pairSpaceID: pairSpaceID, actorID: userID)
+        }
+
+        // 2. 删除所有任务数据
+        if let spaceID {
+            let allItems = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
+            let archivedItems = (try? await itemRepository.fetchCompletedItems(
+                spaceID: spaceID, searchText: nil, before: nil, limit: 10000
+            )) ?? []
+            for item in allItems + archivedItems {
+                try? await itemRepository.deleteItem(itemID: item.id)
+            }
+        }
+
+        // 3. 删除所有项目
+        if let spaceID {
+            let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+            for project in projects {
+                try? await projectRepository.deleteProject(projectID: project.id)
+            }
+        }
+
+        // 4. 取消所有本地通知
+        await reminderScheduler.resync(tasks: [], projects: [])
+
+        // 5. 签出（清除 Keychain + Session）
+        await signOut()
+        isAccountDeletionInProgress = false
     }
 
     func requestNotifications() async {

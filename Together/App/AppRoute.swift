@@ -34,4 +34,10 @@ enum ProfileRoute: Hashable {
     case notificationSettings
     case completedHistory
     case futureCollaboration
+    case privacyPolicy
+    case termsOfService
+    case accountDeletion
+    case subscription
+    case feedback
+    case about
 }

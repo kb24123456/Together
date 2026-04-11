@@ -3,8 +3,11 @@ import UIKit
 
 struct ProfileView: View {
     @Environment(AppContext.self) private var appContext
+    @Environment(\.openURL) private var openURL
     @Bindable var viewModel: ProfileViewModel
     @State private var topChromeProgress: CGFloat = 0
+    @State private var showsSignOutAlert: Bool = false
+    @State private var showsClearCacheAlert: Bool = false
     @Namespace private var profileTransition
 
     var body: some View {
@@ -15,6 +18,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
                     ProfileScrollOffsetProbe()
 
+                    // MARK: - 名片区
                     NavigationLink(value: viewModel.isPairMode ? ProfileRoute.editPairProfile : ProfileRoute.editProfile) {
                         ProfileUserCard(
                             primaryName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
@@ -36,11 +40,17 @@ struct ProfileView: View {
                         }
                     )
 
-                    appearanceSection
+                    // MARK: - 分组设置
+                    collaborationSection
                     executionPreferencesSection
-                    historyAndReminderSection
+                    notificationsAndHistorySection
                     securitySection
-                    systemAndCollaborationSection
+                    dataAndAccountSection
+                    aboutRow
+                    appearanceSection
+
+                    // MARK: - 退出登录
+                    signOutFooter
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.top, AppTheme.spacing.md)
@@ -81,6 +91,18 @@ struct ProfileView: View {
                     .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel())
+            case .privacyPolicy:
+                ProfilePrivacyPolicyView()
+            case .termsOfService:
+                ProfileTermsOfServiceView()
+            case .accountDeletion:
+                ProfileAccountDeletionView(viewModel: viewModel)
+            case .subscription:
+                ProfileSubscriptionView()
+            case .feedback:
+                ProfileFeedbackView()
+            case .about:
+                ProfileAboutView(appVersion: viewModel.appVersionString)
             case .notificationSettings, .futureCollaboration:
                 EmptyView()
             }
@@ -91,7 +113,6 @@ struct ProfileView: View {
         // Universal Link 到达后自动处理邀请码
         .task(id: appContext.pendingInviteCode) {
             guard let code = appContext.consumePendingInviteCode() else { return }
-            // 只在可以接受邀请的状态下自动处理
             let state = appContext.sessionStore.bindingState
             guard state == .singleTrial || state == .unbound else { return }
             await viewModel.acceptInviteByCode(code)
@@ -106,7 +127,6 @@ struct ProfileView: View {
         }
         .onChange(of: viewModel.bindingState) { oldState, newState in
             if oldState != .paired, newState == .paired {
-                // 配对成功反馈
                 let generator = UINotificationFeedbackGenerator()
                 generator.notificationOccurred(.success)
             }
@@ -122,7 +142,25 @@ struct ProfileView: View {
             topChromeProgress = progress
         }
         .animation(.easeOut(duration: 0.18), value: topChromeProgress)
+        .alert("确认退出", isPresented: $showsSignOutAlert) {
+            Button("取消", role: .cancel) {}
+            Button("退出登录", role: .destructive) {
+                Task { await viewModel.signOut() }
+            }
+        } message: {
+            Text("退出后需要重新登录才能使用。")
+        }
+        .alert("清除缓存", isPresented: $showsClearCacheAlert) {
+            Button("取消", role: .cancel) {}
+            Button("清除", role: .destructive) {
+                viewModel.clearCache()
+            }
+        } message: {
+            Text("将清除应用的缓存数据（\(viewModel.cacheSizeString)），不会影响你的任务数据。")
+        }
     }
+
+    // MARK: - Background & Chrome
 
     private var backgroundView: some View {
         AppTheme.colors.background
@@ -144,205 +182,10 @@ struct ProfileView: View {
             .allowsHitTesting(false)
     }
 
-    private var appearanceSection: some View {
-        ProfileSettingsGroupCard(title: "外观") {
-            HStack(spacing: 0) {
-                ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                    let isSelected = appContext.appearanceManager.mode == mode
+    // MARK: - 双人协作
 
-                    Button {
-                        HomeInteractionFeedback.selection()
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                            appContext.appearanceManager.mode = mode
-                        }
-                    } label: {
-                        VStack(spacing: 8) {
-                            Image(systemName: mode.icon)
-                                .font(AppTheme.typography.sized(18, weight: .semibold))
-                                .foregroundStyle(isSelected ? AppTheme.colors.title : AppTheme.colors.textTertiary)
-
-                            Text(mode.title)
-                                .font(AppTheme.typography.sized(13, weight: .semibold))
-                                .foregroundStyle(isSelected ? AppTheme.colors.title : AppTheme.colors.body)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(isSelected ? AppTheme.colors.background : .clear)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(isSelected ? AppTheme.colors.outline : .clear, lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private var executionPreferencesSection: some View {
-        ProfileSettingsGroupCard(title: "执行偏好") {
-            ProfileSettingsRow(
-                title: "临期任务提醒",
-                isOn: Binding(
-                    get: { viewModel.taskReminderEnabled },
-                    set: { viewModel.updateTaskReminderEnabled($0) }
-                )
-            )
-
-            if viewModel.taskReminderEnabled {
-                expandableSelectionRow(
-                    title: "提醒时间",
-                    value: viewModel.taskUrgencySummary,
-                    setting: .taskUrgency
-                ) {
-                    selectionContent(
-                        options: viewModel.taskUrgencyOptions,
-                        selectedValue: viewModel.taskUrgencyWindowMinutes,
-                        label: { viewModel.taskUrgencyLabel(minutes: $0) },
-                        onSelect: { viewModel.updateTaskUrgencyWindow(minutes: $0) },
-                        onCustom: {
-                            HomeInteractionFeedback.selection()
-                            viewModel.presentCustomDurationSheet(.taskUrgency)
-                        }
-                    )
-                }
-                .transition(profileListRowTransition)
-            }
-
-            expandableSelectionRow(
-                title: "默认推迟时间",
-                value: viewModel.defaultSnoozeSummary,
-                setting: .defaultSnooze
-            ) {
-                selectionContent(
-                    options: viewModel.snoozeMinuteOptions,
-                    selectedValue: viewModel.defaultSnoozeMinutes,
-                    label: { viewModel.relativeTimeLabel(minutes: $0) },
-                    onSelect: { viewModel.updateDefaultSnoozeMinutes($0) },
-                    onCustom: {
-                        HomeInteractionFeedback.selection()
-                        viewModel.presentCustomDurationSheet(.defaultSnooze)
-                    }
-                )
-            }
-
-            expandableSelectionRow(
-                title: "双人预设留言",
-                value: viewModel.pairQuickReplyMessages.joined(separator: " / "),
-                setting: .pairQuickReplies
-            ) {
-                ProfileQuickReplyEditor(
-                    initialMessages: viewModel.pairQuickReplyMessages,
-                    onSave: { messages in
-                        HomeInteractionFeedback.selection()
-                        viewModel.updatePairQuickReplyMessages(messages)
-                    }
-                )
-            }
-
-            ProfileSettingsRow(
-                title: "已完成自动归档",
-                isOn: Binding(
-                    get: { viewModel.completedTaskAutoArchiveEnabled },
-                    set: { viewModel.updateCompletedTaskAutoArchiveEnabled($0) }
-                )
-            )
-
-            if viewModel.completedTaskAutoArchiveEnabled {
-                expandableSelectionRow(
-                    title: "归档时间",
-                    value: viewModel.completedArchiveSummary,
-                    setting: .completedArchive
-                ) {
-                    selectionContent(
-                        options: viewModel.completedTaskAutoArchiveOptions,
-                        selectedValue: viewModel.completedTaskAutoArchiveDays,
-                        label: { "\($0)天后" },
-                        onSelect: { viewModel.updateCompletedTaskAutoArchiveDays($0) }
-                    )
-                }
-                .transition(profileListRowTransition)
-            }
-        }
-        .animation(profileListAnimation, value: viewModel.taskReminderEnabled)
-        .animation(profileListAnimation, value: viewModel.completedTaskAutoArchiveEnabled)
-    }
-
-    private var profileListAnimation: Animation {
-        .spring(response: 0.34, dampingFraction: 0.86)
-    }
-
-    private var profileListRowTransition: AnyTransition {
-        .asymmetric(
-            insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.985, anchor: .top)),
-            removal: .move(edge: .top).combined(with: .opacity)
-        )
-    }
-
-    private var historyAndReminderSection: some View {
-        ProfileSettingsGroupCard(title: "历史与提醒") {
-            NavigationLink(value: ProfileRoute.completedHistory) {
-                ProfileSettingsRow(
-                    title: "历史任务",
-                    value: "查看",
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    HomeInteractionFeedback.selection()
-                }
-            )
-
-            if viewModel.notificationAuthorization == .authorized {
-                ProfileSettingsRow(
-                    title: "提醒权限",
-                    value: viewModel.notificationSummary
-                )
-            } else {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    Task {
-                        await viewModel.requestNotifications()
-                    }
-                } label: {
-                    ProfileSettingsRow(
-                        title: "提醒权限",
-                        value: "未开启",
-                        showsChevron: true
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var securitySection: some View {
-        ProfileSettingsGroupCard(title: "安全") {
-            ProfileSettingsRow(
-                title: "应用锁定（\(viewModel.biometricTypeName)）",
-                isOn: Binding(
-                    get: { viewModel.appLockEnabled },
-                    set: { viewModel.updateAppLockEnabled($0) }
-                )
-            )
-
-            if viewModel.appLockEnabled {
-                Text("切到后台时自动锁定，需要\(viewModel.biometricTypeName)或密码解锁")
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.textTertiary)
-                    .padding(.horizontal, 4)
-            }
-        }
-    }
-
-    private var systemAndCollaborationSection: some View {
-        ProfileSettingsGroupCard(title: "系统与协作") {
+    private var collaborationSection: some View {
+        ProfileSettingsGroupCard(title: "双人协作") {
             ProfileSettingsRow(
                 title: "当前工作空间",
                 value: viewModel.spaceSummary
@@ -352,17 +195,6 @@ struct ProfileView: View {
                 title: "双人模式",
                 value: viewModel.collaborationSummary
             )
-
-            Text(viewModel.collaborationDetailText)
-                .font(AppTheme.typography.sized(14, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-                .padding(.horizontal, 4)
-                .padding(.top, 2)
-
-            Text(viewModel.activeModeSummary)
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.textTertiary)
-                .padding(.horizontal, 4)
 
             collaborationActionRow
         }
@@ -463,6 +295,307 @@ struct ProfileView: View {
             }
     }
 
+    // MARK: - 执行偏好
+
+    private var executionPreferencesSection: some View {
+        ProfileSettingsGroupCard(title: "执行偏好") {
+            ProfileSettingsRow(
+                title: "临期任务提醒",
+                isOn: Binding(
+                    get: { viewModel.taskReminderEnabled },
+                    set: { viewModel.updateTaskReminderEnabled($0) }
+                )
+            )
+
+            if viewModel.taskReminderEnabled {
+                expandableSelectionRow(
+                    title: "提醒时间",
+                    value: viewModel.taskUrgencySummary,
+                    setting: .taskUrgency
+                ) {
+                    selectionContent(
+                        options: viewModel.taskUrgencyOptions,
+                        selectedValue: viewModel.taskUrgencyWindowMinutes,
+                        label: { viewModel.taskUrgencyLabel(minutes: $0) },
+                        onSelect: { viewModel.updateTaskUrgencyWindow(minutes: $0) },
+                        onCustom: {
+                            HomeInteractionFeedback.selection()
+                            viewModel.presentCustomDurationSheet(.taskUrgency)
+                        }
+                    )
+                }
+                .transition(profileListRowTransition)
+            }
+
+            expandableSelectionRow(
+                title: "默认推迟时间",
+                value: viewModel.defaultSnoozeSummary,
+                setting: .defaultSnooze
+            ) {
+                selectionContent(
+                    options: viewModel.snoozeMinuteOptions,
+                    selectedValue: viewModel.defaultSnoozeMinutes,
+                    label: { viewModel.relativeTimeLabel(minutes: $0) },
+                    onSelect: { viewModel.updateDefaultSnoozeMinutes($0) },
+                    onCustom: {
+                        HomeInteractionFeedback.selection()
+                        viewModel.presentCustomDurationSheet(.defaultSnooze)
+                    }
+                )
+            }
+
+            expandableSelectionRow(
+                title: "双人预设留言",
+                value: viewModel.pairQuickReplyMessages.joined(separator: " / "),
+                setting: .pairQuickReplies
+            ) {
+                ProfileQuickReplyEditor(
+                    initialMessages: viewModel.pairQuickReplyMessages,
+                    onSave: { messages in
+                        HomeInteractionFeedback.selection()
+                        viewModel.updatePairQuickReplyMessages(messages)
+                    }
+                )
+            }
+
+            ProfileSettingsRow(
+                title: "已完成自动归档",
+                isOn: Binding(
+                    get: { viewModel.completedTaskAutoArchiveEnabled },
+                    set: { viewModel.updateCompletedTaskAutoArchiveEnabled($0) }
+                )
+            )
+
+            if viewModel.completedTaskAutoArchiveEnabled {
+                expandableSelectionRow(
+                    title: "归档时间",
+                    value: viewModel.completedArchiveSummary,
+                    setting: .completedArchive
+                ) {
+                    selectionContent(
+                        options: viewModel.completedTaskAutoArchiveOptions,
+                        selectedValue: viewModel.completedTaskAutoArchiveDays,
+                        label: { "\($0)天后" },
+                        onSelect: { viewModel.updateCompletedTaskAutoArchiveDays($0) }
+                    )
+                }
+                .transition(profileListRowTransition)
+            }
+        }
+        .animation(profileListAnimation, value: viewModel.taskReminderEnabled)
+        .animation(profileListAnimation, value: viewModel.completedTaskAutoArchiveEnabled)
+    }
+
+    // MARK: - 通知与权限
+
+    private var notificationsAndHistorySection: some View {
+        ProfileSettingsGroupCard(title: "通知与权限") {
+            if viewModel.notificationAuthorization == .authorized {
+                ProfileSettingsRow(
+                    title: "提醒权限",
+                    value: "已开启"
+                )
+            } else {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    if viewModel.notificationAuthorization == .denied {
+                        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                            openURL(url)
+                        }
+                    } else {
+                        Task { await viewModel.requestNotifications() }
+                    }
+                } label: {
+                    ProfileSettingsRow(
+                        title: "提醒权限",
+                        value: viewModel.notificationAuthorization == .denied ? "去开启" : "未开启",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            // 统一权限管理入口 → 跳转系统设置
+            Button {
+                HomeInteractionFeedback.selection()
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    openURL(url)
+                }
+            } label: {
+                ProfileSettingsRow(
+                    title: "权限管理",
+                    value: "系统设置",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink(value: ProfileRoute.completedHistory) {
+                ProfileSettingsRow(
+                    title: "历史任务",
+                    value: "查看",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    HomeInteractionFeedback.selection()
+                }
+            )
+        }
+    }
+
+    // MARK: - 安全与隐私
+
+    private var securitySection: some View {
+        ProfileSettingsGroupCard(title: "安全与隐私") {
+            ProfileSettingsRow(
+                title: "应用锁定（\(viewModel.biometricTypeName)）",
+                isOn: Binding(
+                    get: { viewModel.appLockEnabled },
+                    set: { viewModel.updateAppLockEnabled($0) }
+                )
+            )
+
+            if viewModel.appLockEnabled {
+                Text("切到后台时自动锁定，需要\(viewModel.biometricTypeName)或密码解锁")
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.textTertiary)
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    // MARK: - 数据与账号
+
+    private var dataAndAccountSection: some View {
+        ProfileSettingsGroupCard(title: "数据与账号") {
+            // iCloud 同步状态
+            ProfileSettingsRow(
+                title: "iCloud 同步",
+                value: viewModel.iCloudStatusSummary
+            )
+
+            // 会员入口横幅
+            NavigationLink(value: ProfileRoute.subscription) {
+                ProBannerRow()
+            }
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                TapGesture().onEnded { HomeInteractionFeedback.selection() }
+            )
+
+            // 清除缓存
+            Button {
+                HomeInteractionFeedback.selection()
+                showsClearCacheAlert = true
+            } label: {
+                ProfileSettingsRow(
+                    title: "清除缓存",
+                    value: viewModel.cacheSizeString
+                )
+            }
+            .buttonStyle(.plain)
+
+            // 账号注销（合规必备：Apple 5.1.1(v) + 个保法 Art. 47）
+            NavigationLink(value: ProfileRoute.accountDeletion) {
+                ProfileSettingsRow(
+                    title: "账号注销",
+                    value: "",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                TapGesture().onEnded { HomeInteractionFeedback.selection() }
+            )
+        }
+    }
+
+    // MARK: - 关于 Together（跳转子页面）
+
+    private var aboutRow: some View {
+        ProfileSettingsGroupCard(title: "") {
+            NavigationLink(value: ProfileRoute.about) {
+                ProfileSettingsRow(
+                    title: "关于 Together",
+                    value: "v\(viewModel.appVersionString)",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                TapGesture().onEnded { HomeInteractionFeedback.selection() }
+            )
+        }
+    }
+
+    // MARK: - 外观（紧凑样式）
+
+    private var appearanceSection: some View {
+        ProfileSettingsGroupCard(title: "外观") {
+            HStack(spacing: 4) {
+                ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                    let isSelected = appContext.appearanceManager.mode == mode
+
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            appContext.appearanceManager.mode = mode
+                        }
+                    } label: {
+                        Text(mode.title)
+                            .font(AppTheme.typography.sized(13, weight: .semibold))
+                            .foregroundStyle(isSelected ? .white : AppTheme.colors.body)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(isSelected ? AppTheme.colors.sky : .clear)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    // MARK: - 退出登录
+
+    private var signOutFooter: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            showsSignOutAlert = true
+        } label: {
+            Text("退出登录")
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.danger)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(AppTheme.colors.surfaceElevated)
+                )
+                .shadow(color: AppTheme.colors.shadow.opacity(0.14), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .padding(.top, AppTheme.spacing.sm)
+    }
+
+    // MARK: - Helpers
+
+    private var profileListAnimation: Animation {
+        .spring(response: 0.34, dampingFraction: 0.86)
+    }
+
+    private var profileListRowTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.985, anchor: .top)),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
+    }
+
     private func expandableSelectionRow<Content: View>(
         title: String,
         value: String,
@@ -514,6 +647,70 @@ struct ProfileView: View {
         }
     }
 }
+
+// MARK: - Pro Banner
+
+private struct ProBannerRow: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            // 皇冠图标
+            ZStack {
+                Circle()
+                    .fill(.white)
+                    .frame(width: 40, height: 40)
+
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.black)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Together Pro")
+                    .font(AppTheme.typography.sized(17, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Text("升级解锁全部功能")
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.5))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(white: 0.18), Color(white: 0.08)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(
+                    AngularGradient(
+                        colors: [
+                            .purple.opacity(0.5), .blue.opacity(0.4),
+                            .green.opacity(0.3), .yellow.opacity(0.3),
+                            .orange.opacity(0.3), .pink.opacity(0.4),
+                            .purple.opacity(0.5)
+                        ],
+                        center: .center
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+    }
+}
+
+// MARK: - Private Components
 
 private struct ProfileQuickReplyEditor: View {
     let initialMessages: [String]
@@ -674,14 +871,14 @@ private struct ProfileInlineOptionButton: View {
             HStack(spacing: 12) {
                 Text(title)
                     .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.title)
+                    .foregroundStyle(isSelected ? AppTheme.colors.sky : AppTheme.colors.title)
 
                 Spacer()
 
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(AppTheme.typography.sized(13, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.profileAccent)
+                        .foregroundStyle(AppTheme.colors.sky)
                 }
             }
             .padding(.horizontal, 14)
@@ -689,11 +886,7 @@ private struct ProfileInlineOptionButton: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        isSelected
-                        ? AppTheme.colors.profileAccentSoft
-                        : AppTheme.colors.backgroundSoft.opacity(0.92)
-                    )
+                    .fill(isSelected ? AppTheme.colors.sky.opacity(0.1) : .clear)
             )
         }
         .buttonStyle(.plain)

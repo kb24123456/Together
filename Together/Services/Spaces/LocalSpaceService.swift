@@ -18,13 +18,26 @@ actor LocalSpaceService: SpaceServiceProtocol {
         let pairSpaceRecords = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
         let membershipRecords = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
 
-        let singleSpace = spaceRecords
+        var singleSpace = spaceRecords
             .map(\.domainModel)
             .first { space in
                 guard space.type == .single, space.status != .archived else { return false }
                 guard let userID else { return true }
                 return space.ownerUserID == userID
             }
+
+        // If no matching single space found but an orphaned single space exists,
+        // claim it for the current user (fixes seed-data ownerUserID mismatch).
+        if singleSpace == nil, let userID {
+            if let orphanedRecord = spaceRecords.first(where: {
+                $0.domainModel.type == .single && $0.domainModel.status != .archived
+            }) {
+                orphanedRecord.ownerUserID = userID
+                orphanedRecord.updatedAt = .now
+                try? context.save()
+                singleSpace = orphanedRecord.domainModel
+            }
+        }
 
         let pairSummary: PairSpaceSummary? = {
             guard let userID else { return nil }
