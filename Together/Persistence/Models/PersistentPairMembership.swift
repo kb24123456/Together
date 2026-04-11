@@ -8,19 +8,25 @@ final class PersistentPairMembership {
     var userID: UUID
     var nickname: String
     var joinedAt: Date
+    var avatarSystemName: String?
+    var avatarPhotoFileName: String?
 
     init(
         id: UUID = UUID(),
         pairSpaceID: UUID,
         userID: UUID,
         nickname: String,
-        joinedAt: Date
+        joinedAt: Date,
+        avatarSystemName: String? = nil,
+        avatarPhotoFileName: String? = nil
     ) {
         self.id = id
         self.pairSpaceID = pairSpaceID
         self.userID = userID
         self.nickname = nickname
         self.joinedAt = joinedAt
+        self.avatarSystemName = avatarSystemName
+        self.avatarPhotoFileName = avatarPhotoFileName
     }
 }
 

@@ -45,7 +45,8 @@ actor LocalSpaceService: SpaceServiceProtocol {
                     id: $0.userID,
                     appleUserID: nil,
                     displayName: $0.nickname,
-                    avatarSystemName: "person.crop.circle.fill",
+                    avatarSystemName: $0.avatarSystemName ?? "person.crop.circle.fill",
+                    avatarPhotoFileName: $0.avatarPhotoFileName,
                     createdAt: $0.joinedAt,
                     updatedAt: $0.joinedAt,
                     preferences: NotificationSettings(

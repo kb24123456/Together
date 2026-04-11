@@ -308,13 +308,13 @@ final class AppContext {
         Task {
             // 构建 profile payload
             var avatarBase64: String?
-            #if canImport(UIKit)
-            if let fileName = user.avatarPhotoFileName,
-               let image = UserAvatarRuntimeStore.image(for: fileName),
-               let jpegData = image.jpegData(compressionQuality: 0.7) {
-                avatarBase64 = jpegData.base64EncodedString()
+            if let fileName = user.avatarPhotoFileName {
+                // 优先从磁盘读取原始数据，避免依赖 NSCache（app 启动后 cache 可能为空）
+                let avatarStore = LocalUserAvatarMediaStore()
+                if let diskData = try? avatarStore.avatarData(named: fileName) {
+                    avatarBase64 = diskData.base64EncodedString()
+                }
             }
-            #endif
 
             let payload = CloudKitProfileRecordCodec.MemberProfilePayload(
                 userID: user.id,

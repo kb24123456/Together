@@ -93,13 +93,24 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
             }
         }
 
-        // 更新用户 Profile 头像信息（对方的 avatar 数据）
-        if let avatarBase64 = profile.avatarPhotoBase64, !avatarBase64.isEmpty {
-            let profiles = (try? context.fetch(FetchDescriptor<PersistentUserProfile>())) ?? []
-            // 如果本地没有对方的 profile 记录，不需要更新（对方头像通过 membership 展示）
-            for existingProfile in profiles where existingProfile.userID == profile.userID {
-                existingProfile.avatarSystemName = profile.avatarSystemName
+        // 更新 membership 的头像字段，并将对方头像图片写入磁盘
+        let avatarStore = LocalUserAvatarMediaStore()
+        let canonicalFileName = avatarStore.canonicalFileName(for: profile.userID)
+
+        for membership in memberships where membership.userID == profile.userID {
+            // 更新 SF Symbol 头像名
+            if membership.avatarSystemName != profile.avatarSystemName {
+                membership.avatarSystemName = profile.avatarSystemName
                 didChange = true
+            }
+            // 写入照片头像到磁盘
+            if let avatarBase64 = profile.avatarPhotoBase64, !avatarBase64.isEmpty,
+               let imageData = Data(base64Encoded: avatarBase64) {
+                try? avatarStore.persistAvatarData(imageData, fileName: canonicalFileName)
+                if membership.avatarPhotoFileName != canonicalFileName {
+                    membership.avatarPhotoFileName = canonicalFileName
+                    didChange = true
+                }
             }
         }
 
