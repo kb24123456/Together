@@ -153,7 +153,19 @@ actor CloudKitSyncGateway: CloudSyncGatewayProtocol {
             throw CloudKitSyncGatewayError.missingConfiguration
         }
         let record = CloudKitProfileRecordCodec.makeRecord(from: payload)
-        _ = try await database.save(record)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let op = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+            op.savePolicy = .changedKeys
+            op.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            database.add(op)
+        }
         #if DEBUG
         print("[Sync:PushProfile] ✅ Pushed profile for userID=\(payload.userID.uuidString.prefix(8))")
         #endif
