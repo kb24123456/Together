@@ -81,7 +81,6 @@ struct CalendarView: View {
         .navigationTitle("日历")
         .toolbar(showsNavigationChrome ? .visible : .hidden, for: .navigationBar)
         .task {
-            guard viewModel.loadState == .idle else { return }
             await viewModel.load()
         }
     }

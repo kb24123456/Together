@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import SwiftData
 
 enum MockServiceFactory {
     @MainActor
@@ -11,7 +12,11 @@ enum MockServiceFactory {
         let reminderScheduler = MockReminderScheduler()
         let placeholderGateway = PlaceholderCloudSyncGateway()
         let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
-        let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository)
+        let mockModelContainer = try! ModelContainer(
+            for: PersistentPairMembership.self, PersistentPairSpace.self, PersistentUserProfile.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository, modelContainer: mockModelContainer)
         let syncOrchestrator = DefaultSyncOrchestrator(
             syncCoordinator: syncCoordinator,
             cloudGateway: placeholderGateway,

@@ -5,6 +5,7 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
     case taskList
     case project
     case space
+    case memberProfile
 }
 
 enum SyncOperationKind: String, Codable, Hashable, Sendable {

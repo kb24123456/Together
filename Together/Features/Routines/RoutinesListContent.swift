@@ -43,6 +43,9 @@ struct RoutinesListContent: View {
         .task {
             await viewModel.load()
         }
+        .task(id: appContext.sessionStore.activeMode) {
+            await viewModel.reload()
+        }
     }
 
     private var routinesEmptyState: some View {

@@ -577,7 +577,7 @@ struct AvatarCropperView: View {
     }
 }
 
-private struct CameraCaptureView: UIViewControllerRepresentable {
+struct CameraCaptureView: UIViewControllerRepresentable {
     let token: UUID
     let onCapture: (UIImage?) -> Void
     let onCancel: () -> Void

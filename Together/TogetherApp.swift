@@ -90,6 +90,10 @@ struct TogetherApp: App {
                         Task { await appContext.syncPairSpaceIfNeeded() }
                     }
                 }
+                .onChange(of: appBootstrapper.appContext?.sessionStore.userProfileRevision) { _, _ in
+                    // 用户 profile 变更后，同步到 CloudKit
+                    appBootstrapper.appContext?.syncProfileToCloud()
+                }
                 .onChange(of: appBootstrapper.appContext?.sessionStore.pairSpaceSummary) { _, _ in
                     // pairSpaceSummary 到位后（可能晚于 activeMode 变化），重新评估轮询状态
                     guard let appContext = appBootstrapper.appContext,

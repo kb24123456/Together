@@ -147,11 +147,11 @@ final class ProfileViewModel {
         guard var space = sessionStore.currentPairSpace else { return }
         space.displayName = newName.isEmpty ? nil : newName
         sessionStore.pairSpaceSummary?.pairSpace = space
-        // 通过 pairingService 保存 — 但现在先直接更新 SessionStore
-        // PairSpace 的 displayName 是本地字段，不需要同步到 CloudKit
         Task {
             await pairingService.updatePairSpaceDisplayName(pairSpaceID: space.id, displayName: newName.isEmpty ? nil : newName)
         }
+        // 触发 profile sync 将新空间名同步到伙伴
+        sessionStore.userProfileRevision = UUID()
     }
 
     /// 获取配对的对方成员

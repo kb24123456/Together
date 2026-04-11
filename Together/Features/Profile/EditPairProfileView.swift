@@ -63,11 +63,34 @@ struct EditPairProfileView: View {
                 .disabled(isSaveDisabled)
             }
         }
-        .alert("放弃修改？", isPresented: $showsDiscardAlert) {
-            Button("继续编辑", role: .cancel) {}
-            Button("放弃", role: .destructive) { dismiss() }
+        .alert("放弃未保存的修改？", isPresented: $showsDiscardAlert) {
+            Button("继续编辑", role: .cancel) {
+                HomeInteractionFeedback.selection()
+            }
+            Button("放弃修改", role: .destructive) {
+                HomeInteractionFeedback.selection()
+                dismiss()
+            }
         } message: {
-            Text("你有未保存的修改，确定要放弃吗？")
+            Text("你对头像或名称的修改尚未保存。")
+        }
+        .alert(
+            "无法完成操作",
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.clearError()
+                    }
+                }
+            )
+        ) {
+            Button("知道了", role: .cancel) {
+                HomeInteractionFeedback.selection()
+                viewModel.clearError()
+            }
+        } message: {
+            Text(viewModel.errorMessage ?? "")
         }
         .onChange(of: selectedPhotoItem) { _, item in
             guard let item else { return }
@@ -99,6 +122,26 @@ struct EditPairProfileView: View {
                 )
             }
         }
+        .fullScreenCover(isPresented: $viewModel.showsCameraPicker) {
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                CameraCaptureView(
+                    token: cameraCaptureToken,
+                    onCapture: { image in
+                        viewModel.receiveCapturedPhoto(image)
+                    },
+                    onCancel: {
+                        viewModel.showsCameraPicker = false
+                    }
+                )
+                .ignoresSafeArea()
+                .background(Color.black)
+            }
+            .background(Color.black)
+            .ignoresSafeArea()
+        }
         .onAppear {
             editableSpaceName = spaceName
         }
@@ -108,28 +151,18 @@ struct EditPairProfileView: View {
 
     /// 双人头像区域：左侧自己（可编辑），右侧对方（只读）
     private var avatarPairSection: some View {
-        VStack(alignment: .center, spacing: 16) {
+        VStack(spacing: AppTheme.spacing.md) {
             HStack(alignment: .center, spacing: 24) {
                 // 自己的头像（可编辑）
                 VStack(spacing: 8) {
-                    ZStack(alignment: .bottomTrailing) {
-                        UserAvatarView(
-                            avatarAsset: viewModel.previewAvatarAsset,
-                            displayName: viewModel.displayName,
-                            size: 96,
-                            fillColor: AppTheme.colors.avatarWarm,
-                            symbolColor: AppTheme.colors.title.opacity(0.82),
-                            symbolFont: AppTheme.typography.sized(28, weight: .semibold),
-                            overrideImage: viewModel.previewUIImage
-                        )
-                        .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 8, y: 4)
+                    ZStack {
+                        Circle()
+                            .fill(AppTheme.colors.surfaceElevated)
+                            .frame(width: 116, height: 116)
 
-                        // 编辑徽章
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(AppTheme.colors.coral)
-                            .background(Circle().fill(AppTheme.colors.surfaceElevated).frame(width: 22, height: 22))
+                        myAvatarPreview
                     }
+                    .shadow(color: AppTheme.colors.shadow.opacity(0.14), radius: 14, y: 6)
 
                     Text("我")
                         .font(AppTheme.typography.sized(12, weight: .semibold))
@@ -142,16 +175,22 @@ struct EditPairProfileView: View {
 
                 // 对方的头像（只读）
                 VStack(spacing: 8) {
-                    UserAvatarView(
-                        avatarAsset: partnerAvatar.avatarAsset,
-                        displayName: partnerAvatar.displayName,
-                        size: 96,
-                        fillColor: AppTheme.colors.avatarNeutral,
-                        symbolColor: AppTheme.colors.title.opacity(0.82),
-                        symbolFont: AppTheme.typography.sized(28, weight: .semibold),
-                        overrideImage: nil
-                    )
-                    .shadow(color: AppTheme.colors.shadow.opacity(0.12), radius: 6, y: 3)
+                    ZStack {
+                        Circle()
+                            .fill(AppTheme.colors.surfaceElevated)
+                            .frame(width: 116, height: 116)
+
+                        UserAvatarView(
+                            avatarAsset: partnerAvatar.avatarAsset,
+                            displayName: partnerAvatar.displayName,
+                            size: 104,
+                            fillColor: AppTheme.colors.avatarNeutral,
+                            symbolColor: AppTheme.colors.title.opacity(0.82),
+                            symbolFont: AppTheme.typography.sized(36, weight: .semibold),
+                            overrideImage: nil
+                        )
+                    }
+                    .shadow(color: AppTheme.colors.shadow.opacity(0.12), radius: 14, y: 6)
                     .opacity(0.8)
 
                     Text("TA")
@@ -161,52 +200,141 @@ struct EditPairProfileView: View {
             }
             .frame(maxWidth: .infinity)
 
-            // 头像操作按钮
-            HStack(spacing: 16) {
-                PhotosPicker(
-                    selection: $selectedPhotoItem,
-                    matching: .images,
-                    photoLibrary: .shared()
-                ) {
-                    Label("更换头像", systemImage: "photo")
-                        .font(AppTheme.typography.sized(13, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.coral)
+            // 头像操作按钮（与单人模式一致的 capsule 样式）
+            HStack(spacing: AppTheme.spacing.md) {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    Text("相册选择")
+                        .font(AppTheme.typography.textStyle(.body, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
                 }
+                .buttonStyle(.plain)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        HomeInteractionFeedback.selection()
+                    }
+                )
 
-                if viewModel.canRemovePhoto {
-                    Button {
-                        viewModel.removePhoto()
-                    } label: {
-                        Label("移除照片", systemImage: "xmark.circle")
-                            .font(AppTheme.typography.sized(13, weight: .medium))
-                            .foregroundStyle(AppTheme.colors.body.opacity(0.5))
+                Button("拍照") {
+                    HomeInteractionFeedback.selection()
+                    cameraCaptureToken = UUID()
+                    Task {
+                        await viewModel.handleCameraTapped()
                     }
                 }
+                .font(AppTheme.typography.textStyle(.body, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
+            }
+
+            if let cameraErrorMessage = viewModel.cameraErrorMessage {
+                HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
+                    Text(cameraErrorMessage)
+                        .font(AppTheme.typography.textStyle(.footnote))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.82))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if viewModel.shouldShowCameraSettingsAction {
+                        Button("去设置") {
+                            HomeInteractionFeedback.selection()
+                            viewModel.openSystemSettings()
+                        }
+                        .font(AppTheme.typography.textStyle(.footnote, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title)
+                    } else {
+                        Button("知道了") {
+                            HomeInteractionFeedback.selection()
+                            viewModel.clearCameraError()
+                        }
+                        .font(AppTheme.typography.textStyle(.footnote, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title)
+                    }
+                }
+                .padding(.horizontal, AppTheme.spacing.md)
+                .padding(.vertical, AppTheme.spacing.sm)
+                .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+
+            if viewModel.canRemovePhoto {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    viewModel.removePhoto()
+                } label: {
+                    Text("移除照片")
+                        .font(AppTheme.typography.textStyle(.body, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.danger)
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.top, AppTheme.spacing.md)
+    }
+
+    @ViewBuilder
+    private var myAvatarPreview: some View {
+        #if canImport(UIKit)
+        if let image = viewModel.previewUIImage {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 104, height: 104)
+                .clipShape(Circle())
+        } else {
+            UserAvatarView(
+                avatarAsset: viewModel.previewAvatarAsset,
+                displayName: viewModel.displayName,
+                size: 104,
+                fillColor: AppTheme.colors.avatarWarm,
+                symbolColor: AppTheme.colors.title.opacity(0.82),
+                symbolFont: AppTheme.typography.sized(36, weight: .semibold)
+            )
+        }
+        #else
+        UserAvatarView(
+            avatarAsset: viewModel.previewAvatarAsset,
+            displayName: viewModel.displayName,
+            size: 104,
+            fillColor: AppTheme.colors.avatarWarm,
+            symbolColor: AppTheme.colors.title.opacity(0.82),
+            symbolFont: AppTheme.typography.sized(36, weight: .semibold)
+        )
+        #endif
     }
 
     private var nameSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Text("我的昵称")
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.7))
+                .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
 
             TextField("输入你的名字", text: $viewModel.displayName)
-                .font(AppTheme.typography.sized(16, weight: .medium))
-                .textFieldStyle(.roundedBorder)
+                .font(AppTheme.typography.textStyle(.title3, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .padding(.horizontal, AppTheme.spacing.md)
+                .padding(.vertical, 16)
+                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             if let message = viewModel.nameValidationMessage {
                 Text(message)
-                    .font(AppTheme.typography.sized(12, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.coral)
+                    .font(AppTheme.typography.textStyle(.footnote))
+                    .foregroundStyle(viewModel.isNameValid ? AppTheme.colors.body : AppTheme.colors.danger)
+            } else {
+                Text("最多 20 个字符")
+                    .font(AppTheme.typography.textStyle(.footnote))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.7))
             }
 
             HStack(spacing: 8) {
                 Text("对方昵称")
-                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.7))
+                    .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
                 Image(systemName: "lock.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.3))
@@ -214,31 +342,33 @@ struct EditPairProfileView: View {
             .padding(.top, AppTheme.spacing.md)
 
             Text(partnerName)
-                .font(AppTheme.typography.sized(16, weight: .medium))
+                .font(AppTheme.typography.textStyle(.title3, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.5))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.horizontal, AppTheme.spacing.md)
+                .padding(.vertical, 16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(AppTheme.colors.background.opacity(0.6))
-                )
+                .background(AppTheme.colors.surfaceElevated.opacity(0.6), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
     }
 
     private var spaceNameSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Text("共享空间名称")
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.7))
+                .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
 
             TextField("一起的任务空间", text: $editableSpaceName)
-                .font(AppTheme.typography.sized(16, weight: .medium))
-                .textFieldStyle(.roundedBorder)
+                .font(AppTheme.typography.textStyle(.title3, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .padding(.horizontal, AppTheme.spacing.md)
+                .padding(.vertical, 16)
+                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             Text("为你们的共享空间取一个名字吧")
-                .font(AppTheme.typography.sized(12, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.4))
+                .font(AppTheme.typography.textStyle(.footnote))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.7))
         }
     }
 

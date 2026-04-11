@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import Observation
+import UIKit
 import UserNotifications
 
 @MainActor
@@ -231,9 +232,16 @@ final class AppContext {
 
     /// 同步后刷新所有相关 ViewModel 的数据，并检测对方发来的催促提醒
     func reloadAfterSync() async {
-        // 记录刷新前的催促时间戳，用于检测新催促
+        // 在 reload 前，用仓库获取所有活跃任务的催促时间戳
+        let spaceID = sessionStore.currentSpace?.id
+        let previousItems: [Item]
+        if let spaceID {
+            previousItems = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
+        } else {
+            previousItems = []
+        }
         let previousReminders: [UUID: Date] = Dictionary(
-            uniqueKeysWithValues: homeViewModel.items
+            uniqueKeysWithValues: previousItems
                 .compactMap { item -> (UUID, Date)? in
                     guard let reminderAt = item.reminderRequestedAt else { return nil }
                     return (item.id, reminderAt)
@@ -242,9 +250,22 @@ final class AppContext {
 
         await homeViewModel.reload()
 
-        // 检测新到达的催促提醒（对方发来的）
+        // 刷新 pairing context 以获取伙伴最新 profile（昵称、空间名等）
+        if let userID = sessionStore.currentUser?.id {
+            let updatedPairingCtx = await container.pairingService.currentPairingContext(for: userID)
+            let updatedSpaceCtx = await container.spaceService.currentSpaceContext(for: userID)
+            sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
+        }
+
+        // 检测新到达的催促提醒（对方发来的）——检查所有活跃任务，不仅是当前页面
         let currentUserID = sessionStore.currentUser?.id
-        for item in homeViewModel.items {
+        let allItems: [Item]
+        if let spaceID {
+            allItems = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
+        } else {
+            allItems = []
+        }
+        for item in allItems {
             guard let reminderAt = item.reminderRequestedAt else { continue }
             let previousDate = previousReminders[item.id]
             // 催促时间是新的（之前没有或更新了），且不是自己发的
@@ -253,7 +274,7 @@ final class AppContext {
                     // 对方催促我：我是被指派者
                     await scheduleReminderNotification(for: item, message: "催你完成任务啦！")
                 } else if item.creatorID == currentUserID && item.assigneeMode == .partner {
-                    // 对方催促：我是创建者，对方是执行者
+                    // 我创建的任务，对方催促
                     await scheduleReminderNotification(for: item, message: "对方催你确认任务啦！")
                 }
             }
@@ -275,6 +296,49 @@ final class AppContext {
         try? await UNUserNotificationCenter.current().add(request)
     }
 
+    /// 同步当前用户的 profile 到 CloudKit（头像、昵称、空间名）
+    func syncProfileToCloud() {
+        guard sessionStore.activeMode == .pair,
+              let user = sessionStore.currentUser,
+              let spaceID = sessionStore.pairSpaceSummary?.sharedSpace.id
+        else { return }
+
+        let pairSpaceDisplayName = sessionStore.currentPairSpace?.displayName
+
+        Task {
+            // 构建 profile payload
+            var avatarBase64: String?
+            #if canImport(UIKit)
+            if let fileName = user.avatarPhotoFileName,
+               let image = UserAvatarRuntimeStore.image(for: fileName),
+               let jpegData = image.jpegData(compressionQuality: 0.7) {
+                avatarBase64 = jpegData.base64EncodedString()
+            }
+            #endif
+
+            let payload = CloudKitProfileRecordCodec.MemberProfilePayload(
+                userID: user.id,
+                spaceID: spaceID,
+                displayName: user.displayName,
+                avatarSystemName: user.avatarSystemName,
+                avatarPhotoBase64: avatarBase64,
+                pairSpaceDisplayName: pairSpaceDisplayName,
+                updatedAt: .now
+            )
+
+            do {
+                try await container.cloudGateway.pushProfile(payload)
+                #if DEBUG
+                print("[Sync] ✅ Profile synced for \(user.displayName)")
+                #endif
+            } catch {
+                #if DEBUG
+                print("[Sync] ❌ Profile sync failed: \(error)")
+                #endif
+            }
+        }
+    }
+
     /// 推送本地已有任务到 CloudKit（配对成功后调用）
     func pushExistingTasksToCloud(spaceID: UUID) async {
         let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
@@ -289,6 +353,8 @@ final class AppContext {
             )
         }
         _ = try? await container.syncOrchestrator.sync(spaceID: spaceID)
+        // 配对后立即同步 profile
+        syncProfileToCloud()
     }
 
     /// 配置所有同步相关回调

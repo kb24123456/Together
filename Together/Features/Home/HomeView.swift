@@ -178,7 +178,14 @@ struct HomeView: View {
     private var headerSection: some View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
             VStack(alignment: .leading, spacing: 6) {
-                headerTitle(compact: isOverlayModeActive)
+                HStack(alignment: .center, spacing: 8) {
+                    headerTitle(compact: isOverlayModeActive)
+
+                    if !isOverlayModeActive, isTodayJumpButtonVisible {
+                        todayJumpButton
+                            .transition(todayJumpTransition)
+                    }
+                }
 
                 if !isOverlayModeActive {
                     spaceModeLine
@@ -196,7 +203,7 @@ struct HomeView: View {
 
             Spacer(minLength: 0)
 
-            headerControls(compact: isOverlayModeActive)
+            headerAvatarButton(compact: isOverlayModeActive)
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
@@ -234,34 +241,18 @@ struct HomeView: View {
         }
     }
 
-    private func headerControls(compact: Bool) -> some View {
-        headerAvatarButton(compact: compact)
-            .overlay(alignment: .trailing) {
-                if compact == false, isTodayJumpButtonVisible {
-                    todayJumpButton
-                        .transition(todayJumpTransition)
-                        .padding(.top, 8)
-                        .fixedSize()
-                        .offset(x: -52)
-                }
-            }
-    }
-
     private func headerTopRow(compact: Bool) -> some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             headerTitle(compact: compact)
 
+            if !compact, isTodayJumpButtonVisible {
+                todayJumpButton
+                    .transition(todayJumpTransition)
+            }
+
             Spacer(minLength: 0)
 
             headerAvatarButton(compact: compact)
-                .overlay(alignment: .trailing) {
-                    if compact == false, isTodayJumpButtonVisible {
-                        todayJumpButton
-                            .transition(todayJumpTransition)
-                            .fixedSize()
-                            .offset(x: -52)
-                    }
-                }
         }
         .frame(minHeight: compact ? 40 : 52, alignment: .center)
     }
@@ -678,11 +669,9 @@ struct HomeView: View {
 
     private var todayJumpTransition: AnyTransition {
         .asymmetric(
-            insertion: .move(edge: .trailing)
-                .combined(with: .scale(scale: 0.96, anchor: .trailing))
+            insertion: .scale(scale: 0.9, anchor: .leading)
                 .combined(with: .opacity),
-            removal: .move(edge: .trailing)
-                .combined(with: .scale(scale: 0.98, anchor: .trailing))
+            removal: .scale(scale: 0.95, anchor: .leading)
                 .combined(with: .opacity)
         )
     }
@@ -2342,11 +2331,21 @@ private struct PairTimelineCard: View {
     }
 
     private var subtitleLine: some View {
-        Text(subtitleText)
-            .font(AppTheme.typography.sized(14, weight: .medium))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.62))
-            .lineLimit(1)
-            .minimumScaleFactor(0.84)
+        VStack(alignment: .leading, spacing: 4) {
+            if let notes = entry.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
+               notes.isEmpty == false {
+                Text(notes)
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.84)
+            }
+            Text(subtitleText)
+                .font(AppTheme.typography.sized(14, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
+        }
     }
 
     @ViewBuilder
@@ -2427,6 +2426,8 @@ private struct PairTimelineCard: View {
     }
 
     /// 催促对方的小按钮（30 秒冷却）
+    @State private var reminderShakeCount = 0
+
     private var reminderButton: some View {
         let isOnCooldown: Bool = {
             guard let lastReminder = entry.reminderRequestedAt else { return false }
@@ -2434,12 +2435,16 @@ private struct PairTimelineCard: View {
         }()
 
         return Button {
-            HomeInteractionFeedback.selection()
+            // 强震动反馈
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.warning)
+            reminderShakeCount += 1
             onSendReminder()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "bell.badge")
                     .font(.system(size: 12, weight: .semibold))
+                    .symbolEffect(.bounce.byLayer, value: reminderShakeCount)
                 Text("催一下")
                     .font(AppTheme.typography.sized(12, weight: .semibold))
             }
@@ -2507,9 +2512,6 @@ private struct PairTimelineCard: View {
     }
 
     private var fallbackMessageText: String {
-        if let notes = entry.notes?.trimmingCharacters(in: .whitespacesAndNewlines), notes.isEmpty == false {
-            return notes
-        }
         if let responseStateText = entry.responseStateText, responseStateText.isEmpty == false {
             return responseStateText
         }

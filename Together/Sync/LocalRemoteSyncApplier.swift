@@ -1,10 +1,13 @@
 import Foundation
+import SwiftData
 
 actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
     private let itemRepository: ItemRepositoryProtocol
+    private let modelContainer: ModelContainer
 
-    init(itemRepository: ItemRepositoryProtocol) {
+    init(itemRepository: ItemRepositoryProtocol, modelContainer: ModelContainer) {
         self.itemRepository = itemRepository
+        self.modelContainer = modelContainer
     }
 
     func apply(_ payload: RemoteSyncPayload, in spaceID: UUID, localPendingRecordIDs: Set<UUID> = []) async throws -> Int {
@@ -51,7 +54,62 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
             #endif
         }
 
+        // ── Apply remote member profile updates ──
+        for profile in payload.memberProfiles {
+            let didApply = applyProfileUpdate(profile, in: spaceID)
+            if didApply { applied += 1 }
+        }
+
         return applied
+    }
+
+    // MARK: - Profile Apply
+
+    /// 将远程 profile 更新应用到本地 PairMembership（昵称）和 PairSpace（displayName）
+    private func applyProfileUpdate(
+        _ profile: CloudKitProfileRecordCodec.MemberProfilePayload,
+        in spaceID: UUID
+    ) -> Bool {
+        let context = ModelContext(modelContainer)
+        var didChange = false
+
+        // 更新 PairMembership 的 nickname
+        let memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
+        for membership in memberships where membership.userID == profile.userID {
+            if membership.nickname != profile.displayName {
+                membership.nickname = profile.displayName
+                didChange = true
+            }
+        }
+
+        // 更新 PairSpace 的 displayName（如果 profile 携带了最新值）
+        if let newDisplayName = profile.pairSpaceDisplayName {
+            let pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+            for pairSpace in pairSpaces where pairSpace.sharedSpaceID == spaceID {
+                if pairSpace.displayName != newDisplayName {
+                    pairSpace.displayName = newDisplayName.isEmpty ? nil : newDisplayName
+                    didChange = true
+                }
+            }
+        }
+
+        // 更新用户 Profile 头像信息（对方的 avatar 数据）
+        if let avatarBase64 = profile.avatarPhotoBase64, !avatarBase64.isEmpty {
+            let profiles = (try? context.fetch(FetchDescriptor<PersistentUserProfile>())) ?? []
+            // 如果本地没有对方的 profile 记录，不需要更新（对方头像通过 membership 展示）
+            for existingProfile in profiles where existingProfile.userID == profile.userID {
+                existingProfile.avatarSystemName = profile.avatarSystemName
+                didChange = true
+            }
+        }
+
+        if didChange {
+            try? context.save()
+            #if DEBUG
+            print("[Sync:Apply] 👤 Updated profile for userID=\(profile.userID.uuidString.prefix(8))")
+            #endif
+        }
+        return didChange
     }
 
     // MARK: - Field-Level Merge

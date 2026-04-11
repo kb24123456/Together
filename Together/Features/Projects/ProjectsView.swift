@@ -80,6 +80,7 @@ struct ProjectsListContent: View {
         .onChange(of: isPresented) { _, presented in
             if presented {
                 applyEntryExpansionIfNeeded()
+                Task { await viewModel.load() }
             } else {
                 hasAppliedEntryExpansion = false
                 editingProjectID = nil

@@ -40,7 +40,7 @@ enum LocalServiceFactory {
         let itemRepository = LocalItemRepository(container: modelContainer)
         let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
         let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
-        let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository)
+        let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository, modelContainer: modelContainer)
         let syncOrchestrator = DefaultSyncOrchestrator(
             syncCoordinator: syncCoordinator,
             cloudGateway: cloudGateway,
