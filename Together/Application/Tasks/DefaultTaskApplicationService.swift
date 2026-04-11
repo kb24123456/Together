@@ -357,6 +357,10 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.latestResponse = nil
         item.responseHistory = []
         item.assignmentMessages.removeAll { $0.authorID != actorID }
+        // 添加"再次发送"系统消息，让对方看到有意义的上下文
+        item.assignmentMessages.append(
+            TaskAssignmentMessage(authorID: actorID, body: "再次发送了这个任务", createdAt: .now)
+        )
         item.lastActionByUserID = actorID
         item.lastActionAt = .now
         item.updatedAt = .now
@@ -388,6 +392,35 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         )
         item.lastActionByUserID = actorID
         item.lastActionAt = .now
+        item.updatedAt = .now
+
+        let saved = try await itemRepository.saveItem(item)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .task,
+                operation: .upsert,
+                recordID: saved.id,
+                spaceID: spaceID
+            )
+        )
+        return saved
+    }
+
+    func sendReminderToPartner(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item {
+        var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard item.assigneeMode == .partner else { throw RepositoryError.notFound }
+
+        // 冷却检查：30 秒内不允许重复催促
+        if let lastReminder = item.reminderRequestedAt,
+           Date.now.timeIntervalSince(lastReminder) < 30 {
+            return item
+        }
+
+        item.reminderRequestedAt = .now
         item.updatedAt = .now
 
         let saved = try await itemRepository.saveItem(item)

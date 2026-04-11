@@ -31,6 +31,7 @@ final class PersistentItem {
     var isArchived: Bool
     var archivedAt: Date?
     var repeatRuleData: Data?
+    var reminderRequestedAt: Date?
 
     init(
         id: UUID,
@@ -60,7 +61,8 @@ final class PersistentItem {
         isDraft: Bool,
         isArchived: Bool,
         archivedAt: Date?,
-        repeatRuleData: Data?
+        repeatRuleData: Data?,
+        reminderRequestedAt: Date? = nil
     ) {
         self.id = id
         self.spaceID = spaceID
@@ -90,6 +92,7 @@ final class PersistentItem {
         self.isArchived = isArchived
         self.archivedAt = archivedAt
         self.repeatRuleData = repeatRuleData
+        self.reminderRequestedAt = reminderRequestedAt
     }
 }
 
@@ -123,7 +126,8 @@ extension PersistentItem {
             isDraft: item.isDraft,
             isArchived: item.isArchived,
             archivedAt: item.archivedAt,
-            repeatRuleData: Self.encode(item.repeatRule)
+            repeatRuleData: Self.encode(item.repeatRule),
+            reminderRequestedAt: item.reminderRequestedAt
         )
     }
 
@@ -158,7 +162,8 @@ extension PersistentItem {
             isDraft: isDraft,
             isArchived: isArchived,
             archivedAt: archivedAt,
-            repeatRule: Self.decode(repeatRuleData, defaultValue: nil)
+            repeatRule: Self.decode(repeatRuleData, defaultValue: nil),
+            reminderRequestedAt: reminderRequestedAt
         )
     }
 
@@ -188,6 +193,7 @@ extension PersistentItem {
         isArchived = item.isArchived
         archivedAt = item.archivedAt
         repeatRuleData = Self.encode(item.repeatRule)
+        reminderRequestedAt = item.reminderRequestedAt
     }
 
     private static func encode<T: Encodable>(_ value: T?) -> Data? {

@@ -6,6 +6,7 @@ final class AppBootstrapper {
     enum Phase: Equatable {
         case idle
         case bootstrapping
+        case needsAuth
         case ready
     }
 
@@ -26,10 +27,31 @@ final class AppBootstrapper {
         await Task.yield()
         StartupTrace.mark("AppBootstrapper.bootstrap.afterYield")
 
-        let appContext = AppContext.makeBootstrappedContext()
-        await appContext.restorePersistedUserProfileIfNeeded()
+        let appContext = AppContext.makeContext()
         self.appContext = appContext
+
+        await appContext.bootstrapIfNeeded()
+
+        if appContext.sessionStore.authState == .signedIn {
+            phase = .ready
+        } else {
+            phase = .needsAuth
+        }
+        StartupTrace.mark("AppBootstrapper.bootstrap.phaseResolved=\(phase)")
+    }
+
+    func handleSignIn(session: AuthSession) async {
+        guard let appContext else { return }
+        appContext.sessionStore.handleSignIn(session: session)
+
+        // Set up spaces for a newly signed-in user
+        await appContext.setupSpacesForCurrentUserIfNeeded()
+        await appContext.restorePersistedUserProfileIfNeeded()
         phase = .ready
-        StartupTrace.mark("AppBootstrapper.bootstrap.ready")
+        StartupTrace.mark("AppBootstrapper.handleSignIn.ready")
+    }
+
+    func handleSignOut() {
+        phase = .needsAuth
     }
 }

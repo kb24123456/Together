@@ -43,9 +43,14 @@ struct SyncCursor: Codable, Hashable, Sendable {
     let token: String
     let updatedAt: Date
 
-    nonisolated init(token: String, updatedAt: Date) {
+    /// Serialized CKServerChangeToken data for incremental zone fetches.
+    /// When present, the sync gateway uses this instead of the legacy token string.
+    var serverChangeTokenData: Data?
+
+    nonisolated init(token: String, updatedAt: Date, serverChangeTokenData: Data? = nil) {
         self.token = token
         self.updatedAt = updatedAt
+        self.serverChangeTokenData = serverChangeTokenData
     }
 }
 

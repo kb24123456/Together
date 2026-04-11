@@ -72,4 +72,21 @@ actor LocalSpaceService: SpaceServiceProtocol {
             availableModes: availableModes
         )
     }
+
+    func createSingleSpace(for userID: UUID) async throws -> Space {
+        let context = ModelContext(container)
+        let now = Date.now
+        let space = Space(
+            id: UUID(),
+            type: .single,
+            displayName: "我的空间",
+            ownerUserID: userID,
+            status: .active,
+            createdAt: now,
+            updatedAt: now
+        )
+        context.insert(PersistentSpace(space: space))
+        try context.save()
+        return space
+    }
 }

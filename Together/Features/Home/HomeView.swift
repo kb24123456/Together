@@ -10,6 +10,7 @@ struct HomeView: View {
     let isRoutinesModePresented: Bool
     let onCreateTaskTapped: () -> Void
     @State private var weekPagerOffset: CGFloat = 0
+    @State private var isRequestStackExpanded = false
     @State private var isWeekPagerSettling = false
     @State private var isTodayJumpButtonVisible = false
     @State private var todayJumpRevealTask: Task<Void, Never>?
@@ -222,20 +223,28 @@ struct HomeView: View {
                 .font(AppTheme.typography.sized(13, weight: .semibold))
                 .foregroundStyle(headerSecondaryColor)
                 .lineLimit(1)
+
+            if viewModel.isPairModeActive {
+                SyncStatusIndicator(
+                    isSyncing: appContext.syncScheduler.isSyncing,
+                    lastSyncedAt: appContext.syncScheduler.lastSyncedAt,
+                    lastSyncError: appContext.syncScheduler.lastSyncError
+                )
+            }
         }
     }
 
     private func headerControls(compact: Bool) -> some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.sm) {
-            if compact == false, isTodayJumpButtonVisible {
-                todayJumpButton
-                    .transition(todayJumpTransition)
-                    .padding(.top, 8)
-                    .layoutPriority(2)
+        headerAvatarButton(compact: compact)
+            .overlay(alignment: .trailing) {
+                if compact == false, isTodayJumpButtonVisible {
+                    todayJumpButton
+                        .transition(todayJumpTransition)
+                        .padding(.top, 8)
+                        .fixedSize()
+                        .offset(x: -52)
+                }
             }
-
-            headerAvatarButton(compact: compact)
-        }
     }
 
     private func headerTopRow(compact: Bool) -> some View {
@@ -244,15 +253,15 @@ struct HomeView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: AppTheme.spacing.sm) {
-                if compact == false, isTodayJumpButtonVisible {
-                    todayJumpButton
-                        .transition(todayJumpTransition)
-                        .layoutPriority(2)
+            headerAvatarButton(compact: compact)
+                .overlay(alignment: .trailing) {
+                    if compact == false, isTodayJumpButtonVisible {
+                        todayJumpButton
+                            .transition(todayJumpTransition)
+                            .fixedSize()
+                            .offset(x: -52)
+                    }
                 }
-
-                headerAvatarButton(compact: compact)
-            }
         }
         .frame(minHeight: compact ? 40 : 52, alignment: .center)
     }
@@ -295,14 +304,18 @@ struct HomeView: View {
 
     private var routinesModeHeaderMeta: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            Text("例行事务")
+            Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
                 .font(AppTheme.typography.sized(12, weight: .bold))
-                .foregroundStyle(AppTheme.colors.accent)
+                .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(AppTheme.colors.accent.opacity(0.12))
+                        .fill(
+                            viewModel.isPairModeActive
+                            ? AppTheme.colors.coral.opacity(0.12)
+                            : AppTheme.colors.surfaceElevated
+                        )
                 )
                 .layoutPriority(2)
 
@@ -541,6 +554,13 @@ struct HomeView: View {
         .safeAreaPadding(.top, 0)
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
+        .refreshable {
+            // 下拉刷新：在双人模式下触发同步
+            if appContext.sessionStore.activeMode == .pair {
+                await appContext.syncPairSpaceIfNeeded()
+            }
+            await viewModel.reload()
+        }
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             geo.contentOffset.y + geo.contentInsets.top
         } action: { oldOffset, newOffset in
@@ -623,6 +643,12 @@ struct HomeView: View {
         .environment(\.defaultMinListRowHeight, 0)
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
+        .refreshable {
+            if appContext.sessionStore.activeMode == .pair {
+                await appContext.syncPairSpaceIfNeeded()
+            }
+            await viewModel.reload()
+        }
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             geo.contentOffset.y + geo.contentInsets.top
         } action: { oldOffset, newOffset in
@@ -814,80 +840,170 @@ struct HomeView: View {
         }
     }
 
+    /// 请求类卡片（待回应）最多显示数量，超过时堆叠
+    private var requestCardStackThreshold: Int { 3 }
+
     @ViewBuilder
     private func pairTimelineRows(_ entries: [HomeTimelineEntry]) -> some View {
-        ForEach(entries) { entry in
-            PairTimelineCard(
-                entry: entry,
-                quickReplyMessages: appContext.sessionStore.currentUser?.preferences.pairQuickReplyMessages
-                    ?? NotificationSettings.defaultPairQuickReplyMessages,
-                onPrimaryAction: {
-                    switch entry.pairCardStyle {
-                    case .request:
-                        HomeInteractionFeedback.selection()
-                        Task {
-                            await viewModel.respondToItem(entry.id, response: .willing, message: nil)
-                        }
-                    default:
-                        if entry.isCompleted {
-                            HomeInteractionFeedback.selection()
-                        } else {
-                            HomeInteractionFeedback.completion()
-                        }
-                        Task {
-                            await viewModel.completeItem(entry.id)
-                        }
-                    }
-                },
-                onSecondaryAction: {
-                    HomeInteractionFeedback.selection()
-                    Task {
-                        await viewModel.respondToItem(entry.id, response: .notSuitable, message: nil)
-                    }
-                },
-                onOpenDetail: {
-                    viewModel.presentItemDetail(entry.id)
-                },
-                onQuickMessage: { message in
-                    Task {
-                        switch entry.pairCardStyle {
-                        case .request:
-                            await viewModel.respondToItem(entry.id, response: .notSuitable, message: message)
-                        case .sent:
-                            await viewModel.appendAssignmentMessage(to: entry.id, message: message)
-                        case .assigned, .shared, .standard:
-                            break
-                        }
-                    }
-                },
-                onResend: {
-                    Task {
-                        await viewModel.requeueDeclinedItem(entry.id)
-                    }
-                },
-                onDelete: {
-                    Task {
-                        await viewModel.deleteItem(entry.id)
-                    }
+        let requestEntries = entries.filter { $0.pairCardStyle == .request }
+        let otherEntries = entries.filter { $0.pairCardStyle != .request }
+
+        // 待回应卡片：超过阈值时堆叠显示
+        if requestEntries.count > requestCardStackThreshold && !isRequestStackExpanded {
+            stackedRequestCards(requestEntries)
+        } else {
+            ForEach(requestEntries) { entry in
+                pairTimelineCardRow(entry: entry)
+            }
+        }
+
+        // 其他类型卡片正常显示
+        ForEach(otherEntries) { entry in
+            pairTimelineCardRow(entry: entry)
+        }
+    }
+
+    @ViewBuilder
+    private func stackedRequestCards(_ entries: [HomeTimelineEntry]) -> some View {
+        if let topEntry = entries.first {
+            ZStack(alignment: .topTrailing) {
+                // 底层卡片（第3张）
+                if entries.count > 2 {
+                    pairTimelineCardContent(entry: entries[2])
+                        .scaleEffect(0.92)
+                        .offset(y: 16)
+                        .opacity(0.4)
                 }
-            )
+                // 中间卡片（第2张）
+                if entries.count > 1 {
+                    pairTimelineCardContent(entry: entries[1])
+                        .scaleEffect(0.96)
+                        .offset(y: 8)
+                        .opacity(0.6)
+                }
+                // 顶部卡片
+                pairTimelineCardContent(entry: topEntry)
+
+                // 计数徽章
+                Text("+\(entries.count - 1)")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule(style: .continuous).fill(AppTheme.colors.coral))
+                    .offset(x: -8, y: -4)
+            }
             .listRowInsets(
                 EdgeInsets(
                     top: 8,
                     leading: timelineRowHorizontalInset,
-                    bottom: 8,
+                    bottom: 24,
                     trailing: timelineRowHorizontalInset
                 )
             )
             .listRowBackground(homeCanvasColor)
             .listRowSeparator(.hidden)
-            .insertedListItemMotion(
-                isInserted: viewModel.isAnimatingInsertion(for: entry.id),
-                onAnimationCompleted: {
-                    viewModel.completeInsertionAnimation(for: entry.id)
+            .onTapGesture {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isRequestStackExpanded = true
                 }
-            )
+            }
         }
+    }
+
+    /// 仅卡片内容（不含 listRow 修饰符），用于堆叠展示
+    private func pairTimelineCardContent(entry: HomeTimelineEntry) -> some View {
+        PairTimelineCard(
+            entry: entry,
+            quickReplyMessages: appContext.sessionStore.currentUser?.preferences.pairQuickReplyMessages
+                ?? NotificationSettings.defaultPairQuickReplyMessages,
+            onPrimaryAction: {},
+            onSecondaryAction: {},
+            onOpenDetail: {},
+            onQuickMessage: { _ in },
+            onResend: {},
+            onDelete: {},
+            onSendReminder: {}
+        )
+        .allowsHitTesting(false)
+    }
+
+    private func pairTimelineCardRow(entry: HomeTimelineEntry) -> some View {
+        PairTimelineCard(
+            entry: entry,
+            quickReplyMessages: appContext.sessionStore.currentUser?.preferences.pairQuickReplyMessages
+                ?? NotificationSettings.defaultPairQuickReplyMessages,
+            onPrimaryAction: {
+                switch entry.pairCardStyle {
+                case .request:
+                    HomeInteractionFeedback.selection()
+                    Task {
+                        await viewModel.respondToItem(entry.id, response: .willing, message: nil)
+                    }
+                default:
+                    if entry.isCompleted {
+                        HomeInteractionFeedback.selection()
+                    } else {
+                        HomeInteractionFeedback.completion()
+                    }
+                    Task {
+                        await viewModel.completeItem(entry.id)
+                    }
+                }
+            },
+            onSecondaryAction: {
+                HomeInteractionFeedback.selection()
+                Task {
+                    await viewModel.respondToItem(entry.id, response: .notSuitable, message: nil)
+                }
+            },
+            onOpenDetail: {
+                viewModel.presentItemDetail(entry.id)
+            },
+            onQuickMessage: { message in
+                Task {
+                    switch entry.pairCardStyle {
+                    case .request:
+                        await viewModel.respondToItem(entry.id, response: .notSuitable, message: message)
+                    case .sent:
+                        await viewModel.appendAssignmentMessage(to: entry.id, message: message)
+                    case .assigned, .shared, .standard:
+                        break
+                    }
+                }
+            },
+            onResend: {
+                Task {
+                    await viewModel.requeueDeclinedItem(entry.id)
+                }
+            },
+            onDelete: {
+                Task {
+                    await viewModel.deleteItem(entry.id)
+                }
+            },
+            onSendReminder: {
+                Task {
+                    await viewModel.sendReminderToPartner(entry.id)
+                }
+            }
+        )
+        .listRowInsets(
+            EdgeInsets(
+                top: 8,
+                leading: timelineRowHorizontalInset,
+                bottom: 8,
+                trailing: timelineRowHorizontalInset
+            )
+        )
+        .listRowBackground(homeCanvasColor)
+        .listRowSeparator(.hidden)
+        .insertedListItemMotion(
+            isInserted: viewModel.isAnimatingInsertion(for: entry.id),
+            onAnimationCompleted: {
+                viewModel.completeInsertionAnimation(for: entry.id)
+            }
+        )
     }
 
     private var calendarSection: some View {
@@ -2103,6 +2219,7 @@ private struct PairTimelineCard: View {
     let onQuickMessage: (String) -> Void
     let onResend: () -> Void
     let onDelete: () -> Void
+    let onSendReminder: () -> Void
     @State private var isMorphingToAssigned = false
     @State private var completionAnimationCount = 0
     @State private var completionBadgeScale: CGFloat = 1
@@ -2136,21 +2253,17 @@ private struct PairTimelineCard: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.colors.surfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(alignment: .leading) {
-            if effectivePairCardStyle == .shared {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 28,
-                    bottomLeadingRadius: 28,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: 0,
-                    style: .continuous
-                )
-                .fill(AppTheme.colors.sky.opacity(0.36))
-                .frame(width: 5)
+        .background {
+            HStack(spacing: 0) {
+                if effectivePairCardStyle == .shared {
+                    AppTheme.colors.sky.opacity(0.36)
+                        .frame(width: 5)
+                }
+                AppTheme.colors.surfaceElevated
+                    .frame(maxWidth: .infinity)
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 16, y: 10)
         .scaleEffect(rowScale)
         .offset(y: rowVerticalOffset)
@@ -2276,6 +2389,8 @@ private struct PairTimelineCard: View {
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                     PairCardPillButton(title: "再发", isPrimary: true, action: handleResendAction)
+                } else if entry.responseStateText == "已接受" || entry.responseStateText == "进行中" {
+                    reminderButton
                 }
             }
         case .assigned, .shared, .standard:
@@ -2309,6 +2424,36 @@ private struct PairTimelineCard: View {
 
             messageTextView
         }
+    }
+
+    /// 催促对方的小按钮（30 秒冷却）
+    private var reminderButton: some View {
+        let isOnCooldown: Bool = {
+            guard let lastReminder = entry.reminderRequestedAt else { return false }
+            return Date.now.timeIntervalSince(lastReminder) < 30
+        }()
+
+        return Button {
+            HomeInteractionFeedback.selection()
+            onSendReminder()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "bell.badge")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("催一下")
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+            }
+            .foregroundStyle(isOnCooldown ? AppTheme.colors.textTertiary : AppTheme.colors.coral)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isOnCooldown ? AppTheme.colors.background : AppTheme.colors.coral.opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isOnCooldown)
+        .animation(.easeInOut(duration: 0.2), value: isOnCooldown)
     }
 
     private var messageTextView: some View {
@@ -3050,7 +3195,8 @@ private struct HomeOverdueSummarySheet: View {
                     relationText: nil,
                     primaryAvatar: nil,
                     secondaryAvatar: nil,
-                    latestMessageAuthorName: nil
+                    latestMessageAuthorName: nil,
+                    reminderRequestedAt: nil
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
                 isAnimatingReopening: false,

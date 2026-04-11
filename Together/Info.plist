@@ -8,6 +8,8 @@
 	<string>Together 需要使用麦克风，将你说出的待办快速转成任务标题。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Together 需要使用语音识别，将你说出的待办快速转成任务标题。</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Together 使用 Face ID 保护你的隐私数据。</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

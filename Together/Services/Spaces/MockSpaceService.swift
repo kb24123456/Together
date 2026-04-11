@@ -11,4 +11,8 @@ struct MockSpaceService: SpaceServiceProtocol {
             availableModes: [.single, .pair]
         )
     }
+
+    func createSingleSpace(for userID: UUID) async throws -> Space {
+        MockDataFactory.makeSingleSpace()
+    }
 }

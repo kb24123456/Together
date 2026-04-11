@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 import SwiftData
 import Testing
@@ -1555,7 +1556,8 @@ struct TogetherTests {
     func cloudKitTaskRecordCodecRoundTripsTaskPayload() async throws {
         let item = MockDataFactory.makeItems()[0]
 
-        let record = try CloudKitTaskRecordCodec.makeRecord(from: item)
+        let zoneID = CKRecordZone.ID(zoneName: "test-zone")
+        let record = try CloudKitTaskRecordCodec.makeRecord(from: item, in: zoneID)
         let decoded = try CloudKitTaskRecordCodec.decode(record: record)
 
         #expect(decoded.id == item.id)
@@ -2734,6 +2736,11 @@ actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
         actorID: UUID,
         message: String
     ) async throws -> Item { throw RepositoryError.notFound }
+    func sendReminderToPartner(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item { throw RepositoryError.notFound }
 
     func completedTaskIDs() -> [UUID] {
         completed
@@ -2818,6 +2825,11 @@ actor TestHistoricalOneOffCompletionTaskService: TaskApplicationServiceProtocol 
         actorID: UUID,
         message: String
     ) async throws -> Item { throw RepositoryError.notFound }
+    func sendReminderToPartner(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item { throw RepositoryError.notFound }
 }
 
 enum TestCloudSyncGatewayError: Error {
@@ -2859,7 +2871,7 @@ actor TestCloudSyncGateway: CloudSyncGatewayProtocol {
 actor TestRemoteSyncApplier: RemoteSyncApplierProtocol {
     private(set) var appliedTasks: [Item] = []
 
-    func apply(_ payload: RemoteSyncPayload, in spaceID: UUID) async throws -> Int {
+    func apply(_ payload: RemoteSyncPayload, in spaceID: UUID, localPendingRecordIDs: Set<UUID>) async throws -> Int {
         appliedTasks.append(contentsOf: payload.tasks)
         return payload.tasks.count
     }

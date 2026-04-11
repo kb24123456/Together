@@ -11,6 +11,10 @@ final class PersistentSyncState {
     var retryCount: Int
     var updatedAt: Date
 
+    /// Serialized CKServerChangeToken for incremental zone fetches.
+    @Attribute(.externalStorage)
+    var serverChangeTokenData: Data?
+
     init(state: SyncState) {
         self.spaceID = state.spaceID
         self.cursorToken = state.cursor?.token
@@ -19,12 +23,20 @@ final class PersistentSyncState {
         self.lastError = state.lastError
         self.retryCount = state.retryCount
         self.updatedAt = state.updatedAt
+        self.serverChangeTokenData = state.cursor?.serverChangeTokenData
     }
 
     var domainModel: SyncState {
-        SyncState(
+        let cursor: SyncCursor? = cursorToken.map {
+            SyncCursor(
+                token: $0,
+                updatedAt: cursorUpdatedAt ?? updatedAt,
+                serverChangeTokenData: serverChangeTokenData
+            )
+        }
+        return SyncState(
             spaceID: spaceID,
-            cursor: cursorToken.map { SyncCursor(token: $0, updatedAt: cursorUpdatedAt ?? updatedAt) },
+            cursor: cursor,
             lastSyncedAt: lastSyncedAt,
             lastError: lastError,
             retryCount: retryCount,
@@ -39,5 +51,6 @@ final class PersistentSyncState {
         lastError = state.lastError
         retryCount = state.retryCount
         updatedAt = state.updatedAt
+        serverChangeTokenData = state.cursor?.serverChangeTokenData
     }
 }

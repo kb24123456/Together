@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 
 enum MockServiceFactory {
@@ -8,11 +9,12 @@ enum MockServiceFactory {
         let taskTemplateRepository = MockTaskTemplateRepository()
         let notificationService = MockNotificationService()
         let reminderScheduler = MockReminderScheduler()
-        let cloudGateway = PlaceholderCloudSyncGateway()
+        let placeholderGateway = PlaceholderCloudSyncGateway()
+        let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
         let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository)
         let syncOrchestrator = DefaultSyncOrchestrator(
             syncCoordinator: syncCoordinator,
-            cloudGateway: cloudGateway,
+            cloudGateway: placeholderGateway,
             remoteSyncApplier: remoteSyncApplier
         )
         let userProfileRepository = MockUserProfileRepository()
@@ -27,6 +29,11 @@ enum MockServiceFactory {
             repository: periodicTaskRepository,
             reminderScheduler: reminderScheduler
         )
+
+        let ckContainer = SyncGatewayFactory.makeContainer()
+        let zoneManager = CloudKitZoneManager(container: ckContainer)
+        let shareManager = CloudKitShareManager(container: ckContainer)
+        let subscriptionManager = CloudKitSubscriptionManager(container: ckContainer)
 
         return AppContainer(
             authService: MockAuthService(),
@@ -46,7 +53,14 @@ enum MockServiceFactory {
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,
             periodicTaskRepository: periodicTaskRepository,
-            periodicTaskApplicationService: periodicTaskApplicationService
+            periodicTaskApplicationService: periodicTaskApplicationService,
+            biometricAuthService: BiometricAuthService(),
+            syncScheduler: SyncScheduler(syncOrchestrator: syncOrchestrator),
+            cloudKitContainer: ckContainer,
+            zoneManager: zoneManager,
+            shareManager: shareManager,
+            subscriptionManager: subscriptionManager,
+            cloudGateway: cloudGateway
         )
     }
 }

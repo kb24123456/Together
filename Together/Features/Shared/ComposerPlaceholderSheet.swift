@@ -26,6 +26,8 @@ struct ComposerPlaceholderSheet: View {
     @State private var isPrimaryActionAnimating = false
     @State private var isLoadingTemplates = false
     @State private var taskTemplates: [TaskTemplate] = []
+    @State private var isPeriodicSubtaskMode: Bool = false
+    @State private var isProjectSubtaskMode: Bool = false
 
     init(route: ComposerRoute, appContext: AppContext, initialTitle: String? = nil) {
         self.route = route
@@ -69,7 +71,9 @@ struct ComposerPlaceholderSheet: View {
                         await deleteTemplate(template)
                     },
                     focusedField: $focusedField,
-                    focusCoordinator: focusCoordinator
+                    focusCoordinator: focusCoordinator,
+                    isPeriodicSubtaskMode: isPeriodicSubtaskMode,
+                    isProjectSubtaskMode: isProjectSubtaskMode
                 )
                 .padding(.horizontal, 26)
                 .padding(.top, 12)
@@ -139,6 +143,8 @@ struct ComposerPlaceholderSheet: View {
             }
         }
         .onChange(of: draftState.category) { _, newCategory in
+            if isPeriodicSubtaskMode { isPeriodicSubtaskMode = false }
+            if isProjectSubtaskMode { isProjectSubtaskMode = false }
             guard newCategory == .template else { return }
             Task {
                 await loadTemplates()
@@ -326,11 +332,28 @@ struct ComposerPlaceholderSheet: View {
             onChipTap: { menu in
                 guard disabledMenus.contains(menu) == false else { return }
                 ComposerButtonHaptics.selection()
-                openMenu(menu)
+                if menu == .subtasks && (draftState.category == .periodic || draftState.category == .project) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                        if draftState.category == .periodic {
+                            isPeriodicSubtaskMode.toggle()
+                        } else {
+                            isProjectSubtaskMode.toggle()
+                        }
+                    }
+                } else {
+                    openMenu(menu)
+                }
             },
             onClearTap: { chip in
                 ComposerButtonHaptics.selection()
-                clearChipValue(chip)
+                if chip.menu == .subtasks {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                        isPeriodicSubtaskMode = false
+                        isProjectSubtaskMode = false
+                    }
+                } else {
+                    clearChipValue(chip)
+                }
             }
         )
     }
@@ -388,6 +411,13 @@ struct ComposerPlaceholderSheet: View {
         case .periodic:
             return [
                 TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.periodicCycle.rawValue,
+                    title: draftState.periodicCycle.title,
+                    systemImage: "arrow.clockwise",
+                    menu: .periodicCycle,
+                    semanticValue: .periodicCycle(draftState.periodicCycle)
+                ),
+                TaskEditorChipSnapshot(
                     id: TaskEditorMenu.periodicReminder.rawValue,
                     title: draftState.periodicReminderSummaryText,
                     systemImage: "bell",
@@ -399,7 +429,8 @@ struct ComposerPlaceholderSheet: View {
                     title: draftState.periodicSubtaskSummaryText,
                     systemImage: "checklist",
                     menu: .subtasks,
-                    semanticValue: .subtasks(draftState.periodicSubtasks.count)
+                    semanticValue: .subtasks(draftState.periodicSubtasks.count),
+                    showsTrailingClear: isPeriodicSubtaskMode
                 )
             ]
         case .project:
@@ -416,7 +447,8 @@ struct ComposerPlaceholderSheet: View {
                     title: draftState.projectSubtaskSummaryText,
                     systemImage: "checklist",
                     menu: .subtasks,
-                    semanticValue: .subtasks(draftState.projectSubtasks.count)
+                    semanticValue: .subtasks(draftState.projectSubtasks.count),
+                    showsTrailingClear: isProjectSubtaskMode
                 )
             ]
         }
@@ -938,8 +970,8 @@ private struct ComposerDraftState: Hashable {
     var projectSubtasks: [ProjectSubtaskDraft] = []
     var projectSubtaskInput = ""
     var periodicCycle: PeriodicCycle = .monthly
-    var periodicReminderEnabled: Bool = false
     var periodicReminderRules: [PeriodicReminderRule] = []
+    var periodicReminderEnabled: Bool { !periodicReminderRules.isEmpty }
     var periodicSubtasks: [ProjectSubtaskDraft] = []
     var periodicSubtaskInput = ""
 
@@ -1084,7 +1116,15 @@ private struct ComposerDraftState: Hashable {
     }
 
     var periodicReminderSummaryText: String {
-        periodicReminderEnabled && !periodicReminderRules.isEmpty ? "已设置" : "提醒"
+        guard let rule = periodicReminderRules.first else { return "提醒" }
+        switch rule.timing {
+        case .dayOfPeriod(let day):
+            return "第\(day)天"
+        case .businessDayOfPeriod(let day):
+            return "第\(day)工作日"
+        case .daysBeforeEnd(let days):
+            return "截止前\(days)天"
+        }
     }
 
     var periodicSubtaskSummaryText: String {
@@ -1099,7 +1139,7 @@ private struct ComposerDraftState: Hashable {
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cycle: periodicCycle,
-            reminderRules: periodicReminderEnabled ? periodicReminderRules : [],
+            reminderRules: periodicReminderRules,
             subtasks: periodicSubtasks.map {
                 PeriodicSubtask(id: $0.id, title: $0.title, isCompleted: $0.isCompleted)
             }
@@ -1299,6 +1339,8 @@ private struct ComposerPage: View {
     let onTemplateDeleted: (TaskTemplate) async -> Void
     @Binding var focusedField: ComposerField?
     let focusCoordinator: ComposerTextInputFocusCoordinator
+    var isPeriodicSubtaskMode: Bool = false
+    var isProjectSubtaskMode: Bool = false
 
     var body: some View {
         Group {
@@ -1347,10 +1389,6 @@ private struct ComposerPage: View {
                 )
             }
 
-            if category == .periodic {
-                periodicCyclePicker
-            }
-
             ComposerFocusableTextView(
                 text: $draftState.notes,
                 focusedField: $focusedField,
@@ -1368,25 +1406,19 @@ private struct ComposerPage: View {
                     .padding(.top, 10)
             }
 
+            if category == .periodic && isPeriodicSubtaskMode {
+                ComposerPeriodicSubtasksInline(draftState: $draftState)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            if category == .project && isProjectSubtaskMode {
+                ComposerProjectSubtasksInline(draftState: $draftState)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private var periodicCyclePicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("周期")
-                .font(AppTheme.typography.sized(14, weight: .bold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-
-            Picker("周期", selection: $draftState.periodicCycle) {
-                ForEach(PeriodicCycle.allCases, id: \.self) { cycle in
-                    Text(cycle.title).tag(cycle)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-        .padding(.top, 4)
     }
 
     private var composerAssignmentSection: some View {
@@ -2144,6 +2176,8 @@ private struct ComposerEditorMenuSheet: View {
             }
         case .periodicReminder:
             ComposerPeriodicReminderPanel(draftState: $draftState)
+        case .periodicCycle:
+            ComposerPeriodicCyclePanel(draftState: $draftState)
         case .template:
             ComposerTemplatePickerSheet(
                 templates: templates,
@@ -2275,22 +2309,7 @@ private struct ComposerProjectSubtasksPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if draftState.projectSubtasks.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("先拆出几个可执行的小步骤。")
-                        .font(AppTheme.typography.sized(16, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title)
-
-                    Text("项目不会进入 Today 执行流，子任务会作为关联任务保存到项目下。")
-                        .font(AppTheme.typography.textStyle(.subheadline))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 16)
-            } else {
+            if !draftState.projectSubtasks.isEmpty {
                 ScrollView {
                     VStack(spacing: 10) {
                         ForEach(draftState.projectSubtasks) { subtask in
@@ -2314,7 +2333,9 @@ private struct ComposerProjectSubtasksPanel: View {
 
                                 Button {
                                     ComposerButtonHaptics.selection()
-                                    draftState.removeProjectSubtask(subtask.id)
+                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                                        draftState.removeProjectSubtask(subtask.id)
+                                    }
                                 } label: {
                                     Image(systemName: "xmark")
                                         .font(AppTheme.typography.sized(11, weight: .bold))
@@ -2324,11 +2345,16 @@ private struct ComposerProjectSubtasksPanel: View {
                                 .buttonStyle(.plain)
                             }
                             .padding(.horizontal, 16)
-                            .frame(minHeight: 58)
+                            .frame(minHeight: 54)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .modifier(TaskEditorMenuOptionGlassModifier())
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.94, anchor: .top).combined(with: .opacity),
+                                removal: .scale(scale: 0.94, anchor: .top).combined(with: .opacity)
+                            ))
                         }
                     }
+                    .animation(.spring(response: 0.35, dampingFraction: 0.75), value: draftState.projectSubtasks)
                     .padding(.horizontal, 18)
                     .padding(.top, 6)
                     .padding(.bottom, 12)
@@ -2343,38 +2369,35 @@ private struct ComposerProjectSubtasksPanel: View {
                     .textInputAutocapitalization(.sentences)
                     .submitLabel(.done)
                     .focused($isInputFocused)
-                    .onSubmit {
-                        addSubtask()
-                    }
+                    .onSubmit { addSubtask() }
 
-                Button("添加") {
-                    addSubtask()
-                }
-                .buttonStyle(.plain)
-                .font(AppTheme.typography.sized(15, weight: .bold))
-                .foregroundStyle(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
-                .disabled(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("添加") { addSubtask() }
+                    .buttonStyle(.plain)
+                    .font(AppTheme.typography.sized(15, weight: .bold))
+                    .foregroundStyle(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
+                    .disabled(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(AppTheme.colors.pillSurface)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
-            }
+            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AppTheme.colors.pillSurface))
+            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(AppTheme.colors.pillOutline, lineWidth: 1))
             .padding(.horizontal, 18)
             .padding(.top, 8)
             .padding(.bottom, 18)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            if draftState.projectSubtasks.isEmpty {
+                DispatchQueue.main.async { isInputFocused = true }
+            }
+        }
     }
 
     private func addSubtask() {
         ComposerButtonHaptics.primary()
-        draftState.addProjectSubtask()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            draftState.addProjectSubtask()
+        }
         if draftState.projectSubtaskInput.isEmpty {
             isInputFocused = true
         }
@@ -2389,109 +2412,432 @@ private struct ComposerPeriodicSubtasksPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if draftState.periodicSubtasks.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("拆分步骤")
-                        .font(AppTheme.typography.sized(16, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title)
-
-                    Text("每个周期开始时，子任务会自动重置为未完成。")
-                        .font(AppTheme.typography.textStyle(.subheadline))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 16)
-            } else {
+            if !draftState.periodicSubtasks.isEmpty {
                 ScrollView {
                     VStack(spacing: 10) {
                         ForEach(draftState.periodicSubtasks) { subtask in
-                            HStack(spacing: 12) {
-                                Button {
-                                    ComposerButtonHaptics.selection()
-                                    draftState.togglePeriodicSubtask(subtask.id)
-                                } label: {
-                                    Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                                        .font(AppTheme.typography.sized(20, weight: .semibold))
-                                        .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
-                                        .frame(width: 28, height: 28)
-                                }
-                                .buttonStyle(.plain)
-
-                                Text(subtask.title)
-                                    .font(AppTheme.typography.sized(16, weight: .semibold))
-                                    .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 1))
-                                    .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.36))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                                Button {
-                                    ComposerButtonHaptics.selection()
-                                    draftState.removePeriodicSubtask(subtask.id)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(AppTheme.typography.sized(11, weight: .bold))
-                                        .foregroundStyle(AppTheme.colors.body.opacity(0.66))
-                                        .frame(width: 18, height: 18)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 58)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .modifier(TaskEditorMenuOptionGlassModifier())
+                            subtaskRow(subtask)
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.94, anchor: .top).combined(with: .opacity),
+                                    removal: .scale(scale: 0.94, anchor: .top).combined(with: .opacity)
+                                ))
                         }
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 6)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 10)
                 }
                 .scrollIndicators(.hidden)
+                .animation(.spring(response: 0.35, dampingFraction: 0.75), value: draftState.periodicSubtasks)
             }
 
-            HStack(spacing: 12) {
-                TextField("添加子任务", text: $draftState.periodicSubtaskInput)
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .textInputAutocapitalization(.sentences)
-                    .submitLabel(.done)
-                    .focused($isInputFocused)
-                    .onSubmit {
-                        addSubtask()
-                    }
-
-                Button("添加") {
-                    addSubtask()
-                }
-                .buttonStyle(.plain)
-                .font(AppTheme.typography.sized(15, weight: .bold))
-                .foregroundStyle(draftState.periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
-                .disabled(draftState.periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(AppTheme.colors.pillSurface)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
-            .padding(.bottom, 18)
+            addInputRow
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
+    @ViewBuilder
+    private func subtaskRow(_ subtask: ProjectSubtaskDraft) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                ComposerButtonHaptics.selection()
+                draftState.togglePeriodicSubtask(subtask.id)
+            } label: {
+                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(AppTheme.typography.sized(20, weight: .semibold))
+                    .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+
+            Text(subtask.title)
+                .font(AppTheme.typography.sized(16, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 1))
+                .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.36))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                ComposerButtonHaptics.selection()
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    draftState.removePeriodicSubtask(subtask.id)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(AppTheme.typography.sized(11, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.66))
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 54)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(TaskEditorMenuOptionGlassModifier())
+    }
+
+    private var addInputRow: some View {
+        HStack(spacing: 12) {
+            TextField("添加子任务", text: $draftState.periodicSubtaskInput)
+                .font(AppTheme.typography.sized(16, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .focused($isInputFocused)
+                .onSubmit { addSubtask() }
+
+            Button("添加") { addSubtask() }
+                .buttonStyle(.plain)
+                .font(AppTheme.typography.sized(15, weight: .bold))
+                .foregroundStyle(
+                    draftState.periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? AppTheme.colors.body.opacity(0.4)
+                        : AppTheme.colors.title
+                )
+                .disabled(draftState.periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AppTheme.colors.pillSurface))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(AppTheme.colors.pillOutline, lineWidth: 1))
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .padding(.bottom, 18)
+    }
+
     private func addSubtask() {
         ComposerButtonHaptics.primary()
-        draftState.addPeriodicSubtask()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            draftState.addPeriodicSubtask()
+        }
         if draftState.periodicSubtaskInput.isEmpty {
             isInputFocused = true
         }
+    }
+}
+
+// MARK: - Periodic Subtasks Inline (embedded in editor body)
+
+private struct ComposerPeriodicSubtasksInline: View {
+    @Binding var draftState: ComposerDraftState
+    @FocusState private var isInputFocused: Bool
+    @FocusState private var focusedSubtaskID: UUID?
+    @State private var editingSubtaskID: UUID?
+    @State private var subtaskDraft = ""
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(draftState.periodicSubtasks) { subtask in
+                subtaskRow(subtask)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.96, anchor: .top).combined(with: .opacity),
+                        removal: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
+                    ))
+            }
+
+            addInputRow
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: draftState.periodicSubtasks)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .onAppear { isInputFocused = true }
+        .onChange(of: draftState.periodicSubtasks) { _, subtasks in
+            if let editingSubtaskID, !subtasks.contains(where: { $0.id == editingSubtaskID }) {
+                self.editingSubtaskID = nil
+                subtaskDraft = ""
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func subtaskRow(_ subtask: ProjectSubtaskDraft) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                ComposerButtonHaptics.selection()
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    draftState.togglePeriodicSubtask(subtask.id)
+                }
+            } label: {
+                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(AppTheme.typography.sized(17, weight: .semibold))
+                    .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
+            }
+            .buttonStyle(.plain)
+
+            if editingSubtaskID == subtask.id {
+                TextField("", text: subtaskBinding(for: subtask), prompt: Text(subtask.title))
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($focusedSubtaskID, equals: subtask.id)
+                    .onSubmit { commitSubtask(subtask) }
+                    .onChange(of: focusedSubtaskID) { _, focusedID in
+                        if focusedID != subtask.id, editingSubtaskID == subtask.id {
+                            commitSubtask(subtask)
+                        }
+                    }
+            } else {
+                Button {
+                    ComposerButtonHaptics.selection()
+                    editingSubtaskID = subtask.id
+                    subtaskDraft = subtask.title
+                    focusedSubtaskID = subtask.id
+                } label: {
+                    Text(subtask.title)
+                        .font(AppTheme.typography.sized(15, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 0.92))
+                        .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.32))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                ComposerButtonHaptics.selection()
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    draftState.removePeriodicSubtask(subtask.id)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(AppTheme.typography.sized(10, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.46))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func subtaskBinding(for subtask: ProjectSubtaskDraft) -> Binding<String> {
+        Binding(
+            get: { editingSubtaskID == subtask.id ? subtaskDraft : subtask.title },
+            set: { subtaskDraft = $0 }
+        )
+    }
+
+    private func commitSubtask(_ subtask: ProjectSubtaskDraft) {
+        let trimmed = subtaskDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer {
+            editingSubtaskID = nil
+            subtaskDraft = ""
+            focusedSubtaskID = nil
+        }
+        guard !trimmed.isEmpty, trimmed != subtask.title else { return }
+        if let index = draftState.periodicSubtasks.firstIndex(where: { $0.id == subtask.id }) {
+            draftState.periodicSubtasks[index].title = trimmed
+        }
+    }
+
+    private var addInputRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "plus.circle.fill")
+                .font(AppTheme.typography.sized(17, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.coral.opacity(
+                    draftState.periodicSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1
+                ))
+
+            TextField("添加子任务", text: $draftState.periodicSubtaskInput)
+                .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .focused($isInputFocused)
+                .onSubmit { addSubtask() }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func addSubtask() {
+        ComposerButtonHaptics.primary()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            draftState.addPeriodicSubtask()
+        }
+        isInputFocused = true
+    }
+}
+
+// MARK: - Project Subtasks Inline (embedded in editor body)
+
+private struct ComposerProjectSubtasksInline: View {
+    @Binding var draftState: ComposerDraftState
+    @FocusState private var isInputFocused: Bool
+    @FocusState private var focusedSubtaskID: UUID?
+    @State private var editingSubtaskID: UUID?
+    @State private var subtaskDraft = ""
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(draftState.projectSubtasks) { subtask in
+                subtaskRow(subtask)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.96, anchor: .top).combined(with: .opacity),
+                        removal: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
+                    ))
+            }
+
+            addInputRow
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: draftState.projectSubtasks)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .onAppear { isInputFocused = true }
+        .onChange(of: draftState.projectSubtasks) { _, subtasks in
+            if let editingSubtaskID, !subtasks.contains(where: { $0.id == editingSubtaskID }) {
+                self.editingSubtaskID = nil
+                subtaskDraft = ""
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func subtaskRow(_ subtask: ProjectSubtaskDraft) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                ComposerButtonHaptics.selection()
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    draftState.toggleProjectSubtask(subtask.id)
+                }
+            } label: {
+                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(AppTheme.typography.sized(17, weight: .semibold))
+                    .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
+            }
+            .buttonStyle(.plain)
+
+            if editingSubtaskID == subtask.id {
+                TextField("", text: subtaskBinding(for: subtask), prompt: Text(subtask.title))
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($focusedSubtaskID, equals: subtask.id)
+                    .onSubmit { commitSubtask(subtask) }
+                    .onChange(of: focusedSubtaskID) { _, focusedID in
+                        if focusedID != subtask.id, editingSubtaskID == subtask.id {
+                            commitSubtask(subtask)
+                        }
+                    }
+            } else {
+                Button {
+                    ComposerButtonHaptics.selection()
+                    editingSubtaskID = subtask.id
+                    subtaskDraft = subtask.title
+                    focusedSubtaskID = subtask.id
+                } label: {
+                    Text(subtask.title)
+                        .font(AppTheme.typography.sized(15, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 0.92))
+                        .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.32))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                ComposerButtonHaptics.selection()
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    draftState.removeProjectSubtask(subtask.id)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(AppTheme.typography.sized(10, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.46))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func subtaskBinding(for subtask: ProjectSubtaskDraft) -> Binding<String> {
+        Binding(
+            get: { editingSubtaskID == subtask.id ? subtaskDraft : subtask.title },
+            set: { subtaskDraft = $0 }
+        )
+    }
+
+    private func commitSubtask(_ subtask: ProjectSubtaskDraft) {
+        let trimmed = subtaskDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer {
+            editingSubtaskID = nil
+            subtaskDraft = ""
+            focusedSubtaskID = nil
+        }
+        guard !trimmed.isEmpty, trimmed != subtask.title else { return }
+        if let index = draftState.projectSubtasks.firstIndex(where: { $0.id == subtask.id }) {
+            draftState.projectSubtasks[index].title = trimmed
+        }
+    }
+
+    private var addInputRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "plus.circle.fill")
+                .font(AppTheme.typography.sized(17, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.coral.opacity(
+                    draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1
+                ))
+
+            TextField("添加子任务", text: $draftState.projectSubtaskInput)
+                .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .focused($isInputFocused)
+                .onSubmit { addSubtask() }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func addSubtask() {
+        ComposerButtonHaptics.primary()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            draftState.addProjectSubtask()
+        }
+        isInputFocused = true
+    }
+}
+
+// MARK: - Periodic Cycle Panel
+
+private struct ComposerPeriodicCyclePanel: View {
+    @Binding var draftState: ComposerDraftState
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(PeriodicCycle.allCases, id: \.self) { cycle in
+                    Button {
+                        ComposerButtonHaptics.selection()
+                        draftState.periodicCycle = cycle
+                    } label: {
+                        HStack {
+                            Text(cycle.title)
+                                .font(AppTheme.typography.sized(17, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.title)
+                            Spacer(minLength: 0)
+                            if draftState.periodicCycle == cycle {
+                                Image(systemName: "checkmark")
+                                    .font(AppTheme.typography.sized(14, weight: .bold))
+                                    .foregroundStyle(AppTheme.colors.coral)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minHeight: TaskEditorMenuOptionMetrics.height)
+                        .padding(.horizontal, 18)
+                        .contentShape(
+                            RoundedRectangle(
+                                cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
+                                style: .continuous
+                            )
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(TaskEditorMenuOptionButtonStyle())
+                    .modifier(TaskEditorMenuOptionGlassModifier())
+                }
+            }
+            .padding(TaskEditorMenuOptionMetrics.outerInset)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -2502,79 +2848,40 @@ private struct ComposerPeriodicReminderPanel: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Toggle(isOn: $draftState.periodicReminderEnabled) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "bell")
-                            .font(AppTheme.typography.sized(16, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.accent)
-                        Text("设置提醒")
-                            .font(AppTheme.typography.sized(16, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.title)
-                    }
-                }
-                .tint(AppTheme.colors.accent)
-                .onChange(of: draftState.periodicReminderEnabled) { _, enabled in
-                    if enabled && draftState.periodicReminderRules.isEmpty {
-                        let defaultRule: PeriodicReminderRule
-                        switch draftState.periodicCycle {
-                        case .weekly:
-                            defaultRule = PeriodicReminderRule(timing: .dayOfPeriod(3))
-                        case .monthly:
-                            defaultRule = PeriodicReminderRule(timing: .dayOfPeriod(20))
-                        case .quarterly:
-                            defaultRule = PeriodicReminderRule(timing: .daysBeforeEnd(14))
-                        case .yearly:
-                            defaultRule = PeriodicReminderRule(timing: .daysBeforeEnd(30))
-                        }
-                        draftState.periodicReminderRules = [defaultRule]
-                    }
-                }
-
-                if draftState.periodicReminderEnabled {
-                    VStack(spacing: 12) {
-                        ForEach(draftState.periodicReminderRules.indices, id: \.self) { index in
-                            RoutinesReminderRulePicker(
-                                rule: $draftState.periodicReminderRules[index],
-                                cycle: draftState.periodicCycle
-                            )
-
-                            if index < draftState.periodicReminderRules.count - 1 {
-                                Divider()
-                                    .padding(.horizontal, 4)
-                            }
-                        }
-
-                        Button {
-                            ComposerButtonHaptics.selection()
-                            draftState.periodicReminderRules.append(
-                                PeriodicReminderRule(timing: .daysBeforeEnd(3))
-                            )
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                                Text("添加提醒规则")
-                                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                            }
-                            .foregroundStyle(AppTheme.colors.accent)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(AppTheme.colors.surfaceElevated)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(draftState.periodicReminderRules.indices, id: \.self) { index in
+                    RoutinesReminderRulePicker(
+                        rule: $draftState.periodicReminderRules[index],
+                        cycle: draftState.periodicCycle
                     )
+                    .padding(.horizontal, 20)
+
+                    if index < draftState.periodicReminderRules.count - 1 {
+                        Divider()
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                    }
                 }
             }
-            .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 20)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            if draftState.periodicReminderRules.isEmpty {
+                draftState.periodicReminderRules = [defaultRule(for: draftState.periodicCycle)]
+            }
+        }
+    }
+
+    private func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
+        switch cycle {
+        case .weekly:  PeriodicReminderRule(timing: .dayOfPeriod(3))
+        case .monthly: PeriodicReminderRule(timing: .dayOfPeriod(20))
+        case .quarterly: PeriodicReminderRule(timing: .daysBeforeEnd(14))
+        case .yearly:  PeriodicReminderRule(timing: .daysBeforeEnd(30))
+        }
     }
 }
 

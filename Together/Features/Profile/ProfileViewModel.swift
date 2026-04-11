@@ -46,11 +46,17 @@ final class ProfileViewModel {
     private let taskListRepository: TaskListRepositoryProtocol
     private let projectRepository: ProjectRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
+    private let syncOrchestrator: SyncOrchestratorProtocol
+    private let biometricAuthService: BiometricAuthServiceProtocol
 
     var loadState: LoadableState = .idle
     var notificationAuthorization: NotificationAuthorizationStatus = .notDetermined
     var expandedSetting: ProfileExpandedSetting?
     var customDurationSheet: ProfileCustomDurationKind?
+    var inviteCodeEntryPresented: Bool = false
+    var isCheckingInvite: Bool = false
+    var acceptInviteError: String?
+    var createInviteError: String?
 
     init(
         sessionStore: SessionStore,
@@ -62,7 +68,9 @@ final class ProfileViewModel {
         taskApplicationService: TaskApplicationServiceProtocol,
         taskListRepository: TaskListRepositoryProtocol,
         projectRepository: ProjectRepositoryProtocol,
-        reminderScheduler: ReminderSchedulerProtocol
+        reminderScheduler: ReminderSchedulerProtocol,
+        syncOrchestrator: SyncOrchestratorProtocol,
+        biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService()
     ) {
         self.sessionStore = sessionStore
         self.authService = authService
@@ -74,12 +82,15 @@ final class ProfileViewModel {
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
         self.reminderScheduler = reminderScheduler
+        self.syncOrchestrator = syncOrchestrator
+        self.biometricAuthService = biometricAuthService
     }
 
     var currentUser: User? { sessionStore.currentUser }
     var currentUserRevision: UUID { sessionStore.userProfileRevision }
     var currentSpace: Space? { sessionStore.currentSpace }
     var bindingState: BindingState { sessionStore.bindingState }
+    var isPairMode: Bool { sessionStore.activeMode == .pair }
     var pairSpace: PairSpace? { sessionStore.currentPairSpace }
     var activeInvite: Invite? { sessionStore.activeInvite }
 
@@ -114,6 +125,43 @@ final class ProfileViewModel {
             userProfileRepository: userProfileRepository,
             user: user
         )
+    }
+
+    /// 对方的头像信息（用于双人编辑界面）
+    var pairPartnerAvatar: ProfileCardAvatar {
+        let partner = pairPartner
+        return ProfileCardAvatar(
+            displayName: partner?.nickname ?? "对方",
+            avatarAsset: .system("person.crop.circle.fill"), // 对方头像暂用默认
+            overrideImage: nil
+        )
+    }
+
+    /// 共享空间的自定义名称
+    var pairSpaceDisplayName: String {
+        pairSpace?.displayName ?? ""
+    }
+
+    /// 更新共享空间的显示名称
+    func updatePairSpaceDisplayName(_ newName: String) {
+        guard var space = sessionStore.currentPairSpace else { return }
+        space.displayName = newName.isEmpty ? nil : newName
+        sessionStore.pairSpaceSummary?.pairSpace = space
+        // 通过 pairingService 保存 — 但现在先直接更新 SessionStore
+        // PairSpace 的 displayName 是本地字段，不需要同步到 CloudKit
+        Task {
+            await pairingService.updatePairSpaceDisplayName(pairSpaceID: space.id, displayName: newName.isEmpty ? nil : newName)
+        }
+    }
+
+    /// 获取配对的对方成员
+    private var pairPartner: PairMember? {
+        guard let pairSpace else { return nil }
+        if pairSpace.memberA.userID == currentUser?.id {
+            return pairSpace.memberB
+        } else {
+            return pairSpace.memberA
+        }
     }
 
     var notificationSummary: String {
@@ -153,7 +201,7 @@ final class ProfileViewModel {
         case .paired:
             return pairSpaceSummaryText
         case .invitePending:
-            return activeInvite.map { "邀请码：\($0.inviteCode)" } ?? "邀请已发出"
+            return "等待对方接受邀请"
         case .inviteReceived:
             return "收到邀请，等待你的处理"
         case .singleTrial, .unbound:
@@ -196,6 +244,20 @@ final class ProfileViewModel {
         )
     }
 
+    var appLockEnabled: Bool {
+        sessionStore.currentUser?.preferences.appLockEnabled ?? false
+    }
+
+    var biometricTypeName: String {
+        biometricAuthService.biometricTypeName()
+    }
+
+    func updateAppLockEnabled(_ isEnabled: Bool) {
+        guard var user = sessionStore.currentUser else { return }
+        user.preferences.appLockEnabled = isEnabled
+        applyUpdatedPreferences(user.preferences, to: user)
+    }
+
     var pairQuickReplyMessages: [String] {
         NotificationSettings.normalizedPairQuickReplyMessages(
             sessionStore.currentUser?.preferences.pairQuickReplyMessages
@@ -231,9 +293,100 @@ final class ProfileViewModel {
 
     func createInvite() async {
         guard let inviterID = currentUser?.id else { return }
-        guard let invite = try? await pairingService.createInvite(from: inviterID) else { return }
-        sessionStore.pairingContext.activeInvite = invite
-        sessionStore.pairingContext.state = .invitePending
+        let displayName = currentUser?.displayName ?? ""
+        createInviteError = nil
+        do {
+            let invite = try await pairingService.createInvite(from: inviterID, displayName: displayName)
+            sessionStore.pairingContext.activeInvite = invite
+            sessionStore.pairingContext.state = .invitePending
+        } catch {
+            let message: String
+            if let pairingError = error as? PairingError {
+                message = pairingError.errorDescription ?? error.localizedDescription
+            } else {
+                message = "发布邀请失败：\(error.localizedDescription)"
+            }
+            createInviteError = message
+        }
+    }
+
+    /// Device B: accept a cross-device invite by entering the invite code.
+    /// Returns an error message string if failed, or nil on success.
+    @discardableResult
+    func acceptInviteByCode(_ code: String) async -> String? {
+        guard let responderID = currentUser?.id else { return "用户未登录" }
+        let responderName = currentUser?.displayName ?? ""
+        acceptInviteError = nil
+        do {
+            let context = try await pairingService.acceptInviteByCode(
+                code,
+                responderID: responderID,
+                responderDisplayName: responderName
+            )
+            apply(pairingContext: context)
+            inviteCodeEntryPresented = false
+            // 1.7: 配对成功后触发首次同步，拉取对方已有任务
+            if let sharedSpaceID = context.pairSpaceSummary?.sharedSpace.id {
+                Task { _ = try? await syncOrchestrator.sync(spaceID: sharedSpaceID) }
+            }
+            return nil
+        } catch let error as PairingError {
+            let msg = error.errorDescription ?? "配对失败"
+            acceptInviteError = msg
+            return msg
+        } catch {
+            let msg = "连接失败：\(error.localizedDescription)"
+            acceptInviteError = msg
+            return msg
+        }
+    }
+
+    /// Device A: cancel all pending invites and reset to singleTrial.
+    func cancelCurrentInvite() async {
+        // 1. 立即重置 UI（不等任何异步操作）
+        let resetContext = PairingContext(
+            state: .singleTrial,
+            pairSpaceSummary: nil,
+            activeInvite: nil
+        )
+        apply(pairingContext: resetContext)
+
+        // 2. 异步清理 SwiftData 中残留的 pending 邀请
+        guard let userID = currentUser?.id else { return }
+        if let freshContext = try? await pairingService.cancelAllPendingInvites(for: userID) {
+            apply(pairingContext: freshContext)
+        }
+    }
+
+    /// Device A: poll CloudKit to see if the partner has accepted the invite.
+    func checkInviteAccepted() async {
+        guard let inviterID = currentUser?.id else { return }
+
+        // 优先从 activeInvite 获取 pairSpaceID，没有则从已有 pairSpace 获取
+        let pairSpaceID: UUID? = activeInvite?.pairSpaceID ?? pairSpace?.id
+
+        guard let pairSpaceID else {
+            // 如果连 pairSpaceID 都获取不到，重新加载 context 看看
+            let freshContext = await pairingService.currentPairingContext(for: inviterID)
+            if freshContext.state != .invitePending {
+                // 状态已经不是 invitePending，直接同步
+                apply(pairingContext: freshContext)
+            }
+            return
+        }
+
+        isCheckingInvite = true
+        if let context = try? await pairingService.checkAndFinalizeIfAccepted(
+            pairSpaceID: pairSpaceID,
+            inviterID: inviterID
+        ) {
+            apply(pairingContext: context)
+            // 1.8: 检测到对方接受后，推送本地任务到 CloudKit
+            if let sharedSpaceID = context.pairSpaceSummary?.sharedSpace.id {
+                Task { _ = try? await syncOrchestrator.sync(spaceID: sharedSpaceID) }
+            }
+        }
+        isCheckingInvite = false
     }
 
     func acceptInvite() async {
@@ -252,6 +405,7 @@ final class ProfileViewModel {
         guard let pairSpaceID = pairSpace?.id, let userID = currentUser?.id else { return }
         guard let pairingContext = try? await pairingService.unbind(pairSpaceID: pairSpaceID, actorID: userID) else { return }
         apply(pairingContext: pairingContext)
+        sessionStore.activeMode = .single
     }
 
     func updateTaskUrgencyWindow(minutes: Int) {
@@ -375,7 +529,14 @@ final class ProfileViewModel {
 
     private var linkedPartnerDisplayName: String? {
         guard bindingState.supportsSharedCollaboration else { return nil }
-        guard let nickname = pairSpace?.memberB?.nickname.trimmingCharacters(in: .whitespacesAndNewlines) else {
+        // 动态找到"不是自己"的那个成员，而不是硬编码 memberB
+        let partner: PairMember?
+        if pairSpace?.memberA.userID == currentUser?.id {
+            partner = pairSpace?.memberB
+        } else {
+            partner = pairSpace?.memberA
+        }
+        guard let nickname = partner?.nickname.trimmingCharacters(in: .whitespacesAndNewlines) else {
             return nil
         }
         return nickname.isEmpty ? nil : nickname
@@ -391,7 +552,14 @@ final class ProfileViewModel {
     private func apply(pairingContext: PairingContext) {
         sessionStore.pairingContext = pairingContext
         sessionStore.pairSpaceSummary = pairingContext.pairSpaceSummary
-        sessionStore.availableModeStates = pairingContext.pairSpaceSummary == nil ? [.single, .pair] : [.single, .pair]
+        // 1.4: 正确设置 availableModeStates
+        sessionStore.availableModeStates = pairingContext.pairSpaceSummary != nil
+            ? [.single, .pair] : [.single]
+        // 1.5: 绑定成功后自动切换到双人模式
+        if pairingContext.state == .paired, pairingContext.pairSpaceSummary != nil {
+            sessionStore.activeMode = .pair
+        }
+        // 解绑或丢失配对后回退到单人模式
         if pairingContext.pairSpaceSummary == nil, sessionStore.activeMode == .pair {
             sessionStore.activeMode = .single
         }

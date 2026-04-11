@@ -58,8 +58,8 @@ struct HomeDockBar: View {
         HStack(spacing: 4) {
             dockButton(
                 destination: .profile,
-                systemImage: "gearshape",
-                activeSystemImage: "gearshape",
+                systemImage: "slider.horizontal.3",
+                activeSystemImage: "slider.horizontal.3",
                 accessibilityLabel: "打开个人页",
                 isDisabled: false,
                 action: onProfileTapped

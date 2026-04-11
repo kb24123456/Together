@@ -57,6 +57,11 @@ protocol TaskApplicationServiceProtocol: Sendable {
         actorID: UUID,
         message: String
     ) async throws -> Item
+    func sendReminderToPartner(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID
+    ) async throws -> Item
 }
 
 extension TaskApplicationServiceProtocol {

@@ -40,6 +40,7 @@ struct NotificationSettings: Hashable, Sendable {
     var pairQuickReplyMessages: [String] = NotificationSettings.defaultPairQuickReplyMessages
     var completedTaskAutoArchiveEnabled: Bool = true
     var completedTaskAutoArchiveDays: Int = NotificationSettings.defaultCompletedTaskAutoArchiveDays
+    var appLockEnabled: Bool = false
 
     nonisolated static func normalizedSnoozeMinutes(_ value: Int) -> Int {
         let clamped = min(max(value, 5), 180)

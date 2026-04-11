@@ -40,6 +40,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let primaryAvatar: HomeAvatar?
     let secondaryAvatar: HomeAvatar?
     let latestMessageAuthorName: String?
+    let reminderRequestedAt: Date?
 }
 
 enum HomePairCardStyle: Hashable {
@@ -122,6 +123,9 @@ final class HomeViewModel {
     private let itemRepository: ItemRepositoryProtocol
     private let quickCaptureParser: QuickCaptureParserProtocol
     private let taskTemplateRepository: TaskTemplateRepositoryProtocol
+
+    /// 任务操作完成后的回调，参数为 spaceID，用于触发同步
+    var onTaskMutated: ((UUID) -> Void)?
 
     private var detailSaveTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
@@ -443,6 +447,7 @@ final class HomeViewModel {
                 savedDetailDraft = refreshedDraft
             }
             replaceItem(saved)
+            onTaskMutated?(spaceID)
         } catch {}
     }
 
@@ -465,6 +470,7 @@ final class HomeViewModel {
                 savedDetailDraft = refreshedDraft
             }
             replaceItem(saved)
+            onTaskMutated?(spaceID)
         } catch {}
     }
 
@@ -486,6 +492,7 @@ final class HomeViewModel {
                 savedDetailDraft = refreshedDraft
             }
             replaceItem(saved)
+            onTaskMutated?(spaceID)
         } catch {}
     }
 
@@ -568,6 +575,7 @@ final class HomeViewModel {
                 draft: draft
             )
             await reload(insertedItemIDs: [item.id])
+            onTaskMutated?(spaceID)
             return .saved
         } catch {
             return .failed
@@ -598,6 +606,7 @@ final class HomeViewModel {
                 draft: draft
             )
             await reload(insertedItemIDs: [item.id])
+            onTaskMutated?(spaceID)
             return true
         } catch {
             return false
@@ -635,6 +644,9 @@ final class HomeViewModel {
         }
 
         do {
+            // 记录刷新前的 ID 集合，用于检测同步到达的新任务
+            let previousIDs = Set(items.map(\.id))
+
             let fetchedItems = try await taskApplicationService.tasks(
                 in: spaceID,
                 scope: scope(for: selectedDate)
@@ -643,8 +655,13 @@ final class HomeViewModel {
             let persistedInsertedIDs = insertedItemIDs.intersection(visibleItemIDs)
             let nextInsertedIDs = expectedInsertedItemIDs.intersection(visibleItemIDs)
 
-            items = fetchedItems
-            insertedItemIDs = persistedInsertedIDs.union(nextInsertedIDs)
+            // 同步到达的新任务也标记为 inserted，触发入场动画
+            let arrivedIDs = visibleItemIDs.subtracting(previousIDs).subtracting(expectedInsertedItemIDs)
+
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                items = fetchedItems
+            }
+            insertedItemIDs = persistedInsertedIDs.union(nextInsertedIDs).union(arrivedIDs)
             if overdueEntryCount == 0 {
                 isOverdueSheetPresented = false
             }
@@ -805,6 +822,7 @@ final class HomeViewModel {
                 draft: template.makeTaskDraft(for: selectedDate, calendar: calendar)
             )
             await reload(insertedItemIDs: [item.id])
+            onTaskMutated?(spaceID)
             return true
         } catch {
             return false
@@ -922,6 +940,7 @@ final class HomeViewModel {
                     }
                 }
             }
+            onTaskMutated?(spaceID)
         } catch {}
 
         completingOccurrenceKeys.remove(occurrenceKey)
@@ -952,6 +971,7 @@ final class HomeViewModel {
             )
             items.removeAll { $0.id == itemID }
             dismissItemDetail()
+            onTaskMutated?(spaceID)
         } catch {
             return
         }
@@ -976,6 +996,28 @@ final class HomeViewModel {
             if overdueEntryCount == 0 {
                 isOverdueSheetPresented = false
             }
+            onTaskMutated?(spaceID)
+        } catch {
+            return
+        }
+    }
+
+    func sendReminderToPartner(_ itemID: UUID) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+
+        do {
+            let updated = try await taskApplicationService.sendReminderToPartner(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID
+            )
+            if let index = items.firstIndex(where: { $0.id == itemID }) {
+                items[index] = updated
+            }
+            onTaskMutated?(spaceID)
         } catch {
             return
         }
@@ -1153,6 +1195,7 @@ final class HomeViewModel {
             self.detailDraft = refreshedDraft
             self.savedDetailDraft = refreshedDraft
             replaceItem(saved)
+            onTaskMutated?(spaceID)
             return true
         } catch {
             return false
@@ -1387,7 +1430,8 @@ final class HomeViewModel {
             relationText: relationship.relationText,
             primaryAvatar: relationship.primaryAvatar,
             secondaryAvatar: relationship.secondaryAvatar,
-            latestMessageAuthorName: latestMessageAuthorName(for: item)
+            latestMessageAuthorName: latestMessageAuthorName(for: item),
+            reminderRequestedAt: item.reminderRequestedAt
         )
     }
 
@@ -1602,6 +1646,7 @@ final class HomeViewModel {
                     removeItem(withID: saved.id)
                 }
             }
+            onTaskMutated?(spaceID)
         } catch {}
     }
 

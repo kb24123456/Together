@@ -27,6 +27,7 @@ actor DefaultSyncOrchestrator: SyncOrchestratorProtocol {
         let syncedAt = Date.now
 
         do {
+            // ── Push local changes ──
             let pushResult: SyncPushResult
             if pendingChanges.isEmpty {
                 pushResult = SyncPushResult(pushedCount: 0, cursor: currentState?.cursor)
@@ -34,14 +35,19 @@ actor DefaultSyncOrchestrator: SyncOrchestratorProtocol {
                 pushResult = try await cloudGateway.push(changes: pendingChanges, for: spaceID)
             }
 
+            // ── Pull remote changes (incremental via CKServerChangeToken) ──
             let latestCursor = pushResult.cursor ?? currentState?.cursor
             let pullResult = try await cloudGateway.pull(spaceID: spaceID, since: latestCursor)
-            let appliedRemoteChanges = try await remoteSyncApplier.apply(pullResult.payload, in: spaceID)
 
-            guard pullResult.changedRecordIDs.isEmpty || appliedRemoteChanges == pullResult.changedRecordIDs.count else {
-                throw SyncOrchestratorError.remoteChangesNotSupported(pullResult.changedRecordIDs.count)
-            }
+            // ── Apply remote changes locally ──
+            let pendingRecordIDs = Set(pendingChanges.map(\.recordID))
+            let appliedRemoteChanges = try await remoteSyncApplier.apply(
+                pullResult.payload,
+                in: spaceID,
+                localPendingRecordIDs: pendingRecordIDs
+            )
 
+            // ── Mark success and persist new cursor (with CKServerChangeToken) ──
             let finalCursor = pullResult.cursor ?? latestCursor
             await syncCoordinator.markPushSuccess(
                 for: spaceID,

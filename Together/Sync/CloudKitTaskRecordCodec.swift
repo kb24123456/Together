@@ -9,8 +9,21 @@ enum CloudKitTaskRecordCodecError: Error {
 enum CloudKitTaskRecordCodec {
     nonisolated static let recordType = "Task"
 
+    /// Creates a CKRecord in the public database default zone.
     nonisolated static func makeRecord(from item: Item) throws -> CKRecord {
-        let record = CKRecord(recordType: recordType, recordID: CKRecord.ID(recordName: item.id.uuidString))
+        let recordID = CKRecord.ID(recordName: item.id.uuidString)
+        let record = CKRecord(recordType: recordType, recordID: recordID)
+        return try populateRecord(record, from: item)
+    }
+
+    /// Creates a CKRecord in the specified zone.
+    nonisolated static func makeRecord(from item: Item, in zoneID: CKRecordZone.ID) throws -> CKRecord {
+        let recordID = CKRecord.ID(recordName: item.id.uuidString, zoneID: zoneID)
+        let record = CKRecord(recordType: recordType, recordID: recordID)
+        return try populateRecord(record, from: item)
+    }
+
+    private nonisolated static func populateRecord(_ record: CKRecord, from item: Item) throws -> CKRecord {
         record["spaceID"] = item.spaceID?.uuidString as CKRecordValue?
         record["listID"] = item.listID?.uuidString as CKRecordValue?
         record["projectID"] = item.projectID?.uuidString as CKRecordValue?
@@ -38,6 +51,7 @@ enum CloudKitTaskRecordCodec {
         record["assignmentMessagesJSON"] = try encode(item.assignmentMessages) as CKRecordValue
         record["lastActionByUserID"] = item.lastActionByUserID?.uuidString as CKRecordValue?
         record["lastActionAt"] = item.lastActionAt as CKRecordValue?
+        record["reminderRequestedAt"] = item.reminderRequestedAt as CKRecordValue?
         return record
     }
 
@@ -88,7 +102,8 @@ enum CloudKitTaskRecordCodec {
             isDraft: record["isDraft"] as? Bool ?? false,
             isArchived: record["isArchived"] as? Bool ?? false,
             archivedAt: record["archivedAt"] as? Date,
-            repeatRule: try decodeOptional((record["repeatRuleJSON"] as? String), as: ItemRepeatRule.self)
+            repeatRule: try decodeOptional((record["repeatRuleJSON"] as? String), as: ItemRepeatRule.self),
+            reminderRequestedAt: record["reminderRequestedAt"] as? Date
         )
     }
 

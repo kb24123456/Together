@@ -92,7 +92,8 @@ extension PersistentUserProfile {
             completedTaskAutoArchiveEnabled: completedTaskAutoArchiveEnabled,
             completedTaskAutoArchiveDays: NotificationSettings.normalizedCompletedTaskAutoArchiveDays(
                 completedTaskAutoArchiveDays
-            )
+            ),
+            appLockEnabled: UserDefaults.standard.bool(forKey: "together.appLockEnabled")
         )
         updatedUser.updatedAt = updatedAt
         return updatedUser
@@ -113,6 +114,7 @@ extension PersistentUserProfile {
         completedTaskAutoArchiveDays = NotificationSettings.normalizedCompletedTaskAutoArchiveDays(
             user.preferences.completedTaskAutoArchiveDays
         )
+        UserDefaults.standard.set(user.preferences.appLockEnabled, forKey: "together.appLockEnabled")
         updatedAt = user.updatedAt
     }
 }

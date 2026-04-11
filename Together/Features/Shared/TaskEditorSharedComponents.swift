@@ -13,6 +13,7 @@ enum TaskEditorMenu: String, Identifiable {
     case subtasks
     case template
     case periodicReminder
+    case periodicCycle
 
     var id: String { rawValue }
 
@@ -32,6 +33,8 @@ enum TaskEditorMenu: String, Identifiable {
             return "bookmark"
         case .periodicReminder:
             return "bell"
+        case .periodicCycle:
+            return "arrow.clockwise"
         }
     }
 
@@ -50,7 +53,9 @@ enum TaskEditorMenu: String, Identifiable {
         case .template:
             return "模板"
         case .periodicReminder:
-            return "提醒规则"
+            return "提醒"
+        case .periodicCycle:
+            return "周期"
         }
     }
 }
@@ -66,11 +71,11 @@ enum TaskEditorMenuContext: Equatable {
         case .task:
             return [.date, .time, .reminder, .repeatRule]
         case .project:
-            return [.date, .subtasks]
+            return [.date]
         case .templates:
             return [.template]
         case .periodic:
-            return [.periodicReminder, .subtasks]
+            return [.periodicCycle, .periodicReminder]
         }
     }
 
@@ -80,20 +85,13 @@ enum TaskEditorMenuContext: Equatable {
 
     private var unifiedPresentationHeight: CGFloat {
         switch self {
-        case .task:
+        case .task, .project, .periodic:
             return TaskEditorTimePickerSheet.preferredHeight(
                 showsQuickPresets: true,
                 showsPrimaryButton: false
             ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
-        case .project:
-            return max(
-                TaskEditorDatePickerSheet.preferredHeight,
-                492
-            ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         case .templates:
             return 440
-        case .periodic:
-            return 492 + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
         }
     }
 }
@@ -147,6 +145,7 @@ enum TaskEditorChipSemanticValue: Equatable {
     case repeatRule(title: String, rank: Int)
     case subtasks(Int)
     case periodicReminder(Bool)
+    case periodicCycle(PeriodicCycle)
 
     static func direction(
         from previousValue: TaskEditorChipSemanticValue,
@@ -1019,7 +1018,7 @@ private struct TaskEditorMenuSwitcher: View {
                                 .symbolEffect(
                                     .wiggle.byLayer,
                                     options: .nonRepeating,
-                                    value: menu == .reminder ? wiggleTrigger : 0
+                                    value: (menu == .reminder || menu == .periodicReminder) ? wiggleTrigger : 0
                                 )
                         }
 
@@ -1057,10 +1056,10 @@ private struct TaskEditorMenuSwitcher: View {
 
     private func triggerSymbolEffect(for menu: TaskEditorMenu) {
         switch menu {
-        case .time, .repeatRule:
+        case .time, .repeatRule, .periodicCycle:
             lastRotatedMenu = menu
             rotateTrigger += 1
-        case .reminder:
+        case .reminder, .periodicReminder:
             wiggleTrigger += 1
         default:
             break
@@ -2832,7 +2831,7 @@ private struct TaskEditorChipTextLayout: Equatable {
             }
         case let .time(date):
             segments = Self.timeSegments(for: date, placeholder: text)
-        case .reminder, .periodicReminder, .repeatRule, .subtasks:
+        case .reminder, .periodicReminder, .periodicCycle, .repeatRule, .subtasks:
             segments = [TaskEditorChipTextSegment(id: "main", text: text, kind: .text)]
         }
     }
@@ -3034,6 +3033,8 @@ private struct TaskEditorAnimatedChipTitle: View {
             return .numeric
         case .subtasks:
             return .interpolated
+        case .periodicCycle:
+            return .interpolated
         }
     }
 
@@ -3073,7 +3074,7 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder, .periodicReminder, .repeatRule:
             return true
-        case .subtasks:
+        case .subtasks, .periodicCycle:
             return false
         }
     }
@@ -3124,7 +3125,7 @@ private struct TaskEditorAnimatedChipIcon: View {
 
     private var effectKind: TaskEditorChipIconEffectKind {
         switch menu {
-        case .time, .repeatRule:
+        case .time, .repeatRule, .periodicCycle:
             return .rotate
         case .reminder, .periodicReminder:
             return .wiggle

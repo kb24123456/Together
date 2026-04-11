@@ -10,20 +10,93 @@ struct PersistenceController {
 
     init(inMemory: Bool = false) {
         StartupTrace.mark("PersistenceController.init.begin inMemory=\(inMemory)")
-        do {
-            let resolvedContainer = try Self.makeContainer(inMemory: inMemory)
-            StartupTrace.mark("PersistenceController.container.created")
-            try Self.cleanupLegacyPeriodicDataIfNeeded(container: resolvedContainer, inMemory: inMemory)
-            StartupTrace.mark("PersistenceController.legacyPeriodicCleanup.complete")
-            try Self.seedIfNeeded(container: resolvedContainer)
-            try Self.injectDebugPairReviewFixtureIfNeeded(container: resolvedContainer)
-            StartupTrace.mark("PersistenceController.seed.complete")
-            self.container = resolvedContainer
-        } catch {
-            let storePath = inMemory ? "in-memory" : Self.persistentStoreURL.path(percentEncoded: false)
-            fatalError("Failed to initialize persistence at \(storePath). Existing store was preserved. Error: \(error)")
+
+        var firstError = ""
+
+        // First attempt: open the existing store normally.
+        if let resolved = Self.attemptFullInit(inMemory: inMemory, errorOut: &firstError) {
+            self.container = resolved
+            StartupTrace.mark("PersistenceController.init.end")
+            return
         }
-        StartupTrace.mark("PersistenceController.init.end")
+
+        StartupTrace.mark("PersistenceController.firstAttemptFailed=\(firstError)")
+
+        guard inMemory == false else {
+            fatalError("[Persistence] In-memory store failed: \(firstError)")
+        }
+
+        // Store is broken or schema is incompatible — nuke it and try fresh.
+        Self.deleteStoreFiles()
+        StartupTrace.mark("PersistenceController.storeReset")
+
+        var secondError = ""
+        if let resolved = Self.attemptFullInit(inMemory: false, errorOut: &secondError) {
+            self.container = resolved
+            StartupTrace.mark("PersistenceController.init.end.afterReset")
+            return
+        }
+
+        // Both attempts failed — fatal. Print both errors so we can diagnose.
+        let storePath = Self.persistentStoreURL.path(percentEncoded: false)
+        fatalError("[Persistence] Failed even after store reset.\npath: \(storePath)\n1st: \(firstError)\n2nd: \(secondError)")
+    }
+
+    /// Creates the container AND exercises it (seed + cleanup) so that any lazy-load
+    /// error (migration, corruption) is caught here rather than surfacing later.
+    private static func attemptFullInit(inMemory: Bool, errorOut: inout String) -> ModelContainer? {
+        let container: ModelContainer
+        do {
+            container = try makeContainer(inMemory: inMemory)
+        } catch {
+            errorOut = "makeContainer: \(error)"
+            return nil
+        }
+
+        do {
+            let probeContext = ModelContext(container)
+            _ = try probeContext.fetchCount(FetchDescriptor<PersistentSpace>())
+        } catch {
+            errorOut = "probeStore: \(error)"
+            return nil
+        }
+
+        do {
+            try cleanupLegacyPeriodicDataIfNeeded(container: container, inMemory: inMemory)
+        } catch {
+            errorOut = "cleanupLegacy: \(error)"
+            return nil
+        }
+
+        do {
+            try seedIfNeeded(container: container)
+        } catch {
+            errorOut = "seedIfNeeded: \(error)"
+            return nil
+        }
+
+        do {
+            try injectDebugPairReviewFixtureIfNeeded(container: container)
+        } catch {
+            errorOut = "injectFixture: \(error)"
+            return nil
+        }
+
+        return container
+    }
+
+    /// Removes all SQLite artefacts for the persistent store.
+    private static func deleteStoreFiles() {
+        let storeURL = persistentStoreURL
+        let base = storeURL.deletingLastPathComponent()
+            .appendingPathComponent(storeURL.deletingPathExtension().lastPathComponent)
+        for suffix in ["store", "store-shm", "store-wal"] {
+            let url = base.appendingPathExtension(suffix)
+            try? FileManager.default.removeItem(at: url)
+        }
+        // External-storage support directory (used by @Attribute(.externalStorage))
+        let supportURL = URL(fileURLWithPath: storeURL.path + "_SUPPORT")
+        try? FileManager.default.removeItem(at: supportURL)
     }
 
     private static func cleanupLegacyPeriodicDataIfNeeded(
@@ -65,9 +138,16 @@ struct PersistenceController {
         let configuration: ModelConfiguration
 
         if inMemory {
-            configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+            configuration = ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
         } else {
-            configuration = ModelConfiguration("TogetherStore", url: persistentStoreURL)
+            configuration = ModelConfiguration(
+                "TogetherStore",
+                url: persistentStoreURL,
+                cloudKitDatabase: .none
+            )
         }
 
         return try ModelContainer(
@@ -85,6 +165,7 @@ struct PersistenceController {
             PersistentSyncChange.self,
             PersistentSyncState.self,
             PersistentPeriodicTask.self,
+            PersistentPairingHistory.self,
             configurations: configuration
         )
     }

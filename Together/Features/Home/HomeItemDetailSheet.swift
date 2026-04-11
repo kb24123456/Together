@@ -1618,6 +1618,8 @@ private struct HomeDetailMenuSheet: View {
             )
         case .periodicReminder:
             EmptyView()
+        case .periodicCycle:
+            EmptyView()
         }
     }
 

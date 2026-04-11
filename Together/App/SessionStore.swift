@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class SessionStore {
     var authState: AuthState = .signedOut
+    var isAppLocked: Bool = false
     var currentUser: User? {
         didSet {
             userProfileRevision = UUID()
@@ -59,6 +60,11 @@ final class SessionStore {
         availableModeStates = spaceContext.availableModes
         self.pairingContext = pairingContext
         activeMode = .single
+    }
+
+    func handleSignIn(session: AuthSession) {
+        authState = session.state
+        currentUser = session.user
     }
 
     func switchMode(to mode: AppMode) {

@@ -85,6 +85,7 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     var isArchived: Bool = false
     var archivedAt: Date? = nil
     var repeatRule: ItemRepeatRule? = nil
+    var reminderRequestedAt: Date? = nil
 
     nonisolated var requiresResponse: Bool {
         assigneeMode == .partner && assignmentState == .pendingResponse

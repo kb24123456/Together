@@ -286,7 +286,7 @@ struct EditProfileView: View {
 }
 
 #if canImport(UIKit)
-private struct AvatarCropperView: View {
+struct AvatarCropperView: View {
     private struct CropLayout {
         let cropDiameter: CGFloat
         let baseScale: CGFloat

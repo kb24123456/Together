@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 
 struct AppContainer {
@@ -19,4 +20,13 @@ struct AppContainer {
     let reminderScheduler: ReminderSchedulerProtocol
     let periodicTaskRepository: PeriodicTaskRepositoryProtocol
     let periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
+    let biometricAuthService: BiometricAuthServiceProtocol
+    let syncScheduler: SyncScheduler
+
+    // New services for private DB + CKShare
+    let cloudKitContainer: CKContainer
+    let zoneManager: CloudKitZoneManager
+    let shareManager: CloudKitShareManager
+    let subscriptionManager: CloudKitSubscriptionManager
+    let cloudGateway: CloudKitSyncGateway
 }

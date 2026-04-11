@@ -1,3 +1,4 @@
+import CloudKit
 import Foundation
 
 enum LocalServiceFactory {
@@ -17,7 +18,25 @@ enum LocalServiceFactory {
         let reminderScheduler = LocalReminderScheduler(notificationService: notificationService)
         let syncCoordinator = LocalSyncCoordinator(container: modelContainer)
         let userProfileRepository = LocalUserProfileRepository(container: modelContainer)
-        let pairingService = LocalPairingService(container: modelContainer)
+        let localPairingService = LocalPairingService(container: modelContainer)
+
+        // CloudKit container & managers
+        let ckContainer = SyncGatewayFactory.makeContainer()
+        let zoneManager = CloudKitZoneManager(container: ckContainer)
+        let shareManager = CloudKitShareManager(container: ckContainer)
+        let subscriptionManager = CloudKitSubscriptionManager(container: ckContainer)
+
+        let inviteGateway = CloudKitInviteGateway(
+            containerIdentifier: CloudKitSyncConfiguration.defaultContainerIdentifier
+        )
+        let pairingService = CloudPairingService(
+            localPairing: localPairingService,
+            inviteGateway: inviteGateway,
+            zoneManager: zoneManager,
+            shareManager: shareManager,
+            container: ckContainer
+        )
+
         let itemRepository = LocalItemRepository(container: modelContainer)
         let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
         let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
@@ -39,8 +58,10 @@ enum LocalServiceFactory {
             reminderScheduler: reminderScheduler
         )
 
+        let syncScheduler = SyncScheduler(syncOrchestrator: syncOrchestrator)
+
         let container = AppContainer(
-            authService: MockAuthService(),
+            authService: AppleAuthService(container: modelContainer),
             spaceService: LocalSpaceService(container: modelContainer),
             taskApplicationService: taskApplicationService,
             quickCaptureParser: quickCaptureParser,
@@ -60,7 +81,14 @@ enum LocalServiceFactory {
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,
             periodicTaskRepository: periodicTaskRepository,
-            periodicTaskApplicationService: periodicTaskApplicationService
+            periodicTaskApplicationService: periodicTaskApplicationService,
+            biometricAuthService: BiometricAuthService(),
+            syncScheduler: syncScheduler,
+            cloudKitContainer: ckContainer,
+            zoneManager: zoneManager,
+            shareManager: shareManager,
+            subscriptionManager: subscriptionManager,
+            cloudGateway: cloudGateway
         )
         StartupTrace.mark("LocalServiceFactory.makeContainer.end")
         return container

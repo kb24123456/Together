@@ -1,17 +1,35 @@
 import CloudKit
 import Foundation
 
-enum CloudKitSyncGatewayError: Error, Equatable {
-    case missingConfiguration
-    case transportNotEnabled
-    case unsupportedEntity(SyncEntityKind)
-    case taskRecordNotFound(UUID)
+private nonisolated func extractRetryAfter(from error: Error) -> TimeInterval? {
+    guard let ckError = error as? CKError else { return nil }
+    if ckError.code == .requestRateLimited || ckError.code == .zoneBusy {
+        return (ckError as NSError).userInfo[CKErrorRetryAfterKey] as? TimeInterval ?? 30
+    }
+    return nil
 }
 
+enum CloudKitSyncGatewayError: Error, Equatable {
+    case missingConfiguration
+    case unsupportedEntity(SyncEntityKind)
+    case taskRecordNotFound(UUID)
+    case rateLimited(retryAfter: TimeInterval)
+    case spaceNotConfigured
+}
+
+/// Syncs `Item` (Task) records with CloudKit's **public** database (default zone).
+///
+/// Uses `CKQuery` filtered by `spaceID` for pull, since public DB does not support
+/// custom zones or `CKFetchRecordZoneChangesOperation`.
+///
+/// Incremental sync uses `updatedAt > lastSyncDate` predicate.
 actor CloudKitSyncGateway: CloudSyncGatewayProtocol {
     private let configuration: CloudKitSyncConfiguration
     private let itemRepository: ItemRepositoryProtocol
     private let container: CKContainer
+
+    /// The space ID used to scope records in the public default zone.
+    private var activeSpaceID: UUID?
 
     init(
         configuration: CloudKitSyncConfiguration,
@@ -22,37 +40,203 @@ actor CloudKitSyncGateway: CloudSyncGatewayProtocol {
         self.container = CKContainer(identifier: configuration.containerIdentifier)
     }
 
+    // MARK: - Configuration
+
+    /// Configure the gateway for a specific pair space.
+    func configure(spaceID: UUID) {
+        self.activeSpaceID = spaceID
+        #if DEBUG
+        print("[SyncGateway] Configured for spaceID: \(spaceID.uuidString.prefix(8))")
+        #endif
+    }
+
+    private var database: CKDatabase {
+        container.publicCloudDatabase
+    }
+
+    /// Default zone — public DB only supports this.
+    private var defaultZoneID: CKRecordZone.ID {
+        CKRecordZone.default().zoneID
+    }
+
+    // MARK: - Push
+
     func push(changes: [SyncChange], for spaceID: UUID) async throws -> SyncPushResult {
-        _ = container
         guard configuration.containerIdentifier.isEmpty == false else {
             throw CloudKitSyncGatewayError.missingConfiguration
         }
+        guard activeSpaceID != nil else {
+            throw CloudKitSyncGatewayError.spaceNotConfigured
+        }
+
+        let db = database
+        var recordsToSave: [CKRecord] = []
+        var recordIDsToDelete: [CKRecord.ID] = []
 
         for change in changes {
-            _ = try await preparedRecord(for: change)
+            guard change.entityKind == .task else { continue }
+            switch change.operation {
+            case .delete:
+                let recordID = CKRecord.ID(recordName: change.recordID.uuidString)
+                recordIDsToDelete.append(recordID)
+            default:
+                guard let item = try? await itemRepository.fetchItem(itemID: change.recordID) else {
+                    #if DEBUG
+                    print("[Sync:Push] ⚠️ Item not found for recordID=\(change.recordID), skipping")
+                    #endif
+                    continue
+                }
+                let record = try CloudKitTaskRecordCodec.makeRecord(from: item)
+                recordsToSave.append(record)
+            }
         }
 
-        throw CloudKitSyncGatewayError.transportNotEnabled
+        if recordsToSave.isEmpty && recordIDsToDelete.isEmpty {
+            #if DEBUG
+            print("[Sync:Push] No records to push (changes=\(changes.count) but none are task upserts)")
+            #endif
+            return SyncPushResult(pushedCount: 0, cursor: nil)
+        }
+
+        #if DEBUG
+        print("[Sync:Push] Pushing \(recordsToSave.count) saves, \(recordIDsToDelete.count) deletes to public DB")
+        #endif
+
+        let saveResults: [CKRecord.ID: Result<CKRecord, Error>]
+        let deleteResults: [CKRecord.ID: Result<Void, Error>]
+        do {
+            (saveResults, deleteResults) = try await db.modifyRecords(
+                saving: recordsToSave,
+                deleting: recordIDsToDelete,
+                savePolicy: .changedKeys,
+                atomically: false
+            )
+        } catch {
+            if let retryAfter = extractRetryAfter(from: error) {
+                throw CloudKitSyncGatewayError.rateLimited(retryAfter: retryAfter)
+            }
+            throw error
+        }
+
+        var savedCount = 0
+        for (recordID, result) in saveResults {
+            switch result {
+            case .success:
+                savedCount += 1
+            case .failure(let error):
+                #if DEBUG
+                print("[Sync:Push] ❌ Save failed for \(recordID.recordName): \(error)")
+                #endif
+                throw PairingError.cloudOperationFailed(error)
+            }
+        }
+
+        let deletedCount = deleteResults.values.filter { (try? $0.get()) != nil }.count
+        #if DEBUG
+        print("[Sync:Push] ✅ Pushed: saved=\(savedCount) deleted=\(deletedCount)")
+        #endif
+        return SyncPushResult(pushedCount: savedCount + deletedCount, cursor: nil)
     }
 
+    // MARK: - Pull (CKQuery-based for public DB)
+
     func pull(spaceID: UUID, since cursor: SyncCursor?) async throws -> SyncPullResult {
-        _ = container
         guard configuration.containerIdentifier.isEmpty == false else {
             throw CloudKitSyncGatewayError.missingConfiguration
         }
-
-        throw CloudKitSyncGatewayError.transportNotEnabled
-    }
-
-    private func preparedRecord(for change: SyncChange) async throws -> CKRecord {
-        switch change.entityKind {
-        case .task:
-            guard let item = try await itemRepository.fetchItem(itemID: change.recordID) else {
-                throw CloudKitSyncGatewayError.taskRecordNotFound(change.recordID)
-            }
-            return try CloudKitTaskRecordCodec.makeRecord(from: item)
-        case .taskList, .project, .space:
-            throw CloudKitSyncGatewayError.unsupportedEntity(change.entityKind)
+        guard activeSpaceID != nil else {
+            throw CloudKitSyncGatewayError.spaceNotConfigured
         }
+
+        let db = database
+
+        // Build query predicate: always filter by spaceID
+        // For incremental sync, also filter by updatedAt > lastSyncDate
+        let predicate: NSPredicate
+        if let lastSync = cursor?.updatedAt {
+            // Leave a small overlap window (2 seconds) to avoid missing records
+            let safeDate = lastSync.addingTimeInterval(-2)
+            predicate = NSPredicate(
+                format: "spaceID == %@ AND updatedAt > %@",
+                spaceID.uuidString as NSString,
+                safeDate as NSDate
+            )
+        } else {
+            // Full pull — fetch all records for this space
+            predicate = NSPredicate(
+                format: "spaceID == %@",
+                spaceID.uuidString as NSString
+            )
+        }
+
+        let query = CKQuery(
+            recordType: CloudKitTaskRecordCodec.recordType,
+            predicate: predicate
+        )
+        query.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: true)]
+
+        var changedItems: [Item] = []
+        var queryCursor: CKQueryOperation.Cursor?
+
+        do {
+            // First batch
+            let (results, cursor) = try await db.records(
+                matching: query,
+                inZoneWith: nil,
+                resultsLimit: CKQueryOperation.maximumResults
+            )
+            queryCursor = cursor
+
+            for (_, result) in results {
+                if let record = try? result.get(),
+                   let item = try? CloudKitTaskRecordCodec.decode(record: record) {
+                    changedItems.append(item)
+                }
+            }
+
+            // Fetch remaining pages
+            while let nextCursor = queryCursor {
+                let (moreResults, moreCursor) = try await db.records(
+                    continuingMatchFrom: nextCursor,
+                    resultsLimit: CKQueryOperation.maximumResults
+                )
+                queryCursor = moreCursor
+
+                for (_, result) in moreResults {
+                    if let record = try? result.get(),
+                       let item = try? CloudKitTaskRecordCodec.decode(record: record) {
+                        changedItems.append(item)
+                    }
+                }
+            }
+        } catch {
+            #if DEBUG
+            print("[Sync:Pull] ❌ \(error)")
+            #endif
+            if let retryAfter = extractRetryAfter(from: error) {
+                throw CloudKitSyncGatewayError.rateLimited(retryAfter: retryAfter)
+            }
+            throw error
+        }
+
+        #if DEBUG
+        print("[Sync:Pull] spaceID=\(spaceID.uuidString.prefix(8)) changed=\(changedItems.count)")
+        #endif
+
+        let newCursor = SyncCursor(
+            token: ISO8601DateFormatter().string(from: .now),
+            updatedAt: .now,
+            serverChangeTokenData: nil
+        )
+
+        let allIDs = changedItems.map(\.id)
+        return SyncPullResult(
+            cursor: newCursor,
+            changedRecordIDs: allIDs,
+            payload: RemoteSyncPayload(
+                tasks: changedItems,
+                deletedTaskIDs: []
+            )
+        )
     }
 }

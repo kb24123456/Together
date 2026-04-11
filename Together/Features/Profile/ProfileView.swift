@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ProfileView: View {
     @Environment(AppContext.self) private var appContext
@@ -14,7 +15,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
                     ProfileScrollOffsetProbe()
 
-                    NavigationLink(value: ProfileRoute.editProfile) {
+                    NavigationLink(value: viewModel.isPairMode ? ProfileRoute.editPairProfile : ProfileRoute.editProfile) {
                         ProfileUserCard(
                             primaryName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
                             secondaryName: viewModel.profileCardSecondaryName,
@@ -38,6 +39,7 @@ struct ProfileView: View {
                     appearanceSection
                     executionPreferencesSection
                     historyAndReminderSection
+                    securitySection
                     systemAndCollaborationSection
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
@@ -64,6 +66,18 @@ struct ProfileView: View {
                 )
                     .id(appContext.sessionStore.userProfileRevision)
                     .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
+            case .editPairProfile:
+                EditPairProfileView(
+                    viewModel: viewModel.makeEditProfileViewModel(user: appContext.sessionStore.currentUser),
+                    partnerAvatar: viewModel.pairPartnerAvatar,
+                    partnerName: viewModel.profileCardSecondaryName ?? "对方",
+                    spaceName: viewModel.pairSpaceDisplayName,
+                    onSpaceNameChanged: { newName in
+                        viewModel.updatePairSpaceDisplayName(newName)
+                    }
+                )
+                    .id(appContext.sessionStore.userProfileRevision)
+                    .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel())
             case .notificationSettings, .futureCollaboration:
@@ -73,6 +87,14 @@ struct ProfileView: View {
         .task {
             await viewModel.load()
         }
+        // Universal Link 到达后自动处理邀请码
+        .task(id: appContext.pendingInviteCode) {
+            guard let code = appContext.consumePendingInviteCode() else { return }
+            // 只在可以接受邀请的状态下自动处理
+            let state = appContext.sessionStore.bindingState
+            guard state == .singleTrial || state == .unbound else { return }
+            await viewModel.acceptInviteByCode(code)
+        }
         .sheet(item: $viewModel.customDurationSheet) { kind in
             ProfileDurationPickerSheet(
                 title: kind.title,
@@ -80,6 +102,19 @@ struct ProfileView: View {
                 onSave: { viewModel.applyCustomDuration($0) },
                 onDismiss: { viewModel.dismissCustomDurationSheet() }
             )
+        }
+        .onChange(of: viewModel.bindingState) { oldState, newState in
+            if oldState != .paired, newState == .paired {
+                // 配对成功反馈
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+            }
+        }
+        .sheet(isPresented: $viewModel.inviteCodeEntryPresented) {
+            InviteCodeEntryView(isPresented: $viewModel.inviteCodeEntryPresented) { code in
+                await viewModel.acceptInviteByCode(code)
+            }
+            .presentationDetents([.medium])
         }
         .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
             let progress = min(max(-offset / 56, 0), 1)
@@ -286,6 +321,25 @@ struct ProfileView: View {
         }
     }
 
+    private var securitySection: some View {
+        ProfileSettingsGroupCard(title: "安全") {
+            ProfileSettingsRow(
+                title: "应用锁定（\(viewModel.biometricTypeName)）",
+                isOn: Binding(
+                    get: { viewModel.appLockEnabled },
+                    set: { viewModel.updateAppLockEnabled($0) }
+                )
+            )
+
+            if viewModel.appLockEnabled {
+                Text("切到后台时自动锁定，需要\(viewModel.biometricTypeName)或密码解锁")
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.textTertiary)
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+
     private var systemAndCollaborationSection: some View {
         ProfileSettingsGroupCard(title: "系统与协作") {
             ProfileSettingsRow(
@@ -317,15 +371,51 @@ struct ProfileView: View {
     private var collaborationActionRow: some View {
         switch viewModel.bindingState {
         case .singleTrial, .unbound:
-            Button {
-                HomeInteractionFeedback.selection()
-                Task { await viewModel.createInvite() }
-            } label: {
-                collaborationButtonLabel(title: "发起双人邀请", tint: AppTheme.colors.title)
+            VStack(spacing: 10) {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    Task { await viewModel.createInvite() }
+                } label: {
+                    collaborationButtonLabel(title: "发起双人邀请", tint: AppTheme.colors.title)
+                }
+                .buttonStyle(.plain)
+
+                if let err = viewModel.createInviteError {
+                    Text(err)
+                        .font(AppTheme.typography.sized(12, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.danger)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
+                }
+
+                Button {
+                    HomeInteractionFeedback.selection()
+                    viewModel.inviteCodeEntryPresented = true
+                } label: {
+                    collaborationButtonLabel(title: "输入邀请码", tint: AppTheme.colors.profileAccent)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+
         case .invitePending:
-            collaborationButtonLabel(title: "等待对方接受邀请", tint: AppTheme.colors.body)
+            InvitePendingSection(
+                invite: viewModel.activeInvite,
+                onCopy: { code in
+                    UIPasteboard.general.string = code
+                    HomeInteractionFeedback.selection()
+                },
+                onCheckAccepted: {
+                    await viewModel.checkInviteAccepted()
+                },
+                onCancel: {
+                    await viewModel.cancelCurrentInvite()
+                },
+                onRegenerate: {
+                    await viewModel.cancelCurrentInvite()
+                    await viewModel.createInvite()
+                }
+            )
+
         case .inviteReceived:
             HStack(spacing: 10) {
                 Button {
@@ -344,6 +434,7 @@ struct ProfileView: View {
                 }
                 .buttonStyle(.plain)
             }
+
         case .paired:
             Button {
                 HomeInteractionFeedback.selection()
