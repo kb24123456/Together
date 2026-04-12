@@ -4,8 +4,22 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
     case task
     case taskList
     case project
+    case projectSubtask
+    case periodicTask
     case space
     case memberProfile
+
+    /// Maps entity kind to the CKRecord type used by the codec registry.
+    var ckRecordType: String {
+        switch self {
+        case .task: return ItemRecordCodable.ckRecordType
+        case .taskList: return TaskListRecordCodable.ckRecordType
+        case .project: return ProjectRecordCodable.ckRecordType
+        case .projectSubtask: return ProjectSubtaskRecordCodable.ckRecordType
+        case .periodicTask: return PeriodicTaskRecordCodable.ckRecordType
+        case .space, .memberProfile: return ""
+        }
+    }
 }
 
 enum SyncOperationKind: String, Codable, Hashable, Sendable {

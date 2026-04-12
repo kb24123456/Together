@@ -10,17 +10,9 @@ enum MockServiceFactory {
         let taskTemplateRepository = MockTaskTemplateRepository()
         let notificationService = MockNotificationService()
         let reminderScheduler = MockReminderScheduler()
-        let placeholderGateway = PlaceholderCloudSyncGateway()
-        let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
         let mockModelContainer = try! ModelContainer(
             for: PersistentPairMembership.self, PersistentPairSpace.self, PersistentUserProfile.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
-        let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository, modelContainer: mockModelContainer)
-        let syncOrchestrator = DefaultSyncOrchestrator(
-            syncCoordinator: syncCoordinator,
-            cloudGateway: placeholderGateway,
-            remoteSyncApplier: remoteSyncApplier
         )
         let userProfileRepository = MockUserProfileRepository()
         let quickCaptureParser = RuleBasedQuickCaptureParser()
@@ -32,13 +24,13 @@ enum MockServiceFactory {
         let periodicTaskRepository = MockPeriodicTaskRepository()
         let periodicTaskApplicationService = DefaultPeriodicTaskApplicationService(
             repository: periodicTaskRepository,
-            reminderScheduler: reminderScheduler
+            reminderScheduler: reminderScheduler,
+            syncCoordinator: syncCoordinator
         )
 
-        let ckContainer = SyncGatewayFactory.makeContainer()
+        let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
         let zoneManager = CloudKitZoneManager(container: ckContainer)
         let shareManager = CloudKitShareManager(container: ckContainer)
-        let subscriptionManager = CloudKitSubscriptionManager(container: ckContainer)
 
         return AppContainer(
             authService: MockAuthService(),
@@ -46,7 +38,6 @@ enum MockServiceFactory {
             taskApplicationService: taskApplicationService,
             quickCaptureParser: quickCaptureParser,
             syncCoordinator: syncCoordinator,
-            syncOrchestrator: syncOrchestrator,
             pairingService: MockRelationshipService(),
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
@@ -60,12 +51,14 @@ enum MockServiceFactory {
             periodicTaskRepository: periodicTaskRepository,
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
-            syncScheduler: SyncScheduler(syncOrchestrator: syncOrchestrator),
             cloudKitContainer: ckContainer,
             zoneManager: zoneManager,
             shareManager: shareManager,
-            subscriptionManager: subscriptionManager,
-            cloudGateway: cloudGateway
+            syncEngineCoordinator: SyncEngineCoordinator(
+                ckContainer: ckContainer,
+                modelContainer: mockModelContainer,
+                healthMonitor: SyncHealthMonitor()
+            )
         )
     }
 }

@@ -16,14 +16,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
     ) {
-        Task { @MainActor in
-            if let appContext = bootstrapper?.appContext {
-                await appContext.handleAcceptedCloudKitShare(metadata: cloudKitShareMetadata)
-            } else {
-                // App is still launching — store for later consumption
-                pendingShareMetadata = cloudKitShareMetadata
-            }
-        }
+        // CKShare is no longer used for pairing (replaced by SyncRelay architecture).
+        // This callback is kept as a no-op for system compatibility.
+        print("[AppDelegate] Received CKShare metadata but CKShare pairing is disabled")
     }
 
     func consumePendingShareMetadata() -> CKShare.Metadata? {

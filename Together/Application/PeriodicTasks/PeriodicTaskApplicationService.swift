@@ -11,13 +11,16 @@ protocol PeriodicTaskApplicationServiceProtocol: Sendable {
 actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol {
     private let repository: PeriodicTaskRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
+    private let syncCoordinator: SyncCoordinatorProtocol
 
     init(
         repository: PeriodicTaskRepositoryProtocol,
-        reminderScheduler: ReminderSchedulerProtocol
+        reminderScheduler: ReminderSchedulerProtocol,
+        syncCoordinator: SyncCoordinatorProtocol
     ) {
         self.repository = repository
         self.reminderScheduler = reminderScheduler
+        self.syncCoordinator = syncCoordinator
     }
 
     func fetchTasks(in spaceID: UUID) async throws -> [PeriodicTask] {
@@ -43,6 +46,9 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         )
 
         let saved = try await repository.saveTask(task)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: saved.id, spaceID: spaceID)
+        )
         await reminderScheduler.syncPeriodicTaskReminder(for: saved, referenceDate: now)
         return saved
     }
@@ -60,6 +66,9 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         task.updatedAt = .now
 
         let saved = try await repository.saveTask(task)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: saved.id, spaceID: spaceID)
+        )
         await reminderScheduler.syncPeriodicTaskReminder(for: saved, referenceDate: .now)
         return saved
     }
@@ -78,6 +87,9 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
             updated = try await repository.markCompleted(taskID: taskID, periodKey: periodKey, completedAt: .now)
         }
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: updated.id, spaceID: spaceID)
+        )
         await reminderScheduler.syncPeriodicTaskReminder(for: updated, referenceDate: referenceDate)
         return updated
     }
@@ -85,5 +97,8 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
     func deleteTask(in spaceID: UUID, taskID: UUID) async throws {
         await reminderScheduler.removePeriodicTaskReminder(for: taskID)
         try await repository.deleteTask(taskID: taskID)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .periodicTask, operation: .delete, recordID: taskID, spaceID: spaceID)
+        )
     }
 }

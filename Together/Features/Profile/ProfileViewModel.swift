@@ -46,7 +46,6 @@ final class ProfileViewModel {
     private let taskListRepository: TaskListRepositoryProtocol
     private let projectRepository: ProjectRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
-    private let syncOrchestrator: SyncOrchestratorProtocol
     private let biometricAuthService: BiometricAuthServiceProtocol
 
     var loadState: LoadableState = .idle
@@ -71,7 +70,6 @@ final class ProfileViewModel {
         taskListRepository: TaskListRepositoryProtocol,
         projectRepository: ProjectRepositoryProtocol,
         reminderScheduler: ReminderSchedulerProtocol,
-        syncOrchestrator: SyncOrchestratorProtocol,
         biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService()
     ) {
         self.sessionStore = sessionStore
@@ -84,7 +82,6 @@ final class ProfileViewModel {
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
         self.reminderScheduler = reminderScheduler
-        self.syncOrchestrator = syncOrchestrator
         self.biometricAuthService = biometricAuthService
     }
 
@@ -414,10 +411,7 @@ final class ProfileViewModel {
             )
             apply(pairingContext: context)
             inviteCodeEntryPresented = false
-            // 1.7: 配对成功后触发首次同步，拉取对方已有任务
-            if let sharedSpaceID = context.pairSpaceSummary?.sharedSpace.id {
-                Task { _ = try? await syncOrchestrator.sync(spaceID: sharedSpaceID) }
-            }
+            // CKSyncEngine handles initial sync automatically via PairSyncBridge
             return nil
         } catch let error as PairingError {
             let msg = error.errorDescription ?? "配对失败"
@@ -471,9 +465,7 @@ final class ProfileViewModel {
         ) {
             apply(pairingContext: context)
             // 1.8: 检测到对方接受后，推送本地任务到 CloudKit
-            if let sharedSpaceID = context.pairSpaceSummary?.sharedSpace.id {
-                Task { _ = try? await syncOrchestrator.sync(spaceID: sharedSpaceID) }
-            }
+            // CKSyncEngine handles sync automatically via PairSyncBridge
         }
         isCheckingInvite = false
     }

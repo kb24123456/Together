@@ -63,13 +63,25 @@ actor CloudPairingService: PairingServiceProtocol {
     }
 
     func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
-        // Stop CKShare (remove partner from shared zone)
+        // Stop CKShare (legacy, may be no-op)
         try? await shareManager.stopSharing(for: pairSpaceID)
+
+        // Notify the sync coordinator to tear down pair sync and delete encryption key.
+        // The coordinator handles: stop CKSyncEngine, unsubscribe relay, delete Keychain key.
+        await onPairSyncTeardown?(pairSpaceID)
 
         // Record in pairing history via localPairing
         let context = try await localPairing.unbind(pairSpaceID: pairSpaceID, actorID: actorID)
 
         return context
+    }
+
+    /// Callback invoked during unbind to tear down CKSyncEngine + relay for a pair space.
+    /// Set by AppContext during wiring.
+    private var onPairSyncTeardown: (@Sendable (UUID) async -> Void)?
+
+    func setOnPairSyncTeardown(_ callback: @escaping @Sendable (UUID) async -> Void) {
+        onPairSyncTeardown = callback
     }
 
     // MARK: - Cloud-aware invite creation (Device A / Owner)

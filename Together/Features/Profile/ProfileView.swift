@@ -8,6 +8,7 @@ struct ProfileView: View {
     @State private var topChromeProgress: CGFloat = 0
     @State private var showsSignOutAlert: Bool = false
     @State private var showsClearCacheAlert: Bool = false
+    @State private var showsResetMigrationAlert: Bool = false
     @Namespace private var profileTransition
 
     var body: some View {
@@ -157,6 +158,14 @@ struct ProfileView: View {
             }
         } message: {
             Text("将清除应用的缓存数据（\(viewModel.cacheSizeString)），不会影响你的任务数据。")
+        }
+        .alert("重置同步迁移", isPresented: $showsResetMigrationAlert) {
+            Button("取消", role: .cancel) {}
+            Button("重置", role: .destructive) {
+                SyncMigrationService.resetMigration()
+            }
+        } message: {
+            Text("将重置公有库到私有库的数据迁移状态，下次启动时会重新执行迁移。仅在同步异常时使用。")
         }
     }
 
@@ -494,6 +503,18 @@ struct ProfileView: View {
                 ProfileSettingsRow(
                     title: "清除缓存",
                     value: viewModel.cacheSizeString
+                )
+            }
+            .buttonStyle(.plain)
+
+            // 重置同步迁移（手动兜底：公有库→私有库迁移异常时使用）
+            Button {
+                HomeInteractionFeedback.selection()
+                showsResetMigrationAlert = true
+            } label: {
+                ProfileSettingsRow(
+                    title: "重置同步迁移",
+                    value: SyncMigrationService.isMigrationCompleted ? "已完成" : "进行中"
                 )
             }
             .buttonStyle(.plain)

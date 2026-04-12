@@ -18,7 +18,8 @@ final class AppContext {
     let profileViewModel: ProfileViewModel
     let routinesViewModel: RoutinesViewModel
 
-    var syncScheduler: SyncScheduler { container.syncScheduler }
+    /// Sync health monitor exposed for UI binding (from SyncEngineCoordinator).
+    let syncHealthMonitor: SyncHealthMonitor
 
     private(set) var hasBootstrapped = false
     private var hasCompletedPostLaunchWork = false
@@ -30,6 +31,7 @@ final class AppContext {
         self.sessionStore = sessionStore
         self.router = router
         self.appearanceManager = appearanceManager
+        self.syncHealthMonitor = container.syncEngineCoordinator.healthMonitor
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
@@ -65,7 +67,6 @@ final class AppContext {
             taskListRepository: container.taskListRepository,
             projectRepository: container.projectRepository,
             reminderScheduler: container.reminderScheduler,
-            syncOrchestrator: container.syncOrchestrator,
             biometricAuthService: container.biometricAuthService
         )
     }
@@ -115,7 +116,6 @@ final class AppContext {
         let pairingContext = await container.pairingService.currentPairingContext(for: userID)
 
         if spaceContext.singleSpace == nil {
-            // First-time user — create a single space
             if let newSpace = try? await container.spaceService.createSingleSpace(for: userID) {
                 sessionStore.singleSpace = newSpace
             }
@@ -136,7 +136,87 @@ final class AppContext {
         await restorePersistedUserProfileIfNeeded()
         await routinesViewModel.load()
         await syncReminderNotificationsIfNeeded()
+
+        // Start CKSyncEngine for all active zones
+        if sessionStore.authState == .signedIn {
+            await startSoloSyncEngineIfNeeded()
+            await startPairSyncEngineIfNeeded()
+            // One-time migration from public DB to private zone
+            await performPublicToPrivateMigrationIfNeeded()
+        }
+
         StartupTrace.mark("AppContext.postLaunch.end")
+    }
+
+    // MARK: - CKSyncEngine Setup
+
+    /// Starts the CKSyncEngine-based solo zone sync for single-mode data.
+    private func startSoloSyncEngineIfNeeded() async {
+        if let soloSpaceID = sessionStore.singleSpace?.id {
+            await container.syncEngineCoordinator.configureSoloSpaceID(soloSpaceID)
+        }
+
+        await container.syncEngineCoordinator.startSoloSync()
+
+        await container.syncEngineCoordinator.setSoloRemoteChangesCallback { [weak self] count in
+            guard let self, count > 0 else { return }
+            Task { @MainActor in
+                await self.homeViewModel.reload()
+                await self.listsViewModel.load()
+                await self.projectsViewModel.load()
+            }
+        }
+    }
+
+    /// Starts pair sync for the current pair space if paired.
+    func startPairSyncEngineIfNeeded() async {
+        guard let summary = sessionStore.pairSpaceSummary,
+              let myUserID = sessionStore.currentUser?.id,
+              summary.pairSpace.status == .active,
+              let memberB = summary.pairSpace.memberB
+        else { return }
+
+        let pairSpaceID = summary.pairSpace.id
+        let inviterID = summary.pairSpace.memberA.userID
+        let responderID = memberB.userID
+
+        let isActive = await container.syncEngineCoordinator.isPairSyncActive(for: pairSpaceID)
+        guard !isActive else { return }
+
+        await container.syncEngineCoordinator.startPairSync(
+            pairSpaceID: pairSpaceID,
+            myUserID: myUserID,
+            inviterID: inviterID,
+            responderID: responderID
+        )
+
+        await container.syncEngineCoordinator.setPairRemoteChangesCallback(
+            pairSpaceID: pairSpaceID
+        ) { [weak self] count in
+            guard let self, count > 0 else { return }
+            Task { @MainActor in
+                await self.reloadAfterSync()
+            }
+        }
+    }
+
+    /// One-time migration of pair space data from public DB to private zone.
+    private func performPublicToPrivateMigrationIfNeeded() async {
+        guard let summary = sessionStore.pairSpaceSummary,
+              summary.pairSpace.status == .active else { return }
+
+        await SyncMigrationService.migrateIfNeeded(
+            pairSpaceID: summary.pairSpace.id,
+            sharedSpaceID: summary.sharedSpace.id,
+            coordinator: container.syncEngineCoordinator,
+            ckContainer: container.cloudKitContainer,
+            modelContainer: PersistenceController.shared.container
+        )
+    }
+
+    /// Stops pair sync and cleans up encryption key (for unbind).
+    func teardownPairSync(pairSpaceID: UUID) async {
+        await container.syncEngineCoordinator.teardownPairSync(pairSpaceID: pairSpaceID)
     }
 
     func restorePersistedUserProfileIfNeeded(force: Bool = false) async {
@@ -182,18 +262,14 @@ final class AppContext {
 
     // MARK: - Deep Link
 
-    /// 待处理的邀请码（由 Universal Link 传入，ProfileView 消费后置 nil）
     private(set) var pendingInviteCode: String?
 
-    /// 解析 Universal Link，提取邀请码并导航到 Profile 处理。
     func handleDeepLink(url: URL) {
         guard let code = DeepLinkConfiguration.inviteCode(from: url) else { return }
         pendingInviteCode = code
-        // 导航到 Profile 页面，ProfileView 会自动消费邀请码
         router.isProfilePresented = true
     }
 
-    /// ProfileView 取走邀请码后调用，防止重复处理。
     func consumePendingInviteCode() -> String? {
         let code = pendingInviteCode
         pendingInviteCode = nil
@@ -202,38 +278,25 @@ final class AppContext {
 
     // MARK: - Sync
 
-    /// Triggers a full sync cycle for the pair space if one exists.
-    /// Call this after task mutations that should propagate to the partner,
-    /// and on app foreground when in pair mode.
+    /// Triggers a relay fetch for the pair space if one exists.
+    /// Call this on app foreground when in pair mode.
     func syncPairSpaceIfNeeded() async {
-        guard let pairSharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
-        _ = try? await container.syncOrchestrator.sync(spaceID: pairSharedSpaceID)
+        guard let pairSpaceID = sessionStore.pairSpaceSummary?.pairSpace.id else { return }
+        await container.syncEngineCoordinator.fetchRelays(for: pairSpaceID)
     }
 
-    /// 任务操作后触发同步（仅在双人模式下且操作的是共享空间）
+    /// 任务操作后触发同步
+    ///
+    /// CKSyncEngine handles push automatically via `onChangeRecorded` forwarding.
+    /// For pair zones, the `onLocalChangesPushed` callback posts relay to the partner.
     func syncAfterMutation(spaceID: UUID) {
-        guard sessionStore.activeMode == .pair,
-              spaceID == sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
-        Task {
-            do {
-                let result = try await container.syncOrchestrator.sync(spaceID: spaceID)
-                #if DEBUG
-                print("[Sync] mutation push: pushed=\(result.pushedCount) pulled=\(result.pulledCount)")
-                #endif
-                if result.pulledCount > 0 {
-                    await reloadAfterSync()
-                }
-            } catch {
-                #if DEBUG
-                print("[Sync] mutation push failed: \(error)")
-                #endif
-            }
-        }
+        // No explicit trigger needed — CKSyncEngine picks up changes automatically.
+        // The LocalSyncCoordinator.onChangeRecorded forwarding routes changes
+        // to the correct zone via SyncEngineCoordinator.recordChange().
     }
 
     /// 同步后刷新所有相关 ViewModel 的数据，并检测对方发来的催促提醒
     func reloadAfterSync() async {
-        // 在 reload 前，用仓库获取所有活跃任务的催促时间戳
         let spaceID = sessionStore.currentSpace?.id
         let previousItems: [Item]
         if let spaceID {
@@ -251,14 +314,12 @@ final class AppContext {
 
         await homeViewModel.reload()
 
-        // 刷新 pairing context 以获取伙伴最新 profile（昵称、空间名等）
         if let userID = sessionStore.currentUser?.id {
             let updatedPairingCtx = await container.pairingService.currentPairingContext(for: userID)
             let updatedSpaceCtx = await container.spaceService.currentSpaceContext(for: userID)
             sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
         }
 
-        // 检测新到达的催促提醒（对方发来的）——检查所有活跃任务，不仅是当前页面
         let currentUserID = sessionStore.currentUser?.id
         let allItems: [Item]
         if let spaceID {
@@ -269,20 +330,16 @@ final class AppContext {
         for item in allItems {
             guard let reminderAt = item.reminderRequestedAt else { continue }
             let previousDate = previousReminders[item.id]
-            // 催促时间是新的（之前没有或更新了），且不是自己发的
             if previousDate == nil || reminderAt > previousDate! {
                 if item.creatorID != currentUserID && item.assigneeMode == .partner {
-                    // 对方催促我：我是被指派者
                     await scheduleReminderNotification(for: item, message: "催你完成任务啦！")
                 } else if item.creatorID == currentUserID && item.assigneeMode == .partner {
-                    // 我创建的任务，对方催促
                     await scheduleReminderNotification(for: item, message: "对方催你确认任务啦！")
                 }
             }
         }
     }
 
-    /// 为催促提醒触发本地通知
     private func scheduleReminderNotification(for item: Item, message: String) async {
         let content = UNMutableNotificationContent()
         content.title = item.title
@@ -292,132 +349,96 @@ final class AppContext {
         let request = UNNotificationRequest(
             identifier: "reminder-\(item.id.uuidString)",
             content: content,
-            trigger: nil // 立即触发
+            trigger: nil
         )
         try? await UNUserNotificationCenter.current().add(request)
     }
 
-    /// 同步当前用户的 profile 到 CloudKit（头像、昵称、空间名）
-    func syncProfileToCloud() {
-        guard sessionStore.activeMode == .pair,
-              let user = sessionStore.currentUser,
-              let spaceID = sessionStore.pairSpaceSummary?.sharedSpace.id
-        else { return }
-
-        let pairSpaceDisplayName = sessionStore.currentPairSpace?.displayName
-
-        Task {
-            // 构建 profile payload
-            var avatarBase64: String?
-            if let fileName = user.avatarPhotoFileName {
-                // 优先从磁盘读取原始数据，避免依赖 NSCache（app 启动后 cache 可能为空）
-                let avatarStore = LocalUserAvatarMediaStore()
-                if let diskData = try? avatarStore.avatarData(named: fileName) {
-                    avatarBase64 = diskData.base64EncodedString()
-                }
-            }
-
-            let payload = CloudKitProfileRecordCodec.MemberProfilePayload(
-                userID: user.id,
-                spaceID: spaceID,
-                displayName: user.displayName,
-                avatarSystemName: user.avatarSystemName,
-                avatarPhotoBase64: avatarBase64,
-                pairSpaceDisplayName: pairSpaceDisplayName,
-                updatedAt: .now
-            )
-
-            do {
-                try await container.cloudGateway.pushProfile(payload)
-                #if DEBUG
-                print("[Sync] ✅ Profile synced for \(user.displayName)")
-                #endif
-            } catch {
-                #if DEBUG
-                print("[Sync] ❌ Profile sync failed: \(error)")
-                #endif
-            }
-        }
-    }
-
-    /// 推送本地已有任务到 CloudKit（配对成功后调用）
+    /// 推送本地已有数据到 CloudKit（配对成功后调用）
     func pushExistingTasksToCloud(spaceID: UUID) async {
+        await startPairSyncEngineIfNeeded()
+
         let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         for task in tasks {
             await container.syncCoordinator.recordLocalChange(
-                SyncChange(
-                    entityKind: .task,
-                    operation: .upsert,
-                    recordID: task.id,
-                    spaceID: spaceID
-                )
+                SyncChange(entityKind: .task, operation: .upsert, recordID: task.id, spaceID: spaceID)
             )
         }
-        _ = try? await container.syncOrchestrator.sync(spaceID: spaceID)
-        // 配对后立即同步 profile
-        syncProfileToCloud()
+
+        let lists = (try? await container.taskListRepository.fetchTaskLists(spaceID: spaceID)) ?? []
+        for list in lists {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .taskList, operation: .upsert, recordID: list.id, spaceID: spaceID)
+            )
+        }
+
+        let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        for project in projects {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .project, operation: .upsert, recordID: project.id, spaceID: spaceID)
+            )
+        }
     }
 
-    /// 配置所有同步相关回调
+    // MARK: - Sync Callbacks
+
     func configureSyncCallbacks() {
-        // HomeViewModel 任务操作后触发同步
         homeViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
         }
-        configureSyncScheduler()
+        configureSyncEngineForwarding()
+        configurePairSyncTeardown()
     }
 
-    /// 配置 SyncScheduler 回调，使同步完成后自动刷新 UI
-    private func configureSyncScheduler() {
-        syncScheduler.onSyncCompleted = { [weak self] result in
-            guard let self, result.pulledCount > 0 else { return }
-            Task { @MainActor in
-                await self.reloadAfterSync()
+    private func configurePairSyncTeardown() {
+        Task {
+            if let cloudPairing = container.pairingService as? CloudPairingService {
+                await cloudPairing.setOnPairSyncTeardown { [weak self] pairSpaceID in
+                    await self?.container.syncEngineCoordinator.teardownPairSync(pairSpaceID: pairSpaceID)
+                }
             }
         }
     }
 
-    /// 根据当前模式启停同步轮询，并配置同步网关
+    private func configureSyncEngineForwarding() {
+        let coordinator = container.syncEngineCoordinator
+        Task {
+            if let localCoordinator = container.syncCoordinator as? LocalSyncCoordinator {
+                await localCoordinator.setOnChangeRecorded { change in
+                    await coordinator.recordChange(change)
+                }
+            }
+        }
+    }
+
+    /// 根据当前模式启停 CKSyncEngine pair bridge
     func updateSyncPolling() {
         if sessionStore.activeMode == .pair,
-           let pairSpace = sessionStore.currentPairSpace,
-           let spaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
-
+           let pairSpace = sessionStore.currentPairSpace {
             let pairSpaceID = pairSpace.id
             Task {
-                // Configure gateway with spaceID (public DB, no custom zone needed)
-                await container.cloudGateway.configure(spaceID: spaceID)
-                try? await container.subscriptionManager.subscribe(for: pairSpaceID)
-                syncScheduler.startPolling(spaceID: spaceID)
+                await startPairSyncEngineIfNeeded()
+                // Fetch any missed relay messages
+                await container.syncEngineCoordinator.fetchRelays(for: pairSpaceID)
             }
-        } else {
-            syncScheduler.stopPolling()
         }
+        // CKSyncEngine manages its own subscriptions — no manual polling needed.
     }
 
-    /// Handle CloudKit subscription push notification
+    /// Handle CloudKit push notification.
+    /// Routes to relay handler for SyncRelay subscriptions.
     func handleCloudKitNotification(_ userInfo: [AnyHashable: Any]) async {
-        guard CloudKitSubscriptionManager.isCloudKitNotification(userInfo) else { return }
-        await syncScheduler.handleSubscriptionNotification()
-    }
-
-    /// Called when the participant accepts a CKShare (e.g. via tapping a shared link).
-    ///
-    /// This completes the CloudKit-side share acceptance and triggers an initial sync
-    /// to pull the shared zone records into the local database.
-    func handleAcceptedCloudKitShare(metadata: CKShare.Metadata) async {
-        do {
-            try await container.shareManager.acceptShare(metadata: metadata)
-            #if DEBUG
-            let zoneName = metadata.share.recordID.zoneID.zoneName
-            print("[ShareAccept] ✅ Accepted share for zone: \(zoneName)")
-            #endif
-            await syncPairSpaceIfNeeded()
-        } catch {
-            #if DEBUG
-            print("[ShareAccept] ❌ \(error)")
-            #endif
+        // Check if this is a relay subscription notification
+        if let notification = CKNotification(fromRemoteNotificationDictionary: userInfo),
+           let subscriptionID = notification.subscriptionID {
+            let applied = await container.syncEngineCoordinator.handleRelayNotification(
+                subscriptionID: subscriptionID
+            )
+            if applied > 0 {
+                await reloadAfterSync()
+            }
         }
+        // CKSyncEngine handles its own database/zone subscription notifications automatically.
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {

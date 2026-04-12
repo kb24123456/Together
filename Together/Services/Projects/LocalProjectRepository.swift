@@ -4,10 +4,12 @@ import SwiftData
 actor LocalProjectRepository: ProjectRepositoryProtocol {
     private let container: ModelContainer
     private let reminderScheduler: ReminderSchedulerProtocol
+    private let syncCoordinator: SyncCoordinatorProtocol
 
-    init(container: ModelContainer, reminderScheduler: ReminderSchedulerProtocol) {
+    init(container: ModelContainer, reminderScheduler: ReminderSchedulerProtocol, syncCoordinator: SyncCoordinatorProtocol) {
         self.container = container
         self.reminderScheduler = reminderScheduler
+        self.syncCoordinator = syncCoordinator
     }
 
     func fetchProjects(spaceID: UUID?) async throws -> [Project] {
@@ -46,6 +48,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         }
 
         try context.save()
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: .upsert, recordID: savedProject.id, spaceID: savedProject.spaceID)
+        )
         let subtasks = try self.subtasks(for: savedProject.id, in: context)
         let projectWithCount = savedProject.withSubtasks(subtasks)
         await reminderScheduler.syncProjectReminder(for: projectWithCount)
@@ -62,6 +67,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         record.updatedAt = .now
         try context.save()
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: .archive, recordID: record.id, spaceID: record.spaceID)
+        )
         let subtasks = try subtasks(for: record.id, in: context)
         let archivedProject = record.domainModel(taskCount: subtasks.count).withSubtasks(subtasks)
         await reminderScheduler.removeProjectReminder(for: archivedProject.id)
@@ -74,16 +82,23 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
             throw RepositoryError.notFound
         }
 
+        let spaceID = record.spaceID
         let subtaskDescriptor = FetchDescriptor<PersistentProjectSubtask>(
             predicate: #Predicate<PersistentProjectSubtask> { $0.projectID == projectID }
         )
         let subtaskRecords = try context.fetch(subtaskDescriptor)
         for subtaskRecord in subtaskRecords {
+            await syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .projectSubtask, operation: .delete, recordID: subtaskRecord.id, spaceID: spaceID)
+            )
             context.delete(subtaskRecord)
         }
         context.delete(record)
         try context.save()
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: .delete, recordID: projectID, spaceID: spaceID)
+        )
         await reminderScheduler.removeProjectReminder(for: projectID)
     }
 
@@ -98,6 +113,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         record.updatedAt = .now
         try context.save()
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: isCompleted ? .complete : .upsert, recordID: projectID, spaceID: record.spaceID)
+        )
         let subtasks = try subtasks(for: projectID, in: context)
         let project = record.domainModel(taskCount: subtasks.count).withSubtasks(subtasks)
         await syncReminder(for: project)
@@ -126,6 +144,12 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         record.updatedAt = .now
 
         try context.save()
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: subtask.id, spaceID: record.spaceID)
+        )
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: .upsert, recordID: projectID, spaceID: record.spaceID)
+        )
         return try await finalizedProject(projectID: projectID, context: context)
     }
 
@@ -143,6 +167,12 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         try normalizeProjectStatus(record: record, context: context)
         try context.save()
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: subtaskID, spaceID: record.spaceID)
+        )
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: .upsert, recordID: projectID, spaceID: record.spaceID)
+        )
         return try await finalizedProject(projectID: projectID, context: context)
     }
 
@@ -164,6 +194,12 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         record.updatedAt = .now
         try context.save()
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: subtaskID, spaceID: record.spaceID)
+        )
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: .upsert, recordID: projectID, spaceID: record.spaceID)
+        )
         return try await finalizedProject(projectID: projectID, context: context)
     }
 
@@ -180,9 +216,24 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         record.updatedAt = .now
         try context.save()
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .projectSubtask, operation: .delete, recordID: subtaskID, spaceID: record.spaceID)
+        )
+
         try resequenceSubtasks(projectID: projectID, context: context)
         try normalizeProjectStatus(record: record, context: context)
         try context.save()
+
+        // Sync resequenced siblings so the partner gets updated sortOrder values
+        let remainingSubtasks = try subtasks(for: projectID, in: context)
+        for sibling in remainingSubtasks {
+            await syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: sibling.id, spaceID: record.spaceID)
+            )
+        }
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .project, operation: .upsert, recordID: projectID, spaceID: record.spaceID)
+        )
 
         return try await finalizedProject(projectID: projectID, context: context)
     }

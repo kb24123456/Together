@@ -233,9 +233,11 @@ struct HomeView: View {
 
             if viewModel.isPairModeActive {
                 SyncStatusIndicator(
-                    isSyncing: appContext.syncScheduler.isSyncing,
-                    lastSyncedAt: appContext.syncScheduler.lastSyncedAt,
-                    lastSyncError: appContext.syncScheduler.lastSyncError
+                    isSyncing: appContext.syncHealthMonitor.isAnySyncing,
+                    lastSyncedAt: appContext.syncHealthMonitor.engineStates.values
+                        .compactMap(\.lastSuccessfulSync).max(),
+                    lastSyncError: appContext.syncHealthMonitor.engineStates.values
+                        .compactMap(\.lastError).first
                 )
             }
         }

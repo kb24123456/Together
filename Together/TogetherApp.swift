@@ -63,10 +63,8 @@ struct TogetherApp: App {
                     StartupTrace.mark("TogetherApp.ready.task.start")
                     notificationDelegate.configure(appContext: appContext)
                     await appContext.performPostLaunchWorkIfNeeded()
-                    // Handle any CKShare acceptance that arrived before bootstrap
-                    if let metadata = appDelegate.consumePendingShareMetadata() {
-                        await appContext.handleAcceptedCloudKitShare(metadata: metadata)
-                    }
+                    // CKShare pairing disabled; consume and discard any pending metadata
+                    _ = appDelegate.consumePendingShareMetadata()
                     StartupTrace.mark("TogetherApp.ready.task.end")
                 }
                 .onChange(of: appBootstrapper.appContext?.sessionStore.authState) { _, newValue in
@@ -90,10 +88,6 @@ struct TogetherApp: App {
                         Task { await appContext.syncPairSpaceIfNeeded() }
                     }
                 }
-                .onChange(of: appBootstrapper.appContext?.sessionStore.userProfileRevision) { _, _ in
-                    // 用户 profile 变更后，同步到 CloudKit
-                    appBootstrapper.appContext?.syncProfileToCloud()
-                }
                 .onChange(of: appBootstrapper.appContext?.sessionStore.pairSpaceSummary) { _, _ in
                     // pairSpaceSummary 到位后（可能晚于 activeMode 变化），重新评估轮询状态
                     guard let appContext = appBootstrapper.appContext,
@@ -107,22 +101,20 @@ struct TogetherApp: App {
                           appBootstrapper.phase == .ready
                     else { return }
 
-                    if newPhase == .background,
-                       appContext.sessionStore.currentUser?.preferences.appLockEnabled == true {
-                        appContext.sessionStore.isAppLocked = true
-                    }
-
-                    if newPhase == .background {
-                        appContext.syncScheduler.stopPolling()
-                    }
-
-                    if newPhase == .active {
-                        // 启动/恢复同步轮询（仅在 pair 模式下）
+                    switch newPhase {
+                    case .background:
+                        let lockEnabled = appContext.sessionStore.currentUser?.preferences.appLockEnabled == true
+                        if lockEnabled {
+                            appContext.sessionStore.isAppLocked = true
+                        }
+                        // CKSyncEngine automatically handles background scheduling
+                    case .active:
                         appContext.updateSyncPolling()
-                        // 立即触发一次同步
                         if appContext.sessionStore.activeMode == .pair {
                             Task { await appContext.syncPairSpaceIfNeeded() }
                         }
+                    default:
+                        break
                     }
                 }
         }

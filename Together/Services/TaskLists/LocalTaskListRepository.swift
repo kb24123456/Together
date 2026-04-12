@@ -3,9 +3,11 @@ import SwiftData
 
 actor LocalTaskListRepository: TaskListRepositoryProtocol {
     private let container: ModelContainer
+    private let syncCoordinator: SyncCoordinatorProtocol
 
-    init(container: ModelContainer) {
+    init(container: ModelContainer, syncCoordinator: SyncCoordinatorProtocol) {
         self.container = container
+        self.syncCoordinator = syncCoordinator
     }
 
     func fetchTaskLists(spaceID: UUID?) async throws -> [TaskList] {
@@ -48,6 +50,9 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
         }
 
         try context.save()
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .taskList, operation: .upsert, recordID: savedList.id, spaceID: savedList.spaceID)
+        )
         let count = try taskCountsByList(in: context, spaceID: savedList.spaceID)[savedList.id, default: 0]
         return savedList.withTaskCount(count)
     }
@@ -62,6 +67,9 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
         record.updatedAt = .now
         try context.save()
 
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .taskList, operation: .archive, recordID: listID, spaceID: record.spaceID)
+        )
         let count = try taskCountsByList(in: context, spaceID: record.spaceID)[record.id, default: 0]
         return record.domainModel(taskCount: count)
     }

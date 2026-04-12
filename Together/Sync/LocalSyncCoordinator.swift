@@ -4,6 +4,14 @@ import SwiftData
 actor LocalSyncCoordinator: SyncCoordinatorProtocol {
     private let container: ModelContainer
 
+    /// Optional forwarder: routes recorded changes to CKSyncEngine coordinator.
+    /// Set during app wiring (Phase 1+) so CKSyncEngine picks up local mutations.
+    private var onChangeRecorded: (@Sendable (SyncChange) async -> Void)?
+
+    func setOnChangeRecorded(_ callback: @escaping @Sendable (SyncChange) async -> Void) {
+        onChangeRecorded = callback
+    }
+
     init(container: ModelContainer) {
         self.container = container
     }
@@ -23,6 +31,9 @@ actor LocalSyncCoordinator: SyncCoordinatorProtocol {
             }
 
             try context.save()
+
+            // Forward to CKSyncEngine coordinator if wired
+            await onChangeRecorded?(change)
         } catch {
             assertionFailure("Failed to persist sync change: \(error)")
         }

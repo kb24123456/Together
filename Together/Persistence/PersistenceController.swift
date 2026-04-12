@@ -166,6 +166,8 @@ struct PersistenceController {
             PersistentSyncState.self,
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
+            PersistentSyncRelayQueue.self,
+            PersistentRelaySequence.self,
             configurations: configuration
         )
     }

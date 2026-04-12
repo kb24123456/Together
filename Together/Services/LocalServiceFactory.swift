@@ -21,10 +21,9 @@ enum LocalServiceFactory {
         let localPairingService = LocalPairingService(container: modelContainer)
 
         // CloudKit container & managers
-        let ckContainer = SyncGatewayFactory.makeContainer()
+        let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
         let zoneManager = CloudKitZoneManager(container: ckContainer)
         let shareManager = CloudKitShareManager(container: ckContainer)
-        let subscriptionManager = CloudKitSubscriptionManager(container: ckContainer)
 
         let inviteGateway = CloudKitInviteGateway(
             containerIdentifier: CloudKitSyncConfiguration.defaultContainerIdentifier
@@ -39,13 +38,6 @@ enum LocalServiceFactory {
 
         let itemRepository = LocalItemRepository(container: modelContainer)
         let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
-        let cloudGateway = SyncGatewayFactory.makeGateway(itemRepository: itemRepository)
-        let remoteSyncApplier = LocalRemoteSyncApplier(itemRepository: itemRepository, modelContainer: modelContainer)
-        let syncOrchestrator = DefaultSyncOrchestrator(
-            syncCoordinator: syncCoordinator,
-            cloudGateway: cloudGateway,
-            remoteSyncApplier: remoteSyncApplier
-        )
         let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
@@ -55,10 +47,17 @@ enum LocalServiceFactory {
         let periodicTaskRepository = LocalPeriodicTaskRepository(container: modelContainer)
         let periodicTaskApplicationService = DefaultPeriodicTaskApplicationService(
             repository: periodicTaskRepository,
-            reminderScheduler: reminderScheduler
+            reminderScheduler: reminderScheduler,
+            syncCoordinator: syncCoordinator
         )
 
-        let syncScheduler = SyncScheduler(syncOrchestrator: syncOrchestrator)
+        // CKSyncEngine coordinator (private DB multi-device sync + relay)
+        let healthMonitor = SyncHealthMonitor()
+        let syncEngineCoordinator = SyncEngineCoordinator(
+            ckContainer: ckContainer,
+            modelContainer: modelContainer,
+            healthMonitor: healthMonitor
+        )
 
         let container = AppContainer(
             authService: AppleAuthService(container: modelContainer),
@@ -66,15 +65,15 @@ enum LocalServiceFactory {
             taskApplicationService: taskApplicationService,
             quickCaptureParser: quickCaptureParser,
             syncCoordinator: syncCoordinator,
-            syncOrchestrator: syncOrchestrator,
             pairingService: pairingService,
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
             taskTemplateRepository: taskTemplateRepository,
-            taskListRepository: LocalTaskListRepository(container: modelContainer),
+            taskListRepository: LocalTaskListRepository(container: modelContainer, syncCoordinator: syncCoordinator),
             projectRepository: LocalProjectRepository(
                 container: modelContainer,
-                reminderScheduler: reminderScheduler
+                reminderScheduler: reminderScheduler,
+                syncCoordinator: syncCoordinator
             ),
             decisionRepository: MockDecisionRepository(),
             anniversaryRepository: MockAnniversaryRepository(),
@@ -83,12 +82,10 @@ enum LocalServiceFactory {
             periodicTaskRepository: periodicTaskRepository,
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
-            syncScheduler: syncScheduler,
             cloudKitContainer: ckContainer,
             zoneManager: zoneManager,
             shareManager: shareManager,
-            subscriptionManager: subscriptionManager,
-            cloudGateway: cloudGateway
+            syncEngineCoordinator: syncEngineCoordinator
         )
         StartupTrace.mark("LocalServiceFactory.makeContainer.end")
         return container
