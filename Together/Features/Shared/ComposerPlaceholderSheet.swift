@@ -63,7 +63,7 @@ struct ComposerPlaceholderSheet: View {
                 ComposerPage(
                     category: draftState.category,
                     draftState: $draftState,
-                    isPairMode: appContext.sessionStore.activeMode == .pair,
+                    isPairMode: appContext.sessionStore.isViewingPairSpace,
                     templates: taskTemplates,
                     isLoadingTemplates: isLoadingTemplates,
                     onTemplatePicked: applyTemplate,

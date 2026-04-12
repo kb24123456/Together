@@ -51,7 +51,7 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator
         )
 
-        // CKSyncEngine coordinator (private DB multi-device sync + relay)
+        // CKSyncEngine coordinator (private DB multi-device sync + shared authority data plane)
         let healthMonitor = SyncHealthMonitor()
         let syncEngineCoordinator = SyncEngineCoordinator(
             ckContainer: ckContainer,

@@ -50,7 +50,7 @@ struct EditPairProfileView: View {
                         let trimmedSpaceName = editableSpaceName.trimmingCharacters(in: .whitespacesAndNewlines)
                         let spaceNameChanged = trimmedSpaceName != spaceName
 
-                        // 保存空间名称（触发 relay 同步到对方）
+                        // 保存共享空间名称（走共享 authority 同步到对方）
                         if spaceNameChanged {
                             onSpaceNameChanged(trimmedSpaceName)
                         }

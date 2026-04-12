@@ -26,6 +26,19 @@ struct PersistenceController {
             fatalError("[Persistence] In-memory store failed: \(firstError)")
         }
 
+        if Self.shouldAttemptLegacyRelayMigration(afterFailure: firstError) {
+            var migrationError = ""
+            if let migrated = Self.migrateLegacyRelayStoreIfNeeded(errorOut: &migrationError) {
+                self.container = migrated
+                StartupTrace.mark("PersistenceController.init.end.afterLegacyRelayMigration")
+                return
+            }
+            if migrationError.isEmpty == false {
+                let storePath = Self.persistentStoreURL.path(percentEncoded: false)
+                fatalError("[Persistence] Legacy relay schema migration failed.\npath: \(storePath)\n1st: \(firstError)\nmigration: \(migrationError)")
+            }
+        }
+
         // Store is broken or schema is incompatible — nuke it and try fresh.
         Self.deleteStoreFiles()
         StartupTrace.mark("PersistenceController.storeReset")
@@ -134,7 +147,10 @@ struct PersistenceController {
         defaults.set(true, forKey: legacyPeriodicDataCleanupKey)
     }
 
-    private static func makeContainer(inMemory: Bool) throws -> ModelContainer {
+    private static func makeContainer(
+        inMemory: Bool,
+        includeLegacyRelayModels: Bool = false
+    ) throws -> ModelContainer {
         let configuration: ModelConfiguration
 
         if inMemory {
@@ -147,6 +163,29 @@ struct PersistenceController {
                 "TogetherStore",
                 url: persistentStoreURL,
                 cloudKitDatabase: .none
+            )
+        }
+
+        if includeLegacyRelayModels {
+            return try ModelContainer(
+                for: PersistentUserProfile.self,
+                PersistentSpace.self,
+                PersistentPairSpace.self,
+                PersistentPairMembership.self,
+                PersistentInvite.self,
+                PersistentTaskList.self,
+                PersistentProject.self,
+                PersistentProjectSubtask.self,
+                PersistentItem.self,
+                PersistentItemOccurrenceCompletion.self,
+                PersistentTaskTemplate.self,
+                PersistentSyncChange.self,
+                PersistentSyncState.self,
+                PersistentPeriodicTask.self,
+                PersistentPairingHistory.self,
+                PersistentSyncRelayQueue.self,
+                PersistentRelaySequence.self,
+                configurations: configuration
             )
         }
 
@@ -166,10 +205,70 @@ struct PersistenceController {
             PersistentSyncState.self,
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
-            PersistentSyncRelayQueue.self,
-            PersistentRelaySequence.self,
             configurations: configuration
         )
+    }
+
+    private static func migrateLegacyRelayStoreIfNeeded(errorOut: inout String) -> ModelContainer? {
+        let backupURL: URL
+        do {
+            backupURL = try backupStoreFiles()
+        } catch {
+            errorOut = "backupStoreFiles: \(error)"
+            return nil
+        }
+
+        defer { try? FileManager.default.removeItem(at: backupURL) }
+
+        let legacyContainer: ModelContainer
+        do {
+            legacyContainer = try makeContainer(inMemory: false, includeLegacyRelayModels: true)
+        } catch {
+            errorOut = "makeLegacyContainer: \(error)"
+            restoreStoreFiles(from: backupURL)
+            return nil
+        }
+
+        do {
+            let probeContext = ModelContext(legacyContainer)
+            _ = try probeContext.fetchCount(FetchDescriptor<PersistentSpace>())
+        } catch {
+            errorOut = "probeLegacyStore: \(error)"
+            restoreStoreFiles(from: backupURL)
+            return nil
+        }
+
+        let snapshot: StoreSnapshot
+        do {
+            snapshot = try captureSnapshot(from: legacyContainer)
+        } catch {
+            errorOut = "captureSnapshot: \(error)"
+            restoreStoreFiles(from: backupURL)
+            return nil
+        }
+
+        deleteStoreFiles()
+
+        let migratedContainer: ModelContainer
+        do {
+            migratedContainer = try makeContainer(inMemory: false, includeLegacyRelayModels: false)
+            try restoreSnapshot(snapshot, into: migratedContainer)
+            try cleanupLegacyPeriodicDataIfNeeded(container: migratedContainer, inMemory: false)
+            try seedIfNeeded(container: migratedContainer)
+            try injectDebugPairReviewFixtureIfNeeded(container: migratedContainer)
+            StartupTrace.mark("PersistenceController.legacyRelayMigrationSucceeded")
+            return migratedContainer
+        } catch {
+            restoreStoreFiles(from: backupURL)
+            errorOut = "restoreSnapshot: \(error)"
+            return nil
+        }
+    }
+
+    private static func shouldAttemptLegacyRelayMigration(afterFailure firstError: String) -> Bool {
+        firstError.contains("PersistentSyncRelayQueue")
+        || firstError.contains("PersistentRelaySequence")
+        || firstError.contains("LegacyRelay")
     }
 
     private static var persistentStoreURL: URL {
@@ -185,6 +284,417 @@ struct PersistenceController {
         }
 
         return directory.appendingPathComponent("Together.store")
+    }
+
+    private static var persistentStoreSupportURL: URL {
+        URL(fileURLWithPath: persistentStoreURL.path + "_SUPPORT")
+    }
+
+    private static func backupStoreFiles() throws -> URL {
+        let backupRoot = persistentStoreURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("MigrationBackups", isDirectory: true)
+        try FileManager.default.createDirectory(at: backupRoot, withIntermediateDirectories: true)
+
+        let backupURL = backupRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: backupURL, withIntermediateDirectories: true)
+
+        for source in storeArtifactURLs() where FileManager.default.fileExists(atPath: source.path) {
+            try FileManager.default.copyItem(at: source, to: backupURL.appendingPathComponent(source.lastPathComponent))
+        }
+
+        return backupURL
+    }
+
+    private static func restoreStoreFiles(from backupURL: URL) {
+        deleteStoreFiles()
+        for artifact in storeArtifactURLs() {
+            let backupArtifact = backupURL.appendingPathComponent(artifact.lastPathComponent)
+            guard FileManager.default.fileExists(atPath: backupArtifact.path) else { continue }
+            try? FileManager.default.copyItem(at: backupArtifact, to: artifact)
+        }
+    }
+
+    private static func storeArtifactURLs() -> [URL] {
+        let storeURL = persistentStoreURL
+        let base = storeURL.deletingLastPathComponent()
+            .appendingPathComponent(storeURL.deletingPathExtension().lastPathComponent)
+        let sqliteURLs = ["store", "store-shm", "store-wal"].map { base.appendingPathExtension($0) }
+        return sqliteURLs + [persistentStoreSupportURL]
+    }
+
+    private struct UserProfileSnapshot {
+        let userID: UUID
+        let displayName: String
+        let avatarSystemName: String?
+        let avatarPhotoFileName: String?
+        let avatarPhotoData: Data?
+        let taskReminderEnabled: Bool
+        let dailySummaryEnabled: Bool
+        let calendarReminderEnabled: Bool
+        let futureCollaborationInviteEnabled: Bool
+        let taskUrgencyWindowMinutes: Int
+        let defaultSnoozeMinutes: Int
+        let quickTimePresetMinutes: [Int]
+        let completedTaskAutoArchiveEnabled: Bool
+        let completedTaskAutoArchiveDays: Int
+        let updatedAt: Date
+
+        init(_ profile: PersistentUserProfile) {
+            userID = profile.userID
+            displayName = profile.displayName
+            avatarSystemName = profile.avatarSystemName
+            avatarPhotoFileName = profile.avatarPhotoFileName
+            avatarPhotoData = profile.avatarPhotoData
+            taskReminderEnabled = profile.taskReminderEnabled
+            dailySummaryEnabled = profile.dailySummaryEnabled
+            calendarReminderEnabled = profile.calendarReminderEnabled
+            futureCollaborationInviteEnabled = profile.futureCollaborationInviteEnabled
+            taskUrgencyWindowMinutes = profile.taskUrgencyWindowMinutes
+            defaultSnoozeMinutes = profile.defaultSnoozeMinutes
+            quickTimePresetMinutes = profile.quickTimePresetMinutes
+            completedTaskAutoArchiveEnabled = profile.completedTaskAutoArchiveEnabled
+            completedTaskAutoArchiveDays = profile.completedTaskAutoArchiveDays
+            updatedAt = profile.updatedAt
+        }
+
+        func makePersistent() -> PersistentUserProfile {
+            PersistentUserProfile(
+                userID: userID,
+                displayName: displayName,
+                avatarSystemName: avatarSystemName,
+                avatarPhotoFileName: avatarPhotoFileName,
+                avatarPhotoData: avatarPhotoData,
+                taskReminderEnabled: taskReminderEnabled,
+                dailySummaryEnabled: dailySummaryEnabled,
+                calendarReminderEnabled: calendarReminderEnabled,
+                futureCollaborationInviteEnabled: futureCollaborationInviteEnabled,
+                taskUrgencyWindowMinutes: taskUrgencyWindowMinutes,
+                defaultSnoozeMinutes: defaultSnoozeMinutes,
+                quickTimePresetMinutes: quickTimePresetMinutes,
+                completedTaskAutoArchiveEnabled: completedTaskAutoArchiveEnabled,
+                completedTaskAutoArchiveDays: completedTaskAutoArchiveDays,
+                updatedAt: updatedAt
+            )
+        }
+    }
+
+    private struct PairSpaceSnapshot {
+        let id: UUID
+        let sharedSpaceID: UUID
+        let statusRawValue: String
+        let createdAt: Date
+        let activatedAt: Date?
+        let endedAt: Date?
+        let cloudKitZoneName: String?
+        let ownerRecordID: String?
+        let isZoneOwner: Bool
+
+        init(_ pairSpace: PersistentPairSpace) {
+            id = pairSpace.id
+            sharedSpaceID = pairSpace.sharedSpaceID
+            statusRawValue = pairSpace.statusRawValue
+            createdAt = pairSpace.createdAt
+            activatedAt = pairSpace.activatedAt
+            endedAt = pairSpace.endedAt
+            cloudKitZoneName = pairSpace.cloudKitZoneName
+            ownerRecordID = pairSpace.ownerRecordID
+            isZoneOwner = pairSpace.isZoneOwner
+        }
+
+        func makePersistent() -> PersistentPairSpace {
+            PersistentPairSpace(
+                id: id,
+                sharedSpaceID: sharedSpaceID,
+                statusRawValue: statusRawValue,
+                displayName: nil,
+                createdAt: createdAt,
+                activatedAt: activatedAt,
+                endedAt: endedAt,
+                cloudKitZoneName: cloudKitZoneName,
+                ownerRecordID: ownerRecordID,
+                isZoneOwner: isZoneOwner
+            )
+        }
+    }
+
+    private struct PairMembershipSnapshot {
+        let id: UUID
+        let pairSpaceID: UUID
+        let userID: UUID
+        let nickname: String
+        let joinedAt: Date
+        let avatarSystemName: String?
+        let avatarPhotoFileName: String?
+
+        init(_ membership: PersistentPairMembership) {
+            id = membership.id
+            pairSpaceID = membership.pairSpaceID
+            userID = membership.userID
+            nickname = membership.nickname
+            joinedAt = membership.joinedAt
+            avatarSystemName = membership.avatarSystemName
+            avatarPhotoFileName = membership.avatarPhotoFileName
+        }
+
+        func makePersistent() -> PersistentPairMembership {
+            PersistentPairMembership(
+                id: id,
+                pairSpaceID: pairSpaceID,
+                userID: userID,
+                nickname: nickname,
+                joinedAt: joinedAt,
+                avatarSystemName: avatarSystemName,
+                avatarPhotoFileName: avatarPhotoFileName
+            )
+        }
+    }
+
+    private struct InviteSnapshot {
+        let id: UUID
+        let pairSpaceID: UUID
+        let inviterID: UUID
+        let recipientUserID: UUID?
+        let inviteCode: String
+        let statusRawValue: String
+        let sentAt: Date
+        let respondedAt: Date?
+        let expiresAt: Date
+
+        init(_ invite: PersistentInvite) {
+            id = invite.id
+            pairSpaceID = invite.pairSpaceID
+            inviterID = invite.inviterID
+            recipientUserID = invite.recipientUserID
+            inviteCode = invite.inviteCode
+            statusRawValue = invite.statusRawValue
+            sentAt = invite.sentAt
+            respondedAt = invite.respondedAt
+            expiresAt = invite.expiresAt
+        }
+
+        func makePersistent() -> PersistentInvite {
+            PersistentInvite(
+                id: id,
+                pairSpaceID: pairSpaceID,
+                inviterID: inviterID,
+                recipientUserID: recipientUserID,
+                inviteCode: inviteCode,
+                statusRawValue: statusRawValue,
+                sentAt: sentAt,
+                respondedAt: respondedAt,
+                expiresAt: expiresAt
+            )
+        }
+    }
+
+    private struct PairingHistorySnapshot {
+        let id: UUID
+        let pairSpaceID: UUID
+        let memberARecordID: String
+        let memberBRecordID: String
+        let zoneName: String
+        let pairedAt: Date
+        let endedAt: Date?
+        let isDeleted: Bool
+
+        init(_ history: PersistentPairingHistory) {
+            id = history.id
+            pairSpaceID = history.pairSpaceID
+            memberARecordID = history.memberARecordID
+            memberBRecordID = history.memberBRecordID
+            zoneName = history.zoneName
+            pairedAt = history.pairedAt
+            endedAt = history.endedAt
+            isDeleted = history.isDeleted
+        }
+
+        func makePersistent() -> PersistentPairingHistory {
+            PersistentPairingHistory(
+                id: id,
+                pairSpaceID: pairSpaceID,
+                memberARecordID: memberARecordID,
+                memberBRecordID: memberBRecordID,
+                zoneName: zoneName,
+                pairedAt: pairedAt,
+                endedAt: endedAt,
+                isDeleted: isDeleted
+            )
+        }
+    }
+
+    private struct OccurrenceCompletionSnapshot {
+        let itemID: UUID
+        let occurrenceDate: Date
+        let completedAt: Date
+        let createdAt: Date
+        let updatedAt: Date
+
+        init(_ completion: PersistentItemOccurrenceCompletion) {
+            itemID = completion.itemID
+            occurrenceDate = completion.occurrenceDate
+            completedAt = completion.completedAt
+            createdAt = completion.createdAt
+            updatedAt = completion.updatedAt
+        }
+
+        var domainModel: ItemOccurrenceCompletion {
+            ItemOccurrenceCompletion(
+                occurrenceDate: occurrenceDate,
+                completedAt: completedAt
+            )
+        }
+
+        func makePersistent() -> PersistentItemOccurrenceCompletion {
+            PersistentItemOccurrenceCompletion(
+                itemID: itemID,
+                occurrenceDate: occurrenceDate,
+                completedAt: completedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+    }
+
+    private struct StoreSnapshot {
+        let userProfiles: [UserProfileSnapshot]
+        let spaces: [Space]
+        let pairSpaces: [PairSpaceSnapshot]
+        let memberships: [PairMembershipSnapshot]
+        let invites: [InviteSnapshot]
+        let taskLists: [TaskList]
+        let projects: [Project]
+        let projectSubtasks: [ProjectSubtask]
+        let items: [Item]
+        let occurrenceCompletions: [OccurrenceCompletionSnapshot]
+        let taskTemplates: [TaskTemplate]
+        let syncChanges: [SyncChange]
+        let syncStates: [SyncState]
+        let periodicTasks: [PeriodicTask]
+        let pairingHistories: [PairingHistorySnapshot]
+    }
+
+    private static func captureSnapshot(from container: ModelContainer) throws -> StoreSnapshot {
+        let context = ModelContext(container)
+
+        let userProfiles = try context.fetch(FetchDescriptor<PersistentUserProfile>()).map(UserProfileSnapshot.init)
+        let spaces = try context.fetch(FetchDescriptor<PersistentSpace>()).map(\.domainModel)
+        let pairSpaces = try context.fetch(FetchDescriptor<PersistentPairSpace>()).map(PairSpaceSnapshot.init)
+        let memberships = try context.fetch(FetchDescriptor<PersistentPairMembership>()).map(PairMembershipSnapshot.init)
+        let invites = try context.fetch(FetchDescriptor<PersistentInvite>()).map(InviteSnapshot.init)
+        let taskLists = try context.fetch(FetchDescriptor<PersistentTaskList>()).map {
+            TaskList(
+                id: $0.id,
+                spaceID: $0.spaceID,
+                name: $0.name,
+                kind: TaskListKind(rawValue: $0.kindRawValue) ?? .custom,
+                colorToken: $0.colorToken,
+                sortOrder: $0.sortOrder,
+                isArchived: $0.isArchived,
+                taskCount: 0,
+                createdAt: $0.createdAt,
+                updatedAt: $0.updatedAt
+            )
+        }
+        let projects = try context.fetch(FetchDescriptor<PersistentProject>()).map {
+            Project(
+                id: $0.id,
+                spaceID: $0.spaceID,
+                name: $0.name,
+                notes: $0.notes,
+                colorToken: $0.colorToken,
+                status: ProjectStatus(rawValue: $0.statusRawValue) ?? .active,
+                targetDate: $0.targetDate,
+                remindAt: $0.remindAt,
+                taskCount: 0,
+                subtasks: [],
+                createdAt: $0.createdAt,
+                updatedAt: $0.updatedAt,
+                completedAt: $0.completedAt
+            )
+        }
+        let projectSubtasks = try context.fetch(FetchDescriptor<PersistentProjectSubtask>()).map { $0.domainModel() }
+        let occurrenceCompletions = try context.fetch(FetchDescriptor<PersistentItemOccurrenceCompletion>())
+            .map(OccurrenceCompletionSnapshot.init)
+        let completionsByItemID = Dictionary(grouping: occurrenceCompletions, by: \.itemID)
+        let items = try context.fetch(FetchDescriptor<PersistentItem>()).map {
+            $0.domainModel(occurrenceCompletions: completionsByItemID[$0.id]?.map(\.domainModel) ?? [])
+        }
+        let taskTemplates = try context.fetch(FetchDescriptor<PersistentTaskTemplate>()).map(\.domainModel)
+        let syncChanges = try context.fetch(FetchDescriptor<PersistentSyncChange>()).map(\.domainModel)
+        let syncStates = try context.fetch(FetchDescriptor<PersistentSyncState>()).map(\.domainModel)
+        let periodicTasks = try context.fetch(FetchDescriptor<PersistentPeriodicTask>()).map { $0.domainModel() }
+        let pairingHistories = try context.fetch(FetchDescriptor<PersistentPairingHistory>()).map(PairingHistorySnapshot.init)
+
+        return StoreSnapshot(
+            userProfiles: userProfiles,
+            spaces: spaces,
+            pairSpaces: pairSpaces,
+            memberships: memberships,
+            invites: invites,
+            taskLists: taskLists,
+            projects: projects,
+            projectSubtasks: projectSubtasks,
+            items: items,
+            occurrenceCompletions: occurrenceCompletions,
+            taskTemplates: taskTemplates,
+            syncChanges: syncChanges,
+            syncStates: syncStates,
+            periodicTasks: periodicTasks,
+            pairingHistories: pairingHistories
+        )
+    }
+
+    private static func restoreSnapshot(_ snapshot: StoreSnapshot, into container: ModelContainer) throws {
+        let context = ModelContext(container)
+
+        for profile in snapshot.userProfiles {
+            context.insert(profile.makePersistent())
+        }
+        for space in snapshot.spaces {
+            context.insert(PersistentSpace(space: space))
+        }
+        for pairSpace in snapshot.pairSpaces {
+            context.insert(pairSpace.makePersistent())
+        }
+        for membership in snapshot.memberships {
+            context.insert(membership.makePersistent())
+        }
+        for invite in snapshot.invites {
+            context.insert(invite.makePersistent())
+        }
+        for list in snapshot.taskLists {
+            context.insert(PersistentTaskList(list: list))
+        }
+        for project in snapshot.projects {
+            context.insert(PersistentProject(project: project))
+        }
+        for subtask in snapshot.projectSubtasks {
+            context.insert(PersistentProjectSubtask(subtask: subtask))
+        }
+        for item in snapshot.items {
+            context.insert(PersistentItem(item: item))
+        }
+        for completion in snapshot.occurrenceCompletions {
+            context.insert(completion.makePersistent())
+        }
+        for template in snapshot.taskTemplates {
+            context.insert(PersistentTaskTemplate(template: template))
+        }
+        for syncChange in snapshot.syncChanges {
+            context.insert(PersistentSyncChange(change: syncChange))
+        }
+        for syncState in snapshot.syncStates {
+            context.insert(PersistentSyncState(state: syncState))
+        }
+        for periodicTask in snapshot.periodicTasks {
+            context.insert(PersistentPeriodicTask(task: periodicTask))
+        }
+        for history in snapshot.pairingHistories {
+            context.insert(history.makePersistent())
+        }
+
+        try context.save()
     }
     private static func seedIfNeeded(container: ModelContainer) throws {
         let context = ModelContext(container)

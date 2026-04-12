@@ -25,10 +25,7 @@ final class AppContext {
     private var hasCompletedPostLaunchWork = false
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
-
-    /// Backup relay polling task — ensures partner relay messages are fetched
-    /// even when silent push notifications are delayed or dropped (common in GCBD).
-    private var relayPollingTask: Task<Void, Never>?
+    private var seededPairMetadataSpaceIDs: Set<UUID> = []
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
@@ -116,20 +113,16 @@ final class AppContext {
     func setupSpacesForCurrentUserIfNeeded() async {
         guard let userID = sessionStore.currentUser?.id else { return }
 
-        let spaceContext = await container.spaceService.currentSpaceContext(for: userID)
+        var spaceContext = await container.spaceService.currentSpaceContext(for: userID)
         let pairingContext = await container.pairingService.currentPairingContext(for: userID)
 
         if spaceContext.singleSpace == nil {
             if let newSpace = try? await container.spaceService.createSingleSpace(for: userID) {
-                sessionStore.singleSpace = newSpace
+                spaceContext.singleSpace = newSpace
             }
-        } else {
-            sessionStore.singleSpace = spaceContext.singleSpace
         }
 
-        sessionStore.pairSpaceSummary = spaceContext.pairSpaceSummary ?? pairingContext.pairSpaceSummary
-        sessionStore.availableModeStates = spaceContext.availableModes
-        sessionStore.pairingContext = pairingContext
+        sessionStore.applySpaceAndPairing(spaceContext: spaceContext, pairingContext: pairingContext)
         sessionStore.activeMode = .single
     }
 
@@ -192,7 +185,8 @@ final class AppContext {
             sharedSpaceID: summary.sharedSpace.id,
             myUserID: myUserID,
             inviterID: inviterID,
-            responderID: responderID
+            responderID: responderID,
+            isZoneOwner: summary.pairSpace.memberA.userID == myUserID || summary.pairSpace.isZoneOwner
         )
 
         await container.syncEngineCoordinator.setPairRemoteChangesCallback(
@@ -208,7 +202,10 @@ final class AppContext {
     /// One-time migration of pair space data from public DB to private zone.
     private func performPublicToPrivateMigrationIfNeeded() async {
         guard let summary = sessionStore.pairSpaceSummary,
-              summary.pairSpace.status == .active else { return }
+              summary.pairSpace.status == .active,
+              let currentUserID = sessionStore.currentUser?.id,
+              summary.pairSpace.memberA.userID == currentUserID || summary.pairSpace.isZoneOwner
+        else { return }
 
         await SyncMigrationService.migrateIfNeeded(
             pairSpaceID: summary.pairSpace.id,
@@ -222,59 +219,37 @@ final class AppContext {
     /// Stops pair sync and cleans up encryption key (for unbind).
     func teardownPairSync(pairSpaceID: UUID) async {
         await container.syncEngineCoordinator.teardownPairSync(pairSpaceID: pairSpaceID)
+        seededPairMetadataSpaceIDs.remove(pairSpaceID)
     }
 
-    /// Posts the current user's profile to the relay so the partner receives avatar/name updates.
-    ///
-    /// - Parameter includeAvatar: Whether to include the full avatar photo base64 in the payload.
-    ///   Pass `true` only when the avatar has actually changed. Omitting the avatar keeps the
-    ///   relay payload small (~1KB vs potentially hundreds of KB), significantly improving
-    ///   reliability on weak/GCBD networks.
+    /// Queues the current user's profile + shared space metadata into the shared authority sync path.
     func syncProfileToPartner(user: User, includeAvatar: Bool = true) async {
         guard let summary = sessionStore.pairSpaceSummary,
               summary.pairSpace.status == .active else { return }
-
-        // nil  = 本次 relay 不涉及头像（metadata-only）→ 接收端保持原样
-        // ""   = 发送方显式删除了自定义头像 → 接收端清除
-        // 非空 = 新头像 base64 数据 → 接收端保存并更新
-        var avatarPhotoBase64: String?
-        if includeAvatar {
-            if let fileName = user.avatarPhotoFileName {
-                let store = LocalUserAvatarMediaStore()
-                if var data = try? store.avatarData(named: fileName) {
-                    // Cap avatar data at 100KB to keep relay payload reliable on weak networks.
-                    #if canImport(UIKit)
-                    let maxBytes = 100_000
-                    if data.count > maxBytes, let image = UIImage(data: data) {
-                        var best = data
-                        for quality in stride(from: 0.7, through: 0.3, by: -0.1) {
-                            if let compressed = image.jpegData(compressionQuality: quality) {
-                                best = compressed
-                                if compressed.count <= maxBytes { break }
-                            }
-                        }
-                        data = best
-                    }
-                    #endif
-                    avatarPhotoBase64 = data.base64EncodedString()
-                }
-            } else {
-                // 用户没有自定义头像 → 发空字符串表示"显式无头像"
-                avatarPhotoBase64 = ""
-            }
-        }
-
-        let payload = CloudKitProfileRecordCodec.MemberProfilePayload(
-            userID: user.id,
-            spaceID: summary.sharedSpace.id,
+        _ = includeAvatar
+        if let updatedUser = try? await container.userProfileRepository.saveProfile(
+            for: user,
             displayName: user.displayName,
-            avatarSystemName: user.avatarSystemName,
-            avatarPhotoBase64: avatarPhotoBase64,
-            pairSpaceDisplayName: summary.pairSpace.displayName,
-            updatedAt: .now
+            avatarUpdate: .preserveExisting
+        ) {
+            sessionStore.currentUser = updatedUser
+        }
+        await container.syncCoordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .memberProfile,
+                operation: .upsert,
+                recordID: user.id,
+                spaceID: summary.sharedSpace.id
+            )
         )
-
-        await container.syncEngineCoordinator.pushProfileToRelay(payload)
+        await container.syncCoordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .space,
+                operation: .upsert,
+                recordID: summary.sharedSpace.id,
+                spaceID: summary.sharedSpace.id
+            )
+        )
     }
 
     func restorePersistedUserProfileIfNeeded(force: Bool = false) async {
@@ -336,25 +311,20 @@ final class AppContext {
 
     // MARK: - Sync
 
-    /// Triggers a relay fetch for the pair space if one exists.
-    /// Call this on app foreground when in pair mode.
+    /// Ensures pair sync is running whenever an active pair relationship exists.
     func syncPairSpaceIfNeeded() async {
-        guard let pairSpaceID = sessionStore.pairSpaceSummary?.pairSpace.id else { return }
-        await container.syncEngineCoordinator.fetchRelays(for: pairSpaceID)
+        guard sessionStore.hasActivePairSpace else { return }
+        await startPairSyncEngineIfNeeded()
     }
 
-    /// 任务操作后触发同步
-    ///
-    /// CKSyncEngine handles push automatically via `onChangeRecorded` forwarding.
-    /// For pair zones, the `onLocalChangesPushed` callback posts relay to the partner.
+    /// 本地数据变更后只需入队给 CKSyncEngine；共享 authority 会自行分发到其他设备/参与者。
     func syncAfterMutation(spaceID: UUID) {
-        // No explicit trigger needed — CKSyncEngine picks up changes automatically.
-        // The LocalSyncCoordinator.onChangeRecorded forwarding routes changes
-        // to the correct zone via SyncEngineCoordinator.recordChange().
+        _ = spaceID
     }
 
     /// 同步后刷新所有相关 ViewModel 的数据，并检测对方发来的催促提醒
     func reloadAfterSync() async {
+        await restorePersistedUserProfileIfNeeded(force: true)
         let spaceID = sessionStore.currentSpace?.id
         let previousItems: [Item]
         if let spaceID {
@@ -378,6 +348,9 @@ final class AppContext {
         }
 
         await homeViewModel.reload()
+        await listsViewModel.load()
+        await projectsViewModel.load()
+        await calendarViewModel.load()
 
         let currentUserID = sessionStore.currentUser?.id
         let allItems: [Item]
@@ -474,70 +447,29 @@ final class AppContext {
         }
     }
 
-    /// 根据当前模式启停 CKSyncEngine pair bridge 及备用 relay 轮询。
+    /// 根据当前绑定状态启停双人共享同步。
     func updateSyncPolling() {
-        if sessionStore.activeMode == .pair,
-           let pairSpace = sessionStore.currentPairSpace {
+        if let pairSpace = sessionStore.currentPairSpace,
+           pairSpace.status == .active {
             let pairSpaceID = pairSpace.id
             Task {
                 await startPairSyncEngineIfNeeded()
-                // Fetch any missed relay messages and refresh UI if changes were applied
-                let applied = await container.syncEngineCoordinator.fetchRelays(for: pairSpaceID)
-                if applied > 0 {
-                    await reloadAfterSync()
-                }
-                // Push own profile metadata so partner gets name/space info after binding.
-                // Avatar is omitted to keep payload small; it's only sent when actually changed.
-                if let user = sessionStore.currentUser {
-                    await syncProfileToPartner(user: user, includeAvatar: false)
+                if seededPairMetadataSpaceIDs.contains(pairSpaceID) == false,
+                   let user = sessionStore.currentUser {
+                    await syncProfileToPartner(user: user, includeAvatar: true)
+                    seededPairMetadataSpaceIDs.insert(pairSpaceID)
                 }
             }
-            startRelayPollingIfNeeded(pairSpaceID: pairSpaceID)
         } else {
-            stopRelayPolling()
+            seededPairMetadataSpaceIDs.removeAll()
         }
-    }
-
-    // MARK: - Backup Relay Polling
-
-    /// Starts a background polling loop that fetches relay messages every 30 seconds.
-    /// Acts as a safety net when silent push notifications are delayed (common in GCBD).
-    private func startRelayPollingIfNeeded(pairSpaceID: UUID) {
-        guard relayPollingTask == nil else { return }
-        let coordinator = container.syncEngineCoordinator
-        relayPollingTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
-                guard !Task.isCancelled else { break }
-                let applied = await coordinator.fetchRelays(for: pairSpaceID)
-                if applied > 0 {
-                    await self?.reloadAfterSync()
-                }
-                // 补发失败的 outbound relay（包括 profile relay）
-                await coordinator.retryRelays(for: pairSpaceID)
-            }
-        }
-    }
-
-    private func stopRelayPolling() {
-        relayPollingTask?.cancel()
-        relayPollingTask = nil
     }
 
     /// Handle CloudKit push notification.
-    /// Routes to relay handler for SyncRelay subscriptions.
+    /// CKSyncEngine handles its own database/zone subscriptions. Relay push handling
+    /// is no longer part of the authoritative pair sync path.
     func handleCloudKitNotification(_ userInfo: [AnyHashable: Any]) async {
-        // Check if this is a relay subscription notification
-        if let notification = CKNotification(fromRemoteNotificationDictionary: userInfo),
-           let subscriptionID = notification.subscriptionID {
-            let applied = await container.syncEngineCoordinator.handleRelayNotification(
-                subscriptionID: subscriptionID
-            )
-            if applied > 0 {
-                await reloadAfterSync()
-            }
-        }
-        // CKSyncEngine handles its own database/zone subscription notifications automatically.
+        _ = userInfo
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {
@@ -583,16 +515,10 @@ final class AppContext {
     }
 
     private func seedMockSession() {
-        sessionStore.authState = .signedIn
-        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
-        sessionStore.singleSpace = MockDataFactory.makeSingleSpace()
-        sessionStore.pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
-        sessionStore.availableModeStates = [.single, .pair]
-        sessionStore.pairingContext = PairingContext(
-            state: .paired,
-            pairSpaceSummary: MockDataFactory.makePairSpaceSummary(),
-            activeInvite: nil
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
         )
-        sessionStore.activeMode = .single
     }
 }

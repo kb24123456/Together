@@ -1,5 +1,4 @@
 import CloudKit
-import CryptoKit
 import Foundation
 import SwiftData
 import os.log
@@ -9,16 +8,14 @@ private let logger = Logger(subsystem: "com.pigdog.Together", category: "SyncEng
 /// Central coordinator for all CKSyncEngine instances.
 ///
 /// Manages one engine for the `solo` zone (single-mode data) and one engine
-/// per active pair space via `PairSyncBridge`. Each pair bridge couples a
-/// private-zone CKSyncEngine with a `SyncRelayGateway` for cross-user sync.
+/// per active pair space via `PairSyncBridge`.
 ///
 /// ## Architecture
 /// ```
 /// SyncEngineCoordinator
 /// ├── soloEngine        (CKSyncEngine, private zone "solo")
 /// └── pairBridges       (PairSyncBridge per active pair space)
-///     ├── engine         (CKSyncEngine, private zone "pair-<id>")
-///     └── relayGateway   (SyncRelayGateway, public DB relay)
+///     └── engine         (CKSyncEngine over private/shared CloudKit DB)
 /// ```
 actor SyncEngineCoordinator {
 
@@ -40,9 +37,6 @@ actor SyncEngineCoordinator {
     /// Reverse mapping: sharedSpaceID → pairSpaceID.
     /// Tasks are created with sharedSpaceID but bridges are keyed by pairSpaceID.
     private var sharedToPairSpaceID: [UUID: UUID] = [:]
-
-    /// Relay subscription manager for push notifications on new relay records.
-    private var relaySubscriptionManager: SyncRelaySubscriptionManager?
 
     /// Known solo space ID (set externally so we can route changes correctly).
     private var soloSpaceID: UUID?
@@ -132,7 +126,7 @@ actor SyncEngineCoordinator {
 
     // MARK: - Pair Zone
 
-    /// Starts sync for a pair space: creates CKSyncEngine + SyncRelayGateway bridge.
+    /// Starts sync for a pair space using a single shared CloudKit authority zone.
     ///
     /// - Parameters:
     ///   - pairSpaceID: The pair space identifier.
@@ -143,9 +137,10 @@ actor SyncEngineCoordinator {
     func startPairSync(
         pairSpaceID: UUID,
         sharedSpaceID: UUID,
-        myUserID: UUID,
-        inviterID: UUID,
-        responderID: UUID
+        myUserID _: UUID,
+        inviterID _: UUID,
+        responderID _: UUID,
+        isZoneOwner: Bool
     ) {
         guard pairBridges[pairSpaceID] == nil else {
             logger.info("[Coordinator] Pair engine already running for \(pairSpaceID.uuidString.prefix(8))")
@@ -156,6 +151,7 @@ actor SyncEngineCoordinator {
         sharedToPairSpaceID[sharedSpaceID] = pairSpaceID
 
         let zoneID = Self.pairZoneID(for: pairSpaceID)
+        let database = isZoneOwner ? ckContainer.privateCloudDatabase : ckContainer.sharedCloudDatabase
 
         // 1. Create SyncEngineDelegate for this pair zone
         let delegate = SyncEngineDelegate(
@@ -172,41 +168,23 @@ actor SyncEngineCoordinator {
         // 2. Restore or create CKSyncEngine state
         let stateSerialization = loadStateSerialization(for: zoneID)
         let configuration = CKSyncEngine.Configuration(
-            database: ckContainer.privateCloudDatabase,
+            database: database,
             stateSerialization: stateSerialization,
             delegate: delegate
         )
         let engine = CKSyncEngine(configuration)
 
-        // Ensure the pair zone exists
-        engine.state.add(pendingDatabaseChanges: [
-            .saveZone(CKRecordZone(zoneID: zoneID))
-        ])
+        if isZoneOwner {
+            engine.state.add(pendingDatabaseChanges: [
+                .saveZone(CKRecordZone(zoneID: zoneID))
+            ])
+        }
 
-        // 3. Derive or load encryption key
-        let encryptionKey = RelayKeyManager.loadOrDerive(
-            pairSpaceID: pairSpaceID,
-            inviterID: inviterID,
-            responderID: responderID
-        )
-
-        // 4. Create SyncRelayGateway
-        let lastSentSeq = loadLastSentSequence(for: pairSpaceID)
-        let relayGateway = SyncRelayGateway(
-            container: ckContainer,
-            pairSpaceID: pairSpaceID,
-            myUserID: myUserID,
-            encryptionKey: encryptionKey,
-            healthMonitor: healthMonitor,
-            lastSequence: lastSentSeq
-        )
-
-        // 5. Create PairSyncBridge (wires relay posting automatically)
+        // Pair data now lives in one shared authority zone; relay is disabled for pair sync.
         let bridge = PairSyncBridge(
             pairSpaceID: pairSpaceID,
             engine: engine,
             delegate: delegate,
-            relayGateway: relayGateway,
             zoneID: zoneID,
             modelContainer: modelContainer,
             codecRegistry: codecRegistry
@@ -214,19 +192,7 @@ actor SyncEngineCoordinator {
 
         pairBridges[pairSpaceID] = bridge
 
-        // 6. Subscribe to relay push notifications
-        Task {
-            await ensureRelaySubscriptionManager(myUserID: myUserID)
-            try? await relaySubscriptionManager?.subscribe(pairSpaceID: pairSpaceID)
-        }
-
-        // 7. Initial relay fetch (catch up on anything missed while offline)
-        Task {
-            await bridge.fetchAndApplyRelays()
-            await bridge.retryFailedRelays()
-        }
-
-        logger.info("[Coordinator] ✅ Pair CKSyncEngine + Relay started for \(pairSpaceID.uuidString.prefix(8))")
+        logger.info("[Coordinator] ✅ Pair CKSyncEngine started for \(pairSpaceID.uuidString.prefix(8)), owner=\(isZoneOwner)")
     }
 
     /// Sets the callback invoked when remote changes are applied to a pair zone.
@@ -244,64 +210,13 @@ actor SyncEngineCoordinator {
         // Remove reverse mapping
         sharedToPairSpaceID = sharedToPairSpaceID.filter { $0.value != pairSpaceID }
 
-        Task {
-            try? await relaySubscriptionManager?.unsubscribe(pairSpaceID: pairSpaceID)
-        }
-
         logger.info("[Coordinator] Pair CKSyncEngine stopped for \(pairSpaceID.uuidString.prefix(8))")
     }
 
-    /// Stops pair sync and deletes the encryption key (for unbind).
+    /// Stops pair sync for unbind / teardown.
     func teardownPairSync(pairSpaceID: UUID) {
         stopPairSync(pairSpaceID: pairSpaceID)
-        RelayKeyManager.deleteKey(for: pairSpaceID)
         logger.info("[Coordinator] Pair sync torn down for \(pairSpaceID.uuidString.prefix(8))")
-    }
-
-    /// Fetches and applies new relay messages for a specific pair space.
-    /// Called on relay push notification or periodic poll.
-    @discardableResult
-    func fetchRelays(for pairSpaceID: UUID) async -> Int {
-        guard let bridge = pairBridges[pairSpaceID] else {
-            logger.warning("[Coordinator] No bridge for space \(pairSpaceID.uuidString.prefix(8)) on relay fetch")
-            return 0
-        }
-        return await bridge.fetchAndApplyRelays()
-    }
-
-    /// Retries any failed relay posts for a pair space.
-    func retryRelays(for pairSpaceID: UUID) async {
-        await pairBridges[pairSpaceID]?.retryFailedRelays()
-    }
-
-    /// Triggers relay cleanup (delete old records) for a pair space.
-    func cleanupRelays(for pairSpaceID: UUID) async {
-        guard let bridge = pairBridges[pairSpaceID] else { return }
-        try? await bridge.relayGateway.cleanupOldRelays()
-    }
-
-    // MARK: - Profile Relay
-
-    /// Posts a MemberProfile update directly to the relay for all active pair bridges.
-    /// Profile data bypasses CKSyncEngine (not a zone record) and goes straight to relay.
-    /// On failure, the payload is persisted to the retry queue (same as task relay).
-    func pushProfileToRelay(_ payload: CloudKitProfileRecordCodec.MemberProfilePayload) async {
-        let record = CloudKitProfileRecordCodec.makeRecord(from: payload)
-        guard let entry = RelayChangeConverter.toChangeEntry(from: record) else {
-            logger.warning("[Coordinator] Failed to encode profile for relay")
-            return
-        }
-
-        for (_, bridge) in pairBridges {
-            do {
-                let seq = try await bridge.relayGateway.postRelay(changes: [entry])
-                bridge.saveLastSentSequencePublic(seq)
-                logger.info("[Coordinator] ✅ Profile relayed for space \(bridge.pairSpaceID.uuidString.prefix(8))")
-            } catch {
-                logger.error("[Coordinator] ❌ Failed to relay profile for space \(bridge.pairSpaceID.uuidString.prefix(8)): \(error)")
-                bridge.persistFailedRelayPublic(changes: [entry])
-            }
-        }
     }
 
     // MARK: - Record Local Changes
@@ -323,12 +238,6 @@ actor SyncEngineCoordinator {
 
         switch change.operation {
         case .delete:
-            if let delegate = delegateFor(zoneID) {
-                delegate.registerPendingDeletion(
-                    recordName: recordID.recordName,
-                    recordType: change.entityKind.ckRecordType
-                )
-            }
             engine.state.add(pendingRecordZoneChanges: [.deleteRecord(recordID)])
         case .upsert, .complete, .archive:
             engine.state.add(pendingRecordZoneChanges: [.saveRecord(recordID)])
@@ -337,25 +246,6 @@ actor SyncEngineCoordinator {
         healthMonitor.updateZone(zoneID.zoneName) { $0.pendingChangeCount += 1 }
 
         logger.debug("[Coordinator] Queued \(change.operation.rawValue) for \(change.entityKind.rawValue)/\(change.recordID.uuidString.prefix(8)) in \(zoneID.zoneName)")
-    }
-
-    // MARK: - Relay Push Notification Handling
-
-    /// Handles a relay push notification by extracting the pairSpaceID and fetching new relays.
-    /// Returns the number of changes applied, or 0 if the notification wasn't for a relay.
-    @discardableResult
-    func handleRelayNotification(subscriptionID: String) async -> Int {
-        guard let manager = relaySubscriptionManager else { return 0 }
-        guard let pairSpaceID = await manager.pairSpaceID(for: subscriptionID) else {
-            return 0
-        }
-        return await fetchRelays(for: pairSpaceID)
-    }
-
-    /// Handles a relay push notification and returns whether it was processed.
-    func isRelaySubscription(_ subscriptionID: String) async -> Bool {
-        guard let manager = relaySubscriptionManager else { return false }
-        return await manager.pairSpaceID(for: subscriptionID) != nil
     }
 
     // MARK: - Account Change
@@ -368,7 +258,6 @@ actor SyncEngineCoordinator {
             stopPairSync(pairSpaceID: id)
         }
         sharedToPairSpaceID.removeAll()
-        relaySubscriptionManager = nil
         logger.info("[Coordinator] All engines stopped due to account change")
     }
 
@@ -409,14 +298,6 @@ actor SyncEngineCoordinator {
             logger.error("[Coordinator] Failed to unarchive state for \(zoneName): \(error)")
             return nil
         }
-    }
-
-    private func loadLastSentSequence(for pairSpaceID: UUID) -> Int64 {
-        let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<PersistentRelaySequence>(
-            predicate: #Predicate<PersistentRelaySequence> { $0.pairSpaceID == pairSpaceID }
-        )
-        return (try? context.fetch(descriptor).first?.lastSentSequence) ?? 0
     }
 
     // MARK: - Helpers
@@ -461,13 +342,5 @@ actor SyncEngineCoordinator {
 
         // Default: route to solo zone
         return Self.soloZoneID
-    }
-
-    private func ensureRelaySubscriptionManager(myUserID: UUID) async {
-        guard relaySubscriptionManager == nil else { return }
-        relaySubscriptionManager = SyncRelaySubscriptionManager(
-            container: ckContainer,
-            myUserID: myUserID
-        )
     }
 }

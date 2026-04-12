@@ -52,40 +52,19 @@ actor LocalPairingService: PairingServiceProtocol {
             )
         }
 
-        let pairMemberships = memberships.filter { $0.pairSpaceID == relatedPairSpace.id }
-        guard
-            let pairSpace = relatedPairSpace.domainModel(memberships: pairMemberships),
-            let sharedSpaceRecord = spaces.first(where: { $0.id == relatedPairSpace.sharedSpaceID })
-        else {
+        let pairSummary = PairSpaceSummaryResolver.resolve(
+            for: userID,
+            spaces: spaces,
+            pairSpaces: pairSpaces,
+            memberships: memberships
+        )
+        guard pairSummary != nil else {
             return PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
         }
 
-        let partnerMembership = pairMemberships.first(where: { $0.userID != userID })
-        let partner = partnerMembership.map {
-            User(
-                id: $0.userID,
-                appleUserID: nil,
-                displayName: $0.nickname,
-                avatarSystemName: $0.avatarSystemName ?? "person.crop.circle.fill",
-                avatarPhotoFileName: $0.avatarPhotoFileName,
-                createdAt: $0.joinedAt,
-                updatedAt: $0.joinedAt,
-                preferences: NotificationSettings(
-                    taskReminderEnabled: true,
-                    dailySummaryEnabled: true,
-                    calendarReminderEnabled: true,
-                    futureCollaborationInviteEnabled: true
-                )
-            )
-        }
-
         return PairingContext(
-            state: pairSpace.status == .active ? .paired : .invitePending,
-            pairSpaceSummary: PairSpaceSummary(
-                sharedSpace: sharedSpaceRecord.domainModel,
-                pairSpace: pairSpace,
-                partner: partner
-            ),
+            state: relatedPairSpace.statusRawValue == PairSpaceStatus.active.rawValue ? .paired : .invitePending,
+            pairSpaceSummary: pairSummary,
             activeInvite: pendingInviteRecord?.domainModel
         )
     }
@@ -113,7 +92,7 @@ actor LocalPairingService: PairingServiceProtocol {
         let sharedSpace = Space(
             id: UUID(),
             type: .pair,
-            displayName: "一起的任务空间",
+            displayName: PairSpace.defaultSharedSpaceDisplayName,
             ownerUserID: inviterID,
             status: .active,
             createdAt: now,
@@ -183,7 +162,7 @@ actor LocalPairingService: PairingServiceProtocol {
             let sharedSpace = Space(
                 id: sharedSpaceID,
                 type: .pair,
-                displayName: "一起的任务空间",
+                displayName: PairSpace.defaultSharedSpaceDisplayName,
                 ownerUserID: inviterUserID,
                 status: .active,
                 createdAt: now,
@@ -370,18 +349,15 @@ actor LocalPairingService: PairingServiceProtocol {
                 predicate: #Predicate<PersistentPairSpace> { $0.id == pairSpaceID }
             )
         ).first else { return }
-        pairSpace.displayName = displayName
 
-        // 同步更新关联的 PersistentSpace，确保 Today/Home/Lists/Calendar 读到一致的名称
-        if let newName = displayName {
-            let sharedSpaceID = pairSpace.sharedSpaceID
-            if let space = try? context.fetch(
-                FetchDescriptor<PersistentSpace>(
-                    predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
-                )
-            ).first {
-                space.displayName = newName
-            }
+        // SharedSpace.displayName is the authoritative source for pair workspace naming.
+        let sharedSpaceID = pairSpace.sharedSpaceID
+        if let space = try? context.fetch(
+            FetchDescriptor<PersistentSpace>(
+                predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
+            )
+        ).first {
+            space.displayName = displayName ?? PairSpace.defaultSharedSpaceDisplayName
         }
 
         try? context.save()

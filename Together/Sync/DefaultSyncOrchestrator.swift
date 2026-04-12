@@ -39,6 +39,10 @@ actor DefaultSyncOrchestrator: SyncOrchestratorProtocol {
             let latestCursor = pushResult.cursor ?? currentState?.cursor
             let pullResult = try await cloudGateway.pull(spaceID: spaceID, since: latestCursor)
 
+            if pullResult.changedRecordIDs.isEmpty == false, pullResult.payload.totalCount == 0 {
+                throw SyncOrchestratorError.remoteChangesNotSupported(pullResult.changedRecordIDs.count)
+            }
+
             // ── Apply remote changes locally ──
             let pendingRecordIDs = Set(pendingChanges.map(\.recordID))
             let appliedRemoteChanges = try await remoteSyncApplier.apply(

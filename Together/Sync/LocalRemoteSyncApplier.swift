@@ -82,12 +82,16 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
             }
         }
 
-        // 更新 PairSpace 的 displayName（如果 profile 携带了最新值）
+        // 更新 SharedSpace 的 displayName（shared space 是唯一权威来源）
         if let newDisplayName = profile.pairSpaceDisplayName {
-            let pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
-            for pairSpace in pairSpaces where pairSpace.sharedSpaceID == spaceID {
-                if pairSpace.displayName != newDisplayName {
-                    pairSpace.displayName = newDisplayName.isEmpty ? nil : newDisplayName
+            let resolvedDisplayName = newDisplayName.isEmpty
+                ? PairSpace.defaultSharedSpaceDisplayName
+                : newDisplayName
+
+            let spaces = (try? context.fetch(FetchDescriptor<PersistentSpace>())) ?? []
+            for space in spaces where space.id == spaceID {
+                if space.displayName != resolvedDisplayName {
+                    space.displayName = resolvedDisplayName
                     didChange = true
                 }
             }

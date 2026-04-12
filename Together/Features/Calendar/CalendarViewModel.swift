@@ -50,7 +50,7 @@ final class CalendarViewModel {
     }
 
     var isPairModeActive: Bool {
-        sessionStore.activeMode == .pair
+        sessionStore.isViewingPairSpace
     }
 
     var currentUser: User? {

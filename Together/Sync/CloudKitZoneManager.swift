@@ -6,12 +6,9 @@ private let logger = Logger(subsystem: "com.pigdog.Together", category: "ZoneMan
 
 /// Manages custom CKRecordZone lifecycle for pair spaces.
 ///
-/// Each pair space maps to one custom zone in the **user's private database**.
-/// Zone naming convention: `"pair-<pairSpaceID>"`.
-///
-/// ## Phase 3 Implementation
-/// Zones are created in the private database. Each user creates their own zone
-/// independently — no CKShare needed. Cross-user sync happens via SyncRelay.
+/// Each pair space maps to one custom zone. The zone owner creates it in their
+/// private database, and the participant mounts the same shared authority data
+/// plane through CKShare.
 actor CloudKitZoneManager {
     private let container: CKContainer
 

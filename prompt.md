@@ -1,39 +1,40 @@
 # Together
 
-You are Codex acting as the implementation partner for Together. Deliver a complete dual-mode result for this project.
+You are Codex acting as the implementation partner for Together. Rebuild the pair-mode backend architecture so it is stable across iPhone, iPad, and Mac without regressing single-user behavior.
 
 Core goals
 
-- Add a true pair mode without breaking the current single-user task flow.
-- Keep single-space and pair-space data fully isolated.
-- Make pair mode available through avatar-based mode switching and profile-based pairing management.
-- Support shared pair-space task collaboration across Today, Lists, Calendar, create/edit, and detail flows.
+- Replace the current pair-mode "private DB + public relay copy" design with a CloudKit single-authority shared-data architecture.
+- Keep single-user data in a private data plane and pair-shared data in one authoritative shared data plane.
+- Make task data, shared-space metadata, member profile data, and avatar updates use the same reliability level and lifecycle.
+- Remove any dependency between pair sync lifecycle and UI mode (`activeMode`).
 
 Hard requirements
 
 - Follow `PRODUCT_SPEC.md`, `DEVELOPMENT_GUIDELINES.md`, `DESIGN_GUIDELINES.md`, and `AGENTS.md`.
 - Keep single mode as the default startup mode.
-- Do not implement pair projects in this milestone.
-- Prefer SwiftUI, SwiftData, and modern Swift concurrency.
-- Keep pair sync transport mockable; do not ship real CloudKit transport in this milestone.
+- Do not break existing single-user task flows, notifications, or profile save behavior.
+- Prefer SwiftUI, SwiftData, CloudKit, and modern Swift concurrency.
+- Planning comes before broad coding; update durable control-plane files as reality changes.
 
 Deliverable
 
-- Working pair-mode architecture, UI integration, previews, tests, and documentation aligned with the repo state.
+- A working pair-mode backend foundation where CloudKit shared data is the authority for pair tasks and pair metadata, local SwiftData acts as projection/cache, and the current relay-only pair data path is no longer required for correctness.
 
-Project spec
+Architecture directive
 
-- Pair mode uses an independent shared data space after pairing succeeds.
-- Users pair through profile, then switch modes from the top-right avatar control.
-- Pair tasks support assignee modes for self, partner, or both.
-- Partner-assigned tasks require accept, decline, or snooze with an optional short message.
-- Pair mode UI should feel warmer than single mode while staying native and restrained.
+- Public DB: invite discovery only.
+- Private DB: single-user data and owner-side shared zone records.
+- Shared DB / CKShare: participant-side access to the same pair data authority.
+- Local SwiftData: projection/cache for UI.
+- Avatar sync must move away from base64-in-profile relay semantics and become asset/reference based within the shared authority data model.
 
 Process requirements
 
-1. Create `plans.md` before broad implementation.
+1. Refresh `plans.md` before broad implementation.
 2. Implement milestone by milestone.
-3. Keep `documentation.md` aligned with shipped behavior.
+3. Validate after each milestone.
+4. Keep `documentation.md` aligned with shipped behavior.
 
 Start now.
-Do not begin broad coding until `plans.md` exists and is coherent.
+Do not begin broad coding until `plans.md` is coherent with this architecture.

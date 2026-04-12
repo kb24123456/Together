@@ -24,7 +24,7 @@ final class ListsViewModel {
     }
 
     var isPairModeActive: Bool {
-        sessionStore.activeMode == .pair
+        sessionStore.isViewingPairSpace
     }
 
     var currentUser: User? {

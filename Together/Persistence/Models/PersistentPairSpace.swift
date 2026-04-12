@@ -6,6 +6,7 @@ final class PersistentPairSpace {
     var id: UUID
     var sharedSpaceID: UUID
     var statusRawValue: String
+    /// Deprecated compatibility field. Shared-space naming is authoritative on `PersistentSpace.displayName`.
     var displayName: String?
     var createdAt: Date
     var activatedAt: Date?
@@ -47,7 +48,7 @@ extension PersistentPairSpace {
             id: pairSpace.id,
             sharedSpaceID: pairSpace.sharedSpaceID,
             statusRawValue: pairSpace.status.rawValue,
-            displayName: pairSpace.displayName,
+            displayName: nil,
             createdAt: pairSpace.createdAt,
             activatedAt: pairSpace.activatedAt,
             endedAt: pairSpace.endedAt,
@@ -69,7 +70,6 @@ extension PersistentPairSpace {
             memberA: memberARecord.domainModel,
             memberB: memberBRecord?.domainModel,
             dataBoundaryToken: sharedSpaceID,
-            displayName: displayName,
             createdAt: createdAt,
             activatedAt: activatedAt,
             endedAt: endedAt,
@@ -82,7 +82,7 @@ extension PersistentPairSpace {
     func update(from pairSpace: PairSpace) {
         sharedSpaceID = pairSpace.sharedSpaceID
         statusRawValue = pairSpace.status.rawValue
-        displayName = pairSpace.displayName
+        displayName = nil
         createdAt = pairSpace.createdAt
         activatedAt = pairSpace.activatedAt
         endedAt = pairSpace.endedAt

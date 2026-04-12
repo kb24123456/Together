@@ -43,6 +43,16 @@ struct RecordCodecRegistry: Sendable {
             try PeriodicTaskRecordCodable.from(record: record)
         }
 
+        // SharedSpace metadata
+        table[SpaceRecordCodable.ckRecordType] = { record in
+            try SpaceRecordCodable.from(record: record)
+        }
+
+        // MemberProfile metadata
+        table[MemberProfileRecordCodable.ckRecordType] = { record in
+            try MemberProfileRecordCodable.from(record: record)
+        }
+
         self.decoders = table
     }
 

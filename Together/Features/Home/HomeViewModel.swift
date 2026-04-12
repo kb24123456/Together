@@ -321,7 +321,7 @@ final class HomeViewModel {
     }
 
     var isPairModeActive: Bool {
-        sessionStore.activeMode == .pair
+        sessionStore.isViewingPairSpace
     }
 
     var hasPairModeAvailable: Bool {
@@ -393,7 +393,7 @@ final class HomeViewModel {
     func toggleAvatarPreview() {
         guard hasPairModeAvailable else { return }
         sessionStore.switchMode(to: isPairModeActive ? .single : .pair)
-        showsPairAvatarPreview = sessionStore.activeMode == .pair
+        showsPairAvatarPreview = sessionStore.isViewingPairSpace
         Task {
             await reload()
         }

@@ -63,8 +63,6 @@ struct TogetherApp: App {
                     StartupTrace.mark("TogetherApp.ready.task.start")
                     notificationDelegate.configure(appContext: appContext)
                     await appContext.performPostLaunchWorkIfNeeded()
-                    // CKShare pairing disabled; consume and discard any pending metadata
-                    _ = appDelegate.consumePendingShareMetadata()
                     StartupTrace.mark("TogetherApp.ready.task.end")
                 }
                 .onChange(of: appBootstrapper.appContext?.sessionStore.authState) { _, newValue in
@@ -82,19 +80,19 @@ struct TogetherApp: App {
                     guard let appContext = appBootstrapper.appContext,
                           appBootstrapper.phase == .ready
                     else { return }
-                    // 配对成功或解绑后，立即启停同步轮询
+                    // UI 模式切换不再决定双人同步生命周期，但仍需要刷新当前空间视图
                     appContext.updateSyncPolling()
                     if newMode == .pair {
                         Task { await appContext.syncPairSpaceIfNeeded() }
                     }
                 }
                 .onChange(of: appBootstrapper.appContext?.sessionStore.pairSpaceSummary) { _, _ in
-                    // pairSpaceSummary 到位后（可能晚于 activeMode 变化），重新评估轮询状态
+                    // 绑定状态变化后立即重评估双人同步，不依赖 activeMode
                     guard let appContext = appBootstrapper.appContext,
-                          appBootstrapper.phase == .ready,
-                          appContext.sessionStore.activeMode == .pair
+                          appBootstrapper.phase == .ready
                     else { return }
                     appContext.updateSyncPolling()
+                    Task { await appContext.syncPairSpaceIfNeeded() }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard let appContext = appBootstrapper.appContext,
@@ -110,7 +108,7 @@ struct TogetherApp: App {
                         // CKSyncEngine automatically handles background scheduling
                     case .active:
                         appContext.updateSyncPolling()
-                        if appContext.sessionStore.activeMode == .pair {
+                        if appContext.sessionStore.hasActivePairSpace {
                             Task { await appContext.syncPairSpaceIfNeeded() }
                         }
                     default:

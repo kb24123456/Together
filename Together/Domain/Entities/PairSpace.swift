@@ -20,7 +20,6 @@ struct PairSpace: Identifiable, Hashable, Sendable {
     var memberA: PairMember
     var memberB: PairMember?
     var dataBoundaryToken: UUID
-    var displayName: String?
     var createdAt: Date
     var activatedAt: Date?
     var endedAt: Date?
@@ -37,4 +36,8 @@ struct PairSpace: Identifiable, Hashable, Sendable {
 
     /// Whether this user is the zone owner (inviter) or participant (responder).
     var isZoneOwner: Bool = false
+}
+
+extension PairSpace {
+    nonisolated static let defaultSharedSpaceDisplayName = "一起的任务空间"
 }

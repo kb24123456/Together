@@ -4,8 +4,8 @@ import UIKit
 /// Handles UIApplicationDelegate callbacks that are not available in the SwiftUI lifecycle.
 ///
 /// Responsibilities:
-/// - Register for remote notifications so CKQuerySubscription pushes are delivered.
-/// - Forward silent push notifications to AppContext for relay fetching.
+/// - Register for remote notifications used by CloudKit sync.
+/// - Forward silent pushes to AppContext when the app is alive.
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate {
 
@@ -21,8 +21,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // Register for remote (silent) push notifications.
-        // Required so that CKQuerySubscription for SyncRelay can trigger relay fetches.
+        // CloudKit shared/private database subscriptions may still wake the app in background.
         application.registerForRemoteNotifications()
         return true
     }
@@ -61,12 +60,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     }
 
     // MARK: - CKShare (legacy, disabled)
+    // Direct share-link acceptance is not yet the primary invite path. The current
+    // production flow accepts shares from the invite code lookup result.
 
     func application(
         _ application: UIApplication,
         userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
     ) {
-        // CKShare is no longer used for pairing (replaced by SyncRelay architecture).
+        pendingShareMetadata = cloudKitShareMetadata
     }
 
     func consumePendingShareMetadata() -> CKShare.Metadata? {

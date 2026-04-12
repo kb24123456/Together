@@ -179,10 +179,11 @@ struct CompletedHistoryView: View {
             viewModel: CompletedHistoryViewModel(
                 sessionStore: {
                     let store = SessionStore()
-                    store.authState = .signedIn
-                    store.currentUser = MockDataFactory.makeCurrentUser()
-                    store.singleSpace = MockDataFactory.makeSingleSpace()
-                    store.pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+                    store.seedMock(
+                        currentUser: MockDataFactory.makeCurrentUser(),
+                        singleSpace: MockDataFactory.makeSingleSpace(),
+                        pairSummary: nil
+                    )
                     return store
                 }(),
                 itemRepository: MockItemRepository(),

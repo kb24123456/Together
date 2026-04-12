@@ -19,30 +19,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
     /// Callback invoked when remote changes are applied, so the UI can refresh.
     var onRemoteChangesApplied: (@Sendable (_ appliedCount: Int) -> Void)?
 
-    /// Callback to post relay for pair zones when local changes are successfully pushed.
-    var onLocalChangesPushed: (@Sendable (_ savedRecords: [CKRecord]) -> Void)?
-
-    /// Callback to post relay for pair zones when local deletions are confirmed.
-    var onLocalDeletesPushed: (@Sendable (_ deletions: [(recordID: CKRecord.ID, recordType: String)]) -> Void)?
-
-    /// UserDefaults key for persisting deletion type mappings across restarts.
-    private var pendingDeletionTypesKey: String {
-        "SyncDelegate.pendingDeletionTypes.\(zoneID.zoneName)"
-    }
-
-    /// Loads persisted deletion type mappings.
-    private var pendingDeletionTypes: [String: String] {
-        get { UserDefaults.standard.dictionary(forKey: pendingDeletionTypesKey) as? [String: String] ?? [:] }
-        set { UserDefaults.standard.set(newValue, forKey: pendingDeletionTypesKey) }
-    }
-
-    /// Registers the record type for a pending deletion so the relay can include it.
-    func registerPendingDeletion(recordName: String, recordType: String) {
-        var types = pendingDeletionTypes
-        types[recordName] = recordType
-        pendingDeletionTypes = types
-    }
-
     init(
         zoneID: CKRecordZone.ID,
         modelContainer: ModelContainer,
@@ -91,6 +67,11 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         case .didSendChanges:
             healthMonitor.updateZone(zoneID.zoneName) { $0.isSyncing = false }
 
+        case .sentDatabaseChanges,
+             .willFetchRecordZoneChanges,
+             .didFetchRecordZoneChanges:
+            break
+
         @unknown default:
             logger.info("[SyncDelegate] Unknown event for zone \(self.zoneID.zoneName)")
         }
@@ -133,6 +114,12 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 return record
             }
             if let record = self.fetchAndEncode(uuid: uuid, entityKind: .periodicTask, context: modelContext) {
+                return record
+            }
+            if let record = self.fetchAndEncode(uuid: uuid, entityKind: .space, context: modelContext) {
+                return record
+            }
+            if let record = self.fetchAndEncode(uuid: uuid, entityKind: .memberProfile, context: modelContext) {
                 return record
             }
 
@@ -268,10 +255,7 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             }
         }
 
-        // Notify for relay posting (pair zones)
         if !savedRecords.isEmpty {
-            onLocalChangesPushed?(savedRecords)
-
             // Confirm migration progress if applicable
             if SyncMigrationService.isMigrationInProgress {
                 let names = savedRecords.map { $0.recordID.recordName }
@@ -279,18 +263,8 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             }
         }
 
-        // Process deletions — build typed deletion list for relay
-        var confirmedDeletions: [(recordID: CKRecord.ID, recordType: String)] = []
-        var types = pendingDeletionTypes
         for deletedID in sentChanges.deletedRecordIDs {
             logger.debug("[SyncDelegate] 🗑️ Deleted from server: \(deletedID.recordName.prefix(8))")
-            if let recordType = types.removeValue(forKey: deletedID.recordName) {
-                confirmedDeletions.append((recordID: deletedID, recordType: recordType))
-            }
-        }
-        if !confirmedDeletions.isEmpty {
-            pendingDeletionTypes = types
-            onLocalDeletesPushed?(confirmedDeletions)
         }
     }
 
@@ -308,6 +282,10 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             applyProjectSubtask(subtaskCodable.subtask, context: context)
         case let periodicCodable as PeriodicTaskRecordCodable:
             applyPeriodicTask(periodicCodable.periodicTask, context: context)
+        case let spaceCodable as SpaceRecordCodable:
+            applySpace(spaceCodable.space, context: context)
+        case let memberProfileCodable as MemberProfileRecordCodable:
+            applyMemberProfile(memberProfileCodable.profile, context: context)
         default:
             logger.warning("[SyncDelegate] Unhandled entity type during apply")
         }
@@ -384,6 +362,58 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
     }
 
+    private func applySpace(_ space: Space, context: ModelContext) {
+        let spaceID = space.id
+        let descriptor = FetchDescriptor<PersistentSpace>(
+            predicate: #Predicate<PersistentSpace> { $0.id == spaceID }
+        )
+        if let existing = try? context.fetch(descriptor).first {
+            if space.updatedAt >= existing.updatedAt {
+                existing.update(from: space)
+            }
+        } else {
+            context.insert(PersistentSpace(space: space))
+        }
+
+    }
+
+    private func applyMemberProfile(_ profile: MemberProfileRecordCodable.Profile, context: ModelContext) {
+        let store = LocalUserAvatarMediaStore()
+
+        let memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
+        for membership in memberships where membership.userID == profile.userID {
+            membership.nickname = profile.displayName
+            membership.avatarSystemName = profile.avatarSystemName
+
+            if profile.avatarDeleted {
+                if let fileName = membership.avatarPhotoFileName {
+                    try? store.removeAvatar(named: fileName)
+                }
+                membership.avatarPhotoFileName = nil
+            } else if let data = profile.avatarPhotoData {
+                let fileName = store.canonicalFileName(for: profile.userID)
+                try? store.persistAvatarData(data, fileName: fileName)
+                membership.avatarPhotoFileName = fileName
+            }
+        }
+
+        let profiles = (try? context.fetch(FetchDescriptor<PersistentUserProfile>())) ?? []
+        for userProfile in profiles where userProfile.userID == profile.userID {
+            userProfile.displayName = profile.displayName
+            userProfile.avatarSystemName = profile.avatarSystemName
+            if profile.avatarDeleted {
+                userProfile.avatarPhotoFileName = nil
+                userProfile.avatarPhotoData = nil
+            } else if let data = profile.avatarPhotoData {
+                let fileName = store.canonicalFileName(for: profile.userID)
+                try? store.persistAvatarData(data, fileName: fileName)
+                userProfile.avatarPhotoFileName = fileName
+                userProfile.avatarPhotoData = data
+            }
+            userProfile.updatedAt = profile.updatedAt
+        }
+    }
+
     private func archiveLocalRecord(uuid: UUID, recordType: String, context: ModelContext) {
         if recordType == ItemRecordCodable.ckRecordType {
             // Items use archive semantics
@@ -422,6 +452,27 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             )
             if let entity = try? context.fetch(descriptor).first {
                 context.delete(entity)
+            }
+        } else if recordType == SpaceRecordCodable.ckRecordType {
+            let descriptor = FetchDescriptor<PersistentSpace>(
+                predicate: #Predicate<PersistentSpace> { $0.id == uuid }
+            )
+            if let entity = try? context.fetch(descriptor).first {
+                entity.statusRawValue = SpaceStatus.archived.rawValue
+                entity.archivedAt = .now
+                entity.updatedAt = .now
+            }
+        } else if recordType == MemberProfileRecordCodable.ckRecordType {
+            let descriptor = FetchDescriptor<PersistentPairMembership>(
+                predicate: #Predicate<PersistentPairMembership> { $0.userID == uuid }
+            )
+            let memberships = (try? context.fetch(descriptor)) ?? []
+            let store = LocalUserAvatarMediaStore()
+            for membership in memberships {
+                if let fileName = membership.avatarPhotoFileName {
+                    try? store.removeAvatar(named: fileName)
+                }
+                membership.avatarPhotoFileName = nil
             }
         }
     }
@@ -470,8 +521,42 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             let task = persistent.domainModel()
             return PeriodicTaskRecordCodable(periodicTask: task).toCKRecord(in: zoneID)
 
-        default:
-            return nil
+        case .space:
+            let descriptor = FetchDescriptor<PersistentSpace>(
+                predicate: #Predicate<PersistentSpace> { $0.id == uuid }
+            )
+            guard let persistent = try? context.fetch(descriptor).first else { return nil }
+            return SpaceRecordCodable(space: persistent.domainModel).toCKRecord(in: zoneID)
+
+        case .memberProfile:
+            let descriptor = FetchDescriptor<PersistentUserProfile>(
+                predicate: #Predicate<PersistentUserProfile> { $0.userID == uuid }
+            )
+            guard let persistent = try? context.fetch(descriptor).first else { return nil }
+
+            let memberships = (try? context.fetch(
+                FetchDescriptor<PersistentPairMembership>(
+                    predicate: #Predicate<PersistentPairMembership> { $0.userID == uuid }
+                )
+            )) ?? []
+            let pairSpaceIDs = Set(memberships.map(\.pairSpaceID))
+            let pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+            guard let activePairSpace = pairSpaces.first(where: { pairSpaceIDs.contains($0.id) && $0.endedAt == nil }) else {
+                return nil
+            }
+
+            let avatarDeleted = persistent.avatarPhotoFileName == nil && persistent.avatarPhotoData == nil
+            let profile = MemberProfileRecordCodable.Profile(
+                userID: persistent.userID,
+                spaceID: activePairSpace.sharedSpaceID,
+                displayName: persistent.displayName,
+                avatarSystemName: persistent.avatarSystemName,
+                avatarPhotoData: avatarDeleted ? nil : (persistent.avatarPhotoData
+                    ?? persistent.avatarPhotoFileName.flatMap { try? LocalUserAvatarMediaStore().avatarData(named: $0) }),
+                avatarDeleted: avatarDeleted,
+                updatedAt: persistent.updatedAt
+            )
+            return MemberProfileRecordCodable(profile: profile).toCKRecord(in: zoneID)
         }
     }
 

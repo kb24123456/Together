@@ -39,46 +39,16 @@ actor LocalSpaceService: SpaceServiceProtocol {
             }
         }
 
-        let pairSummary: PairSpaceSummary? = {
-            guard let userID else { return nil }
-            let pairSpaceIDs = Set(membershipRecords.filter { $0.userID == userID }.map(\.pairSpaceID))
-            guard
-                let pairRecord = pairSpaceRecords.first(where: { pairSpaceIDs.contains($0.id) && $0.endedAt == nil }),
-                let pairSpace = pairRecord.domainModel(
-                    memberships: membershipRecords.filter { $0.pairSpaceID == pairRecord.id }
-                ),
-                let sharedSpaceRecord = spaceRecords.first(where: { $0.id == pairRecord.sharedSpaceID })
-            else {
-                return nil
-            }
-
-            let partnerMembership = membershipRecords.first { $0.pairSpaceID == pairRecord.id && $0.userID != userID }
-            let partner = partnerMembership.map {
-                User(
-                    id: $0.userID,
-                    appleUserID: nil,
-                    displayName: $0.nickname,
-                    avatarSystemName: $0.avatarSystemName ?? "person.crop.circle.fill",
-                    avatarPhotoFileName: $0.avatarPhotoFileName,
-                    createdAt: $0.joinedAt,
-                    updatedAt: $0.joinedAt,
-                    preferences: NotificationSettings(
-                        taskReminderEnabled: true,
-                        dailySummaryEnabled: true,
-                        calendarReminderEnabled: true,
-                        futureCollaborationInviteEnabled: true
-                    )
-                )
-            }
-
-            return PairSpaceSummary(
-                sharedSpace: sharedSpaceRecord.domainModel,
-                pairSpace: pairSpace,
-                partner: partner
+        let pairSummary = userID.flatMap {
+            PairSpaceSummaryResolver.resolve(
+                for: $0,
+                spaces: spaceRecords,
+                pairSpaces: pairSpaceRecords,
+                memberships: membershipRecords
             )
-        }()
+        }
 
-        let availableModes: [AppMode] = pairSummary == nil ? [.single] : [.single, .pair]
+        let availableModes: [AppMode] = pairSummary?.pairSpace.status == .active ? [.single, .pair] : [.single]
         return SpaceContext(
             singleSpace: singleSpace,
             pairSpaceSummary: pairSummary,

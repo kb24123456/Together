@@ -97,10 +97,14 @@ struct TogetherTests {
         let persistence = PersistenceController(inMemory: true)
         let spaceService = LocalSpaceService(container: persistence.container)
         let itemRepository = LocalItemRepository(container: persistence.container)
-        let listRepository = LocalTaskListRepository(container: persistence.container)
+        let listRepository = LocalTaskListRepository(
+            container: persistence.container,
+            syncCoordinator: NoOpSyncCoordinator()
+        )
         let projectRepository = LocalProjectRepository(
             container: persistence.container,
-            reminderScheduler: MockReminderScheduler()
+            reminderScheduler: MockReminderScheduler(),
+            syncCoordinator: NoOpSyncCoordinator()
         )
 
         let spaceContext = await spaceService.currentSpaceContext(for: MockDataFactory.currentUserID)
@@ -242,7 +246,10 @@ struct TogetherTests {
     @Test
     func localTaskListRepositorySupportsUpsertAndArchive() async throws {
         let persistence = PersistenceController(inMemory: true)
-        let repository = LocalTaskListRepository(container: persistence.container)
+        let repository = LocalTaskListRepository(
+            container: persistence.container,
+            syncCoordinator: NoOpSyncCoordinator()
+        )
 
         let saved = try await repository.saveTaskList(
             TaskList(
@@ -269,7 +276,8 @@ struct TogetherTests {
         let persistence = PersistenceController(inMemory: true)
         let repository = LocalProjectRepository(
             container: persistence.container,
-            reminderScheduler: MockReminderScheduler()
+            reminderScheduler: MockReminderScheduler(),
+            syncCoordinator: NoOpSyncCoordinator()
         )
 
         let saved = try await repository.saveProject(
@@ -291,7 +299,7 @@ struct TogetherTests {
         let archived = try await repository.archiveProject(projectID: saved.id)
 
         #expect(saved.name == "本地数据库接入")
-        #expect(archived.status == .archived)
+        #expect(archived.status == ProjectStatus.archived)
     }
 
     @Test
@@ -423,8 +431,9 @@ struct TogetherTests {
         #expect(requeued.status == .pendingConfirmation)
         #expect(requeued.latestResponse == nil)
         #expect(requeued.responseHistory.isEmpty)
-        #expect(requeued.assignmentMessages.map(\.authorID) == [MockDataFactory.currentUserID])
-        #expect(requeued.assignmentMessages.last?.body == "麻烦你确认")
+        #expect(requeued.assignmentMessages.map(\.authorID) == [MockDataFactory.currentUserID, MockDataFactory.currentUserID])
+        #expect(requeued.assignmentMessages.first?.body == "麻烦你确认")
+        #expect(requeued.assignmentMessages.last?.body == "再次发送了这个任务")
     }
 
     @Test
@@ -2915,6 +2924,10 @@ private func makeUserProfileContainer(storeURL: URL) throws -> ModelContainer {
         withIntermediateDirectories: true
     )
 
-    let configuration = ModelConfiguration("AvatarTestStore", url: storeURL)
+    let configuration = ModelConfiguration(
+        "AvatarTestStore",
+        url: storeURL,
+        cloudKitDatabase: .none
+    )
     return try ModelContainer(for: PersistentUserProfile.self, configurations: configuration)
 }

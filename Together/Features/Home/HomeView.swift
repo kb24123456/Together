@@ -548,8 +548,7 @@ struct HomeView: View {
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
         .refreshable {
-            // 下拉刷新：在双人模式下触发同步
-            if appContext.sessionStore.activeMode == .pair {
+            if appContext.sessionStore.hasActivePairSpace {
                 await appContext.syncPairSpaceIfNeeded()
             }
             await viewModel.reload()
@@ -637,7 +636,7 @@ struct HomeView: View {
         .background(homeCanvasColor)
         .applyScrollEdgeProtection()
         .refreshable {
-            if appContext.sessionStore.activeMode == .pair {
+            if appContext.sessionStore.hasActivePairSpace {
                 await appContext.syncPairSpaceIfNeeded()
             }
             await viewModel.reload()

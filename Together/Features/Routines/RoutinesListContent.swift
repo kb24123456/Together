@@ -65,7 +65,7 @@ struct RoutinesListContent: View {
         .task {
             await viewModel.load()
         }
-        .task(id: appContext.sessionStore.activeMode) {
+        .task(id: appContext.sessionStore.currentSpace?.id) {
             await viewModel.reload()
         }
     }
@@ -268,4 +268,3 @@ struct RoutinesListContent: View {
         return AppTheme.colors.accent
     }
 }
-

@@ -90,7 +90,7 @@ final class ProfileViewModel {
     var currentUserRevision: UUID { sessionStore.userProfileRevision }
     var currentSpace: Space? { sessionStore.currentSpace }
     var bindingState: BindingState { sessionStore.bindingState }
-    var isPairMode: Bool { sessionStore.activeMode == .pair }
+    var isPairMode: Bool { sessionStore.hasActivePairSpace }
     var pairSpace: PairSpace? { sessionStore.currentPairSpace }
     var activeInvite: Invite? { sessionStore.activeInvite }
 
@@ -144,32 +144,21 @@ final class ProfileViewModel {
 
     /// 共享空间的自定义名称
     var pairSpaceDisplayName: String {
-        pairSpace?.displayName ?? ""
+        sessionStore.pairSpaceSummary?.sharedSpace.displayName ?? PairSpace.defaultSharedSpaceDisplayName
     }
 
     /// 更新共享空间的显示名称
     func updatePairSpaceDisplayName(_ newName: String) {
-        guard var pairSpace = sessionStore.currentPairSpace else { return }
+        guard let pairSpace = sessionStore.currentPairSpace else { return }
         let resolvedName: String? = newName.isEmpty ? nil : newName
-
-        // 更新 pairSpace 侧
-        pairSpace.displayName = resolvedName
-        sessionStore.pairSpaceSummary?.pairSpace = pairSpace
-
-        // 同步更新 sharedSpace 侧（Today/Home/Lists/Calendar 读的是这里）
-        if var sharedSpace = sessionStore.pairSpaceSummary?.sharedSpace {
-            sharedSpace.displayName = resolvedName ?? sharedSpace.displayName
-            sessionStore.pairSpaceSummary?.sharedSpace = sharedSpace
-        }
+        sessionStore.updatePairSpaceDisplayName(resolvedName)
 
         Task {
             await pairingService.updatePairSpaceDisplayName(pairSpaceID: pairSpace.id, displayName: resolvedName)
         }
-        // 通过 relay 将空间名同步到伙伴（仅元数据，不带头像 base64）
         if let user = sessionStore.currentUser {
             onProfileSaved?(user, false)
         }
-        sessionStore.userProfileRevision = UUID()
     }
 
     /// 获取配对的对方成员
@@ -207,8 +196,8 @@ final class ProfileViewModel {
     }
 
     var spaceSummary: String {
-        if isPairMode, let pairName = pairSpace?.displayName, !pairName.isEmpty {
-            return pairName
+        if sessionStore.hasActivePairSpace {
+            return sessionStore.pairSpaceSummary?.sharedSpace.displayName ?? PairSpace.defaultSharedSpaceDisplayName
         }
         return currentSpace?.displayName ?? "我的任务空间"
     }
@@ -231,7 +220,7 @@ final class ProfileViewModel {
     }
 
     var activeModeSummary: String {
-        sessionStore.activeMode == .pair ? "当前在双人模式" : "当前在单人模式"
+        sessionStore.isViewingPairSpace ? "当前在双人模式" : "当前在单人模式"
     }
 
     var taskUrgencyWindowMinutes: Int {
@@ -401,9 +390,9 @@ final class ProfileViewModel {
         let displayName = currentUser?.displayName ?? ""
         createInviteError = nil
         do {
-            let invite = try await pairingService.createInvite(from: inviterID, displayName: displayName)
-            sessionStore.pairingContext.activeInvite = invite
-            sessionStore.pairingContext.state = .invitePending
+            _ = try await pairingService.createInvite(from: inviterID, displayName: displayName)
+            let freshContext = await pairingService.currentPairingContext(for: inviterID)
+            apply(pairingContext: freshContext)
         } catch {
             let message: String
             if let pairingError = error as? PairingError {
@@ -445,15 +434,10 @@ final class ProfileViewModel {
 
     /// Device A: cancel all pending invites and reset to singleTrial.
     func cancelCurrentInvite() async {
-        // 1. 立即重置 UI（不等任何异步操作）
-        let resetContext = PairingContext(
-            state: .singleTrial,
-            pairSpaceSummary: nil,
-            activeInvite: nil
+        sessionStore.applyPairingContext(
+            PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
         )
-        apply(pairingContext: resetContext)
 
-        // 2. 异步清理 SwiftData 中残留的 pending 邀请
         guard let userID = currentUser?.id else { return }
         if let freshContext = try? await pairingService.cancelAllPendingInvites(for: userID) {
             apply(pairingContext: freshContext)
@@ -505,7 +489,6 @@ final class ProfileViewModel {
         guard let pairSpaceID = pairSpace?.id, let userID = currentUser?.id else { return }
         guard let pairingContext = try? await pairingService.unbind(pairSpaceID: pairSpaceID, actorID: userID) else { return }
         apply(pairingContext: pairingContext)
-        sessionStore.activeMode = .single
     }
 
     func updateTaskUrgencyWindow(minutes: Int) {
@@ -586,13 +569,7 @@ final class ProfileViewModel {
 
     func signOut() async {
         await authService.signOut()
-        sessionStore.authState = .signedOut
-        sessionStore.currentUser = nil
-        sessionStore.singleSpace = nil
-        sessionStore.pairSpaceSummary = nil
-        sessionStore.availableModeStates = [.single]
-        sessionStore.pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
-        sessionStore.activeMode = .single
+        sessionStore.clearForSignOut()
     }
 
     func taskUrgencyLabel(minutes: Int) -> String {
@@ -650,18 +627,6 @@ final class ProfileViewModel {
     }
 
     private func apply(pairingContext: PairingContext) {
-        sessionStore.pairingContext = pairingContext
-        sessionStore.pairSpaceSummary = pairingContext.pairSpaceSummary
-        // 1.4: 正确设置 availableModeStates
-        sessionStore.availableModeStates = pairingContext.pairSpaceSummary != nil
-            ? [.single, .pair] : [.single]
-        // 1.5: 绑定成功后自动切换到双人模式
-        if pairingContext.state == .paired, pairingContext.pairSpaceSummary != nil {
-            sessionStore.activeMode = .pair
-        }
-        // 解绑或丢失配对后回退到单人模式
-        if pairingContext.pairSpaceSummary == nil, sessionStore.activeMode == .pair {
-            sessionStore.activeMode = .single
-        }
+        sessionStore.applyPairingContext(pairingContext, autoSwitchToPairWhenBound: true)
     }
 }

@@ -17,7 +17,8 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
         case .project: return ProjectRecordCodable.ckRecordType
         case .projectSubtask: return ProjectSubtaskRecordCodable.ckRecordType
         case .periodicTask: return PeriodicTaskRecordCodable.ckRecordType
-        case .space, .memberProfile: return ""
+        case .space: return SpaceRecordCodable.ckRecordType
+        case .memberProfile: return MemberProfileRecordCodable.ckRecordType
         }
     }
 }
