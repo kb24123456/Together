@@ -141,7 +141,14 @@ final class PairSyncBridge: Sendable {
                         appliedCount += 1
                     }
                 } else if entry.operation == "upsert" {
-                    if let record = RelayChangeConverter.toCKRecord(from: entry, in: zoneID) {
+                    // MemberProfile: decode via dedicated codec (not in registry)
+                    if entry.recordType == CloudKitProfileRecordCodec.recordType {
+                        if let record = RelayChangeConverter.toCKRecord(from: entry, in: zoneID),
+                           let payload = CloudKitProfileRecordCodec.decode(record: record) {
+                            applyMemberProfile(payload, context: context)
+                            appliedCount += 1
+                        }
+                    } else if let record = RelayChangeConverter.toCKRecord(from: entry, in: zoneID) {
                         if codecRegistry.canDecode(record.recordType) {
                             if let entity = try? codecRegistry.decode(record) {
                                 applyEntity(entity, context: context)
@@ -231,6 +238,56 @@ final class PairSyncBridge: Sendable {
         default:
             logger.warning("[PairBridge] Unhandled entity type during relay apply")
         }
+    }
+
+    private func applyMemberProfile(
+        _ profile: CloudKitProfileRecordCodec.MemberProfilePayload,
+        context: ModelContext
+    ) {
+        let memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
+        for membership in memberships where membership.userID == profile.userID {
+            membership.nickname = profile.displayName
+            membership.avatarSystemName = profile.avatarSystemName
+
+            // nil = relay 不涉及头像（metadata-only），保持原样
+            // ""  = 发送方显式删除了自定义头像
+            // 非空 = 新头像 base64 数据
+            if let base64 = profile.avatarPhotoBase64 {
+                if !base64.isEmpty, let imageData = Data(base64Encoded: base64) {
+                    let store = LocalUserAvatarMediaStore()
+                    let fileName = store.canonicalFileName(for: profile.userID)
+                    try? store.persistAvatarData(imageData, fileName: fileName)
+                    membership.avatarPhotoFileName = fileName
+                } else {
+                    // 空字符串 → 显式清除自定义头像
+                    membership.avatarPhotoFileName = nil
+                }
+            }
+            // avatarPhotoBase64 == nil → 不动 avatarPhotoFileName
+        }
+
+        // Update pair space display name if provided
+        if let newDisplayName = profile.pairSpaceDisplayName {
+            let resolvedName: String? = newDisplayName.isEmpty ? nil : newDisplayName
+            let pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+            for pairSpace in pairSpaces where pairSpace.sharedSpaceID == profile.spaceID {
+                pairSpace.displayName = resolvedName
+            }
+            // 同步更新关联的 PersistentSpace，确保 Today/Home 读到一致的名称
+            if let name = resolvedName {
+                let spaceID = profile.spaceID
+                let spaces = (try? context.fetch(
+                    FetchDescriptor<PersistentSpace>(
+                        predicate: #Predicate<PersistentSpace> { $0.id == spaceID }
+                    )
+                )) ?? []
+                for space in spaces {
+                    space.displayName = name
+                }
+            }
+        }
+
+        logger.info("[PairBridge] 👤 Applied profile update for userID=\(profile.userID.uuidString.prefix(8))")
     }
 
     private func applyItem(_ item: Item, context: ModelContext) {
@@ -355,6 +412,11 @@ final class PairSyncBridge: Sendable {
         return (try? context.fetch(descriptor).first?.lastReceivedSequence) ?? 0
     }
 
+    /// Exposed for coordinator-level profile relay posting.
+    func saveLastSentSequencePublic(_ seq: Int64) {
+        saveLastSentSequence(seq)
+    }
+
     private func saveLastSentSequence(_ seq: Int64) {
         let context = ModelContext(modelContainer)
         let spaceID = pairSpaceID
@@ -391,6 +453,11 @@ final class PairSyncBridge: Sendable {
             ))
         }
         try? context.save()
+    }
+
+    /// Exposed for coordinator-level profile relay failure persistence (same queue as task relay).
+    func persistFailedRelayPublic(changes: [ChangeEntry]) {
+        persistFailedRelay(changes: changes)
     }
 
     private func persistFailedRelay(changes: [ChangeEntry]) {

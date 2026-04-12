@@ -58,6 +58,7 @@ final class ProfileViewModel {
     var createInviteError: String?
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
+    var onProfileSaved: ((_ user: User, _ includeAvatar: Bool) -> Void)?
 
     init(
         sessionStore: SessionStore,
@@ -109,29 +110,34 @@ final class ProfileViewModel {
             return .placeholder
         }
 
+        let partnerAvatarAsset = sessionStore.pairSpaceSummary?.partner?.avatarAsset
+            ?? .system("person.crop.circle.fill")
+
         return .user(
             ProfileCardAvatar(
                 displayName: partnerName,
-                avatarAsset: .system("person.crop.circle.fill"),
+                avatarAsset: partnerAvatarAsset,
                 overrideImage: nil
             )
         )
     }
 
     func makeEditProfileViewModel(user: User?) -> EditProfileViewModel {
-        EditProfileViewModel(
+        let vm = EditProfileViewModel(
             sessionStore: sessionStore,
             userProfileRepository: userProfileRepository,
             user: user
         )
+        vm.onProfileSaved = onProfileSaved
+        return vm
     }
 
     /// 对方的头像信息（用于双人编辑界面）
     var pairPartnerAvatar: ProfileCardAvatar {
-        let partner = pairPartner
+        let partner = sessionStore.pairSpaceSummary?.partner
         return ProfileCardAvatar(
-            displayName: partner?.nickname ?? "对方",
-            avatarAsset: .system("person.crop.circle.fill"), // 对方头像暂用默认
+            displayName: partner?.displayName ?? pairPartner?.nickname ?? "对方",
+            avatarAsset: partner?.avatarAsset ?? .system("person.crop.circle.fill"),
             overrideImage: nil
         )
     }
@@ -143,13 +149,26 @@ final class ProfileViewModel {
 
     /// 更新共享空间的显示名称
     func updatePairSpaceDisplayName(_ newName: String) {
-        guard var space = sessionStore.currentPairSpace else { return }
-        space.displayName = newName.isEmpty ? nil : newName
-        sessionStore.pairSpaceSummary?.pairSpace = space
-        Task {
-            await pairingService.updatePairSpaceDisplayName(pairSpaceID: space.id, displayName: newName.isEmpty ? nil : newName)
+        guard var pairSpace = sessionStore.currentPairSpace else { return }
+        let resolvedName: String? = newName.isEmpty ? nil : newName
+
+        // 更新 pairSpace 侧
+        pairSpace.displayName = resolvedName
+        sessionStore.pairSpaceSummary?.pairSpace = pairSpace
+
+        // 同步更新 sharedSpace 侧（Today/Home/Lists/Calendar 读的是这里）
+        if var sharedSpace = sessionStore.pairSpaceSummary?.sharedSpace {
+            sharedSpace.displayName = resolvedName ?? sharedSpace.displayName
+            sessionStore.pairSpaceSummary?.sharedSpace = sharedSpace
         }
-        // 触发 profile sync 将新空间名同步到伙伴
+
+        Task {
+            await pairingService.updatePairSpaceDisplayName(pairSpaceID: pairSpace.id, displayName: resolvedName)
+        }
+        // 通过 relay 将空间名同步到伙伴（仅元数据，不带头像 base64）
+        if let user = sessionStore.currentUser {
+            onProfileSaved?(user, false)
+        }
         sessionStore.userProfileRevision = UUID()
     }
 

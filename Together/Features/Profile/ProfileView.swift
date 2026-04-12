@@ -76,7 +76,6 @@ struct ProfileView: View {
                 EditProfileView(
                     viewModel: viewModel.makeEditProfileViewModel(user: appContext.sessionStore.currentUser)
                 )
-                    .id(appContext.sessionStore.userProfileRevision)
                     .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .editPairProfile:
                 EditPairProfileView(
@@ -88,7 +87,6 @@ struct ProfileView: View {
                         viewModel.updatePairSpaceDisplayName(newName)
                     }
                 )
-                    .id(appContext.sessionStore.userProfileRevision)
                     .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel())

@@ -114,15 +114,12 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
 
         guard !pendingChanges.isEmpty else { return nil }
 
-        // Capture modelContainer (Sendable) instead of ModelContext (non-Sendable)
         let container = self.modelContainer
 
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pendingChanges) { recordID in
-            // Create a fresh ModelContext inside the closure for thread safety
             let modelContext = ModelContext(container)
             guard let uuid = UUID(uuidString: recordID.recordName) else { return nil }
 
-            // Try each entity type in the registry
             if let record = self.fetchAndEncode(uuid: uuid, entityKind: .task, context: modelContext) {
                 return record
             }

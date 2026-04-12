@@ -6,7 +6,7 @@ import UIKit
 #endif
 
 struct EditProfileView: View {
-    @Bindable var viewModel: EditProfileViewModel
+    @State var viewModel: EditProfileViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showsDiscardAlert = false
@@ -61,14 +61,7 @@ struct EditProfileView: View {
         }
         .alert(
             "无法完成操作",
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        viewModel.clearError()
-                    }
-                }
-            )
+            isPresented: $viewModel.showsErrorAlert
         ) {
             Button("知道了", role: .cancel) {
                 HomeInteractionFeedback.selection()
@@ -86,14 +79,10 @@ struct EditProfileView: View {
             }
         }
         .fullScreenCover(
-            isPresented: Binding(
-                get: { viewModel.pendingCropImage != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        viewModel.cancelCropping()
-                    }
-                }
-            )
+            isPresented: $viewModel.showsCropper,
+            onDismiss: {
+                viewModel.cancelCropping()
+            }
         ) {
             if let image = viewModel.pendingCropImage {
                 AvatarCropperView(

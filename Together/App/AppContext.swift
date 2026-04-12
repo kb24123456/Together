@@ -26,6 +26,10 @@ final class AppContext {
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
 
+    /// Backup relay polling task — ensures partner relay messages are fetched
+    /// even when silent push notifications are delayed or dropped (common in GCBD).
+    private var relayPollingTask: Task<Void, Never>?
+
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
         self.sessionStore = sessionStore
@@ -185,6 +189,7 @@ final class AppContext {
 
         await container.syncEngineCoordinator.startPairSync(
             pairSpaceID: pairSpaceID,
+            sharedSpaceID: summary.sharedSpace.id,
             myUserID: myUserID,
             inviterID: inviterID,
             responderID: responderID
@@ -217,6 +222,59 @@ final class AppContext {
     /// Stops pair sync and cleans up encryption key (for unbind).
     func teardownPairSync(pairSpaceID: UUID) async {
         await container.syncEngineCoordinator.teardownPairSync(pairSpaceID: pairSpaceID)
+    }
+
+    /// Posts the current user's profile to the relay so the partner receives avatar/name updates.
+    ///
+    /// - Parameter includeAvatar: Whether to include the full avatar photo base64 in the payload.
+    ///   Pass `true` only when the avatar has actually changed. Omitting the avatar keeps the
+    ///   relay payload small (~1KB vs potentially hundreds of KB), significantly improving
+    ///   reliability on weak/GCBD networks.
+    func syncProfileToPartner(user: User, includeAvatar: Bool = true) async {
+        guard let summary = sessionStore.pairSpaceSummary,
+              summary.pairSpace.status == .active else { return }
+
+        // nil  = 本次 relay 不涉及头像（metadata-only）→ 接收端保持原样
+        // ""   = 发送方显式删除了自定义头像 → 接收端清除
+        // 非空 = 新头像 base64 数据 → 接收端保存并更新
+        var avatarPhotoBase64: String?
+        if includeAvatar {
+            if let fileName = user.avatarPhotoFileName {
+                let store = LocalUserAvatarMediaStore()
+                if var data = try? store.avatarData(named: fileName) {
+                    // Cap avatar data at 100KB to keep relay payload reliable on weak networks.
+                    #if canImport(UIKit)
+                    let maxBytes = 100_000
+                    if data.count > maxBytes, let image = UIImage(data: data) {
+                        var best = data
+                        for quality in stride(from: 0.7, through: 0.3, by: -0.1) {
+                            if let compressed = image.jpegData(compressionQuality: quality) {
+                                best = compressed
+                                if compressed.count <= maxBytes { break }
+                            }
+                        }
+                        data = best
+                    }
+                    #endif
+                    avatarPhotoBase64 = data.base64EncodedString()
+                }
+            } else {
+                // 用户没有自定义头像 → 发空字符串表示"显式无头像"
+                avatarPhotoBase64 = ""
+            }
+        }
+
+        let payload = CloudKitProfileRecordCodec.MemberProfilePayload(
+            userID: user.id,
+            spaceID: summary.sharedSpace.id,
+            displayName: user.displayName,
+            avatarSystemName: user.avatarSystemName,
+            avatarPhotoBase64: avatarPhotoBase64,
+            pairSpaceDisplayName: summary.pairSpace.displayName,
+            updatedAt: .now
+        )
+
+        await container.syncEngineCoordinator.pushProfileToRelay(payload)
     }
 
     func restorePersistedUserProfileIfNeeded(force: Bool = false) async {
@@ -312,13 +370,14 @@ final class AppContext {
                 }
         )
 
-        await homeViewModel.reload()
-
+        // 先刷新 session state（空间名/头像等元数据），再 reload 依赖它的 ViewModel
         if let userID = sessionStore.currentUser?.id {
             let updatedPairingCtx = await container.pairingService.currentPairingContext(for: userID)
             let updatedSpaceCtx = await container.spaceService.currentSpaceContext(for: userID)
             sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
         }
+
+        await homeViewModel.reload()
 
         let currentUserID = sessionStore.currentUser?.id
         let allItems: [Item]
@@ -386,6 +445,10 @@ final class AppContext {
         homeViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
         }
+        profileViewModel.onProfileSaved = { [weak self] user, includeAvatar in
+            guard let self else { return }
+            Task { await self.syncProfileToPartner(user: user, includeAvatar: includeAvatar) }
+        }
         configureSyncEngineForwarding()
         configurePairSyncTeardown()
     }
@@ -411,18 +474,54 @@ final class AppContext {
         }
     }
 
-    /// 根据当前模式启停 CKSyncEngine pair bridge
+    /// 根据当前模式启停 CKSyncEngine pair bridge 及备用 relay 轮询。
     func updateSyncPolling() {
         if sessionStore.activeMode == .pair,
            let pairSpace = sessionStore.currentPairSpace {
             let pairSpaceID = pairSpace.id
             Task {
                 await startPairSyncEngineIfNeeded()
-                // Fetch any missed relay messages
-                await container.syncEngineCoordinator.fetchRelays(for: pairSpaceID)
+                // Fetch any missed relay messages and refresh UI if changes were applied
+                let applied = await container.syncEngineCoordinator.fetchRelays(for: pairSpaceID)
+                if applied > 0 {
+                    await reloadAfterSync()
+                }
+                // Push own profile metadata so partner gets name/space info after binding.
+                // Avatar is omitted to keep payload small; it's only sent when actually changed.
+                if let user = sessionStore.currentUser {
+                    await syncProfileToPartner(user: user, includeAvatar: false)
+                }
+            }
+            startRelayPollingIfNeeded(pairSpaceID: pairSpaceID)
+        } else {
+            stopRelayPolling()
+        }
+    }
+
+    // MARK: - Backup Relay Polling
+
+    /// Starts a background polling loop that fetches relay messages every 30 seconds.
+    /// Acts as a safety net when silent push notifications are delayed (common in GCBD).
+    private func startRelayPollingIfNeeded(pairSpaceID: UUID) {
+        guard relayPollingTask == nil else { return }
+        let coordinator = container.syncEngineCoordinator
+        relayPollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { break }
+                let applied = await coordinator.fetchRelays(for: pairSpaceID)
+                if applied > 0 {
+                    await self?.reloadAfterSync()
+                }
+                // 补发失败的 outbound relay（包括 profile relay）
+                await coordinator.retryRelays(for: pairSpaceID)
             }
         }
-        // CKSyncEngine manages its own subscriptions — no manual polling needed.
+    }
+
+    private func stopRelayPolling() {
+        relayPollingTask?.cancel()
+        relayPollingTask = nil
     }
 
     /// Handle CloudKit push notification.

@@ -77,16 +77,21 @@ enum RelayChangeConverter {
     // MARK: - Value Serialization
 
     /// Serializes a CKRecordValue to a JSON-compatible type.
+    ///
+    /// Non-primitive types (Date, Data) are wrapped with a `__cktype` marker
+    /// so that `deserializeValue` can restore the original type on the receiving end.
     private static func serializeValue(_ value: Any) -> Any {
         switch value {
         case let string as String:
             return string
+        case let date as Date:
+            // Must check Date before NSNumber — Date is not NSNumber but could
+            // be confused if order were reversed in some bridge scenarios.
+            return ["__cktype": "date", "__value": date.timeIntervalSince1970] as [String: Any]
         case let number as NSNumber:
             return number
-        case let date as Date:
-            return date.timeIntervalSince1970
         case let data as Data:
-            return data.base64EncodedString()
+            return ["__cktype": "data", "__value": data.base64EncodedString()] as [String: Any]
         case let list as [Any]:
             return list.map { serializeValue($0) }
         default:
@@ -95,11 +100,27 @@ enum RelayChangeConverter {
     }
 
     /// Deserializes a JSON value back to a CKRecordValue-compatible type.
-    /// Note: Date fields are stored as TimeInterval and need type-aware reconstruction.
-    /// The codec layer handles this via its own from(record:) logic.
+    ///
+    /// Recognises the `__cktype` wrapper produced by `serializeValue` and
+    /// reconstructs the original Foundation type (Date, Data).
     private static func deserializeValue(_ value: Any) -> Any {
-        // JSON values come back as String, NSNumber, Array, or Dictionary
-        // We pass them through as-is; the codec's from(record:) handles type conversion.
+        if let dict = value as? [String: Any], let cktype = dict["__cktype"] as? String {
+            switch cktype {
+            case "date":
+                if let ti = dict["__value"] as? Double {
+                    return Date(timeIntervalSince1970: ti)
+                }
+            case "data":
+                if let b64 = dict["__value"] as? String, let data = Data(base64Encoded: b64) {
+                    return data
+                }
+            default:
+                break
+            }
+        }
+        if let list = value as? [Any] {
+            return list.map { deserializeValue($0) }
+        }
         return value
     }
 }

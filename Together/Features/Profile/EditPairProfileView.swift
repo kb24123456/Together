@@ -8,7 +8,7 @@ import UIKit
 /// 双人模式下的 Profile 编辑界面
 /// 显示双方头像（自己可编辑，对方只读），可修改昵称和共享空间名称
 struct EditPairProfileView: View {
-    @Bindable var viewModel: EditProfileViewModel
+    @State var viewModel: EditProfileViewModel
     let partnerAvatar: ProfileCardAvatar
     let partnerName: String
     let spaceName: String
@@ -47,14 +47,23 @@ struct EditPairProfileView: View {
                 Button("保存") {
                     HomeInteractionFeedback.selection()
                     Task { @MainActor in
-                        // 保存空间名称
                         let trimmedSpaceName = editableSpaceName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmedSpaceName != spaceName {
+                        let spaceNameChanged = trimmedSpaceName != spaceName
+
+                        // 保存空间名称（触发 relay 同步到对方）
+                        if spaceNameChanged {
                             onSpaceNameChanged(trimmedSpaceName)
                         }
-                        // 保存个人资料
-                        let didSave = await viewModel.save()
-                        if didSave {
+
+                        // 保存个人资料（头像/昵称）
+                        if viewModel.hasUnsavedChanges {
+                            let didSave = await viewModel.save()
+                            if didSave {
+                                HomeInteractionFeedback.completion()
+                                dismiss()
+                            }
+                        } else if spaceNameChanged {
+                            // 仅改了空间名，个人资料没改 → 也视为有效保存
                             HomeInteractionFeedback.completion()
                             dismiss()
                         }
@@ -76,14 +85,7 @@ struct EditPairProfileView: View {
         }
         .alert(
             "无法完成操作",
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        viewModel.clearError()
-                    }
-                }
-            )
+            isPresented: $viewModel.showsErrorAlert
         ) {
             Button("知道了", role: .cancel) {
                 HomeInteractionFeedback.selection()
@@ -101,14 +103,10 @@ struct EditPairProfileView: View {
             }
         }
         .fullScreenCover(
-            isPresented: Binding(
-                get: { viewModel.pendingCropImage != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        viewModel.cancelCropping()
-                    }
-                }
-            )
+            isPresented: $viewModel.showsCropper,
+            onDismiss: {
+                viewModel.cancelCropping()
+            }
         ) {
             if let image = viewModel.pendingCropImage {
                 AvatarCropperView(

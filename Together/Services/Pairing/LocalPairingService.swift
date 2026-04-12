@@ -66,7 +66,8 @@ actor LocalPairingService: PairingServiceProtocol {
                 id: $0.userID,
                 appleUserID: nil,
                 displayName: $0.nickname,
-                avatarSystemName: "person.crop.circle.fill",
+                avatarSystemName: $0.avatarSystemName ?? "person.crop.circle.fill",
+                avatarPhotoFileName: $0.avatarPhotoFileName,
                 createdAt: $0.joinedAt,
                 updatedAt: $0.joinedAt,
                 preferences: NotificationSettings(
@@ -370,6 +371,19 @@ actor LocalPairingService: PairingServiceProtocol {
             )
         ).first else { return }
         pairSpace.displayName = displayName
+
+        // 同步更新关联的 PersistentSpace，确保 Today/Home/Lists/Calendar 读到一致的名称
+        if let newName = displayName {
+            let sharedSpaceID = pairSpace.sharedSpaceID
+            if let space = try? context.fetch(
+                FetchDescriptor<PersistentSpace>(
+                    predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
+                )
+            ).first {
+                space.displayName = newName
+            }
+        }
+
         try? context.save()
     }
 

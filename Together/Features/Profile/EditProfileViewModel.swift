@@ -26,12 +26,15 @@ final class EditProfileViewModel {
     private let sessionStore: SessionStore
     private let userProfileRepository: UserProfileRepositoryProtocol
     private let originalUser: User
+    var onProfileSaved: ((_ user: User, _ includeAvatar: Bool) -> Void)?
 
     var displayName: String
     var avatarDraftState: AvatarDraftState
     var draftAvatarImage: UIImage?
     var pendingCropImage: UIImage?
+    var showsCropper = false
     var showsCameraPicker = false
+    var showsErrorAlert = false
     var cameraPermissionState: CameraPermissionState = .idle
     var cameraErrorMessage: String?
     var errorMessage: String?
@@ -133,17 +136,22 @@ final class EditProfileViewModel {
     func receiveSelectedPhotoData(_ data: Data?) {
         guard let data else {
             errorMessage = "读取照片失败，请重新选择。"
+            showsErrorAlert = true
             return
         }
 
         #if canImport(UIKit)
         guard let image = UIImage(data: data) else {
             errorMessage = "无法解析所选照片，请更换一张图片。"
+            showsErrorAlert = true
             return
         }
         pendingCropImage = image.normalizedOrientationImage()
+        // 延迟呈现裁剪页，等 PhotosPicker 关闭动画走完
+        scheduleCropperPresentation()
         #else
         errorMessage = "当前设备不支持头像编辑。"
+        showsErrorAlert = true
         #endif
     }
 
@@ -190,7 +198,22 @@ final class EditProfileViewModel {
         showsCameraPicker = false
         guard let image else { return }
         pendingCropImage = image.normalizedOrientationImage()
+        // 延迟呈现裁剪页，等相机 picker 关闭动画走完
+        scheduleCropperPresentation()
     }
+
+    /// 等前一个 modal（PhotosPicker / CameraPicker）完整关闭后再弹出裁剪页，
+    /// 避免两个 presentation transition 在同一轮动画周期冲突导致 cropper 被 SwiftUI 吞掉。
+    private func scheduleCropperPresentation() {
+        cropperPresentationTask?.cancel()
+        cropperPresentationTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled, pendingCropImage != nil else { return }
+            showsCropper = true
+        }
+    }
+
+    private var cropperPresentationTask: Task<Void, Never>?
 
     func clearCameraError() {
         cameraErrorMessage = nil
@@ -201,12 +224,14 @@ final class EditProfileViewModel {
 
     func cancelCropping() {
         pendingCropImage = nil
+        showsCropper = false
     }
 
     func applyCroppedImage(_ image: UIImage) {
         draftAvatarImage = image
         avatarDraftState = .newPhoto
         pendingCropImage = nil
+        showsCropper = false
     }
 
     func removePhoto() {
@@ -216,6 +241,7 @@ final class EditProfileViewModel {
 
     func clearError() {
         errorMessage = nil
+        showsErrorAlert = false
     }
 
     func openSystemSettings() {
@@ -240,11 +266,13 @@ final class EditProfileViewModel {
                 let data = draftAvatarImage.jpegData(compressionQuality: 0.88)
             else {
                 errorMessage = "头像保存失败，请重新裁剪。"
+                showsErrorAlert = true
                 return false
             }
             avatarUpdate = .replacePhoto(data)
             #else
             errorMessage = "当前设备不支持头像编辑。"
+            showsErrorAlert = true
             return false
             #endif
         case .removedToSystem:
@@ -281,12 +309,21 @@ final class EditProfileViewModel {
             #endif
 
             sessionStore.currentUser = updatedUser
+            let avatarChanged: Bool
+            switch avatarDraftState {
+            case .newPhoto, .removedToSystem:
+                avatarChanged = true
+            case .existingPhoto, .existingSystem:
+                avatarChanged = false
+            }
+            onProfileSaved?(updatedUser, avatarChanged)
             return true
         } catch {
             #if DEBUG
             print("[EditProfile] save failed: \(error)")
             #endif
             errorMessage = error.localizedDescription
+            showsErrorAlert = true
             return false
         }
     }
