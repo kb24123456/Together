@@ -638,7 +638,10 @@ private struct ProjectListRow: View {
         case .archived:
             return subtitleColor.opacity(0.8)
         case .active:
-            return AppTheme.colors.coral
+            let p = project.subtaskProgress
+            if p > 0.85 { return AppTheme.colors.coral }
+            if p > 0.65 { return AppTheme.colors.warning }
+            return AppTheme.colors.accent
         }
     }
 
@@ -853,19 +856,10 @@ private struct ProjectSubtasksSection: View {
                     reduceMotion: reduceMotion
                 ) {
                     HStack(alignment: .center, spacing: 10) {
-                        Button {
-                            if subtask.isCompleted {
-                                HomeInteractionFeedback.selection()
-                            } else {
-                                HomeInteractionFeedback.soft()
-                            }
-                            onToggleSubtask(subtask.id)
-                        } label: {
-                            Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                                .font(AppTheme.typography.sized(17, weight: .semibold))
-                                .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : subtitleColor.opacity(0.5))
-                        }
-                        .buttonStyle(.plain)
+                        ProjectSubtaskCheckbox(
+                            isCompleted: subtask.isCompleted,
+                            onToggle: { onToggleSubtask(subtask.id) }
+                        )
 
                         if editingSubtaskID == subtask.id {
                             TextField("", text: subtaskBinding(for: subtask), prompt: Text(subtask.title))
@@ -1071,24 +1065,129 @@ struct ProjectExpansionPresentationState {
 private struct ProjectCompletionBadge: View {
     let isCompleted: Bool
 
+    @State private var isAnimating = false
+    @State private var animationCount = 0
+    @State private var badgeScale: CGFloat = 1
+    @State private var fillScale: CGFloat = 1
+    @State private var fillOpacity: CGFloat = 0
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(AppTheme.colors.coral.opacity(0.14))
+                .scaleEffect(fillScale)
+                .opacity(isCompleted ? 0 : fillOpacity)
+
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(
-                    AppTheme.colors.body.opacity(isCompleted ? 0.16 : 0.44),
-                    style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                    isAnimating ? AppTheme.colors.body.opacity(0.32) : AppTheme.colors.body.opacity(0.44),
+                    style: StrokeStyle(lineWidth: isAnimating ? 1.8 : 1.6, dash: [3.6, 4.4])
                 )
                 .opacity(isCompleted ? 0 : 1)
 
-            AnimatedProjectCheckmarkShape()
-                .trim(from: 0, to: isCompleted ? 1 : 0)
-                .stroke(
-                    AppTheme.colors.coral,
-                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round)
-                )
-                .frame(width: 18, height: 18)
-                .rotationEffect(.degrees(-4))
+            Image(systemName: "checkmark")
+                .font(AppTheme.typography.sized(17, weight: .bold))
+                .foregroundStyle(AppTheme.colors.coral)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, options: .speed(1.15), value: animationCount)
                 .opacity(isCompleted ? 1 : 0)
+        }
+        .scaleEffect(isAnimating ? badgeScale : 1)
+        .shadow(
+            color: AppTheme.colors.coral.opacity(isAnimating ? 0.2 : 0),
+            radius: isAnimating ? 12 : 0,
+            y: isAnimating ? 5 : 0
+        )
+        .onChange(of: isCompleted) { _, newValue in
+            guard newValue else { return }
+            triggerAnimation()
+        }
+    }
+
+    private func triggerAnimation() {
+        animationCount += 1
+        isAnimating = true
+        fillScale = 1; fillOpacity = 0
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.52)) {
+            badgeScale = 1.22; fillScale = 1.4; fillOpacity = 1
+        }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.52).delay(0.1)) {
+            badgeScale = 1; fillOpacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            isAnimating = false; fillScale = 1
+        }
+    }
+}
+
+// 子任务打勾 — 与 Today 风格完全一致
+private struct ProjectSubtaskCheckbox: View {
+    let isCompleted: Bool
+    let onToggle: () -> Void
+
+    @State private var isAnimating = false
+    @State private var animationCount = 0
+    @State private var badgeScale: CGFloat = 1
+    @State private var fillScale: CGFloat = 1
+    @State private var fillOpacity: CGFloat = 0
+
+    var body: some View {
+        Button {
+            if isCompleted {
+                HomeInteractionFeedback.selection()
+            } else {
+                HomeInteractionFeedback.soft()
+            }
+            onToggle()
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(AppTheme.colors.coral.opacity(0.14))
+                    .scaleEffect(fillScale)
+                    .opacity(isCompleted ? 0 : fillOpacity)
+
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(
+                        isCompleted
+                            ? Color.clear
+                            : (isAnimating ? AppTheme.colors.body.opacity(0.32) : AppTheme.colors.body.opacity(0.44)),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [3.2, 4.0])
+                    )
+
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(13, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.coral)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, options: .speed(1.15), value: animationCount)
+                    .opacity(isCompleted ? 1 : 0)
+            }
+            .frame(width: 28, height: 28)
+            .scaleEffect(isAnimating ? badgeScale : 1)
+            .shadow(
+                color: AppTheme.colors.coral.opacity(isAnimating ? 0.18 : 0),
+                radius: isAnimating ? 8 : 0,
+                y: isAnimating ? 4 : 0
+            )
+        }
+        .buttonStyle(.plain)
+        .onChange(of: isCompleted) { _, newValue in
+            guard newValue else { return }
+            triggerAnimation()
+        }
+    }
+
+    private func triggerAnimation() {
+        animationCount += 1
+        isAnimating = true
+        fillScale = 1; fillOpacity = 0
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.52)) {
+            badgeScale = 1.2; fillScale = 1.4; fillOpacity = 1
+        }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.52).delay(0.1)) {
+            badgeScale = 1; fillOpacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            isAnimating = false; fillScale = 1
         }
     }
 }

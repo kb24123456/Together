@@ -33,6 +33,30 @@ final class SyncHealthMonitor {
         engineStates["pair-\(pairSpaceID.uuidString)"]
     }
 
+    func sharedStatus(for pairSpaceID: UUID?) -> SharedSyncStatus {
+        guard let pairSpaceID, let health = pairHealth(for: pairSpaceID) else {
+            return .idle
+        }
+
+        let level: SyncHealthLevel
+        if health.isSyncing {
+            level = .syncing
+        } else if let lastError = health.lastError, lastError.isEmpty == false {
+            level = .degraded
+        } else if health.lastSuccessfulSync != nil {
+            level = .healthy
+        } else {
+            level = .idle
+        }
+
+        return SharedSyncStatus(
+            level: level,
+            lastSuccessfulSync: health.lastSuccessfulSync,
+            pendingMutationCount: health.pendingChangeCount,
+            lastError: health.lastError
+        )
+    }
+
     var hasAnyError: Bool {
         engineStates.values.contains(where: { $0.consecutiveFailures > 0 })
     }

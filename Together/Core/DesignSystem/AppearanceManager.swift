@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum AppearanceMode: String, CaseIterable, Sendable {
     case system
@@ -37,6 +38,7 @@ final class AppearanceManager: @unchecked Sendable {
     var mode: AppearanceMode {
         didSet {
             UserDefaults.standard.set(mode.rawValue, forKey: Self.storageKey)
+            applyUIKitOverride()
         }
     }
 
@@ -47,5 +49,31 @@ final class AppearanceManager: @unchecked Sendable {
     init() {
         let stored = UserDefaults.standard.string(forKey: Self.storageKey) ?? ""
         self.mode = AppearanceMode(rawValue: stored) ?? .system
+    }
+
+    private func applyUIKitOverride() {
+        let style: UIUserInterfaceStyle
+        switch mode {
+        case .system: style = .unspecified
+        case .light:  style = .light
+        case .dark:   style = .dark
+        }
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = style
+                applyStyle(style, toViewControllerHierarchy: window.rootViewController)
+            }
+        }
+    }
+
+    // 递归地将样式应用到整个 VC 层级（含 presented VCs，覆盖 fullScreenCover 的 UIHostingController）
+    private func applyStyle(_ style: UIUserInterfaceStyle, toViewControllerHierarchy vc: UIViewController?) {
+        guard let vc else { return }
+        vc.overrideUserInterfaceStyle = style
+        for child in vc.children {
+            applyStyle(style, toViewControllerHierarchy: child)
+        }
+        applyStyle(style, toViewControllerHierarchy: vc.presentedViewController)
     }
 }

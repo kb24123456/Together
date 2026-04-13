@@ -71,7 +71,310 @@ struct TogetherTests {
         #expect(sessionStore.authState == .signedIn)
         #expect(sessionStore.currentSpace?.id == MockDataFactory.singleSpaceID)
         #expect(sessionStore.bindingState == .paired)
+        #expect(sessionStore.pairBindingState == .pairMetadataPending)
         #expect(sessionStore.availableModeStates == [.single, .pair])
+    }
+
+    @Test @MainActor
+    func sessionStoreTracksSelectedWorkspaceSeparatelyFromBindingState() async throws {
+        let sessionStore = SessionStore()
+        var pairSummary = MockDataFactory.makePairSpaceSummary()
+        pairSummary.pairSpace.cloudKitZoneName = "pair-\(MockDataFactory.pairSpaceID.uuidString)"
+        pairSummary.pairSpace.ownerRecordID = "owner-record"
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: pairSummary
+        )
+
+        #expect(sessionStore.selectedWorkspace == .single)
+        #expect(sessionStore.pairBindingState == .pairedReady)
+
+        sessionStore.switchWorkspace(to: .pair)
+
+        #expect(sessionStore.selectedWorkspace == .pair)
+        #expect(sessionStore.currentSpace?.id == MockDataFactory.pairSharedSpaceID)
+    }
+
+    @Test
+    func localPairingServiceUpdatingPairSpaceDisplayNameBumpsSharedSpaceUpdatedAt() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let pairingService = LocalPairingService(container: persistence.container)
+        _ = try await pairingService.createInvite(
+            from: MockDataFactory.currentUserID,
+            displayName: MockDataFactory.makeCurrentUser().displayName
+        )
+
+        let pairingContext = await pairingService.currentPairingContext(for: MockDataFactory.currentUserID)
+        let sharedSpaceID = try #require(pairingContext.pairSpaceSummary?.sharedSpace.id)
+        let pairSpaceID = try #require(pairingContext.pairSpaceSummary?.pairSpace.id)
+
+        let context = ModelContext(persistence.container)
+        let descriptor = FetchDescriptor<PersistentSpace>(
+            predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
+        )
+        let spaceRecord = try #require(context.fetch(descriptor).first)
+        spaceRecord.updatedAt = Date(timeIntervalSince1970: 1)
+        try context.save()
+
+        await pairingService.updatePairSpaceDisplayName(
+            pairSpaceID: pairSpaceID,
+            displayName: "我们的小家"
+        )
+
+        let refreshed = try #require(context.fetch(descriptor).first)
+        #expect(refreshed.displayName == "我们的小家")
+        #expect(refreshed.updatedAt > Date(timeIntervalSince1970: 1))
+    }
+
+    @Test
+    func pairSpaceSummaryResolverKeepsSharedSpaceOwnerAsMemberAWhenMembershipDatesTie() async throws {
+        let joinedAt = Date(timeIntervalSince1970: 1234)
+        let sharedSpace = PersistentSpace(
+            id: MockDataFactory.pairSharedSpaceID,
+            typeRawValue: SpaceType.pair.rawValue,
+            displayName: "一起的任务空间",
+            ownerUserID: MockDataFactory.currentUserID,
+            statusRawValue: SpaceStatus.active.rawValue,
+            createdAt: joinedAt,
+            updatedAt: joinedAt,
+            archivedAt: nil
+        )
+        let pairSpace = PersistentPairSpace(
+            id: MockDataFactory.pairSpaceID,
+            sharedSpaceID: MockDataFactory.pairSharedSpaceID,
+            statusRawValue: PairSpaceStatus.active.rawValue,
+            createdAt: joinedAt,
+            activatedAt: joinedAt,
+            endedAt: nil,
+            isZoneOwner: false
+        )
+        let memberships = [
+            PersistentPairMembership(
+                pairSpaceID: MockDataFactory.pairSpaceID,
+                userID: MockDataFactory.partnerUserID,
+                nickname: "伙伴",
+                joinedAt: joinedAt
+            ),
+            PersistentPairMembership(
+                pairSpaceID: MockDataFactory.pairSpaceID,
+                userID: MockDataFactory.currentUserID,
+                nickname: "我",
+                joinedAt: joinedAt
+            )
+        ]
+
+        let summary = try #require(
+            PairSpaceSummaryResolver.resolve(
+                for: MockDataFactory.currentUserID,
+                spaces: [sharedSpace],
+                pairSpaces: [pairSpace],
+                memberships: memberships
+            )
+        )
+
+        #expect(summary.pairSpace.memberA.userID == MockDataFactory.currentUserID)
+        #expect(summary.pairSpace.memberB?.userID == MockDataFactory.partnerUserID)
+    }
+
+    @Test
+    func sharedAuthorityZonesAlwaysApplyFetchedRecords() {
+        let sharedZoneID = CKRecordZone.ID(
+            zoneName: "pair-\(MockDataFactory.pairSpaceID.uuidString)",
+            ownerName: "owner-record"
+        )
+
+        #expect(
+            SyncEngineDelegate.shouldApplyFetchedRecord(
+                in: sharedZoneID,
+                remoteUpdatedAt: Date(timeIntervalSince1970: 1_000),
+                localUpdatedAt: Date(timeIntervalSince1970: 2_000),
+                hasPendingLocalSave: false
+            )
+        )
+    }
+
+    @Test
+    func sharedAuthorityZonesPreservePendingLocalUpdatesUntilPushCompletes() {
+        let sharedZoneID = CKRecordZone.ID(
+            zoneName: "pair-\(MockDataFactory.pairSpaceID.uuidString)",
+            ownerName: "owner-record"
+        )
+
+        #expect(
+            !SyncEngineDelegate.shouldApplyFetchedRecord(
+                in: sharedZoneID,
+                remoteUpdatedAt: Date(timeIntervalSince1970: 1_000),
+                localUpdatedAt: Date(timeIntervalSince1970: 2_000),
+                hasPendingLocalSave: true
+            )
+        )
+    }
+
+    @Test
+    func soloZonesStillRejectOlderFetchedRecords() {
+        let soloZoneID = CKRecordZone.ID(zoneName: "solo")
+
+        #expect(
+            !SyncEngineDelegate.shouldApplyFetchedRecord(
+                in: soloZoneID,
+                remoteUpdatedAt: Date(timeIntervalSince1970: 1_000),
+                localUpdatedAt: Date(timeIntervalSince1970: 2_000),
+                hasPendingLocalSave: false
+            )
+        )
+    }
+
+    @Test
+    func setupPairingFromRemoteSeedsPlaceholderSharedTimestampsAsStale() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let pairingService = LocalPairingService(container: persistence.container)
+        let pairSpaceID = UUID()
+        let sharedSpaceID = UUID()
+
+        _ = try await pairingService.setupPairingFromRemote(
+            pairSpaceID: pairSpaceID,
+            sharedSpaceID: sharedSpaceID,
+            inviterUserID: MockDataFactory.currentUserID,
+            inviterDisplayName: "邀请方",
+            responderID: MockDataFactory.partnerUserID,
+            responderDisplayName: "接受方"
+        )
+
+        let context = ModelContext(persistence.container)
+        let spaceDescriptor = FetchDescriptor<PersistentSpace>(
+            predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
+        )
+        let pairDescriptor = FetchDescriptor<PersistentPairSpace>(
+            predicate: #Predicate<PersistentPairSpace> { $0.id == pairSpaceID }
+        )
+
+        let sharedSpace = try #require(context.fetch(spaceDescriptor).first)
+        let pairSpace = try #require(context.fetch(pairDescriptor).first)
+
+        #expect(sharedSpace.createdAt == Date(timeIntervalSince1970: 0))
+        #expect(sharedSpace.updatedAt == Date(timeIntervalSince1970: 0))
+        #expect(pairSpace.createdAt == Date(timeIntervalSince1970: 0))
+        #expect(pairSpace.activatedAt == Date(timeIntervalSince1970: 0))
+    }
+
+    @Test
+    func cloudKitZoneManagerBuildsSharedZoneIDWithOwnerRecordIDForParticipants() {
+        let ownerRecordID = "owner-record-name"
+        let zoneID = CloudKitZoneManager.zoneID(
+            for: MockDataFactory.pairSpaceID,
+            ownerRecordID: ownerRecordID,
+            isZoneOwner: false
+        )
+
+        #expect(zoneID.zoneName == "pair-\(MockDataFactory.pairSpaceID.uuidString)")
+        #expect(zoneID.ownerName == ownerRecordID)
+    }
+
+    @Test @MainActor
+    func profileViewModelQueuesSharedSpaceSyncAfterLocalNamePersistence() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = MockDataFactory.makeCurrentUser()
+        sessionStore.pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
+
+        let recorder = EventRecorder()
+        let pairingService = PairingServiceOrderSpy(recorder: recorder)
+        let viewModel = ProfileViewModel(
+            sessionStore: sessionStore,
+            authService: MockAuthService(),
+            pairingService: pairingService,
+            userProfileRepository: MockUserProfileRepository(),
+            notificationService: MockNotificationService(),
+            itemRepository: MockItemRepository(),
+            taskApplicationService: TestHomeTaskApplicationService(),
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+            reminderScheduler: MockReminderScheduler()
+        )
+        viewModel.onSharedMutationRecorded = { _ in
+            Task {
+                await recorder.record("space-sync")
+            }
+        }
+
+        viewModel.updatePairSpaceDisplayName("我们的小家")
+        try await Task.sleep(for: .milliseconds(80))
+
+        let events = await recorder.snapshot()
+        #expect(events == ["pairing-persisted", "space-sync"])
+    }
+
+    @Test @MainActor
+    func homeViewModelShowsCreatorAvatarForSelfTaskInPairMode() async throws {
+        let referenceDate = Date.now.addingTimeInterval(60)
+        let sessionStore = SessionStore()
+        let pairSummary = PairSpaceSummary(
+            sharedSpace: MockDataFactory.makePairSharedSpace(),
+            pairSpace: PairSpace(
+                id: MockDataFactory.pairSpaceID,
+                sharedSpaceID: MockDataFactory.pairSharedSpaceID,
+                status: .active,
+                memberA: PairMember(
+                    userID: MockDataFactory.currentUserID,
+                    nickname: MockDataFactory.makeCurrentUser().displayName,
+                    joinedAt: referenceDate
+                ),
+                memberB: PairMember(
+                    userID: MockDataFactory.partnerUserID,
+                    nickname: MockDataFactory.makePartnerUser().displayName,
+                    joinedAt: referenceDate.addingTimeInterval(1)
+                ),
+                dataBoundaryToken: MockDataFactory.dataBoundaryToken,
+                createdAt: referenceDate,
+                activatedAt: referenceDate,
+                endedAt: nil
+            ),
+            partner: MockDataFactory.makeCurrentUser()
+        )
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makePartnerUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: pairSummary
+        )
+        sessionStore.switchMode(to: .pair)
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        viewModel.items = [
+            Item(
+                id: UUID(),
+                spaceID: MockDataFactory.pairSharedSpaceID,
+                listID: nil,
+                projectID: nil,
+                creatorID: MockDataFactory.currentUserID,
+                title: "对方创建的个人任务",
+                notes: nil,
+                locationText: nil,
+                executionRole: .initiator,
+                assigneeMode: .self,
+                dueAt: referenceDate,
+                hasExplicitTime: true,
+                remindAt: nil,
+                status: .inProgress,
+                latestResponse: nil,
+                responseHistory: [],
+                createdAt: referenceDate,
+                updatedAt: referenceDate,
+                completedAt: nil,
+                isPinned: false,
+                isDraft: false
+            )
+        ]
+        viewModel.selectedDate = referenceDate
+
+        let entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.primaryAvatar?.id == MockDataFactory.currentUserID)
     }
 
     @Test @MainActor
@@ -1221,14 +1524,26 @@ struct TogetherTests {
         let receiverSession = SessionStore()
         receiverSession.currentUser = MockDataFactory.makeCurrentUser()
         receiverSession.singleSpace = MockDataFactory.makeSingleSpace()
-        receiverSession.pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
-        receiverSession.activeMode = .pair
+        receiverSession.applyPairingContext(
+            PairingContext(
+                state: .paired,
+                pairSpaceSummary: MockDataFactory.makePairSpaceSummary(),
+                activeInvite: nil
+            ),
+            autoSwitchToPairWhenBound: true
+        )
 
         let senderSession = SessionStore()
         senderSession.currentUser = MockDataFactory.makePartnerUser()
         senderSession.singleSpace = MockDataFactory.makeSingleSpace()
-        senderSession.pairSpaceSummary = MockDataFactory.makePairSpaceSummary()
-        senderSession.activeMode = .pair
+        senderSession.applyPairingContext(
+            PairingContext(
+                state: .paired,
+                pairSpaceSummary: MockDataFactory.makePairSpaceSummary(),
+                activeInvite: nil
+            ),
+            autoSwitchToPairWhenBound: true
+        )
 
         let declinedTask = Item(
             id: UUID(),
@@ -1396,6 +1711,7 @@ struct TogetherTests {
         )
 
         let pendingBeforeClear = await coordinator.pendingChanges()
+        let mutationLog = await coordinator.mutationLog(for: MockDataFactory.singleSpaceID)
         await coordinator.markSyncFailure(
             for: MockDataFactory.singleSpaceID,
             errorMessage: "network timeout",
@@ -1417,12 +1733,52 @@ struct TogetherTests {
 
         #expect(pendingBeforeClear.count == 1)
         #expect(pendingBeforeClear.first?.operation == .complete)
+        #expect(mutationLog.count == 1)
+        #expect(mutationLog.first?.lifecycleState == .pending)
         #expect(failedState?.retryCount == 1)
         #expect(failedState?.lastError == "network timeout")
         #expect(pendingAfterClear.isEmpty)
         #expect(succeededState?.retryCount == 0)
         #expect(succeededState?.lastError == nil)
         #expect(succeededState?.cursor?.token == "cursor-1")
+    }
+
+    @Test
+    func localSyncCoordinatorTracksMutationLifecycleTransitions() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let coordinator = LocalSyncCoordinator(container: persistence.container)
+        let taskID = UUID()
+
+        await coordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .task,
+                operation: .upsert,
+                recordID: taskID,
+                spaceID: MockDataFactory.pairSharedSpaceID,
+                changedAt: MockDataFactory.now
+            )
+        )
+
+        await coordinator.markLifecycleState(
+            recordIDs: [taskID],
+            state: .sending,
+            attemptedAt: MockDataFactory.now.addingTimeInterval(30)
+        )
+        var mutationLog = await coordinator.mutationLog(for: MockDataFactory.pairSharedSpaceID)
+        #expect(mutationLog.count == 1)
+        #expect(mutationLog.first?.lifecycleState == .sending)
+        #expect(mutationLog.first?.lastAttemptedAt == MockDataFactory.now.addingTimeInterval(30))
+        #expect((await coordinator.pendingChanges()).count == 1)
+
+        await coordinator.markLifecycleState(
+            recordIDs: [taskID],
+            state: .confirmed,
+            confirmedAt: MockDataFactory.now.addingTimeInterval(60)
+        )
+        mutationLog = await coordinator.mutationLog(for: MockDataFactory.pairSharedSpaceID)
+        #expect(mutationLog.first?.lifecycleState == .confirmed)
+        #expect(mutationLog.first?.confirmedAt == MockDataFactory.now.addingTimeInterval(60))
+        #expect((await coordinator.pendingChanges()).isEmpty)
     }
 
     @Test
@@ -2118,7 +2474,7 @@ struct TogetherTests {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         let overdueDueAt = calendar.date(byAdding: .hour, value: -3, to: today) ?? today
-        let todayDueAt = calendar.date(byAdding: .hour, value: 23, to: today) ?? today
+        let todayDueAt = calendar.date(byAdding: .hour, value: 2, to: .now) ?? .now
 
         viewModel.selectedDate = Date.now
         viewModel.items = [
@@ -2350,17 +2706,34 @@ private struct FailingRepairAvatarMediaStore: UserAvatarMediaStoreProtocol {
 actor TestSyncCoordinator: SyncCoordinatorProtocol {
     private var changes: [SyncChange] = []
     private var states: [UUID: SyncState] = [:]
+    private var snapshots: [UUID: [SyncMutationSnapshot]] = [:]
 
     func recordLocalChange(_ change: SyncChange) async {
         changes.append(change)
+        snapshots[change.spaceID, default: []].append(
+            SyncMutationSnapshot(
+                change: change,
+                lifecycleState: .pending,
+                lastAttemptedAt: nil,
+                confirmedAt: nil,
+                lastError: nil
+            )
+        )
     }
 
     func pendingChanges() async -> [SyncChange] {
         changes
     }
 
+    func mutationLog(for spaceID: UUID) async -> [SyncMutationSnapshot] {
+        snapshots[spaceID] ?? []
+    }
+
     func clearPendingChanges(recordIDs: [UUID]) async {
         changes.removeAll { recordIDs.contains($0.recordID) }
+        for key in snapshots.keys {
+            snapshots[key]?.removeAll { recordIDs.contains($0.change.recordID) }
+        }
     }
 
     func syncState(for spaceID: UUID) async -> SyncState? {
@@ -2839,6 +3212,66 @@ actor TestHistoricalOneOffCompletionTaskService: TaskApplicationServiceProtocol 
         taskID: UUID,
         actorID: UUID
     ) async throws -> Item { throw RepositoryError.notFound }
+}
+
+actor EventRecorder {
+    private var events: [String] = []
+
+    func record(_ event: String) {
+        events.append(event)
+    }
+
+    func snapshot() -> [String] {
+        events
+    }
+}
+
+actor PairingServiceOrderSpy: PairingServiceProtocol {
+    private let recorder: EventRecorder
+
+    init(recorder: EventRecorder) {
+        self.recorder = recorder
+    }
+
+    func currentPairingContext(for userID: UUID?) async -> PairingContext {
+        PairingContext(state: .paired, pairSpaceSummary: MockDataFactory.makePairSpaceSummary(), activeInvite: nil)
+    }
+
+    func createInvite(from inviterID: UUID, displayName: String) async throws -> Invite {
+        MockDataFactory.makeInvite()
+    }
+
+    func acceptInvite(inviteID: UUID, responderID: UUID) async throws -> PairingContext {
+        PairingContext(state: .paired, pairSpaceSummary: MockDataFactory.makePairSpaceSummary(), activeInvite: nil)
+    }
+
+    func acceptInviteByCode(_ code: String, responderID: UUID, responderDisplayName: String) async throws -> PairingContext {
+        PairingContext(state: .paired, pairSpaceSummary: MockDataFactory.makePairSpaceSummary(), activeInvite: nil)
+    }
+
+    func declineInvite(inviteID: UUID, responderID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func cancelInvite(inviteID: UUID, actorID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func cancelAllPendingInvites(for userID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?) async {
+        await recorder.record("pairing-persisted")
+    }
+
+    func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
+        PairingContext(state: .unbound, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func checkAndFinalizeIfAccepted(pairSpaceID: UUID, inviterID: UUID) async throws -> PairingContext? {
+        nil
+    }
 }
 
 enum TestCloudSyncGatewayError: Error {

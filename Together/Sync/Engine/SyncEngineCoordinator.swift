@@ -34,6 +34,9 @@ actor SyncEngineCoordinator {
     /// Active pair space bridges, keyed by pairSpaceID.
     private var pairBridges: [UUID: PairSyncBridge] = [:]
 
+    /// Per-zone debounced immediate send tasks.
+    private var immediateSendTasks: [String: Task<Void, Never>] = [:]
+
     /// Reverse mapping: sharedSpaceID → pairSpaceID.
     /// Tasks are created with sharedSpaceID but bridges are keyed by pairSpaceID.
     private var sharedToPairSpaceID: [UUID: UUID] = [:]
@@ -44,10 +47,6 @@ actor SyncEngineCoordinator {
     // MARK: - Zone IDs
 
     static let soloZoneID = CKRecordZone.ID(zoneName: "solo")
-
-    static func pairZoneID(for pairSpaceID: UUID) -> CKRecordZone.ID {
-        CKRecordZone.ID(zoneName: "pair-\(pairSpaceID.uuidString)")
-    }
 
     // MARK: - Init
 
@@ -119,6 +118,7 @@ actor SyncEngineCoordinator {
 
     /// Stops the solo zone CKSyncEngine (e.g., on sign-out or account change).
     func stopSoloSync() {
+        immediateSendTasks.removeValue(forKey: Self.soloZoneID.zoneName)?.cancel()
         soloEngine = nil
         soloDelegate = nil
         logger.info("[Coordinator] Solo CKSyncEngine stopped")
@@ -140,7 +140,8 @@ actor SyncEngineCoordinator {
         myUserID _: UUID,
         inviterID _: UUID,
         responderID _: UUID,
-        isZoneOwner: Bool
+        isZoneOwner: Bool,
+        ownerRecordID: String?
     ) {
         guard pairBridges[pairSpaceID] == nil else {
             logger.info("[Coordinator] Pair engine already running for \(pairSpaceID.uuidString.prefix(8))")
@@ -150,7 +151,11 @@ actor SyncEngineCoordinator {
         // Register reverse mapping so task changes (which carry sharedSpaceID) route correctly
         sharedToPairSpaceID[sharedSpaceID] = pairSpaceID
 
-        let zoneID = Self.pairZoneID(for: pairSpaceID)
+        let zoneID = CloudKitZoneManager.zoneID(
+            for: pairSpaceID,
+            ownerRecordID: ownerRecordID,
+            isZoneOwner: isZoneOwner
+        )
         let database = isZoneOwner ? ckContainer.privateCloudDatabase : ckContainer.sharedCloudDatabase
 
         // 1. Create SyncEngineDelegate for this pair zone
@@ -205,10 +210,11 @@ actor SyncEngineCoordinator {
 
     /// Stops sync for a pair space and cleans up.
     func stopPairSync(pairSpaceID: UUID) {
-        guard pairBridges.removeValue(forKey: pairSpaceID) != nil else { return }
+        guard let bridge = pairBridges.removeValue(forKey: pairSpaceID) else { return }
 
         // Remove reverse mapping
         sharedToPairSpaceID = sharedToPairSpaceID.filter { $0.value != pairSpaceID }
+        immediateSendTasks.removeValue(forKey: bridge.zoneID.zoneName)?.cancel()
 
         logger.info("[Coordinator] Pair CKSyncEngine stopped for \(pairSpaceID.uuidString.prefix(8))")
     }
@@ -223,7 +229,7 @@ actor SyncEngineCoordinator {
 
     /// Records a local mutation that needs to be pushed to CloudKit.
     /// Routes to the correct zone based on spaceID.
-    func recordChange(_ change: SyncChange) {
+    func recordChange(_ change: SyncChange) async {
         let zoneID = zoneIDForChange(change)
 
         guard let engine = engineFor(zoneID) else {
@@ -246,6 +252,7 @@ actor SyncEngineCoordinator {
         healthMonitor.updateZone(zoneID.zoneName) { $0.pendingChangeCount += 1 }
 
         logger.debug("[Coordinator] Queued \(change.operation.rawValue) for \(change.entityKind.rawValue)/\(change.recordID.uuidString.prefix(8)) in \(zoneID.zoneName)")
+        scheduleImmediateSend(for: zoneID, engine: engine)
     }
 
     // MARK: - Account Change
@@ -258,6 +265,10 @@ actor SyncEngineCoordinator {
             stopPairSync(pairSpaceID: id)
         }
         sharedToPairSpaceID.removeAll()
+        for task in immediateSendTasks.values {
+            task.cancel()
+        }
+        immediateSendTasks.removeAll()
         logger.info("[Coordinator] All engines stopped due to account change")
     }
 
@@ -271,6 +282,26 @@ actor SyncEngineCoordinator {
     /// Returns whether a pair space has an active sync bridge.
     func isPairSyncActive(for pairSpaceID: UUID) -> Bool {
         pairBridges[pairSpaceID] != nil
+    }
+
+    /// Sends pending local changes for the given shared space immediately.
+    func sendChanges(for spaceID: UUID) async {
+        let zoneID = zoneIDForSpaceID(spaceID)
+        await sendChanges(for: zoneID)
+    }
+
+    /// Fetches remote changes for the given pair space immediately.
+    func fetchPairChanges(pairSpaceID: UUID) async {
+        guard let bridge = pairBridges[pairSpaceID] else { return }
+        do {
+            try await bridge.engine.fetchChanges()
+        } catch {
+            healthMonitor.updateZone(bridge.zoneID.zoneName) {
+                $0.consecutiveFailures += 1
+                $0.lastError = error.localizedDescription
+            }
+            logger.error("[Coordinator] Immediate fetch failed for \(bridge.zoneID.zoneName): \(error.localizedDescription)")
+        }
     }
 
     // MARK: - State Persistence
@@ -291,12 +322,18 @@ actor SyncEngineCoordinator {
         do {
             let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
             unarchiver.requiresSecureCoding = true
-            let result = unarchiver.decodeObject(forKey: NSKeyedArchiveRootObjectKey)
-            unarchiver.finishDecoding()
-            return result as? CKSyncEngine.State.Serialization
+            return try JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: data)
         } catch {
-            logger.error("[Coordinator] Failed to unarchive state for \(zoneName): \(error)")
-            return nil
+            do {
+                let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
+                unarchiver.requiresSecureCoding = true
+                let result = unarchiver.decodeObject(forKey: NSKeyedArchiveRootObjectKey)
+                unarchiver.finishDecoding()
+                return result as? CKSyncEngine.State.Serialization
+            } catch {
+                logger.error("[Coordinator] Failed to decode state for \(zoneName): \(error)")
+                return nil
+            }
         }
     }
 
@@ -325,22 +362,53 @@ actor SyncEngineCoordinator {
 
     /// Determines the zone ID for a given change based on its spaceID.
     private func zoneIDForChange(_ change: SyncChange) -> CKRecordZone.ID {
+        zoneIDForSpaceID(change.spaceID)
+    }
+
+    private func zoneIDForSpaceID(_ spaceID: UUID) -> CKRecordZone.ID {
         // If the change's spaceID matches the solo space, route to solo zone
-        if let soloID = soloSpaceID, change.spaceID == soloID {
+        if let soloID = soloSpaceID, spaceID == soloID {
             return Self.soloZoneID
         }
 
         // Direct match: spaceID is a pairSpaceID
-        if pairBridges[change.spaceID] != nil {
-            return Self.pairZoneID(for: change.spaceID)
+        if pairBridges[spaceID] != nil {
+            return pairBridges[spaceID]?.zoneID ?? Self.soloZoneID
         }
 
         // Reverse lookup: spaceID is a sharedSpaceID → resolve to pairSpaceID
-        if let pairID = sharedToPairSpaceID[change.spaceID] {
-            return Self.pairZoneID(for: pairID)
+        if let pairID = sharedToPairSpaceID[spaceID] {
+            return pairBridges[pairID]?.zoneID ?? Self.soloZoneID
         }
 
         // Default: route to solo zone
         return Self.soloZoneID
+    }
+
+    private func scheduleImmediateSend(for zoneID: CKRecordZone.ID, engine: CKSyncEngine) {
+        let key = zoneID.zoneName
+        immediateSendTasks[key]?.cancel()
+        immediateSendTasks[key] = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            await self?.sendChanges(for: zoneID, engine: engine)
+        }
+    }
+
+    private func sendChanges(for zoneID: CKRecordZone.ID) async {
+        guard let engine = engineFor(zoneID) else { return }
+        await sendChanges(for: zoneID, engine: engine)
+    }
+
+    private func sendChanges(for zoneID: CKRecordZone.ID, engine: CKSyncEngine) async {
+        defer { immediateSendTasks.removeValue(forKey: zoneID.zoneName) }
+        do {
+            try await engine.sendChanges()
+        } catch {
+            healthMonitor.updateZone(zoneID.zoneName) {
+                $0.consecutiveFailures += 1
+                $0.lastError = error.localizedDescription
+            }
+            logger.error("[Coordinator] Immediate send failed for \(zoneID.zoneName): \(error.localizedDescription)")
+        }
     }
 }

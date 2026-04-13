@@ -9,6 +9,10 @@ final class PersistentSyncChange {
     var recordID: UUID
     var spaceID: UUID
     var changedAt: Date
+    var lifecycleStateRawValue: String
+    var lastAttemptedAt: Date?
+    var confirmedAt: Date?
+    var lastError: String?
 
     init(change: SyncChange) {
         self.id = change.id
@@ -17,6 +21,10 @@ final class PersistentSyncChange {
         self.recordID = change.recordID
         self.spaceID = change.spaceID
         self.changedAt = change.changedAt
+        self.lifecycleStateRawValue = SyncMutationLifecycleState.pending.rawValue
+        self.lastAttemptedAt = nil
+        self.confirmedAt = nil
+        self.lastError = nil
     }
 
     var domainModel: SyncChange {
@@ -36,5 +44,24 @@ final class PersistentSyncChange {
         recordID = change.recordID
         spaceID = change.spaceID
         changedAt = change.changedAt
+        lifecycleStateRawValue = SyncMutationLifecycleState.pending.rawValue
+        lastAttemptedAt = nil
+        confirmedAt = nil
+        lastError = nil
+    }
+
+    var lifecycleState: SyncMutationLifecycleState {
+        get { SyncMutationLifecycleState(rawValue: lifecycleStateRawValue) ?? .pending }
+        set { lifecycleStateRawValue = newValue.rawValue }
+    }
+
+    var snapshot: SyncMutationSnapshot {
+        SyncMutationSnapshot(
+            change: domainModel,
+            lifecycleState: lifecycleState,
+            lastAttemptedAt: lastAttemptedAt,
+            confirmedAt: confirmedAt,
+            lastError: lastError
+        )
     }
 }

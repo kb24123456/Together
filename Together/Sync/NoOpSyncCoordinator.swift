@@ -7,6 +7,11 @@ actor NoOpSyncCoordinator: SyncCoordinatorProtocol {
         []
     }
 
+    func mutationLog(for spaceID: UUID) async -> [SyncMutationSnapshot] {
+        _ = spaceID
+        return []
+    }
+
     func clearPendingChanges(recordIDs: [UUID]) async {}
 
     func syncState(for spaceID: UUID) async -> SyncState? {

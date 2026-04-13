@@ -757,6 +757,19 @@ struct AppRootView: View {
                     quickCaptureSpeechRecognizer.stopListening()
                     quickCaptureSpeechRecognizer.resetDraft()
                     HomeInteractionFeedback.soft()
+                case let .suggestPeriodicTask(title):
+                    quickCaptureDebugMessage = nil
+                    quickCaptureText = ""
+                    quickCaptureHasVisibleText = false
+                    quickCaptureFieldHeight = quickCaptureFieldMinHeight
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
+                        isQuickCapturePresented = false
+                    }
+                    quickCaptureSpeechRecognizer.stopListening()
+                    quickCaptureSpeechRecognizer.resetDraft()
+                    appContext.router.pendingComposerTitle = title
+                    appContext.router.activeComposer = .newPeriodicTask
+                    HomeInteractionFeedback.soft()
                 case .failed:
                     quickCaptureDebugMessage = quickCaptureSubmissionSnapshot(
                         reason: "createQuickCaptureTask 保存失败",

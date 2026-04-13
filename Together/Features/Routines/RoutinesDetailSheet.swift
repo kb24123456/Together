@@ -116,7 +116,13 @@ struct RoutinesDetailSheet: View {
         ZStack {
             Color.clear
                 .contentShape(Rectangle())
-                .onTapGesture { cancelInlineActions() }
+                .onTapGesture {
+                    if isAwaitingDeleteConfirmation || templateSaveState != .idle {
+                        cancelInlineActions()
+                    } else {
+                        viewModel.dismissDetail()
+                    }
+                }
 
             VStack(alignment: .leading, spacing: 0) {
                 compactHeaderSection

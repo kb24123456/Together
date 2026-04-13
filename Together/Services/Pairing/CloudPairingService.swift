@@ -139,6 +139,7 @@ actor CloudPairingService: PairingServiceProtocol {
             code: invite.inviteCode,
             inviterUserUUID: inviterID,
             inviterDisplayName: displayName,
+            ownerRecordID: ownerRecordID.recordName,
             pairSpaceID: invite.pairSpaceID,
             sharedSpaceID: sharedSpaceID,
             expiresAt: invite.expiresAt,
@@ -194,7 +195,7 @@ actor CloudPairingService: PairingServiceProtocol {
         )
 
         // 5. Set up local SwiftData state on Device B
-        let context = try await localPairing.setupPairingFromRemote(
+        _ = try await localPairing.setupPairingFromRemote(
             pairSpaceID: details.pairSpaceID,
             sharedSpaceID: details.sharedSpaceID,
             inviterUserID: details.inviterUserUUID,
@@ -208,11 +209,11 @@ actor CloudPairingService: PairingServiceProtocol {
         await localPairing.updateCloudKitMetadata(
             pairSpaceID: details.pairSpaceID,
             zoneName: zoneName,
-            ownerRecordID: nil,
+            ownerRecordID: details.ownerRecordID,
             isZoneOwner: false
         )
 
-        return context
+        return await localPairing.currentPairingContext(for: responderID)
     }
 
     // MARK: - Polling (Device A)

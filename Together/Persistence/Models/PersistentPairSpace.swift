@@ -58,8 +58,23 @@ extension PersistentPairSpace {
         )
     }
 
-    func domainModel(memberships: [PersistentPairMembership]) -> PairSpace? {
-        let sortedMembers = memberships.sorted { $0.joinedAt < $1.joinedAt }
+    func domainModel(
+        memberships: [PersistentPairMembership],
+        ownerUserID: UUID? = nil
+    ) -> PairSpace? {
+        let sortedMembers = memberships.sorted { lhs, rhs in
+            if let ownerUserID {
+                let lhsIsOwner = lhs.userID == ownerUserID
+                let rhsIsOwner = rhs.userID == ownerUserID
+                if lhsIsOwner != rhsIsOwner {
+                    return lhsIsOwner
+                }
+            }
+            if lhs.joinedAt != rhs.joinedAt {
+                return lhs.joinedAt < rhs.joinedAt
+            }
+            return lhs.userID.uuidString < rhs.userID.uuidString
+        }
         guard let memberARecord = sortedMembers.first else { return nil }
         let memberBRecord = sortedMembers.dropFirst().first
 

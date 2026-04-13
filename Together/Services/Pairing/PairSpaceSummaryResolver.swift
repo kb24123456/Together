@@ -8,13 +8,14 @@ enum PairSpaceSummaryResolver {
         memberships: [PersistentPairMembership]
     ) -> PairSpaceSummary? {
         let pairSpaceIDs = Set(memberships.filter { $0.userID == userID }.map(\.pairSpaceID))
-        guard
-            let pairRecord = pairSpaces.first(where: { pairSpaceIDs.contains($0.id) && $0.endedAt == nil }),
-            let pairSpace = pairRecord.domainModel(
-                memberships: memberships.filter { $0.pairSpaceID == pairRecord.id }
-            ),
-            let sharedSpaceRecord = spaces.first(where: { $0.id == pairRecord.sharedSpaceID })
-        else {
+        guard let pairRecord = pairSpaces.first(where: { pairSpaceIDs.contains($0.id) && $0.endedAt == nil }),
+              let sharedSpaceRecord = spaces.first(where: { $0.id == pairRecord.sharedSpaceID }) else {
+            return nil
+        }
+        guard let pairSpace = pairRecord.domainModel(
+            memberships: memberships.filter { $0.pairSpaceID == pairRecord.id },
+            ownerUserID: sharedSpaceRecord.ownerUserID
+        ) else {
             return nil
         }
 

@@ -764,12 +764,15 @@ private struct ComposerSmartSuggestionBar: View {
         }
 
         // Repeat detection
+        // "每月" 不带具体日期时属于例行事务语义，不推荐月重复任务
         if currentRepeatRule == nil {
             if text.contains("每天") || text.contains("每日") {
                 result.append(.setRepeat(.daily, display: "每天重复"))
             } else if text.contains("每周") {
                 result.append(.setRepeat(.weekly, display: "每周重复"))
-            } else if text.contains("每月") {
+            } else if text.contains("每月"),
+                      text.range(of: #"每月\s*(?:\d+|[一二三四五六七八九十]+)\s*[号日]"#,
+                                 options: .regularExpression) != nil {
                 result.append(.setRepeat(.monthly, display: "每月重复"))
             } else if text.contains("工作日") {
                 result.append(.setRepeat(.weekdays, display: "工作日重复"))

@@ -63,7 +63,7 @@ struct ProfileSubscriptionView: View {
                     VStack(spacing: 0) {
                         ProFeatureRow(icon: "infinity", title: "无限任务", subtitle: "不限数量添加你的任务")
                         ProFeatureRow(icon: "person.2.fill", title: "双人协作", subtitle: "共享任务空间，实时同步")
-                        ProFeatureRow(icon: "arrow.triangle.2.circlepath", title: "例行事务", subtitle: "周期任务自动生成与追踪")
+                        ProFeatureRow(icon: "square.stack", title: "例行事务", subtitle: "周期任务自动生成与追踪")
                         ProFeatureRow(icon: "icloud.fill", title: "iCloud 同步", subtitle: "多设备同步你的任务")
                         ProFeatureRow(icon: "bell.badge.fill", title: "智能提醒", subtitle: "临期提醒与自定义通知")
                         ProFeatureRow(icon: "folder.fill", title: "项目管理", subtitle: "项目分组与子任务拆解")

@@ -1,4 +1,4 @@
-# Together Pair Architecture Rebuild Plan
+# Together Pair Architecture Rebuild Plan v2.1
 
 This file is the execution source of truth.
 
@@ -13,8 +13,11 @@ Final validation:
 
 - [ ] Single-user mode still builds and behaves normally.
 - [ ] Pair mode no longer depends on `activeMode` to keep sync alive.
-- [ ] Pair tasks and pair metadata share one authoritative CloudKit data plane.
-- [x] Pair profile edits and shared space name edits are no longer transported through the legacy relay-only path.
+- [ ] Pair tasks, shared-space metadata, member profile, and avatar references use one authoritative shared CloudKit data plane.
+- [ ] Local SwiftData pair data acts as projection/cache only and no longer re-arbitrates shared fetched records.
+- [ ] Shared mutations expose pending / sending / confirmed / failed states.
+- [ ] Pair sync health is observable separately from solo sync health.
+- [ ] Legacy relay compatibility paths are fully outside runtime correctness.
 
 ## Milestones
 
@@ -118,6 +121,77 @@ Implementation notes:
 - `PersistenceController` now opens the main SwiftData schema without relay queue entities and performs a one-time legacy-store snapshot migration when an older relay-backed store is encountered.
 - `PairSpace.displayName` has been removed from the domain model so in-memory pair summaries no longer carry a second shared-space naming truth.
 
+### Milestone 05 [completed]
+
+Scope:
+
+- upgrade the pair architecture from "shared data plane" to the stricter v2.1 shape
+- introduce explicit binding/workspace/health separation in app state
+- evolve `PersistentSyncChange` into the authoritative pending-mutation log for local shared changes
+- expose shared-sync health separately from solo-sync health
+
+Acceptance criteria:
+
+- `SessionStore` exposes explicit pair binding state and selected workspace without requiring callers to infer from `activeMode`
+- pending shared mutations persist a lifecycle state instead of being opaque queue rows
+- Home/Profile can observe pair-sync health without aggregating unrelated solo errors
+
+Verification:
+
+- `xcodebuild -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' build`
+- `xcodebuild -project Together.xcodeproj -scheme Together-UnitTests -destination 'platform=iOS Simulator,name=iPhone 17' test`
+
+Implementation notes:
+
+- Reuse `PersistentSyncChange` as the mutation-log backing store instead of introducing a second competing persistence model.
+- Keep `activeMode` as a compatibility surface while moving runtime logic toward `selectedWorkspace`.
+- `SessionStore` now exposes explicit `selectedWorkspace`, `pairBindingState`, and `sharedSyncStatus` so runtime logic no longer has to infer pair state from `activeMode`.
+- `PersistentSyncChange` now persists lifecycle metadata (`pending/sending/confirmed/failed`, attempted/confirmed timestamps, error text), and `LocalSyncCoordinator` exposes an explicit mutation log.
+- Shared sync health now combines per-zone engine health with the persisted mutation log, so pair UI no longer relies on aggregate solo errors.
+
+### Milestone 06 [in_progress]
+
+Scope:
+
+- make shared-space name and shared task state transitions use explicit pending/confirmed semantics
+- stop treating shared fetched records as blindly authoritative when the same record has an outstanding local mutation
+- establish CloudKit-confirmed mutation clearing and failure capture for shared entities
+
+Acceptance criteria:
+
+- pair task accept/complete flows no longer roll back because an older fetched shared record overwrites an unconfirmed local update
+- shared space name updates no longer piggyback on profile-save callbacks
+
+Implementation notes:
+
+- Shared fetched records now consult the persisted mutation lifecycle, not just the in-memory engine queue, before overwriting local projection data.
+- Member profile and project subtask application paths now honor pending local mutations instead of blindly accepting remote fetched values.
+- Shared space name writes no longer piggyback on `syncProfileToPartner`; they are now emitted as first-class `.space` mutations through a dedicated shared-mutation callback.
+
+### Milestone 07 [pending]
+
+Scope:
+
+- move pair member profile and avatar sync onto explicit shared-member reference semantics
+- keep avatar assets as resource references, not implicit metadata transport
+
+Acceptance criteria:
+
+- pair profile updates share the same pending/confirmed lifecycle and health reporting as pair tasks
+- avatar updates do not overload `nil` / empty metadata semantics
+
+### Milestone 08 [pending]
+
+Scope:
+
+- finish compatibility cleanup and migration boundaries for the v2.1 architecture
+- document shared/private/public database responsibilities and operator troubleshooting against the new state machine
+
+Acceptance criteria:
+
+- runtime correctness does not depend on `PersistentPairSpace` compatibility mirrors
+- docs describe the v2.1 state model, mutation model, and verification flow
+
 ## Risks
 
 1. Architecture risk
@@ -126,18 +200,19 @@ Implementation notes:
 
 2. CloudKit risk
 - Risk: owner/private DB and participant/shared DB behavior can diverge subtly.
-- Mitigation: isolate database selection in one coordinator path and keep codecs/database routing centralized.
+- Mitigation: isolate database selection in one coordinator path, use system-provided shared zone metadata, and avoid local re-arbitration of shared fetched records.
 
 3. Delivery risk
-- Risk: full deletion of relay code in one pass may break current production-like paths.
-- Mitigation: migrate correctness path first, then retire compatibility code after validation.
+- Risk: pair runtime currently mixes UI-mode state, binding state, and sync-health state.
+- Mitigation: separate these concerns explicitly before deeper shared-data refactors.
 
 ## Architecture notes
 
 - Public DB is invite discovery only.
 - Pair tasks and pair metadata should live in one shared CloudKit authority, not in per-user copies replicated via relay.
-- `activeMode` is a presentation choice, not a backend sync switch.
+- `activeMode` is a presentation compatibility surface only; runtime logic should move toward `selectedWorkspace`.
 - Local SwiftData remains a projection/cache layer for UI and offline use.
+- Pending mutations need explicit lifecycle state and must not be silently overwritten by shared fetches.
 - Avatar transport should move toward asset/reference semantics; metadata-only updates must never imply avatar deletion.
 
 ## Decision log

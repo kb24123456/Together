@@ -41,7 +41,15 @@ actor LocalSyncCoordinator: SyncCoordinatorProtocol {
 
     func pendingChanges() async -> [SyncChange] {
         let context = ModelContext(container)
+        let pendingRawValue = SyncMutationLifecycleState.pending.rawValue
+        let sendingRawValue = SyncMutationLifecycleState.sending.rawValue
+        let failedRawValue = SyncMutationLifecycleState.failed.rawValue
         let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> {
+                $0.lifecycleStateRawValue == pendingRawValue
+                || $0.lifecycleStateRawValue == sendingRawValue
+                || $0.lifecycleStateRawValue == failedRawValue
+            },
             sortBy: [SortDescriptor(\PersistentSyncChange.changedAt, order: .forward)]
         )
 
@@ -49,6 +57,21 @@ actor LocalSyncCoordinator: SyncCoordinatorProtocol {
             return try context.fetch(descriptor).map(\.domainModel)
         } catch {
             assertionFailure("Failed to fetch pending sync changes: \(error)")
+            return []
+        }
+    }
+
+    func mutationLog(for spaceID: UUID) async -> [SyncMutationSnapshot] {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> { $0.spaceID == spaceID },
+            sortBy: [SortDescriptor(\PersistentSyncChange.changedAt, order: .forward)]
+        )
+
+        do {
+            return try context.fetch(descriptor).map(\.snapshot)
+        } catch {
+            assertionFailure("Failed to fetch mutation log: \(error)")
             return []
         }
     }
@@ -178,6 +201,38 @@ actor LocalSyncCoordinator: SyncCoordinatorProtocol {
         let records = try context.fetch(descriptor)
         for record in records {
             context.delete(record)
+        }
+    }
+
+    func markLifecycleState(
+        recordIDs: [UUID],
+        state: SyncMutationLifecycleState,
+        attemptedAt: Date? = nil,
+        confirmedAt: Date? = nil,
+        errorMessage: String? = nil
+    ) async {
+        guard recordIDs.isEmpty == false else { return }
+
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> { recordIDs.contains($0.recordID) }
+        )
+
+        do {
+            let records = try context.fetch(descriptor)
+            for record in records {
+                record.lifecycleState = state
+                if let attemptedAt {
+                    record.lastAttemptedAt = attemptedAt
+                }
+                if let confirmedAt {
+                    record.confirmedAt = confirmedAt
+                }
+                record.lastError = errorMessage
+            }
+            try context.save()
+        } catch {
+            assertionFailure("Failed to mark mutation lifecycle state: \(error)")
         }
     }
 }

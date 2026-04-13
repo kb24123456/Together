@@ -7,6 +7,7 @@ struct CloudInviteDetails: Sendable {
     let inviteCode: String
     let inviterUserUUID: UUID
     let inviterDisplayName: String
+    let ownerRecordID: String?
     let pairSpaceID: UUID
     let sharedSpaceID: UUID
     let expiresAt: Date
@@ -53,6 +54,7 @@ actor CloudKitInviteGateway {
         code: String,
         inviterUserUUID: UUID,
         inviterDisplayName: String,
+        ownerRecordID: String,
         pairSpaceID: UUID,
         sharedSpaceID: UUID,
         expiresAt: Date,
@@ -63,6 +65,7 @@ actor CloudKitInviteGateway {
         record["inviteCode"] = code as CKRecordValue
         record["inviterUserUUID"] = inviterUserUUID.uuidString as CKRecordValue
         record["inviterDisplayName"] = inviterDisplayName as CKRecordValue
+        record["ownerRecordID"] = ownerRecordID as CKRecordValue
         record["pairSpaceID"] = pairSpaceID.uuidString as CKRecordValue
         record["sharedSpaceID"] = sharedSpaceID.uuidString as CKRecordValue
         record["expiresAt"] = expiresAt as CKRecordValue
@@ -174,6 +177,7 @@ actor CloudKitInviteGateway {
 
         let responderUserUUID = (record["responderUserUUID"] as? String).flatMap(UUID.init(uuidString:))
         let responderDisplayName = record["responderDisplayName"] as? String
+        let ownerRecordID = record["ownerRecordID"] as? String
 
         let shareURL = (record["shareURL"] as? String).flatMap(URL.init(string:))
 
@@ -181,6 +185,7 @@ actor CloudKitInviteGateway {
             inviteCode: code,
             inviterUserUUID: inviterUserUUID,
             inviterDisplayName: inviterDisplayName,
+            ownerRecordID: ownerRecordID,
             pairSpaceID: pairSpaceID,
             sharedSpaceID: sharedSpaceID,
             expiresAt: expiresAt,

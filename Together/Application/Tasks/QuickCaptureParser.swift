@@ -11,6 +11,7 @@ enum QuickCaptureSaveDecision: Equatable, Sendable {
     case autoSave
     case confirmTime
     case saveAsPlainTask
+    case suggestPeriodicTask
 }
 
 enum QuickCaptureConfirmationKind: Equatable, Sendable {
@@ -36,6 +37,20 @@ protocol QuickCaptureParserProtocol: Sendable {
 struct RuleBasedQuickCaptureParser: QuickCaptureParserProtocol {
     func parse(_ input: String, now: Date, calendar: Calendar) -> QuickCaptureParseResult {
         let normalizedInput = normalize(input)
+        // 每月但未指定具体哪一天 → 建议创建例行事务
+        if normalizedInput.contains("每月") && !hasSpecificMonthDay(in: normalizedInput) {
+            return QuickCaptureParseResult(
+                rawInput: input,
+                normalizedInput: normalizedInput,
+                title: extractTitle(from: normalizedInput, removing: nil),
+                parsedDate: nil,
+                originalTimePhrase: nil,
+                timeStatus: .unsupported,
+                saveDecision: .suggestPeriodicTask,
+                confirmationKind: .dateAndTime
+            )
+        }
+
         let unsupportedMarkers = ["每周", "每月", "每年", "如果", "下周", "月底", "月末"]
         if unsupportedMarkers.contains(where: { normalizedInput.contains($0) }) {
             return QuickCaptureParseResult(
@@ -426,6 +441,12 @@ struct RuleBasedQuickCaptureParser: QuickCaptureParserProtocol {
 
     private func isKnownHoliday(_ phrase: String) -> Bool {
         ["五一节", "劳动节", "元旦", "国庆节"].contains(where: { phrase.contains($0) })
+    }
+
+    // 判断输入是否指定了每月具体哪一天（如"每月15号"、"每月第3天"）
+    private func hasSpecificMonthDay(in input: String) -> Bool {
+        let pattern = #"每月\s*(?:\d+|[一二三四五六七八九十百]+)\s*[号日]|每月第\s*(?:\d+|[一二三四五六七八九十]+)\s*[天日周]"#
+        return firstMatch(pattern: pattern, in: input) != nil
     }
 
     private func extractHolidayDate(from phrase: String, calendar: Calendar, referenceDate: Date) -> Date? {

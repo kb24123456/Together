@@ -5,6 +5,27 @@ enum AppMode: String, CaseIterable, Hashable, Sendable {
     case pair
 }
 
+enum WorkspaceSelection: String, CaseIterable, Hashable, Sendable {
+    case single
+    case pair
+
+    var appMode: AppMode {
+        switch self {
+        case .single: .single
+        case .pair: .pair
+        }
+    }
+}
+
+enum PairBindingState: String, Hashable, Sendable {
+    case unpaired
+    case invitePending
+    case inviteReceived
+    case pairMetadataPending
+    case pairedReady
+    case unbound
+}
+
 struct AuthSession: Hashable, Sendable {
     var state: AuthState
     var user: User?

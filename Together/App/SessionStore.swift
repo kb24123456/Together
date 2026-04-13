@@ -12,14 +12,20 @@ final class SessionStore {
         }
     }
     var userProfileRevision = UUID()
-    var activeMode: AppMode = .single
+    var selectedWorkspace: WorkspaceSelection = .single
     var singleSpace: Space?
     var pairSpaceSummary: PairSpaceSummary?
     var availableModeStates: [AppMode] = [.single]
     var pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    var sharedSyncStatus: SharedSyncStatus = .idle
+
+    var activeMode: AppMode {
+        get { selectedWorkspace.appMode }
+        set { switchWorkspace(to: newValue == .pair ? .pair : .single) }
+    }
 
     var currentSpace: Space? {
-        switch activeMode {
+        switch selectedWorkspace {
         case .pair:
             if hasActivePairSpace, let sharedSpace = pairSpaceSummary?.sharedSpace {
                 return sharedSpace
@@ -41,6 +47,26 @@ final class SessionStore {
         return pairingContext.state
     }
 
+    var pairBindingState: PairBindingState {
+        if let pairSpace = currentPairSpace, pairSpace.status == .active {
+            let hasCloudMetadata = pairSpace.cloudKitZoneName?.isEmpty == false
+                && pairSpace.ownerRecordID?.isEmpty == false
+            return hasCloudMetadata ? .pairedReady : .pairMetadataPending
+        }
+        switch pairingContext.state {
+        case .singleTrial:
+            return .unpaired
+        case .invitePending:
+            return .invitePending
+        case .inviteReceived:
+            return .inviteReceived
+        case .paired:
+            return .pairMetadataPending
+        case .unbound:
+            return .unbound
+        }
+    }
+
     var currentPairSpace: PairSpace? {
         pairSpaceSummary?.pairSpace
     }
@@ -50,7 +76,7 @@ final class SessionStore {
     }
 
     var isViewingPairSpace: Bool {
-        activeMode == .pair && hasActivePairSpace
+        selectedWorkspace == .pair && hasActivePairSpace
     }
 
     var activeInvite: Invite? {
@@ -73,10 +99,16 @@ final class SessionStore {
         currentUser = session.user
     }
 
+    func switchWorkspace(to selection: WorkspaceSelection) {
+        guard availableModeStates.contains(selection.appMode) else { return }
+        guard selection == .single || hasActivePairSpace else { return }
+        selectedWorkspace = selection
+    }
+
     func switchMode(to mode: AppMode) {
         guard availableModeStates.contains(mode) else { return }
         guard mode == .single || hasActivePairSpace else { return }
-        activeMode = mode
+        selectedWorkspace = mode == .pair ? .pair : .single
     }
 
     func refresh(spaceContext: SpaceContext, pairingContext: PairingContext) {
@@ -92,7 +124,7 @@ final class SessionStore {
         currentUser = session.user
         singleSpace = spaceContext.singleSpace
         applySpaceAndPairing(spaceContext: spaceContext, pairingContext: pairingContext)
-        activeMode = .single
+        selectedWorkspace = .single
     }
 
     func applySpaceAndPairing(
@@ -108,8 +140,8 @@ final class SessionStore {
             pairSpaceSummary: resolvedPairSummary,
             activeInvite: pairingContext.activeInvite
         )
-        if availableModeStates.contains(activeMode) == false {
-            activeMode = .single
+        if availableModeStates.contains(selectedWorkspace.appMode) == false {
+            selectedWorkspace = .single
         }
     }
 
@@ -122,12 +154,12 @@ final class SessionStore {
             pairSpaceSummary: resolvedPairSummary,
             activeInvite: pairingContext.activeInvite
         )
-        if resolvedPairSummary == nil, activeMode == .pair {
-            activeMode = .single
+        if resolvedPairSummary == nil, selectedWorkspace == .pair {
+            selectedWorkspace = .single
         } else if autoSwitchToPairWhenBound, pairingContext.state == .paired, resolvedPairSummary != nil {
-            activeMode = .pair
-        } else if availableModeStates.contains(activeMode) == false {
-            activeMode = .single
+            selectedWorkspace = .pair
+        } else if availableModeStates.contains(selectedWorkspace.appMode) == false {
+            selectedWorkspace = .single
         }
     }
 
@@ -152,6 +184,10 @@ final class SessionStore {
         userProfileRevision = UUID()
     }
 
+    func updateSharedSyncStatus(_ status: SharedSyncStatus) {
+        sharedSyncStatus = status
+    }
+
     func clearForSignOut() {
         authState = .signedOut
         currentUser = nil
@@ -159,7 +195,8 @@ final class SessionStore {
         pairSpaceSummary = nil
         availableModeStates = [.single]
         pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
-        activeMode = .single
+        selectedWorkspace = .single
+        sharedSyncStatus = .idle
     }
 
     func seedMock(
@@ -177,6 +214,7 @@ final class SessionStore {
             pairSpaceSummary: pairSummary,
             activeInvite: nil
         )
-        activeMode = .single
+        selectedWorkspace = .single
+        sharedSyncStatus = .idle
     }
 }

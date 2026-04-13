@@ -74,7 +74,7 @@ struct HomeDockBar: View {
             )
             dockButton(
                 destination: .routines,
-                systemImage: "arrow.triangle.2.circlepath",
+                systemImage: "square.stack",
                 activeSystemImage: "arrow.counterclockwise",
                 accessibilityLabel: isRoutinesModeActive ? "返回 Today" : "打开例行事务",
                 isDisabled: false,
@@ -82,7 +82,7 @@ struct HomeDockBar: View {
             )
             dockButton(
                 destination: .projects,
-                systemImage: "square.stack",
+                systemImage: "checklist",
                 activeSystemImage: "arrow.counterclockwise",
                 accessibilityLabel: isProjectsModeActive ? "返回 Today" : "打开项目",
                 isDisabled: false,

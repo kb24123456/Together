@@ -23,13 +23,17 @@ This file should match the current repo state.
 - Public DB: invite discovery only
 - Private DB: single-user data and owner-side pair zone
 - Shared DB: participant-side access to the same pair authority via CKShare
-- SwiftData: local projection/cache for UI
+- SwiftData: local projection/cache for UI plus pending mutation storage
 - Current shipped rebuild state:
   - pair sync lifecycle has been decoupled from `activeMode`
   - pair tasks, shared space metadata, and member profiles are moving onto the same CKSyncEngine data plane
   - shared-space display names are now being normalized around `PersistentSpace.displayName` as the primary source
   - pair metadata no longer relies on delegate-side relay repost callbacks
   - runtime legacy relay code has been retired from the app target; only SwiftData compatibility models remain so older stores can be migrated forward once
+  - v2.1 now separates pair binding state, selected workspace, and shared sync health, and upgrades `PersistentSyncChange` into the explicit mutation log
+  - shared sync health is now derived from both CKSyncEngine zone health and the persisted mutation log
+  - shared fetched records now preserve outstanding local pair mutations instead of blindly overwriting local projection state
+  - shared-space renames now enqueue a dedicated `.space` mutation instead of riding along the profile metadata path
 
 ## Demo flow
 
@@ -56,3 +60,5 @@ This file should match the current repo state.
 - Composer and routines flows now derive pair behavior from the current shared space, not from `activeMode == .pair`.
 - Avatar persistence tests use local-only SwiftData containers (`cloudKitDatabase: .none`) and should not be debugged as CloudKit issues.
 - If an older install fails to open because of removed relay queue entities, `PersistenceController` now performs a snapshot migration into the relay-free schema instead of continuing to run those models in the main runtime.
+- Shared-task correctness should be debugged against the pending mutation log and the pair/shared zone health, not against aggregate "any sync" UI indicators.
+- If pair metadata or shared task updates look stale after a fetch, inspect the persisted mutation lifecycle first; pending/sending/failed local mutations now intentionally block remote overwrite until they are confirmed or cleared.

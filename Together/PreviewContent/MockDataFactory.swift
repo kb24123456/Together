@@ -14,7 +14,7 @@ enum MockDataFactory {
     static let migrationProjectID = UUID(uuidString: "99999999-9999-9999-9999-999999999997")!
     static let pairSharedSpaceID = UUID(uuidString: "99999999-9999-9999-9999-999999999998")!
 
-    static let now = Date(timeIntervalSince1970: 1_773_000_000)
+    static let now = Date.now
 
     static func makeCurrentUser() -> User {
         User(

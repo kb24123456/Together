@@ -59,6 +59,7 @@ final class ProfileViewModel {
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
     var onProfileSaved: ((_ user: User, _ includeAvatar: Bool) -> Void)?
+    var onSharedMutationRecorded: ((_ change: SyncChange) -> Void)?
 
     init(
         sessionStore: SessionStore,
@@ -155,20 +156,27 @@ final class ProfileViewModel {
 
         Task {
             await pairingService.updatePairSpaceDisplayName(pairSpaceID: pairSpace.id, displayName: resolvedName)
-        }
-        if let user = sessionStore.currentUser {
-            onProfileSaved?(user, false)
+            onSharedMutationRecorded?(
+                SyncChange(
+                    entityKind: .space,
+                    operation: .upsert,
+                    recordID: pairSpace.sharedSpaceID,
+                    spaceID: pairSpace.sharedSpaceID
+                )
+            )
         }
     }
 
     /// 获取配对的对方成员
     private var pairPartner: PairMember? {
-        guard let pairSpace else { return nil }
-        if pairSpace.memberA.userID == currentUser?.id {
-            return pairSpace.memberB
-        } else {
-            return pairSpace.memberA
+        guard
+            let currentUserID = currentUser?.id,
+            let summary = sessionStore.pairSpaceSummary
+        else { return nil }
+        if summary.pairSpace.memberA.userID != currentUserID {
+            return summary.pairSpace.memberA
         }
+        return summary.pairSpace.memberB
     }
 
     var notificationSummary: String {
@@ -606,14 +614,8 @@ final class ProfileViewModel {
 
     private var linkedPartnerDisplayName: String? {
         guard bindingState.supportsSharedCollaboration else { return nil }
-        // 动态找到"不是自己"的那个成员，而不是硬编码 memberB
-        let partner: PairMember?
-        if pairSpace?.memberA.userID == currentUser?.id {
-            partner = pairSpace?.memberB
-        } else {
-            partner = pairSpace?.memberA
-        }
-        guard let nickname = partner?.nickname.trimmingCharacters(in: .whitespacesAndNewlines) else {
+        guard let nickname = sessionStore.pairSpaceSummary?.partner?.displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines) else {
             return nil
         }
         return nickname.isEmpty ? nil : nickname

@@ -31,6 +31,22 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         self.healthMonitor = healthMonitor
     }
 
+    static func shouldApplyFetchedRecord(
+        in zoneID: CKRecordZone.ID,
+        remoteUpdatedAt: Date,
+        localUpdatedAt: Date,
+        hasPendingLocalSave: Bool = false
+    ) -> Bool {
+        if isSharedAuthorityZone(zoneID) {
+            return hasPendingLocalSave == false
+        }
+        return remoteUpdatedAt >= localUpdatedAt
+    }
+
+    static func isSharedAuthorityZone(_ zoneID: CKRecordZone.ID) -> Bool {
+        zoneID.zoneName.hasPrefix("pair-")
+    }
+
     // MARK: - CKSyncEngineDelegate
 
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) {
@@ -45,7 +61,10 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             handleFetchedDatabaseChanges(fetchedChanges)
 
         case .fetchedRecordZoneChanges(let fetchedChanges):
-            handleFetchedRecordZoneChanges(fetchedChanges)
+            handleFetchedRecordZoneChanges(
+                fetchedChanges,
+                pendingLocalSaveRecordNames: pendingLocalSaveRecordNames(in: syncEngine)
+            )
 
         case .sentRecordZoneChanges(let sentChanges):
             handleSentRecordZoneChanges(sentChanges)
@@ -95,6 +114,18 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
 
         guard !pendingChanges.isEmpty else { return nil }
 
+        let batchRecordIDs = pendingChanges.compactMap { pendingChange -> CKRecord.ID? in
+            switch pendingChange {
+            case .saveRecord(let recordID):
+                return recordID
+            case .deleteRecord(let recordID):
+                return recordID
+            @unknown default:
+                return nil
+            }
+        }
+        markMutations(for: batchRecordIDs, state: .sending, attemptedAt: .now)
+
         let container = self.modelContainer
 
         return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pendingChanges) { recordID in
@@ -134,10 +165,7 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         // Persist the serialized state so CKSyncEngine can resume from where it left off.
         let stateData: Data
         do {
-            stateData = try NSKeyedArchiver.archivedData(
-                withRootObject: stateUpdate.stateSerialization,
-                requiringSecureCoding: true
-            )
+            stateData = try JSONEncoder().encode(stateUpdate.stateSerialization)
         } catch {
             logger.error("[SyncDelegate] Failed to archive state: \(error)")
             return
@@ -185,8 +213,14 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
     }
 
-    private func handleFetchedRecordZoneChanges(_ changes: CKSyncEngine.Event.FetchedRecordZoneChanges) {
+    private func handleFetchedRecordZoneChanges(
+        _ changes: CKSyncEngine.Event.FetchedRecordZoneChanges,
+        pendingLocalSaveRecordNames: Set<String>
+    ) {
         let context = ModelContext(modelContainer)
+        let mutationStates = localMutationStateByRecordName(
+            for: changes.modifications.map(\.record.recordID.recordName)
+        )
         var appliedCount = 0
 
         // Apply modifications
@@ -199,7 +233,12 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
 
             do {
                 let entity = try codecRegistry.decode(record)
-                applyEntity(entity, context: context)
+                applyEntity(
+                    entity,
+                    hasPendingLocalSave: pendingLocalSaveRecordNames.contains(record.recordID.recordName)
+                        || shouldPreserveLocalMutation(for: mutationStates[record.recordID.recordName]),
+                    context: context
+                )
                 appliedCount += 1
             } catch {
                 logger.error("[SyncDelegate] Decode failed: \(error)")
@@ -243,11 +282,23 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 logger.info("[SyncDelegate] Conflict for \(failedSave.record.recordID.recordName.prefix(8)), accepting server version")
                 let context = ModelContext(modelContainer)
                 if let entity = try? codecRegistry.decode(serverRecord) {
-                    applyEntity(entity, context: context)
+                    applyEntity(entity, hasPendingLocalSave: false, context: context)
                     try? context.save()
                 }
+                markMutations(
+                    for: [failedSave.record.recordID],
+                    state: .failed,
+                    attemptedAt: .now,
+                    errorMessage: error.localizedDescription
+                )
             } else {
                 logger.error("[SyncDelegate] ❌ Push failed: \(error)")
+                markMutations(
+                    for: [failedSave.record.recordID],
+                    state: .failed,
+                    attemptedAt: .now,
+                    errorMessage: error.localizedDescription
+                )
                 healthMonitor.updateZone(zoneID.zoneName) {
                     $0.consecutiveFailures += 1
                     $0.lastError = error.localizedDescription
@@ -256,6 +307,18 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
 
         if !savedRecords.isEmpty {
+            markMutations(
+                for: savedRecords.map(\.recordID),
+                state: .confirmed,
+                confirmedAt: .now,
+                errorMessage: nil
+            )
+            healthMonitor.updateZone(zoneID.zoneName) {
+                $0.pendingChangeCount = max(0, $0.pendingChangeCount - savedRecords.count)
+                $0.lastError = nil
+                $0.consecutiveFailures = 0
+                $0.lastSuccessfulSync = .now
+            }
             // Confirm migration progress if applicable
             if SyncMigrationService.isMigrationInProgress {
                 let names = savedRecords.map { $0.recordID.recordName }
@@ -264,41 +327,55 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
 
         for deletedID in sentChanges.deletedRecordIDs {
+            markMutations(
+                for: [deletedID],
+                state: .confirmed,
+                confirmedAt: .now,
+                errorMessage: nil
+            )
             logger.debug("[SyncDelegate] 🗑️ Deleted from server: \(deletedID.recordName.prefix(8))")
         }
     }
 
     // MARK: - Entity Application
 
-    private func applyEntity(_ entity: any RecordCodable, context: ModelContext) {
+    private func applyEntity(
+        _ entity: any RecordCodable,
+        hasPendingLocalSave: Bool,
+        context: ModelContext
+    ) {
         switch entity {
         case let itemCodable as ItemRecordCodable:
-            applyItem(itemCodable.item, context: context)
+            applyItem(itemCodable.item, hasPendingLocalSave: hasPendingLocalSave, context: context)
         case let listCodable as TaskListRecordCodable:
-            applyTaskList(listCodable.taskList, context: context)
+            applyTaskList(listCodable.taskList, hasPendingLocalSave: hasPendingLocalSave, context: context)
         case let projectCodable as ProjectRecordCodable:
-            applyProject(projectCodable.project, context: context)
+            applyProject(projectCodable.project, hasPendingLocalSave: hasPendingLocalSave, context: context)
         case let subtaskCodable as ProjectSubtaskRecordCodable:
-            applyProjectSubtask(subtaskCodable.subtask, context: context)
+            applyProjectSubtask(subtaskCodable.subtask, hasPendingLocalSave: hasPendingLocalSave, context: context)
         case let periodicCodable as PeriodicTaskRecordCodable:
-            applyPeriodicTask(periodicCodable.periodicTask, context: context)
+            applyPeriodicTask(periodicCodable.periodicTask, hasPendingLocalSave: hasPendingLocalSave, context: context)
         case let spaceCodable as SpaceRecordCodable:
-            applySpace(spaceCodable.space, context: context)
+            applySpace(spaceCodable.space, hasPendingLocalSave: hasPendingLocalSave, context: context)
         case let memberProfileCodable as MemberProfileRecordCodable:
-            applyMemberProfile(memberProfileCodable.profile, context: context)
+            applyMemberProfile(memberProfileCodable.profile, hasPendingLocalSave: hasPendingLocalSave, context: context)
         default:
             logger.warning("[SyncDelegate] Unhandled entity type during apply")
         }
     }
 
-    private func applyItem(_ item: Item, context: ModelContext) {
+    private func applyItem(_ item: Item, hasPendingLocalSave: Bool, context: ModelContext) {
         let itemID = item.id
         let descriptor = FetchDescriptor<PersistentItem>(
             predicate: #Predicate<PersistentItem> { $0.id == itemID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            // Update existing — remote wins if newer
-            if item.updatedAt >= existing.updatedAt {
+            if Self.shouldApplyFetchedRecord(
+                in: zoneID,
+                remoteUpdatedAt: item.updatedAt,
+                localUpdatedAt: existing.updatedAt,
+                hasPendingLocalSave: hasPendingLocalSave
+            ) {
                 existing.update(from: item)
             }
         } else {
@@ -306,13 +383,18 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
     }
 
-    private func applyTaskList(_ list: TaskList, context: ModelContext) {
+    private func applyTaskList(_ list: TaskList, hasPendingLocalSave: Bool, context: ModelContext) {
         let listID = list.id
         let descriptor = FetchDescriptor<PersistentTaskList>(
             predicate: #Predicate<PersistentTaskList> { $0.id == listID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if list.updatedAt >= existing.updatedAt {
+            if Self.shouldApplyFetchedRecord(
+                in: zoneID,
+                remoteUpdatedAt: list.updatedAt,
+                localUpdatedAt: existing.updatedAt,
+                hasPendingLocalSave: hasPendingLocalSave
+            ) {
                 existing.update(from: list)
             }
         } else {
@@ -320,13 +402,18 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
     }
 
-    private func applyProject(_ project: Project, context: ModelContext) {
+    private func applyProject(_ project: Project, hasPendingLocalSave: Bool, context: ModelContext) {
         let projectID = project.id
         let descriptor = FetchDescriptor<PersistentProject>(
             predicate: #Predicate<PersistentProject> { $0.id == projectID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if project.updatedAt >= existing.updatedAt {
+            if Self.shouldApplyFetchedRecord(
+                in: zoneID,
+                remoteUpdatedAt: project.updatedAt,
+                localUpdatedAt: existing.updatedAt,
+                hasPendingLocalSave: hasPendingLocalSave
+            ) {
                 existing.update(from: project)
             }
         } else {
@@ -334,12 +421,17 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
     }
 
-    private func applyProjectSubtask(_ subtask: ProjectSubtask, context: ModelContext) {
+    private func applyProjectSubtask(
+        _ subtask: ProjectSubtask,
+        hasPendingLocalSave: Bool,
+        context: ModelContext
+    ) {
         let subtaskID = subtask.id
         let descriptor = FetchDescriptor<PersistentProjectSubtask>(
             predicate: #Predicate<PersistentProjectSubtask> { $0.id == subtaskID }
         )
         if let existing = try? context.fetch(descriptor).first {
+            guard hasPendingLocalSave == false else { return }
             existing.title = subtask.title
             existing.isCompleted = subtask.isCompleted
             existing.sortOrder = subtask.sortOrder
@@ -348,13 +440,18 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
     }
 
-    private func applyPeriodicTask(_ task: PeriodicTask, context: ModelContext) {
+    private func applyPeriodicTask(_ task: PeriodicTask, hasPendingLocalSave: Bool, context: ModelContext) {
         let taskID = task.id
         let descriptor = FetchDescriptor<PersistentPeriodicTask>(
             predicate: #Predicate<PersistentPeriodicTask> { $0.id == taskID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if task.updatedAt >= existing.updatedAt {
+            if Self.shouldApplyFetchedRecord(
+                in: zoneID,
+                remoteUpdatedAt: task.updatedAt,
+                localUpdatedAt: existing.updatedAt,
+                hasPendingLocalSave: hasPendingLocalSave
+            ) {
                 existing.update(from: task)
             }
         } else {
@@ -362,13 +459,18 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         }
     }
 
-    private func applySpace(_ space: Space, context: ModelContext) {
+    private func applySpace(_ space: Space, hasPendingLocalSave: Bool, context: ModelContext) {
         let spaceID = space.id
         let descriptor = FetchDescriptor<PersistentSpace>(
             predicate: #Predicate<PersistentSpace> { $0.id == spaceID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if space.updatedAt >= existing.updatedAt {
+            if Self.shouldApplyFetchedRecord(
+                in: zoneID,
+                remoteUpdatedAt: space.updatedAt,
+                localUpdatedAt: existing.updatedAt,
+                hasPendingLocalSave: hasPendingLocalSave
+            ) {
                 existing.update(from: space)
             }
         } else {
@@ -377,7 +479,12 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
 
     }
 
-    private func applyMemberProfile(_ profile: MemberProfileRecordCodable.Profile, context: ModelContext) {
+    private func applyMemberProfile(
+        _ profile: MemberProfileRecordCodable.Profile,
+        hasPendingLocalSave: Bool,
+        context: ModelContext
+    ) {
+        guard hasPendingLocalSave == false else { return }
         let store = LocalUserAvatarMediaStore()
 
         let memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
@@ -475,6 +582,77 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 membership.avatarPhotoFileName = nil
             }
         }
+    }
+
+    private func pendingLocalSaveRecordNames(in syncEngine: CKSyncEngine) -> Set<String> {
+        Set(
+            syncEngine.state.pendingRecordZoneChanges.compactMap { change in
+                guard case .saveRecord(let recordID) = change, recordID.zoneID == zoneID else { return nil }
+                return recordID.recordName
+            }
+        )
+    }
+
+    private func localMutationStateByRecordName(
+        for recordNames: [String]
+    ) -> [String: SyncMutationLifecycleState] {
+        let recordIDs = recordNames.compactMap(UUID.init(uuidString:))
+        guard recordIDs.isEmpty == false else { return [:] }
+
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> { recordIDs.contains($0.recordID) }
+        )
+
+        guard let records = try? context.fetch(descriptor), records.isEmpty == false else { return [:] }
+
+        return Dictionary(
+            uniqueKeysWithValues: records.map { ($0.recordID.uuidString, $0.lifecycleState) }
+        )
+    }
+
+    private func shouldPreserveLocalMutation(
+        for lifecycleState: SyncMutationLifecycleState?
+    ) -> Bool {
+        switch lifecycleState {
+        case .pending, .sending, .failed:
+            return true
+        case .confirmed, .none:
+            return false
+        }
+    }
+
+    private func markMutations(
+        for recordIDs: [CKRecord.ID],
+        state: SyncMutationLifecycleState,
+        attemptedAt: Date? = nil,
+        confirmedAt: Date? = nil,
+        errorMessage: String? = nil
+    ) {
+        guard recordIDs.isEmpty == false else { return }
+
+        let uuids = recordIDs.compactMap { UUID(uuidString: $0.recordName) }
+        guard uuids.isEmpty == false else { return }
+
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> { uuids.contains($0.recordID) }
+        )
+
+        guard let records = try? context.fetch(descriptor), records.isEmpty == false else { return }
+
+        for record in records {
+            record.lifecycleState = state
+            if let attemptedAt {
+                record.lastAttemptedAt = attemptedAt
+            }
+            if let confirmedAt {
+                record.confirmedAt = confirmedAt
+            }
+            record.lastError = errorMessage
+        }
+
+        try? context.save()
     }
 
     // MARK: - Helpers

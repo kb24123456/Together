@@ -1,4 +1,4 @@
-# Together
+# Together v2.1
 
 You are Codex acting as the implementation partner for Together. Rebuild the pair-mode backend architecture so it is stable across iPhone, iPad, and Mac without regressing single-user behavior.
 
@@ -8,6 +8,8 @@ Core goals
 - Keep single-user data in a private data plane and pair-shared data in one authoritative shared data plane.
 - Make task data, shared-space metadata, member profile data, and avatar updates use the same reliability level and lifecycle.
 - Remove any dependency between pair sync lifecycle and UI mode (`activeMode`).
+- Separate pair binding state, selected workspace, and shared-sync health into explicit runtime state.
+- Treat SwiftData as projection/cache plus pending-mutation storage, not as a second authority.
 
 Hard requirements
 
@@ -19,15 +21,20 @@ Hard requirements
 
 Deliverable
 
-- A working pair-mode backend foundation where CloudKit shared data is the authority for pair tasks and pair metadata, local SwiftData acts as projection/cache, and the current relay-only pair data path is no longer required for correctness.
+- A working pair-mode backend foundation where CloudKit shared data is the authority for pair tasks and pair metadata, local SwiftData acts as projection/cache plus mutation log, and the current relay-only pair data path is no longer required for correctness.
+- Current build target:
+  - milestone 05 is complete
+  - milestone 06 is in progress
+  - shared mutation lifecycle must now drive both remote-apply preservation and shared-sync health
+  - shared-space rename flow has been split out of profile sync and must remain a first-class `.space` mutation path
 
 Architecture directive
 
 - Public DB: invite discovery only.
 - Private DB: single-user data and owner-side shared zone records.
 - Shared DB / CKShare: participant-side access to the same pair data authority.
-- Local SwiftData: projection/cache for UI.
-- Avatar sync must move away from base64-in-profile relay semantics and become asset/reference based within the shared authority data model.
+- Local SwiftData: projection/cache for UI plus explicit pending mutation log.
+- Avatar sync must move away from ambiguous metadata semantics and become asset/reference based within the shared authority data model.
 
 Process requirements
 

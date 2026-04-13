@@ -55,6 +55,21 @@ struct SyncChange: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+enum SyncMutationLifecycleState: String, Codable, Hashable, Sendable {
+    case pending
+    case sending
+    case confirmed
+    case failed
+}
+
+struct SyncMutationSnapshot: Hashable, Sendable {
+    let change: SyncChange
+    let lifecycleState: SyncMutationLifecycleState
+    let lastAttemptedAt: Date?
+    let confirmedAt: Date?
+    let lastError: String?
+}
+
 struct SyncCursor: Codable, Hashable, Sendable {
     let token: String
     let updatedAt: Date
@@ -99,6 +114,7 @@ struct SyncPullResult: Codable, Hashable, Sendable {
 protocol SyncCoordinatorProtocol: Sendable {
     func recordLocalChange(_ change: SyncChange) async
     func pendingChanges() async -> [SyncChange]
+    func mutationLog(for spaceID: UUID) async -> [SyncMutationSnapshot]
     func clearPendingChanges(recordIDs: [UUID]) async
     func syncState(for spaceID: UUID) async -> SyncState?
     func markPushSuccess(

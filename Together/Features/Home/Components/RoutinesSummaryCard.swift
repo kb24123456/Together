@@ -18,7 +18,7 @@ struct RoutinesSummaryCard: View {
                 onNavigateToRoutines()
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Image(systemName: "square.stack")
                         .font(AppTheme.typography.sized(16, weight: .semibold))
 
                     Text("\(totalPending) 项例行事务待完成")

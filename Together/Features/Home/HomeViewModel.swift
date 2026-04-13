@@ -106,6 +106,7 @@ struct QuickCapturePendingConfirmation: Identifiable, Hashable, Sendable {
 enum QuickCaptureTaskCreationResult: Sendable, Equatable {
     case saved
     case needsTimeConfirmation(QuickCapturePendingConfirmation)
+    case suggestPeriodicTask(title: String)
     case failed
 }
 
@@ -126,6 +127,10 @@ final class HomeViewModel {
 
     /// 任务操作完成后的回调，参数为 spaceID，用于触发同步
     var onTaskMutated: ((UUID) -> Void)?
+    /// 将当前任务转为例行事务时的回调（传递任务标题）
+    var onConvertToPeriodicTask: ((String) -> Void)?
+    /// 将当前任务转为项目时的回调（传递任务标题）
+    var onConvertToProject: ((String) -> Void)?
 
     private var detailSaveTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
@@ -548,6 +553,10 @@ final class HomeViewModel {
         }
 
         let parseResult = quickCaptureParser.parse(trimmedTitle, now: .now, calendar: calendar)
+
+        if parseResult.saveDecision == .suggestPeriodicTask {
+            return .suggestPeriodicTask(title: parseResult.title)
+        }
 
         if parseResult.saveDecision == .confirmTime,
            let suggestedReminderAt = parseResult.parsedDate {
@@ -977,6 +986,20 @@ final class HomeViewModel {
         }
     }
 
+    func convertCurrentTaskToPeriodicTask() async {
+        guard let draft = detailDraft else { return }
+        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        await deleteSelectedItem()
+        onConvertToPeriodicTask?(title)
+    }
+
+    func convertCurrentTaskToProject() async {
+        guard let draft = detailDraft else { return }
+        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        await deleteSelectedItem()
+        onConvertToProject?(title)
+    }
+
     func deleteItem(_ itemID: UUID) async {
         guard
             let spaceID = sessionStore.currentSpace?.id,
@@ -1081,7 +1104,7 @@ final class HomeViewModel {
     }
 
     var showsOverdueCapsule: Bool {
-        isViewingToday && overdueEntryCount > 0
+        isViewingToday && overdueEntryCount > 0 && !isPairModeActive
     }
 
     var overdueCapsuleTitle: String {
@@ -1535,6 +1558,12 @@ final class HomeViewModel {
         let partnerAvatar = partner.map {
             avatarMetadata(id: $0.id, displayName: $0.displayName, user: $0)
         }
+        let creatorAvatar: HomeAvatar? = {
+            if item.creatorID == currentUser?.id {
+                return currentUserAvatar
+            }
+            return partnerAvatar
+        }()
 
         switch item.assigneeMode {
         case .partner:
@@ -1545,7 +1574,7 @@ final class HomeViewModel {
         case .both:
             return (nil, currentUserAvatar, partnerAvatar)
         case .self:
-            return (nil, currentUserAvatar, nil)
+            return (nil, creatorAvatar, nil)
         }
     }
 

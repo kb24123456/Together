@@ -114,7 +114,7 @@ final class PairSyncBridge: Sendable {
             predicate: #Predicate<PersistentSpace> { $0.id == spaceID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if space.updatedAt >= existing.updatedAt {
+            if SyncEngineDelegate.shouldApplyFetchedRecord(in: zoneID, remoteUpdatedAt: space.updatedAt, localUpdatedAt: existing.updatedAt) {
                 existing.update(from: space)
             }
         } else {
@@ -129,7 +129,7 @@ final class PairSyncBridge: Sendable {
             predicate: #Predicate<PersistentItem> { $0.id == itemID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if item.updatedAt >= existing.updatedAt {
+            if SyncEngineDelegate.shouldApplyFetchedRecord(in: zoneID, remoteUpdatedAt: item.updatedAt, localUpdatedAt: existing.updatedAt) {
                 existing.update(from: item)
             }
         } else {
@@ -143,7 +143,7 @@ final class PairSyncBridge: Sendable {
             predicate: #Predicate<PersistentTaskList> { $0.id == listID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if list.updatedAt >= existing.updatedAt {
+            if SyncEngineDelegate.shouldApplyFetchedRecord(in: zoneID, remoteUpdatedAt: list.updatedAt, localUpdatedAt: existing.updatedAt) {
                 existing.update(from: list)
             }
         } else {
@@ -157,7 +157,7 @@ final class PairSyncBridge: Sendable {
             predicate: #Predicate<PersistentProject> { $0.id == projectID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if project.updatedAt >= existing.updatedAt {
+            if SyncEngineDelegate.shouldApplyFetchedRecord(in: zoneID, remoteUpdatedAt: project.updatedAt, localUpdatedAt: existing.updatedAt) {
                 existing.update(from: project)
             }
         } else {
@@ -185,7 +185,7 @@ final class PairSyncBridge: Sendable {
             predicate: #Predicate<PersistentPeriodicTask> { $0.id == taskID }
         )
         if let existing = try? context.fetch(descriptor).first {
-            if task.updatedAt >= existing.updatedAt {
+            if SyncEngineDelegate.shouldApplyFetchedRecord(in: zoneID, remoteUpdatedAt: task.updatedAt, localUpdatedAt: existing.updatedAt) {
                 existing.update(from: task)
             }
         } else {

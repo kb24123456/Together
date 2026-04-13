@@ -151,6 +151,7 @@ actor LocalPairingService: PairingServiceProtocol {
     ) async throws -> PairingContext {
         let context = ModelContext(container)
         let now = Date.now
+        let placeholderTimestamp = Date(timeIntervalSince1970: 0)
 
         // Avoid duplicate setup
         let existing = try context.fetch(
@@ -165,8 +166,8 @@ actor LocalPairingService: PairingServiceProtocol {
                 displayName: PairSpace.defaultSharedSpaceDisplayName,
                 ownerUserID: inviterUserID,
                 status: .active,
-                createdAt: now,
-                updatedAt: now,
+                createdAt: placeholderTimestamp,
+                updatedAt: placeholderTimestamp,
                 archivedAt: nil
             )
             let pairSpace = PairSpace(
@@ -176,8 +177,8 @@ actor LocalPairingService: PairingServiceProtocol {
                 memberA: PairMember(userID: inviterUserID, nickname: inviterDisplayName, joinedAt: now),
                 memberB: PairMember(userID: responderID, nickname: responderDisplayName, joinedAt: now),
                 dataBoundaryToken: sharedSpaceID,
-                createdAt: now,
-                activatedAt: now,
+                createdAt: placeholderTimestamp,
+                activatedAt: placeholderTimestamp,
                 endedAt: nil
             )
             context.insert(PersistentSpace(space: sharedSpace))
@@ -358,6 +359,7 @@ actor LocalPairingService: PairingServiceProtocol {
             )
         ).first {
             space.displayName = displayName ?? PairSpace.defaultSharedSpaceDisplayName
+            space.updatedAt = .now
         }
 
         try? context.save()

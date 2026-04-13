@@ -17,6 +17,7 @@ struct HomeItemDetailSheet: View {
     @State private var isSaveButtonAnimating = false
     @State private var taskTemplates: [TaskTemplate] = []
     @State private var isLoadingTemplates = false
+    @State private var pendingConversionTarget: ConversionTarget?
     @State private var showsInlineAssigneeOptions = false
     @State private var visibleAssigneeModes: [TaskAssigneeMode] = []
     @State private var assigneeAnimationTask: Task<Void, Never>?
@@ -38,6 +39,25 @@ struct HomeItemDetailSheet: View {
         case none
         case focus(Field)
         case menu(TaskEditorMenu)
+    }
+
+    private enum ConversionTarget {
+        case periodicTask
+        case project
+
+        var title: String {
+            switch self {
+            case .periodicTask: return "例行事务"
+            case .project:     return "项目"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .periodicTask: return "square.stack"
+            case .project:      return "checklist"
+            }
+        }
     }
 
     var body: some View {
@@ -119,6 +139,34 @@ struct HomeItemDetailSheet: View {
         .onDisappear {
             assigneeAnimationTask?.cancel()
         }
+        .confirmationDialog(
+            pendingConversionTarget.map { "转为\($0.title)" } ?? "",
+            isPresented: Binding(
+                get: { pendingConversionTarget != nil },
+                set: { if !$0 { pendingConversionTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let target = pendingConversionTarget {
+                Button("确认转换（将删除原任务）", role: .destructive) {
+                    Task {
+                        switch target {
+                        case .periodicTask:
+                            await viewModel.convertCurrentTaskToPeriodicTask()
+                        case .project:
+                            await viewModel.convertCurrentTaskToProject()
+                        }
+                    }
+                }
+                Button("取消", role: .cancel) {
+                    pendingConversionTarget = nil
+                }
+            }
+        } message: {
+            if let target = pendingConversionTarget {
+                Text("原任务将被删除，标题将预填至\(target.title)创建界面")
+            }
+        }
     }
 
     private var isExpandedEditor: Bool {
@@ -180,6 +228,12 @@ struct HomeItemDetailSheet: View {
                     } else if isActive {
                         HomeInteractionFeedback.selection()
                         focusedField = .title
+                    } else if title == "周期" {
+                        HomeInteractionFeedback.selection()
+                        pendingConversionTarget = .periodicTask
+                    } else if title == "项目" {
+                        HomeInteractionFeedback.selection()
+                        pendingConversionTarget = .project
                     }
                 } label: {
                     Text(title)
@@ -202,7 +256,6 @@ struct HomeItemDetailSheet: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(!isActive)
             }
         }
         .padding(.bottom, 10)
@@ -235,16 +288,10 @@ struct HomeItemDetailSheet: View {
 
     private var expandedSaveButton: some View {
         Button {
-            HomeInteractionFeedback.selection()
+            HomeInteractionFeedback.soft()
             triggerSaveButtonAnimation()
-            if viewModel.hasUnsavedDetailChanges {
-                Task {
-                    await viewModel.saveDetailDraft()
-                }
-            } else {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                        viewModel.detailDetent = .height(316)
-                }
+            Task {
+                await viewModel.saveDetailDraftAndDismiss()
             }
         } label: {
             HStack(spacing: 6) {

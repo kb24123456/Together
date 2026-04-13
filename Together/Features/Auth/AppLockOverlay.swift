@@ -15,7 +15,7 @@ struct AppLockOverlay: View {
             VStack(spacing: AppTheme.spacing.lg) {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(AppTheme.colors.accent)
+                    .foregroundStyle(AppTheme.colors.sky)
 
                 Text("Together 已锁定")
                     .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
@@ -32,7 +32,7 @@ struct AppLockOverlay: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, AppTheme.spacing.lg)
                     .padding(.vertical, AppTheme.spacing.sm)
-                    .background(AppTheme.colors.accent, in: Capsule())
+                    .background(AppTheme.colors.sky, in: Capsule())
                 }
                 .disabled(isAuthenticating)
             }

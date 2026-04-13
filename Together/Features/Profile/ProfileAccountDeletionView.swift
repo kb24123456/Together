@@ -71,7 +71,7 @@ struct ProfileAccountDeletionView: View {
         ProfileSettingsGroupCard(title: "将被删除的数据") {
             deletionItem(icon: "person.crop.circle", text: "个人资料（昵称、头像）")
             deletionItem(icon: "checkmark.circle", text: "所有任务数据（待办、已完成、已归档）")
-            deletionItem(icon: "arrow.triangle.2.circlepath", text: "例行事务和模板")
+            deletionItem(icon: "square.stack", text: "例行事务和模板")
             deletionItem(icon: "folder", text: "项目和清单")
             if viewModel.isPairMode {
                 deletionItem(icon: "person.2", text: "双人协作空间（将自动解绑）")

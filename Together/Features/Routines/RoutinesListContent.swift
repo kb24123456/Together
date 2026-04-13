@@ -39,7 +39,7 @@ struct RoutinesListContent: View {
                 .padding(.top, 8)
                 .padding(.bottom, 4)
 
-            if viewModel.tasks.isEmpty && viewModel.loadState == .loaded {
+            if viewModel.tasks.isEmpty && viewModel.loadState == .loaded && !appContext.sessionStore.isViewingPairSpace {
                 ScrollView {
                     routinesEmptyState
                         .padding(.bottom, contentBottomPadding)
@@ -76,6 +76,7 @@ struct RoutinesListContent: View {
         HStack(spacing: 10) {
             ForEach(cycleTabs, id: \.self) { cycle in
                 Button {
+                    HomeInteractionFeedback.selection()
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                         selectedCycle = cycle
                     }
@@ -196,6 +197,7 @@ struct RoutinesListContent: View {
             }
 
             Button {
+                HomeInteractionFeedback.selection()
                 appContext.router.activeComposer = .newPeriodicTask
             } label: {
                 HStack(spacing: 8) {
@@ -237,6 +239,7 @@ struct RoutinesListContent: View {
             }
 
             Button {
+                HomeInteractionFeedback.selection()
                 appContext.router.activeComposer = .newPeriodicTask
             } label: {
                 HStack(spacing: 8) {

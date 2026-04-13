@@ -26,6 +26,18 @@ actor CloudKitZoneManager {
         CKRecordZone.ID(zoneName: zoneName(for: pairSpaceID))
     }
 
+    nonisolated static func zoneID(
+        for pairSpaceID: UUID,
+        ownerRecordID: String?,
+        isZoneOwner: Bool
+    ) -> CKRecordZone.ID {
+        let zoneName = zoneName(for: pairSpaceID)
+        guard isZoneOwner == false, let ownerRecordID, ownerRecordID.isEmpty == false else {
+            return CKRecordZone.ID(zoneName: zoneName)
+        }
+        return CKRecordZone.ID(zoneName: zoneName, ownerName: ownerRecordID)
+    }
+
     // MARK: - Zone CRUD
 
     /// Creates a custom zone in the private database for a pair space.
