@@ -32,12 +32,19 @@ This file should match the current repo state.
   - runtime legacy relay code has been retired from the app target; only SwiftData compatibility models remain so older stores can be migrated forward once
   - v2.1 now separates pair binding state, selected workspace, and shared sync health, and upgrades `PersistentSyncChange` into the explicit mutation log
   - shared sync health is now derived from both CKSyncEngine zone health and the persisted mutation log
+  - pair unbind now clears shared projection rows, shared mutation/state rows, related invites, and partner profile cache artifacts instead of only ending the relationship record
   - shared fetched records now preserve outstanding local pair mutations instead of blindly overwriting local projection state
   - shared-space renames now enqueue a dedicated `.space` mutation instead of riding along the profile metadata path
   - Home task state changes now emit precise shared `.task` mutations so send/health refresh can run off the actual changed record instead of a generic workspace callback
   - Completed History, notification completion, and composer task creation are now moving onto that same explicit shared-mutation flush path instead of a blanket workspace send
   - avatar identity is now being normalized around `avatarAssetID/avatarVersion`, with `avatarPhotoFileName` demoted to a local cache concern instead of the shared source of truth
   - shared member-profile submission no longer depends on an `includeAvatar` call-site flag; avatar semantics are derived from persisted `avatarAssetID/avatarVersion` state instead
+  - shared member-profile records are now metadata-only; shared correctness is driven by `avatarAssetID/avatarVersion/avatarDeleted`, and avatar bytes no longer travel through shared member-profile records
+  - shared member-profile encoding no longer inspects local avatar blob storage; if no avatar reference exists, the shared payload is treated as an explicit avatar removal regardless of cached repair bytes
+  - legacy profile apply paths are now repair-only and must not overwrite current shared-authority space names, nicknames, or avatar references
+  - the legacy public CloudKit gateway no longer injects member-profile payloads into normal task pull cycles; legacy profile reads are explicit repair/migration operations only
+  - the legacy public CloudKit gateway can no longer write member-profile records at all; that path is now strictly read/repair-only and is no longer available as a runtime fallback
+  - pair-only sync chrome now reads `SharedSyncStatus` directly, so pending shared mutations and shared send/fetch failures are no longer hidden behind a generic aggregate sync error
 
 ## Demo flow
 
@@ -65,6 +72,8 @@ This file should match the current repo state.
 - Avatar persistence tests use local-only SwiftData containers (`cloudKitDatabase: .none`) and should not be debugged as CloudKit issues.
 - If an older install fails to open because of removed relay queue entities, `PersistenceController` now performs a snapshot migration into the relay-free schema instead of continuing to run those models in the main runtime.
 - Shared-task correctness should be debugged against the pending mutation log and the pair/shared zone health, not against aggregate "any sync" UI indicators.
+- After unbinding, shared projection cache and shared mutation/state rows should be gone; stale pair UI after unbind is now a real bug, not expected residual cache.
 - If pair metadata or shared task updates look stale after a fetch, inspect the persisted mutation lifecycle first; pending/sending/failed local mutations now intentionally block remote overwrite until they are confirmed or cleared.
 - If avatar display looks stale, inspect `avatarAssetID/avatarVersion` first; `avatarPhotoFileName` is now only the local cache path and should not be treated as the shared source of truth.
-- If a shared member profile unexpectedly clears an avatar, inspect the derived `MemberProfileRecordCodable.Profile` payload first; an asset reference without local blob data should now remain a preserved reference instead of being encoded as `avatarDeleted`.
+- If a shared member profile unexpectedly clears an avatar, inspect the derived `MemberProfileRecordCodable.Profile` payload first; only `avatarDeleted` should clear an avatar, and an asset reference without a local cache file must remain a preserved reference.
+- If legacy public-profile data appears during migration, it should only repair missing local cache/reference holes; if it changes an already-synced shared nickname, shared space name, or avatar reference, that is now a real bug.

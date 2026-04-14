@@ -65,7 +65,8 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
 
     // MARK: - Profile Apply
 
-    /// 将远程 profile 更新应用到本地 PairMembership（昵称）和 PairSpace（displayName）
+    /// Legacy compatibility path. Only backfills missing local projection/cache state and must not
+    /// override the current shared-authority sync results.
     private func applyProfileUpdate(
         _ profile: CloudKitProfileRecordCodec.MemberProfilePayload,
         in spaceID: UUID
@@ -73,16 +74,14 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
         let context = ModelContext(modelContainer)
         var didChange = false
 
-        // 更新 PairMembership 的 nickname
         let memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
         for membership in memberships where membership.userID == profile.userID {
-            if membership.nickname != profile.displayName {
+            if membership.nickname.isEmpty {
                 membership.nickname = profile.displayName
                 didChange = true
             }
         }
 
-        // 更新 SharedSpace 的 displayName（shared space 是唯一权威来源）
         if let newDisplayName = profile.pairSpaceDisplayName {
             let resolvedDisplayName = newDisplayName.isEmpty
                 ? PairSpace.defaultSharedSpaceDisplayName
@@ -90,40 +89,36 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
 
             let spaces = (try? context.fetch(FetchDescriptor<PersistentSpace>())) ?? []
             for space in spaces where space.id == spaceID {
-                if space.displayName != resolvedDisplayName {
+                if space.displayName.isEmpty || space.displayName == PairSpace.defaultSharedSpaceDisplayName {
                     space.displayName = resolvedDisplayName
                     didChange = true
                 }
             }
         }
 
-        // 更新 membership 的头像字段，并将对方头像图片写入磁盘
         let avatarStore = LocalUserAvatarMediaStore()
         let canonicalFileName = profile.avatarAssetID ?? avatarStore.canonicalFileName(for: profile.userID)
 
         for membership in memberships where membership.userID == profile.userID {
-            // 更新 SF Symbol 头像名
-            if membership.avatarSystemName != profile.avatarSystemName {
+            if membership.avatarSystemName == nil {
                 membership.avatarSystemName = profile.avatarSystemName
                 didChange = true
             }
-            if membership.avatarVersion != profile.avatarVersion {
+            if membership.avatarVersion < profile.avatarVersion {
                 membership.avatarVersion = profile.avatarVersion
                 didChange = true
             }
-            // 写入照片头像到磁盘
-            if let avatarBase64 = profile.avatarPhotoBase64, !avatarBase64.isEmpty,
+            let canRepairMissingAvatarCache = membership.avatarAssetID == nil && membership.avatarPhotoFileName == nil
+
+            if canRepairMissingAvatarCache,
+               let avatarBase64 = profile.avatarPhotoBase64,
+               !avatarBase64.isEmpty,
                let imageData = Data(base64Encoded: avatarBase64) {
                 try? avatarStore.persistAvatarData(imageData, fileName: canonicalFileName)
-                if membership.avatarPhotoFileName != canonicalFileName {
-                    membership.avatarPhotoFileName = canonicalFileName
-                    didChange = true
-                }
-                if membership.avatarAssetID != canonicalFileName {
-                    membership.avatarAssetID = canonicalFileName
-                    didChange = true
-                }
-            } else if membership.avatarAssetID != profile.avatarAssetID {
+                membership.avatarPhotoFileName = canonicalFileName
+                membership.avatarAssetID = canonicalFileName
+                didChange = true
+            } else if canRepairMissingAvatarCache {
                 membership.avatarAssetID = profile.avatarAssetID
                 didChange = true
             }

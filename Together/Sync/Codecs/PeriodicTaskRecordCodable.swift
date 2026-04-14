@@ -3,7 +3,7 @@ import Foundation
 
 /// Bridges `PeriodicTask` ↔ CKRecord.
 ///
-/// Complex nested types (reminderRules, completions, subtasks)
+/// Complex nested types (reminderRules, completions)
 /// are stored as JSON strings in the CKRecord.
 struct PeriodicTaskRecordCodable: RecordCodable {
     static let ckRecordType = "PeriodicTask"
@@ -27,7 +27,6 @@ struct PeriodicTaskRecordCodable: RecordCodable {
         // JSON-encoded arrays
         record["reminderRulesJSON"] = (try? RecordJSON.encode(periodicTask.reminderRules)) as CKRecordValue?
         record["completionsJSON"] = (try? RecordJSON.encode(periodicTask.completions)) as CKRecordValue?
-        record["subtasksJSON"] = (try? RecordJSON.encode(periodicTask.subtasks)) as CKRecordValue?
 
         return record
     }
@@ -47,7 +46,6 @@ struct PeriodicTaskRecordCodable: RecordCodable {
 
         let reminderRulesJSON = (record["reminderRulesJSON"] as? String) ?? "[]"
         let completionsJSON = (record["completionsJSON"] as? String) ?? "[]"
-        let subtasksJSON = (record["subtasksJSON"] as? String) ?? "[]"
 
         let periodicTask = PeriodicTask(
             id: id,
@@ -58,7 +56,6 @@ struct PeriodicTaskRecordCodable: RecordCodable {
             cycle: PeriodicCycle(rawValue: cycleRaw) ?? .weekly,
             reminderRules: (try? RecordJSON.decode(reminderRulesJSON, as: [PeriodicReminderRule].self)) ?? [],
             completions: (try? RecordJSON.decode(completionsJSON, as: [PeriodicCompletion].self)) ?? [],
-            subtasks: (try? RecordJSON.decode(subtasksJSON, as: [PeriodicSubtask].self)) ?? [],
             sortOrder: record["sortOrder"] as? Double ?? 0,
             isActive: record["isActive"] as? Bool ?? true,
             createdAt: createdAt,

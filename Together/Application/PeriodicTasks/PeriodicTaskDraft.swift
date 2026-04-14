@@ -5,20 +5,17 @@ struct PeriodicTaskDraft: Hashable, Sendable {
     var notes: String?
     var cycle: PeriodicCycle
     var reminderRules: [PeriodicReminderRule]
-    var subtasks: [PeriodicSubtask]
 
     nonisolated init(
         title: String = "",
         notes: String? = nil,
         cycle: PeriodicCycle = .monthly,
-        reminderRules: [PeriodicReminderRule] = [],
-        subtasks: [PeriodicSubtask] = []
+        reminderRules: [PeriodicReminderRule] = []
     ) {
         self.title = title
         self.notes = notes
         self.cycle = cycle
         self.reminderRules = reminderRules
-        self.subtasks = subtasks
     }
 
     nonisolated init(task: PeriodicTask) {
@@ -26,8 +23,7 @@ struct PeriodicTaskDraft: Hashable, Sendable {
             title: task.title,
             notes: task.notes,
             cycle: task.cycle,
-            reminderRules: task.reminderRules,
-            subtasks: task.subtasks
+            reminderRules: task.reminderRules
         )
     }
 }

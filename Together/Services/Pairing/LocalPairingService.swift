@@ -14,10 +14,18 @@ actor LocalPairingService: PairingServiceProtocol {
         }
 
         let context = ModelContext(container)
-        let memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
-        let pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+        var memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
+        var pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
         let spaces = (try? context.fetch(FetchDescriptor<PersistentSpace>())) ?? []
         let invites = (try? context.fetch(FetchDescriptor<PersistentInvite>())) ?? []
+        if normalizeLegacyPairProjectionIfNeeded(
+            memberships: memberships,
+            pairSpaces: pairSpaces,
+            context: context
+        ) {
+            memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? memberships
+            pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? pairSpaces
+        }
 
         let pairSpaceIDs = Set(memberships.filter { $0.userID == userID }.map(\.pairSpaceID))
         let relatedPairSpace = pairSpaces.first { pairSpaceIDs.contains($0.id) && $0.endedAt == nil }
@@ -372,10 +380,162 @@ actor LocalPairingService: PairingServiceProtocol {
                 predicate: #Predicate<PersistentPairSpace> { $0.id == pairSpaceID }
             )
         )
-        pairSpaces.first?.statusRawValue = PairSpaceStatus.ended.rawValue
-        pairSpaces.first?.endedAt = .now
+        guard let pairSpace = pairSpaces.first else {
+            return await currentPairingContext(for: actorID)
+        }
+
+        let sharedSpaceID = pairSpace.sharedSpaceID
+        let avatarStore = LocalUserAvatarMediaStore()
+
+        pairSpace.statusRawValue = PairSpaceStatus.ended.rawValue
+        pairSpace.endedAt = .now
+
+        let memberships = try context.fetch(
+            FetchDescriptor<PersistentPairMembership>(
+                predicate: #Predicate<PersistentPairMembership> { $0.pairSpaceID == pairSpaceID }
+            )
+        )
+        let memberUserIDs = memberships.map(\.userID)
+        for membership in memberships {
+            if let fileName = membership.avatarPhotoFileName {
+                try? avatarStore.removeAvatar(named: fileName)
+            }
+            context.delete(membership)
+        }
+
+        let sharedItems = try context.fetch(
+            FetchDescriptor<PersistentItem>(
+                predicate: #Predicate<PersistentItem> { $0.spaceID == sharedSpaceID }
+            )
+        )
+        for item in sharedItems {
+            context.delete(item)
+        }
+
+        let sharedLists = try context.fetch(
+            FetchDescriptor<PersistentTaskList>(
+                predicate: #Predicate<PersistentTaskList> { $0.spaceID == sharedSpaceID }
+            )
+        )
+        for list in sharedLists {
+            context.delete(list)
+        }
+
+        let sharedProjects = try context.fetch(
+            FetchDescriptor<PersistentProject>(
+                predicate: #Predicate<PersistentProject> { $0.spaceID == sharedSpaceID }
+            )
+        )
+        let sharedProjectIDs = sharedProjects.map(\.id)
+        if sharedProjectIDs.isEmpty == false {
+            let sharedSubtasks = try context.fetch(
+                FetchDescriptor<PersistentProjectSubtask>(
+                    predicate: #Predicate<PersistentProjectSubtask> { sharedProjectIDs.contains($0.projectID) }
+                )
+            )
+            for subtask in sharedSubtasks {
+                context.delete(subtask)
+            }
+        }
+        for project in sharedProjects {
+            context.delete(project)
+        }
+
+        let sharedPeriodicTasks = try context.fetch(
+            FetchDescriptor<PersistentPeriodicTask>(
+                predicate: #Predicate<PersistentPeriodicTask> { $0.spaceID == sharedSpaceID }
+            )
+        )
+        for task in sharedPeriodicTasks {
+            context.delete(task)
+        }
+
+        let sharedMutations = try context.fetch(
+            FetchDescriptor<PersistentSyncChange>(
+                predicate: #Predicate<PersistentSyncChange> {
+                    $0.spaceID == sharedSpaceID || $0.spaceID == pairSpaceID
+                }
+            )
+        )
+        for mutation in sharedMutations {
+            context.delete(mutation)
+        }
+
+        let sharedStates = try context.fetch(
+            FetchDescriptor<PersistentSyncState>(
+                predicate: #Predicate<PersistentSyncState> {
+                    $0.spaceID == sharedSpaceID || $0.spaceID == pairSpaceID
+                }
+            )
+        )
+        for state in sharedStates {
+            context.delete(state)
+        }
+
+        if memberUserIDs.isEmpty == false {
+            let sharedProfiles = try context.fetch(
+                FetchDescriptor<PersistentUserProfile>(
+                    predicate: #Predicate<PersistentUserProfile> {
+                        memberUserIDs.contains($0.userID) && $0.userID != actorID
+                    }
+                )
+            )
+            for profile in sharedProfiles {
+                if let fileName = profile.avatarPhotoFileName {
+                    try? avatarStore.removeAvatar(named: fileName)
+                }
+                context.delete(profile)
+            }
+        }
+
+        let sharedSpaces = try context.fetch(
+            FetchDescriptor<PersistentSpace>(
+                predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
+            )
+        )
+        for space in sharedSpaces {
+            context.delete(space)
+        }
+
+        let relatedInvites = try context.fetch(
+            FetchDescriptor<PersistentInvite>(
+                predicate: #Predicate<PersistentInvite> { $0.pairSpaceID == pairSpaceID }
+            )
+        )
+        for invite in relatedInvites {
+            context.delete(invite)
+        }
+
+        context.delete(pairSpace)
         try context.save()
         return await currentPairingContext(for: actorID)
+    }
+
+    @discardableResult
+    private func normalizeLegacyPairProjectionIfNeeded(
+        memberships: [PersistentPairMembership],
+        pairSpaces: [PersistentPairSpace],
+        context: ModelContext
+    ) -> Bool {
+        var didChange = false
+
+        for membership in memberships where membership.avatarAssetID == nil {
+            if let avatarPhotoFileName = membership.avatarPhotoFileName {
+                membership.avatarAssetID = avatarPhotoFileName
+                didChange = true
+            }
+        }
+
+        for pairSpace in pairSpaces where pairSpace.displayName != nil {
+            pairSpace.displayName = nil
+            didChange = true
+        }
+
+        if didChange {
+            try? context.save()
+        }
+
+        return didChange
     }
 
     /// 生成 N 位纯数字邀请码（如 "038471"）

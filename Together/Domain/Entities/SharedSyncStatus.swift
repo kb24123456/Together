@@ -11,12 +11,18 @@ struct SharedSyncStatus: Hashable, Sendable {
     var level: SyncHealthLevel
     var lastSuccessfulSync: Date?
     var pendingMutationCount: Int
+    var failedMutationCount: Int
     var lastError: String?
+    var lastSendError: String?
+    var lastFetchError: String?
 
     static let idle = SharedSyncStatus(
         level: .idle,
         lastSuccessfulSync: nil,
         pendingMutationCount: 0,
-        lastError: nil
+        failedMutationCount: 0,
+        lastError: nil,
+        lastSendError: nil,
+        lastFetchError: nil
     )
 }

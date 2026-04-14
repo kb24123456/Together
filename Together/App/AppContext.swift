@@ -224,19 +224,16 @@ final class AppContext {
     func teardownPairSync(pairSpaceID: UUID) async {
         await container.syncEngineCoordinator.teardownPairSync(pairSpaceID: pairSpaceID)
         seededPairMetadataSpaceIDs.remove(pairSpaceID)
+        if pairSyncPollingPairSpaceID == pairSpaceID {
+            stopPairSyncPolling()
+        }
+        sessionStore.updateSharedSyncStatus(.idle)
     }
 
     /// Queues the current user's shared member profile into the shared authority sync path.
     func syncProfileToPartner(user: User) async {
         guard let summary = sessionStore.pairSpaceSummary,
               summary.pairSpace.status == .active else { return }
-        if let updatedUser = try? await container.userProfileRepository.saveProfile(
-            for: user,
-            displayName: user.displayName,
-            avatarUpdate: .preserveExisting
-        ) {
-            sessionStore.currentUser = updatedUser
-        }
         await submitSharedMutation(
             SyncChange(
                 entityKind: .memberProfile,
@@ -541,10 +538,15 @@ final class AppContext {
         let snapshots = await container.syncCoordinator.mutationLog(for: pairSummary.sharedSpace.id)
         let pendingMutationCount = snapshots.reduce(into: 0) { result, snapshot in
             switch snapshot.lifecycleState {
-            case .pending, .sending, .failed:
+            case .pending, .sending:
                 result += 1
-            case .confirmed:
+            case .confirmed, .failed:
                 break
+            }
+        }
+        let failedMutationCount = snapshots.reduce(into: 0) { result, snapshot in
+            if snapshot.lifecycleState == .failed {
+                result += 1
             }
         }
         let lastMutationError = snapshots
@@ -552,12 +554,15 @@ final class AppContext {
             .lastError
 
         status.pendingMutationCount = pendingMutationCount
+        status.failedMutationCount = failedMutationCount
         if let lastMutationError {
             status.lastError = lastMutationError
             if status.level != .syncing {
                 status.level = .degraded
             }
-        } else if pendingMutationCount > 0, status.level == .healthy {
+        } else if failedMutationCount > 0 {
+            status.level = .degraded
+        } else if pendingMutationCount > 0 {
             status.level = .syncing
         }
 

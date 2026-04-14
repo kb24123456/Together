@@ -11,7 +11,6 @@ final class PersistentPeriodicTask {
     var cycleRawValue: String
     var reminderRulesData: Data?
     var completionsData: Data
-    var subtasksData: Data?
     var sortOrder: Double
     var isActive: Bool
     var createdAt: Date
@@ -26,7 +25,6 @@ final class PersistentPeriodicTask {
         cycleRawValue: String,
         reminderRulesData: Data?,
         completionsData: Data,
-        subtasksData: Data?,
         sortOrder: Double,
         isActive: Bool,
         createdAt: Date,
@@ -40,7 +38,6 @@ final class PersistentPeriodicTask {
         self.cycleRawValue = cycleRawValue
         self.reminderRulesData = reminderRulesData
         self.completionsData = completionsData
-        self.subtasksData = subtasksData
         self.sortOrder = sortOrder
         self.isActive = isActive
         self.createdAt = createdAt
@@ -59,7 +56,6 @@ extension PersistentPeriodicTask {
             cycleRawValue: task.cycle.rawValue,
             reminderRulesData: Self.encode(task.reminderRules),
             completionsData: Self.encode(task.completions),
-            subtasksData: Self.encode(task.subtasks),
             sortOrder: task.sortOrder,
             isActive: task.isActive,
             createdAt: task.createdAt,
@@ -77,7 +73,6 @@ extension PersistentPeriodicTask {
             cycle: PeriodicCycle(rawValue: cycleRawValue) ?? .monthly,
             reminderRules: Self.decode(reminderRulesData, defaultValue: []),
             completions: Self.decode(completionsData, defaultValue: []),
-            subtasks: Self.decode(subtasksData, defaultValue: []),
             sortOrder: sortOrder,
             isActive: isActive,
             createdAt: createdAt,
@@ -92,7 +87,6 @@ extension PersistentPeriodicTask {
         cycleRawValue = task.cycle.rawValue
         reminderRulesData = Self.encode(task.reminderRules)
         completionsData = Self.encode(task.completions)
-        subtasksData = Self.encode(task.subtasks)
         sortOrder = task.sortOrder
         isActive = task.isActive
         updatedAt = task.updatedAt

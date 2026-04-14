@@ -91,7 +91,8 @@ actor CloudKitSyncGateway: CloudSyncGatewayProtocol {
                     recordsToSave.append(record)
                 }
             case .memberProfile:
-                // Profile records are pushed directly via pushProfile()
+                // Legacy public profile writes are retired. Shared member profiles now
+                // travel only through the shared-authority sync path.
                 break
             default:
                 break
@@ -143,32 +144,6 @@ actor CloudKitSyncGateway: CloudSyncGatewayProtocol {
         print("[Sync:Push] ✅ Pushed: saved=\(savedCount) deleted=\(deletedCount)")
         #endif
         return SyncPushResult(pushedCount: savedCount + deletedCount, cursor: nil)
-    }
-
-    // MARK: - Profile Push
-
-    /// 直接推送一个 MemberProfile 记录到公共库
-    func pushProfile(_ payload: CloudKitProfileRecordCodec.MemberProfilePayload) async throws {
-        guard configuration.containerIdentifier.isEmpty == false else {
-            throw CloudKitSyncGatewayError.missingConfiguration
-        }
-        let record = CloudKitProfileRecordCodec.makeRecord(from: payload)
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let op = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-            op.savePolicy = .changedKeys
-            op.modifyRecordsResultBlock = { result in
-                switch result {
-                case .success:
-                    continuation.resume()
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
-            }
-            database.add(op)
-        }
-        #if DEBUG
-        print("[Sync:PushProfile] ✅ Pushed profile for userID=\(payload.userID.uuidString.prefix(8))")
-        #endif
     }
 
     // MARK: - Profile Pull
@@ -284,11 +259,8 @@ actor CloudKitSyncGateway: CloudSyncGatewayProtocol {
             throw error
         }
 
-        // 同时拉取成员 Profile 更新
-        let memberProfiles = (try? await pullProfiles(spaceID: spaceID)) ?? []
-
         #if DEBUG
-        print("[Sync:Pull] spaceID=\(spaceID.uuidString.prefix(8)) tasks=\(changedItems.count) profiles=\(memberProfiles.count)")
+        print("[Sync:Pull] spaceID=\(spaceID.uuidString.prefix(8)) tasks=\(changedItems.count)")
         #endif
 
         let newCursor = SyncCursor(
@@ -303,8 +275,7 @@ actor CloudKitSyncGateway: CloudSyncGatewayProtocol {
             changedRecordIDs: allIDs,
             payload: RemoteSyncPayload(
                 tasks: changedItems,
-                deletedTaskIDs: [],
-                memberProfiles: memberProfiles
+                deletedTaskIDs: []
             )
         )
     }

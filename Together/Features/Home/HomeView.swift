@@ -233,9 +233,7 @@ struct HomeView: View {
 
             if viewModel.isPairModeActive {
                 SyncStatusIndicator(
-                    isSyncing: appContext.sessionStore.sharedSyncStatus.level == .syncing,
-                    lastSyncedAt: appContext.sessionStore.sharedSyncStatus.lastSuccessfulSync,
-                    lastSyncError: appContext.sessionStore.sharedSyncStatus.lastError
+                    status: appContext.sessionStore.sharedSyncStatus
                 )
             }
         }

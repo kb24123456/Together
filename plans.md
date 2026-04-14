@@ -148,6 +148,8 @@ Implementation notes:
 - `SessionStore` now exposes explicit `selectedWorkspace`, `pairBindingState`, and `sharedSyncStatus` so runtime logic no longer has to infer pair state from `activeMode`.
 - `PersistentSyncChange` now persists lifecycle metadata (`pending/sending/confirmed/failed`, attempted/confirmed timestamps, error text), and `LocalSyncCoordinator` exposes an explicit mutation log.
 - Shared sync health now combines per-zone engine health with the persisted mutation log, so pair UI no longer relies on aggregate solo errors.
+- Pair unbind now clears shared projection rows, shared mutation/state rows, pair invites, and partner profile cache artifacts so shared runtime data does not survive after the relationship ends.
+- Pair-mode Today sync chrome now reads `SharedSyncStatus` directly instead of only a generic aggregate last-error string.
 
 ### Milestone 06 [in_progress]
 
@@ -190,8 +192,12 @@ Implementation notes:
 - Compatibility-only profile apply paths now repair `avatarAssetID` alongside cached avatar file names instead of leaving metadata/file drift behind.
 - `syncProfileToPartner` and `onProfileSaved` no longer carry an `includeAvatar` transport switch; shared member-profile submission now relies on persisted `avatarAssetID/avatarVersion` state instead of ad hoc call-site flags.
 - `SyncEngineDelegate.makeMemberProfilePayload(...)` is now the single place that derives member-profile avatar semantics; a profile with `avatarAssetID` but no local blob is treated as a preserved avatar reference, not as an implicit delete.
+- `syncProfileToPartner(user:)` has been reduced to a pure `.memberProfile` shared-mutation submission path and no longer rewrites the private profile store as a side effect.
+- `MemberProfileRecordCodable.Profile` is now metadata-only: shared authority is driven exclusively by `avatarAssetID/avatarVersion/avatarDeleted`, and shared member-profile records no longer carry avatar bytes.
+- `SyncEngineDelegate` and `PairSyncBridge` now apply shared member profiles by explicit asset/delete semantics: only `avatarDeleted` clears an avatar, while asset references update metadata even when no local cache file is present.
+- `makeMemberProfilePayload(...)` no longer inspects `avatarPhotoData`; a blob-only local cache is treated as legacy repair state, and shared payload semantics now depend only on `avatarAssetID/avatarPhotoFileName`.
 
-### Milestone 08 [pending]
+### Milestone 08 [in_progress]
 
 Scope:
 
@@ -202,6 +208,16 @@ Acceptance criteria:
 
 - runtime correctness does not depend on `PersistentPairSpace` compatibility mirrors
 - docs describe the v2.1 state model, mutation model, and verification flow
+- compatibility apply paths repair legacy gaps without overwriting shared-authority data
+
+Implementation notes:
+
+- `CloudKitProfileRecordCodec` and `LocalRemoteSyncApplier` are now explicitly legacy-only repair paths; they may backfill missing cache files or missing avatar references, but they must not overwrite current shared-authority space names, nicknames, or avatar metadata.
+- Legacy avatar base64 payloads are only consumed when local shared-member projection is still missing both `avatarAssetID` and a cache file; once shared-authority metadata exists, legacy payloads are ignored.
+- `CloudKitSyncGateway.pull(...)` no longer mixes legacy public-profile payloads into normal remote task pulls; legacy member-profile reads must now be invoked explicitly for migration/repair only.
+- `CloudKitSyncGateway` has retired legacy public-profile writes entirely; the public member-profile path is now read/repair-only and cannot be used as a runtime correctness fallback.
+- Unbind regression coverage now explicitly verifies that shared projection/state rows are removed while the current user's private profile record remains intact.
+- `TogetherTests` is now `@MainActor`-isolated so Swift 6 actor-safety tightening no longer blocks the test target from compiling while the runtime architecture work continues.
 
 ## Risks
 

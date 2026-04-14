@@ -125,7 +125,6 @@ struct HomeItemDetailSheet: View {
         }
         .presentationDetents([.height(316), .large], selection: $viewModel.detailDetent)
         .presentationDragIndicator(.hidden)
-        .presentationBackgroundInteraction(.enabled)
         .onChange(of: focusedField) { _, newValue in
             guard newValue != nil else { return }
             withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {

@@ -95,19 +95,12 @@ struct RoutinesCycleSection: View {
                     .frame(height: 4)
 
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(progressColor(for: progress))
+                    .fill(AppTheme.colors.coral)
                     .frame(width: proxy.size.width * progress, height: 4)
             }
         }
         .frame(height: 4)
     }
 
-    private func progressColor(for progress: Double) -> Color {
-        if progress > 0.85 {
-            return AppTheme.colors.coral
-        } else if progress > 0.65 {
-            return AppTheme.colors.warning
-        }
-        return AppTheme.colors.accent
-    }
+
 }

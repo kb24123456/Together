@@ -1,8 +1,9 @@
 import CloudKit
 import Foundation
 
-/// 同步成员 profile 信息到 CloudKit 公共库。
-/// 记录以 `{spaceID}-{userID}` 为唯一键，确保每个空间中每个用户只有一条 profile 记录。
+/// 旧公共库成员资料记录编码器。
+/// 仅用于读取 legacy public profile 数据并做一次性迁移/缓存修复，
+/// 不再参与当前 shared-authority 双人同步主链路。
 enum CloudKitProfileRecordCodec {
     nonisolated static let recordType = "MemberProfile"
 
@@ -14,9 +15,10 @@ enum CloudKitProfileRecordCodec {
         var avatarSystemName: String?
         var avatarAssetID: String?
         var avatarVersion: Int = 0
-        /// Base64 编码的头像照片数据（压缩后的 JPEG）
+        /// Legacy 头像字节，仅允许作为本地缓存修复输入。
+        /// 运行时 shared-authority 语义不再依赖该字段。
         var avatarPhotoBase64: String?
-        /// PairSpace 的显示名称（任何一方都可以修改）
+        /// Legacy 共享空间名称，仅允许在本地仍是默认/空白时做一次性补齐。
         var pairSpaceDisplayName: String?
         var updatedAt: Date
     }

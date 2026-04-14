@@ -7,6 +7,7 @@ import Testing
 import UIKit
 #endif
 
+@MainActor
 struct TogetherTests {
     @Test func itemStateMachineMovesPendingToInProgressWhenPartnerAgrees() async throws {
         let next = await ItemStateMachine.nextStatus(
@@ -256,6 +257,289 @@ struct TogetherTests {
         #expect(sharedSpace.updatedAt == Date(timeIntervalSince1970: 0))
         #expect(pairSpace.createdAt == Date(timeIntervalSince1970: 0))
         #expect(pairSpace.activatedAt == Date(timeIntervalSince1970: 0))
+    }
+
+    @Test @MainActor
+    func sharedSyncStatusExposesSendFetchAndFailedMutationDetails() async throws {
+        let monitor = SyncHealthMonitor()
+        let pairSpaceID = UUID()
+        let zoneName = "pair-\(pairSpaceID.uuidString)"
+        let lastSync = Date(timeIntervalSince1970: 456)
+
+        monitor.engineStates[zoneName] = SyncHealthMonitor.ZoneSyncHealth(
+            lastSuccessfulSync: lastSync,
+            pendingChangeCount: 2,
+            consecutiveFailures: 1,
+            lastError: "send failed",
+            lastSendError: "send failed",
+            lastFetchError: "fetch failed",
+            isSyncing: false
+        )
+
+        let status = monitor.sharedStatus(for: pairSpaceID)
+        #expect(status.level == .degraded)
+        #expect(status.lastSuccessfulSync == lastSync)
+        #expect(status.pendingMutationCount == 2)
+        #expect(status.failedMutationCount == 0)
+        #expect(status.lastSendError == "send failed")
+        #expect(status.lastFetchError == "fetch failed")
+        #expect(status.lastError == "send failed")
+    }
+
+    @Test @MainActor
+    func localPairingServiceUnbindClearsSharedProjectionAndMutationState() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let pairingService = LocalPairingService(container: persistence.container)
+        let currentUserID = MockDataFactory.currentUserID
+        _ = try await pairingService.createInvite(
+            from: currentUserID,
+            displayName: MockDataFactory.makeCurrentUser().displayName
+        )
+
+        let pairingContext = await pairingService.currentPairingContext(for: currentUserID)
+        let pairSpaceID = try #require(pairingContext.pairSpaceSummary?.pairSpace.id)
+        let sharedSpaceID = try #require(pairingContext.pairSpaceSummary?.sharedSpace.id)
+
+        let context = ModelContext(persistence.container)
+        let project = Project(
+            id: UUID(),
+            spaceID: sharedSpaceID,
+            name: "共享项目",
+            notes: nil,
+            colorToken: nil,
+            status: .active,
+            targetDate: nil,
+            remindAt: nil,
+            taskCount: 0,
+            subtasks: [],
+            createdAt: .now,
+            updatedAt: .now,
+            completedAt: nil
+        )
+        let subtask = ProjectSubtask(
+            id: UUID(),
+            projectID: project.id,
+            title: "共享子任务",
+            isCompleted: false,
+            sortOrder: 0
+        )
+        let taskList = TaskList(
+            id: UUID(),
+            spaceID: sharedSpaceID,
+            name: "共享清单",
+            kind: .custom,
+            colorToken: nil,
+            sortOrder: 0,
+            isArchived: false,
+            taskCount: 0,
+            createdAt: .now,
+            updatedAt: .now
+        )
+        let item = Item(
+            id: UUID(),
+            spaceID: sharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "共享任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            assigneeMode: .both,
+            dueAt: nil,
+            hasExplicitTime: false,
+            remindAt: nil,
+            status: .inProgress,
+            assignmentState: .accepted,
+            latestResponse: nil,
+            responseHistory: [],
+            assignmentMessages: [],
+            lastActionByUserID: nil,
+            lastActionAt: nil,
+            createdAt: .now,
+            updatedAt: .now,
+            completedAt: nil,
+            occurrenceCompletions: [],
+            isPinned: false,
+            isDraft: false,
+            isArchived: false,
+            archivedAt: nil,
+            repeatRule: nil,
+            reminderRequestedAt: nil
+        )
+        let periodicTask = PeriodicTask(
+            id: UUID(),
+            spaceID: sharedSpaceID,
+            creatorID: MockDataFactory.currentUserID,
+            title: "共享周期任务",
+            notes: nil,
+            cycle: .weekly,
+            reminderRules: [],
+            completions: [],
+            sortOrder: 0,
+            isActive: true,
+            createdAt: .now,
+            updatedAt: .now
+        )
+        let projectID = project.id
+        let partnerUserID = MockDataFactory.partnerUserID
+        context.insert(PersistentProject(project: project))
+        context.insert(PersistentProjectSubtask(subtask: subtask))
+        context.insert(PersistentTaskList(list: taskList))
+        context.insert(PersistentItem(item: item))
+        context.insert(PersistentPeriodicTask(task: periodicTask))
+        context.insert(
+            PersistentSyncChange(
+                change: SyncChange(
+                    entityKind: .task,
+                    operation: .upsert,
+                    recordID: item.id,
+                    spaceID: sharedSpaceID
+                )
+            )
+        )
+        context.insert(
+            PersistentSyncState(
+                state: SyncState(
+                    spaceID: sharedSpaceID,
+                    cursor: nil,
+                    lastSyncedAt: .now,
+                    updatedAt: .now
+                )
+            )
+        )
+        context.insert(
+            PersistentSyncState(
+                state: SyncState(
+                    spaceID: pairSpaceID,
+                    cursor: nil,
+                    lastSyncedAt: .now,
+                    updatedAt: .now
+                )
+            )
+        )
+        context.insert(
+            PersistentInvite(
+                invite: Invite(
+                    id: UUID(),
+                    pairSpaceID: pairSpaceID,
+                    inviterID: MockDataFactory.currentUserID,
+                    inviteCode: "123456",
+                    status: .accepted,
+                    sentAt: .now,
+                    respondedAt: .now,
+                    expiresAt: .now.addingTimeInterval(60)
+                ),
+                recipientUserID: MockDataFactory.partnerUserID
+            )
+        )
+        var partnerUser = MockDataFactory.makePartnerUser()
+        partnerUser.avatarPhotoFileName = "partner-avatar.jpg"
+        partnerUser.avatarAssetID = "partner-avatar.jpg"
+        partnerUser.avatarVersion = 2
+        partnerUser.updatedAt = Date.now
+        let partnerProfile = PersistentUserProfile(user: partnerUser)
+        partnerProfile.avatarPhotoData = Data([1, 2, 3])
+        context.insert(partnerProfile)
+        let currentUserProfile = PersistentUserProfile(user: MockDataFactory.makeCurrentUser())
+        currentUserProfile.updatedAt = .now
+        context.insert(currentUserProfile)
+        try context.save()
+
+        _ = try await pairingService.unbind(pairSpaceID: pairSpaceID, actorID: currentUserID)
+
+        let postContext = ModelContext(persistence.container)
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentPairMembership>(
+                    predicate: #Predicate<PersistentPairMembership> { $0.pairSpaceID == pairSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentPairSpace>(
+                    predicate: #Predicate<PersistentPairSpace> { $0.id == pairSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentSpace>(
+                    predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentItem>(
+                    predicate: #Predicate<PersistentItem> { $0.spaceID == sharedSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentTaskList>(
+                    predicate: #Predicate<PersistentTaskList> { $0.spaceID == sharedSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentProject>(
+                    predicate: #Predicate<PersistentProject> { $0.spaceID == sharedSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentProjectSubtask>(
+                    predicate: #Predicate<PersistentProjectSubtask> { $0.projectID == projectID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentPeriodicTask>(
+                    predicate: #Predicate<PersistentPeriodicTask> { $0.spaceID == sharedSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentSyncChange>(
+                    predicate: #Predicate<PersistentSyncChange> { $0.spaceID == sharedSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentSyncState>(
+                    predicate: #Predicate<PersistentSyncState> { $0.spaceID == sharedSpaceID || $0.spaceID == pairSpaceID }
+                )
+            ).isEmpty
+        )
+        #expect(
+            try postContext.fetch(
+                FetchDescriptor<PersistentInvite>(
+                    predicate: #Predicate<PersistentInvite> { $0.pairSpaceID == pairSpaceID }
+                )
+            ).isEmpty
+        )
+
+        let remainingProfiles = try postContext.fetch(
+            FetchDescriptor<PersistentUserProfile>(
+                predicate: #Predicate<PersistentUserProfile> { $0.userID == partnerUserID }
+            )
+        )
+        #expect(remainingProfiles.isEmpty)
+
+        let currentUserProfiles = try postContext.fetch(
+            FetchDescriptor<PersistentUserProfile>(
+                predicate: #Predicate<PersistentUserProfile> { $0.userID == currentUserID }
+            )
+        )
+        #expect(currentUserProfiles.count == 1)
     }
 
     @Test
@@ -2009,6 +2293,164 @@ struct TogetherTests {
     }
 
     @Test
+    func localRemoteSyncApplierOnlyRepairsLegacyProfileGapsWithoutOverwritingSharedAuthority() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let sharedSpaceID = UUID()
+        let pairSpaceID = UUID()
+        let partnerUserID = UUID()
+        let context = ModelContext(persistence.container)
+
+        context.insert(
+            PersistentSpace(
+                id: sharedSpaceID,
+                typeRawValue: SpaceType.pair.rawValue,
+                displayName: "权威空间名",
+                ownerUserID: MockDataFactory.currentUserID,
+                statusRawValue: SpaceStatus.active.rawValue,
+                createdAt: .now,
+                updatedAt: .now,
+                archivedAt: nil
+            )
+        )
+        context.insert(
+            PersistentPairSpace(
+                id: pairSpaceID,
+                sharedSpaceID: sharedSpaceID,
+                statusRawValue: PairSpaceStatus.active.rawValue,
+                createdAt: .now,
+                activatedAt: .now,
+                endedAt: nil
+            )
+        )
+        context.insert(
+            PersistentPairMembership(
+                pairSpaceID: pairSpaceID,
+                userID: partnerUserID,
+                nickname: "权威昵称",
+                joinedAt: .now,
+                avatarSystemName: "person.crop.circle.fill",
+                avatarPhotoFileName: nil,
+                avatarAssetID: "authoritative-avatar.jpg",
+                avatarVersion: 5
+            )
+        )
+        try context.save()
+
+        let applier = LocalRemoteSyncApplier(
+            itemRepository: MockItemRepository(),
+            modelContainer: persistence.container
+        )
+
+        let payload = RemoteSyncPayload(
+            memberProfiles: [
+                CloudKitProfileRecordCodec.MemberProfilePayload(
+                    userID: partnerUserID,
+                    spaceID: sharedSpaceID,
+                    displayName: "legacy nickname",
+                    avatarSystemName: "person",
+                    avatarAssetID: "legacy-avatar.jpg",
+                    avatarVersion: 1,
+                    avatarPhotoBase64: nil,
+                    pairSpaceDisplayName: "legacy space",
+                    updatedAt: .distantPast
+                )
+            ]
+        )
+
+        let appliedCount = try await applier.apply(payload, in: sharedSpaceID)
+        let verificationContext = ModelContext(persistence.container)
+        let spaces = try verificationContext.fetch(FetchDescriptor<PersistentSpace>())
+        let memberships = try verificationContext.fetch(FetchDescriptor<PersistentPairMembership>())
+        let space = try #require(spaces.first(where: { $0.id == sharedSpaceID }))
+        let membership = try #require(memberships.first(where: { $0.userID == partnerUserID }))
+
+        #expect(appliedCount == 0)
+        #expect(space.displayName == "权威空间名")
+        #expect(membership.nickname == "权威昵称")
+        #expect(membership.avatarSystemName == "person.crop.circle.fill")
+        #expect(membership.avatarAssetID == "authoritative-avatar.jpg")
+        #expect(membership.avatarVersion == 5)
+    }
+
+    @Test
+    func currentPairingContextNormalizesLegacyPairProjectionFields() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let pairingService = LocalPairingService(container: persistence.container)
+        let userID = UUID()
+        let partnerID = UUID()
+        let pairSpaceID = UUID()
+        let sharedSpaceID = UUID()
+        let now = Date.now
+        let context = ModelContext(persistence.container)
+
+        context.insert(
+            PersistentSpace(
+                id: sharedSpaceID,
+                typeRawValue: SpaceType.pair.rawValue,
+                displayName: "我们的小家",
+                ownerUserID: userID,
+                statusRawValue: SpaceStatus.active.rawValue,
+                createdAt: now,
+                updatedAt: now,
+                archivedAt: nil
+            )
+        )
+        context.insert(
+            PersistentPairSpace(
+                id: pairSpaceID,
+                sharedSpaceID: sharedSpaceID,
+                statusRawValue: PairSpaceStatus.active.rawValue,
+                displayName: "legacy-name",
+                createdAt: now,
+                activatedAt: now,
+                endedAt: nil
+            )
+        )
+        context.insert(
+            PersistentPairMembership(
+                pairSpaceID: pairSpaceID,
+                userID: userID,
+                nickname: "Self",
+                joinedAt: now
+            )
+        )
+        context.insert(
+            PersistentPairMembership(
+                pairSpaceID: pairSpaceID,
+                userID: partnerID,
+                nickname: "Partner",
+                joinedAt: now,
+                avatarSystemName: "person.crop.circle.fill",
+                avatarPhotoFileName: "legacy-avatar.jpg",
+                avatarAssetID: nil,
+                avatarVersion: 2
+            )
+        )
+        try context.save()
+
+        _ = await pairingService.currentPairingContext(for: userID)
+
+        let verifyContext = ModelContext(persistence.container)
+        let repairedPairSpace = try #require(
+            verifyContext.fetch(
+                FetchDescriptor<PersistentPairSpace>(
+                    predicate: #Predicate<PersistentPairSpace> { $0.id == pairSpaceID }
+                )
+            ).first
+        )
+        let repairedMembership = try #require(
+            verifyContext.fetch(
+                FetchDescriptor<PersistentPairMembership>(
+                    predicate: #Predicate<PersistentPairMembership> { $0.userID == partnerID }
+                )
+            ).first
+        )
+
+        #expect(repairedPairSpace.displayName == nil)
+        #expect(repairedMembership.avatarAssetID == "legacy-avatar.jpg")
+    }
+
+    @Test
     func cloudKitTaskRecordCodecRoundTripsTaskPayload() async throws {
         let item = MockDataFactory.makeItems()[0]
 
@@ -2388,13 +2830,143 @@ struct TogetherTests {
 
         let payload = SyncEngineDelegate.makeMemberProfilePayload(
             from: persistent,
-            sharedSpaceID: UUID(),
-            avatarDataResolver: { _ in nil }
+            sharedSpaceID: UUID()
         )
 
         #expect(payload.avatarAssetID == "shared-avatar-reference.jpg")
         #expect(payload.avatarDeleted == false)
-        #expect(payload.avatarPhotoData == nil)
+    }
+
+    @Test
+    func memberProfilePayloadMarksExplicitDeleteWhenAvatarReferenceAndCacheAreMissing() {
+        let persistent = PersistentUserProfile(
+            userID: UUID(),
+            displayName: "Deleted avatar user",
+            avatarSystemName: nil,
+            avatarPhotoFileName: nil,
+            avatarAssetID: nil,
+            avatarVersion: 4,
+            avatarPhotoData: nil,
+            taskReminderEnabled: true,
+            dailySummaryEnabled: true,
+            calendarReminderEnabled: true,
+            futureCollaborationInviteEnabled: true,
+            taskUrgencyWindowMinutes: 30,
+            defaultSnoozeMinutes: 10,
+            quickTimePresetMinutes: [5, 10, 15],
+            completedTaskAutoArchiveEnabled: false,
+            completedTaskAutoArchiveDays: 30,
+            updatedAt: .now
+        )
+
+        let payload = SyncEngineDelegate.makeMemberProfilePayload(
+            from: persistent,
+            sharedSpaceID: UUID()
+        )
+
+        #expect(payload.avatarAssetID == nil)
+        #expect(payload.avatarDeleted)
+    }
+
+    @Test
+    func memberProfilePayloadTreatsBlobOnlyAvatarAsDeletedWithoutInventingReference() {
+        let persistent = PersistentUserProfile(
+            userID: UUID(),
+            displayName: "Blob only user",
+            avatarSystemName: nil,
+            avatarPhotoFileName: nil,
+            avatarAssetID: nil,
+            avatarVersion: 4,
+            avatarPhotoData: Data([1, 2, 3]),
+            taskReminderEnabled: true,
+            dailySummaryEnabled: true,
+            calendarReminderEnabled: true,
+            futureCollaborationInviteEnabled: true,
+            taskUrgencyWindowMinutes: 30,
+            defaultSnoozeMinutes: 10,
+            quickTimePresetMinutes: [5, 10, 15],
+            completedTaskAutoArchiveEnabled: false,
+            completedTaskAutoArchiveDays: 30,
+            updatedAt: .now
+        )
+
+        let payload = SyncEngineDelegate.makeMemberProfilePayload(
+            from: persistent,
+            sharedSpaceID: UUID()
+        )
+
+        #expect(payload.avatarAssetID == nil)
+        #expect(payload.avatarDeleted)
+    }
+
+    @Test
+    func memberProfileRecordRoundTripsAssetReferenceAndDeleteSemantics() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "pair-\(UUID().uuidString)")
+        let original = MemberProfileRecordCodable.Profile(
+            userID: UUID(),
+            spaceID: UUID(),
+            displayName: "Round Trip",
+            avatarSystemName: "person.crop.circle.fill",
+            avatarAssetID: "shared-asset-reference.jpg",
+            avatarVersion: 7,
+            avatarDeleted: false,
+            updatedAt: .now
+        )
+
+        let record = MemberProfileRecordCodable(profile: original).toCKRecord(in: zoneID)
+        let decoded = try await MemberProfileRecordCodable.from(record: record).profile
+
+        #expect(decoded.avatarAssetID == original.avatarAssetID)
+        #expect(decoded.avatarVersion == original.avatarVersion)
+        #expect(decoded.avatarDeleted == false)
+    }
+
+    @Test
+    func memberProfileRecordRemainsMetadataOnlyWhenAssetReferenceExists() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "pair-\(UUID().uuidString)")
+        let fileName = "shared-asset-\(UUID().uuidString.lowercased()).jpg"
+        let original = MemberProfileRecordCodable.Profile(
+            userID: UUID(),
+            spaceID: UUID(),
+            displayName: "Asset Metadata",
+            avatarSystemName: nil,
+            avatarAssetID: fileName,
+            avatarVersion: 2,
+            avatarDeleted: false,
+            updatedAt: .now
+        )
+        let store = LocalUserAvatarMediaStore()
+
+        try? store.removeAvatar(named: fileName)
+        let record = MemberProfileRecordCodable(profile: original).toCKRecord(in: zoneID)
+        let decoded = try await MemberProfileRecordCodable.from(record: record).profile
+
+        #expect(decoded.avatarAssetID == fileName)
+        #expect(record["avatarAsset"] == nil)
+        #expect(store.fileExists(named: fileName) == false)
+    }
+
+    @Test
+    func memberProfileRecordDoesNotInventAvatarReferenceFromUserIDWhenReferenceIsMissing() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "pair-\(UUID().uuidString)")
+        let userID = UUID()
+        let original = MemberProfileRecordCodable.Profile(
+            userID: userID,
+            spaceID: UUID(),
+            displayName: "Missing Ref",
+            avatarSystemName: nil,
+            avatarAssetID: nil,
+            avatarVersion: 3,
+            avatarDeleted: false,
+            updatedAt: .now
+        )
+
+        let record = MemberProfileRecordCodable(profile: original).toCKRecord(in: zoneID)
+        let decoded = try await MemberProfileRecordCodable.from(record: record).profile
+
+        #expect(decoded.avatarAssetID == nil)
+        #expect(decoded.avatarDeleted == false)
+        #expect(record["avatarAssetID"] == nil)
     }
 
     @Test

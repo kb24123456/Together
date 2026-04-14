@@ -126,7 +126,7 @@ struct RoutinesListContent: View {
                     .fill(AppTheme.colors.outline)
 
                 Capsule()
-                    .fill(progressColor(for: progress))
+                    .fill(AppTheme.colors.coral)
                     .frame(width: proxy.size.width * progress)
             }
         }
@@ -262,12 +262,4 @@ struct RoutinesListContent: View {
         .padding(.top, 60)
     }
 
-    private func progressColor(for progress: Double) -> Color {
-        if progress > 0.85 {
-            return AppTheme.colors.coral
-        } else if progress > 0.65 {
-            return AppTheme.colors.warning
-        }
-        return AppTheme.colors.accent
-    }
 }

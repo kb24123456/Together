@@ -2,20 +2,18 @@ import SwiftUI
 
 /// 同步状态小图标，在双人模式下显示于 Home 页面
 struct SyncStatusIndicator: View {
-    let isSyncing: Bool
-    let lastSyncedAt: Date?
-    let lastSyncError: String?
+    let status: SharedSyncStatus
 
     @State private var showSuccess = false
 
     var body: some View {
         HStack(spacing: 4) {
-            if isSyncing {
+            if status.level == .syncing {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.textTertiary)
-                    .symbolEffect(.rotate, options: .repeating, value: isSyncing)
-            } else if let lastSyncError, !lastSyncError.isEmpty {
+                    .symbolEffect(.rotate, options: .repeating, value: status.level == .syncing)
+            } else if status.failedMutationCount > 0 || resolvedErrorText != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.coral)
@@ -27,7 +25,7 @@ struct SyncStatusIndicator: View {
             }
 
             // 同步时间戳（调试用）
-            if let lastSyncedAt {
+            if let lastSyncedAt = status.lastSuccessfulSync {
                 Text(syncTimeText(lastSyncedAt))
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(AppTheme.colors.textTertiary.opacity(0.6))
@@ -37,9 +35,9 @@ struct SyncStatusIndicator: View {
                     .foregroundStyle(AppTheme.colors.textTertiary.opacity(0.4))
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: isSyncing)
+        .animation(.easeInOut(duration: 0.3), value: status.level == .syncing)
         .animation(.easeInOut(duration: 0.3), value: showSuccess)
-        .onChange(of: lastSyncedAt) { _, newValue in
+        .onChange(of: status.lastSuccessfulSync) { _, newValue in
             guard newValue != nil else { return }
             showSuccess = true
             Task { @MainActor in
@@ -47,6 +45,12 @@ struct SyncStatusIndicator: View {
                 showSuccess = false
             }
         }
+    }
+
+    private var resolvedErrorText: String? {
+        status.lastSendError
+        ?? status.lastFetchError
+        ?? status.lastError
     }
 
     private func syncTimeText(_ date: Date) -> String {

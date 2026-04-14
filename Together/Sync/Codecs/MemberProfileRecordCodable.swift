@@ -11,7 +11,6 @@ struct MemberProfileRecordCodable: RecordCodable {
         var avatarSystemName: String?
         var avatarAssetID: String?
         var avatarVersion: Int
-        var avatarPhotoData: Data?
         var avatarDeleted: Bool
         var updatedAt: Date
     }
@@ -29,14 +28,6 @@ struct MemberProfileRecordCodable: RecordCodable {
         record["avatarVersion"] = profile.avatarVersion as CKRecordValue
         record["avatarDeleted"] = profile.avatarDeleted as CKRecordValue
         record["updatedAt"] = profile.updatedAt as CKRecordValue
-
-        if let avatarPhotoData = profile.avatarPhotoData {
-            let store = LocalUserAvatarMediaStore()
-            let fileName = profile.avatarAssetID ?? store.canonicalFileName(for: profile.userID)
-            try? store.persistAvatarData(avatarPhotoData, fileName: fileName)
-            record["avatarAsset"] = CKAsset(fileURL: UserAvatarStorage.fileURL(fileName: fileName))
-        }
-
         return record
     }
 
@@ -55,13 +46,6 @@ struct MemberProfileRecordCodable: RecordCodable {
         let avatarDeleted = record["avatarDeleted"] as? Bool ?? false
         let avatarAssetID = record["avatarAssetID"] as? String
         let avatarVersion = record["avatarVersion"] as? Int ?? 0
-        let avatarPhotoData: Data?
-        if let asset = record["avatarAsset"] as? CKAsset,
-           let fileURL = asset.fileURL {
-            avatarPhotoData = try? Data(contentsOf: fileURL)
-        } else {
-            avatarPhotoData = nil
-        }
 
         return MemberProfileRecordCodable(
             profile: Profile(
@@ -71,7 +55,6 @@ struct MemberProfileRecordCodable: RecordCodable {
                 avatarSystemName: record["avatarSystemName"] as? String,
                 avatarAssetID: avatarAssetID,
                 avatarVersion: avatarVersion,
-                avatarPhotoData: avatarPhotoData,
                 avatarDeleted: avatarDeleted,
                 updatedAt: updatedAt
             )

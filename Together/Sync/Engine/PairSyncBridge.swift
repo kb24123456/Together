@@ -84,13 +84,10 @@ final class PairSyncBridge: Sendable {
                 }
                 membership.avatarPhotoFileName = nil
                 membership.avatarAssetID = nil
-            } else if let imageData = profile.avatarPhotoData {
-                let fileName = profile.avatarAssetID ?? store.canonicalFileName(for: profile.userID)
-                try? store.persistAvatarData(imageData, fileName: fileName)
-                membership.avatarPhotoFileName = fileName
-                membership.avatarAssetID = profile.avatarAssetID ?? fileName
             } else if let avatarAssetID = profile.avatarAssetID {
-                if membership.avatarAssetID != avatarAssetID, membership.avatarPhotoFileName != avatarAssetID {
+                if store.fileExists(named: avatarAssetID) {
+                    membership.avatarPhotoFileName = avatarAssetID
+                } else if membership.avatarAssetID != avatarAssetID, membership.avatarPhotoFileName != avatarAssetID {
                     membership.avatarPhotoFileName = nil
                 }
                 membership.avatarAssetID = avatarAssetID
@@ -106,14 +103,10 @@ final class PairSyncBridge: Sendable {
                 userProfile.avatarPhotoFileName = nil
                 userProfile.avatarAssetID = nil
                 userProfile.avatarPhotoData = nil
-            } else if let imageData = profile.avatarPhotoData {
-                let fileName = profile.avatarAssetID ?? store.canonicalFileName(for: profile.userID)
-                try? store.persistAvatarData(imageData, fileName: fileName)
-                userProfile.avatarPhotoFileName = fileName
-                userProfile.avatarAssetID = profile.avatarAssetID ?? fileName
-                userProfile.avatarPhotoData = imageData
             } else if let avatarAssetID = profile.avatarAssetID {
-                if userProfile.avatarAssetID != avatarAssetID, userProfile.avatarPhotoFileName != avatarAssetID {
+                if store.fileExists(named: avatarAssetID) {
+                    userProfile.avatarPhotoFileName = avatarAssetID
+                } else if userProfile.avatarAssetID != avatarAssetID, userProfile.avatarPhotoFileName != avatarAssetID {
                     userProfile.avatarPhotoFileName = nil
                     userProfile.avatarPhotoData = nil
                 }

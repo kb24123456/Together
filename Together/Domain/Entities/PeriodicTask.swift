@@ -54,20 +54,6 @@ struct PeriodicCompletion: Codable, Hashable, Sendable {
     var completedAt: Date
 }
 
-// MARK: - Subtask
-
-struct PeriodicSubtask: Identifiable, Codable, Hashable, Sendable {
-    let id: UUID
-    var title: String
-    var isCompleted: Bool
-
-    nonisolated init(id: UUID = UUID(), title: String, isCompleted: Bool = false) {
-        self.id = id
-        self.title = title
-        self.isCompleted = isCompleted
-    }
-}
-
 // MARK: - Periodic Task Entity
 
 struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
@@ -79,7 +65,6 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
     var cycle: PeriodicCycle
     var reminderRules: [PeriodicReminderRule]
     var completions: [PeriodicCompletion]
-    var subtasks: [PeriodicSubtask]
     var sortOrder: Double
     var isActive: Bool
     let createdAt: Date
@@ -95,7 +80,6 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
         cycle = try container.decode(PeriodicCycle.self, forKey: .cycle)
         reminderRules = try container.decode([PeriodicReminderRule].self, forKey: .reminderRules)
         completions = try container.decode([PeriodicCompletion].self, forKey: .completions)
-        subtasks = try container.decodeIfPresent([PeriodicSubtask].self, forKey: .subtasks) ?? []
         sortOrder = try container.decode(Double.self, forKey: .sortOrder)
         isActive = try container.decode(Bool.self, forKey: .isActive)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
@@ -111,7 +95,6 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
         cycle: PeriodicCycle,
         reminderRules: [PeriodicReminderRule] = [],
         completions: [PeriodicCompletion] = [],
-        subtasks: [PeriodicSubtask] = [],
         sortOrder: Double = 0,
         isActive: Bool = true,
         createdAt: Date = .now,
@@ -125,7 +108,6 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
         self.cycle = cycle
         self.reminderRules = reminderRules
         self.completions = completions
-        self.subtasks = subtasks
         self.sortOrder = sortOrder
         self.isActive = isActive
         self.createdAt = createdAt

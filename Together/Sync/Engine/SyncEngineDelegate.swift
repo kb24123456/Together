@@ -49,23 +49,13 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
 
     static func makeMemberProfilePayload(
         from persistent: PersistentUserProfile,
-        sharedSpaceID: UUID,
-        avatarDataResolver: (String) -> Data? = { fileName in
-            try? LocalUserAvatarMediaStore().avatarData(named: fileName)
-        }
+        sharedSpaceID: UUID
     ) -> MemberProfileRecordCodable.Profile {
-        let avatarReference = persistent.avatarAssetID ?? persistent.avatarPhotoFileName
-        let avatarDeleted = avatarReference == nil && persistent.avatarPhotoData == nil
-        let avatarPhotoData: Data?
-        if avatarDeleted {
-            avatarPhotoData = nil
-        } else if let persistedData = persistent.avatarPhotoData {
-            avatarPhotoData = persistedData
-        } else if let avatarReference {
-            avatarPhotoData = avatarDataResolver(avatarReference)
-        } else {
-            avatarPhotoData = nil
-        }
+        let avatarReference = persistent.avatarAssetID
+            ?? persistent.avatarPhotoFileName
+        // Shared member-profile sync is metadata-only. Local avatar bytes are repair/migration
+        // inputs only and must not influence shared-authority semantics.
+        let avatarDeleted = avatarReference == nil
 
         return MemberProfileRecordCodable.Profile(
             userID: persistent.userID,
@@ -74,7 +64,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             avatarSystemName: persistent.avatarSystemName,
             avatarAssetID: avatarReference,
             avatarVersion: persistent.avatarVersion,
-            avatarPhotoData: avatarPhotoData,
             avatarDeleted: avatarDeleted,
             updatedAt: persistent.updatedAt
         )
@@ -110,14 +99,19 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 $0.isSyncing = false
                 $0.lastSuccessfulSync = .now
                 $0.consecutiveFailures = 0
-                $0.lastError = nil
+                $0.lastFetchError = nil
+                $0.lastError = $0.lastSendError
             }
 
         case .willSendChanges:
             healthMonitor.updateZone(zoneID.zoneName) { $0.isSyncing = true }
 
         case .didSendChanges:
-            healthMonitor.updateZone(zoneID.zoneName) { $0.isSyncing = false }
+            healthMonitor.updateZone(zoneID.zoneName) {
+                $0.isSyncing = false
+                $0.lastSendError = nil
+                $0.lastError = $0.lastFetchError
+            }
 
         case .sentDatabaseChanges,
              .willFetchRecordZoneChanges,
@@ -334,6 +328,7 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 )
                 healthMonitor.updateZone(zoneID.zoneName) {
                     $0.consecutiveFailures += 1
+                    $0.lastSendError = error.localizedDescription
                     $0.lastError = error.localizedDescription
                 }
             }
@@ -348,7 +343,8 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             )
             healthMonitor.updateZone(zoneID.zoneName) {
                 $0.pendingChangeCount = max(0, $0.pendingChangeCount - savedRecords.count)
-                $0.lastError = nil
+                $0.lastSendError = nil
+                $0.lastError = $0.lastFetchError
                 $0.consecutiveFailures = 0
                 $0.lastSuccessfulSync = .now
             }
@@ -532,13 +528,10 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 }
                 membership.avatarPhotoFileName = nil
                 membership.avatarAssetID = nil
-            } else if let data = profile.avatarPhotoData {
-                let fileName = profile.avatarAssetID ?? store.canonicalFileName(for: profile.userID)
-                try? store.persistAvatarData(data, fileName: fileName)
-                membership.avatarPhotoFileName = fileName
-                membership.avatarAssetID = profile.avatarAssetID ?? fileName
             } else if let avatarAssetID = profile.avatarAssetID {
-                if membership.avatarAssetID != avatarAssetID, membership.avatarPhotoFileName != avatarAssetID {
+                if store.fileExists(named: avatarAssetID) {
+                    membership.avatarPhotoFileName = avatarAssetID
+                } else if membership.avatarAssetID != avatarAssetID, membership.avatarPhotoFileName != avatarAssetID {
                     membership.avatarPhotoFileName = nil
                 }
                 membership.avatarAssetID = avatarAssetID
@@ -554,14 +547,10 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 userProfile.avatarPhotoFileName = nil
                 userProfile.avatarAssetID = nil
                 userProfile.avatarPhotoData = nil
-            } else if let data = profile.avatarPhotoData {
-                let fileName = profile.avatarAssetID ?? store.canonicalFileName(for: profile.userID)
-                try? store.persistAvatarData(data, fileName: fileName)
-                userProfile.avatarPhotoFileName = fileName
-                userProfile.avatarAssetID = profile.avatarAssetID ?? fileName
-                userProfile.avatarPhotoData = data
             } else if let avatarAssetID = profile.avatarAssetID {
-                if userProfile.avatarAssetID != avatarAssetID, userProfile.avatarPhotoFileName != avatarAssetID {
+                if store.fileExists(named: avatarAssetID) {
+                    userProfile.avatarPhotoFileName = avatarAssetID
+                } else if userProfile.avatarAssetID != avatarAssetID, userProfile.avatarPhotoFileName != avatarAssetID {
                     userProfile.avatarPhotoFileName = nil
                     userProfile.avatarPhotoData = nil
                 }

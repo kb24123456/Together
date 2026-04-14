@@ -16,6 +16,8 @@ final class SyncHealthMonitor {
         var pendingChangeCount: Int = 0
         var consecutiveFailures: Int = 0
         var lastError: String?
+        var lastSendError: String?
+        var lastFetchError: String?
         var isSyncing: Bool = false
     }
 
@@ -53,7 +55,10 @@ final class SyncHealthMonitor {
             level: level,
             lastSuccessfulSync: health.lastSuccessfulSync,
             pendingMutationCount: health.pendingChangeCount,
-            lastError: health.lastError
+            failedMutationCount: 0,
+            lastError: health.lastError,
+            lastSendError: health.lastSendError,
+            lastFetchError: health.lastFetchError
         )
     }
 

@@ -38,7 +38,6 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
             cycle: draft.cycle,
             reminderRules: draft.reminderRules,
             completions: [],
-            subtasks: draft.subtasks,
             sortOrder: now.timeIntervalSinceReferenceDate,
             isActive: true,
             createdAt: now,
@@ -62,7 +61,6 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         task.notes = draft.notes
         task.cycle = draft.cycle
         task.reminderRules = draft.reminderRules
-        task.subtasks = draft.subtasks
         task.updatedAt = .now
 
         let saved = try await repository.saveTask(task)

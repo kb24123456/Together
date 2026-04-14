@@ -298,6 +298,7 @@ actor SyncEngineCoordinator {
         } catch {
             healthMonitor.updateZone(bridge.zoneID.zoneName) {
                 $0.consecutiveFailures += 1
+                $0.lastFetchError = error.localizedDescription
                 $0.lastError = error.localizedDescription
             }
             logger.error("[Coordinator] Immediate fetch failed for \(bridge.zoneID.zoneName): \(error.localizedDescription)")
@@ -406,6 +407,7 @@ actor SyncEngineCoordinator {
         } catch {
             healthMonitor.updateZone(zoneID.zoneName) {
                 $0.consecutiveFailures += 1
+                $0.lastSendError = error.localizedDescription
                 $0.lastError = error.localizedDescription
             }
             logger.error("[Coordinator] Immediate send failed for \(zoneID.zoneName): \(error.localizedDescription)")
