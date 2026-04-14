@@ -2341,8 +2341,8 @@ struct TogetherTests {
             modelContainer: persistence.container
         )
 
-        let payload = RemoteSyncPayload(
-            memberProfiles: [
+        let appliedCount = await applier.repairLegacyProfiles(
+            [
                 CloudKitProfileRecordCodec.MemberProfilePayload(
                     userID: partnerUserID,
                     spaceID: sharedSpaceID,
@@ -2354,10 +2354,9 @@ struct TogetherTests {
                     pairSpaceDisplayName: "legacy space",
                     updatedAt: .distantPast
                 )
-            ]
+            ],
+            in: sharedSpaceID
         )
-
-        let appliedCount = try await applier.apply(payload, in: sharedSpaceID)
         let verificationContext = ModelContext(persistence.container)
         let spaces = try verificationContext.fetch(FetchDescriptor<PersistentSpace>())
         let memberships = try verificationContext.fetch(FetchDescriptor<PersistentPairMembership>())

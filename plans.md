@@ -196,6 +196,7 @@ Implementation notes:
 - `MemberProfileRecordCodable.Profile` is now metadata-only: shared authority is driven exclusively by `avatarAssetID/avatarVersion/avatarDeleted`, and shared member-profile records no longer carry avatar bytes.
 - `SyncEngineDelegate` and `PairSyncBridge` now apply shared member profiles by explicit asset/delete semantics: only `avatarDeleted` clears an avatar, while asset references update metadata even when no local cache file is present.
 - `makeMemberProfilePayload(...)` no longer inspects `avatarPhotoData`; a blob-only local cache is treated as legacy repair state, and shared payload semantics now depend only on `avatarAssetID/avatarPhotoFileName`.
+- `LocalUserProfileRepository.mergedUser(...)` no longer treats `avatarPhotoData` as an authoritative merge-time signal; blob repair now happens only inside `repairAvatarMetadataIfNeeded(...)`, after which runtime reads rely on normalized avatar reference/file metadata.
 
 ### Milestone 08 [in_progress]
 
@@ -216,6 +217,8 @@ Implementation notes:
 - Legacy avatar base64 payloads are only consumed when local shared-member projection is still missing both `avatarAssetID` and a cache file; once shared-authority metadata exists, legacy payloads are ignored.
 - `CloudKitSyncGateway.pull(...)` no longer mixes legacy public-profile payloads into normal remote task pulls; legacy member-profile reads must now be invoked explicitly for migration/repair only.
 - `CloudKitSyncGateway` has retired legacy public-profile writes entirely; the public member-profile path is now read/repair-only and cannot be used as a runtime correctness fallback.
+- Legacy public-profile backfill has been removed from `RemoteSyncPayload`; `LocalRemoteSyncApplier` now exposes an explicit `repairLegacyProfiles(...)` entry point so compatibility repair can no longer piggyback on normal remote task apply cycles.
+- `CloudKitProfileRecordCodec` no longer exposes a legacy member-profile record writer; the public-profile codec is now strictly read/repair-only and cannot be reused as a runtime write path.
 - Unbind regression coverage now explicitly verifies that shared projection/state rows are removed while the current user's private profile record remains intact.
 - `TogetherTests` is now `@MainActor`-isolated so Swift 6 actor-safety tightening no longer blocks the test target from compiling while the runtime architecture work continues.
 

@@ -69,15 +69,8 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         repairAvatarMetadataIfNeeded(record: record, context: context, userID: userID)
 
         var mergedUser = record.apply(to: user)
-        if record.avatarPhotoData != nil {
-            mergedUser.avatarPhotoFileName = canonicalFileName
-            mergedUser.avatarAssetID = canonicalFileName
-            if record.avatarPhotoFileName != canonicalFileName {
-                record.avatarPhotoFileName = canonicalFileName
-                record.avatarAssetID = canonicalFileName
-                try? context.save()
-            }
-        } else if let fileName = mergedUser.avatarPhotoFileName {
+        let hasLegacyRepairPayload = record.avatarPhotoData != nil
+        if let fileName = mergedUser.avatarPhotoFileName {
             if avatarMediaStore.fileExists(named: fileName) == false {
                 if avatarMediaStore.fileExists(named: canonicalFileName) {
                     mergedUser.avatarPhotoFileName = canonicalFileName
@@ -85,6 +78,10 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
                     record.avatarPhotoFileName = canonicalFileName
                     record.avatarAssetID = canonicalFileName
                     try? context.save()
+                } else if hasLegacyRepairPayload {
+                    // Keep the current avatar reference while the legacy/local repair payload still
+                    // exists. The blob is not shared-authority truth, but it is sufficient to avoid
+                    // spuriously clearing local avatar metadata when file repair temporarily fails.
                 } else {
                     mergedUser.avatarPhotoFileName = nil
                     mergedUser.avatarAssetID = nil

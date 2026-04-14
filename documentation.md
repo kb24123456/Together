@@ -41,9 +41,12 @@ This file should match the current repo state.
   - shared member-profile submission no longer depends on an `includeAvatar` call-site flag; avatar semantics are derived from persisted `avatarAssetID/avatarVersion` state instead
   - shared member-profile records are now metadata-only; shared correctness is driven by `avatarAssetID/avatarVersion/avatarDeleted`, and avatar bytes no longer travel through shared member-profile records
   - shared member-profile encoding no longer inspects local avatar blob storage; if no avatar reference exists, the shared payload is treated as an explicit avatar removal regardless of cached repair bytes
+  - local profile merge now relies on normalized avatar reference/file metadata after repair; `avatarPhotoData` is only a local repair/migration input and is no longer treated as a merge-time authority signal
   - legacy profile apply paths are now repair-only and must not overwrite current shared-authority space names, nicknames, or avatar references
   - the legacy public CloudKit gateway no longer injects member-profile payloads into normal task pull cycles; legacy profile reads are explicit repair/migration operations only
   - the legacy public CloudKit gateway can no longer write member-profile records at all; that path is now strictly read/repair-only and is no longer available as a runtime fallback
+  - the legacy public-profile codec no longer exposes a write helper either; public-profile compatibility is now read/repair-only end to end
+  - legacy member-profile backfill no longer rides inside `RemoteSyncPayload`; it now goes through an explicit repair entry point so compatibility profile repair cannot participate in normal runtime task apply cycles
   - pair-only sync chrome now reads `SharedSyncStatus` directly, so pending shared mutations and shared send/fetch failures are no longer hidden behind a generic aggregate sync error
 
 ## Demo flow

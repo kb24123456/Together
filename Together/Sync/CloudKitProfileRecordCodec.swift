@@ -23,22 +23,6 @@ enum CloudKitProfileRecordCodec {
         var updatedAt: Date
     }
 
-    nonisolated static func makeRecord(from payload: MemberProfilePayload) -> CKRecord {
-        let recordName = "\(payload.spaceID.uuidString)-\(payload.userID.uuidString)"
-        let recordID = CKRecord.ID(recordName: recordName)
-        let record = CKRecord(recordType: recordType, recordID: recordID)
-        record["userID"] = payload.userID.uuidString as CKRecordValue
-        record["spaceID"] = payload.spaceID.uuidString as CKRecordValue
-        record["displayName"] = payload.displayName as CKRecordValue
-        record["avatarSystemName"] = payload.avatarSystemName as CKRecordValue?
-        record["avatarAssetID"] = payload.avatarAssetID as CKRecordValue?
-        record["avatarVersion"] = payload.avatarVersion as CKRecordValue
-        record["avatarPhotoBase64"] = payload.avatarPhotoBase64 as CKRecordValue?
-        record["pairSpaceDisplayName"] = payload.pairSpaceDisplayName as CKRecordValue?
-        record["updatedAt"] = payload.updatedAt as CKRecordValue
-        return record
-    }
-
     nonisolated static func decode(record: CKRecord) -> MemberProfilePayload? {
         guard
             let userIDStr = record["userID"] as? String,

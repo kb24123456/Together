@@ -9,7 +9,8 @@ final class PersistentUserProfile {
     var avatarPhotoFileName: String?
     var avatarAssetID: String?
     var avatarVersion: Int = 0
-    // Authoritative avatar payload. Disk files are treated as a rebuildable runtime cache.
+    // Legacy/local repair payload only. Shared-authority avatar semantics must rely on
+    // avatarAssetID/avatarVersion, while disk files remain a rebuildable runtime cache.
     @Attribute(.externalStorage) var avatarPhotoData: Data?
     var taskReminderEnabled: Bool
     var dailySummaryEnabled: Bool

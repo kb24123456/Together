@@ -37,7 +37,7 @@ struct RoutinesListContent: View {
             periodInfoBar
                 .padding(.horizontal, AppTheme.spacing.xl)
                 .padding(.top, 8)
-                .padding(.bottom, 4)
+                .padding(.bottom, 6)
 
             if viewModel.tasks.isEmpty && viewModel.loadState == .loaded && !appContext.sessionStore.isViewingPairSpace {
                 ScrollView {
@@ -137,12 +137,6 @@ struct RoutinesListContent: View {
 
     private var taskList: some View {
         List {
-            Color.clear
-                .frame(height: 0)
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(AppTheme.colors.background)
-                .listRowSeparator(.hidden)
-
             ForEach(currentTasks) { task in
                 RoutinesTaskRow(task: task, viewModel: viewModel)
                     .listRowInsets(
@@ -174,6 +168,7 @@ struct RoutinesListContent: View {
         }
         .listStyle(.plain)
         .scrollIndicators(.hidden)
+        .contentMargins(.top, 0, for: .scrollContent)
         .applyScrollEdgeProtection()
     }
 

@@ -54,16 +54,26 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
             #endif
         }
 
-        // ── Apply remote member profile updates ──
-        for profile in payload.memberProfiles {
-            let didApply = applyProfileUpdate(profile, in: spaceID)
-            if didApply { applied += 1 }
-        }
-
         return applied
     }
 
     // MARK: - Profile Apply
+
+    /// Explicit legacy repair entry point. This path is intentionally decoupled from the normal
+    /// remote task payload so public-profile backfill can no longer participate in runtime
+    /// correctness decisions.
+    func repairLegacyProfiles(
+        _ profiles: [CloudKitProfileRecordCodec.MemberProfilePayload],
+        in spaceID: UUID
+    ) -> Int {
+        var repaired = 0
+        for profile in profiles {
+            if applyProfileUpdate(profile, in: spaceID) {
+                repaired += 1
+            }
+        }
+        return repaired
+    }
 
     /// Legacy compatibility path. Only backfills missing local projection/cache state and must not
     /// override the current shared-authority sync results.
