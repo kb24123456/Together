@@ -12,6 +12,8 @@ enum CloudKitProfileRecordCodec {
         var spaceID: UUID
         var displayName: String
         var avatarSystemName: String?
+        var avatarAssetID: String?
+        var avatarVersion: Int = 0
         /// Base64 编码的头像照片数据（压缩后的 JPEG）
         var avatarPhotoBase64: String?
         /// PairSpace 的显示名称（任何一方都可以修改）
@@ -27,6 +29,8 @@ enum CloudKitProfileRecordCodec {
         record["spaceID"] = payload.spaceID.uuidString as CKRecordValue
         record["displayName"] = payload.displayName as CKRecordValue
         record["avatarSystemName"] = payload.avatarSystemName as CKRecordValue?
+        record["avatarAssetID"] = payload.avatarAssetID as CKRecordValue?
+        record["avatarVersion"] = payload.avatarVersion as CKRecordValue
         record["avatarPhotoBase64"] = payload.avatarPhotoBase64 as CKRecordValue?
         record["pairSpaceDisplayName"] = payload.pairSpaceDisplayName as CKRecordValue?
         record["updatedAt"] = payload.updatedAt as CKRecordValue
@@ -48,6 +52,8 @@ enum CloudKitProfileRecordCodec {
             spaceID: spaceID,
             displayName: displayName,
             avatarSystemName: record["avatarSystemName"] as? String,
+            avatarAssetID: record["avatarAssetID"] as? String,
+            avatarVersion: record["avatarVersion"] as? Int ?? 0,
             avatarPhotoBase64: record["avatarPhotoBase64"] as? String,
             pairSpaceDisplayName: record["pairSpaceDisplayName"] as? String,
             updatedAt: updatedAt

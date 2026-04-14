@@ -328,6 +328,8 @@ struct PersistenceController {
         let displayName: String
         let avatarSystemName: String?
         let avatarPhotoFileName: String?
+        let avatarAssetID: String?
+        let avatarVersion: Int
         let avatarPhotoData: Data?
         let taskReminderEnabled: Bool
         let dailySummaryEnabled: Bool
@@ -345,6 +347,8 @@ struct PersistenceController {
             displayName = profile.displayName
             avatarSystemName = profile.avatarSystemName
             avatarPhotoFileName = profile.avatarPhotoFileName
+            avatarAssetID = profile.avatarAssetID
+            avatarVersion = profile.avatarVersion
             avatarPhotoData = profile.avatarPhotoData
             taskReminderEnabled = profile.taskReminderEnabled
             dailySummaryEnabled = profile.dailySummaryEnabled
@@ -364,6 +368,8 @@ struct PersistenceController {
                 displayName: displayName,
                 avatarSystemName: avatarSystemName,
                 avatarPhotoFileName: avatarPhotoFileName,
+                avatarAssetID: avatarAssetID,
+                avatarVersion: avatarVersion,
                 avatarPhotoData: avatarPhotoData,
                 taskReminderEnabled: taskReminderEnabled,
                 dailySummaryEnabled: dailySummaryEnabled,
@@ -426,6 +432,8 @@ struct PersistenceController {
         let joinedAt: Date
         let avatarSystemName: String?
         let avatarPhotoFileName: String?
+        let avatarAssetID: String?
+        let avatarVersion: Int
 
         init(_ membership: PersistentPairMembership) {
             id = membership.id
@@ -435,6 +443,8 @@ struct PersistenceController {
             joinedAt = membership.joinedAt
             avatarSystemName = membership.avatarSystemName
             avatarPhotoFileName = membership.avatarPhotoFileName
+            avatarAssetID = membership.avatarAssetID
+            avatarVersion = membership.avatarVersion
         }
 
         func makePersistent() -> PersistentPairMembership {
@@ -445,7 +455,9 @@ struct PersistenceController {
                 nickname: nickname,
                 joinedAt: joinedAt,
                 avatarSystemName: avatarSystemName,
-                avatarPhotoFileName: avatarPhotoFileName
+                avatarPhotoFileName: avatarPhotoFileName,
+                avatarAssetID: avatarAssetID,
+                avatarVersion: avatarVersion
             )
         }
     }

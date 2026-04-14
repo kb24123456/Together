@@ -11,13 +11,19 @@ struct User: Identifiable, Hashable, Sendable {
     var displayName: String
     var avatarSystemName: String?
     var avatarPhotoFileName: String? = nil
+    var avatarAssetID: String? = nil
+    var avatarVersion: Int = 0
     var createdAt: Date
     var updatedAt: Date
     var preferences: NotificationSettings
 
+    var avatarCacheFileName: String? {
+        avatarPhotoFileName ?? avatarAssetID
+    }
+
     var avatarAsset: UserAvatarAsset {
-        if let avatarPhotoFileName {
-            return .photo(fileName: avatarPhotoFileName)
+        if let avatarCacheFileName {
+            return .photo(fileName: avatarCacheFileName)
         }
         return .system(avatarSystemName ?? "person.crop.circle.fill")
     }

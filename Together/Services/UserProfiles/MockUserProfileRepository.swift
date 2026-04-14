@@ -22,8 +22,12 @@ actor MockUserProfileRepository: UserProfileRepositoryProtocol {
             break
         case .removeCustomPhoto:
             updatedUser.avatarPhotoFileName = nil
+            updatedUser.avatarAssetID = nil
+            updatedUser.avatarVersion += 1
         case .replacePhoto:
             updatedUser.avatarPhotoFileName = "mock-avatar.jpg"
+            updatedUser.avatarAssetID = "mock-avatar.jpg"
+            updatedUser.avatarVersion += 1
         }
 
         records[user.id] = updatedUser

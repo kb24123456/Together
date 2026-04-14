@@ -34,6 +34,10 @@ This file should match the current repo state.
   - shared sync health is now derived from both CKSyncEngine zone health and the persisted mutation log
   - shared fetched records now preserve outstanding local pair mutations instead of blindly overwriting local projection state
   - shared-space renames now enqueue a dedicated `.space` mutation instead of riding along the profile metadata path
+  - Home task state changes now emit precise shared `.task` mutations so send/health refresh can run off the actual changed record instead of a generic workspace callback
+  - Completed History, notification completion, and composer task creation are now moving onto that same explicit shared-mutation flush path instead of a blanket workspace send
+  - avatar identity is now being normalized around `avatarAssetID/avatarVersion`, with `avatarPhotoFileName` demoted to a local cache concern instead of the shared source of truth
+  - shared member-profile submission no longer depends on an `includeAvatar` call-site flag; avatar semantics are derived from persisted `avatarAssetID/avatarVersion` state instead
 
 ## Demo flow
 
@@ -62,3 +66,5 @@ This file should match the current repo state.
 - If an older install fails to open because of removed relay queue entities, `PersistenceController` now performs a snapshot migration into the relay-free schema instead of continuing to run those models in the main runtime.
 - Shared-task correctness should be debugged against the pending mutation log and the pair/shared zone health, not against aggregate "any sync" UI indicators.
 - If pair metadata or shared task updates look stale after a fetch, inspect the persisted mutation lifecycle first; pending/sending/failed local mutations now intentionally block remote overwrite until they are confirmed or cleared.
+- If avatar display looks stale, inspect `avatarAssetID/avatarVersion` first; `avatarPhotoFileName` is now only the local cache path and should not be treated as the shared source of truth.
+- If a shared member profile unexpectedly clears an avatar, inspect the derived `MemberProfileRecordCodable.Profile` payload first; an asset reference without local blob data should now remain a preserved reference instead of being encoded as `avatarDeleted`.

@@ -27,6 +27,8 @@ enum PairSpaceSummaryResolver {
                 displayName: membership.nickname,
                 avatarSystemName: membership.avatarSystemName ?? "person.crop.circle.fill",
                 avatarPhotoFileName: membership.avatarPhotoFileName,
+                avatarAssetID: membership.avatarAssetID,
+                avatarVersion: membership.avatarVersion,
                 createdAt: membership.joinedAt,
                 updatedAt: membership.joinedAt,
                 preferences: NotificationSettings(

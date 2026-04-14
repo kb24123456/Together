@@ -18,6 +18,8 @@ final class CompletedHistoryViewModel {
     private let projectRepository: ProjectRepositoryProtocol
     private let pageSize = 30
 
+    var onTaskMutated: ((UUID) -> Void)?
+    var onSharedMutationRecorded: ((SyncChange) -> Void)?
     var items: [Item] = []
     var searchText = ""
     var isLoading = false
@@ -111,6 +113,9 @@ final class CompletedHistoryViewModel {
             let restored = try await itemRepository.restoreArchivedItem(itemID: item.id)
             items.removeAll { $0.id == restored.id }
             canLoadMore = true
+            if let spaceID = restored.spaceID ?? sessionStore.currentSpace?.id {
+                emitSharedTaskMutation(.upsert, taskID: restored.id, spaceID: spaceID)
+            }
         } catch {
             return
         }
@@ -132,8 +137,27 @@ final class CompletedHistoryViewModel {
             )
             items.removeAll { $0.id == item.id }
             canLoadMore = true
+            emitSharedTaskMutation(.delete, taskID: item.id, spaceID: spaceID)
         } catch {
             return
+        }
+    }
+
+    private func emitSharedTaskMutation(
+        _ operation: SyncOperationKind,
+        taskID: UUID,
+        spaceID: UUID
+    ) {
+        let change = SyncChange(
+            entityKind: .task,
+            operation: operation,
+            recordID: taskID,
+            spaceID: spaceID
+        )
+        if let onSharedMutationRecorded {
+            onSharedMutationRecorded(change)
+        } else {
+            onTaskMutated?(spaceID)
         }
     }
 

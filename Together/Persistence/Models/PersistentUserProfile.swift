@@ -7,6 +7,8 @@ final class PersistentUserProfile {
     var displayName: String
     var avatarSystemName: String?
     var avatarPhotoFileName: String?
+    var avatarAssetID: String?
+    var avatarVersion: Int = 0
     // Authoritative avatar payload. Disk files are treated as a rebuildable runtime cache.
     @Attribute(.externalStorage) var avatarPhotoData: Data?
     var taskReminderEnabled: Bool
@@ -25,6 +27,8 @@ final class PersistentUserProfile {
         displayName: String,
         avatarSystemName: String?,
         avatarPhotoFileName: String?,
+        avatarAssetID: String?,
+        avatarVersion: Int,
         avatarPhotoData: Data?,
         taskReminderEnabled: Bool,
         dailySummaryEnabled: Bool,
@@ -41,6 +45,8 @@ final class PersistentUserProfile {
         self.displayName = displayName
         self.avatarSystemName = avatarSystemName
         self.avatarPhotoFileName = avatarPhotoFileName
+        self.avatarAssetID = avatarAssetID
+        self.avatarVersion = avatarVersion
         self.avatarPhotoData = avatarPhotoData
         self.taskReminderEnabled = taskReminderEnabled
         self.dailySummaryEnabled = dailySummaryEnabled
@@ -62,6 +68,8 @@ extension PersistentUserProfile {
             displayName: user.displayName,
             avatarSystemName: user.avatarSystemName,
             avatarPhotoFileName: user.avatarPhotoFileName,
+            avatarAssetID: user.avatarAssetID,
+            avatarVersion: user.avatarVersion,
             avatarPhotoData: nil,
             taskReminderEnabled: user.preferences.taskReminderEnabled,
             dailySummaryEnabled: user.preferences.dailySummaryEnabled,
@@ -81,6 +89,8 @@ extension PersistentUserProfile {
         updatedUser.displayName = displayName
         updatedUser.avatarSystemName = avatarSystemName
         updatedUser.avatarPhotoFileName = avatarPhotoFileName
+        updatedUser.avatarAssetID = avatarAssetID
+        updatedUser.avatarVersion = avatarVersion
         updatedUser.preferences = NotificationSettings(
             taskReminderEnabled: taskReminderEnabled,
             dailySummaryEnabled: dailySummaryEnabled,
@@ -103,6 +113,8 @@ extension PersistentUserProfile {
         displayName = user.displayName
         avatarSystemName = user.avatarSystemName
         avatarPhotoFileName = user.avatarPhotoFileName
+        avatarAssetID = user.avatarAssetID
+        avatarVersion = user.avatarVersion
         taskReminderEnabled = user.preferences.taskReminderEnabled
         dailySummaryEnabled = user.preferences.dailySummaryEnabled
         calendarReminderEnabled = user.preferences.calendarReminderEnabled

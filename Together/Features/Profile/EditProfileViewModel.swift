@@ -26,7 +26,7 @@ final class EditProfileViewModel {
     private let sessionStore: SessionStore
     private let userProfileRepository: UserProfileRepositoryProtocol
     private let originalUser: User
-    var onProfileSaved: ((_ user: User, _ includeAvatar: Bool) -> Void)?
+    var onProfileSaved: ((_ user: User) -> Void)?
 
     var displayName: String
     var avatarDraftState: AvatarDraftState
@@ -51,8 +51,8 @@ final class EditProfileViewModel {
         self.originalUser = resolvedUser
         self.displayName = resolvedUser.displayName
 
-        if let avatarPhotoFileName = resolvedUser.avatarPhotoFileName {
-            self.avatarDraftState = .existingPhoto(avatarPhotoFileName)
+        if let avatarCacheFileName = resolvedUser.avatarCacheFileName {
+            self.avatarDraftState = .existingPhoto(avatarCacheFileName)
         } else {
             self.avatarDraftState = .existingSystem(resolvedUser.avatarSystemName ?? "person.crop.circle.fill")
         }
@@ -99,10 +99,10 @@ final class EditProfileViewModel {
         case .newPhoto, .removedToSystem:
             return true
         case .existingPhoto(let fileName):
-            return fileName != originalUser.avatarPhotoFileName
+            return fileName != originalUser.avatarCacheFileName
         case .existingSystem(let symbolName):
             return symbolName != (originalUser.avatarSystemName ?? "person.crop.circle.fill")
-                || originalUser.avatarPhotoFileName != nil
+                || originalUser.avatarCacheFileName != nil
         }
     }
 
@@ -291,16 +291,16 @@ final class EditProfileViewModel {
             #if canImport(UIKit)
             switch avatarUpdate {
             case .replacePhoto:
-                if let fileName = updatedUser.avatarPhotoFileName, let draftAvatarImage {
+                if let fileName = updatedUser.avatarCacheFileName, let draftAvatarImage {
                     UserAvatarRuntimeStore.store(draftAvatarImage, for: fileName)
                 }
-                if let previousFileName = originalUser.avatarPhotoFileName,
-                   previousFileName != updatedUser.avatarPhotoFileName
+                if let previousFileName = originalUser.avatarCacheFileName,
+                   previousFileName != updatedUser.avatarCacheFileName
                 {
                     UserAvatarRuntimeStore.remove(fileName: previousFileName)
                 }
             case .removeCustomPhoto:
-                if let previousFileName = originalUser.avatarPhotoFileName {
+                if let previousFileName = originalUser.avatarCacheFileName {
                     UserAvatarRuntimeStore.remove(fileName: previousFileName)
                 }
             case .preserveExisting:
@@ -309,14 +309,7 @@ final class EditProfileViewModel {
             #endif
 
             sessionStore.currentUser = updatedUser
-            let avatarChanged: Bool
-            switch avatarDraftState {
-            case .newPhoto, .removedToSystem:
-                avatarChanged = true
-            case .existingPhoto, .existingSystem:
-                avatarChanged = false
-            }
-            onProfileSaved?(updatedUser, avatarChanged)
+            onProfileSaved?(updatedUser)
             return true
         } catch {
             #if DEBUG

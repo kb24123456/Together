@@ -127,6 +127,8 @@ final class HomeViewModel {
 
     /// 任务操作完成后的回调，参数为 spaceID，用于触发同步
     var onTaskMutated: ((UUID) -> Void)?
+    /// 共享任务 mutation 已记录后的精确回调，供 AppContext 走一等 shared mutation 发送路径。
+    var onSharedMutationRecorded: ((SyncChange) -> Void)?
     /// 将当前任务转为例行事务时的回调（传递任务标题）
     var onConvertToPeriodicTask: ((String) -> Void)?
     /// 将当前任务转为项目时的回调（传递任务标题）
@@ -452,7 +454,7 @@ final class HomeViewModel {
                 savedDetailDraft = refreshedDraft
             }
             replaceItem(saved)
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
         } catch {}
     }
 
@@ -475,7 +477,7 @@ final class HomeViewModel {
                 savedDetailDraft = refreshedDraft
             }
             replaceItem(saved)
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
         } catch {}
     }
 
@@ -497,7 +499,7 @@ final class HomeViewModel {
                 savedDetailDraft = refreshedDraft
             }
             replaceItem(saved)
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
         } catch {}
     }
 
@@ -584,7 +586,7 @@ final class HomeViewModel {
                 draft: draft
             )
             await reload(insertedItemIDs: [item.id])
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: item.id, spaceID: spaceID)
             return .saved
         } catch {
             return .failed
@@ -615,7 +617,7 @@ final class HomeViewModel {
                 draft: draft
             )
             await reload(insertedItemIDs: [item.id])
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: item.id, spaceID: spaceID)
             return true
         } catch {
             return false
@@ -831,7 +833,7 @@ final class HomeViewModel {
                 draft: template.makeTaskDraft(for: selectedDate, calendar: calendar)
             )
             await reload(insertedItemIDs: [item.id])
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: item.id, spaceID: spaceID)
             return true
         } catch {
             return false
@@ -949,7 +951,11 @@ final class HomeViewModel {
                     }
                 }
             }
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(
+                didCompleteOccurrence ? .complete : .upsert,
+                taskID: saved.id,
+                spaceID: spaceID
+            )
         } catch {}
 
         completingOccurrenceKeys.remove(occurrenceKey)
@@ -980,7 +986,7 @@ final class HomeViewModel {
             )
             items.removeAll { $0.id == itemID }
             dismissItemDetail()
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.delete, taskID: itemID, spaceID: spaceID)
         } catch {
             return
         }
@@ -1019,7 +1025,7 @@ final class HomeViewModel {
             if overdueEntryCount == 0 {
                 isOverdueSheetPresented = false
             }
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.delete, taskID: itemID, spaceID: spaceID)
         } catch {
             return
         }
@@ -1040,7 +1046,7 @@ final class HomeViewModel {
             if let index = items.firstIndex(where: { $0.id == itemID }) {
                 items[index] = updated
             }
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: updated.id, spaceID: spaceID)
         } catch {
             return
         }
@@ -1218,7 +1224,7 @@ final class HomeViewModel {
             self.detailDraft = refreshedDraft
             self.savedDetailDraft = refreshedDraft
             replaceItem(saved)
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
             return true
         } catch {
             return false
@@ -1675,10 +1681,27 @@ final class HomeViewModel {
                     removeItem(withID: saved.id)
                 }
             }
-            onTaskMutated?(spaceID)
+            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
         } catch {}
     }
 
+    private func emitSharedTaskMutation(
+        _ operation: SyncOperationKind,
+        taskID: UUID,
+        spaceID: UUID
+    ) {
+        let change = SyncChange(
+            entityKind: .task,
+            operation: operation,
+            recordID: taskID,
+            spaceID: spaceID
+        )
+        if let onSharedMutationRecorded {
+            onSharedMutationRecorded(change)
+        } else {
+            onTaskMutated?(spaceID)
+        }
+    }
 }
 
 extension HomeViewModel {

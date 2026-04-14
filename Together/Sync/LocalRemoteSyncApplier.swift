@@ -99,12 +99,16 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
 
         // 更新 membership 的头像字段，并将对方头像图片写入磁盘
         let avatarStore = LocalUserAvatarMediaStore()
-        let canonicalFileName = avatarStore.canonicalFileName(for: profile.userID)
+        let canonicalFileName = profile.avatarAssetID ?? avatarStore.canonicalFileName(for: profile.userID)
 
         for membership in memberships where membership.userID == profile.userID {
             // 更新 SF Symbol 头像名
             if membership.avatarSystemName != profile.avatarSystemName {
                 membership.avatarSystemName = profile.avatarSystemName
+                didChange = true
+            }
+            if membership.avatarVersion != profile.avatarVersion {
+                membership.avatarVersion = profile.avatarVersion
                 didChange = true
             }
             // 写入照片头像到磁盘
@@ -115,6 +119,13 @@ actor LocalRemoteSyncApplier: RemoteSyncApplierProtocol {
                     membership.avatarPhotoFileName = canonicalFileName
                     didChange = true
                 }
+                if membership.avatarAssetID != canonicalFileName {
+                    membership.avatarAssetID = canonicalFileName
+                    didChange = true
+                }
+            } else if membership.avatarAssetID != profile.avatarAssetID {
+                membership.avatarAssetID = profile.avatarAssetID
+                didChange = true
             }
         }
 

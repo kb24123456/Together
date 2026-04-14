@@ -227,7 +227,7 @@ final class AppContext {
     }
 
     /// Queues the current user's shared member profile into the shared authority sync path.
-    func syncProfileToPartner(user: User, includeAvatar: Bool = true) async {
+    func syncProfileToPartner(user: User) async {
         guard let summary = sessionStore.pairSpaceSummary,
               summary.pairSpace.status == .active else { return }
         if let updatedUser = try? await container.userProfileRepository.saveProfile(
@@ -318,6 +318,11 @@ final class AppContext {
             await self?.container.syncEngineCoordinator.sendChanges(for: spaceID)
             await self?.refreshSharedSyncStatusAsync()
         }
+    }
+
+    func flushRecordedSharedMutation(_ change: SyncChange) async {
+        await container.syncEngineCoordinator.sendChanges(for: change.spaceID)
+        await refreshSharedSyncStatusAsync()
     }
 
     private func submitSharedMutation(_ change: SyncChange) async {
@@ -422,6 +427,12 @@ final class AppContext {
         homeViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
         }
+        homeViewModel.onSharedMutationRecorded = { [weak self] change in
+            guard let self else { return }
+            Task {
+                await self.flushRecordedSharedMutation(change)
+            }
+        }
         homeViewModel.onConvertToPeriodicTask = { [weak self] title in
             guard let self else { return }
             router.pendingComposerTitle = title
@@ -432,9 +443,12 @@ final class AppContext {
             router.pendingComposerTitle = title
             router.activeComposer = .newProject
         }
-        profileViewModel.onProfileSaved = { [weak self] user, includeAvatar in
+        profileViewModel.onProfileSaved = { [weak self] user in
             guard let self else { return }
-            Task { await self.syncProfileToPartner(user: user, includeAvatar: includeAvatar) }
+            Task { await self.syncProfileToPartner(user: user) }
+        }
+        profileViewModel.onTaskMutated = { [weak self] spaceID in
+            self?.syncAfterMutation(spaceID: spaceID)
         }
         profileViewModel.onSharedMutationRecorded = { [weak self] change in
             guard let self else { return }
@@ -477,7 +491,7 @@ final class AppContext {
                 ensurePairSyncPolling(for: pairSpaceID)
                 if seededPairMetadataSpaceIDs.contains(pairSpaceID) == false,
                    let user = sessionStore.currentUser {
-                    await syncProfileToPartner(user: user, includeAvatar: true)
+                    await syncProfileToPartner(user: user)
                     seededPairMetadataSpaceIDs.insert(pairSpaceID)
                 }
                 await MainActor.run {
@@ -592,6 +606,14 @@ final class AppContext {
                 in: spaceID,
                 taskID: parsed.targetID,
                 actorID: actorID
+            )
+            await flushRecordedSharedMutation(
+                SyncChange(
+                    entityKind: .task,
+                    operation: .complete,
+                    recordID: parsed.targetID,
+                    spaceID: spaceID
+                )
             )
             await homeViewModel.reload()
         } catch {

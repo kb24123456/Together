@@ -27,6 +27,8 @@ Deliverable
   - milestone 06 is in progress
   - shared mutation lifecycle must now drive both remote-apply preservation and shared-sync health
   - shared-space rename flow has been split out of profile sync and must remain a first-class `.space` mutation path
+  - Home task actions are being migrated off the legacy `spaceID`-only callback and onto precise `.task` shared mutation emission
+  - Completed History, notification completion, and composer create flows are also being moved onto that precise shared-mutation flush path
 
 Architecture directive
 

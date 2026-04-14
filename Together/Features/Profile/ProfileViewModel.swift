@@ -48,6 +48,7 @@ final class ProfileViewModel {
     private let reminderScheduler: ReminderSchedulerProtocol
     private let biometricAuthService: BiometricAuthServiceProtocol
 
+    var onTaskMutated: ((_ spaceID: UUID) -> Void)?
     var loadState: LoadableState = .idle
     var notificationAuthorization: NotificationAuthorizationStatus = .notDetermined
     var expandedSetting: ProfileExpandedSetting?
@@ -58,7 +59,7 @@ final class ProfileViewModel {
     var createInviteError: String?
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
-    var onProfileSaved: ((_ user: User, _ includeAvatar: Bool) -> Void)?
+    var onProfileSaved: ((_ user: User) -> Void)?
     var onSharedMutationRecorded: ((_ change: SyncChange) -> Void)?
 
     init(
@@ -566,13 +567,16 @@ final class ProfileViewModel {
     }
 
     func makeCompletedHistoryViewModel() -> CompletedHistoryViewModel {
-        CompletedHistoryViewModel(
+        let viewModel = CompletedHistoryViewModel(
             sessionStore: sessionStore,
             itemRepository: itemRepository,
             taskApplicationService: taskApplicationService,
             taskListRepository: taskListRepository,
             projectRepository: projectRepository
         )
+        viewModel.onTaskMutated = onTaskMutated
+        viewModel.onSharedMutationRecorded = onSharedMutationRecorded
+        return viewModel
     }
 
     func signOut() async {

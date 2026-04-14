@@ -126,6 +126,8 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
                 displayName: existingProfile.displayName,
                 avatarSystemName: existingProfile.avatarSystemName,
                 avatarPhotoFileName: existingProfile.avatarPhotoFileName,
+                avatarAssetID: existingProfile.avatarAssetID,
+                avatarVersion: existingProfile.avatarVersion,
                 createdAt: now,
                 updatedAt: existingProfile.updatedAt,
                 preferences: NotificationSettings(

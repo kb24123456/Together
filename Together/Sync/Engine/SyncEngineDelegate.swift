@@ -47,6 +47,39 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         zoneID.zoneName.hasPrefix("pair-")
     }
 
+    static func makeMemberProfilePayload(
+        from persistent: PersistentUserProfile,
+        sharedSpaceID: UUID,
+        avatarDataResolver: (String) -> Data? = { fileName in
+            try? LocalUserAvatarMediaStore().avatarData(named: fileName)
+        }
+    ) -> MemberProfileRecordCodable.Profile {
+        let avatarReference = persistent.avatarAssetID ?? persistent.avatarPhotoFileName
+        let avatarDeleted = avatarReference == nil && persistent.avatarPhotoData == nil
+        let avatarPhotoData: Data?
+        if avatarDeleted {
+            avatarPhotoData = nil
+        } else if let persistedData = persistent.avatarPhotoData {
+            avatarPhotoData = persistedData
+        } else if let avatarReference {
+            avatarPhotoData = avatarDataResolver(avatarReference)
+        } else {
+            avatarPhotoData = nil
+        }
+
+        return MemberProfileRecordCodable.Profile(
+            userID: persistent.userID,
+            spaceID: sharedSpaceID,
+            displayName: persistent.displayName,
+            avatarSystemName: persistent.avatarSystemName,
+            avatarAssetID: avatarReference,
+            avatarVersion: persistent.avatarVersion,
+            avatarPhotoData: avatarPhotoData,
+            avatarDeleted: avatarDeleted,
+            updatedAt: persistent.updatedAt
+        )
+    }
+
     // MARK: - CKSyncEngineDelegate
 
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) {
@@ -491,16 +524,24 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         for membership in memberships where membership.userID == profile.userID {
             membership.nickname = profile.displayName
             membership.avatarSystemName = profile.avatarSystemName
+            membership.avatarVersion = profile.avatarVersion
 
             if profile.avatarDeleted {
                 if let fileName = membership.avatarPhotoFileName {
                     try? store.removeAvatar(named: fileName)
                 }
                 membership.avatarPhotoFileName = nil
+                membership.avatarAssetID = nil
             } else if let data = profile.avatarPhotoData {
-                let fileName = store.canonicalFileName(for: profile.userID)
+                let fileName = profile.avatarAssetID ?? store.canonicalFileName(for: profile.userID)
                 try? store.persistAvatarData(data, fileName: fileName)
                 membership.avatarPhotoFileName = fileName
+                membership.avatarAssetID = profile.avatarAssetID ?? fileName
+            } else if let avatarAssetID = profile.avatarAssetID {
+                if membership.avatarAssetID != avatarAssetID, membership.avatarPhotoFileName != avatarAssetID {
+                    membership.avatarPhotoFileName = nil
+                }
+                membership.avatarAssetID = avatarAssetID
             }
         }
 
@@ -508,14 +549,23 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         for userProfile in profiles where userProfile.userID == profile.userID {
             userProfile.displayName = profile.displayName
             userProfile.avatarSystemName = profile.avatarSystemName
+            userProfile.avatarVersion = profile.avatarVersion
             if profile.avatarDeleted {
                 userProfile.avatarPhotoFileName = nil
+                userProfile.avatarAssetID = nil
                 userProfile.avatarPhotoData = nil
             } else if let data = profile.avatarPhotoData {
-                let fileName = store.canonicalFileName(for: profile.userID)
+                let fileName = profile.avatarAssetID ?? store.canonicalFileName(for: profile.userID)
                 try? store.persistAvatarData(data, fileName: fileName)
                 userProfile.avatarPhotoFileName = fileName
+                userProfile.avatarAssetID = profile.avatarAssetID ?? fileName
                 userProfile.avatarPhotoData = data
+            } else if let avatarAssetID = profile.avatarAssetID {
+                if userProfile.avatarAssetID != avatarAssetID, userProfile.avatarPhotoFileName != avatarAssetID {
+                    userProfile.avatarPhotoFileName = nil
+                    userProfile.avatarPhotoData = nil
+                }
+                userProfile.avatarAssetID = avatarAssetID
             }
             userProfile.updatedAt = profile.updatedAt
         }
@@ -723,17 +773,7 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 return nil
             }
 
-            let avatarDeleted = persistent.avatarPhotoFileName == nil && persistent.avatarPhotoData == nil
-            let profile = MemberProfileRecordCodable.Profile(
-                userID: persistent.userID,
-                spaceID: activePairSpace.sharedSpaceID,
-                displayName: persistent.displayName,
-                avatarSystemName: persistent.avatarSystemName,
-                avatarPhotoData: avatarDeleted ? nil : (persistent.avatarPhotoData
-                    ?? persistent.avatarPhotoFileName.flatMap { try? LocalUserAvatarMediaStore().avatarData(named: $0) }),
-                avatarDeleted: avatarDeleted,
-                updatedAt: persistent.updatedAt
-            )
+            let profile = Self.makeMemberProfilePayload(from: persistent, sharedSpaceID: activePairSpace.sharedSpaceID)
             return MemberProfileRecordCodable(profile: profile).toCKRecord(in: zoneID)
         }
     }

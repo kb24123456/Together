@@ -167,8 +167,10 @@ Implementation notes:
 - Shared fetched records now consult the persisted mutation lifecycle, not just the in-memory engine queue, before overwriting local projection data.
 - Member profile and project subtask application paths now honor pending local mutations instead of blindly accepting remote fetched values.
 - Shared space name writes no longer piggyback on `syncProfileToPartner`; they are now emitted as first-class `.space` mutations through a dedicated shared-mutation callback.
+- `HomeViewModel` now emits precise `.task` mutations for create/respond/complete/delete/update-style actions so `AppContext` can flush the already-recorded shared mutation directly instead of only receiving a bare `spaceID`.
+- Remaining shared task entry points are being migrated off the generic workspace callback as well: Completed History restore/delete, notification completion, and composer create flows now flush explicit shared mutations instead of a blanket `spaceID` send trigger.
 
-### Milestone 07 [pending]
+### Milestone 07 [in_progress]
 
 Scope:
 
@@ -179,6 +181,15 @@ Acceptance criteria:
 
 - pair profile updates share the same pending/confirmed lifecycle and health reporting as pair tasks
 - avatar updates do not overload `nil` / empty metadata semantics
+
+Implementation notes:
+
+- `User`, `PersistentUserProfile`, and `PersistentPairMembership` now carry `avatarAssetID/avatarVersion` end-to-end.
+- UI read paths are moving toward `avatarAssetID` as the canonical shared reference, with `avatarPhotoFileName` retained only as a local cache file name.
+- `EditProfileViewModel` now reads and compares avatar state through `avatarCacheFileName`, so asset-backed and file-backed avatars share one presentation path.
+- Compatibility-only profile apply paths now repair `avatarAssetID` alongside cached avatar file names instead of leaving metadata/file drift behind.
+- `syncProfileToPartner` and `onProfileSaved` no longer carry an `includeAvatar` transport switch; shared member-profile submission now relies on persisted `avatarAssetID/avatarVersion` state instead of ad hoc call-site flags.
+- `SyncEngineDelegate.makeMemberProfilePayload(...)` is now the single place that derives member-profile avatar semantics; a profile with `avatarAssetID` but no local blob is treated as a preserved avatar reference, not as an implicit delete.
 
 ### Milestone 08 [pending]
 

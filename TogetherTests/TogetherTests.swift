@@ -1520,6 +1520,97 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func homeViewModelEmitsPreciseSharedTaskMutationForCompletion() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchWorkspace(to: .pair)
+
+        let taskService = TestHomeTaskApplicationService()
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: taskService,
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        let taskID = UUID()
+        var capturedChange: SyncChange?
+        viewModel.onSharedMutationRecorded = { change in
+            capturedChange = change
+        }
+
+        await viewModel.completeItem(taskID, trigger: .swipeAction)
+
+        let change = try #require(capturedChange)
+        #expect(change.entityKind == .task)
+        #expect(change.operation == .complete)
+        #expect(change.recordID == taskID)
+        #expect(change.spaceID == MockDataFactory.pairSharedSpaceID)
+    }
+
+    @Test @MainActor
+    func completedHistoryViewModelEmitsPreciseSharedTaskMutationForDelete() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchWorkspace(to: .pair)
+
+        let viewModel = CompletedHistoryViewModel(
+            sessionStore: sessionStore,
+            itemRepository: TestItemRepository(),
+            taskApplicationService: TestHomeTaskApplicationService(),
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler())
+        )
+
+        let taskID = UUID()
+        let item = Item(
+            id: taskID,
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "已完成任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            dueAt: Date.now,
+            hasExplicitTime: false,
+            remindAt: nil,
+            status: .completed,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: Date.now,
+            updatedAt: Date.now,
+            completedAt: Date.now,
+            isPinned: false,
+            isDraft: false
+        )
+        viewModel.items = [item]
+
+        var capturedChange: SyncChange?
+        viewModel.onSharedMutationRecorded = { change in
+            capturedChange = change
+        }
+
+        await viewModel.delete(item)
+
+        let change = try #require(capturedChange)
+        #expect(change.entityKind == .task)
+        #expect(change.operation == .delete)
+        #expect(change.recordID == taskID)
+        #expect(change.spaceID == MockDataFactory.pairSharedSpaceID)
+    }
+
+    @Test @MainActor
     func homeViewModelHidesDeclinedPartnerTaskForReceiverButKeepsItForSender() {
         let receiverSession = SessionStore()
         receiverSession.currentUser = MockDataFactory.makeCurrentUser()
@@ -2131,6 +2222,8 @@ struct TogetherTests {
                 displayName: user.displayName,
                 avatarSystemName: nil,
                 avatarPhotoFileName: fileName,
+                avatarAssetID: fileName,
+                avatarVersion: 1,
                 avatarPhotoData: data,
                 taskReminderEnabled: user.preferences.taskReminderEnabled,
                 dailySummaryEnabled: user.preferences.dailySummaryEnabled,
@@ -2220,6 +2313,88 @@ struct TogetherTests {
         #else
         Issue.record("UIKit unavailable for avatar replace test")
         #endif
+    }
+
+    @Test
+    func localUserProfileRepositoryAssignsAvatarAssetMetadataWhenReplacingPhoto() async throws {
+        #if canImport(UIKit)
+        let persistence = PersistenceController(inMemory: true)
+        let repository = LocalUserProfileRepository(container: persistence.container)
+        let user = makeAvatarTestUser()
+        let data = try #require(makeAvatarTestImage(fillColor: .systemMint).jpegData(compressionQuality: 0.9))
+
+        let savedUser = try await repository.saveProfile(
+            for: user,
+            displayName: user.displayName,
+            avatarUpdate: .replacePhoto(data)
+        )
+        let fileName = try #require(savedUser.avatarPhotoFileName)
+        let mergedUser = try #require(await repository.mergedUser(savedUser))
+
+        #expect(savedUser.avatarAssetID == fileName)
+        #expect(savedUser.avatarVersion == 1)
+        #expect(mergedUser.avatarAssetID == fileName)
+        #expect(mergedUser.avatarVersion == 1)
+        #else
+        Issue.record("UIKit unavailable for avatar asset metadata test")
+        #endif
+    }
+
+    @Test
+    func userAvatarFallsBackToAssetIDWhenLocalFileNameIsMissing() {
+        let user = User(
+            id: UUID(),
+            appleUserID: nil,
+            displayName: "Asset User",
+            avatarSystemName: "person.crop.circle.fill",
+            avatarPhotoFileName: nil,
+            avatarAssetID: "shared-avatar-reference.jpg",
+            avatarVersion: 2,
+            createdAt: .now,
+            updatedAt: .now,
+            preferences: NotificationSettings(
+                taskReminderEnabled: true,
+                dailySummaryEnabled: true,
+                calendarReminderEnabled: true,
+                futureCollaborationInviteEnabled: true
+            )
+        )
+
+        #expect(user.avatarCacheFileName == "shared-avatar-reference.jpg")
+        #expect(user.avatarAsset == UserAvatarAsset.photo(fileName: "shared-avatar-reference.jpg"))
+    }
+
+    @Test
+    func memberProfilePayloadTreatsAssetReferenceWithoutLocalBlobAsPreservedAvatar() {
+        let persistent = PersistentUserProfile(
+            userID: UUID(),
+            displayName: "Asset-backed user",
+            avatarSystemName: nil,
+            avatarPhotoFileName: nil,
+            avatarAssetID: "shared-avatar-reference.jpg",
+            avatarVersion: 3,
+            avatarPhotoData: nil,
+            taskReminderEnabled: true,
+            dailySummaryEnabled: true,
+            calendarReminderEnabled: true,
+            futureCollaborationInviteEnabled: true,
+            taskUrgencyWindowMinutes: 30,
+            defaultSnoozeMinutes: 10,
+            quickTimePresetMinutes: [5, 10, 15],
+            completedTaskAutoArchiveEnabled: false,
+            completedTaskAutoArchiveDays: 30,
+            updatedAt: .now
+        )
+
+        let payload = SyncEngineDelegate.makeMemberProfilePayload(
+            from: persistent,
+            sharedSpaceID: UUID(),
+            avatarDataResolver: { _ in nil }
+        )
+
+        #expect(payload.avatarAssetID == "shared-avatar-reference.jpg")
+        #expect(payload.avatarDeleted == false)
+        #expect(payload.avatarPhotoData == nil)
     }
 
     @Test

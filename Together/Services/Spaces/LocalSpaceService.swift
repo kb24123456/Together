@@ -32,8 +32,24 @@ actor LocalSpaceService: SpaceServiceProtocol {
             if let orphanedRecord = spaceRecords.first(where: {
                 $0.domainModel.type == .single && $0.domainModel.status != .archived
             }) {
+                let oldOwnerID = orphanedRecord.ownerUserID
                 orphanedRecord.ownerUserID = userID
                 orphanedRecord.updatedAt = .now
+
+                // Re-assign all items seeded under the old owner so the real user
+                // passes canActorComplete() and can toggle completion normally.
+                let spaceID = orphanedRecord.id
+                let itemDescriptor = FetchDescriptor<PersistentItem>(
+                    predicate: #Predicate<PersistentItem> {
+                        $0.spaceID == spaceID && $0.creatorID == oldOwnerID
+                    }
+                )
+                if let orphanedItems = try? context.fetch(itemDescriptor) {
+                    for item in orphanedItems {
+                        item.creatorID = userID
+                    }
+                }
+
                 try? context.save()
                 singleSpace = orphanedRecord.domainModel
             }

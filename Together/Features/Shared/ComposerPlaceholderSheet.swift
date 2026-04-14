@@ -662,14 +662,30 @@ struct ComposerPlaceholderSheet: View {
                     draft: draftState.taskDraft()
                 )
                 await appContext.homeViewModel.reload(insertedItemIDs: [item.id])
+                await appContext.flushRecordedSharedMutation(
+                    SyncChange(
+                        entityKind: .task,
+                        operation: .upsert,
+                        recordID: item.id,
+                        spaceID: spaceID
+                    )
+                )
             case .periodic:
                 let draft = draftState.periodicTaskDraft()
-                _ = try await appContext.container.periodicTaskApplicationService.createTask(
+                let created = try await appContext.container.periodicTaskApplicationService.createTask(
                     in: spaceID,
                     actorID: actorID,
                     draft: draft
                 )
                 await appContext.routinesViewModel.load()
+                await appContext.flushRecordedSharedMutation(
+                    SyncChange(
+                        entityKind: .periodicTask,
+                        operation: .upsert,
+                        recordID: created.id,
+                        spaceID: spaceID
+                    )
+                )
             case .project:
                 let project = try await appContext.container.projectRepository.saveProject(
                     draftState.projectDraft(spaceID: spaceID)
@@ -682,6 +698,14 @@ struct ComposerPlaceholderSheet: View {
                     )
                 }
                 await appContext.projectsViewModel.load()
+                await appContext.flushRecordedSharedMutation(
+                    SyncChange(
+                        entityKind: .project,
+                        operation: .upsert,
+                        recordID: project.id,
+                        spaceID: spaceID
+                    )
+                )
             }
 
             focusedField = nil
