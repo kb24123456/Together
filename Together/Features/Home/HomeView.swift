@@ -231,6 +231,19 @@ struct HomeView: View {
                 .foregroundStyle(headerSecondaryColor)
                 .lineLimit(1)
 
+            if let syncState = viewModel.spaceSyncState {
+                Text(syncState.text)
+                    .font(AppTheme.typography.sized(11, weight: .semibold))
+                    .foregroundStyle(
+                        syncState == .failed
+                            ? AppTheme.colors.coral
+                            : syncState == .confirmed
+                                ? .green.opacity(0.72)
+                                : AppTheme.colors.body.opacity(0.46)
+                    )
+                    .lineLimit(1)
+            }
+
             if viewModel.isPairModeActive {
                 SyncStatusIndicator(
                     status: appContext.sessionStore.sharedSyncStatus
@@ -396,6 +409,7 @@ struct HomeView: View {
                                 onNavigateToRoutines: {
                                     withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
                                         viewModel.setCalendarDisplayMode(.week)
+                                        appContext.router.shouldAutoSelectPendingCycle = true
                                         appContext.router.currentSurface = .routines
                                     }
                                 }
@@ -490,6 +504,7 @@ struct HomeView: View {
                 RoutinesSummaryCard(
                     viewModel: appContext.routinesViewModel,
                     onNavigateToRoutines: {
+                        appContext.router.shouldAutoSelectPendingCycle = true
                         appContext.router.currentSurface = .routines
                     }
                 )
@@ -582,6 +597,7 @@ struct HomeView: View {
                 RoutinesSummaryCard(
                     viewModel: appContext.routinesViewModel,
                     onNavigateToRoutines: {
+                        appContext.router.shouldAutoSelectPendingCycle = true
                         appContext.router.currentSurface = .routines
                     }
                 )
@@ -791,13 +807,15 @@ struct HomeView: View {
                         }
                         .tint(AppTheme.colors.sky)
 
-                        Button(role: .destructive) {
-                            HomeInteractionFeedback.selection()
-                            Task {
-                                await viewModel.deleteItem(entry.id)
+                        if viewModel.canDeleteItem(entry.id) {
+                            Button(role: .destructive) {
+                                HomeInteractionFeedback.selection()
+                                Task {
+                                    await viewModel.deleteItem(entry.id)
+                                }
+                            } label: {
+                                Image(systemName: "trash")
                             }
-                        } label: {
-                            Image(systemName: "trash")
                         }
                     }
                 }
@@ -964,6 +982,7 @@ struct HomeView: View {
                 }
             },
             onDelete: {
+                guard viewModel.canDeleteItem(entry.id) else { return }
                 Task {
                     await viewModel.deleteItem(entry.id)
                 }
@@ -2337,6 +2356,19 @@ private struct PairTimelineCard: View {
 
     @ViewBuilder
     private var bottomRow: some View {
+        if entry.syncState == .syncing {
+            HStack(alignment: .center, spacing: 12) {
+                messageIdentityRow
+                Spacer(minLength: 0)
+                syncStateBadge(text: "同步中", state: .syncing)
+            }
+        } else if entry.syncState == .confirmed {
+            HStack(alignment: .center, spacing: 12) {
+                messageIdentityRow
+                Spacer(minLength: 0)
+                syncStateBadge(text: "已同步", state: .confirmed)
+            }
+        } else {
         switch entry.pairCardStyle {
         case .request:
             HStack(alignment: .center, spacing: 12) {
@@ -2398,6 +2430,27 @@ private struct PairTimelineCard: View {
                 )
             }
         }
+        }
+    }
+
+    private func syncStateBadge(text: String, state: SharedMutationDisplayState) -> some View {
+        Text(text)
+            .font(AppTheme.typography.sized(12, weight: .semibold))
+            .foregroundStyle(
+                state == .confirmed
+                    ? .green.opacity(0.78)
+                    : AppTheme.colors.body.opacity(0.62)
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(
+                        state == .confirmed
+                            ? AppTheme.colors.surfaceElevated.opacity(0.92)
+                            : AppTheme.colors.surfaceElevated
+                    )
+            )
     }
 
     private var messageIdentityRow: some View {
@@ -2489,6 +2542,9 @@ private struct PairTimelineCard: View {
     }
 
     private var subtitleText: String {
+        if let syncStateText = entry.syncStateText, syncStateText.isEmpty == false {
+            return syncStateText
+        }
         if let responseStateText = entry.responseStateText, responseStateText.isEmpty == false {
             return responseStateText
         }
@@ -3172,6 +3228,7 @@ private struct HomeOverdueSummarySheet: View {
                     notes: entry.detailText,
                     timeText: entry.timeText,
                     statusText: "已逾期",
+                    syncState: nil,
                     assigneeText: nil,
                     messagePreview: nil,
                     responseStateText: nil,

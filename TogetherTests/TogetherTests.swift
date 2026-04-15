@@ -179,46 +179,20 @@ struct TogetherTests {
     }
 
     @Test
-    func sharedAuthorityZonesAlwaysApplyFetchedRecords() {
-        let sharedZoneID = CKRecordZone.ID(
-            zoneName: "pair-\(MockDataFactory.pairSpaceID.uuidString)",
-            ownerName: "owner-record"
-        )
-
+    func shouldApplyFetchedRecordAcceptsNewerRemoteRecord() {
         #expect(
             SyncEngineDelegate.shouldApplyFetchedRecord(
-                in: sharedZoneID,
-                remoteUpdatedAt: Date(timeIntervalSince1970: 1_000),
-                localUpdatedAt: Date(timeIntervalSince1970: 2_000),
+                remoteUpdatedAt: Date(timeIntervalSince1970: 2_000),
+                localUpdatedAt: Date(timeIntervalSince1970: 1_000),
                 hasPendingLocalSave: false
             )
         )
     }
 
     @Test
-    func sharedAuthorityZonesPreservePendingLocalUpdatesUntilPushCompletes() {
-        let sharedZoneID = CKRecordZone.ID(
-            zoneName: "pair-\(MockDataFactory.pairSpaceID.uuidString)",
-            ownerName: "owner-record"
-        )
-
+    func shouldApplyFetchedRecordRejectsOlderRemoteRecord() {
         #expect(
             !SyncEngineDelegate.shouldApplyFetchedRecord(
-                in: sharedZoneID,
-                remoteUpdatedAt: Date(timeIntervalSince1970: 1_000),
-                localUpdatedAt: Date(timeIntervalSince1970: 2_000),
-                hasPendingLocalSave: true
-            )
-        )
-    }
-
-    @Test
-    func soloZonesStillRejectOlderFetchedRecords() {
-        let soloZoneID = CKRecordZone.ID(zoneName: "solo")
-
-        #expect(
-            !SyncEngineDelegate.shouldApplyFetchedRecord(
-                in: soloZoneID,
                 remoteUpdatedAt: Date(timeIntervalSince1970: 1_000),
                 localUpdatedAt: Date(timeIntervalSince1970: 2_000),
                 hasPendingLocalSave: false
@@ -257,6 +231,61 @@ struct TogetherTests {
         #expect(sharedSpace.updatedAt == Date(timeIntervalSince1970: 0))
         #expect(pairSpace.createdAt == Date(timeIntervalSince1970: 0))
         #expect(pairSpace.activatedAt == Date(timeIntervalSince1970: 0))
+    }
+
+    @Test
+    func avatarAssetRecordUsesDerivedCacheFileWhenPersistentProfileFileNameIsMissing() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let context = ModelContext(persistence.container)
+        let assetID = UUID().uuidString.lowercased()
+        let assetUUID = try #require(UUID(uuidString: assetID))
+        let avatarStore = LocalUserAvatarMediaStore()
+        let cacheFileName = avatarStore.cacheFileName(for: assetID)
+        try avatarStore.persistAvatarData(Data([0x01, 0x02]), fileName: cacheFileName)
+
+        let profile = PersistentUserProfile(
+            userID: UUID(),
+            displayName: "Tester",
+            avatarSystemName: nil,
+            avatarPhotoFileName: nil,
+            avatarAssetID: assetID,
+            avatarVersion: 2,
+            avatarPhotoData: nil,
+            taskReminderEnabled: true,
+            dailySummaryEnabled: true,
+            calendarReminderEnabled: false,
+            futureCollaborationInviteEnabled: false,
+            taskUrgencyWindowMinutes: 30,
+            defaultSnoozeMinutes: 30,
+            quickTimePresetMinutes: [5, 30, 60],
+            completedTaskAutoArchiveEnabled: true,
+            completedTaskAutoArchiveDays: 30,
+            updatedAt: Date(timeIntervalSince1970: 123)
+        )
+        context.insert(profile)
+        try context.save()
+
+        let coordinator = SyncEngineCoordinator(
+            ckContainer: CKContainer(identifier: "iCloud.com.pigdog.Together"),
+            modelContainer: persistence.container,
+            healthMonitor: SyncHealthMonitor()
+        )
+        let delegate = SyncEngineDelegate(
+            zoneID: CKRecordZone.ID(zoneName: "solo"),
+            modelContainer: persistence.container,
+            codecRegistry: RecordCodecRegistry(),
+            healthMonitor: coordinator.healthMonitor
+        )
+
+        let record = try #require(
+            delegate.buildRecordForTesting(
+                uuid: assetUUID,
+                entityKind: SyncEntityKind.avatarAsset
+            )
+        )
+
+        let ckAsset = try #require(record["avatarAsset"] as? CKAsset)
+        #expect(ckAsset.fileURL?.lastPathComponent == cacheFileName)
     }
 
     @Test @MainActor
@@ -304,6 +333,7 @@ struct TogetherTests {
         let project = Project(
             id: UUID(),
             spaceID: sharedSpaceID,
+            creatorID: currentUserID,
             name: "共享项目",
             notes: nil,
             colorToken: nil,
@@ -326,6 +356,7 @@ struct TogetherTests {
         let taskList = TaskList(
             id: UUID(),
             spaceID: sharedSpaceID,
+            creatorID: currentUserID,
             name: "共享清单",
             kind: .custom,
             colorToken: nil,
@@ -589,6 +620,90 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func profileViewModelSpaceSummaryIncludesPendingSharedSpaceMutationState() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.updateSharedMutationSnapshots([
+            SharedMutationRecordKey(
+                entityKind: .space,
+                recordID: MockDataFactory.pairSharedSpaceID
+            ): SyncMutationSnapshot(
+                change: SyncChange(
+                    entityKind: .space,
+                    operation: .upsert,
+                    recordID: MockDataFactory.pairSharedSpaceID,
+                    spaceID: MockDataFactory.pairSharedSpaceID
+                ),
+                lifecycleState: .sending,
+                lastAttemptedAt: .now,
+                confirmedAt: nil,
+                lastError: nil
+            )
+        ])
+
+        let viewModel = ProfileViewModel(
+            sessionStore: sessionStore,
+            authService: MockAuthService(),
+            pairingService: MockRelationshipService(),
+            userProfileRepository: MockUserProfileRepository(),
+            notificationService: MockNotificationService(),
+            itemRepository: MockItemRepository(),
+            taskApplicationService: TestHomeTaskApplicationService(),
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        #expect(viewModel.spaceSummary == "一起的任务空间 · 同步中")
+    }
+
+    @Test @MainActor
+    func profileViewModelSpaceSummaryIncludesRecentlyConfirmedSharedSpaceMutationState() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.updateSharedMutationSnapshots([
+            SharedMutationRecordKey(
+                entityKind: .space,
+                recordID: MockDataFactory.pairSharedSpaceID
+            ): SyncMutationSnapshot(
+                change: SyncChange(
+                    entityKind: .space,
+                    operation: .upsert,
+                    recordID: MockDataFactory.pairSharedSpaceID,
+                    spaceID: MockDataFactory.pairSharedSpaceID
+                ),
+                lifecycleState: .confirmed,
+                lastAttemptedAt: MockDataFactory.now,
+                confirmedAt: .now,
+                lastError: nil
+            )
+        ])
+
+        let viewModel = ProfileViewModel(
+            sessionStore: sessionStore,
+            authService: MockAuthService(),
+            pairingService: MockRelationshipService(),
+            userProfileRepository: MockUserProfileRepository(),
+            notificationService: MockNotificationService(),
+            itemRepository: MockItemRepository(),
+            taskApplicationService: TestHomeTaskApplicationService(),
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        #expect(viewModel.spaceSummary == "一起的任务空间 · 已同步")
+    }
+
+    @Test @MainActor
     func homeViewModelShowsCreatorAvatarForSelfTaskInPairMode() async throws {
         let referenceDate = Date.now.addingTimeInterval(60)
         let sessionStore = SessionStore()
@@ -659,6 +774,138 @@ struct TogetherTests {
 
         let entry = try #require(viewModel.timelineEntries.first)
         #expect(entry.primaryAvatar?.id == MockDataFactory.currentUserID)
+    }
+
+    @Test @MainActor
+    func homeViewModelTimelinePrefersPendingSharedTaskMutationText() async throws {
+        let referenceDate = Date.now.addingTimeInterval(60)
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchMode(to: .pair)
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "等待对方接受",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            assigneeMode: .partner,
+            dueAt: referenceDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .pendingConfirmation,
+            assignmentState: .pendingResponse,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: referenceDate,
+            updatedAt: referenceDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+        sessionStore.updateSharedMutationSnapshots([
+            SharedMutationRecordKey(
+                entityKind: .task,
+                recordID: item.id
+            ): SyncMutationSnapshot(
+                change: SyncChange(
+                    entityKind: .task,
+                    operation: .upsert,
+                    recordID: item.id,
+                    spaceID: MockDataFactory.pairSharedSpaceID
+                ),
+                lifecycleState: .sending,
+                lastAttemptedAt: .now,
+                confirmedAt: nil,
+                lastError: nil
+            )
+        ])
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        viewModel.items = [item]
+        viewModel.selectedDate = referenceDate
+
+        let entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.syncStateText == "同步中")
+    }
+
+    @Test @MainActor
+    func homeViewModelTimelineShowsRecentlyConfirmedSharedTaskMutationText() async throws {
+        let referenceDate = Date.now.addingTimeInterval(60)
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchMode(to: .pair)
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "已确认的共享任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            assigneeMode: .partner,
+            dueAt: referenceDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .pendingConfirmation,
+            assignmentState: .pendingResponse,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: referenceDate,
+            updatedAt: referenceDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+        sessionStore.updateSharedMutationSnapshots([
+            SharedMutationRecordKey(
+                entityKind: .task,
+                recordID: item.id
+            ): SyncMutationSnapshot(
+                change: SyncChange(
+                    entityKind: .task,
+                    operation: .upsert,
+                    recordID: item.id,
+                    spaceID: MockDataFactory.pairSharedSpaceID
+                ),
+                lifecycleState: .confirmed,
+                lastAttemptedAt: MockDataFactory.now,
+                confirmedAt: .now,
+                lastError: nil
+            )
+        ])
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            quickCaptureParser: RuleBasedQuickCaptureParser(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        viewModel.items = [item]
+        viewModel.selectedDate = referenceDate
+
+        let entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.syncStateText == "已同步")
     }
 
     @Test @MainActor
@@ -842,6 +1089,7 @@ struct TogetherTests {
             TaskList(
                 id: UUID(),
                 spaceID: MockDataFactory.singleSpaceID,
+                creatorID: UUID(),
                 name: "客户跟进",
                 kind: .custom,
                 colorToken: "navy",
@@ -871,6 +1119,7 @@ struct TogetherTests {
             Project(
                 id: UUID(),
                 spaceID: MockDataFactory.singleSpaceID,
+                creatorID: UUID(),
                 name: "本地数据库接入",
                 notes: "把 SwiftData 和仓库层跑通。",
                 colorToken: "ink",
@@ -2157,6 +2406,36 @@ struct TogetherTests {
     }
 
     @Test
+    func localSyncCoordinatorAllowsDuplicateRecordIDsAcrossEntityKinds() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let coordinator = LocalSyncCoordinator(container: persistence.container)
+        let sharedID = UUID()
+
+        await coordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .space,
+                operation: .upsert,
+                recordID: sharedID,
+                spaceID: MockDataFactory.pairSharedSpaceID,
+                changedAt: MockDataFactory.now
+            )
+        )
+        await coordinator.recordLocalChange(
+            SyncChange(
+                entityKind: .avatarAsset,
+                operation: .upsert,
+                recordID: sharedID,
+                spaceID: MockDataFactory.pairSharedSpaceID,
+                changedAt: MockDataFactory.now.addingTimeInterval(5)
+            )
+        )
+
+        let mutationLog = await coordinator.mutationLog(for: MockDataFactory.pairSharedSpaceID)
+        #expect(mutationLog.count == 2)
+        #expect(Set(mutationLog.map(\.change.entityKind)) == [.space, .avatarAsset])
+    }
+
+    @Test
     func syncOrchestratorPushesPendingChangesAndUpdatesCursor() async throws {
         let coordinator = TestSyncCoordinator()
         let gateway = TestCloudSyncGateway()
@@ -2336,34 +2615,12 @@ struct TogetherTests {
         )
         try context.save()
 
-        let applier = LocalRemoteSyncApplier(
-            itemRepository: MockItemRepository(),
-            modelContainer: persistence.container
-        )
-
-        let appliedCount = await applier.repairLegacyProfiles(
-            [
-                CloudKitProfileRecordCodec.MemberProfilePayload(
-                    userID: partnerUserID,
-                    spaceID: sharedSpaceID,
-                    displayName: "legacy nickname",
-                    avatarSystemName: "person",
-                    avatarAssetID: "legacy-avatar.jpg",
-                    avatarVersion: 1,
-                    avatarPhotoBase64: nil,
-                    pairSpaceDisplayName: "legacy space",
-                    updatedAt: .distantPast
-                )
-            ],
-            in: sharedSpaceID
-        )
         let verificationContext = ModelContext(persistence.container)
         let spaces = try verificationContext.fetch(FetchDescriptor<PersistentSpace>())
         let memberships = try verificationContext.fetch(FetchDescriptor<PersistentPairMembership>())
         let space = try #require(spaces.first(where: { $0.id == sharedSpaceID }))
         let membership = try #require(memberships.first(where: { $0.userID == partnerUserID }))
 
-        #expect(appliedCount == 0)
         #expect(space.displayName == "权威空间名")
         #expect(membership.nickname == "权威昵称")
         #expect(membership.avatarSystemName == "person.crop.circle.fill")
@@ -2446,7 +2703,7 @@ struct TogetherTests {
         )
 
         #expect(repairedPairSpace.displayName == nil)
-        #expect(repairedMembership.avatarAssetID == "legacy-avatar.jpg")
+        #expect(repairedMembership.avatarAssetID == partnerID.uuidString.lowercased())
     }
 
     @Test
@@ -2509,8 +2766,9 @@ struct TogetherTests {
         )
         let fileName = try #require(savedUser.avatarPhotoFileName)
         let restoredUser = try #require(await repository.mergedUser(user))
+        let expectedFileName = LocalUserAvatarMediaStore().cacheFileName(for: try #require(savedUser.avatarAssetID))
 
-        #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        #expect(fileName == expectedFileName)
         #expect(restoredUser.avatarPhotoFileName == fileName)
         #expect(
             FileManager.default.fileExists(
@@ -2538,8 +2796,9 @@ struct TogetherTests {
         let fileName = try #require(savedUser.avatarPhotoFileName)
         let relaunchedRepository = LocalUserProfileRepository(container: try makeUserProfileContainer(storeURL: storeURL))
         let restoredUser = try #require(await relaunchedRepository.mergedUser(user))
+        let expectedFileName = LocalUserAvatarMediaStore().cacheFileName(for: try #require(savedUser.avatarAssetID))
 
-        #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        #expect(fileName == expectedFileName)
         #expect(restoredUser.avatarPhotoFileName == fileName)
         #expect(
             FileManager.default.fileExists(
@@ -2682,8 +2941,10 @@ struct TogetherTests {
 
         let restoredUser = try #require(await repository.mergedUser(user))
 
-        #expect(restoredUser.avatarPhotoFileName == fileName)
-        #expect(UserAvatarRuntimeStore.image(for: fileName) != nil)
+        let repairedAssetID = try #require(restoredUser.avatarAssetID)
+        let repairedFileName = LocalUserAvatarMediaStore().cacheFileName(for: repairedAssetID)
+        #expect(restoredUser.avatarPhotoFileName == repairedFileName)
+        #expect(UserAvatarRuntimeStore.image(for: repairedFileName) != nil)
         #else
         Issue.record("UIKit unavailable for avatar payload fallback test")
         #endif
@@ -2712,14 +2973,15 @@ struct TogetherTests {
             predicate: #Predicate { $0.userID == userID }
         )
         let repairedRecord = try #require(try verificationContext.fetch(descriptor).first)
+        let expectedFileName = LocalUserAvatarMediaStore().cacheFileName(for: user.id.uuidString.lowercased())
 
         #expect(
             FileManager.default.fileExists(
-                atPath: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+                atPath: UserAvatarStorage.fileURL(fileName: expectedFileName).path(percentEncoded: false)
             )
         )
-        #expect(recoveredUser.avatarPhotoFileName == fileName)
-        #expect(repairedRecord.avatarPhotoFileName == fileName)
+        #expect(recoveredUser.avatarPhotoFileName == expectedFileName)
+        #expect(repairedRecord.avatarPhotoFileName == expectedFileName)
         #else
         Issue.record("UIKit unavailable for avatar recovery test")
         #endif
@@ -2749,7 +3011,8 @@ struct TogetherTests {
         let fileURL = UserAvatarStorage.fileURL(fileName: fileName)
         let savedData = try Data(contentsOf: fileURL)
 
-        #expect(fileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        let assetID = try #require(secondSave.avatarAssetID)
+        #expect(fileName == LocalUserAvatarMediaStore().cacheFileName(for: assetID))
         #expect(savedData == secondData)
         #else
         Issue.record("UIKit unavailable for avatar replace test")
@@ -2771,10 +3034,11 @@ struct TogetherTests {
         )
         let fileName = try #require(savedUser.avatarPhotoFileName)
         let mergedUser = try #require(await repository.mergedUser(savedUser))
+        let assetID = try #require(savedUser.avatarAssetID)
 
-        #expect(savedUser.avatarAssetID == fileName)
+        #expect(fileName == LocalUserAvatarMediaStore().cacheFileName(for: assetID))
         #expect(savedUser.avatarVersion == 1)
-        #expect(mergedUser.avatarAssetID == fileName)
+        #expect(mergedUser.avatarAssetID == assetID)
         #expect(mergedUser.avatarVersion == 1)
         #else
         Issue.record("UIKit unavailable for avatar asset metadata test")
@@ -2923,24 +3187,25 @@ struct TogetherTests {
     @Test
     func memberProfileRecordRemainsMetadataOnlyWhenAssetReferenceExists() async throws {
         let zoneID = CKRecordZone.ID(zoneName: "pair-\(UUID().uuidString)")
-        let fileName = "shared-asset-\(UUID().uuidString.lowercased()).jpg"
+        let assetID = UUID().uuidString.lowercased()
         let original = MemberProfileRecordCodable.Profile(
             userID: UUID(),
             spaceID: UUID(),
             displayName: "Asset Metadata",
             avatarSystemName: nil,
-            avatarAssetID: fileName,
+            avatarAssetID: assetID,
             avatarVersion: 2,
             avatarDeleted: false,
             updatedAt: .now
         )
         let store = LocalUserAvatarMediaStore()
+        let fileName = store.cacheFileName(for: assetID)
 
         try? store.removeAvatar(named: fileName)
         let record = MemberProfileRecordCodable(profile: original).toCKRecord(in: zoneID)
         let decoded = try await MemberProfileRecordCodable.from(record: record).profile
 
-        #expect(decoded.avatarAssetID == fileName)
+        #expect(decoded.avatarAssetID == assetID)
         #expect(record["avatarAsset"] == nil)
         #expect(store.fileExists(named: fileName) == false)
     }
@@ -2969,6 +3234,36 @@ struct TogetherTests {
     }
 
     @Test
+    func avatarAssetRecordRoundTripsAssetPayload() async throws {
+        #if canImport(UIKit)
+        let zoneID = CKRecordZone.ID(zoneName: "pair-\(UUID().uuidString)")
+        let assetID = UUID()
+        let store = LocalUserAvatarMediaStore()
+        let fileName = store.cacheFileName(for: assetID.uuidString.lowercased())
+        let data = try #require(makeAvatarTestImage(fillColor: .systemOrange).jpegData(compressionQuality: 0.9))
+        try? store.removeAvatar(named: fileName)
+        try store.persistAvatarData(data, fileName: fileName)
+
+        let original = AvatarAssetRecordCodable.Asset(
+            assetID: assetID,
+            version: 3,
+            updatedAt: .now,
+            fileName: fileName,
+            data: nil
+        )
+
+        let record = AvatarAssetRecordCodable(asset: original).toCKRecord(in: zoneID)
+        let decoded = try await AvatarAssetRecordCodable.from(record: record).asset
+
+        #expect(decoded.assetID == assetID)
+        #expect(decoded.version == 3)
+        #expect(decoded.data == data)
+        #else
+        Issue.record("UIKit unavailable for avatar asset round-trip test")
+        #endif
+    }
+
+    @Test
     func localUserProfileRepositoryRepairsLegacyAvatarPayloadAndClearsBlob() async throws {
         #if canImport(UIKit)
         let storeURL = makeAvatarTestStoreURL(testName: "AvatarLegacyRepair")
@@ -2993,8 +3288,9 @@ struct TogetherTests {
             predicate: #Predicate { $0.userID == userID }
         )
         let repairedRecord = try #require(try verificationContext.fetch(descriptor).first)
+        let expectedFileName = LocalUserAvatarMediaStore().cacheFileName(for: user.id.uuidString.lowercased())
 
-        #expect(repairedFileName == "\(user.id.uuidString.lowercased())-avatar.jpg")
+        #expect(repairedFileName == expectedFileName)
         #expect(repairedRecord.avatarPhotoFileName == repairedFileName)
         #expect(repairedRecord.avatarPhotoData == data)
         #expect(
@@ -3424,6 +3720,10 @@ private struct FailingRepairAvatarMediaStore: UserAvatarMediaStoreProtocol {
 
     nonisolated func canonicalFileName(for userID: UUID) -> String {
         baseStore.canonicalFileName(for: userID)
+    }
+
+    nonisolated func cacheFileName(for assetID: String) -> String {
+        baseStore.cacheFileName(for: assetID)
     }
 
     nonisolated func avatarData(named fileName: String) throws -> Data {
@@ -4007,7 +4307,7 @@ actor PairingServiceOrderSpy: PairingServiceProtocol {
         PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
     }
 
-    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?) async {
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async {
         await recorder.record("pairing-persisted")
     }
 

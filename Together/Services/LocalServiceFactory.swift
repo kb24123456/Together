@@ -20,10 +20,8 @@ enum LocalServiceFactory {
         let userProfileRepository = LocalUserProfileRepository(container: modelContainer)
         let localPairingService = LocalPairingService(container: modelContainer)
 
-        // CloudKit container & managers
+        // CloudKit container
         let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
-        let zoneManager = CloudKitZoneManager(container: ckContainer)
-        let shareManager = CloudKitShareManager(container: ckContainer)
 
         let inviteGateway = CloudKitInviteGateway(
             containerIdentifier: CloudKitSyncConfiguration.defaultContainerIdentifier
@@ -31,8 +29,6 @@ enum LocalServiceFactory {
         let pairingService = CloudPairingService(
             localPairing: localPairingService,
             inviteGateway: inviteGateway,
-            zoneManager: zoneManager,
-            shareManager: shareManager,
             container: ckContainer
         )
 
@@ -51,7 +47,7 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator
         )
 
-        // CKSyncEngine coordinator (private DB multi-device sync + shared authority data plane)
+        // CKSyncEngine coordinator (private DB, solo zone only)
         let healthMonitor = SyncHealthMonitor()
         let syncEngineCoordinator = SyncEngineCoordinator(
             ckContainer: ckContainer,
@@ -83,8 +79,6 @@ enum LocalServiceFactory {
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
             cloudKitContainer: ckContainer,
-            zoneManager: zoneManager,
-            shareManager: shareManager,
             syncEngineCoordinator: syncEngineCoordinator
         )
         StartupTrace.mark("LocalServiceFactory.makeContainer.end")

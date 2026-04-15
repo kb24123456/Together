@@ -39,6 +39,7 @@ struct TaskListRecordCodable: RecordCodable {
         let taskList = TaskList(
             id: id,
             spaceID: spaceID,
+            creatorID: UUID(),
             name: name,
             kind: TaskListKind(rawValue: kindRaw) ?? .custom,
             colorToken: record["colorToken"] as? String,

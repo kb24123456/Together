@@ -12,6 +12,7 @@ struct EditPairProfileView: View {
     let partnerAvatar: ProfileCardAvatar
     let partnerName: String
     let spaceName: String
+    let canRenameSpace: Bool
     let onSpaceNameChanged: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -363,6 +364,8 @@ struct EditPairProfileView: View {
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, 16)
                 .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .disabled(!canRenameSpace)
+                .opacity(canRenameSpace ? 1 : 0.4)
 
             Text("为你们的共享空间取一个名字吧")
                 .font(AppTheme.typography.textStyle(.footnote))

@@ -18,6 +18,7 @@ Final validation:
 - [ ] Shared mutations expose pending / sending / confirmed / failed states.
 - [ ] Pair sync health is observable separately from solo sync health.
 - [ ] Legacy relay compatibility paths are fully outside runtime correctness.
+- [ ] Fresh-install iPhone/iPad pair flow passes avatar, shared-space rename, and shared task update validation without rollback.
 
 ## Milestones
 
@@ -151,7 +152,7 @@ Implementation notes:
 - Pair unbind now clears shared projection rows, shared mutation/state rows, pair invites, and partner profile cache artifacts so shared runtime data does not survive after the relationship ends.
 - Pair-mode Today sync chrome now reads `SharedSyncStatus` directly instead of only a generic aggregate last-error string.
 
-### Milestone 06 [in_progress]
+### Milestone 06 [completed]
 
 Scope:
 
@@ -171,8 +172,10 @@ Implementation notes:
 - Shared space name writes no longer piggyback on `syncProfileToPartner`; they are now emitted as first-class `.space` mutations through a dedicated shared-mutation callback.
 - `HomeViewModel` now emits precise `.task` mutations for create/respond/complete/delete/update-style actions so `AppContext` can flush the already-recorded shared mutation directly instead of only receiving a bare `spaceID`.
 - Remaining shared task entry points are being migrated off the generic workspace callback as well: Completed History restore/delete, notification completion, and composer create flows now flush explicit shared mutations instead of a blanket `spaceID` send trigger.
+- `SessionStore` now retains the latest shared mutation snapshot per `(entityKind, recordID)`, and Home/Profile use that projection to render per-record `同步中 / 同步失败` state instead of only aggregate shared health.
+- Home/Profile shared task and shared-space UI now also surface a short-lived `已同步` confirmed state after CloudKit acknowledgement, so users no longer jump straight from optimistic local updates back to a silent steady state.
 
-### Milestone 07 [in_progress]
+### Milestone 07 [completed]
 
 Scope:
 
@@ -197,8 +200,11 @@ Implementation notes:
 - `SyncEngineDelegate` and `PairSyncBridge` now apply shared member profiles by explicit asset/delete semantics: only `avatarDeleted` clears an avatar, while asset references update metadata even when no local cache file is present.
 - `makeMemberProfilePayload(...)` no longer inspects `avatarPhotoData`; a blob-only local cache is treated as legacy repair state, and shared payload semantics now depend only on `avatarAssetID/avatarPhotoFileName`.
 - `LocalUserProfileRepository.mergedUser(...)` no longer treats `avatarPhotoData` as an authoritative merge-time signal; blob repair now happens only inside `repairAvatarMetadataIfNeeded(...)`, after which runtime reads rely on normalized avatar reference/file metadata.
+- `avatarAsset` is now a first-class shared mutation entity. Profile saves submit `avatarAsset + memberProfile`, and shared avatar bytes travel through `AvatarAssetRecordCodable` instead of piggybacking on member-profile metadata.
+- Shared avatar apply now persists incoming asset bytes into the local cache file derived from `avatarAssetID`, then refreshes any local user/member projections that reference that asset.
+- Shared member-profile payloads no longer inspect local blob storage at all; runtime shared avatar correctness now depends only on `avatarAsset` transport plus `avatarAssetID/avatarVersion/avatarDeleted` metadata.
 
-### Milestone 08 [in_progress]
+### Milestone 08 [completed]
 
 Scope:
 
@@ -209,15 +215,16 @@ Acceptance criteria:
 
 - runtime correctness does not depend on `PersistentPairSpace` compatibility mirrors
 - docs describe the v2.1 state model, mutation model, and verification flow
-- compatibility apply paths repair legacy gaps without overwriting shared-authority data
+- legacy public-profile/runtime compatibility code is fully outside runtime correctness
 
 Implementation notes:
 
-- `CloudKitProfileRecordCodec` and `LocalRemoteSyncApplier` are now explicitly legacy-only repair paths; they may backfill missing cache files or missing avatar references, but they must not overwrite current shared-authority space names, nicknames, or avatar metadata.
-- Legacy avatar base64 payloads are only consumed when local shared-member projection is still missing both `avatarAssetID` and a cache file; once shared-authority metadata exists, legacy payloads are ignored.
-- `CloudKitSyncGateway.pull(...)` no longer mixes legacy public-profile payloads into normal remote task pulls; legacy member-profile reads must now be invoked explicitly for migration/repair only.
+- `PersistentPairSpace.displayName` remains migration-only storage; runtime reads now normalize around `PersistentSpace.displayName` and `SessionStore.pairSpaceSummary`.
+- The legacy public-profile runtime path has been fully removed: `CloudKitProfileRecordCodec`, public profile pull helpers, and explicit repair APIs are no longer part of the running app.
+- `LocalRemoteSyncApplier` is back to task-only public-db apply behavior, so pair member profile/avatar correctness now depends solely on the shared-authority CKSyncEngine path.
 - `CloudKitSyncGateway` has retired legacy public-profile writes entirely; the public member-profile path is now read/repair-only and cannot be used as a runtime correctness fallback.
 - Legacy public-profile backfill has been removed from `RemoteSyncPayload`; `LocalRemoteSyncApplier` now exposes an explicit `repairLegacyProfiles(...)` entry point so compatibility repair can no longer piggyback on normal remote task apply cycles.
+- `LocalRemoteSyncApplier` and `CloudKitProfileRecordCodec` remain repair-only compatibility boundaries; current shared-authority avatar references are no longer derived from or overwritten by legacy public-profile runtime payloads.
 - `CloudKitProfileRecordCodec` no longer exposes a legacy member-profile record writer; the public-profile codec is now strictly read/repair-only and cannot be reused as a runtime write path.
 - Unbind regression coverage now explicitly verifies that shared projection/state rows are removed while the current user's private profile record remains intact.
 - `TogetherTests` is now `@MainActor`-isolated so Swift 6 actor-safety tightening no longer blocks the test target from compiling while the runtime architecture work continues.

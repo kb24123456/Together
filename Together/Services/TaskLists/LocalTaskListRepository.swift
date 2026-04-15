@@ -119,6 +119,7 @@ private extension TaskList {
         TaskList(
             id: id,
             spaceID: spaceID,
+            creatorID: creatorID,
             name: name,
             kind: kind,
             colorToken: colorToken,

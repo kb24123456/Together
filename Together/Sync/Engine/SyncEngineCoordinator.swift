@@ -5,18 +5,10 @@ import os.log
 
 private let logger = Logger(subsystem: "com.pigdog.Together", category: "SyncEngineCoordinator")
 
-/// Central coordinator for all CKSyncEngine instances.
+/// Central coordinator for the solo CKSyncEngine instance.
 ///
-/// Manages one engine for the `solo` zone (single-mode data) and one engine
-/// per active pair space via `PairSyncBridge`.
-///
-/// ## Architecture
-/// ```
-/// SyncEngineCoordinator
-/// ├── soloEngine        (CKSyncEngine, private zone "solo")
-/// └── pairBridges       (PairSyncBridge per active pair space)
-///     └── engine         (CKSyncEngine over private/shared CloudKit DB)
-/// ```
+/// Manages one engine for the `solo` zone (single-mode data, multi-device sync).
+/// Pair sync is handled separately by `PairSyncService` using CloudKit Public DB.
 actor SyncEngineCoordinator {
 
     // MARK: - Dependencies
@@ -31,15 +23,8 @@ actor SyncEngineCoordinator {
     private var soloEngine: CKSyncEngine?
     private var soloDelegate: SyncEngineDelegate?
 
-    /// Active pair space bridges, keyed by pairSpaceID.
-    private var pairBridges: [UUID: PairSyncBridge] = [:]
-
     /// Per-zone debounced immediate send tasks.
     private var immediateSendTasks: [String: Task<Void, Never>] = [:]
-
-    /// Reverse mapping: sharedSpaceID → pairSpaceID.
-    /// Tasks are created with sharedSpaceID but bridges are keyed by pairSpaceID.
-    private var sharedToPairSpaceID: [UUID: UUID] = [:]
 
     /// Known solo space ID (set externally so we can route changes correctly).
     private var soloSpaceID: UUID?
@@ -124,115 +109,13 @@ actor SyncEngineCoordinator {
         logger.info("[Coordinator] Solo CKSyncEngine stopped")
     }
 
-    // MARK: - Pair Zone
-
-    /// Starts sync for a pair space using a single shared CloudKit authority zone.
-    ///
-    /// - Parameters:
-    ///   - pairSpaceID: The pair space identifier.
-    ///   - sharedSpaceID: The shared space identifier (used in task spaceID fields).
-    ///   - myUserID: The current user's UUID.
-    ///   - inviterID: The inviter (memberA) user ID — used for key derivation.
-    ///   - responderID: The responder (memberB) user ID — used for key derivation.
-    func startPairSync(
-        pairSpaceID: UUID,
-        sharedSpaceID: UUID,
-        myUserID _: UUID,
-        inviterID _: UUID,
-        responderID _: UUID,
-        isZoneOwner: Bool,
-        ownerRecordID: String?
-    ) {
-        guard pairBridges[pairSpaceID] == nil else {
-            logger.info("[Coordinator] Pair engine already running for \(pairSpaceID.uuidString.prefix(8))")
-            return
-        }
-
-        // Register reverse mapping so task changes (which carry sharedSpaceID) route correctly
-        sharedToPairSpaceID[sharedSpaceID] = pairSpaceID
-
-        let zoneID = CloudKitZoneManager.zoneID(
-            for: pairSpaceID,
-            ownerRecordID: ownerRecordID,
-            isZoneOwner: isZoneOwner
-        )
-        let database = isZoneOwner ? ckContainer.privateCloudDatabase : ckContainer.sharedCloudDatabase
-
-        // 1. Create SyncEngineDelegate for this pair zone
-        let delegate = SyncEngineDelegate(
-            zoneID: zoneID,
-            modelContainer: modelContainer,
-            codecRegistry: codecRegistry,
-            healthMonitor: healthMonitor
-        )
-
-        delegate.onRemoteChangesApplied = { count in
-            logger.info("[Coordinator] Pair \(pairSpaceID.uuidString.prefix(8)): \(count) remote changes applied")
-        }
-
-        // 2. Restore or create CKSyncEngine state
-        let stateSerialization = loadStateSerialization(for: zoneID)
-        let configuration = CKSyncEngine.Configuration(
-            database: database,
-            stateSerialization: stateSerialization,
-            delegate: delegate
-        )
-        let engine = CKSyncEngine(configuration)
-
-        if isZoneOwner {
-            engine.state.add(pendingDatabaseChanges: [
-                .saveZone(CKRecordZone(zoneID: zoneID))
-            ])
-        }
-
-        // Pair data now lives in one shared authority zone; relay is disabled for pair sync.
-        let bridge = PairSyncBridge(
-            pairSpaceID: pairSpaceID,
-            engine: engine,
-            delegate: delegate,
-            zoneID: zoneID,
-            modelContainer: modelContainer,
-            codecRegistry: codecRegistry
-        )
-
-        pairBridges[pairSpaceID] = bridge
-
-        logger.info("[Coordinator] ✅ Pair CKSyncEngine started for \(pairSpaceID.uuidString.prefix(8)), owner=\(isZoneOwner)")
-    }
-
-    /// Sets the callback invoked when remote changes are applied to a pair zone.
-    func setPairRemoteChangesCallback(
-        pairSpaceID: UUID,
-        callback: @escaping @Sendable (_ count: Int) -> Void
-    ) {
-        pairBridges[pairSpaceID]?.delegate.onRemoteChangesApplied = callback
-    }
-
-    /// Stops sync for a pair space and cleans up.
-    func stopPairSync(pairSpaceID: UUID) {
-        guard let bridge = pairBridges.removeValue(forKey: pairSpaceID) else { return }
-
-        // Remove reverse mapping
-        sharedToPairSpaceID = sharedToPairSpaceID.filter { $0.value != pairSpaceID }
-        immediateSendTasks.removeValue(forKey: bridge.zoneID.zoneName)?.cancel()
-
-        logger.info("[Coordinator] Pair CKSyncEngine stopped for \(pairSpaceID.uuidString.prefix(8))")
-    }
-
-    /// Stops pair sync for unbind / teardown.
-    func teardownPairSync(pairSpaceID: UUID) {
-        stopPairSync(pairSpaceID: pairSpaceID)
-        logger.info("[Coordinator] Pair sync torn down for \(pairSpaceID.uuidString.prefix(8))")
-    }
-
     // MARK: - Record Local Changes
 
     /// Records a local mutation that needs to be pushed to CloudKit.
-    /// Routes to the correct zone based on spaceID.
     func recordChange(_ change: SyncChange) async {
-        let zoneID = zoneIDForChange(change)
+        let zoneID = Self.soloZoneID
 
-        guard let engine = engineFor(zoneID) else {
+        guard let engine = soloEngine else {
             logger.warning("[Coordinator] No engine for zone \(zoneID.zoneName), change dropped")
             return
         }
@@ -257,14 +140,9 @@ actor SyncEngineCoordinator {
 
     // MARK: - Account Change
 
-    /// Handles iCloud account change by stopping all engines.
+    /// Handles iCloud account change by stopping the solo engine.
     func handleAccountChange() {
         stopSoloSync()
-        let pairIDs = Array(pairBridges.keys)
-        for id in pairIDs {
-            stopPairSync(pairSpaceID: id)
-        }
-        sharedToPairSpaceID.removeAll()
         for task in immediateSendTasks.values {
             task.cancel()
         }
@@ -272,37 +150,9 @@ actor SyncEngineCoordinator {
         logger.info("[Coordinator] All engines stopped due to account change")
     }
 
-    // MARK: - Active Pair Spaces
-
-    /// Returns the IDs of all active pair spaces being synced.
-    var activePairSpaceIDs: [UUID] {
-        Array(pairBridges.keys)
-    }
-
-    /// Returns whether a pair space has an active sync bridge.
-    func isPairSyncActive(for pairSpaceID: UUID) -> Bool {
-        pairBridges[pairSpaceID] != nil
-    }
-
-    /// Sends pending local changes for the given shared space immediately.
+    /// Sends pending local changes for the solo space immediately.
     func sendChanges(for spaceID: UUID) async {
-        let zoneID = zoneIDForSpaceID(spaceID)
-        await sendChanges(for: zoneID)
-    }
-
-    /// Fetches remote changes for the given pair space immediately.
-    func fetchPairChanges(pairSpaceID: UUID) async {
-        guard let bridge = pairBridges[pairSpaceID] else { return }
-        do {
-            try await bridge.engine.fetchChanges()
-        } catch {
-            healthMonitor.updateZone(bridge.zoneID.zoneName) {
-                $0.consecutiveFailures += 1
-                $0.lastFetchError = error.localizedDescription
-                $0.lastError = error.localizedDescription
-            }
-            logger.error("[Coordinator] Immediate fetch failed for \(bridge.zoneID.zoneName): \(error.localizedDescription)")
-        }
+        await sendChanges(for: Self.soloZoneID)
     }
 
     // MARK: - State Persistence
@@ -340,52 +190,6 @@ actor SyncEngineCoordinator {
 
     // MARK: - Helpers
 
-    private func delegateFor(_ zoneID: CKRecordZone.ID) -> SyncEngineDelegate? {
-        if zoneID == Self.soloZoneID {
-            return soloDelegate
-        }
-        for (_, bridge) in pairBridges where bridge.zoneID == zoneID {
-            return bridge.delegate
-        }
-        return nil
-    }
-
-    private func engineFor(_ zoneID: CKRecordZone.ID) -> CKSyncEngine? {
-        if zoneID == Self.soloZoneID {
-            return soloEngine
-        }
-        // Look up pair bridge by matching zone name
-        for (_, bridge) in pairBridges where bridge.zoneID == zoneID {
-            return bridge.engine
-        }
-        return nil
-    }
-
-    /// Determines the zone ID for a given change based on its spaceID.
-    private func zoneIDForChange(_ change: SyncChange) -> CKRecordZone.ID {
-        zoneIDForSpaceID(change.spaceID)
-    }
-
-    private func zoneIDForSpaceID(_ spaceID: UUID) -> CKRecordZone.ID {
-        // If the change's spaceID matches the solo space, route to solo zone
-        if let soloID = soloSpaceID, spaceID == soloID {
-            return Self.soloZoneID
-        }
-
-        // Direct match: spaceID is a pairSpaceID
-        if pairBridges[spaceID] != nil {
-            return pairBridges[spaceID]?.zoneID ?? Self.soloZoneID
-        }
-
-        // Reverse lookup: spaceID is a sharedSpaceID → resolve to pairSpaceID
-        if let pairID = sharedToPairSpaceID[spaceID] {
-            return pairBridges[pairID]?.zoneID ?? Self.soloZoneID
-        }
-
-        // Default: route to solo zone
-        return Self.soloZoneID
-    }
-
     private func scheduleImmediateSend(for zoneID: CKRecordZone.ID, engine: CKSyncEngine) {
         let key = zoneID.zoneName
         immediateSendTasks[key]?.cancel()
@@ -396,7 +200,7 @@ actor SyncEngineCoordinator {
     }
 
     private func sendChanges(for zoneID: CKRecordZone.ID) async {
-        guard let engine = engineFor(zoneID) else { return }
+        guard let engine = soloEngine else { return }
         await sendChanges(for: zoneID, engine: engine)
     }
 

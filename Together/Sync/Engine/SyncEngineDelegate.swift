@@ -5,10 +5,16 @@ import os.log
 
 private let logger = Logger(subsystem: "com.pigdog.Together", category: "SyncEngineDelegate")
 
+private struct MutationLookupKey: Hashable {
+    let recordName: String
+    let entityKindRawValue: String
+}
+
 /// CKSyncEngineDelegate that bridges CKSyncEngine events to SwiftData persistence.
 ///
-/// Each instance is bound to a specific zone (solo or pair-<spaceID>).
+/// Each instance is bound to the solo zone.
 /// It provides pending local changes for push, and applies remote changes on pull.
+/// Pair sync is handled separately by `PairSyncService` using CloudKit Public DB.
 final class SyncEngineDelegate: CKSyncEngineDelegate {
 
     private let zoneID: CKRecordZone.ID
@@ -32,19 +38,11 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
     }
 
     static func shouldApplyFetchedRecord(
-        in zoneID: CKRecordZone.ID,
         remoteUpdatedAt: Date,
         localUpdatedAt: Date,
         hasPendingLocalSave: Bool = false
     ) -> Bool {
-        if isSharedAuthorityZone(zoneID) {
-            return hasPendingLocalSave == false
-        }
         return remoteUpdatedAt >= localUpdatedAt
-    }
-
-    static func isSharedAuthorityZone(_ zoneID: CKRecordZone.ID) -> Bool {
-        zoneID.zoneName.hasPrefix("pair-")
     }
 
     static func makeMemberProfilePayload(
@@ -52,9 +50,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         sharedSpaceID: UUID
     ) -> MemberProfileRecordCodable.Profile {
         let avatarReference = persistent.avatarAssetID
-            ?? persistent.avatarPhotoFileName
-        // Shared member-profile sync is metadata-only. Local avatar bytes are repair/migration
-        // inputs only and must not influence shared-authority semantics.
         let avatarDeleted = avatarReference == nil
 
         return MemberProfileRecordCodable.Profile(
@@ -246,7 +241,7 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
     ) {
         let context = ModelContext(modelContainer)
         let mutationStates = localMutationStateByRecordName(
-            for: changes.modifications.map(\.record.recordID.recordName)
+            for: changes.modifications.map(\.record)
         )
         var appliedCount = 0
 
@@ -348,11 +343,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 $0.consecutiveFailures = 0
                 $0.lastSuccessfulSync = .now
             }
-            // Confirm migration progress if applicable
-            if SyncMigrationService.isMigrationInProgress {
-                let names = savedRecords.map { $0.recordID.recordName }
-                SyncMigrationService.confirmPushedRecords(recordNames: names)
-            }
         }
 
         for deletedID in sentChanges.deletedRecordIDs {
@@ -388,6 +378,8 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
             applySpace(spaceCodable.space, hasPendingLocalSave: hasPendingLocalSave, context: context)
         case let memberProfileCodable as MemberProfileRecordCodable:
             applyMemberProfile(memberProfileCodable.profile, hasPendingLocalSave: hasPendingLocalSave, context: context)
+        case let avatarAssetCodable as AvatarAssetRecordCodable:
+            applyAvatarAsset(avatarAssetCodable.asset, hasPendingLocalSave: hasPendingLocalSave, context: context)
         default:
             logger.warning("[SyncDelegate] Unhandled entity type during apply")
         }
@@ -400,7 +392,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         )
         if let existing = try? context.fetch(descriptor).first {
             if Self.shouldApplyFetchedRecord(
-                in: zoneID,
                 remoteUpdatedAt: item.updatedAt,
                 localUpdatedAt: existing.updatedAt,
                 hasPendingLocalSave: hasPendingLocalSave
@@ -419,7 +410,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         )
         if let existing = try? context.fetch(descriptor).first {
             if Self.shouldApplyFetchedRecord(
-                in: zoneID,
                 remoteUpdatedAt: list.updatedAt,
                 localUpdatedAt: existing.updatedAt,
                 hasPendingLocalSave: hasPendingLocalSave
@@ -438,7 +428,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         )
         if let existing = try? context.fetch(descriptor).first {
             if Self.shouldApplyFetchedRecord(
-                in: zoneID,
                 remoteUpdatedAt: project.updatedAt,
                 localUpdatedAt: existing.updatedAt,
                 hasPendingLocalSave: hasPendingLocalSave
@@ -476,7 +465,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         )
         if let existing = try? context.fetch(descriptor).first {
             if Self.shouldApplyFetchedRecord(
-                in: zoneID,
                 remoteUpdatedAt: task.updatedAt,
                 localUpdatedAt: existing.updatedAt,
                 hasPendingLocalSave: hasPendingLocalSave
@@ -495,7 +483,6 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         )
         if let existing = try? context.fetch(descriptor).first {
             if Self.shouldApplyFetchedRecord(
-                in: zoneID,
                 remoteUpdatedAt: space.updatedAt,
                 localUpdatedAt: existing.updatedAt,
                 hasPendingLocalSave: hasPendingLocalSave
@@ -529,9 +516,11 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 membership.avatarPhotoFileName = nil
                 membership.avatarAssetID = nil
             } else if let avatarAssetID = profile.avatarAssetID {
-                if store.fileExists(named: avatarAssetID) {
-                    membership.avatarPhotoFileName = avatarAssetID
-                } else if membership.avatarAssetID != avatarAssetID, membership.avatarPhotoFileName != avatarAssetID {
+                let cacheFileName = store.cacheFileName(for: avatarAssetID)
+                if store.fileExists(named: cacheFileName) {
+                    membership.avatarPhotoFileName = cacheFileName
+                } else if membership.avatarAssetID != avatarAssetID,
+                          membership.avatarPhotoFileName != cacheFileName {
                     membership.avatarPhotoFileName = nil
                 }
                 membership.avatarAssetID = avatarAssetID
@@ -548,15 +537,43 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 userProfile.avatarAssetID = nil
                 userProfile.avatarPhotoData = nil
             } else if let avatarAssetID = profile.avatarAssetID {
-                if store.fileExists(named: avatarAssetID) {
-                    userProfile.avatarPhotoFileName = avatarAssetID
-                } else if userProfile.avatarAssetID != avatarAssetID, userProfile.avatarPhotoFileName != avatarAssetID {
+                let cacheFileName = store.cacheFileName(for: avatarAssetID)
+                if store.fileExists(named: cacheFileName) {
+                    userProfile.avatarPhotoFileName = cacheFileName
+                } else if userProfile.avatarAssetID != avatarAssetID,
+                          userProfile.avatarPhotoFileName != cacheFileName {
                     userProfile.avatarPhotoFileName = nil
                     userProfile.avatarPhotoData = nil
                 }
                 userProfile.avatarAssetID = avatarAssetID
             }
             userProfile.updatedAt = profile.updatedAt
+        }
+    }
+
+    private func applyAvatarAsset(
+        _ asset: AvatarAssetRecordCodable.Asset,
+        hasPendingLocalSave: Bool,
+        context: ModelContext
+    ) {
+        guard hasPendingLocalSave == false else { return }
+        guard let data = asset.data else { return }
+
+        let store = LocalUserAvatarMediaStore()
+        let cacheFileName = store.cacheFileName(for: asset.assetID.uuidString.lowercased())
+        try? store.persistAvatarData(data, fileName: cacheFileName)
+
+        let memberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
+        for membership in memberships where membership.avatarAssetID == asset.assetID.uuidString.lowercased() {
+            membership.avatarPhotoFileName = cacheFileName
+            membership.avatarVersion = max(membership.avatarVersion, asset.version)
+        }
+
+        let profiles = (try? context.fetch(FetchDescriptor<PersistentUserProfile>())) ?? []
+        for userProfile in profiles where userProfile.avatarAssetID == asset.assetID.uuidString.lowercased() {
+            userProfile.avatarPhotoFileName = cacheFileName
+            userProfile.avatarVersion = max(userProfile.avatarVersion, asset.version)
+            userProfile.updatedAt = max(userProfile.updatedAt, asset.updatedAt)
         }
     }
 
@@ -620,6 +637,10 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 }
                 membership.avatarPhotoFileName = nil
             }
+        } else if recordType == AvatarAssetRecordCodable.ckRecordType {
+            let store = LocalUserAvatarMediaStore()
+            let cacheFileName = store.cacheFileName(for: uuid.uuidString.lowercased())
+            try? store.removeAvatar(named: cacheFileName)
         }
     }
 
@@ -633,21 +654,56 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
     }
 
     private func localMutationStateByRecordName(
-        for recordNames: [String]
+        for records: [CKRecord]
     ) -> [String: SyncMutationLifecycleState] {
-        let recordIDs = recordNames.compactMap(UUID.init(uuidString:))
-        guard recordIDs.isEmpty == false else { return [:] }
+        let requested = records.compactMap { record -> (String, SyncEntityKind)? in
+            guard
+                let recordID = UUID(uuidString: record.recordID.recordName),
+                let entityKind = SyncEntityKind(ckRecordType: record.recordType)
+            else {
+                return nil
+            }
+            return (recordID.uuidString, entityKind)
+        }
+        guard requested.isEmpty == false else { return [:] }
 
         let context = ModelContext(modelContainer)
+        let recordIDs = requested.map { UUID(uuidString: $0.0)! }
         let descriptor = FetchDescriptor<PersistentSyncChange>(
             predicate: #Predicate<PersistentSyncChange> { recordIDs.contains($0.recordID) }
         )
 
         guard let records = try? context.fetch(descriptor), records.isEmpty == false else { return [:] }
 
-        return Dictionary(
-            uniqueKeysWithValues: records.map { ($0.recordID.uuidString, $0.lifecycleState) }
+        let recordsByCompoundKey = Dictionary(
+            grouping: records,
+            by: {
+                MutationLookupKey(
+                    recordName: $0.recordID.uuidString,
+                    entityKindRawValue: $0.entityKindRawValue
+                )
+            }
         )
+
+        var result: [String: SyncMutationLifecycleState] = [:]
+        for (recordName, entityKind) in requested {
+            guard let matchingRecords = recordsByCompoundKey[
+                MutationLookupKey(
+                    recordName: recordName,
+                    entityKindRawValue: entityKind.rawValue
+                )
+            ] else {
+                continue
+            }
+            let latest = matchingRecords.max { lhs, rhs in
+                if lhs.changedAt == rhs.changedAt {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                return lhs.changedAt < rhs.changedAt
+            }
+            result[recordName] = latest?.lifecycleState
+        }
+        return result
     }
 
     private func shouldPreserveLocalMutation(
@@ -764,6 +820,26 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
 
             let profile = Self.makeMemberProfilePayload(from: persistent, sharedSpaceID: activePairSpace.sharedSpaceID)
             return MemberProfileRecordCodable(profile: profile).toCKRecord(in: zoneID)
+
+        case .avatarAsset:
+            let assetID = uuid.uuidString.lowercased()
+            let descriptor = FetchDescriptor<PersistentUserProfile>(
+                predicate: #Predicate<PersistentUserProfile> { $0.avatarAssetID == assetID }
+            )
+            guard let persistent = try? context.fetch(descriptor).first else { return nil }
+
+            let store = LocalUserAvatarMediaStore()
+            let fileName = persistent.avatarPhotoFileName ?? store.cacheFileName(for: assetID)
+            guard store.fileExists(named: fileName) else { return nil }
+
+            let asset = AvatarAssetRecordCodable.Asset(
+                assetID: uuid,
+                version: persistent.avatarVersion,
+                updatedAt: persistent.updatedAt,
+                fileName: fileName,
+                data: nil
+            )
+            return AvatarAssetRecordCodable(asset: asset).toCKRecord(in: zoneID)
         }
     }
 
@@ -780,3 +856,12 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         return UUID()
     }
 }
+
+#if DEBUG
+extension SyncEngineDelegate {
+    func buildRecordForTesting(uuid: UUID, entityKind: SyncEntityKind) -> CKRecord? {
+        let context = ModelContext(modelContainer)
+        return fetchAndEncode(uuid: uuid, entityKind: entityKind, context: context)
+    }
+}
+#endif

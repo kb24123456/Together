@@ -598,6 +598,7 @@ struct PersistenceController {
             TaskList(
                 id: $0.id,
                 spaceID: $0.spaceID,
+                creatorID: $0.creatorID,
                 name: $0.name,
                 kind: TaskListKind(rawValue: $0.kindRawValue) ?? .custom,
                 colorToken: $0.colorToken,
@@ -612,6 +613,7 @@ struct PersistenceController {
             Project(
                 id: $0.id,
                 spaceID: $0.spaceID,
+                creatorID: $0.creatorID,
                 name: $0.name,
                 notes: $0.notes,
                 colorToken: $0.colorToken,

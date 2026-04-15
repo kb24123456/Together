@@ -2,7 +2,7 @@ import CloudKit
 import Foundation
 
 struct MemberProfileRecordCodable: RecordCodable {
-    static let ckRecordType = CloudKitProfileRecordCodec.recordType
+    static let ckRecordType = "MemberProfile"
 
     struct Profile: Hashable, Sendable {
         let userID: UUID

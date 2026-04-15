@@ -125,6 +125,7 @@ struct HomeItemDetailSheet: View {
         }
         .presentationDetents([.height(316), .large], selection: $viewModel.detailDetent)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(AppTheme.colors.surface)
         .onChange(of: focusedField) { _, newValue in
             guard newValue != nil else { return }
             withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
@@ -398,7 +399,6 @@ struct HomeItemDetailSheet: View {
             HomeInteractionFeedback.selection()
             expandToLarge(for: .menu(menu))
         }
-        .opacity(0.94)
     }
 
     private var compactActionButtons: some View {
@@ -414,6 +414,8 @@ struct HomeItemDetailSheet: View {
                     HomeInteractionFeedback.selection()
                     expandToLarge(for: .focus(.title))
                 }
+                .disabled(!viewModel.canEditSelectedItem)
+                .opacity(viewModel.canEditSelectedItem ? 1 : 0.4)
 
                 compactDeleteButton
             }
@@ -554,6 +556,8 @@ struct HomeItemDetailSheet: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isAwaitingDeleteConfirmation)
         }
         .buttonStyle(.plain)
+        .disabled(!viewModel.canDeleteSelectedItem)
+        .opacity(viewModel.canDeleteSelectedItem ? 1 : 0.4)
     }
 
     private var compactDeleteButtonTitle: String {
@@ -632,6 +636,8 @@ struct HomeItemDetailSheet: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .disabled(!viewModel.canEditSelectedItem)
+        .opacity(viewModel.canEditSelectedItem ? 1 : 0.7)
     }
 
     private var detailAssignmentSection: some View {
@@ -1120,6 +1126,9 @@ struct HomeItemDetailSheet: View {
     }
 
     private var statusLabelText: String {
+        if let syncStateText = viewModel.selectedItemSyncStatusText {
+            return syncStateText
+        }
         if let item = viewModel.selectedItem,
            item.isCompleted(on: viewModel.selectedDate, calendar: .current) || item.status == .completed {
             return "已完成"

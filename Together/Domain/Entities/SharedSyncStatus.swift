@@ -26,3 +26,42 @@ struct SharedSyncStatus: Hashable, Sendable {
         lastFetchError: nil
     )
 }
+
+struct SharedMutationRecordKey: Hashable, Sendable {
+    let entityKind: SyncEntityKind
+    let recordID: UUID
+}
+
+enum SharedMutationDisplayState: Hashable, Sendable {
+    case syncing
+    case confirmed
+    case failed
+
+    static let confirmationVisibilityWindow: TimeInterval = 6
+
+    var text: String {
+        switch self {
+        case .syncing:
+            return "同步中"
+        case .confirmed:
+            return "已同步"
+        case .failed:
+            return "同步失败"
+        }
+    }
+
+    static func resolve(
+        from snapshot: SyncMutationSnapshot,
+        now: Date = .now
+    ) -> SharedMutationDisplayState? {
+        switch snapshot.lifecycleState {
+        case .pending, .sending:
+            return .syncing
+        case .failed:
+            return .failed
+        case .confirmed:
+            guard let confirmedAt = snapshot.confirmedAt else { return nil }
+            return now.timeIntervalSince(confirmedAt) <= confirmationVisibilityWindow ? .confirmed : nil
+        }
+    }
+}

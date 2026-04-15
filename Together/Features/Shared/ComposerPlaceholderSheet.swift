@@ -672,7 +672,7 @@ struct ComposerPlaceholderSheet: View {
                 )
             case .project:
                 let project = try await appContext.container.projectRepository.saveProject(
-                    draftState.projectDraft(spaceID: spaceID)
+                    draftState.projectDraft(spaceID: spaceID, creatorID: actorID)
                 )
                 for subtask in draftState.projectSubtasks {
                     _ = try await appContext.container.projectRepository.addSubtask(
@@ -1072,11 +1072,12 @@ private struct ComposerDraftState: Hashable {
         }
     }
 
-    func projectDraft(spaceID: UUID) -> Project {
+    func projectDraft(spaceID: UUID, creatorID: UUID) -> Project {
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         return Project(
             id: UUID(),
             spaceID: spaceID,
+            creatorID: creatorID,
             name: title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             colorToken: "graphite",

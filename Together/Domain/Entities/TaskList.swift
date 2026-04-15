@@ -10,6 +10,7 @@ enum TaskListKind: String, CaseIterable, Hashable, Sendable, Codable {
 struct TaskList: Identifiable, Hashable, Sendable {
     let id: UUID
     var spaceID: UUID
+    let creatorID: UUID
     var name: String
     var kind: TaskListKind
     var colorToken: String?
@@ -22,6 +23,7 @@ struct TaskList: Identifiable, Hashable, Sendable {
     nonisolated init(
         id: UUID,
         spaceID: UUID,
+        creatorID: UUID,
         name: String,
         kind: TaskListKind,
         colorToken: String?,
@@ -33,6 +35,7 @@ struct TaskList: Identifiable, Hashable, Sendable {
     ) {
         self.id = id
         self.spaceID = spaceID
+        self.creatorID = creatorID
         self.name = name
         self.kind = kind
         self.colorToken = colorToken

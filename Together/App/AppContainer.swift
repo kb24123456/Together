@@ -23,9 +23,7 @@ struct AppContainer {
 
     // CloudKit infrastructure
     let cloudKitContainer: CKContainer
-    let zoneManager: CloudKitZoneManager
-    let shareManager: CloudKitShareManager
 
-    // CKSyncEngine-based sync (private DB + shared authority data plane)
+    // CKSyncEngine-based sync (private DB, solo zone only)
     let syncEngineCoordinator: SyncEngineCoordinator
 }

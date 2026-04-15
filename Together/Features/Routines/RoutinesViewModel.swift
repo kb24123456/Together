@@ -71,6 +71,12 @@ final class RoutinesViewModel {
         }
     }
 
+    func pendingCount(for cycle: PeriodicCycle) -> Int {
+        let cycleTasks = tasks.filter { $0.cycle == cycle }
+        let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
+        return cycleTasks.filter { !$0.isCompleted(forPeriodKey: periodKey) }.count
+    }
+
     func sectionSummary(for cycle: PeriodicCycle) -> String {
         let cycleTasks = tasks.filter { $0.cycle == cycle }
         let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
@@ -184,6 +190,16 @@ final class RoutinesViewModel {
         } catch {
             await load()
         }
+    }
+
+    func canDeletePeriodicTask(_ task: PeriodicTask) -> Bool {
+        guard let userID = sessionStore.currentUser?.id else { return true }
+        return PairPermissionService.canDeletePeriodicTask(task, actorID: userID)
+    }
+
+    func canEditPeriodicTask(_ task: PeriodicTask) -> Bool {
+        guard let userID = sessionStore.currentUser?.id else { return true }
+        return PairPermissionService.canEditPeriodicTask(task, actorID: userID)
     }
 
     func deleteTask(taskID: UUID) async {

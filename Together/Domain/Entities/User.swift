@@ -18,7 +18,10 @@ struct User: Identifiable, Hashable, Sendable {
     var preferences: NotificationSettings
 
     var avatarCacheFileName: String? {
-        avatarPhotoFileName ?? avatarAssetID
+        if let avatarAssetID {
+            return UserAvatarStorage.fileName(forAssetID: avatarAssetID)
+        }
+        return avatarPhotoFileName
     }
 
     var avatarAsset: UserAvatarAsset {

@@ -99,6 +99,16 @@ final class ProjectsViewModel {
         }
     }
 
+    func canDeleteProject(_ project: Project) -> Bool {
+        guard let userID = sessionStore.currentUser?.id else { return true }
+        return PairPermissionService.canDeleteProject(project, actorID: userID)
+    }
+
+    func canEditProject(_ project: Project) -> Bool {
+        guard let userID = sessionStore.currentUser?.id else { return true }
+        return PairPermissionService.canEditProject(project, actorID: userID)
+    }
+
     func deleteProject(projectID: UUID) async {
         do {
             try await projectRepository.deleteProject(projectID: projectID)

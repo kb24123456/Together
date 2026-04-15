@@ -262,6 +262,7 @@ struct ProjectsListContent: View {
                                     }
                                 },
                                 onBeginTitleEditing: {
+                                    guard viewModel.canEditProject(project) else { return }
                                     HomeInteractionFeedback.selection()
                                     editingProjectID = project.id
                                     titleDraft = project.name
@@ -288,6 +289,7 @@ struct ProjectsListContent: View {
                         }
                         .projectContextMenu(
                             project: project,
+                            canDelete: viewModel.canDeleteProject(project),
                             onDelete: {
                                 HomeInteractionFeedback.selection()
                                 editingProjectID = nil
@@ -776,6 +778,7 @@ private struct ProjectListRow: View {
 private extension View {
     func projectContextMenu(
         project: Project,
+        canDelete: Bool,
         onDelete: @escaping () -> Void
     ) -> some View {
         simultaneousGesture(
@@ -788,6 +791,7 @@ private extension View {
             Button(role: .destructive, action: onDelete) {
                 Label("删除项目", systemImage: "trash")
             }
+            .disabled(!canDelete)
         }
     }
 }

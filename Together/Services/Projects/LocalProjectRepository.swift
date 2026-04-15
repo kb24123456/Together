@@ -326,6 +326,7 @@ private extension Project {
         Project(
             id: id,
             spaceID: spaceID,
+            creatorID: creatorID,
             name: name,
             notes: notes,
             colorToken: colorToken,

@@ -20,34 +20,21 @@ This file should match the current repo state.
 
 ## Current architecture target
 
-- Public DB: invite discovery only
-- Private DB: single-user data and owner-side pair zone
-- Shared DB: participant-side access to the same pair authority via CKShare
+- Public DB: invite discovery + **pair sync data plane** (all Pair* record types)
+- Private DB: single-user data (solo CKSyncEngine, unchanged)
+- Shared DB: **no longer used** (CKShare-based pair sync has been replaced)
 - SwiftData: local projection/cache for UI plus pending mutation storage
-- Current shipped rebuild state:
-  - pair sync lifecycle has been decoupled from `activeMode`
-  - pair tasks, shared space metadata, and member profiles are moving onto the same CKSyncEngine data plane
-  - shared-space display names are now being normalized around `PersistentSpace.displayName` as the primary source
-  - pair metadata no longer relies on delegate-side relay repost callbacks
-  - runtime legacy relay code has been retired from the app target; only SwiftData compatibility models remain so older stores can be migrated forward once
-  - v2.1 now separates pair binding state, selected workspace, and shared sync health, and upgrades `PersistentSyncChange` into the explicit mutation log
-  - shared sync health is now derived from both CKSyncEngine zone health and the persisted mutation log
-  - pair unbind now clears shared projection rows, shared mutation/state rows, related invites, and partner profile cache artifacts instead of only ending the relationship record
-  - shared fetched records now preserve outstanding local pair mutations instead of blindly overwriting local projection state
-  - shared-space renames now enqueue a dedicated `.space` mutation instead of riding along the profile metadata path
-  - Home task state changes now emit precise shared `.task` mutations so send/health refresh can run off the actual changed record instead of a generic workspace callback
-  - Completed History, notification completion, and composer task creation are now moving onto that same explicit shared-mutation flush path instead of a blanket workspace send
-  - avatar identity is now being normalized around `avatarAssetID/avatarVersion`, with `avatarPhotoFileName` demoted to a local cache concern instead of the shared source of truth
-  - shared member-profile submission no longer depends on an `includeAvatar` call-site flag; avatar semantics are derived from persisted `avatarAssetID/avatarVersion` state instead
-  - shared member-profile records are now metadata-only; shared correctness is driven by `avatarAssetID/avatarVersion/avatarDeleted`, and avatar bytes no longer travel through shared member-profile records
-  - shared member-profile encoding no longer inspects local avatar blob storage; if no avatar reference exists, the shared payload is treated as an explicit avatar removal regardless of cached repair bytes
-  - local profile merge now relies on normalized avatar reference/file metadata after repair; `avatarPhotoData` is only a local repair/migration input and is no longer treated as a merge-time authority signal
-  - legacy profile apply paths are now repair-only and must not overwrite current shared-authority space names, nicknames, or avatar references
-  - the legacy public CloudKit gateway no longer injects member-profile payloads into normal task pull cycles; legacy profile reads are explicit repair/migration operations only
-  - the legacy public CloudKit gateway can no longer write member-profile records at all; that path is now strictly read/repair-only and is no longer available as a runtime fallback
-  - the legacy public-profile codec no longer exposes a write helper either; public-profile compatibility is now read/repair-only end to end
-  - legacy member-profile backfill no longer rides inside `RemoteSyncPayload`; it now goes through an explicit repair entry point so compatibility profile repair cannot participate in normal runtime task apply cycles
-  - pair-only sync chrome now reads `SharedSyncStatus` directly, so pending shared mutations and shared send/fetch failures are no longer hidden behind a generic aggregate sync error
+- Pair sync architecture (Path A — CloudKit Public DB):
+  - `PairSyncService` (actor): push via `CKModifyRecords(.changedKeys)`, pull via `CKQuery` on public DB
+  - `PairSyncPoller`: adaptive polling 5s→15s→30s, nudge on push notification / foreground
+  - 8 Pair* record types: PairTask, PairTaskList, PairProject, PairProjectSubtask, PairPeriodicTask, PairSpace, PairMemberProfile, PairAvatarAsset
+  - Soft-delete via `isDeleted/deletedAt` fields (public DB cannot truly delete other users' records)
+  - `serverRecordChanged` conflict handling: merge local changedKeys onto serverRecord, retry once
+  - `CKQuerySubscription` on public DB for push-driven immediate sync
+  - `handleCloudKitNotification` now parses push and nudges the poller
+  - Invite flow no longer creates CKShare or private zones
+  - `PersistentSyncChange` lifecycle (pending→sending→confirmed/failed) reused from v2.1
+  - Solo CKSyncEngine remains fully untouched
 
 ## Demo flow
 
@@ -70,13 +57,14 @@ This file should match the current repo state.
 - If build errors mention missing simulator, adjust the destination device name to an installed iPhone simulator.
 - If CloudKit pairing behavior looks stale after schema changes, use a fresh simulator install or a new iCloud test account before assuming the latest code path is wrong.
 - During the architecture rebuild, do not assume relay paths are authoritative unless `plans.md` explicitly says so.
-- Pair metadata issues should now be investigated first in the CKSyncEngine shared-authority path, not in legacy relay callbacks.
+- Pair sync issues should be investigated in `PairSyncService` (push/pull) and `PairSyncPoller` (polling lifecycle), not in CKSyncEngine pair bridges (now dead code for pair sync).
 - Composer and routines flows now derive pair behavior from the current shared space, not from `activeMode == .pair`.
 - Avatar persistence tests use local-only SwiftData containers (`cloudKitDatabase: .none`) and should not be debugged as CloudKit issues.
 - If an older install fails to open because of removed relay queue entities, `PersistenceController` now performs a snapshot migration into the relay-free schema instead of continuing to run those models in the main runtime.
-- Shared-task correctness should be debugged against the pending mutation log and the pair/shared zone health, not against aggregate "any sync" UI indicators.
+- Shared-task correctness should be debugged against the pending mutation log (`PersistentSyncChange`) and `PairSyncPoller` state.
 - After unbinding, shared projection cache and shared mutation/state rows should be gone; stale pair UI after unbind is now a real bug, not expected residual cache.
-- If pair metadata or shared task updates look stale after a fetch, inspect the persisted mutation lifecycle first; pending/sending/failed local mutations now intentionally block remote overwrite until they are confirmed or cleared.
-- If avatar display looks stale, inspect `avatarAssetID/avatarVersion` first; `avatarPhotoFileName` is now only the local cache path and should not be treated as the shared source of truth.
-- If a shared member profile unexpectedly clears an avatar, inspect the derived `MemberProfileRecordCodable.Profile` payload first; only `avatarDeleted` should clear an avatar, and an asset reference without a local cache file must remain a preserved reference.
-- If legacy public-profile data appears during migration, it should only repair missing local cache/reference holes; if it changes an already-synced shared nickname, shared space name, or avatar reference, that is now a real bug.
+- If pair data looks stale, check: (1) `PairSyncPoller.isActive`, (2) `PersistentSyncChange` lifecycle states, (3) CloudKit Dashboard for actual Pair* records.
+- If avatar display looks stale, inspect `avatarAssetID/avatarVersion` first; `avatarPhotoFileName` is now only the local cache path.
+- The invite flow no longer uses CKShare or private zones. If invite acceptance fails, inspect `CloudKitInviteGateway` public DB records only.
+- CloudKit Dashboard must have all Pair* record types configured with correct indexes (spaceID: Queryable, updatedAt: Queryable+Sortable) before pair sync can work.
+- Final sign-off requires a fresh-install two-device TestFlight validation for: invite→pair, task sync, space rename, avatar update, offline→online recovery.

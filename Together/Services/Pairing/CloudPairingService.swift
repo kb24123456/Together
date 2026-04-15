@@ -4,35 +4,29 @@ import Foundation
 /// Cross-device pairing service that combines:
 /// - `LocalPairingService` for persisting state in SwiftData on the current device
 /// - `CloudKitInviteGateway` for exchanging invite codes via CloudKit Public Database
-/// - `CloudKitZoneManager` for creating/managing private zones
-/// - `CloudKitShareManager` for CKShare lifecycle
+///
+/// Pair sync uses CloudKit Public DB directly — no zones or CKShare needed.
 ///
 /// Flow overview:
 ///   Device A (inviter/owner):
-    ///     createInvite → create Zone → create CKShare → publishInvite(shareURL) → shows invite code
+///     createInvite → publishInvite → shows invite code
 ///   Device B (responder/participant):
-    ///     acceptInviteByCode → lookupInvite → acceptShareFromURL → acceptInvite → setupPairingFromRemote
+///     acceptInviteByCode → lookupInvite → acceptInvite → setupPairingFromRemote
 ///   Device A (inviter):
-    ///     checkAndFinalizeIfAccepted → pollInviteStatus → finalizeAcceptedInvite
+///     checkAndFinalizeIfAccepted → pollInviteStatus → finalizeAcceptedInvite
 actor CloudPairingService: PairingServiceProtocol {
 
     private let localPairing: LocalPairingService
     private let inviteGateway: CloudKitInviteGateway
-    private let zoneManager: CloudKitZoneManager
-    private let shareManager: CloudKitShareManager
     private let container: CKContainer
 
     init(
         localPairing: LocalPairingService,
         inviteGateway: CloudKitInviteGateway,
-        zoneManager: CloudKitZoneManager,
-        shareManager: CloudKitShareManager,
         container: CKContainer
     ) {
         self.localPairing = localPairing
         self.inviteGateway = inviteGateway
-        self.zoneManager = zoneManager
-        self.shareManager = shareManager
         self.container = container
     }
 
@@ -58,14 +52,11 @@ actor CloudPairingService: PairingServiceProtocol {
         try await localPairing.cancelAllPendingInvites(for: userID)
     }
 
-    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?) async {
-        await localPairing.updatePairSpaceDisplayName(pairSpaceID: pairSpaceID, displayName: displayName)
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async {
+        await localPairing.updatePairSpaceDisplayName(pairSpaceID: pairSpaceID, displayName: displayName, actorID: actorID)
     }
 
     func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
-        // Stop CKShare (legacy, may be no-op)
-        try? await shareManager.stopSharing(for: pairSpaceID)
-
         // Notify the sync coordinator to tear down the shared-authority pair sync.
         await onPairSyncTeardown?(pairSpaceID)
 
@@ -112,29 +103,16 @@ actor CloudPairingService: PairingServiceProtocol {
             )
         }
 
-        // 5. Create owner zone in private database
-        _ = try await zoneManager.createZone(for: invite.pairSpaceID)
-
-        // 6. Update local PairSpace with zone/share metadata
+        // 5. Update local PairSpace with owner metadata
+        // No zone/CKShare needed — pair sync uses public DB directly.
         await localPairing.updateCloudKitMetadata(
             pairSpaceID: invite.pairSpaceID,
-            zoneName: CloudKitZoneManager.zoneName(for: invite.pairSpaceID),
+            zoneName: "",
             ownerRecordID: ownerRecordID.recordName,
             isZoneOwner: true
         )
 
-        // 7. Create CKShare and publish invite with share URL
-        let share = try await shareManager.createShare(
-            for: invite.pairSpaceID,
-            ownerName: displayName
-        )
-        let shareURL: URL?
-        if let existingURL = share.url {
-            shareURL = existingURL
-        } else {
-            shareURL = try await shareManager.shareURL(for: invite.pairSpaceID)
-        }
-
+        // 6. Publish invite to public DB (no shareURL — public DB approach)
         try await inviteGateway.publishInvite(
             code: invite.inviteCode,
             inviterUserUUID: inviterID,
@@ -143,7 +121,7 @@ actor CloudPairingService: PairingServiceProtocol {
             pairSpaceID: invite.pairSpaceID,
             sharedSpaceID: sharedSpaceID,
             expiresAt: invite.expiresAt,
-            shareURL: shareURL
+            shareURL: nil
         )
 
         return invite
@@ -175,26 +153,15 @@ actor CloudPairingService: PairingServiceProtocol {
             throw PairingError.inviteExpired
         }
 
-        // 3. Accept CKShare so this device mounts the same shared authority data plane
-        guard let shareURL = details.shareURL else {
-            throw PairingError.cloudOperationFailed(
-                NSError(
-                    domain: "CloudPairingService",
-                    code: -2,
-                    userInfo: [NSLocalizedDescriptionKey: "邀请码缺少共享链接，无法加入共享空间"]
-                )
-            )
-        }
-        try await shareManager.acceptShareFromURL(shareURL)
-
-        // 4. Mark as accepted in CloudKit public DB
+        // 3. Mark as accepted in CloudKit public DB
+        // No CKShare acceptance needed — pair sync uses public DB directly.
         try await inviteGateway.acceptInvite(
             pairSpaceID: details.pairSpaceID,
             responderUserUUID: responderID,
             responderDisplayName: responderDisplayName
         )
 
-        // 5. Set up local SwiftData state on Device B
+        // 4. Set up local SwiftData state on Device B
         _ = try await localPairing.setupPairingFromRemote(
             pairSpaceID: details.pairSpaceID,
             sharedSpaceID: details.sharedSpaceID,
@@ -204,11 +171,10 @@ actor CloudPairingService: PairingServiceProtocol {
             responderDisplayName: responderDisplayName
         )
 
-        // 6. Store zone metadata locally — participant reads from sharedCloudDatabase.
-        let zoneName = CloudKitZoneManager.zoneName(for: details.pairSpaceID)
+        // 5. Store metadata locally (no zone — public DB approach).
         await localPairing.updateCloudKitMetadata(
             pairSpaceID: details.pairSpaceID,
-            zoneName: zoneName,
+            zoneName: "",
             ownerRecordID: details.ownerRecordID,
             isZoneOwner: false
         )
@@ -259,20 +225,18 @@ actor CloudPairingService: PairingServiceProtocol {
         )
     }
 
-    /// Restores a previously ended pairing by re-sharing the old zone.
+    /// Restores a previously ended pairing.
     func restoreHistoricalPairing(
         pairSpaceID: UUID,
         ownerName: String
     ) async throws {
-        // Re-create the CKShare on the existing zone
-        _ = try await shareManager.createShare(for: pairSpaceID, ownerName: ownerName)
+        // No-op for public DB approach — pairing state is local only.
     }
 
     // MARK: - Owner Data Deletion
 
-    /// Permanently deletes the zone and all its data. Called by the owner.
+    /// Marks pair data as deleted locally. Public DB records use soft-delete.
     func permanentlyDeletePairData(pairSpaceID: UUID) async throws {
-        try await zoneManager.deleteZone(for: pairSpaceID)
         await localPairing.markHistoricalPairingDeleted(pairSpaceID: pairSpaceID)
     }
 }

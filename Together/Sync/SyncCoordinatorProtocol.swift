@@ -8,6 +8,7 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
     case periodicTask
     case space
     case memberProfile
+    case avatarAsset
 
     /// Maps entity kind to the CKRecord type used by the codec registry.
     var ckRecordType: String {
@@ -19,6 +20,30 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
         case .periodicTask: return PeriodicTaskRecordCodable.ckRecordType
         case .space: return SpaceRecordCodable.ckRecordType
         case .memberProfile: return MemberProfileRecordCodable.ckRecordType
+        case .avatarAsset: return AvatarAssetRecordCodable.ckRecordType
+        }
+    }
+
+    init?(ckRecordType: String) {
+        switch ckRecordType {
+        case ItemRecordCodable.ckRecordType:
+            self = .task
+        case TaskListRecordCodable.ckRecordType:
+            self = .taskList
+        case ProjectRecordCodable.ckRecordType:
+            self = .project
+        case ProjectSubtaskRecordCodable.ckRecordType:
+            self = .projectSubtask
+        case PeriodicTaskRecordCodable.ckRecordType:
+            self = .periodicTask
+        case SpaceRecordCodable.ckRecordType:
+            self = .space
+        case MemberProfileRecordCodable.ckRecordType:
+            self = .memberProfile
+        case AvatarAssetRecordCodable.ckRecordType:
+            self = .avatarAsset
+        default:
+            return nil
         }
     }
 }

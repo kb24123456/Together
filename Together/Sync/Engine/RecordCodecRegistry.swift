@@ -53,6 +53,11 @@ struct RecordCodecRegistry: Sendable {
             try MemberProfileRecordCodable.from(record: record)
         }
 
+        // Avatar asset payload
+        table[AvatarAssetRecordCodable.ckRecordType] = { record in
+            try AvatarAssetRecordCodable.from(record: record)
+        }
+
         self.decoders = table
     }
 

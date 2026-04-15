@@ -85,6 +85,7 @@ struct RoutinesDetailSheet: View {
         }
         .presentationDetents([.height(316), .large], selection: $viewModel.detailDetent)
         .presentationDragIndicator(.hidden)
+        .presentationBackground(AppTheme.colors.surface)
         .onChange(of: focusedField) { _, newValue in
             guard newValue != nil else { return }
             withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
@@ -185,7 +186,6 @@ struct RoutinesDetailSheet: View {
             HomeInteractionFeedback.selection()
             expandToLarge(for: .menu(menu))
         }
-        .opacity(0.94)
     }
 
     private var compactActionButtons: some View {
@@ -262,6 +262,18 @@ struct RoutinesDetailSheet: View {
             HomeInteractionFeedback.selection()
             expandToLarge(for: .focus(.title))
         }
+        .disabled(!canEditDetailTask)
+        .opacity(canEditDetailTask ? 1 : 0.4)
+    }
+
+    private var canDeleteDetailTask: Bool {
+        guard let task else { return true }
+        return viewModel.canDeletePeriodicTask(task)
+    }
+
+    private var canEditDetailTask: Bool {
+        guard let task else { return true }
+        return viewModel.canEditPeriodicTask(task)
     }
 
     private var compactDeleteButton: some View {
@@ -294,6 +306,8 @@ struct RoutinesDetailSheet: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isAwaitingDeleteConfirmation)
         }
         .buttonStyle(.plain)
+        .disabled(!canDeleteDetailTask)
+        .opacity(canDeleteDetailTask ? 1 : 0.4)
     }
 
     private func compactActionButton(
@@ -360,6 +374,8 @@ struct RoutinesDetailSheet: View {
                 .padding(.horizontal, 26)
                 .padding(.top, 12)
                 .padding(.bottom, 160)
+                .disabled(!canEditDetailTask)
+                .opacity(canEditDetailTask ? 1 : 0.7)
             }
             .scrollIndicators(.hidden)
         }

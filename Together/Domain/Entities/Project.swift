@@ -10,6 +10,7 @@ enum ProjectStatus: String, CaseIterable, Hashable, Sendable, Codable {
 struct Project: Identifiable, Hashable, Sendable {
     let id: UUID
     var spaceID: UUID
+    let creatorID: UUID
     var name: String
     var notes: String?
     var colorToken: String?
@@ -25,6 +26,7 @@ struct Project: Identifiable, Hashable, Sendable {
     nonisolated init(
         id: UUID,
         spaceID: UUID,
+        creatorID: UUID,
         name: String,
         notes: String?,
         colorToken: String?,
@@ -39,6 +41,7 @@ struct Project: Identifiable, Hashable, Sendable {
     ) {
         self.id = id
         self.spaceID = spaceID
+        self.creatorID = creatorID
         self.name = name
         self.notes = notes
         self.colorToken = colorToken

@@ -68,6 +68,18 @@ struct RoutinesListContent: View {
         .task(id: appContext.sessionStore.currentSpace?.id) {
             await viewModel.reload()
         }
+        .onChange(of: isPresented) { _, newValue in
+            guard newValue else { return }
+            guard appContext.router.shouldAutoSelectPendingCycle else { return }
+            appContext.router.shouldAutoSelectPendingCycle = false
+
+            let pending = viewModel.pendingSummary(referenceDate: viewModel.referenceDate)
+            if let firstPending = pending.first {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                    selectedCycle = firstPending.0
+                }
+            }
+        }
     }
 
     // MARK: - Capsule Tab Bar
@@ -81,15 +93,28 @@ struct RoutinesListContent: View {
                         selectedCycle = cycle
                     }
                 } label: {
-                    Text(cycle.title)
-                        .font(AppTheme.typography.sized(18, weight: selectedCycle == cycle ? .bold : .semibold))
-                        .foregroundStyle(
-                            selectedCycle == cycle
-                                ? AppTheme.colors.title
-                                : AppTheme.colors.textTertiary
-                        )
-                        .padding(.horizontal, 17)
-                        .padding(.vertical, 9)
+                    HStack(spacing: 5) {
+                        Text(cycle.title)
+                            .font(AppTheme.typography.sized(18, weight: selectedCycle == cycle ? .bold : .semibold))
+                            .foregroundStyle(
+                                selectedCycle == cycle
+                                    ? AppTheme.colors.title
+                                    : AppTheme.colors.textTertiary
+                            )
+
+                        let count = viewModel.pendingCount(for: cycle)
+                        if count > 0 {
+                            Text("\(count)")
+                                .font(AppTheme.typography.sized(12, weight: .bold))
+                                .foregroundStyle(
+                                    selectedCycle == cycle
+                                        ? AppTheme.colors.coral
+                                        : AppTheme.colors.body.opacity(0.36)
+                                )
+                        }
+                    }
+                    .padding(.horizontal, 17)
+                    .padding(.vertical, 9)
                 }
                 .buttonStyle(.plain)
             }
@@ -150,12 +175,14 @@ struct RoutinesListContent: View {
                     .listRowBackground(AppTheme.colors.background)
                     .listRowSeparator(.hidden)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button(role: .destructive) {
-                            Task {
-                                await viewModel.deleteTask(taskID: task.id)
+                        if viewModel.canDeletePeriodicTask(task) {
+                            Button(role: .destructive) {
+                                Task {
+                                    await viewModel.deleteTask(taskID: task.id)
+                                }
+                            } label: {
+                                Label("删除", systemImage: "trash")
                             }
-                        } label: {
-                            Label("删除", systemImage: "trash")
                         }
                     }
             }

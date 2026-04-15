@@ -5,6 +5,7 @@ import SwiftData
 final class PersistentProject {
     var id: UUID
     var spaceID: UUID
+    var creatorID: UUID = UUID()
     var name: String
     var notes: String?
     var colorToken: String?
@@ -18,6 +19,7 @@ final class PersistentProject {
     init(
         id: UUID,
         spaceID: UUID,
+        creatorID: UUID = UUID(),
         name: String,
         notes: String?,
         colorToken: String?,
@@ -30,6 +32,7 @@ final class PersistentProject {
     ) {
         self.id = id
         self.spaceID = spaceID
+        self.creatorID = creatorID
         self.name = name
         self.notes = notes
         self.colorToken = colorToken
@@ -47,6 +50,7 @@ extension PersistentProject {
         self.init(
             id: project.id,
             spaceID: project.spaceID,
+            creatorID: project.creatorID,
             name: project.name,
             notes: project.notes,
             colorToken: project.colorToken,
@@ -63,6 +67,7 @@ extension PersistentProject {
         Project(
             id: id,
             spaceID: spaceID,
+            creatorID: creatorID,
             name: name,
             notes: notes,
             colorToken: colorToken,
@@ -79,6 +84,7 @@ extension PersistentProject {
 
     func update(from project: Project) {
         spaceID = project.spaceID
+        creatorID = project.creatorID
         name = project.name
         notes = project.notes
         colorToken = project.colorToken

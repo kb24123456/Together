@@ -18,6 +18,7 @@ final class SessionStore {
     var availableModeStates: [AppMode] = [.single]
     var pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
     var sharedSyncStatus: SharedSyncStatus = .idle
+    private(set) var sharedMutationSnapshots: [SharedMutationRecordKey: SyncMutationSnapshot] = [:]
 
     var activeMode: AppMode {
         get { selectedWorkspace.appMode }
@@ -131,6 +132,7 @@ final class SessionStore {
         spaceContext: SpaceContext,
         pairingContext: PairingContext
     ) {
+        let previousSharedSpaceID = pairSpaceSummary?.sharedSpace.id
         singleSpace = spaceContext.singleSpace
         let resolvedPairSummary = spaceContext.pairSpaceSummary ?? pairingContext.pairSpaceSummary
         pairSpaceSummary = resolvedPairSummary
@@ -143,9 +145,13 @@ final class SessionStore {
         if availableModeStates.contains(selectedWorkspace.appMode) == false {
             selectedWorkspace = .single
         }
+        if resolvedPairSummary?.sharedSpace.id != previousSharedSpaceID {
+            sharedMutationSnapshots = [:]
+        }
     }
 
     func applyPairingContext(_ pairingContext: PairingContext, autoSwitchToPairWhenBound: Bool = false) {
+        let previousSharedSpaceID = pairSpaceSummary?.sharedSpace.id
         let resolvedPairSummary = pairingContext.pairSpaceSummary
         pairSpaceSummary = resolvedPairSummary
         availableModeStates = resolvedPairSummary?.pairSpace.status == .active ? [.single, .pair] : [.single]
@@ -160,6 +166,9 @@ final class SessionStore {
             selectedWorkspace = .pair
         } else if availableModeStates.contains(selectedWorkspace.appMode) == false {
             selectedWorkspace = .single
+        }
+        if resolvedPairSummary?.sharedSpace.id != previousSharedSpaceID {
+            sharedMutationSnapshots = [:]
         }
     }
 
@@ -188,6 +197,30 @@ final class SessionStore {
         sharedSyncStatus = status
     }
 
+    func updateSharedMutationSnapshots(_ snapshots: [SharedMutationRecordKey: SyncMutationSnapshot]) {
+        sharedMutationSnapshots = snapshots
+    }
+
+    func sharedMutationSnapshot(
+        entityKind: SyncEntityKind,
+        recordID: UUID
+    ) -> SyncMutationSnapshot? {
+        sharedMutationSnapshots[
+            SharedMutationRecordKey(entityKind: entityKind, recordID: recordID)
+        ]
+    }
+
+    func sharedMutationDisplayState(
+        entityKind: SyncEntityKind,
+        recordID: UUID,
+        now: Date = .now
+    ) -> SharedMutationDisplayState? {
+        guard let snapshot = sharedMutationSnapshot(entityKind: entityKind, recordID: recordID) else {
+            return nil
+        }
+        return SharedMutationDisplayState.resolve(from: snapshot, now: now)
+    }
+
     func clearForSignOut() {
         authState = .signedOut
         currentUser = nil
@@ -197,6 +230,7 @@ final class SessionStore {
         pairingContext = PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
         selectedWorkspace = .single
         sharedSyncStatus = .idle
+        sharedMutationSnapshots = [:]
     }
 
     func seedMock(
@@ -216,5 +250,6 @@ final class SessionStore {
         )
         selectedWorkspace = .single
         sharedSyncStatus = .idle
+        sharedMutationSnapshots = [:]
     }
 }

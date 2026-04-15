@@ -29,8 +29,6 @@ enum MockServiceFactory {
         )
 
         let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
-        let zoneManager = CloudKitZoneManager(container: ckContainer)
-        let shareManager = CloudKitShareManager(container: ckContainer)
 
         return AppContainer(
             authService: MockAuthService(),
@@ -52,8 +50,6 @@ enum MockServiceFactory {
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
             cloudKitContainer: ckContainer,
-            zoneManager: zoneManager,
-            shareManager: shareManager,
             syncEngineCoordinator: SyncEngineCoordinator(
                 ckContainer: ckContainer,
                 modelContainer: mockModelContainer,

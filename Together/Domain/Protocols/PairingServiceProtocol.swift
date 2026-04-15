@@ -9,7 +9,7 @@ protocol PairingServiceProtocol: Sendable {
     func cancelInvite(inviteID: UUID, actorID: UUID) async throws -> PairingContext
     /// Cancel ALL pending invites for a user and reset to singleTrial.
     func cancelAllPendingInvites(for userID: UUID) async throws -> PairingContext
-    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?) async
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async
     func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext
     /// Device A: check if pending invite was accepted on Device B and finalize local state.
     func checkAndFinalizeIfAccepted(pairSpaceID: UUID, inviterID: UUID) async throws -> PairingContext?

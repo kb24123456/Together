@@ -27,6 +27,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let notes: String?
     let timeText: String
     let statusText: String
+    let syncState: SharedMutationDisplayState?
     let assigneeText: String?
     let messagePreview: String?
     let responseStateText: String?
@@ -41,6 +42,10 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let secondaryAvatar: HomeAvatar?
     let latestMessageAuthorName: String?
     let reminderRequestedAt: Date?
+
+    var syncStateText: String? {
+        syncState?.text
+    }
 }
 
 enum HomePairCardStyle: Hashable {
@@ -296,6 +301,27 @@ final class HomeViewModel {
         return items.first(where: { $0.id == selectedItemID })
     }
 
+    var selectedItemSyncStatusText: String? {
+        guard let selectedItem else { return nil }
+        return taskMutationDisplayState(for: selectedItem)?.text
+    }
+
+    var canEditSelectedItem: Bool {
+        guard let item = selectedItem, let userID = sessionStore.currentUser?.id else { return true }
+        return PairPermissionService.canEditTask(item, actorID: userID)
+    }
+
+    var canDeleteSelectedItem: Bool {
+        guard let item = selectedItem, let userID = sessionStore.currentUser?.id else { return true }
+        return PairPermissionService.canDeleteTask(item, actorID: userID)
+    }
+
+    func canDeleteItem(_ itemID: UUID) -> Bool {
+        guard let item = items.first(where: { $0.id == itemID }),
+              let userID = sessionStore.currentUser?.id else { return true }
+        return PairPermissionService.canDeleteTask(item, actorID: userID)
+    }
+
     func isAnimatingInsertion(for itemID: UUID) -> Bool {
         insertedItemIDs.contains(itemID)
     }
@@ -341,6 +367,20 @@ final class HomeViewModel {
 
     var spaceDisplayName: String {
         sessionStore.currentSpace?.displayName ?? (isPairModeActive ? "双人模式" : "我的任务空间")
+    }
+
+    var spaceSyncState: SharedMutationDisplayState? {
+        guard
+            isPairModeActive,
+            let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id
+        else {
+            return nil
+        }
+        return sessionStore.sharedMutationDisplayState(entityKind: .space, recordID: sharedSpaceID)
+    }
+
+    var spaceSyncStatusText: String? {
+        spaceSyncState?.text
     }
 
     var pairBannerText: String? {
@@ -956,7 +996,11 @@ final class HomeViewModel {
                 taskID: saved.id,
                 spaceID: spaceID
             )
-        } catch {}
+        } catch {
+            #if DEBUG
+            print("[HomeViewModel] completeItem failed for itemID=\(itemID): \(error)")
+            #endif
+        }
 
         completingOccurrenceKeys.remove(occurrenceKey)
         animatingCompletionOccurrenceKeys.remove(occurrenceKey)
@@ -1438,6 +1482,7 @@ final class HomeViewModel {
         let isPairMode = isPairModeActive
         let pairCardStyle = pairCardStyle(for: item, viewerID: viewerID, isCompleted: isCompleted)
         let relationship = pairRelationship(for: item, viewerID: viewerID)
+        let syncState = taskMutationDisplayState(for: item)
 
         return HomeTimelineEntry(
             id: item.id,
@@ -1445,6 +1490,7 @@ final class HomeViewModel {
             notes: item.notes,
             timeText: timeText(for: item),
             statusText: statusText(for: item, isCompleted: isCompleted),
+            syncState: syncState,
             assigneeText: isPairMode
                 ? item.executionRole.label(for: viewerID, creatorID: item.creatorID)
                 : nil,
@@ -1603,6 +1649,15 @@ final class HomeViewModel {
             avatarAsset: user?.avatarAsset ?? .system("person.crop.circle.fill"),
             overrideImage: nil
         )
+    }
+
+    private func taskMutationDisplayState(for item: Item) -> SharedMutationDisplayState? {
+        guard
+            isPairModeActive
+        else {
+            return nil
+        }
+        return sessionStore.sharedMutationDisplayState(entityKind: .task, recordID: item.id)
     }
 
     private func removeItem(withID itemID: UUID) {

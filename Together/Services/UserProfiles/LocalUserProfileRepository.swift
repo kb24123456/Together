@@ -70,13 +70,25 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
 
         var mergedUser = record.apply(to: user)
         let hasLegacyRepairPayload = record.avatarPhotoData != nil
+        let resolvedAssetID = normalizedAvatarAssetID(
+            currentAssetID: mergedUser.avatarAssetID,
+            fallbackUserID: userID,
+            hasAvatarPayload: mergedUser.avatarPhotoFileName != nil || hasLegacyRepairPayload
+        )
+        let resolvedCacheFileName = resolvedAssetID.map { avatarMediaStore.cacheFileName(for: $0) }
         if let fileName = mergedUser.avatarPhotoFileName {
             if avatarMediaStore.fileExists(named: fileName) == false {
                 if avatarMediaStore.fileExists(named: canonicalFileName) {
-                    mergedUser.avatarPhotoFileName = canonicalFileName
-                    mergedUser.avatarAssetID = canonicalFileName
-                    record.avatarPhotoFileName = canonicalFileName
-                    record.avatarAssetID = canonicalFileName
+                    if let resolvedCacheFileName {
+                        try? avatarMediaStore.migrateAvatarIfNeeded(
+                            from: canonicalFileName,
+                            to: resolvedCacheFileName
+                        )
+                        mergedUser.avatarPhotoFileName = resolvedCacheFileName
+                        record.avatarPhotoFileName = resolvedCacheFileName
+                    }
+                    mergedUser.avatarAssetID = resolvedAssetID
+                    record.avatarAssetID = resolvedAssetID
                     try? context.save()
                 } else if hasLegacyRepairPayload {
                     // Keep the current avatar reference while the legacy/local repair payload still
@@ -86,12 +98,28 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
                     mergedUser.avatarPhotoFileName = nil
                     mergedUser.avatarAssetID = nil
                 }
+            } else if let resolvedAssetID,
+                      let resolvedCacheFileName,
+                      (mergedUser.avatarAssetID != resolvedAssetID || fileName != resolvedCacheFileName) {
+                try? avatarMediaStore.migrateAvatarIfNeeded(from: fileName, to: resolvedCacheFileName)
+                mergedUser.avatarPhotoFileName = resolvedCacheFileName
+                mergedUser.avatarAssetID = resolvedAssetID
+                record.avatarPhotoFileName = resolvedCacheFileName
+                record.avatarAssetID = resolvedAssetID
+                try? context.save()
             }
         } else if avatarMediaStore.fileExists(named: canonicalFileName) {
-            mergedUser.avatarPhotoFileName = canonicalFileName
-            mergedUser.avatarAssetID = canonicalFileName
-            record.avatarPhotoFileName = canonicalFileName
-            record.avatarAssetID = canonicalFileName
+            let repairedAssetID = normalizedAvatarAssetID(
+                currentAssetID: record.avatarAssetID,
+                fallbackUserID: userID,
+                hasAvatarPayload: true
+            )
+            let repairedCacheFileName = repairedAssetID.map { avatarMediaStore.cacheFileName(for: $0) } ?? canonicalFileName
+            try? avatarMediaStore.migrateAvatarIfNeeded(from: canonicalFileName, to: repairedCacheFileName)
+            mergedUser.avatarPhotoFileName = repairedCacheFileName
+            mergedUser.avatarAssetID = repairedAssetID
+            record.avatarPhotoFileName = repairedCacheFileName
+            record.avatarAssetID = repairedAssetID
             try? context.save()
         }
         #if DEBUG
@@ -134,7 +162,8 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
             updatedUser.avatarAssetID = nil
             updatedUser.avatarVersion += 1
         case .replacePhoto(let data):
-            let fileName = avatarMediaStore.canonicalFileName(for: user.id)
+            let assetID = userID.uuidString.lowercased()
+            let fileName = avatarMediaStore.cacheFileName(for: assetID)
             if avatarMediaStore.fileExists(named: fileName) {
                 if let previousData = try? avatarMediaStore.avatarData(named: fileName) {
                     rollbackActions.append(.restore(fileName: fileName, data: previousData))
@@ -158,7 +187,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
                 try? avatarMediaStore.removeAvatar(named: existingFileName)
             }
             updatedUser.avatarPhotoFileName = fileName
-            updatedUser.avatarAssetID = fileName
+            updatedUser.avatarAssetID = assetID
             updatedUser.avatarVersion += 1
         }
 
@@ -221,7 +250,6 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
             record.avatarAssetID = nil
         case .replacePhoto(let data):
             record.avatarPhotoData = data
-            record.avatarAssetID = record.avatarPhotoFileName
         }
     }
 
@@ -231,11 +259,18 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         userID: UUID
     ) {
         let canonicalFileName = avatarMediaStore.canonicalFileName(for: userID)
+        let normalizedAssetID = normalizedAvatarAssetID(
+            currentAssetID: record.avatarAssetID,
+            fallbackUserID: userID,
+            hasAvatarPayload: record.avatarPhotoFileName != nil || record.avatarPhotoData != nil
+        )
+        let normalizedCacheFileName = normalizedAssetID.map { avatarMediaStore.cacheFileName(for: $0) }
 
         if let avatarPhotoData = record.avatarPhotoData {
-            preloadRuntimeAvatarIfPossible(data: avatarPhotoData, fileName: canonicalFileName)
+            let targetFileName = normalizedCacheFileName ?? canonicalFileName
+            preloadRuntimeAvatarIfPossible(data: avatarPhotoData, fileName: targetFileName)
             do {
-                try avatarMediaStore.persistAvatarData(avatarPhotoData, fileName: canonicalFileName)
+                try avatarMediaStore.persistAvatarData(avatarPhotoData, fileName: targetFileName)
             } catch {
                 #if DEBUG
                 StartupTrace.mark(
@@ -244,9 +279,9 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
                 #endif
             }
 
-            if record.avatarPhotoFileName != canonicalFileName {
-                record.avatarPhotoFileName = canonicalFileName
-                record.avatarAssetID = canonicalFileName
+            if record.avatarPhotoFileName != targetFileName || record.avatarAssetID != normalizedAssetID {
+                record.avatarPhotoFileName = targetFileName
+                record.avatarAssetID = normalizedAssetID
                 try? context.save()
             }
             return
@@ -258,27 +293,36 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
 
         var hasMutatedRecord = false
 
-        if storedFileName != canonicalFileName, avatarMediaStore.fileExists(named: storedFileName) {
+        if let normalizedCacheFileName,
+           storedFileName != normalizedCacheFileName,
+           avatarMediaStore.fileExists(named: storedFileName) {
+            try? avatarMediaStore.migrateAvatarIfNeeded(from: storedFileName, to: normalizedCacheFileName)
+            record.avatarPhotoFileName = normalizedCacheFileName
+            record.avatarAssetID = normalizedAssetID
+            hasMutatedRecord = true
+        } else if storedFileName != canonicalFileName, avatarMediaStore.fileExists(named: storedFileName) {
             try? avatarMediaStore.migrateAvatarIfNeeded(from: storedFileName, to: canonicalFileName)
             record.avatarPhotoFileName = canonicalFileName
-            record.avatarAssetID = canonicalFileName
+            record.avatarAssetID = normalizedAssetID
             hasMutatedRecord = true
         }
 
-        let resolvedFileName = record.avatarPhotoFileName ?? canonicalFileName
+        let resolvedFileName = record.avatarPhotoFileName ?? normalizedCacheFileName ?? canonicalFileName
         if avatarMediaStore.fileExists(named: resolvedFileName) == false {
             if let avatarPhotoData = record.avatarPhotoData {
-                try? avatarMediaStore.persistAvatarData(avatarPhotoData, fileName: canonicalFileName)
-                record.avatarPhotoFileName = canonicalFileName
-                record.avatarAssetID = canonicalFileName
+                let targetFileName = normalizedCacheFileName ?? canonicalFileName
+                try? avatarMediaStore.persistAvatarData(avatarPhotoData, fileName: targetFileName)
+                record.avatarPhotoFileName = targetFileName
+                record.avatarAssetID = normalizedAssetID
                 hasMutatedRecord = true
             } else {
                 record.avatarPhotoFileName = nil
                 record.avatarAssetID = nil
                 hasMutatedRecord = true
             }
-        } else if record.avatarAssetID != resolvedFileName {
-            record.avatarAssetID = resolvedFileName
+        } else if record.avatarAssetID != normalizedAssetID || record.avatarPhotoFileName != resolvedFileName {
+            record.avatarAssetID = normalizedAssetID
+            record.avatarPhotoFileName = resolvedFileName
             hasMutatedRecord = true
         }
 
@@ -303,23 +347,48 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         canonicalFileName: String,
         context: ModelContext
     ) -> User {
-        guard avatarMediaStore.fileExists(named: canonicalFileName) else {
+        let assetID = normalizedAvatarAssetID(
+            currentAssetID: user.avatarAssetID,
+            fallbackUserID: user.id,
+            hasAvatarPayload: true
+        )
+        let cacheFileName = assetID.map { avatarMediaStore.cacheFileName(for: $0) } ?? canonicalFileName
+        let recoveryFileName: String
+        if avatarMediaStore.fileExists(named: cacheFileName) {
+            recoveryFileName = cacheFileName
+        } else if avatarMediaStore.fileExists(named: canonicalFileName) {
+            recoveryFileName = canonicalFileName
+        } else {
             return user
         }
 
-        if let avatarData = try? avatarMediaStore.avatarData(named: canonicalFileName) {
-            preloadRuntimeAvatarIfPossible(data: avatarData, fileName: canonicalFileName)
+        if let avatarData = try? avatarMediaStore.avatarData(named: recoveryFileName) {
+            preloadRuntimeAvatarIfPossible(data: avatarData, fileName: recoveryFileName)
         }
 
         var recoveredUser = user
-        recoveredUser.avatarPhotoFileName = canonicalFileName
-        recoveredUser.avatarAssetID = canonicalFileName
+        try? avatarMediaStore.migrateAvatarIfNeeded(from: recoveryFileName, to: cacheFileName)
+        recoveredUser.avatarPhotoFileName = cacheFileName
+        recoveredUser.avatarAssetID = assetID
         recoveredUser.preferences.pairQuickReplyMessages = storedPairQuickReplyMessages(for: user.id)
         recoveredUser.updatedAt = .now
 
         context.insert(PersistentUserProfile(user: recoveredUser))
         try? context.save()
         return recoveredUser
+    }
+
+    private func normalizedAvatarAssetID(
+        currentAssetID: String?,
+        fallbackUserID: UUID,
+        hasAvatarPayload: Bool
+    ) -> String? {
+        guard hasAvatarPayload else { return nil }
+        if let currentAssetID,
+           let normalizedUUID = UUID(uuidString: currentAssetID)?.uuidString.lowercased() {
+            return normalizedUUID
+        }
+        return fallbackUserID.uuidString.lowercased()
     }
 
     private func preloadRuntimeAvatarIfPossible(data: Data, fileName: String) {

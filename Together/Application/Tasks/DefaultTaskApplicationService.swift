@@ -103,6 +103,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
         item.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         item.notes = draft.notes
         item.listID = draft.listID
@@ -147,6 +150,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         projectID: UUID?
     ) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
         item.listID = listID
         item.projectID = projectID
         item.updatedAt = .now
@@ -172,6 +178,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         remindAt: Date?
     ) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
         item.dueAt = dueAt
         item.remindAt = remindAt
         item.updatedAt = .now
@@ -196,6 +205,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         option: TaskSnoozeOption
     ) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
         guard item.status != .completed, item.completedAt == nil else {
             return item
         }
@@ -286,6 +298,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard PairPermissionService.canDeleteTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
         item.isArchived = true
         item.archivedAt = .now
         item.isPinned = false
@@ -305,7 +320,10 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     }
 
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {
-        _ = try await existingTask(in: spaceID, taskID: taskID)
+        let item = try await existingTask(in: spaceID, taskID: taskID)
+        guard PairPermissionService.canDeleteTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
         try await itemRepository.deleteItem(itemID: taskID)
         await syncCoordinator.recordLocalChange(
             SyncChange(

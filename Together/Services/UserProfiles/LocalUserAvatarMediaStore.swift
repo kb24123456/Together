@@ -7,6 +7,10 @@ struct LocalUserAvatarMediaStore: UserAvatarMediaStoreProtocol {
         "\(userID.uuidString.lowercased())-avatar.jpg"
     }
 
+    nonisolated func cacheFileName(for assetID: String) -> String {
+        UserAvatarStorage.fileName(forAssetID: assetID)
+    }
+
     nonisolated func avatarData(named fileName: String) throws -> Data {
         try Data(contentsOf: UserAvatarStorage.fileURL(fileName: fileName))
     }
@@ -51,6 +55,13 @@ struct LocalUserAvatarMediaStore: UserAvatarMediaStoreProtocol {
 }
 
 enum UserAvatarStorage {
+    nonisolated static func fileName(forAssetID assetID: String) -> String {
+        if assetID.contains(".") {
+            return assetID
+        }
+        return "asset-\(assetID.lowercased()).jpg"
+    }
+
     nonisolated static func fileURL(fileName: String) -> URL {
         let applicationSupportDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,

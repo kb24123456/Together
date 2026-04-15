@@ -9,6 +9,10 @@ final class AppRouter {
     var isProfilePresented = false
     var currentSurface: RootSurface = .today
 
+    /// When true, RoutinesListContent auto-selects the first cycle with pending tasks.
+    /// Consumed (reset to false) after being read.
+    var shouldAutoSelectPendingCycle = false
+
     var isProjectModePresented: Bool {
         currentSurface == .projects
     }

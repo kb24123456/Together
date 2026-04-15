@@ -45,7 +45,7 @@ struct MockRelationshipService: RelationshipServiceProtocol {
         PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
     }
 
-    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?) async {}
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async {}
 
     func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
         PairingContext(state: .unbound, pairSpaceSummary: nil, activeInvite: nil)

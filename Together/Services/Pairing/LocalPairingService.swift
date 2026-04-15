@@ -351,7 +351,7 @@ actor LocalPairingService: PairingServiceProtocol {
         return await currentPairingContext(for: userID)
     }
 
-    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?) async {
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async {
         let context = ModelContext(container)
         guard let pairSpace = try? context.fetch(
             FetchDescriptor<PersistentPairSpace>(
@@ -366,6 +366,13 @@ actor LocalPairingService: PairingServiceProtocol {
                 predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
             )
         ).first {
+            // Only the space owner (inviter) can rename the pair space.
+            guard PairPermissionService.canRenameSpace(space.domainModel, actorID: actorID) else {
+                #if DEBUG
+                print("[Pairing] ⛔ Space rename rejected: actor \(actorID.uuidString.prefix(8)) is not owner")
+                #endif
+                return
+            }
             space.displayName = displayName ?? PairSpace.defaultSharedSpaceDisplayName
             space.updatedAt = .now
         }
@@ -518,10 +525,26 @@ actor LocalPairingService: PairingServiceProtocol {
         context: ModelContext
     ) -> Bool {
         var didChange = false
+        let avatarStore = LocalUserAvatarMediaStore()
 
-        for membership in memberships where membership.avatarAssetID == nil {
-            if let avatarPhotoFileName = membership.avatarPhotoFileName {
-                membership.avatarAssetID = avatarPhotoFileName
+        for membership in memberships {
+            guard let avatarPhotoFileName = membership.avatarPhotoFileName else { continue }
+            let normalizedAssetID = UUID(uuidString: membership.avatarAssetID ?? "")?.uuidString.lowercased()
+                ?? membership.userID.uuidString.lowercased()
+            let normalizedCacheFileName = avatarStore.cacheFileName(for: normalizedAssetID)
+
+            if avatarPhotoFileName != normalizedCacheFileName,
+               avatarStore.fileExists(named: avatarPhotoFileName) {
+                try? avatarStore.migrateAvatarIfNeeded(
+                    from: avatarPhotoFileName,
+                    to: normalizedCacheFileName
+                )
+                membership.avatarPhotoFileName = normalizedCacheFileName
+                didChange = true
+            }
+
+            if membership.avatarAssetID != normalizedAssetID {
+                membership.avatarAssetID = normalizedAssetID
                 didChange = true
             }
         }

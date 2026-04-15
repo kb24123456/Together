@@ -26,8 +26,9 @@ final class AppContext {
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
     private var seededPairMetadataSpaceIDs: Set<UUID> = []
-    private var pairSyncPollingTask: Task<Void, Never>?
-    private var pairSyncPollingPairSpaceID: UUID?
+    private var pairSyncService: PairSyncService?
+    private var pairSyncPoller: PairSyncPoller?
+    private var pairSubscriptionManager: CloudKitSubscriptionManager?
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
@@ -136,12 +137,15 @@ final class AppContext {
         await routinesViewModel.load()
         await syncReminderNotificationsIfNeeded()
 
-        // Start CKSyncEngine for all active zones
+        // Start sync engines
         if sessionStore.authState == .signedIn {
+            // One-time schema seeder for CloudKit Development environment
+            #if DEBUG
+            await PairSchemaSeeder.seedIfNeeded(container: container.cloudKitContainer)
+            #endif
+
             await startSoloSyncEngineIfNeeded()
             await startPairSyncEngineIfNeeded()
-            // One-time migration from public DB to private zone
-            await performPublicToPrivateMigrationIfNeeded()
         }
 
         StartupTrace.mark("AppContext.postLaunch.end")
@@ -168,65 +172,71 @@ final class AppContext {
     }
 
     /// Starts pair sync for the current pair space if paired.
+    ///
+    /// Uses `PairSyncService` (public DB CKQuery) instead of CKSyncEngine pair bridges.
     func startPairSyncEngineIfNeeded() async {
         guard let summary = sessionStore.pairSpaceSummary,
               let myUserID = sessionStore.currentUser?.id,
               summary.pairSpace.status == .active
         else { return }
 
-        let pairSpaceID = summary.pairSpace.id
-        let inviterID = summary.sharedSpace.ownerUserID
-        let responderID = summary.partner?.id ?? myUserID
+        // Don't re-create if already active for this space
+        if pairSyncPoller?.isActive == true { return }
 
-        let isActive = await container.syncEngineCoordinator.isPairSyncActive(for: pairSpaceID)
-        guard !isActive else { return }
+        let sharedSpaceID = summary.sharedSpace.id
 
-        await container.syncEngineCoordinator.startPairSync(
-            pairSpaceID: pairSpaceID,
-            sharedSpaceID: summary.sharedSpace.id,
-            myUserID: myUserID,
-            inviterID: inviterID,
-            responderID: responderID,
-            isZoneOwner: summary.pairSpace.isZoneOwner,
-            ownerRecordID: summary.pairSpace.ownerRecordID
+        // Create and configure PairSyncService
+        let service = PairSyncService(
+            ckContainer: container.cloudKitContainer,
+            modelContainer: PersistenceController.shared.container
         )
+        await service.configure(spaceID: sharedSpaceID, myUserID: myUserID)
+        self.pairSyncService = service
 
-        await container.syncEngineCoordinator.setPairRemoteChangesCallback(
-            pairSpaceID: pairSpaceID
-        ) { [weak self] count in
-            guard let self, count > 0 else { return }
-            Task { @MainActor in
-                self.refreshSharedSyncStatus()
-                await self.reloadAfterSync()
+        // Create and start PairSyncPoller with adaptive polling
+        let poller = PairSyncPoller()
+        poller.start { [weak self, weak service] in
+            guard let service else { return .noChange }
+            let result = await service.syncOnce()
+            // Refresh UI after sync with changes
+            if case .changes = result {
+                Task { @MainActor [weak self] in
+                    self?.refreshSharedSyncStatus()
+                    await self?.reloadAfterSync()
+                }
             }
+            return result
         }
+        self.pairSyncPoller = poller
+
+        // Set up push subscriptions on the public DB for this space
+        let subManager = CloudKitSubscriptionManager(container: container.cloudKitContainer)
+        self.pairSubscriptionManager = subManager
+        Task {
+            try? await subManager.subscribe(for: sharedSpaceID)
+        }
+
         refreshSharedSyncStatus()
     }
 
     /// One-time migration of pair space data from public DB to private zone.
+    /// Disabled: pair sync now uses public DB directly (Path A).
     private func performPublicToPrivateMigrationIfNeeded() async {
-        guard let summary = sessionStore.pairSpaceSummary,
-              summary.pairSpace.status == .active,
-              let currentUserID = sessionStore.currentUser?.id,
-              summary.sharedSpace.ownerUserID == currentUserID || summary.pairSpace.isZoneOwner
-        else { return }
-
-        await SyncMigrationService.migrateIfNeeded(
-            pairSpaceID: summary.pairSpace.id,
-            sharedSpaceID: summary.sharedSpace.id,
-            coordinator: container.syncEngineCoordinator,
-            ckContainer: container.cloudKitContainer,
-            modelContainer: PersistenceController.shared.container
-        )
+        // No-op: CKSyncEngine private zone migration is no longer needed.
     }
 
-    /// Stops pair sync and cleans up encryption key (for unbind).
+    /// Stops pair sync and cleans up (for unbind).
     func teardownPairSync(pairSpaceID: UUID) async {
-        await container.syncEngineCoordinator.teardownPairSync(pairSpaceID: pairSpaceID)
-        seededPairMetadataSpaceIDs.remove(pairSpaceID)
-        if pairSyncPollingPairSpaceID == pairSpaceID {
-            stopPairSyncPolling()
+        pairSyncPoller?.stop()
+        pairSyncPoller = nil
+        await pairSyncService?.teardown()
+        pairSyncService = nil
+        // Unsubscribe push notifications for the shared space
+        if let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
+            await pairSubscriptionManager?.unsubscribe(for: sharedSpaceID)
         }
+        pairSubscriptionManager = nil
+        seededPairMetadataSpaceIDs.remove(pairSpaceID)
         sessionStore.updateSharedSyncStatus(.idle)
     }
 
@@ -234,6 +244,21 @@ final class AppContext {
     func syncProfileToPartner(user: User) async {
         guard let summary = sessionStore.pairSpaceSummary,
               summary.pairSpace.status == .active else { return }
+        let avatarStore = LocalUserAvatarMediaStore()
+        if let avatarAssetID = user.avatarAssetID,
+           let assetUUID = UUID(uuidString: avatarAssetID) {
+            let cacheFileName = user.avatarCacheFileName ?? avatarStore.cacheFileName(for: avatarAssetID)
+            if avatarStore.fileExists(named: cacheFileName) {
+            await submitSharedMutation(
+                SyncChange(
+                    entityKind: .avatarAsset,
+                    operation: .upsert,
+                    recordID: assetUUID,
+                    spaceID: summary.sharedSpace.id
+                )
+            )
+            }
+        }
         await submitSharedMutation(
             SyncChange(
                 entityKind: .memberProfile,
@@ -309,22 +334,32 @@ final class AppContext {
         await startPairSyncEngineIfNeeded()
     }
 
-    /// 本地数据变更后只需入队给 CKSyncEngine；共享 authority 会自行分发到其他设备/参与者。
+    /// 本地数据变更后触发同步。
+    /// Solo 变更走 CKSyncEngine；pair 变更走 PairSyncPoller nudge。
     func syncAfterMutation(spaceID: UUID) {
+        // Solo sync path (CKSyncEngine)
         Task { [weak self] in
             await self?.container.syncEngineCoordinator.sendChanges(for: spaceID)
+        }
+        // Pair sync path: nudge poller for immediate push+pull
+        if let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id,
+           spaceID == sharedSpaceID {
+            pairSyncPoller?.nudge()
+        }
+        Task { [weak self] in
             await self?.refreshSharedSyncStatusAsync()
         }
     }
 
     func flushRecordedSharedMutation(_ change: SyncChange) async {
-        await container.syncEngineCoordinator.sendChanges(for: change.spaceID)
+        // Nudge pair poller to push the recorded mutation immediately
+        pairSyncPoller?.nudge()
         await refreshSharedSyncStatusAsync()
     }
 
     private func submitSharedMutation(_ change: SyncChange) async {
         await container.syncCoordinator.recordLocalChange(change)
-        await container.syncEngineCoordinator.sendChanges(for: change.spaceID)
+        pairSyncPoller?.nudge()
         await refreshSharedSyncStatusAsync()
     }
 
@@ -416,6 +451,9 @@ final class AppContext {
                 SyncChange(entityKind: .project, operation: .upsert, recordID: project.id, spaceID: spaceID)
             )
         }
+
+        // Nudge pair poller to push all recorded changes immediately
+        pairSyncPoller?.nudge()
     }
 
     // MARK: - Sync Callbacks
@@ -461,7 +499,7 @@ final class AppContext {
         Task {
             if let cloudPairing = container.pairingService as? CloudPairingService {
                 await cloudPairing.setOnPairSyncTeardown { [weak self] pairSpaceID in
-                    await self?.container.syncEngineCoordinator.teardownPairSync(pairSpaceID: pairSpaceID)
+                    await self?.teardownPairSync(pairSpaceID: pairSpaceID)
                 }
             }
         }
@@ -483,9 +521,10 @@ final class AppContext {
         if let pairSpace = sessionStore.currentPairSpace,
            pairSpace.status == .active {
             let pairSpaceID = pairSpace.id
+            // Nudge existing poller on foreground recovery / mode switch
+            pairSyncPoller?.nudge()
             Task {
                 await startPairSyncEngineIfNeeded()
-                ensurePairSyncPolling(for: pairSpaceID)
                 if seededPairMetadataSpaceIDs.contains(pairSpaceID) == false,
                    let user = sessionStore.currentUser {
                     await syncProfileToPartner(user: user)
@@ -496,30 +535,18 @@ final class AppContext {
                 }
             }
         } else {
+            // CRITICAL: Only tear down if poller is actually active.
+            // Prevents self-destructing on transient nil pairSpaceSummary during refresh.
+            if pairSyncPoller?.isActive == true {
+                pairSyncPoller?.stop()
+                pairSyncPoller = nil
+                Task { [weak self] in await self?.pairSyncService?.teardown() }
+                pairSyncService = nil
+                pairSubscriptionManager = nil
+            }
             seededPairMetadataSpaceIDs.removeAll()
-            stopPairSyncPolling()
             refreshSharedSyncStatus()
         }
-    }
-
-    private func ensurePairSyncPolling(for pairSpaceID: UUID) {
-        guard pairSyncPollingPairSpaceID != pairSpaceID || pairSyncPollingTask == nil else { return }
-        pairSyncPollingTask?.cancel()
-        pairSyncPollingPairSpaceID = pairSpaceID
-        pairSyncPollingTask = Task { [weak self] in
-            guard let self else { return }
-            while Task.isCancelled == false {
-                await self.container.syncEngineCoordinator.fetchPairChanges(pairSpaceID: pairSpaceID)
-                await self.refreshSharedSyncStatusAsync()
-                try? await Task.sleep(for: .seconds(5))
-            }
-        }
-    }
-
-    private func stopPairSyncPolling() {
-        pairSyncPollingTask?.cancel()
-        pairSyncPollingTask = nil
-        pairSyncPollingPairSpaceID = nil
     }
 
     private func refreshSharedSyncStatus() {
@@ -530,12 +557,21 @@ final class AppContext {
 
     private func refreshSharedSyncStatusAsync() async {
         guard let pairSummary = sessionStore.pairSpaceSummary else {
+            sessionStore.updateSharedMutationSnapshots([:])
             sessionStore.updateSharedSyncStatus(.idle)
             return
         }
 
         var status = syncHealthMonitor.sharedStatus(for: pairSummary.pairSpace.id)
         let snapshots = await container.syncCoordinator.mutationLog(for: pairSummary.sharedSpace.id)
+        let latestSnapshots = snapshots.reduce(into: [SharedMutationRecordKey: SyncMutationSnapshot]()) { result, snapshot in
+            result[
+                SharedMutationRecordKey(
+                    entityKind: snapshot.change.entityKind,
+                    recordID: snapshot.change.recordID
+                )
+            ] = snapshot
+        }
         let pendingMutationCount = snapshots.reduce(into: 0) { result, snapshot in
             switch snapshot.lifecycleState {
             case .pending, .sending:
@@ -566,14 +602,24 @@ final class AppContext {
             status.level = .syncing
         }
 
+        sessionStore.updateSharedMutationSnapshots(latestSnapshots)
         sessionStore.updateSharedSyncStatus(status)
     }
 
     /// Handle CloudKit push notification.
-    /// CKSyncEngine handles its own database/zone subscriptions. Relay push handling
-    /// is no longer part of the authoritative pair sync path.
+    /// Pair sync subscriptions (CKQuerySubscription on public DB) trigger immediate
+    /// sync via PairSyncPoller.nudge().
     func handleCloudKitNotification(_ userInfo: [AnyHashable: Any]) async {
-        _ = userInfo
+        guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) else {
+            return
+        }
+
+        // Check if this is a pair sync subscription notification
+        if let queryNotification = notification as? CKQueryNotification,
+           let subscriptionID = queryNotification.subscriptionID,
+           subscriptionID.hasPrefix("pair-") {
+            pairSyncPoller?.nudge()
+        }
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {

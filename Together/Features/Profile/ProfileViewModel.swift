@@ -149,14 +149,35 @@ final class ProfileViewModel {
         sessionStore.pairSpaceSummary?.sharedSpace.displayName ?? PairSpace.defaultSharedSpaceDisplayName
     }
 
-    /// 更新共享空间的显示名称
+    var canRenameSpace: Bool {
+        guard let userID = currentUser?.id,
+              let sharedSpace = sessionStore.pairSpaceSummary?.sharedSpace else { return true }
+        return PairPermissionService.canRenameSpace(sharedSpace, actorID: userID)
+    }
+
+    var spaceSyncState: SharedMutationDisplayState? {
+        guard
+            sessionStore.hasActivePairSpace,
+            let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id
+        else {
+            return nil
+        }
+        return sessionStore.sharedMutationDisplayState(entityKind: .space, recordID: sharedSpaceID)
+    }
+
+    var spaceSyncStatusText: String? {
+        spaceSyncState?.text
+    }
+
+    /// 更新共享空间的显示名称（仅邀请方/空间所有者可调用）
     func updatePairSpaceDisplayName(_ newName: String) {
-        guard let pairSpace = sessionStore.currentPairSpace else { return }
+        guard let pairSpace = sessionStore.currentPairSpace,
+              let userID = currentUser?.id else { return }
         let resolvedName: String? = newName.isEmpty ? nil : newName
         sessionStore.updatePairSpaceDisplayName(resolvedName)
 
         Task {
-            await pairingService.updatePairSpaceDisplayName(pairSpaceID: pairSpace.id, displayName: resolvedName)
+            await pairingService.updatePairSpaceDisplayName(pairSpaceID: pairSpace.id, displayName: resolvedName, actorID: userID)
             onSharedMutationRecorded?(
                 SyncChange(
                     entityKind: .space,
@@ -205,10 +226,16 @@ final class ProfileViewModel {
     }
 
     var spaceSummary: String {
+        let baseName: String
         if sessionStore.hasActivePairSpace {
-            return sessionStore.pairSpaceSummary?.sharedSpace.displayName ?? PairSpace.defaultSharedSpaceDisplayName
+            baseName = sessionStore.pairSpaceSummary?.sharedSpace.displayName ?? PairSpace.defaultSharedSpaceDisplayName
+        } else {
+            baseName = currentSpace?.displayName ?? "我的任务空间"
         }
-        return currentSpace?.displayName ?? "我的任务空间"
+        guard let syncStateText = spaceSyncStatusText else {
+            return baseName
+        }
+        return "\(baseName) · \(syncStateText)"
     }
 
     var collaborationSummary: String {
@@ -428,7 +455,7 @@ final class ProfileViewModel {
             )
             apply(pairingContext: context)
             inviteCodeEntryPresented = false
-            // CKSyncEngine handles initial sync automatically via PairSyncBridge
+            // PairSyncService handles initial sync automatically via PairSyncPoller
             return nil
         } catch let error as PairingError {
             let msg = error.errorDescription ?? "配对失败"
@@ -477,7 +504,7 @@ final class ProfileViewModel {
         ) {
             apply(pairingContext: context)
             // 1.8: 检测到对方接受后，推送本地任务到 CloudKit
-            // CKSyncEngine handles sync automatically via PairSyncBridge
+            // PairSyncService handles sync automatically via PairSyncPoller
         }
         isCheckingInvite = false
     }

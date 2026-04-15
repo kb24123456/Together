@@ -184,7 +184,13 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
         var item = record.domainModel()
         if item.repeatRule == nil {
-            guard item.canActorComplete(actorID) || item.assigneeMode == .both else {
+            // Only enforce role-based completion for .partner mode tasks (where
+            // the non-creator must be the one completing). For .self and .both
+            // modes, space-level authorization (already verified by existingTask)
+            // is sufficient — blocking on creatorID equality would prevent
+            // legitimate single-user completions when the stored creatorID has
+            // drifted (e.g., after user profile migration or seeding).
+            guard item.assigneeMode != .partner || item.canActorComplete(actorID) else {
                 throw RepositoryError.notFound
             }
             item.assignmentState = .completed

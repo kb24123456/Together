@@ -542,6 +542,7 @@ enum MockDataFactory {
             TaskList(
                 id: inboxListID,
                 spaceID: singleSpaceID,
+                creatorID: currentUserID,
                 name: "收集箱",
                 kind: .systemInbox,
                 colorToken: "slate",
@@ -554,6 +555,7 @@ enum MockDataFactory {
             TaskList(
                 id: todayListID,
                 spaceID: singleSpaceID,
+                creatorID: currentUserID,
                 name: "Today",
                 kind: .systemToday,
                 colorToken: "coral",
@@ -566,6 +568,7 @@ enum MockDataFactory {
             TaskList(
                 id: planningListID,
                 spaceID: singleSpaceID,
+                creatorID: currentUserID,
                 name: "产品规划",
                 kind: .custom,
                 colorToken: "moss",
@@ -583,6 +586,7 @@ enum MockDataFactory {
             Project(
                 id: focusProjectID,
                 spaceID: singleSpaceID,
+                creatorID: currentUserID,
                 name: "单人模式架构收敛",
                 notes: "先把文档、导航、领域模型和 mock 层统一。",
                 colorToken: "forest",
@@ -597,6 +601,7 @@ enum MockDataFactory {
             Project(
                 id: launchProjectID,
                 spaceID: singleSpaceID,
+                creatorID: currentUserID,
                 name: "Today 交互动效打磨",
                 notes: "聚焦完成反馈、日期切换和详情展开的原生质感。",
                 colorToken: "sand",
@@ -611,6 +616,7 @@ enum MockDataFactory {
             Project(
                 id: migrationProjectID,
                 spaceID: singleSpaceID,
+                creatorID: currentUserID,
                 name: "旧文档迁移",
                 notes: "双人优先逻辑已经降级为兼容层说明。",
                 colorToken: "stone",

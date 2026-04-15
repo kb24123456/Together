@@ -38,10 +38,12 @@ actor LocalSpaceService: SpaceServiceProtocol {
 
                 // Re-assign all items seeded under the old owner so the real user
                 // passes canActorComplete() and can toggle completion normally.
-                let spaceID = orphanedRecord.id
+                // Use Optional(spaceID) to match PersistentItem.spaceID: UUID?
+                // exactly — SwiftData #Predicate requires type-aligned comparisons.
+                let spaceIDOptional: UUID? = orphanedRecord.id
                 let itemDescriptor = FetchDescriptor<PersistentItem>(
                     predicate: #Predicate<PersistentItem> {
-                        $0.spaceID == spaceID && $0.creatorID == oldOwnerID
+                        $0.spaceID == spaceIDOptional && $0.creatorID == oldOwnerID
                     }
                 )
                 if let orphanedItems = try? context.fetch(itemDescriptor) {
