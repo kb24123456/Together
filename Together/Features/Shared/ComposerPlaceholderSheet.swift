@@ -672,13 +672,16 @@ struct ComposerPlaceholderSheet: View {
                 )
             case .project:
                 let project = try await appContext.container.projectRepository.saveProject(
-                    draftState.projectDraft(spaceID: spaceID, creatorID: actorID)
+                    draftState.projectDraft(spaceID: spaceID, creatorID: actorID),
+                    actorID: actorID
                 )
                 for subtask in draftState.projectSubtasks {
                     _ = try await appContext.container.projectRepository.addSubtask(
                         projectID: project.id,
                         title: subtask.title,
-                        isCompleted: subtask.isCompleted
+                        isCompleted: subtask.isCompleted,
+                        creatorID: actorID,
+                        actorID: actorID
                     )
                 }
                 await appContext.projectsViewModel.load()

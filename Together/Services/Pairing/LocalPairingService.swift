@@ -351,6 +351,8 @@ actor LocalPairingService: PairingServiceProtocol {
         return await currentPairingContext(for: userID)
     }
 
+    /// Note: recordLocalChange is NOT called here — sync is triggered by ProfileViewModel's
+    /// onSharedMutationRecorded callback, which queues the SyncChange after this method returns.
     func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async {
         let context = ModelContext(container)
         guard let pairSpace = try? context.fetch(

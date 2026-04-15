@@ -395,6 +395,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return saved
     }
 
+    /// No creatorID permission check: both task creator and assignee can exchange messages.
     func appendAssignmentMessage(
         in spaceID: UUID,
         taskID: UUID,
@@ -424,6 +425,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return saved
     }
 
+    /// No creatorID permission check: task creator sends reminders to the assignee (partner).
     func sendReminderToPartner(
         in spaceID: UUID,
         taskID: UUID,

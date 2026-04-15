@@ -32,7 +32,7 @@ enum LocalServiceFactory {
             container: ckContainer
         )
 
-        let itemRepository = LocalItemRepository(container: modelContainer)
+        let itemRepository = LocalItemRepository(container: modelContainer, syncCoordinator: syncCoordinator)
         let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
         let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(

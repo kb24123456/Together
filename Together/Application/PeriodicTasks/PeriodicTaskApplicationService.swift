@@ -3,9 +3,9 @@ import Foundation
 protocol PeriodicTaskApplicationServiceProtocol: Sendable {
     func fetchTasks(in spaceID: UUID) async throws -> [PeriodicTask]
     func createTask(in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
-    func updateTask(in spaceID: UUID, taskID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
+    func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask
-    func deleteTask(in spaceID: UUID, taskID: UUID) async throws
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws
 }
 
 actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol {
@@ -52,9 +52,13 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         return saved
     }
 
-    func updateTask(in spaceID: UUID, taskID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
+    func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
         guard var task = try await repository.fetchTask(taskID: taskID) else {
             throw PeriodicTaskError.notFound
+        }
+
+        guard PairPermissionService.canEditPeriodicTask(task, actorID: actorID) else {
+            throw PermissionError.notCreator
         }
 
         task.title = draft.title
@@ -71,6 +75,8 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         return saved
     }
 
+    /// No actorID permission check: both partners can toggle periodic task completion.
+    /// Periodic tasks represent shared routines (e.g. "daily cleaning") where either party marks done.
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask {
         guard let task = try await repository.fetchTask(taskID: taskID) else {
             throw PeriodicTaskError.notFound
@@ -92,7 +98,13 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         return updated
     }
 
-    func deleteTask(in spaceID: UUID, taskID: UUID) async throws {
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {
+        guard let task = try await repository.fetchTask(taskID: taskID) else {
+            throw PeriodicTaskError.notFound
+        }
+        guard PairPermissionService.canDeletePeriodicTask(task, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
         await reminderScheduler.removePeriodicTaskReminder(for: taskID)
         try await repository.deleteTask(taskID: taskID)
         await syncCoordinator.recordLocalChange(

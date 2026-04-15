@@ -120,7 +120,8 @@ struct TogetherTests {
 
         await pairingService.updatePairSpaceDisplayName(
             pairSpaceID: pairSpaceID,
-            displayName: "我们的小家"
+            displayName: "我们的小家",
+            actorID: MockDataFactory.currentUserID
         )
 
         let refreshed = try #require(context.fetch(descriptor).first)
@@ -349,6 +350,7 @@ struct TogetherTests {
         let subtask = ProjectSubtask(
             id: UUID(),
             projectID: project.id,
+            creatorID: currentUserID,
             title: "共享子任务",
             isCompleted: false,
             sortOrder: 0
@@ -613,7 +615,13 @@ struct TogetherTests {
         }
 
         viewModel.updatePairSpaceDisplayName("我们的小家")
-        try await Task.sleep(for: .milliseconds(80))
+
+        // Allow enough time for the detached Task chain to settle under load
+        for _ in 0..<20 {
+            try await Task.sleep(for: .milliseconds(50))
+            let snapshot = await recorder.snapshot()
+            if snapshot.count >= 2 { break }
+        }
 
         let events = await recorder.snapshot()
         #expect(events == ["pairing-persisted", "space-sync"])
@@ -1085,11 +1093,12 @@ struct TogetherTests {
             syncCoordinator: NoOpSyncCoordinator()
         )
 
+        let testCreatorID = MockDataFactory.currentUserID
         let saved = try await repository.saveTaskList(
             TaskList(
                 id: UUID(),
                 spaceID: MockDataFactory.singleSpaceID,
-                creatorID: UUID(),
+                creatorID: testCreatorID,
                 name: "客户跟进",
                 kind: .custom,
                 colorToken: "navy",
@@ -1098,9 +1107,10 @@ struct TogetherTests {
                 taskCount: 0,
                 createdAt: .now,
                 updatedAt: .now
-            )
+            ),
+            actorID: testCreatorID
         )
-        let archived = try await repository.archiveTaskList(listID: saved.id)
+        let archived = try await repository.archiveTaskList(listID: saved.id, actorID: testCreatorID)
 
         #expect(saved.name == "客户跟进")
         #expect(archived.isArchived == true)
@@ -1115,11 +1125,12 @@ struct TogetherTests {
             syncCoordinator: NoOpSyncCoordinator()
         )
 
+        let testCreatorID = MockDataFactory.currentUserID
         let saved = try await repository.saveProject(
             Project(
                 id: UUID(),
                 spaceID: MockDataFactory.singleSpaceID,
-                creatorID: UUID(),
+                creatorID: testCreatorID,
                 name: "本地数据库接入",
                 notes: "把 SwiftData 和仓库层跑通。",
                 colorToken: "ink",
@@ -1130,9 +1141,10 @@ struct TogetherTests {
                 createdAt: .now,
                 updatedAt: .now,
                 completedAt: nil
-            )
+            ),
+            actorID: testCreatorID
         )
-        let archived = try await repository.archiveProject(projectID: saved.id)
+        let archived = try await repository.archiveProject(projectID: saved.id, actorID: testCreatorID)
 
         #expect(saved.name == "本地数据库接入")
         #expect(archived.status == ProjectStatus.archived)

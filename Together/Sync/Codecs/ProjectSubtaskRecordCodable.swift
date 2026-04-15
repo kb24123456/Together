@@ -12,9 +12,11 @@ struct ProjectSubtaskRecordCodable: RecordCodable {
         let record = CKRecord(recordType: Self.ckRecordType, recordID: recordID)
 
         record["projectID"] = subtask.projectID.uuidString as CKRecordValue
+        record["creatorID"] = subtask.creatorID.uuidString as CKRecordValue
         record["title"] = subtask.title as CKRecordValue
         record["isCompleted"] = subtask.isCompleted as CKRecordValue
         record["sortOrder"] = subtask.sortOrder as CKRecordValue
+        record["updatedAt"] = subtask.updatedAt as CKRecordValue
 
         return record
     }
@@ -29,12 +31,21 @@ struct ProjectSubtaskRecordCodable: RecordCodable {
             throw RecordCodecError.missingField("required ProjectSubtask field")
         }
 
+        let creatorID: UUID
+        if let raw = record["creatorID"] as? String, let parsed = UUID(uuidString: raw) {
+            creatorID = parsed
+        } else {
+            creatorID = UUID()
+        }
+
         let subtask = ProjectSubtask(
             id: id,
             projectID: projectID,
+            creatorID: creatorID,
             title: title,
             isCompleted: record["isCompleted"] as? Bool ?? false,
-            sortOrder: record["sortOrder"] as? Int ?? 0
+            sortOrder: record["sortOrder"] as? Int ?? 0,
+            updatedAt: record["updatedAt"] as? Date ?? .now
         )
 
         return ProjectSubtaskRecordCodable(subtask: subtask)

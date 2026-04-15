@@ -20,7 +20,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
             }
     }
 
-    func saveProject(_ project: Project) async throws -> Project {
+    func saveProject(_ project: Project, actorID: UUID) async throws -> Project {
         var updatedProject = project
         updatedProject.updatedAt = MockDataFactory.now
         if let index = projects.firstIndex(where: { $0.id == project.id }) {
@@ -32,7 +32,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         return updatedProject
     }
 
-    func archiveProject(projectID: UUID) async throws -> Project {
+    func archiveProject(projectID: UUID, actorID: UUID) async throws -> Project {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }
@@ -43,7 +43,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         return projects[index]
     }
 
-    func deleteProject(projectID: UUID) async throws {
+    func deleteProject(projectID: UUID, actorID: UUID) async throws {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }
@@ -52,7 +52,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         await reminderScheduler.removeProjectReminder(for: projectID)
     }
 
-    func setProjectCompleted(projectID: UUID, isCompleted: Bool) async throws -> Project {
+    func setProjectCompleted(projectID: UUID, isCompleted: Bool, actorID: UUID) async throws -> Project {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }
@@ -63,13 +63,14 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         return projects[index]
     }
 
-    func addSubtask(projectID: UUID, title: String, isCompleted: Bool) async throws -> Project {
+    func addSubtask(projectID: UUID, title: String, isCompleted: Bool, creatorID: UUID, actorID: UUID) async throws -> Project {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }
 
         let subtask = ProjectSubtask(
             projectID: projectID,
+            creatorID: creatorID,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             isCompleted: isCompleted,
             sortOrder: projects[index].subtasks.count
@@ -81,7 +82,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         return projects[index]
     }
 
-    func toggleSubtask(projectID: UUID, subtaskID: UUID) async throws -> Project {
+    func toggleSubtask(projectID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Project {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }
@@ -95,7 +96,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         return projects[projectIndex]
     }
 
-    func updateSubtask(projectID: UUID, subtaskID: UUID, title: String) async throws -> Project {
+    func updateSubtask(projectID: UUID, subtaskID: UUID, title: String, actorID: UUID) async throws -> Project {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }
@@ -113,7 +114,7 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         return projects[projectIndex]
     }
 
-    func deleteSubtask(projectID: UUID, subtaskID: UUID) async throws -> Project {
+    func deleteSubtask(projectID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Project {
         guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }

@@ -3,10 +3,12 @@ import SwiftData
 
 actor LocalItemRepository: ItemRepositoryProtocol {
     private let container: ModelContainer
+    private let syncCoordinator: SyncCoordinatorProtocol?
     private let calendar = Calendar.current
 
-    init(container: ModelContainer) {
+    init(container: ModelContainer, syncCoordinator: SyncCoordinatorProtocol? = nil) {
         self.container = container
+        self.syncCoordinator = syncCoordinator
     }
 
     func fetchActiveItems(spaceID: UUID?) async throws -> [Item] {
@@ -81,18 +83,29 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         let records = try activeRecords(spaceID: spaceID, context: context)
         var hasChanges = false
 
+        var archivedIDs: [(id: UUID, spaceID: UUID)] = []
+
         for record in records {
             guard record.repeatRuleData == nil else { continue }
             guard let completedAt = record.completedAt else { continue }
             guard completedAt <= cutoffDate else { continue }
             record.isArchived = true
             record.archivedAt = referenceDate
+            record.updatedAt = .now
             record.isPinned = false
+            if let sid = record.spaceID {
+                archivedIDs.append((id: record.id, spaceID: sid))
+            }
             hasChanges = true
         }
 
         if hasChanges {
             try context.save()
+            for item in archivedIDs {
+                await syncCoordinator?.recordLocalChange(
+                    SyncChange(entityKind: .task, operation: .archive, recordID: item.id, spaceID: item.spaceID)
+                )
+            }
         }
 
         return hasChanges
@@ -106,7 +119,15 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
         record.isArchived = false
         record.archivedAt = nil
+        record.updatedAt = .now
         try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
         return try hydratedItem(from: record, context: context)
     }
 

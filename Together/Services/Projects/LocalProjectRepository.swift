@@ -36,12 +36,16 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         }
     }
 
-    func saveProject(_ project: Project) async throws -> Project {
+    func saveProject(_ project: Project, actorID: UUID) async throws -> Project {
         let context = ModelContext(container)
         var savedProject = project
         savedProject.updatedAt = .now
 
         if let record = try fetchRecord(projectID: project.id, context: context) {
+            // Updating existing project — check permission
+            guard PairPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+                throw PermissionError.notCreator
+            }
             record.update(from: savedProject)
         } else {
             context.insert(PersistentProject(project: savedProject))
@@ -57,10 +61,13 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return projectWithCount
     }
 
-    func archiveProject(projectID: UUID) async throws -> Project {
+    func archiveProject(projectID: UUID, actorID: UUID) async throws -> Project {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canDeleteProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+            throw PermissionError.notCreator
         }
 
         record.statusRawValue = ProjectStatus.archived.rawValue
@@ -76,10 +83,13 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return archivedProject
     }
 
-    func deleteProject(projectID: UUID) async throws {
+    func deleteProject(projectID: UUID, actorID: UUID) async throws {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canDeleteProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+            throw PermissionError.notCreator
         }
 
         let spaceID = record.spaceID
@@ -102,10 +112,13 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         await reminderScheduler.removeProjectReminder(for: projectID)
     }
 
-    func setProjectCompleted(projectID: UUID, isCompleted: Bool) async throws -> Project {
+    func setProjectCompleted(projectID: UUID, isCompleted: Bool, actorID: UUID) async throws -> Project {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+            throw PermissionError.notCreator
         }
 
         record.statusRawValue = isCompleted ? ProjectStatus.completed.rawValue : ProjectStatus.active.rawValue
@@ -122,15 +135,19 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return project
     }
 
-    func addSubtask(projectID: UUID, title: String, isCompleted: Bool) async throws -> Project {
+    func addSubtask(projectID: UUID, title: String, isCompleted: Bool, creatorID: UUID, actorID: UUID) async throws -> Project {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+            throw PermissionError.notCreator
         }
 
         let existingSubtasks = try subtasks(for: projectID, in: context)
         let subtask = ProjectSubtask(
             projectID: projectID,
+            creatorID: creatorID,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             isCompleted: isCompleted,
             sortOrder: existingSubtasks.count
@@ -153,10 +170,13 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return try await finalizedProject(projectID: projectID, context: context)
     }
 
-    func toggleSubtask(projectID: UUID, subtaskID: UUID) async throws -> Project {
+    func toggleSubtask(projectID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Project {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+            throw PermissionError.notCreator
         }
         guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context) else {
             throw RepositoryError.notFound
@@ -176,10 +196,13 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return try await finalizedProject(projectID: projectID, context: context)
     }
 
-    func updateSubtask(projectID: UUID, subtaskID: UUID, title: String) async throws -> Project {
+    func updateSubtask(projectID: UUID, subtaskID: UUID, title: String, actorID: UUID) async throws -> Project {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+            throw PermissionError.notCreator
         }
         guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context) else {
             throw RepositoryError.notFound
@@ -203,10 +226,13 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return try await finalizedProject(projectID: projectID, context: context)
     }
 
-    func deleteSubtask(projectID: UUID, subtaskID: UUID) async throws -> Project {
+    func deleteSubtask(projectID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Project {
         let context = ModelContext(container)
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canDeleteProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+            throw PermissionError.notCreator
         }
         guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context) else {
             throw RepositoryError.notFound

@@ -38,12 +38,16 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
             }
     }
 
-    func saveTaskList(_ list: TaskList) async throws -> TaskList {
+    func saveTaskList(_ list: TaskList, actorID: UUID) async throws -> TaskList {
         let context = ModelContext(container)
         var savedList = list
         savedList.updatedAt = .now
 
         if let record = try fetchRecord(listID: list.id, context: context) {
+            // Updating existing list — check permission
+            guard PairPermissionService.canEditTaskList(record.domainModel(taskCount: 0), actorID: actorID) else {
+                throw PermissionError.notCreator
+            }
             record.update(from: savedList)
         } else {
             context.insert(PersistentTaskList(list: savedList))
@@ -57,10 +61,13 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
         return savedList.withTaskCount(count)
     }
 
-    func archiveTaskList(listID: UUID) async throws -> TaskList {
+    func archiveTaskList(listID: UUID, actorID: UUID) async throws -> TaskList {
         let context = ModelContext(container)
         guard let record = try fetchRecord(listID: listID, context: context) else {
             throw RepositoryError.notFound
+        }
+        guard PairPermissionService.canDeleteTaskList(record.domainModel(taskCount: 0), actorID: actorID) else {
+            throw PermissionError.notCreator
         }
 
         record.isArchived = true

@@ -42,6 +42,16 @@ enum PairPermissionService {
         project.creatorID == actorID
     }
 
+    // MARK: - ProjectSubtask (inherits from parent Project)
+
+    static func canEditProjectSubtask(projectCreatorID: UUID, actorID: UUID) -> Bool {
+        projectCreatorID == actorID
+    }
+
+    static func canDeleteProjectSubtask(projectCreatorID: UUID, actorID: UUID) -> Bool {
+        projectCreatorID == actorID
+    }
+
     // MARK: - PeriodicTask
 
     static func canEditPeriodicTask(_ task: PeriodicTask, actorID: UUID) -> Bool {

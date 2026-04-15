@@ -15,12 +15,14 @@ actor CloudKitSubscriptionManager {
     /// Record types to subscribe to — matches PairSyncCodecRegistry.supportedRecordTypes
     /// but only the highest-change-frequency types to avoid subscription quota pressure.
     private static let subscribedRecordTypes = [
-        PairTaskRecordCodec.recordType,         // PairTask — most frequent
-        PairTaskListRecordCodec.recordType,      // PairTaskList
-        PairProjectRecordCodec.recordType,       // PairProject
-        PairPeriodicTaskRecordCodec.recordType,  // PairPeriodicTask
-        PairSpaceRecordCodec.recordType,         // PairSpace — rename
-        PairMemberProfileRecordCodec.recordType, // PairMemberProfile — nickname/avatar
+        PairTaskRecordCodec.recordType,              // PairTask — most frequent
+        PairTaskListRecordCodec.recordType,           // PairTaskList
+        PairProjectRecordCodec.recordType,            // PairProject
+        PairProjectSubtaskRecordCodec.recordType,     // PairProjectSubtask
+        PairPeriodicTaskRecordCodec.recordType,       // PairPeriodicTask
+        PairSpaceRecordCodec.recordType,              // PairSpace — rename
+        PairMemberProfileRecordCodec.recordType,      // PairMemberProfile — nickname/avatar
+        PairAvatarAssetRecordCodec.recordType,        // PairAvatarAsset — avatar images
     ]
 
     init(container: CKContainer) {

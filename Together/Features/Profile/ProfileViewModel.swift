@@ -400,7 +400,7 @@ final class ProfileViewModel {
         if let spaceID {
             let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
             for project in projects {
-                try? await projectRepository.deleteProject(projectID: project.id)
+                try? await projectRepository.deleteProject(projectID: project.id, actorID: project.creatorID)
             }
         }
 

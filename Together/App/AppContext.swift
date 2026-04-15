@@ -29,6 +29,7 @@ final class AppContext {
     private var pairSyncService: PairSyncService?
     private var pairSyncPoller: PairSyncPoller?
     private var pairSubscriptionManager: CloudKitSubscriptionManager?
+    private var activeSharedSpaceID: UUID?
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
@@ -192,6 +193,7 @@ final class AppContext {
         )
         await service.configure(spaceID: sharedSpaceID, myUserID: myUserID)
         self.pairSyncService = service
+        self.activeSharedSpaceID = sharedSpaceID
 
         // Create and start PairSyncPoller with adaptive polling
         let poller = PairSyncPoller()
@@ -231,11 +233,13 @@ final class AppContext {
         pairSyncPoller = nil
         await pairSyncService?.teardown()
         pairSyncService = nil
-        // Unsubscribe push notifications for the shared space
-        if let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
+        // Unsubscribe push notifications using the saved sharedSpaceID
+        // (sessionStore.pairSpaceSummary may already be cleared during unbind)
+        if let sharedSpaceID = activeSharedSpaceID ?? sessionStore.pairSpaceSummary?.sharedSpace.id {
             await pairSubscriptionManager?.unsubscribe(for: sharedSpaceID)
         }
         pairSubscriptionManager = nil
+        activeSharedSpaceID = nil
         seededPairMetadataSpaceIDs.remove(pairSpaceID)
         sessionStore.updateSharedSyncStatus(.idle)
     }
@@ -449,6 +453,19 @@ final class AppContext {
         for project in projects {
             await container.syncCoordinator.recordLocalChange(
                 SyncChange(entityKind: .project, operation: .upsert, recordID: project.id, spaceID: spaceID)
+            )
+            // Also push subtasks belonging to this project
+            for subtask in project.subtasks {
+                await container.syncCoordinator.recordLocalChange(
+                    SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: subtask.id, spaceID: spaceID)
+                )
+            }
+        }
+
+        let periodicTasks = (try? await container.periodicTaskRepository.fetchActiveTasks(spaceID: spaceID)) ?? []
+        for periodicTask in periodicTasks {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: periodicTask.id, spaceID: spaceID)
             )
         }
 

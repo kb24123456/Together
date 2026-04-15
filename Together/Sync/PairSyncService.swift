@@ -129,8 +129,13 @@ actor PairSyncService {
         var changesByRecordName: [String: PersistentSyncChange] = [:]
 
         for change in changes {
-            let entityKind = SyncEntityKind(rawValue: change.entityKindRawValue) ?? .task
-            let operation = SyncOperationKind(rawValue: change.operationRawValue) ?? .upsert
+            guard let entityKind = SyncEntityKind(rawValue: change.entityKindRawValue),
+                  let operation = SyncOperationKind(rawValue: change.operationRawValue)
+            else {
+                change.lifecycleState = .failed
+                change.lastError = "invalid entityKind or operation rawValue"
+                continue
+            }
 
             switch operation {
             case .delete, .archive:
@@ -302,7 +307,7 @@ actor PairSyncService {
         } else {
             // First pull: fetch all non-deleted records for this space
             predicate = NSPredicate(
-                format: "spaceID == %@",
+                format: "spaceID == %@ AND (isDeleted == nil OR isDeleted == 0)",
                 spaceID.uuidString as NSString
             )
         }
@@ -337,6 +342,9 @@ actor PairSyncService {
 
         // 4. Update pull cursor
         updatePullDate(spaceID: spaceID, context: context)
+        // Clean up confirmed sync changes to prevent database bloat
+        purgeConfirmedChanges(spaceID: spaceID, context: context)
+
         try? context.save()
 
         #if DEBUG
@@ -350,7 +358,14 @@ actor PairSyncService {
     // MARK: - Private Helpers
 
     /// Merges client's changed fields onto the server record for conflict retry.
+    /// Respects last-write-wins: if server is newer, accept server version as-is.
     private func mergeOntoServerRecord(client: CKRecord, server: CKRecord) -> CKRecord {
+        let clientUpdatedAt = client["updatedAt"] as? Date ?? .distantPast
+        let serverUpdatedAt = server["updatedAt"] as? Date ?? .distantPast
+        if serverUpdatedAt > clientUpdatedAt {
+            // Server is newer — accept server version, don't overwrite
+            return server
+        }
         for key in client.changedKeys() {
             server[key] = client[key]
         }
@@ -451,6 +466,13 @@ actor PairSyncService {
         case .periodicTask:
             let d = FetchDescriptor<PersistentPeriodicTask>(predicate: #Predicate<PersistentPeriodicTask> { $0.id == recordID })
             return (try? context.fetch(d).first)?.creatorID
+        case .projectSubtask:
+            // Permission inherits from parent project — look up the project's creatorID
+            let d = FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate<PersistentProjectSubtask> { $0.id == recordID })
+            guard let subtask = try? context.fetch(d).first else { return nil }
+            let parentID = subtask.projectID
+            let pd = FetchDescriptor<PersistentProject>(predicate: #Predicate<PersistentProject> { $0.id == parentID })
+            return (try? context.fetch(pd).first)?.creatorID
         default:
             return nil
         }
@@ -498,7 +520,7 @@ actor PairSyncService {
         case .projectSubtask:
             let d = FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate<PersistentProjectSubtask> { $0.id == targetID })
             guard let p = try? context.fetch(d).first else { return nil }
-            return PairProjectSubtaskRecordCodec.encode(p.domainModel(), spaceID: spaceID, creatorID: myUserID ?? UUID())
+            return PairProjectSubtaskRecordCodec.encode(p.domainModel(), spaceID: spaceID)
 
         case .periodicTask:
             let d = FetchDescriptor<PersistentPeriodicTask>(predicate: #Predicate<PersistentPeriodicTask> { $0.id == targetID })
@@ -531,10 +553,13 @@ actor PairSyncService {
             let fileName = UserAvatarStorage.fileName(forAssetID: assetIDString)
             let fileURL = UserAvatarStorage.fileURL(fileName: fileName)
             guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else { return nil }
+            // Read version from PersistentPairMembership to keep asset version in sync
+            let versionDescriptor = FetchDescriptor<PersistentPairMembership>(predicate: #Predicate<PersistentPairMembership> { $0.avatarAssetID == assetIDString })
+            let avatarVersion = (try? context.fetch(versionDescriptor).first)?.avatarVersion ?? 0
             return PairAvatarAssetRecordCodec.encode(
                 AvatarAssetRecordCodable.Asset(
                     assetID: targetID,
-                    version: 0,
+                    version: avatarVersion,
                     updatedAt: .now,
                     fileName: fileName,
                     data: nil
@@ -595,8 +620,11 @@ actor PairSyncService {
         let subtaskID = subtask.id
         let d = FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate<PersistentProjectSubtask> { $0.id == subtaskID })
         if let existing = try? context.fetch(d).first {
-            existing.update(from: subtask)
-            return true
+            if subtask.updatedAt > existing.updatedAt {
+                existing.update(from: subtask)
+                return true
+            }
+            return false
         } else {
             context.insert(PersistentProjectSubtask(subtask: subtask))
             return true
@@ -646,8 +674,19 @@ actor PairSyncService {
         if let existing = try? context.fetch(d).first {
             existing.nickname = profile.displayName
             existing.avatarSystemName = profile.avatarSystemName
-            existing.avatarAssetID = profile.avatarAssetID
-            existing.avatarVersion = profile.avatarVersion
+
+            if profile.avatarDeleted {
+                // Partner deleted their custom avatar — clean up local cached file
+                if let oldFileName = existing.avatarPhotoFileName {
+                    try? LocalUserAvatarMediaStore().removeAvatar(named: oldFileName)
+                }
+                existing.avatarPhotoFileName = nil
+                existing.avatarAssetID = nil
+                existing.avatarVersion = 0
+            } else {
+                existing.avatarAssetID = profile.avatarAssetID
+                existing.avatarVersion = profile.avatarVersion
+            }
             return true
         }
         // Membership record must already exist from pairing setup; skip if not found
@@ -741,5 +780,25 @@ actor PairSyncService {
             )
             context.insert(PersistentSyncState(state: state))
         }
+    }
+
+    /// Removes confirmed sync changes older than 5 minutes to prevent database bloat.
+    private func purgeConfirmedChanges(spaceID: UUID, context: ModelContext) {
+        let confirmedRaw = SyncMutationLifecycleState.confirmed.rawValue
+        let cutoff = Date.now.addingTimeInterval(-300) // 5 minutes
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> {
+                $0.spaceID == spaceID
+                && $0.lifecycleStateRawValue == confirmedRaw
+                && $0.changedAt < cutoff
+            }
+        )
+        guard let stale = try? context.fetch(descriptor), !stale.isEmpty else { return }
+        for record in stale {
+            context.delete(record)
+        }
+        #if DEBUG
+        print("[PairSync] Purged \(stale.count) confirmed sync changes")
+        #endif
     }
 }

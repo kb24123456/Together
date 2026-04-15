@@ -25,11 +25,13 @@ final class ProjectsViewModel {
 
     func toggleProjectCompletion(projectID: UUID) async {
         guard let project = projects.first(where: { $0.id == projectID }) else { return }
+        let actorID = sessionStore.currentUser?.id ?? UUID()
 
         do {
             let updated = try await projectRepository.setProjectCompleted(
                 projectID: projectID,
-                isCompleted: project.status != .completed
+                isCompleted: project.status != .completed,
+                actorID: actorID
             )
             replaceProject(updated)
         } catch {
@@ -40,12 +42,15 @@ final class ProjectsViewModel {
     func addSubtask(projectID: UUID, title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else { return }
+        let creatorID = sessionStore.currentUser?.id ?? UUID()
 
         do {
             let updated = try await projectRepository.addSubtask(
                 projectID: projectID,
                 title: trimmed,
-                isCompleted: false
+                isCompleted: false,
+                creatorID: creatorID,
+                actorID: creatorID
             )
             replaceProject(updated)
         } catch {
@@ -54,10 +59,12 @@ final class ProjectsViewModel {
     }
 
     func toggleSubtask(projectID: UUID, subtaskID: UUID) async {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
         do {
             let updated = try await projectRepository.toggleSubtask(
                 projectID: projectID,
-                subtaskID: subtaskID
+                subtaskID: subtaskID,
+                actorID: actorID
             )
             replaceProject(updated)
         } catch {
@@ -66,11 +73,13 @@ final class ProjectsViewModel {
     }
 
     func updateSubtask(projectID: UUID, subtaskID: UUID, title: String) async {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
         do {
             let updated = try await projectRepository.updateSubtask(
                 projectID: projectID,
                 subtaskID: subtaskID,
-                title: title
+                title: title,
+                actorID: actorID
             )
             replaceProject(updated)
         } catch {
@@ -79,10 +88,12 @@ final class ProjectsViewModel {
     }
 
     func deleteSubtask(projectID: UUID, subtaskID: UUID) async {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
         do {
             let updated = try await projectRepository.deleteSubtask(
                 projectID: projectID,
-                subtaskID: subtaskID
+                subtaskID: subtaskID,
+                actorID: actorID
             )
             replaceProject(updated)
         } catch {
@@ -91,8 +102,9 @@ final class ProjectsViewModel {
     }
 
     func archiveProject(projectID: UUID) async {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
         do {
-            let archived = try await projectRepository.archiveProject(projectID: projectID)
+            let archived = try await projectRepository.archiveProject(projectID: projectID, actorID: actorID)
             replaceProject(archived)
         } catch {
             loadState = .failed(error.localizedDescription)
@@ -110,8 +122,9 @@ final class ProjectsViewModel {
     }
 
     func deleteProject(projectID: UUID) async {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
         do {
-            try await projectRepository.deleteProject(projectID: projectID)
+            try await projectRepository.deleteProject(projectID: projectID, actorID: actorID)
             projects.removeAll { $0.id == projectID }
         } catch {
             loadState = .failed(error.localizedDescription)
@@ -119,8 +132,9 @@ final class ProjectsViewModel {
     }
 
     func updateProject(_ project: Project) async {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
         do {
-            let updated = try await projectRepository.saveProject(project)
+            let updated = try await projectRepository.saveProject(project, actorID: actorID)
             replaceProject(updated)
         } catch {
             loadState = .failed(error.localizedDescription)

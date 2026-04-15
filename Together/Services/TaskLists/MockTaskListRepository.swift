@@ -15,7 +15,7 @@ final class MockTaskListRepository: TaskListRepositoryProtocol {
             }
     }
 
-    func saveTaskList(_ list: TaskList) async throws -> TaskList {
+    func saveTaskList(_ list: TaskList, actorID: UUID) async throws -> TaskList {
         if let index = taskLists.firstIndex(where: { $0.id == list.id }) {
             taskLists[index] = list
         } else {
@@ -24,7 +24,7 @@ final class MockTaskListRepository: TaskListRepositoryProtocol {
         return list
     }
 
-    func archiveTaskList(listID: UUID) async throws -> TaskList {
+    func archiveTaskList(listID: UUID, actorID: UUID) async throws -> TaskList {
         guard let index = taskLists.firstIndex(where: { $0.id == listID }) else {
             throw RepositoryError.notFound
         }

@@ -177,11 +177,13 @@ final class RoutinesViewModel {
     }
 
     func updateTask(taskID: UUID, draft: PeriodicTaskDraft) async {
-        guard let spaceID = sessionStore.currentSpace?.id else { return }
+        guard let spaceID = sessionStore.currentSpace?.id,
+              let actorID = sessionStore.currentUser?.id else { return }
         do {
             let updated = try await periodicTaskApplicationService.updateTask(
                 in: spaceID,
                 taskID: taskID,
+                actorID: actorID,
                 draft: draft
             )
             if let index = tasks.firstIndex(where: { $0.id == taskID }) {
@@ -203,9 +205,10 @@ final class RoutinesViewModel {
     }
 
     func deleteTask(taskID: UUID) async {
-        guard let spaceID = sessionStore.currentSpace?.id else { return }
+        guard let spaceID = sessionStore.currentSpace?.id,
+              let actorID = sessionStore.currentUser?.id else { return }
         do {
-            try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID)
+            try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID, actorID: actorID)
             tasks.removeAll { $0.id == taskID }
         } catch {
             await load()
