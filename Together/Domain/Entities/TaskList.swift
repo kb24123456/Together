@@ -7,7 +7,7 @@ enum TaskListKind: String, CaseIterable, Hashable, Sendable, Codable {
     case custom
 }
 
-struct TaskList: Identifiable, Hashable, Sendable {
+struct TaskList: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     var spaceID: UUID
     let creatorID: UUID

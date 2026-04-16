@@ -12,7 +12,7 @@ enum SpaceStatus: String, CaseIterable, Hashable, Sendable, Codable {
     case archived
 }
 
-struct Space: Identifiable, Hashable, Sendable {
+struct Space: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     var type: SpaceType
     var displayName: String

@@ -27,9 +27,14 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
     private static let displayNameKey = "appleDisplayName"
 
     private let container: ModelContainer
+    private let supabaseAuth: SupabaseAuthService
 
-    init(container: ModelContainer) {
+    /// 当前 Apple Sign In 流程使用的 nonce（用于 Supabase 验证）
+    private var currentNonce: String?
+
+    init(container: ModelContainer, supabaseAuth: SupabaseAuthService = SupabaseAuthService()) {
         self.container = container
+        self.supabaseAuth = supabaseAuth
     }
 
     func currentSession() async -> AuthSession {
@@ -50,7 +55,11 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
     }
 
     func signInWithApple() async throws -> AuthSession {
-        let credential = try await performAppleSignIn()
+        // 生成 nonce 用于 Supabase 防重放攻击
+        let nonce = SupabaseAuthService.randomNonce()
+        currentNonce = nonce
+
+        let credential = try await performAppleSignIn(hashedNonce: SupabaseAuthService.sha256(nonce))
 
         guard let appleIDCredential = credential as? ASAuthorizationAppleIDCredential else {
             throw AppleAuthError.credentialNotAppleID
@@ -59,6 +68,12 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
         let appleUserID = appleIDCredential.user
 
         KeychainHelper.save(key: Self.appleUserIDKey, string: appleUserID)
+
+        // 提取 identityToken 并登录 Supabase
+        if let tokenData = appleIDCredential.identityToken,
+           let idToken = String(data: tokenData, encoding: .utf8) {
+            try? await supabaseAuth.signInWithApple(idToken: idToken, nonce: nonce)
+        }
 
         // Apple only provides fullName on the very first authorization.
         // Capture and persist it immediately.
@@ -83,11 +98,13 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
 
     // MARK: - Private
 
-    private func performAppleSignIn() async throws -> ASAuthorizationCredential {
+    private func performAppleSignIn(hashedNonce: String? = nil) async throws -> ASAuthorizationCredential {
         try await withCheckedThrowingContinuation { continuation in
             let provider = ASAuthorizationAppleIDProvider()
             let request = provider.createRequest()
             request.requestedScopes = [.fullName, .email]
+            // 附加 nonce 供 Supabase 验证
+            request.nonce = hashedNonce
 
             let delegate = SignInDelegate(continuation: continuation)
             let controller = ASAuthorizationController(authorizationRequests: [request])

@@ -23,13 +23,12 @@ enum LocalServiceFactory {
         // CloudKit container
         let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
 
-        let inviteGateway = CloudKitInviteGateway(
-            containerIdentifier: CloudKitSyncConfiguration.defaultContainerIdentifier
-        )
+        let inviteGateway = SupabaseInviteGateway()
+        let supabaseAuth = SupabaseAuthService()
         let pairingService = CloudPairingService(
             localPairing: localPairingService,
             inviteGateway: inviteGateway,
-            container: ckContainer
+            supabaseAuth: supabaseAuth
         )
 
         let itemRepository = LocalItemRepository(container: modelContainer, syncCoordinator: syncCoordinator)

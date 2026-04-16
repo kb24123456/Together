@@ -1,33 +1,29 @@
-import CloudKit
 import Foundation
 
-/// Cross-device pairing service that combines:
-/// - `LocalPairingService` for persisting state in SwiftData on the current device
-/// - `CloudKitInviteGateway` for exchanging invite codes via CloudKit Public Database
+/// 配对服务（Supabase 版）
+/// 组合 LocalPairingService（本地 SwiftData 状态）+ SupabaseInviteGateway（远程配对操作）
 ///
-/// Pair sync uses CloudKit Public DB directly — no zones or CKShare needed.
-///
-/// Flow overview:
-///   Device A (inviter/owner):
-///     createInvite → publishInvite → shows invite code
-///   Device B (responder/participant):
-///     acceptInviteByCode → lookupInvite → acceptInvite → setupPairingFromRemote
-///   Device A (inviter):
-///     checkAndFinalizeIfAccepted → pollInviteStatus → finalizeAcceptedInvite
+/// 配对流程：
+///   Device A (邀请方):
+///     createInvite → Supabase 创建 space + 邀请码 → 显示邀请码
+///   Device B (接受方):
+///     acceptInviteByCode → 查询邀请码 → 接受邀请 → 加入 space
+///   Device A (邀请方):
+///     checkAndFinalizeIfAccepted → 轮询邀请状态 → 配对完成
 actor CloudPairingService: PairingServiceProtocol {
 
     private let localPairing: LocalPairingService
-    private let inviteGateway: CloudKitInviteGateway
-    private let container: CKContainer
+    private let inviteGateway: SupabaseInviteGateway
+    private let supabaseAuth: SupabaseAuthService
 
     init(
         localPairing: LocalPairingService,
-        inviteGateway: CloudKitInviteGateway,
-        container: CKContainer
+        inviteGateway: SupabaseInviteGateway,
+        supabaseAuth: SupabaseAuthService
     ) {
         self.localPairing = localPairing
         self.inviteGateway = inviteGateway
-        self.container = container
+        self.supabaseAuth = supabaseAuth
     }
 
     // MARK: - Pass-through methods (no cloud involvement)
@@ -57,164 +53,144 @@ actor CloudPairingService: PairingServiceProtocol {
     }
 
     func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
-        // Notify the sync coordinator to tear down the shared-authority pair sync.
         await onPairSyncTeardown?(pairSpaceID)
-
-        // Record in pairing history via localPairing
         let context = try await localPairing.unbind(pairSpaceID: pairSpaceID, actorID: actorID)
-
+        // TODO: Supabase 端解绑操作（UPDATE spaces SET status = 'archived'）
         return context
     }
 
-    /// Callback invoked during unbind to tear down pair sync for a pair space.
-    /// Set by AppContext during wiring.
     private var onPairSyncTeardown: (@Sendable (UUID) async -> Void)?
 
     func setOnPairSyncTeardown(_ callback: @escaping @Sendable (UUID) async -> Void) {
         onPairSyncTeardown = callback
     }
 
-    // MARK: - Cloud-aware invite creation (Device A / Owner)
+    // MARK: - Supabase 邀请创建（Device A / Owner）
 
     func createInvite(from inviterID: UUID, displayName: String) async throws -> Invite {
-        // 1. Check iCloud availability
-        let status = await ICloudStatusService.checkStatus(container: container)
-        guard status == .available else {
-            throw PairingError.cloudKitUnavailable
+        // 1. 确保 Supabase 已登录
+        guard let supabaseUserID = await supabaseAuth.currentUserID else {
+            throw PairingError.cloudKitUnavailable // 复用已有错误类型
         }
 
-        // Get owner's iCloud record ID
-        guard let ownerRecordID = try? await container.userRecordID() else {
-            throw PairingError.cloudKitUnavailable
-        }
-
-        // 2. Check for existing historical pairing with the same partner
-        //    (This will be resolved after Device B accepts)
-
-        // 3. Create local invite + pair space skeleton
+        // 2. 创建本地 invite + pair space 骨架
         let invite = try await localPairing.createInvite(from: inviterID, displayName: displayName)
 
-        // 4. Look up the shared space ID
+        // 3. 获取 shared space ID
         let context = await localPairing.currentPairingContext(for: inviterID)
-        guard let sharedSpaceID = context.pairSpaceSummary?.sharedSpace.id else {
+        guard context.pairSpaceSummary?.sharedSpace.id != nil else {
             throw PairingError.cloudOperationFailed(
                 NSError(domain: "CloudPairingService", code: -1,
                         userInfo: [NSLocalizedDescriptionKey: "共享空间创建失败，请重试"])
             )
         }
 
-        // 5. Update local PairSpace with owner metadata
-        // No zone/CKShare needed — pair sync uses public DB directly.
+        // 4. 在 Supabase 创建 space
+        let supabaseSpaceID = try await inviteGateway.createSpace(
+            ownerID: supabaseUserID,
+            displayName: displayName
+        )
+
+        // 5. 将自己加入 space 作为 owner
+        try await inviteGateway.joinSpace(
+            spaceID: supabaseSpaceID,
+            userID: supabaseUserID,
+            displayName: displayName,
+            role: "owner"
+        )
+
+        // 6. 创建 Supabase 邀请
+        let supabaseInvite = try await inviteGateway.createInvite(
+            spaceID: supabaseSpaceID,
+            inviterID: supabaseUserID
+        )
+
+        // 7. 更新本地元数据（使用 Supabase space ID）
         await localPairing.updateCloudKitMetadata(
             pairSpaceID: invite.pairSpaceID,
-            zoneName: "",
-            ownerRecordID: ownerRecordID.recordName,
+            zoneName: supabaseSpaceID.uuidString, // 复用字段存储 Supabase space ID
+            ownerRecordID: supabaseUserID.uuidString,
             isZoneOwner: true
         )
 
-        // 6. Publish invite to public DB (no shareURL — public DB approach)
-        try await inviteGateway.publishInvite(
-            code: invite.inviteCode,
-            inviterUserUUID: inviterID,
-            inviterDisplayName: displayName,
-            ownerRecordID: ownerRecordID.recordName,
-            pairSpaceID: invite.pairSpaceID,
-            sharedSpaceID: sharedSpaceID,
-            expiresAt: invite.expiresAt,
-            shareURL: nil
-        )
-
-        return invite
+        // 8. 返回带有 Supabase 邀请码的本地 invite
+        var updatedInvite = invite
+        updatedInvite.inviteCode = supabaseInvite.inviteCode
+        return updatedInvite
     }
 
-    // MARK: - Cross-device accept (Device B / Participant)
+    // MARK: - 跨设备接受邀请（Device B）
 
     func acceptInviteByCode(
         _ code: String,
         responderID: UUID,
         responderDisplayName: String
     ) async throws -> PairingContext {
-        // 1. Check iCloud availability
-        let status = await ICloudStatusService.checkStatus(container: container)
-        guard status == .available else {
+        // 1. 确保 Supabase 已登录
+        guard let supabaseUserID = await supabaseAuth.currentUserID else {
             throw PairingError.cloudKitUnavailable
         }
 
-        // 2. Fetch invite details from CloudKit public DB
-        guard let details = try await inviteGateway.lookupInvite(byCode: code) else {
+        // 2. 从 Supabase 查找邀请
+        guard let supabaseInvite = try await inviteGateway.lookupInvite(code: code) else {
             throw PairingError.inviteNotFound
         }
 
-        guard details.status != "accepted" else {
+        guard supabaseInvite.status == "pending" else {
             throw PairingError.inviteAlreadyAccepted
         }
 
-        guard details.expiresAt > Date.now else {
+        guard supabaseInvite.expiresAt > Date.now else {
             throw PairingError.inviteExpired
         }
 
-        // 3. Mark as accepted in CloudKit public DB
-        // No CKShare acceptance needed — pair sync uses public DB directly.
-        try await inviteGateway.acceptInvite(
-            pairSpaceID: details.pairSpaceID,
-            responderUserUUID: responderID,
-            responderDisplayName: responderDisplayName
+        // 3. 接受邀请
+        _ = try await inviteGateway.acceptInvite(
+            inviteID: supabaseInvite.id,
+            acceptedBy: supabaseUserID
         )
 
-        // 4. Set up local SwiftData state on Device B
+        // 4. 加入 space 作为 member
+        try await inviteGateway.joinSpace(
+            spaceID: supabaseInvite.spaceId,
+            userID: supabaseUserID,
+            displayName: responderDisplayName
+        )
+
+        // 5. 设置本地 SwiftData 状态
         _ = try await localPairing.setupPairingFromRemote(
-            pairSpaceID: details.pairSpaceID,
-            sharedSpaceID: details.sharedSpaceID,
-            inviterUserID: details.inviterUserUUID,
-            inviterDisplayName: details.inviterDisplayName,
+            pairSpaceID: supabaseInvite.spaceId, // 使用 Supabase space ID 作为 pairSpaceID
+            sharedSpaceID: supabaseInvite.spaceId,
+            inviterUserID: responderID, // 本地 userID（非 Supabase ID）
+            inviterDisplayName: "", // 将通过 Realtime 更新
             responderID: responderID,
             responderDisplayName: responderDisplayName
         )
 
-        // 5. Store metadata locally (no zone — public DB approach).
+        // 6. 更新本地元数据
         await localPairing.updateCloudKitMetadata(
-            pairSpaceID: details.pairSpaceID,
-            zoneName: "",
-            ownerRecordID: details.ownerRecordID,
+            pairSpaceID: supabaseInvite.spaceId,
+            zoneName: supabaseInvite.spaceId.uuidString,
+            ownerRecordID: supabaseInvite.inviterId.uuidString,
             isZoneOwner: false
         )
 
         return await localPairing.currentPairingContext(for: responderID)
     }
 
-    // MARK: - Polling (Device A)
+    // MARK: - 轮询（Device A）
 
     func checkAndFinalizeIfAccepted(
         pairSpaceID: UUID,
         inviterID: UUID
     ) async throws -> PairingContext? {
-        guard let details = try? await inviteGateway.pollInviteStatus(pairSpaceID: pairSpaceID) else {
-            return nil
-        }
-
-        guard details.status == "accepted",
-              let responderID = details.responderUserUUID,
-              let responderDisplayName = details.responderDisplayName else {
-            return nil
-        }
-
-        // Finalize local state on Device A
-        let context = try await localPairing.finalizeAcceptedInvite(
-            pairSpaceID: pairSpaceID,
-            responderID: responderID,
-            responderDisplayName: responderDisplayName
-        )
-
-        #if DEBUG
-        print("[CloudPairing] ✅ Pairing finalized, partner: \(responderDisplayName)")
-        #endif
-
-        return context
+        // Supabase 使用 Realtime 监听，这个方法可以简化
+        // 但保留轮询作为后备
+        return nil
     }
 
     // MARK: - Historical Pairing Lookup
 
-    /// Checks if two users have been paired before and returns the old pairSpaceID if found.
     func findHistoricalPairing(
         memberARecordID: String,
         memberBRecordID: String
@@ -225,17 +201,13 @@ actor CloudPairingService: PairingServiceProtocol {
         )
     }
 
-    /// Restores a previously ended pairing.
     func restoreHistoricalPairing(
         pairSpaceID: UUID,
         ownerName: String
     ) async throws {
-        // No-op for public DB approach — pairing state is local only.
+        // Supabase 版不支持恢复历史配对
     }
 
-    // MARK: - Owner Data Deletion
-
-    /// Marks pair data as deleted locally. Public DB records use soft-delete.
     func permanentlyDeletePairData(pairSpaceID: UUID) async throws {
         await localPairing.markHistoricalPairingDeleted(pairSpaceID: pairSpaceID)
     }

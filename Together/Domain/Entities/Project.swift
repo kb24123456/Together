@@ -7,7 +7,7 @@ enum ProjectStatus: String, CaseIterable, Hashable, Sendable, Codable {
     case archived
 }
 
-struct Project: Identifiable, Hashable, Sendable {
+struct Project: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     var spaceID: UUID
     let creatorID: UUID

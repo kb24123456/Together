@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import Observation
+import Supabase
 import UIKit
 import UserNotifications
 
@@ -26,9 +27,8 @@ final class AppContext {
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
     private var seededPairMetadataSpaceIDs: Set<UUID> = []
-    private var pairSyncService: PairSyncService?
-    private var pairSyncPoller: PairSyncPoller?
-    private var pairSubscriptionManager: CloudKitSubscriptionManager?
+    private var supabaseSyncService: SupabaseSyncService?
+    private nonisolated(unsafe) let supabaseAuth = SupabaseAuthService()
     private var activeSharedSpaceID: UUID?
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
@@ -140,13 +140,11 @@ final class AppContext {
 
         // Start sync engines
         if sessionStore.authState == .signedIn {
-            // One-time schema seeder for CloudKit Development environment
-            #if DEBUG
-            await PairSchemaSeeder.seedIfNeeded(container: container.cloudKitContainer)
-            #endif
-
             await startSoloSyncEngineIfNeeded()
-            await startPairSyncEngineIfNeeded()
+
+            // 恢复 Supabase session 并启动双人同步
+            _ = await supabaseAuth.restoreSession()
+            await startSupabaseSyncIfNeeded()
         }
 
         StartupTrace.mark("AppContext.postLaunch.end")
@@ -172,73 +170,38 @@ final class AppContext {
         }
     }
 
-    /// Starts pair sync for the current pair space if paired.
-    ///
-    /// Uses `PairSyncService` (public DB CKQuery) instead of CKSyncEngine pair bridges.
-    func startPairSyncEngineIfNeeded() async {
+    /// 启动 Supabase 双人同步（替代旧的 PairSyncService）
+    func startSupabaseSyncIfNeeded() async {
         guard let summary = sessionStore.pairSpaceSummary,
-              let myUserID = sessionStore.currentUser?.id,
               summary.pairSpace.status == .active
         else { return }
 
-        // Don't re-create if already active for this space
-        if pairSyncPoller?.isActive == true { return }
+        // 如果已经在同步，跳过
+        if supabaseSyncService != nil { return }
+
+        guard let myUserID = await supabaseAuth.currentUserID else {
+            return
+        }
 
         let sharedSpaceID = summary.sharedSpace.id
 
-        // Create and configure PairSyncService
-        let service = PairSyncService(
-            ckContainer: container.cloudKitContainer,
+        let service = SupabaseSyncService(
             modelContainer: PersistenceController.shared.container
         )
         await service.configure(spaceID: sharedSpaceID, myUserID: myUserID)
-        self.pairSyncService = service
+
+        // Query first, then Subscribe
+        await service.startListening()
+
+        self.supabaseSyncService = service
         self.activeSharedSpaceID = sharedSpaceID
-
-        // Create and start PairSyncPoller with adaptive polling
-        let poller = PairSyncPoller()
-        poller.start { [weak self, weak service] in
-            guard let service else { return .noChange }
-            let result = await service.syncOnce()
-            // Refresh UI after sync with changes
-            if case .changes = result {
-                Task { @MainActor [weak self] in
-                    self?.refreshSharedSyncStatus()
-                    await self?.reloadAfterSync()
-                }
-            }
-            return result
-        }
-        self.pairSyncPoller = poller
-
-        // Set up push subscriptions on the public DB for this space
-        let subManager = CloudKitSubscriptionManager(container: container.cloudKitContainer)
-        self.pairSubscriptionManager = subManager
-        Task {
-            try? await subManager.subscribe(for: sharedSpaceID)
-        }
-
-        refreshSharedSyncStatus()
+        sessionStore.updateSharedSyncStatus(SharedSyncStatus(level: .syncing, pendingMutationCount: 0, failedMutationCount: 0))
     }
 
-    /// One-time migration of pair space data from public DB to private zone.
-    /// Disabled: pair sync now uses public DB directly (Path A).
-    private func performPublicToPrivateMigrationIfNeeded() async {
-        // No-op: CKSyncEngine private zone migration is no longer needed.
-    }
-
-    /// Stops pair sync and cleans up (for unbind).
-    func teardownPairSync(pairSpaceID: UUID) async {
-        pairSyncPoller?.stop()
-        pairSyncPoller = nil
-        await pairSyncService?.teardown()
-        pairSyncService = nil
-        // Unsubscribe push notifications using the saved sharedSpaceID
-        // (sessionStore.pairSpaceSummary may already be cleared during unbind)
-        if let sharedSpaceID = activeSharedSpaceID ?? sessionStore.pairSpaceSummary?.sharedSpace.id {
-            await pairSubscriptionManager?.unsubscribe(for: sharedSpaceID)
-        }
-        pairSubscriptionManager = nil
+    /// 停止 Supabase 双人同步（解绑时调用）
+    func teardownSupabaseSync(pairSpaceID: UUID) async {
+        await supabaseSyncService?.teardown()
+        supabaseSyncService = nil
         activeSharedSpaceID = nil
         seededPairMetadataSpaceIDs.remove(pairSpaceID)
         sessionStore.updateSharedSyncStatus(.idle)
@@ -335,20 +298,22 @@ final class AppContext {
     /// Ensures pair sync is running whenever an active pair relationship exists.
     func syncPairSpaceIfNeeded() async {
         guard sessionStore.hasActivePairSpace else { return }
-        await startPairSyncEngineIfNeeded()
+        await startSupabaseSyncIfNeeded()
     }
 
     /// 本地数据变更后触发同步。
-    /// Solo 变更走 CKSyncEngine；pair 变更走 PairSyncPoller nudge。
+    /// Solo 变更走 CKSyncEngine；pair 变更走 Supabase push。
     func syncAfterMutation(spaceID: UUID) {
         // Solo sync path (CKSyncEngine)
         Task { [weak self] in
             await self?.container.syncEngineCoordinator.sendChanges(for: spaceID)
         }
-        // Pair sync path: nudge poller for immediate push+pull
+        // Pair sync path: Supabase push
         if let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id,
            spaceID == sharedSpaceID {
-            pairSyncPoller?.nudge()
+            Task { [weak self] in
+                await self?.supabaseSyncService?.push()
+            }
         }
         Task { [weak self] in
             await self?.refreshSharedSyncStatusAsync()
@@ -356,14 +321,14 @@ final class AppContext {
     }
 
     func flushRecordedSharedMutation(_ change: SyncChange) async {
-        // Nudge pair poller to push the recorded mutation immediately
-        pairSyncPoller?.nudge()
+        // 立即推送变更到 Supabase
+        await supabaseSyncService?.push()
         await refreshSharedSyncStatusAsync()
     }
 
     private func submitSharedMutation(_ change: SyncChange) async {
         await container.syncCoordinator.recordLocalChange(change)
-        pairSyncPoller?.nudge()
+        await supabaseSyncService?.push()
         await refreshSharedSyncStatusAsync()
     }
 
@@ -431,9 +396,9 @@ final class AppContext {
         try? await UNUserNotificationCenter.current().add(request)
     }
 
-    /// 推送本地已有数据到 CloudKit（配对成功后调用）
+    /// 推送本地已有数据到 Supabase（配对成功后调用）
     func pushExistingTasksToCloud(spaceID: UUID) async {
-        await startPairSyncEngineIfNeeded()
+        await startSupabaseSyncIfNeeded()
 
         let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         for task in tasks {
@@ -454,7 +419,6 @@ final class AppContext {
             await container.syncCoordinator.recordLocalChange(
                 SyncChange(entityKind: .project, operation: .upsert, recordID: project.id, spaceID: spaceID)
             )
-            // Also push subtasks belonging to this project
             for subtask in project.subtasks {
                 await container.syncCoordinator.recordLocalChange(
                     SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: subtask.id, spaceID: spaceID)
@@ -469,8 +433,8 @@ final class AppContext {
             )
         }
 
-        // Nudge pair poller to push all recorded changes immediately
-        pairSyncPoller?.nudge()
+        // 立即推送到 Supabase
+        await supabaseSyncService?.push()
     }
 
     // MARK: - Sync Callbacks
@@ -516,7 +480,7 @@ final class AppContext {
         Task {
             if let cloudPairing = container.pairingService as? CloudPairingService {
                 await cloudPairing.setOnPairSyncTeardown { [weak self] pairSpaceID in
-                    await self?.teardownPairSync(pairSpaceID: pairSpaceID)
+                    await self?.teardownSupabaseSync(pairSpaceID: pairSpaceID)
                 }
             }
         }
@@ -538,10 +502,8 @@ final class AppContext {
         if let pairSpace = sessionStore.currentPairSpace,
            pairSpace.status == .active {
             let pairSpaceID = pairSpace.id
-            // Nudge existing poller on foreground recovery / mode switch
-            pairSyncPoller?.nudge()
             Task {
-                await startPairSyncEngineIfNeeded()
+                await startSupabaseSyncIfNeeded()
                 if seededPairMetadataSpaceIDs.contains(pairSpaceID) == false,
                    let user = sessionStore.currentUser {
                     await syncProfileToPartner(user: user)
@@ -552,14 +514,10 @@ final class AppContext {
                 }
             }
         } else {
-            // CRITICAL: Only tear down if poller is actually active.
-            // Prevents self-destructing on transient nil pairSpaceSummary during refresh.
-            if pairSyncPoller?.isActive == true {
-                pairSyncPoller?.stop()
-                pairSyncPoller = nil
-                Task { [weak self] in await self?.pairSyncService?.teardown() }
-                pairSyncService = nil
-                pairSubscriptionManager = nil
+            // 停止 Supabase 同步
+            if supabaseSyncService != nil {
+                Task { [weak self] in await self?.supabaseSyncService?.teardown() }
+                supabaseSyncService = nil
             }
             seededPairMetadataSpaceIDs.removeAll()
             refreshSharedSyncStatus()
@@ -623,20 +581,11 @@ final class AppContext {
         sessionStore.updateSharedSyncStatus(status)
     }
 
-    /// Handle CloudKit push notification.
-    /// Pair sync subscriptions (CKQuerySubscription on public DB) trigger immediate
-    /// sync via PairSyncPoller.nudge().
+    /// Handle CloudKit push notification (solo sync only).
+    /// Pair sync now uses Supabase Realtime + APNs, not CloudKit subscriptions.
     func handleCloudKitNotification(_ userInfo: [AnyHashable: Any]) async {
-        guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) else {
-            return
-        }
-
-        // Check if this is a pair sync subscription notification
-        if let queryNotification = notification as? CKQueryNotification,
-           let subscriptionID = queryNotification.subscriptionID,
-           subscriptionID.hasPrefix("pair-") {
-            pairSyncPoller?.nudge()
-        }
+        // CloudKit 通知现在只用于 Solo CKSyncEngine
+        // Pair 同步通过 Supabase Realtime WebSocket 处理
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {

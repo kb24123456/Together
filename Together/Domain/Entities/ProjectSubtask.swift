@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProjectSubtask: Identifiable, Hashable, Sendable {
+struct ProjectSubtask: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     let projectID: UUID
     var creatorID: UUID

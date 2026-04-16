@@ -47,7 +47,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
-        // Token managed by CloudKit framework; no manual handling needed.
+        // 注册 device token 到 Supabase（用于双人同步 APNs 推送）
+        Task {
+            await DeviceTokenService().registerToken(deviceToken)
+        }
     }
 
     func application(
