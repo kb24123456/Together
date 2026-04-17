@@ -41,6 +41,9 @@ actor SupabaseSyncService {
     // push() 并发序列化：actor 本身不够，因为 await 网络时释放执行权，另一 Task 可进入
     private var isPushing = false
     private var pushRequestedDuringFlight = false
+    // Realtime 回声过滤：自己 push 成功的 recordID 在短窗口内忽略
+    private var recentlyPushedIDs: [UUID: Date] = [:]
+    private let echoWindow: TimeInterval = 10
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -68,6 +71,7 @@ actor SupabaseSyncService {
         isListening = false
         isPushing = false
         pushRequestedDuringFlight = false
+        recentlyPushedIDs.removeAll()
     }
 
     // MARK: - Push（本地 → Supabase）
@@ -134,6 +138,9 @@ actor SupabaseSyncService {
                 change.confirmedAt = Date()
                 try context.save()
 
+                // 回声过滤登记：这条 recordID 接下来几秒内从 Realtime 上回来，跳过 catchUp
+                recentlyPushedIDs[change.recordID] = Date()
+
                 logger.info("[Push] ✅ \(entityKind.rawValue) \(operation.rawValue) \(change.recordID)")
 
             } catch {
@@ -146,6 +153,9 @@ actor SupabaseSyncService {
 
         // 清理已确认的变更
         purgeConfirmedChanges(context: context)
+
+        // 清理过期的回声标记
+        pruneEchoWindow()
 
         // 解除序列化锁；若飞行期间有其他 push 请求被合并，立即再跑一轮
         isPushing = false
@@ -484,15 +494,38 @@ actor SupabaseSyncService {
     // MARK: - Realtime Handlers
 
     private func handleRealtimeChange(_ change: AnyAction, table: String) async {
-        // 回声过滤和数据应用将在集成测试中完善
-        // 基本框架：收到 Realtime 事件 → 触发 catch-up 补拉
+        // 回声过滤：若这条 recordID 我们刚刚 push 过，忽略 —— 避免自己数据绕一圈回来
+        // 触发冗余 catchUp
+        if let recordID = Self.extractRecordID(from: change),
+           let pushedAt = recentlyPushedIDs[recordID],
+           Date().timeIntervalSince(pushedAt) < echoWindow {
+            return
+        }
+
         await catchUp()
         lastSyncedAt = Date()
 
-        // 通知 UI 刷新
         await MainActor.run {
             NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
         }
+    }
+
+    /// 从 AnyAction payload 中取 record id（insert/update 看 record；delete 看 oldRecord）
+    private static func extractRecordID(from change: AnyAction) -> UUID? {
+        let record: [String: AnyJSON]
+        switch change {
+        case .insert(let action): record = action.record
+        case .update(let action): record = action.record
+        case .delete(let action): record = action.oldRecord
+        }
+        guard let raw = record["id"]?.stringValue else { return nil }
+        return UUID(uuidString: raw)
+    }
+
+    /// 清理过期的回声标记
+    private func pruneEchoWindow() {
+        let cutoff = Date().addingTimeInterval(-echoWindow)
+        recentlyPushedIDs = recentlyPushedIDs.filter { $0.value > cutoff }
     }
 
     private func handleMemberChange(_ change: AnyAction) async {
