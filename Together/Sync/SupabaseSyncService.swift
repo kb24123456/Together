@@ -12,7 +12,9 @@ actor SupabaseSyncService {
     private let modelContainer: ModelContainer
 
     private var spaceID: UUID?
-    private var myUserID: UUID?
+    private var myUserID: UUID?       // Supabase auth UUID
+    private var myLocalUserID: UUID?  // 本地 app UUID（用于在 PairMembership 中区分自己和对方）
+    private var isListening = false   // 防止 startListening 重复调用导致 Realtime 订阅失败
     private var realtimeChannel: RealtimeChannelV2?
     private var lastSyncedAt: Date?
     private var listeningTasks: [Task<Void, Never>] = []
@@ -22,9 +24,10 @@ actor SupabaseSyncService {
     }
 
     /// 配置同步目标
-    func configure(spaceID: UUID, myUserID: UUID) {
+    func configure(spaceID: UUID, myUserID: UUID, myLocalUserID: UUID? = nil) {
         self.spaceID = spaceID
         self.myUserID = myUserID
+        self.myLocalUserID = myLocalUserID
     }
 
     /// 清理资源
@@ -37,7 +40,9 @@ actor SupabaseSyncService {
         realtimeChannel = nil
         spaceID = nil
         myUserID = nil
+        myLocalUserID = nil
         lastSyncedAt = nil
+        isListening = false
     }
 
     // MARK: - Push（本地 → Supabase）
@@ -108,9 +113,16 @@ actor SupabaseSyncService {
             try await pullTaskLists(spaceID: spaceID, since: sinceISO)
             try await pullProjects(spaceID: spaceID, since: sinceISO)
             try await pullPeriodicTasks(spaceID: spaceID, since: sinceISO)
+            try await pullSpaceMembers(spaceID: spaceID, since: sinceISO)
+            try await pullSpaces(spaceID: spaceID, since: sinceISO)
 
             lastSyncedAt = Date()
             logger.info("[CatchUp] ✅ 完成补拉")
+
+            // 通知 UI 刷新（即使没有新变更，首次 catchUp 也要让 ViewModel reload 一次）
+            await MainActor.run {
+                NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
+            }
         } catch {
             logger.error("[CatchUp] ❌ \(error.localizedDescription)")
         }
@@ -121,6 +133,12 @@ actor SupabaseSyncService {
     /// 开始监听 Realtime 变更（Query first, Subscribe second）
     func startListening() async {
         guard let spaceID else { return }
+        // 幂等：已经在监听则直接返回，避免重复 subscribe 导致 "Cannot add postgres_changes callbacks" 错误
+        guard !isListening else {
+            await catchUp()
+            return
+        }
+        isListening = true
 
         // 先补拉最新数据
         await catchUp()
@@ -203,13 +221,13 @@ actor SupabaseSyncService {
         case .taskList:
             let descriptor = FetchDescriptor<PersistentTaskList>(predicate: #Predicate { $0.id == recordID })
             guard let list = try? context.fetch(descriptor).first else { return }
-            let dto = TaskListDTO(from: list)
+            let dto = TaskListDTO(from: list, spaceID: spaceID)
             try await client.from(tableName).upsert(dto, onConflict: "id").execute()
 
         case .project:
             let descriptor = FetchDescriptor<PersistentProject>(predicate: #Predicate { $0.id == recordID })
             guard let project = try? context.fetch(descriptor).first else { return }
-            let dto = ProjectDTO(from: project)
+            let dto = ProjectDTO(from: project, spaceID: spaceID)
             try await client.from(tableName).upsert(dto, onConflict: "id").execute()
 
         case .projectSubtask:
@@ -221,11 +239,37 @@ actor SupabaseSyncService {
         case .periodicTask:
             let descriptor = FetchDescriptor<PersistentPeriodicTask>(predicate: #Predicate { $0.id == recordID })
             guard let periodic = try? context.fetch(descriptor).first else { return }
-            let dto = PeriodicTaskDTO(from: periodic)
+            let dto = PeriodicTaskDTO(from: periodic, spaceID: spaceID)
             try await client.from(tableName).upsert(dto, onConflict: "id").execute()
 
-        case .space, .memberProfile, .avatarAsset:
-            break // 由配对流程或 Storage 管理
+        case .memberProfile:
+            // 更新 space_members 中自己的 display_name 和 avatar 信息
+            guard let myUserID else { return }
+            let descriptor = FetchDescriptor<PersistentUserProfile>(predicate: #Predicate { $0.userID == recordID })
+            guard let profile = try? context.fetch(descriptor).first else { return }
+            let dto = SpaceMemberUpdateDTO(
+                displayName: profile.displayName,
+                avatarUrl: profile.avatarPhotoFileName,
+                avatarVersion: profile.avatarVersion
+            )
+            try await client.from("space_members")
+                .update(dto)
+                .eq("space_id", value: spaceID.uuidString)
+                .eq("user_id", value: myUserID.uuidString)
+                .execute()
+
+        case .space:
+            // 更新 spaces 表的 display_name
+            let descriptor = FetchDescriptor<PersistentSpace>(predicate: #Predicate { $0.id == spaceID })
+            guard let space = try? context.fetch(descriptor).first else { return }
+            let dto = SpaceUpdateDTO(displayName: space.displayName)
+            try await client.from("spaces")
+                .update(dto)
+                .eq("id", value: spaceID.uuidString)
+                .execute()
+
+        case .avatarAsset:
+            break // 头像文件上传由 Storage 单独管理
         }
     }
 
@@ -314,6 +358,69 @@ actor SupabaseSyncService {
         }
     }
 
+    private func pullSpaceMembers(spaceID: UUID, since: String) async throws {
+        guard let myUserID else { return }
+        let rows: [SpaceMemberDTO] = try await client.from("space_members")
+            .select()
+            .eq("space_id", value: spaceID.uuidString)
+            .gte("updated_at", value: since)
+            .execute()
+            .value
+
+        // 只处理对方的 profile（跳过自己的 Supabase user_id）
+        let partnerRows = rows.filter { $0.userId != myUserID }
+        guard !partnerRows.isEmpty else { return }
+
+        let context = ModelContext(modelContainer)
+
+        // 找到 sharedSpaceID 匹配的 PairSpace
+        let pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+        guard let pairSpace = pairSpaces.first(where: { $0.sharedSpaceID == spaceID }) else { return }
+
+        // 找到 pair 中对方的 membership（排除当前用户的本地 UUID）
+        let pairSpaceID = pairSpace.id
+        let memberships = (try? context.fetch(
+            FetchDescriptor<PersistentPairMembership>(
+                predicate: #Predicate { $0.pairSpaceID == pairSpaceID }
+            )
+        )) ?? []
+
+        let partnerMembership: PersistentPairMembership?
+        if let myLocalID = myLocalUserID {
+            partnerMembership = memberships.first(where: { $0.userID != myLocalID })
+        } else {
+            // fallback: pair 只有 2 人，取最后加入的那个
+            partnerMembership = memberships.count == 2 ? memberships.last : memberships.first
+        }
+
+        guard let partner = partnerMembership, let dto = partnerRows.first else { return }
+
+        partner.nickname = dto.displayName
+        partner.avatarPhotoFileName = dto.avatarUrl
+        partner.avatarVersion = dto.avatarVersion ?? 0
+
+        try context.save()
+        logger.info("[Pull] ✅ 拉取对方 profile: \(dto.displayName)")
+    }
+
+    private func pullSpaces(spaceID: UUID, since: String) async throws {
+        let rows: [SpaceDTO] = try await client.from("spaces")
+            .select()
+            .eq("id", value: spaceID.uuidString)
+            .gte("updated_at", value: since)
+            .execute()
+            .value
+
+        if !rows.isEmpty {
+            let context = ModelContext(modelContainer)
+            for dto in rows {
+                dto.applyToLocal(context: context)
+            }
+            try context.save()
+            logger.info("[Pull] ✅ 拉取 space 名称更新")
+        }
+    }
+
     // MARK: - Realtime Handlers
 
     private func handleRealtimeChange(_ change: AnyAction, table: String) async {
@@ -329,18 +436,21 @@ actor SupabaseSyncService {
     }
 
     private func handleMemberChange(_ change: AnyAction) async {
-        // 检测配对/解绑事件
         switch change {
         case .insert:
             await MainActor.run {
                 NotificationCenter.default.post(name: .pairMemberJoined, object: nil)
             }
+        case .update:
+            // 对方更新了头像或名称，触发补拉刷新本地数据
+            await catchUp()
+            await MainActor.run {
+                NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
+            }
         case .delete:
             await MainActor.run {
                 NotificationCenter.default.post(name: .pairMemberRemoved, object: nil)
             }
-        default:
-            break
         }
     }
 
@@ -414,6 +524,12 @@ struct TaskDTO: Codable, Sendable {
     var archivedAt: Date?
     var isDeleted: Bool
     var deletedAt: Date?
+    // 双人协作必需字段（Plan A 新增）
+    var executionRole: String
+    var responseHistory: String?
+    var assignmentMessages: String?
+    var reminderRequestedAt: Date?
+    var locationText: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, notes, status
@@ -438,6 +554,11 @@ struct TaskDTO: Codable, Sendable {
         case archivedAt = "archived_at"
         case isDeleted = "is_deleted"
         case deletedAt = "deleted_at"
+        case executionRole = "execution_role"
+        case responseHistory = "response_history"
+        case assignmentMessages = "assignment_messages"
+        case reminderRequestedAt = "reminder_requested_at"
+        case locationText = "location_text"
     }
 
     nonisolated init(from persistent: PersistentItem, spaceID: UUID) {
@@ -457,28 +578,73 @@ struct TaskDTO: Codable, Sendable {
         self.isDraft = persistent.isDraft
         self.isReadByPartner = false
         self.readAt = nil
-        // repeatRule 和 occurrenceCompletions 在 PersistentItem 中是 Data，
-        // 转为 JSON String 供 Supabase jsonb 列使用
         if let data = persistent.repeatRuleData {
             self.repeatRule = String(data: data, encoding: .utf8)
         } else {
             self.repeatRule = nil
         }
-        self.occurrenceCompletions = nil // PersistentItem 中无此独立字段
+        // occurrenceCompletions: 本地无独立字段；保持 nil 且通过自定义 encode 跳过，
+        // 避免每次 push 抹掉远端已有数据
+        self.occurrenceCompletions = nil
         self.createdAt = persistent.createdAt
         self.updatedAt = persistent.updatedAt
         self.completedAt = persistent.completedAt
         self.isArchived = persistent.isArchived
         self.archivedAt = persistent.archivedAt
-        self.isDeleted = false // 本地不存储此字段，Supabase 端独有
-        self.deletedAt = nil
+        // 软删除使用 tombstone；isLocallyDeleted=true 表示要让对方也删除
+        self.isDeleted = persistent.isLocallyDeleted
+        self.deletedAt = persistent.isLocallyDeleted ? Date() : nil
+        // 双人协作字段
+        self.executionRole = persistent.executionRoleRawValue
+        self.responseHistory = String(data: persistent.responseHistoryData, encoding: .utf8)
+        self.assignmentMessages = String(data: persistent.assignmentMessagesData, encoding: .utf8)
+        self.reminderRequestedAt = persistent.reminderRequestedAt
+        self.locationText = persistent.locationText
+    }
+
+    /// 自定义 encode：occurrenceCompletions 不编码，避免 push 时覆盖远端由对方维护的字段
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(spaceId, forKey: .spaceId)
+        try c.encodeIfPresent(listId, forKey: .listId)
+        try c.encodeIfPresent(projectId, forKey: .projectId)
+        try c.encode(creatorId, forKey: .creatorId)
+        try c.encode(title, forKey: .title)
+        try c.encodeIfPresent(notes, forKey: .notes)
+        try c.encode(assigneeMode, forKey: .assigneeMode)
+        try c.encode(status, forKey: .status)
+        try c.encodeIfPresent(dueAt, forKey: .dueAt)
+        try c.encode(hasExplicitTime, forKey: .hasExplicitTime)
+        try c.encodeIfPresent(remindAt, forKey: .remindAt)
+        try c.encode(isPinned, forKey: .isPinned)
+        try c.encode(isDraft, forKey: .isDraft)
+        try c.encode(isReadByPartner, forKey: .isReadByPartner)
+        try c.encodeIfPresent(readAt, forKey: .readAt)
+        try c.encodeIfPresent(repeatRule, forKey: .repeatRule)
+        // occurrenceCompletions intentionally omitted
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(updatedAt, forKey: .updatedAt)
+        try c.encodeIfPresent(completedAt, forKey: .completedAt)
+        try c.encode(isArchived, forKey: .isArchived)
+        try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
+        try c.encode(isDeleted, forKey: .isDeleted)
+        try c.encodeIfPresent(deletedAt, forKey: .deletedAt)
+        try c.encode(executionRole, forKey: .executionRole)
+        try c.encodeIfPresent(responseHistory, forKey: .responseHistory)
+        try c.encodeIfPresent(assignmentMessages, forKey: .assignmentMessages)
+        try c.encodeIfPresent(reminderRequestedAt, forKey: .reminderRequestedAt)
+        try c.encodeIfPresent(locationText, forKey: .locationText)
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
+            // UPDATE: 同步远端字段
             existing.title = title
             existing.notes = notes
+            existing.listID = listId
+            existing.projectID = projectId
             existing.assigneeModeRawValue = assigneeMode
             existing.statusRawValue = status
             existing.dueAt = dueAt
@@ -490,9 +656,54 @@ struct TaskDTO: Codable, Sendable {
             existing.isArchived = isArchived
             existing.archivedAt = archivedAt
             existing.updatedAt = updatedAt
+            existing.executionRoleRawValue = executionRole
+            if let h = responseHistory, let d = h.data(using: .utf8) { existing.responseHistoryData = d }
+            if let m = assignmentMessages, let d = m.data(using: .utf8) { existing.assignmentMessagesData = d }
+            existing.reminderRequestedAt = reminderRequestedAt
+            existing.locationText = locationText
+            // 软删除：用 tombstone 标记，不硬删，避免下次 pull 被 INSERT 复活
+            if isDeleted {
+                existing.isLocallyDeleted = true
+            }
+        } else if !isDeleted {
+            // INSERT: 本地不存在 & 未被软删除 → 创建新记录
+            let itemStatus = ItemStatus(rawValue: status) ?? .inProgress
+            let derivedAssignmentState = itemStatus.assignmentState.rawValue
+
+            let item = PersistentItem(
+                id: id,
+                spaceID: spaceId,
+                listID: listId,
+                projectID: projectId,
+                creatorID: creatorId,
+                title: title,
+                notes: notes,
+                locationText: locationText,
+                executionRoleRawValue: executionRole,
+                assigneeModeRawValue: assigneeMode,
+                dueAt: dueAt,
+                hasExplicitTime: hasExplicitTime,
+                remindAt: remindAt,
+                statusRawValue: status,
+                assignmentStateRawValue: derivedAssignmentState,
+                latestResponseData: nil,
+                responseHistoryData: responseHistory?.data(using: .utf8) ?? Data(),
+                assignmentMessagesData: assignmentMessages?.data(using: .utf8) ?? Data(),
+                lastActionByUserID: nil,
+                lastActionAt: nil,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                completedAt: completedAt,
+                isPinned: isPinned,
+                isDraft: isDraft,
+                isArchived: isArchived,
+                archivedAt: archivedAt,
+                repeatRuleData: repeatRule?.data(using: .utf8),
+                reminderRequestedAt: reminderRequestedAt,
+                isLocallyDeleted: false
+            )
+            context.insert(item)
         }
-        // 新记录的创建需要完整的 PersistentItem 初始化，
-        // 将在集成测试阶段补充完善
     }
 }
 
@@ -524,9 +735,9 @@ struct TaskListDTO: Codable, Sendable {
         case deletedAt = "deleted_at"
     }
 
-    nonisolated init(from persistent: PersistentTaskList) {
+    nonisolated init(from persistent: PersistentTaskList, spaceID: UUID? = nil) {
         self.id = persistent.id
-        self.spaceId = persistent.spaceID
+        self.spaceId = spaceID ?? persistent.spaceID
         self.creatorId = persistent.creatorID
         self.name = persistent.name
         self.kind = persistent.kindRawValue
@@ -548,6 +759,23 @@ struct TaskListDTO: Codable, Sendable {
             existing.sortOrder = sortOrder
             existing.isArchived = isArchived
             existing.updatedAt = updatedAt
+            if isDeleted {
+                context.delete(existing)
+            }
+        } else if !isDeleted {
+            let list = PersistentTaskList(
+                id: id,
+                spaceID: spaceId,
+                creatorID: creatorId,
+                name: name,
+                kindRawValue: kind,
+                colorToken: colorToken,
+                sortOrder: sortOrder,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+            context.insert(list)
         }
     }
 }
@@ -583,9 +811,9 @@ struct ProjectDTO: Codable, Sendable {
         case deletedAt = "deleted_at"
     }
 
-    nonisolated init(from persistent: PersistentProject) {
+    nonisolated init(from persistent: PersistentProject, spaceID: UUID? = nil) {
         self.id = persistent.id
-        self.spaceId = persistent.spaceID
+        self.spaceId = spaceID ?? persistent.spaceID
         self.creatorId = persistent.creatorID
         self.name = persistent.name
         self.notes = persistent.notes
@@ -611,6 +839,25 @@ struct ProjectDTO: Codable, Sendable {
             existing.remindAt = remindAt
             existing.completedAt = completedAt
             existing.updatedAt = updatedAt
+            if isDeleted {
+                context.delete(existing)
+            }
+        } else if !isDeleted {
+            let project = PersistentProject(
+                id: id,
+                spaceID: spaceId,
+                creatorID: creatorId,
+                name: name,
+                notes: notes,
+                colorToken: colorToken,
+                statusRawValue: status,
+                targetDate: targetDate,
+                remindAt: remindAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                completedAt: completedAt
+            )
+            context.insert(project)
         }
     }
 }
@@ -654,6 +901,20 @@ struct ProjectSubtaskDTO: Codable, Sendable {
             existing.isCompleted = isCompleted
             existing.sortOrder = sortOrder
             existing.updatedAt = updatedAt
+            if isDeleted {
+                context.delete(existing)
+            }
+        } else if !isDeleted {
+            let subtask = PersistentProjectSubtask(
+                id: id,
+                projectID: projectId,
+                creatorID: creatorId,
+                title: title,
+                isCompleted: isCompleted,
+                sortOrder: sortOrder,
+                updatedAt: updatedAt
+            )
+            context.insert(subtask)
         }
     }
 }
@@ -689,9 +950,9 @@ struct PeriodicTaskDTO: Codable, Sendable {
         case deletedAt = "deleted_at"
     }
 
-    nonisolated init(from persistent: PersistentPeriodicTask) {
+    nonisolated init(from persistent: PersistentPeriodicTask, spaceID: UUID? = nil) {
         self.id = persistent.id
-        self.spaceId = persistent.spaceID ?? UUID() // spaceID 在 PersistentPeriodicTask 中是可选的
+        self.spaceId = spaceID ?? persistent.spaceID ?? UUID()
         self.creatorId = persistent.creatorID
         self.title = persistent.title
         self.notes = persistent.notes
@@ -726,6 +987,100 @@ struct PeriodicTaskDTO: Codable, Sendable {
             existing.sortOrder = sortOrder
             existing.isActive = isActive
             existing.updatedAt = updatedAt
+            if isDeleted {
+                context.delete(existing)
+            }
+        } else if !isDeleted {
+            let periodic = PersistentPeriodicTask(
+                id: id,
+                spaceID: spaceId,
+                creatorID: creatorId,
+                title: title,
+                notes: notes,
+                cycleRawValue: cycle,
+                reminderRulesData: reminderRules?.data(using: .utf8),
+                completionsData: completions?.data(using: .utf8) ?? Data("{}".utf8),
+                sortOrder: sortOrder,
+                isActive: isActive,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+            context.insert(periodic)
+        }
+    }
+}
+
+// MARK: - MemberProfile Push/Pull DTO
+
+/// 更新 space_members 中自己的 profile（push 用）
+struct SpaceMemberUpdateDTO: Encodable, Sendable {
+    let displayName: String
+    let avatarUrl: String?
+    let avatarVersion: Int
+
+    enum CodingKeys: String, CodingKey {
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+        case avatarVersion = "avatar_version"
+    }
+}
+
+/// space_members 完整行（pull 用）
+struct SpaceMemberDTO: Decodable, Sendable {
+    let id: UUID
+    let spaceId: UUID
+    let userId: UUID
+    let displayName: String
+    let avatarUrl: String?
+    let avatarVersion: Int?
+    let role: String?
+    let joinedAt: Date?
+    let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case spaceId = "space_id"
+        case userId = "user_id"
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+        case avatarVersion = "avatar_version"
+        case role
+        case joinedAt = "joined_at"
+        case updatedAt = "updated_at"
+    }
+
+    // applyToLocal 逻辑已在 pullSpaceMembers 中直接处理（需要 myLocalUserID 排除自己）
+}
+
+// MARK: - Space Push/Pull DTO
+
+/// 更新 spaces 表的 display_name（push 用）
+struct SpaceUpdateDTO: Encodable, Sendable {
+    let displayName: String
+
+    enum CodingKeys: String, CodingKey {
+        case displayName = "display_name"
+    }
+}
+
+/// spaces 行（pull 用）
+struct SpaceDTO: Decodable, Sendable {
+    let id: UUID
+    let displayName: String
+    let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case updatedAt = "updated_at"
+    }
+
+    /// 将空间名称更新应用到本地 PersistentSpace
+    nonisolated func applyToLocal(context: ModelContext) {
+        let descriptor = FetchDescriptor<PersistentSpace>(predicate: #Predicate { $0.id == id })
+        if let existing = try? context.fetch(descriptor).first {
+            existing.displayName = displayName
+            if let updatedAt { existing.updatedAt = updatedAt }
         }
     }
 }
