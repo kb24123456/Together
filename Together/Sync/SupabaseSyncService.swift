@@ -52,6 +52,23 @@ actor SupabaseSyncService {
 
     // MARK: - Push（本地 → Supabase）
 
+    /// 将上次进程遗留在 .sending 状态的变更复活成 .pending，避免永久卡死
+    func resurrectStuckChanges() async {
+        guard let spaceID else { return }
+        let sendingRaw = SyncMutationLifecycleState.sending.rawValue
+        let pendingRaw = SyncMutationLifecycleState.pending.rawValue
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate {
+                $0.spaceID == spaceID && $0.lifecycleStateRawValue == sendingRaw
+            }
+        )
+        guard let stuck = try? context.fetch(descriptor), !stuck.isEmpty else { return }
+        for change in stuck { change.lifecycleStateRawValue = pendingRaw }
+        try? context.save()
+        logger.info("[Recovery] Revived \(stuck.count) stuck sending changes")
+    }
+
     /// 推送待同步的本地变更到 Supabase
     func push() async {
         guard let spaceID else { return }
@@ -159,7 +176,11 @@ actor SupabaseSyncService {
         }
         isListening = true
 
-        // 先补拉最新数据
+        // 启动时先恢复卡死的 sending 变更，再立即尝试一次 push，保证低延迟
+        await resurrectStuckChanges()
+        await push()
+
+        // 然后补拉最新数据
         await catchUp()
 
         let channel = client.realtimeV2.channel("space-\(spaceID.uuidString)")
