@@ -344,7 +344,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             )
         }
 
-        return try context.fetch(descriptor)
+        return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
     }
 
     private func archivedCompletedRecords(spaceID: UUID?, context: ModelContext) throws -> [PersistentItem] {
@@ -364,7 +364,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             )
         }
 
-        return try context.fetch(descriptor)
+        return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
     }
 
     private func completedRecords(spaceID: UUID?, context: ModelContext) throws -> [PersistentItem] {
@@ -375,13 +375,13 @@ actor LocalItemRepository: ItemRepositoryProtocol {
                 predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID && $0.completedAt != nil },
                 sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
             )
-            records = try context.fetch(descriptor)
+            records = try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
         } else {
             let descriptor = FetchDescriptor<PersistentItem>(
                 predicate: #Predicate<PersistentItem> { $0.completedAt != nil },
                 sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
             )
-            records = try context.fetch(descriptor)
+            records = try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
         }
 
         return records.sorted { lhs, rhs in

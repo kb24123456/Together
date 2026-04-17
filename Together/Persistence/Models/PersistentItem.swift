@@ -32,6 +32,7 @@ final class PersistentItem {
     var archivedAt: Date?
     var repeatRuleData: Data?
     var reminderRequestedAt: Date?
+    var isLocallyDeleted: Bool = false
 
     init(
         id: UUID,
@@ -62,7 +63,8 @@ final class PersistentItem {
         isArchived: Bool,
         archivedAt: Date?,
         repeatRuleData: Data?,
-        reminderRequestedAt: Date? = nil
+        reminderRequestedAt: Date? = nil,
+        isLocallyDeleted: Bool = false
     ) {
         self.id = id
         self.spaceID = spaceID
@@ -93,6 +95,7 @@ final class PersistentItem {
         self.archivedAt = archivedAt
         self.repeatRuleData = repeatRuleData
         self.reminderRequestedAt = reminderRequestedAt
+        self.isLocallyDeleted = isLocallyDeleted
     }
 }
 
