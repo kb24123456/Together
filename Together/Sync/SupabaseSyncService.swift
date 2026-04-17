@@ -16,8 +16,28 @@ actor SupabaseSyncService {
     private var myLocalUserID: UUID?  // 本地 app UUID（用于在 PairMembership 中区分自己和对方）
     private var isListening = false   // 防止 startListening 重复调用导致 Realtime 订阅失败
     private var realtimeChannel: RealtimeChannelV2?
-    private var lastSyncedAt: Date?
     private var listeningTasks: [Task<Void, Never>] = []
+
+    /// 每个 space 一把 key，持久化到 UserDefaults。
+    /// App 重启不会再从 distantPast 全量拉取。
+    private var lastSyncedAt: Date? {
+        get {
+            guard let spaceID else { return nil }
+            return UserDefaults.standard.object(forKey: Self.lastSyncedKey(spaceID)) as? Date
+        }
+        set {
+            guard let spaceID else { return }
+            if let newValue {
+                UserDefaults.standard.set(newValue, forKey: Self.lastSyncedKey(spaceID))
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.lastSyncedKey(spaceID))
+            }
+        }
+    }
+
+    private static func lastSyncedKey(_ spaceID: UUID) -> String {
+        "together.supabase.lastSyncedAt.\(spaceID.uuidString)"
+    }
     // push() 并发序列化：actor 本身不够，因为 await 网络时释放执行权，另一 Task 可进入
     private var isPushing = false
     private var pushRequestedDuringFlight = false
@@ -44,7 +64,7 @@ actor SupabaseSyncService {
         spaceID = nil
         myUserID = nil
         myLocalUserID = nil
-        lastSyncedAt = nil
+        // lastSyncedAt 不重置 —— 存 UserDefaults，同一 space 下次启动用
         isListening = false
         isPushing = false
         pushRequestedDuringFlight = false
