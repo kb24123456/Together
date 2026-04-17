@@ -28,6 +28,7 @@ final class AppContext {
     private var hasRestoredPersistedUserProfile = false
     private var seededPairMetadataSpaceIDs: Set<UUID> = []
     private var supabaseSyncService: SupabaseSyncService?
+    private var isStartingSupabaseSync = false  // 防止 startSupabaseSyncIfNeeded 多 Task 并发穿 guard
     private nonisolated(unsafe) let supabaseAuth = SupabaseAuthService()
     private var activeSharedSpaceID: UUID?
 
@@ -176,8 +177,15 @@ final class AppContext {
               summary.pairSpace.status == .active
         else { return }
 
-        // 如果已经在同步，跳过
-        if supabaseSyncService != nil { return }
+        // 并发守卫：已经在同步或正在启动都直接返回。
+        // 重点：isStartingSupabaseSync 在遇到首个 await 前同步设置，
+        // 这样在 `await supabaseAuth.currentUserID` 挂起期间其他 Task 也会被挡住，
+        // 避免创建多个 SupabaseSyncService 重复订阅同一 Realtime channel。
+        if supabaseSyncService != nil || isStartingSupabaseSync { return }
+        isStartingSupabaseSync = true
+
+        // 所有 return / throw 路径都要清锁；Swift 的 defer 在 MainActor 异步函数里工作正常
+        defer { isStartingSupabaseSync = false }
 
         guard let myUserID = await supabaseAuth.currentUserID else {
             return
@@ -199,12 +207,13 @@ final class AppContext {
         let localUserID = sessionStore.currentUser?.id
         await service.configure(spaceID: sharedSpaceID, myUserID: myUserID, myLocalUserID: localUserID)
 
-        // Query first, then Subscribe
-        await service.startListening()
-
+        // 先把 service 记录到 AppContext，再 startListening。
+        // 这样即便 startListening 内部 await 很久，其他 Task 的 `supabaseSyncService != nil` 也会挡住。
         self.supabaseSyncService = service
         self.activeSharedSpaceID = sharedSpaceID
         sessionStore.updateSharedSyncStatus(SharedSyncStatus(level: .syncing, pendingMutationCount: 0, failedMutationCount: 0))
+
+        await service.startListening()
     }
 
     /// 停止 Supabase 双人同步（解绑时调用）
@@ -212,6 +221,7 @@ final class AppContext {
         await supabaseSyncService?.teardown()
         supabaseSyncService = nil
         activeSharedSpaceID = nil
+        isStartingSupabaseSync = false
         seededPairMetadataSpaceIDs.remove(pairSpaceID)
         sessionStore.updateSharedSyncStatus(.idle)
     }
@@ -560,6 +570,7 @@ final class AppContext {
                 Task { [weak self] in await self?.supabaseSyncService?.teardown() }
                 supabaseSyncService = nil
             }
+            isStartingSupabaseSync = false
             seededPairMetadataSpaceIDs.removeAll()
             refreshSharedSyncStatus()
         }
