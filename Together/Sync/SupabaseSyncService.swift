@@ -18,6 +18,9 @@ actor SupabaseSyncService {
     private var realtimeChannel: RealtimeChannelV2?
     private var lastSyncedAt: Date?
     private var listeningTasks: [Task<Void, Never>] = []
+    // push() 并发序列化：actor 本身不够，因为 await 网络时释放执行权，另一 Task 可进入
+    private var isPushing = false
+    private var pushRequestedDuringFlight = false
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -43,6 +46,8 @@ actor SupabaseSyncService {
         myLocalUserID = nil
         lastSyncedAt = nil
         isListening = false
+        isPushing = false
+        pushRequestedDuringFlight = false
     }
 
     // MARK: - Push（本地 → Supabase）
@@ -50,6 +55,13 @@ actor SupabaseSyncService {
     /// 推送待同步的本地变更到 Supabase
     func push() async {
         guard let spaceID else { return }
+
+        // 序列化：避免两个 Task 同时读取同一批 pending 并重复 upsert
+        if isPushing {
+            pushRequestedDuringFlight = true
+            return
+        }
+        isPushing = true
 
         let context = ModelContext(modelContainer)
 
@@ -97,6 +109,13 @@ actor SupabaseSyncService {
 
         // 清理已确认的变更
         purgeConfirmedChanges(context: context)
+
+        // 解除序列化锁；若飞行期间有其他 push 请求被合并，立即再跑一轮
+        isPushing = false
+        if pushRequestedDuringFlight {
+            pushRequestedDuringFlight = false
+            Task { [weak self] in await self?.push() }
+        }
     }
 
     // MARK: - Pull（Supabase → 本地，catch-up 补拉）
