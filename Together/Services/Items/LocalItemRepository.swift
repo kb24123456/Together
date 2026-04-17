@@ -294,6 +294,14 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         }
 
         try context.save()
+
+        // 记录到同步队列：任何通过 repository 走的任务变更都应被 Supabase push
+        if let sid = savedItem.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: savedItem.id, spaceID: sid)
+            )
+        }
+
         if let record = try fetchRecord(itemID: item.id, context: context) {
             return try hydratedItem(from: record, context: context)
         }
@@ -310,8 +318,17 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         for occurrenceRecord in occurrenceRecords {
             context.delete(occurrenceRecord)
         }
-        context.delete(record)
+        // 使用 tombstone 代替硬删，避免下次 pull 把已删记录 INSERT 复活
+        let spaceID = record.spaceID
+        record.isLocallyDeleted = true
+        record.updatedAt = .now
         try context.save()
+
+        if let sid = spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .delete, recordID: itemID, spaceID: sid)
+            )
+        }
     }
 
     private func fetchRecord(itemID: UUID, context: ModelContext) throws -> PersistentItem? {

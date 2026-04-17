@@ -183,12 +183,21 @@ final class AppContext {
             return
         }
 
-        let sharedSpaceID = summary.sharedSpace.id
+        // 使用 Supabase space UUID 作为同步目标
+        // 兜底：如果本地 sharedSpace.id 与 cloudKitZoneName 存储的 Supabase UUID 不一致，
+        // 优先使用 Supabase 的（处理旧版配对数据）
+        var sharedSpaceID = summary.sharedSpace.id
+        if let zoneName = summary.pairSpace.cloudKitZoneName,
+           let supabaseUUID = UUID(uuidString: zoneName),
+           supabaseUUID != sharedSpaceID {
+            sharedSpaceID = supabaseUUID
+        }
 
         let service = SupabaseSyncService(
             modelContainer: PersistenceController.shared.container
         )
-        await service.configure(spaceID: sharedSpaceID, myUserID: myUserID)
+        let localUserID = sessionStore.currentUser?.id
+        await service.configure(spaceID: sharedSpaceID, myUserID: myUserID, myLocalUserID: localUserID)
 
         // Query first, then Subscribe
         await service.startListening()
@@ -309,8 +318,9 @@ final class AppContext {
             await self?.container.syncEngineCoordinator.sendChanges(for: spaceID)
         }
         // Pair sync path: Supabase push
-        if let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id,
-           spaceID == sharedSpaceID {
+        // 同时匹配 sharedSpace.id 和 activeSharedSpaceID，兼容旧数据 UUID 不一致的情况
+        let pairSharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id
+        if spaceID == pairSharedSpaceID || spaceID == activeSharedSpaceID {
             Task { [weak self] in
                 await self?.supabaseSyncService?.push()
             }
@@ -321,7 +331,8 @@ final class AppContext {
     }
 
     func flushRecordedSharedMutation(_ change: SyncChange) async {
-        // 立即推送变更到 Supabase
+        // Repository 已经 recordLocalChange，这里只需触发 push。
+        // 若再 record 一次会出现重复条目，空耗带宽。
         await supabaseSyncService?.push()
         await refreshSharedSyncStatusAsync()
     }
@@ -474,6 +485,31 @@ final class AppContext {
         }
         configureSyncEngineForwarding()
         configurePairSyncTeardown()
+        configureSupabaseRealtimeObservers()
+    }
+
+    /// 监听 Supabase Realtime / catchUp 发出的通知，刷新 UI
+    private func configureSupabaseRealtimeObservers() {
+        NotificationCenter.default.addObserver(
+            forName: .supabaseRealtimeChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.reloadAfterSync()
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .pairMemberJoined,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.reloadAfterSync()
+            }
+        }
     }
 
     private func configurePairSyncTeardown() {
@@ -504,9 +540,14 @@ final class AppContext {
             let pairSpaceID = pairSpace.id
             Task {
                 await startSupabaseSyncIfNeeded()
-                if seededPairMetadataSpaceIDs.contains(pairSpaceID) == false,
-                   let user = sessionStore.currentUser {
-                    await syncProfileToPartner(user: user)
+                if seededPairMetadataSpaceIDs.contains(pairSpaceID) == false {
+                    // 首次激活：推送本地已有数据到 Supabase
+                    if let sharedSpaceID = activeSharedSpaceID {
+                        await pushExistingTasksToCloud(spaceID: sharedSpaceID)
+                    }
+                    if let user = sessionStore.currentUser {
+                        await syncProfileToPartner(user: user)
+                    }
                     seededPairMetadataSpaceIDs.insert(pairSpaceID)
                 }
                 await MainActor.run {
