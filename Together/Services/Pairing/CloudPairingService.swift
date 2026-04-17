@@ -53,10 +53,28 @@ actor CloudPairingService: PairingServiceProtocol {
     }
 
     func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
+        // 1. 在销毁本地状态前拿到 Supabase space UUID
+        let context = await localPairing.currentPairingContext(for: actorID)
+        let supabaseSpaceID: UUID? = {
+            guard let zone = context.pairSpaceSummary?.pairSpace.cloudKitZoneName else { return nil }
+            return UUID(uuidString: zone)
+        }()
+
+        // 2. 先 teardown Supabase sync（停 Realtime、冲完最后一批 push）
         await onPairSyncTeardown?(pairSpaceID)
-        let context = try await localPairing.unbind(pairSpaceID: pairSpaceID, actorID: actorID)
-        // TODO: Supabase 端解绑操作（UPDATE spaces SET status = 'archived'）
-        return context
+
+        // 3. Supabase 端归档 + 离开 space_members；best-effort，不阻断本地解绑
+        if let supabaseSpaceID, let myID = await supabaseAuth.currentUserID {
+            do {
+                try await inviteGateway.leaveSpace(spaceID: supabaseSpaceID, userID: myID)
+                try await inviteGateway.archiveSpace(spaceID: supabaseSpaceID)
+            } catch {
+                // 记录但不抛出：即便网络失败，本地解绑仍然要完成
+            }
+        }
+
+        // 4. 本地解绑（删除本地共享数据 + membership）
+        return try await localPairing.unbind(pairSpaceID: pairSpaceID, actorID: actorID)
     }
 
     private var onPairSyncTeardown: (@Sendable (UUID) async -> Void)?
@@ -73,25 +91,13 @@ actor CloudPairingService: PairingServiceProtocol {
             throw PairingError.cloudKitUnavailable // 复用已有错误类型
         }
 
-        // 2. 创建本地 invite + pair space 骨架
-        let invite = try await localPairing.createInvite(from: inviterID, displayName: displayName)
-
-        // 3. 获取 shared space ID
-        let context = await localPairing.currentPairingContext(for: inviterID)
-        guard context.pairSpaceSummary?.sharedSpace.id != nil else {
-            throw PairingError.cloudOperationFailed(
-                NSError(domain: "CloudPairingService", code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "共享空间创建失败，请重试"])
-            )
-        }
-
-        // 4. 在 Supabase 创建 space
+        // 2. 先在 Supabase 创建 space（获取统一 UUID）
         let supabaseSpaceID = try await inviteGateway.createSpace(
             ownerID: supabaseUserID,
             displayName: displayName
         )
 
-        // 5. 将自己加入 space 作为 owner
+        // 3. 将自己加入 space 作为 owner
         try await inviteGateway.joinSpace(
             spaceID: supabaseSpaceID,
             userID: supabaseUserID,
@@ -99,21 +105,35 @@ actor CloudPairingService: PairingServiceProtocol {
             role: "owner"
         )
 
-        // 6. 创建 Supabase 邀请
+        // 4. 创建 Supabase 邀请（携带 inviter 本地身份）
         let supabaseInvite = try await inviteGateway.createInvite(
             spaceID: supabaseSpaceID,
-            inviterID: supabaseUserID
+            inviterID: supabaseUserID,
+            inviterLocalUserID: inviterID,
+            inviterDisplayName: displayName
         )
 
-        // 7. 更新本地元数据（使用 Supabase space ID）
+        // 5. 创建本地 invite + pair space（使用 Supabase space UUID 作为 sharedSpaceID）
+        let invite = try await localPairing.createInvite(
+            from: inviterID,
+            displayName: displayName,
+            sharedSpaceID: supabaseSpaceID
+        )
+
+        // 6. 更新本地元数据（zoneName 与 sharedSpace.id 现在一致）
         await localPairing.updateCloudKitMetadata(
             pairSpaceID: invite.pairSpaceID,
-            zoneName: supabaseSpaceID.uuidString, // 复用字段存储 Supabase space ID
+            zoneName: supabaseSpaceID.uuidString,
             ownerRecordID: supabaseUserID.uuidString,
             isZoneOwner: true
         )
 
-        // 8. 返回带有 Supabase 邀请码的本地 invite
+        // 7. 用 Supabase 邀请码更新本地 invite（UI 从本地读取码）
+        await localPairing.updateInviteCode(
+            pairSpaceID: invite.pairSpaceID,
+            newCode: supabaseInvite.inviteCode
+        )
+
         var updatedInvite = invite
         updatedInvite.inviteCode = supabaseInvite.inviteCode
         return updatedInvite
@@ -157,17 +177,30 @@ actor CloudPairingService: PairingServiceProtocol {
             displayName: responderDisplayName
         )
 
-        // 5. 设置本地 SwiftData 状态
+        // 5. 获取 inviter 身份信息（从邀请记录 + space_members fallback）
+        let inviterLocalUserID = supabaseInvite.inviterLocalUserId ?? UUID()
+        var inviterName = supabaseInvite.inviterDisplayName ?? ""
+        if inviterName.isEmpty {
+            // fallback: 从 space_members 查 inviter 的显示名
+            if let member = try? await inviteGateway.getPartnerMember(
+                spaceID: supabaseInvite.spaceId,
+                excludeUserID: supabaseUserID
+            ) {
+                inviterName = member.displayName
+            }
+        }
+
+        // 6. 设置本地 SwiftData 状态
         _ = try await localPairing.setupPairingFromRemote(
-            pairSpaceID: supabaseInvite.spaceId, // 使用 Supabase space ID 作为 pairSpaceID
+            pairSpaceID: supabaseInvite.spaceId,
             sharedSpaceID: supabaseInvite.spaceId,
-            inviterUserID: responderID, // 本地 userID（非 Supabase ID）
-            inviterDisplayName: "", // 将通过 Realtime 更新
+            inviterUserID: inviterLocalUserID,
+            inviterDisplayName: inviterName,
             responderID: responderID,
             responderDisplayName: responderDisplayName
         )
 
-        // 6. 更新本地元数据
+        // 7. 更新本地元数据
         await localPairing.updateCloudKitMetadata(
             pairSpaceID: supabaseInvite.spaceId,
             zoneName: supabaseInvite.spaceId.uuidString,
@@ -184,9 +217,48 @@ actor CloudPairingService: PairingServiceProtocol {
         pairSpaceID: UUID,
         inviterID: UUID
     ) async throws -> PairingContext? {
-        // Supabase 使用 Realtime 监听，这个方法可以简化
-        // 但保留轮询作为后备
-        return nil
+        // 获取本地 PairSpace 中存储的 Supabase space ID
+        let localContext = await localPairing.currentPairingContext(for: inviterID)
+        guard let pairSpace = localContext.pairSpaceSummary?.pairSpace,
+              let supabaseSpaceIDString = pairSpace.cloudKitZoneName,
+              !supabaseSpaceIDString.isEmpty,
+              let supabaseSpaceID = UUID(uuidString: supabaseSpaceIDString) else {
+            return nil
+        }
+
+        // 查询 Supabase 邀请状态
+        guard let invite = try await inviteGateway.pollInviteStatus(spaceID: supabaseSpaceID) else {
+            return nil
+        }
+
+        guard invite.status == "accepted" else {
+            return nil
+        }
+
+        // 从 space_members 获取接受方信息
+        guard let supabaseUserID = await supabaseAuth.currentUserID else {
+            return nil
+        }
+
+        let partnerMember = try? await inviteGateway.getPartnerMember(
+            spaceID: supabaseSpaceID,
+            excludeUserID: supabaseUserID
+        )
+
+        guard let partnerMember else { return nil }
+
+        // 生成一个本地 UUID 给对方（iPad 端的本地 ID 我们不知道，用随机 UUID 代表）
+        let responderLocalID = UUID()
+        let responderName = partnerMember.displayName
+
+        // 调用 localPairing 完成本地状态转换
+        let context = try await localPairing.finalizeAcceptedInvite(
+            pairSpaceID: pairSpaceID,
+            responderID: responderLocalID,
+            responderDisplayName: responderName
+        )
+
+        return context
     }
 
     // MARK: - Historical Pairing Lookup
