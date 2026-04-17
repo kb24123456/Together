@@ -700,6 +700,8 @@ struct TaskDTO: Codable, Sendable {
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
+            // 冲突保护：incoming 比本地旧则跳过（网络乱序 / 时钟漂移场景）
+            if updatedAt < existing.updatedAt { return }
             // UPDATE: 同步远端字段
             existing.title = title
             existing.notes = notes
@@ -813,6 +815,7 @@ struct TaskListDTO: Codable, Sendable {
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentTaskList>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
+            if updatedAt < existing.updatedAt { return } // 冲突保护
             existing.name = name
             existing.kindRawValue = kind
             existing.colorToken = colorToken
@@ -891,6 +894,7 @@ struct ProjectDTO: Codable, Sendable {
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentProject>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
+            if updatedAt < existing.updatedAt { return } // 冲突保护
             existing.name = name
             existing.notes = notes
             existing.colorToken = colorToken
@@ -957,6 +961,7 @@ struct ProjectSubtaskDTO: Codable, Sendable {
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
+            if updatedAt < existing.updatedAt { return } // 冲突保护
             existing.title = title
             existing.isCompleted = isCompleted
             existing.sortOrder = sortOrder
@@ -1035,6 +1040,7 @@ struct PeriodicTaskDTO: Codable, Sendable {
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentPeriodicTask>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
+            if updatedAt < existing.updatedAt { return } // 冲突保护
             existing.title = title
             existing.notes = notes
             existing.cycleRawValue = cycle
@@ -1139,6 +1145,8 @@ struct SpaceDTO: Decodable, Sendable {
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentSpace>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
+            // 冲突保护：远端 updatedAt 显式更早时跳过
+            if let incoming = updatedAt, incoming < existing.updatedAt { return }
             existing.displayName = displayName
             if let updatedAt { existing.updatedAt = updatedAt }
         }
