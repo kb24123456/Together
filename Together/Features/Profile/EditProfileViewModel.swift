@@ -1,10 +1,13 @@
 import AVFoundation
 import Foundation
 import Observation
+import os
 
 #if canImport(UIKit)
 import UIKit
 #endif
+
+private let editProfileLogger = Logger(subsystem: "com.pigdog.Together", category: "EditProfileVM")
 
 @MainActor
 @Observable
@@ -268,6 +271,9 @@ final class EditProfileViewModel {
                 errorMessage = "头像保存失败，请重新裁剪。"
                 showsErrorAlert = true
                 return false
+            }
+            if data.count > 300_000 {
+                editProfileLogger.warning("avatar JPEG payload unusually large: \(data.count) bytes")
             }
             avatarUpdate = .replacePhoto(data)
             #else
