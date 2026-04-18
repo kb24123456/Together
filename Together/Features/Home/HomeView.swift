@@ -21,6 +21,7 @@ struct HomeView: View {
     @State private var isMonthPagerSettling = false
     @State private var previousScrollOffset: CGFloat = 0
     @State private var dockHideTask: Task<Void, Never>?
+    @State private var highlightedTaskID: UUID?
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -425,9 +426,22 @@ struct HomeView: View {
                 .applyScrollEdgeProtection()
                 .transition(timelineTransition)
             } else {
-                timelineList
-                    .id("timeline-\(viewModel.selectedDateKey)")
-                    .transition(timelineTransition)
+                ScrollViewReader { scrollProxy in
+                    timelineList
+                        .id("timeline-\(viewModel.selectedDateKey)")
+                        .transition(timelineTransition)
+                        .onReceive(NotificationCenter.default.publisher(for: .openTaskFromNudge)) { notif in
+                            guard let id = notif.userInfo?["task_id"] as? UUID else { return }
+                            highlightedTaskID = id
+                            withAnimation {
+                                scrollProxy.scrollTo(id, anchor: .center)
+                            }
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .seconds(2))
+                                highlightedTaskID = nil
+                            }
+                        }
+                }
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.selectedDateKey)
@@ -815,6 +829,7 @@ struct HomeView: View {
                     }
                 }
             }
+            .id(entry.id)
             .listRowInsets(
                 EdgeInsets(
                     top: timelineRowVerticalInset,
@@ -823,7 +838,11 @@ struct HomeView: View {
                     trailing: timelineRowHorizontalInset
                 )
             )
-            .listRowBackground(Color.clear)
+            .listRowBackground(
+                highlightedTaskID == entry.id
+                    ? AppTheme.colors.coral.opacity(0.18)
+                    : Color.clear
+            )
             .listRowSeparator(.hidden)
             .insertedListItemMotion(
                 isInserted: viewModel.isAnimatingInsertion(for: entry.id),
@@ -988,6 +1007,7 @@ struct HomeView: View {
                 }
             }
         )
+        .id(entry.id)
         .listRowInsets(
             EdgeInsets(
                 top: 8,
@@ -996,7 +1016,11 @@ struct HomeView: View {
                 trailing: timelineRowHorizontalInset
             )
         )
-        .listRowBackground(Color.clear)
+        .listRowBackground(
+            highlightedTaskID == entry.id
+                ? AppTheme.colors.coral.opacity(0.18)
+                : Color.clear
+        )
         .listRowSeparator(.hidden)
         .insertedListItemMotion(
             isInserted: viewModel.isAnimatingInsertion(for: entry.id),
