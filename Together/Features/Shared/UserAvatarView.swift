@@ -76,6 +76,7 @@ private struct AvatarPhotoView: View {
 
     #if canImport(UIKit)
     @State private var loadedImage: UIImage?
+    @State private var reloadTick: Int = 0
     #endif
 
     var body: some View {
@@ -85,21 +86,47 @@ private struct AvatarPhotoView: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: size, height: size)
+                .onReceive(NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)) { notif in
+                    handleDownloadNotification(notif)
+                }
         } else if let image = UserAvatarRuntimeStore.image(for: fileName) {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
                 .frame(width: size, height: size)
+                .onReceive(NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)) { notif in
+                    handleDownloadNotification(notif)
+                }
         } else {
             fallbackView
-                .task(id: fileName) {
+                .task(id: "\(fileName)-\(reloadTick)") {
                     await loadImageIfNeeded()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)) { notif in
+                    handleDownloadNotification(notif)
                 }
         }
         #else
         fallbackView
         #endif
     }
+
+    #if canImport(UIKit)
+    private func handleDownloadNotification(_ notif: Notification) {
+        // Partner avatar just landed on disk for some fileName — if it matches
+        // the one this view is rendering, drop our cached UIImage state and
+        // force a reload on the next render.
+        guard
+            let assetID = notif.userInfo?["assetID"] as? String,
+            let version = notif.userInfo?["version"] as? Int
+        else { return }
+        let expected = UserAvatarStorage.partnerFileName(forAssetID: assetID, version: version)
+        guard expected == fileName else { return }
+        loadedImage = nil
+        UserAvatarRuntimeStore.remove(fileName: fileName)
+        reloadTick &+= 1
+    }
+    #endif
 
     private var fallbackView: some View {
         Circle()

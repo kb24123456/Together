@@ -629,6 +629,13 @@ actor SupabaseSyncService {
                         let bytes = try await uploaderRef.downloadAvatar(from: url)
                         let fileName = storeRef.partnerCacheFileName(for: assetID, version: targetVersion)
                         try storeRef.persistAvatarData(bytes, fileName: fileName)
+                        #if canImport(UIKit)
+                        // Evict any stale UIImage the UI cached under this name so
+                        // the next render re-reads the freshly written bytes.
+                        await MainActor.run {
+                            UserAvatarRuntimeStore.remove(fileName: fileName)
+                        }
+                        #endif
                         log.info("downloaded partner avatar fileName=\(fileName, privacy: .public) bytes=\(bytes.count)")
                         NotificationCenter.default.post(
                             name: .partnerAvatarDownloaded,
