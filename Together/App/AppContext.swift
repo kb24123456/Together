@@ -503,6 +503,7 @@ final class AppContext {
                 await cloudPairing.setOnPairSyncTeardown { [weak self] pairSpaceID in
                     await self?.teardownSupabaseSync(pairSpaceID: pairSpaceID)
                 }
+                await cloudPairing.setPairJoinObserver(self)
             }
         }
     }
@@ -747,4 +748,12 @@ final class AppContext {
 
 extension Notification.Name {
     static let openTaskFromNudge = Notification.Name("openTaskFromNudge")
+}
+
+extension AppContext: PairJoinObserver {
+    func onSuccessfulPairJoin() async {
+        let status = await container.notificationService.authorizationStatus()
+        guard status == .notDetermined else { return }
+        _ = try? await container.notificationService.requestAuthorization()
+    }
 }

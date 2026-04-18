@@ -1,5 +1,9 @@
 import Foundation
 
+protocol PairJoinObserver: AnyObject, Sendable {
+    func onSuccessfulPairJoin() async
+}
+
 /// 配对服务（Supabase 版）
 /// 组合 LocalPairingService（本地 SwiftData 状态）+ SupabaseInviteGateway（远程配对操作）
 ///
@@ -75,6 +79,12 @@ actor CloudPairingService: PairingServiceProtocol {
 
         // 4. 本地解绑（删除本地共享数据 + membership）
         return try await localPairing.unbind(pairSpaceID: pairSpaceID, actorID: actorID)
+    }
+
+    private weak var pairJoinObserver: PairJoinObserver?
+
+    func setPairJoinObserver(_ observer: PairJoinObserver?) {
+        pairJoinObserver = observer
     }
 
     private var onPairSyncTeardown: (@Sendable (UUID) async -> Void)?
@@ -210,7 +220,9 @@ actor CloudPairingService: PairingServiceProtocol {
             isZoneOwner: false
         )
 
-        return await localPairing.currentPairingContext(for: responderID)
+        let context = await localPairing.currentPairingContext(for: responderID)
+        await pairJoinObserver?.onSuccessfulPairJoin()
+        return context
     }
 
     // MARK: - 轮询（Device A）
@@ -260,6 +272,7 @@ actor CloudPairingService: PairingServiceProtocol {
             responderDisplayName: responderName
         )
 
+        await pairJoinObserver?.onSuccessfulPairJoin()
         return context
     }
 
