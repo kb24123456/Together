@@ -75,6 +75,13 @@ struct TaskListRepositorySyncTests {
         let remaining = try context2.fetch(FetchDescriptor<PersistentTaskList>())
         #expect(remaining.count == 1)
         #expect(remaining.first?.isLocallyDeleted == false, "re-save should clear tombstone")
+
+        let recorded = await spy.recorded
+        let upserts = recorded.filter {
+            $0.entityKind == .taskList && $0.operation == .upsert
+        }
+        #expect(upserts.count == 2, "first saveTaskList + resurrection saveTaskList each record .upsert")
+        #expect(upserts.allSatisfy { $0.recordID == list.id })
     }
 
     @Test func archiveTaskList_records_archive() async throws {

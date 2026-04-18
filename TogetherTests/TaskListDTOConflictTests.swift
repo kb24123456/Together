@@ -63,6 +63,12 @@ struct TaskListDTOConflictTests {
         try context.save()
 
         let fetched = try context.fetch(FetchDescriptor<PersistentTaskList>())
-        #expect(fetched.first?.isLocallyDeleted == true)
+        #expect(fetched.count == 1)
+
+        // The later remote upsert IS applied (fields updated), proving we reached the UPDATE branch...
+        #expect(fetched.first?.name == "x", "UPDATE branch did run")
+
+        // ...but the tombstone flag is intentionally never cleared by a remote pull, so it survives.
+        #expect(fetched.first?.isLocallyDeleted == true, "remote pull cannot resurrect a local tombstone")
     }
 }
