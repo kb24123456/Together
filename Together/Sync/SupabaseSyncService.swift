@@ -9,7 +9,8 @@ actor SupabaseSyncService {
 
     private nonisolated(unsafe) let client = SupabaseClientProvider.shared
     private nonisolated(unsafe) let logger = Logger(subsystem: "com.pigdog.Together", category: "SupabaseSync")
-    private let modelContainer: ModelContainer
+    /// Internal visibility allows the test target to seed data without production-visible mutation methods.
+    nonisolated let modelContainer: ModelContainer
     private let avatarUploader: AvatarStorageUploaderProtocol
     private let avatarMediaStore: UserAvatarMediaStoreProtocol
 
@@ -47,14 +48,22 @@ actor SupabaseSyncService {
     private var recentlyPushedIDs: [UUID: Date] = [:]
     private let echoWindow: TimeInterval = 10
 
+    /// Signed URL produced by the .avatarAsset push; consumed + cleared by the next .memberProfile push.
+    /// Keyed by local user UUID (same as the recordID used for .memberProfile changes).
+    private var pendingAvatarURL: [UUID: URL] = [:]
+
+    private let spaceMemberWriter: SpaceMemberWriter
+
     init(
         modelContainer: ModelContainer,
         avatarUploader: AvatarStorageUploaderProtocol,
-        avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore()
+        avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore(),
+        spaceMemberWriter: SpaceMemberWriter? = nil
     ) {
         self.modelContainer = modelContainer
         self.avatarUploader = avatarUploader
         self.avatarMediaStore = avatarMediaStore
+        self.spaceMemberWriter = spaceMemberWriter ?? SupabaseSpaceMemberWriter()
     }
 
     /// 配置同步目标
@@ -323,6 +332,18 @@ actor SupabaseSyncService {
 
     // MARK: - Private Push Helpers
 
+    /// Internal test seam: push a single SyncChange without going through the full queue.
+    /// Production code uses `push()` which drains `PersistentSyncChange` rows from the DB.
+    func pushUpsert(_ change: SyncChange) async throws {
+        let context = ModelContext(modelContainer)
+        try await pushUpsert(
+            entityKind: change.entityKind,
+            recordID: change.recordID,
+            spaceID: change.spaceID,
+            context: context
+        )
+    }
+
     private func pushUpsert(entityKind: SyncEntityKind, recordID: UUID, spaceID: UUID, context: ModelContext) async throws {
         let tableName = entityKind.supabaseTableName
 
@@ -362,18 +383,16 @@ actor SupabaseSyncService {
             guard let myUserID else { return }
             let descriptor = FetchDescriptor<PersistentUserProfile>(predicate: #Predicate { $0.userID == recordID })
             guard let profile = try? context.fetch(descriptor).first else { return }
+            // Consume the signed URL cached by the preceding .avatarAsset push (if any).
+            let signedURL = pendingAvatarURL.removeValue(forKey: recordID)
             let dto = SpaceMemberUpdateDTO(
                 displayName: profile.displayName,
-                avatarUrl: profile.avatarPhotoFileName,
+                avatarUrl: signedURL?.absoluteString,
                 avatarAssetID: profile.avatarAssetID,
                 avatarSystemName: profile.avatarSystemName,
                 avatarVersion: profile.avatarVersion
             )
-            try await client.from("space_members")
-                .update(dto)
-                .eq("space_id", value: spaceID.uuidString)
-                .eq("user_id", value: myUserID.uuidString)
-                .execute()
+            try await spaceMemberWriter.updateMember(spaceID: spaceID, userID: myUserID, dto: dto)
 
         case .space:
             // 更新 spaces 表的 display_name
@@ -390,7 +409,40 @@ actor SupabaseSyncService {
                 .execute()
 
         case .avatarAsset:
-            break // 头像文件上传由 Storage 单独管理
+            // recordID is the asset UUID (= UUID(uuidString: user.avatarAssetID)).
+            // Find the owning profile via avatarAssetID and upload the avatar bytes.
+            let assetIDString = recordID.uuidString.lowercased()
+            let profileDescriptor = FetchDescriptor<PersistentUserProfile>(
+                predicate: #Predicate { $0.avatarAssetID == assetIDString }
+            )
+            guard let profile = (try? context.fetch(profileDescriptor))?.first else {
+                logger.warning("[Push] avatarAsset skipped — no profile with avatarAssetID=\(assetIDString)")
+                return
+            }
+            guard let fileName = profile.avatarPhotoFileName else {
+                // Symbol-only avatar; nothing to upload.
+                return
+            }
+            let bytes: Data
+            do {
+                bytes = try avatarMediaStore.avatarData(named: fileName)
+            } catch {
+                logger.error("[Push] avatarAsset bytes read failed: \(error.localizedDescription)")
+                return
+            }
+            do {
+                let signedURL = try await avatarUploader.uploadAvatar(
+                    bytes: bytes,
+                    spaceID: spaceID,
+                    userID: profile.userID,
+                    version: profile.avatarVersion
+                )
+                pendingAvatarURL[profile.userID] = signedURL
+                logger.info("[Push] avatarAsset uploaded bytes=\(bytes.count) version=\(profile.avatarVersion)")
+            } catch {
+                logger.error("[Push] avatarAsset upload failed: \(error.localizedDescription)")
+                // Swallow — memberProfile push will still run with a nil avatar_url fallback.
+            }
 
         case .taskMessage:
             let descriptor = FetchDescriptor<PersistentTaskMessage>(
@@ -1266,6 +1318,26 @@ struct PeriodicTaskDTO: Codable, Sendable {
             )
             context.insert(periodic)
         }
+    }
+}
+
+// MARK: - SpaceMemberWriter seam
+
+/// Abstracts the space_members UPDATE call so tests can capture DTOs without hitting the network.
+protocol SpaceMemberWriter: Sendable {
+    func updateMember(spaceID: UUID, userID: UUID, dto: SpaceMemberUpdateDTO) async throws
+}
+
+/// Default production implementation that calls the Supabase client.
+private struct SupabaseSpaceMemberWriter: SpaceMemberWriter {
+    private let client = SupabaseClientProvider.shared
+
+    func updateMember(spaceID: UUID, userID: UUID, dto: SpaceMemberUpdateDTO) async throws {
+        try await client.from("space_members")
+            .update(dto)
+            .eq("space_id", value: spaceID.uuidString)
+            .eq("user_id", value: userID.uuidString)
+            .execute()
     }
 }
 
