@@ -55,9 +55,9 @@ struct TaskListDTOConflictTests {
         ).applyToLocal(context: context)
         try context.save()
 
-        // 对方 stale 消息不能复活 tombstone
+        // 对方 stale 消息不能复活 tombstone（名字故意不同，用于证明 UPDATE 分支确实跑了）
         TaskListDTO.fixture(
-            id: id, spaceID: spaceID, name: "x",
+            id: id, spaceID: spaceID, name: "x-after-tombstone",
             updatedAt: base.addingTimeInterval(120), isDeleted: false
         ).applyToLocal(context: context)
         try context.save()
@@ -66,7 +66,7 @@ struct TaskListDTOConflictTests {
         #expect(fetched.count == 1)
 
         // The later remote upsert IS applied (fields updated), proving we reached the UPDATE branch...
-        #expect(fetched.first?.name == "x", "UPDATE branch did run")
+        #expect(fetched.first?.name == "x-after-tombstone", "UPDATE branch did run and overwrote name")
 
         // ...but the tombstone flag is intentionally never cleared by a remote pull, so it survives.
         #expect(fetched.first?.isLocallyDeleted == true, "remote pull cannot resurrect a local tombstone")
