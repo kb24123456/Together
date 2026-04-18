@@ -383,7 +383,13 @@ actor SupabaseSyncService {
             break // 头像文件上传由 Storage 单独管理
 
         case .taskMessage:
-            break // Placeholder; real payload implemented in Task 5
+            let descriptor = FetchDescriptor<PersistentTaskMessage>(
+                predicate: #Predicate { $0.id == recordID }
+            )
+            guard let message = try? context.fetch(descriptor).first else { return }
+            let dto = TaskMessagePushDTO(from: message)
+            // Insert, not upsert — each row is an immutable event-log entry.
+            try await client.from(tableName).insert(dto).execute()
         }
     }
 
@@ -661,6 +667,42 @@ extension Notification.Name {
     static let pairMemberJoined = Notification.Name("pairMemberJoined")
     static let pairMemberRemoved = Notification.Name("pairMemberRemoved")
     static let supabaseRealtimeChanged = Notification.Name("supabaseRealtimeChanged")
+}
+
+// MARK: - TaskMessage DTO (write-only)
+
+/// Nudge / comment event pushed to the task_messages table.
+/// Write-only for MVP — partner device does not pull this table; APNs is
+/// the delivery channel. Keep Encodable-only to make that intent explicit.
+struct TaskMessagePushDTO: Encodable, Sendable {
+    let id: UUID
+    let taskId: UUID
+    let senderId: UUID
+    let type: String
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, type
+        case taskId = "task_id"
+        case senderId = "sender_id"
+        case createdAt = "created_at"
+    }
+
+    nonisolated init(from persistent: PersistentTaskMessage) {
+        self.id = persistent.id
+        self.taskId = persistent.taskID
+        self.senderId = persistent.senderID
+        self.type = persistent.type
+        self.createdAt = persistent.createdAt
+    }
+
+    nonisolated init(id: UUID, taskId: UUID, senderId: UUID, type: String, createdAt: Date) {
+        self.id = id
+        self.taskId = taskId
+        self.senderId = senderId
+        self.type = type
+        self.createdAt = createdAt
+    }
 }
 
 // MARK: - SyncEntityKind Supabase 扩展
