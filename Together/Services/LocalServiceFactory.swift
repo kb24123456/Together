@@ -51,6 +51,8 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator
         )
 
+        let avatarUploader = AvatarStorageUploader(client: SupabaseClientProvider.shared)
+
         // CKSyncEngine coordinator (private DB, solo zone only)
         let healthMonitor = SyncHealthMonitor()
         let syncEngineCoordinator = SyncEngineCoordinator(
@@ -83,6 +85,7 @@ enum LocalServiceFactory {
             periodicTaskRepository: periodicTaskRepository,
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
+            avatarUploader: avatarUploader,
             cloudKitContainer: ckContainer,
             syncEngineCoordinator: syncEngineCoordinator
         )

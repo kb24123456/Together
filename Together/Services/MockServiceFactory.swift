@@ -51,6 +51,7 @@ enum MockServiceFactory {
             periodicTaskRepository: periodicTaskRepository,
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
+            avatarUploader: MockAvatarStorageUploader(),
             cloudKitContainer: ckContainer,
             syncEngineCoordinator: SyncEngineCoordinator(
                 ckContainer: ckContainer,

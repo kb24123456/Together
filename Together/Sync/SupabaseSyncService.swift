@@ -10,6 +10,8 @@ actor SupabaseSyncService {
     private nonisolated(unsafe) let client = SupabaseClientProvider.shared
     private nonisolated(unsafe) let logger = Logger(subsystem: "com.pigdog.Together", category: "SupabaseSync")
     private let modelContainer: ModelContainer
+    private let avatarUploader: AvatarStorageUploaderProtocol
+    private let avatarMediaStore: UserAvatarMediaStoreProtocol
 
     private var spaceID: UUID?
     private var myUserID: UUID?       // Supabase auth UUID
@@ -45,8 +47,14 @@ actor SupabaseSyncService {
     private var recentlyPushedIDs: [UUID: Date] = [:]
     private let echoWindow: TimeInterval = 10
 
-    init(modelContainer: ModelContainer) {
+    init(
+        modelContainer: ModelContainer,
+        avatarUploader: AvatarStorageUploaderProtocol,
+        avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore()
+    ) {
         self.modelContainer = modelContainer
+        self.avatarUploader = avatarUploader
+        self.avatarMediaStore = avatarMediaStore
     }
 
     /// 配置同步目标

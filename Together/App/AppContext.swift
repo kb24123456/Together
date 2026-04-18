@@ -205,7 +205,8 @@ final class AppContext {
         }
 
         let service = SupabaseSyncService(
-            modelContainer: PersistenceController.shared.container
+            modelContainer: PersistenceController.shared.container,
+            avatarUploader: container.avatarUploader
         )
         let localUserID = sessionStore.currentUser?.id
         await service.configure(spaceID: sharedSpaceID, myUserID: myUserID, myLocalUserID: localUserID)
