@@ -9,6 +9,19 @@ private final class InMemoryAvatarMediaStore: UserAvatarMediaStoreProtocol, @unc
     struct Saved { let fileName: String; let data: Data }
     private let lock = NSLock()
     private var _saved: [Saved] = []
+    private let onPersist: (@Sendable (String) -> Void)?
+
+    /// Stream that emits a fileName each time `persistAvatarData` is called.
+    let persistedStream: AsyncStream<String>
+    private let persistedContinuation: AsyncStream<String>.Continuation
+
+    init(onPersist: (@Sendable (String) -> Void)? = nil) {
+        self.onPersist = onPersist
+        var cont: AsyncStream<String>.Continuation!
+        self.persistedStream = AsyncStream { cont = $0 }
+        self.persistedContinuation = cont
+    }
+
     var savedFiles: [Saved] {
         lock.lock(); defer { lock.unlock() }
         return _saved
@@ -19,7 +32,7 @@ private final class InMemoryAvatarMediaStore: UserAvatarMediaStoreProtocol, @unc
     }
 
     nonisolated func cacheFileName(for assetID: String) -> String {
-        "asset-\(assetID.lowercased()).jpg"
+        UserAvatarStorage.fileName(forAssetID: assetID)
     }
 
     nonisolated func avatarData(named fileName: String) throws -> Data {
@@ -31,8 +44,11 @@ private final class InMemoryAvatarMediaStore: UserAvatarMediaStoreProtocol, @unc
     }
 
     nonisolated func persistAvatarData(_ data: Data, fileName: String) throws {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
         _saved.append(Saved(fileName: fileName, data: data))
+        lock.unlock()
+        persistedContinuation.yield(fileName)
+        onPersist?(fileName)
     }
 
     nonisolated func migrateAvatarIfNeeded(from sourceFileName: String, to destinationFileName: String) throws {}
@@ -225,11 +241,16 @@ struct SpaceMemberPullAvatarTests {
         let partner = try harness.loadPartnerMembership()
         #expect(partner.avatarVersion == 3)
         #expect(partner.avatarAssetID == "asset-new")
-        #expect(partner.avatarPhotoFileName == "https://example.test/sig.jpg")
+        let expected = store.cacheFileName(for: "asset-new")
+        #expect(partner.avatarPhotoFileName == expected)
 
-        // Let detached download complete
-        try await Task.sleep(for: .milliseconds(500))
-        #expect(store.savedFiles.contains { $0.fileName == "asset-asset-new.jpg" })
+        // Await the detached download by consuming from the async stream
+        var persistedFileName: String?
+        for await fileName in store.persistedStream.prefix(1) {
+            persistedFileName = fileName
+        }
+        #expect(persistedFileName == expected)
+        #expect(store.savedFiles.contains { $0.fileName == expected })
     }
 
     @Test("Pull skips download when remote version <= local")

@@ -76,8 +76,8 @@ actor SupabaseSyncService {
         self.myLocalUserID = myLocalUserID
     }
 
-    /// Test-only entry point: runs only the pullSpaceMembers step with a fixed `since` value.
-    func pullSpaceMembersForTesting(spaceID: UUID) async throws {
+    /// Test-only entry point to exercise pull without Supabase network I/O.
+    internal func pullSpaceMembersForTesting(spaceID: UUID) async throws {
         try await pullSpaceMembers(spaceID: spaceID, since: ISO8601DateFormatter().string(from: .distantPast))
     }
 
@@ -606,7 +606,11 @@ actor SupabaseSyncService {
         let shouldRefresh = versionIncreased || assetChanged
 
         if shouldRefresh {
-            partner.avatarPhotoFileName = dto.avatarUrl
+            if let assetID = dto.avatarAssetID, !assetID.isEmpty {
+                partner.avatarPhotoFileName = avatarMediaStore.cacheFileName(for: assetID)
+            } else {
+                partner.avatarPhotoFileName = nil
+            }
             partner.avatarAssetID = dto.avatarAssetID
             partner.avatarSystemName = dto.avatarSystemName
             partner.avatarVersion = remoteVersion
