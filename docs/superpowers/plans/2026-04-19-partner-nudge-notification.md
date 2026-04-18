@@ -1944,4 +1944,66 @@ Before Task 16 Step 4 (merge + push), confirm every spec requirement has landed:
 
 ## 实施日志
 
-（开工后追加）
+### Timeline
+开工：2026-04-19（`main` 基线 `b7ed82b`）
+合并到 main：2026-04-19（`6b3a620` → `main`）
+
+### Commit SHAs（按任务顺序）
+
+Tasks 1-7（客户端写入路径，此前已提交，本次仅纳入合并）:
+- `ef66b27` T1 migration 009 RLS INSERT policy
+- `e519010` T2 PersistentTaskMessage + TaskMessage domain
+- `1b9c5c7` T3 LocalTaskMessageRepository + tests
+- `f688577` T4 SyncEntityKind.taskMessage + table mapping
+- `42f0a9c` T5 TaskMessagePushDTO + pushUpsert insert
+- `39f2af1` T6 DI wiring（AppContainer + factories）
+- `ae8f18c` T7 sendReminderToPartner 双写 task_messages + tasks + 2 tests
+
+Tasks 8-15（本次会话新增）:
+- `dbc3743` T8 UI rename "催一下" → "提醒" + 删 AppContext 本地 notification 重复路径（含 0:fixup 清死代码 + 文档注释）
+- `dd112e0` T9 TASK_NUDGE category + COMPLETE_NUDGE action 注册
+- `38d36b2` T10a Edge Function 真 APNs（ES256 JWT + HTTP/2 + 410 清理 + always 200），MCP 部署 version 3
+- `8a6515e` T11 冷启动 deep-link 布线（AppDelegate + AppContext pending slot + TogetherApp 消费）
+- `0d90da4` T12 handleNotificationResponse 分支 TASK_NUDGE + complete/openTaskFromNotification 实装（router 改用 `currentSurface = .today`，移除冗余 MainActor.run）
+- `b021df3` T13 HomeView onReceive `.openTaskFromNudge` + ScrollViewReader scrollTo + 高亮状态
+- `e4e629b` T14 行内 🔔 `bell.badge.fill` 图标（HomeTimelineEntry 扩 lastActionAt）
+- `32223ee` T15 PairJoinObserver → pair 成功时 iff `.notDetermined` 自动请求通知权限
+
+最终 review 发现 1 Critical + 3 Important，回炉修复:
+- `0a6f0ae` C1 migration 010 drop `task_messages_sender_id_fkey`（此 FK 是阻塞：client 用 local UUID 作 sender_id，每次 INSERT 都会 FK 违规）
+- `145de82` I1 Edge Function fan-out 到 space 全体 + payload 嵌 `sender_id`（受身份模型不一致限制的 workaround），MCP 部署 version 4
+- `e69156c` T16-fix-1 客户端按 sender_id 自过滤（willPresent 返 `[]`、handleNotificationResponse early return）
+- `97b6341` T16-fix-2 AppNotificationDelegate 响应队列化（冷启动 COMPLETE 动作不再被丢弃）
+- `7db2e18` T16-fix-3 AppContext pendingHighlightTaskID slot + HomeView `.task` 兜底（冷启动深链滚动不再丢）
+- `8558108` T16-fix-4 `@MainActor` on AppNotificationDelegate + onReceive 消费 pending（修 data race + 双高亮）
+
+E2E 之后 UI 调试三轮:
+- `6f3cd29` 尝试 1 — listRowBackground 里加 RoundedRectangle cornerRadius 12 + 水平 padding（失败：cornerRadius 对不上 PairTimelineCard 的 28）
+- `0377782` 尝试 2 — tint 移进 PairTimelineCard 的 `.overlay`，跟 `.clipShape` 共享 cornerRadius 28（失败：整卡片变红，偏离白卡设计）
+- `6b3a620` 终态 — 彻底去掉 card-fill tint；保留 🔔 图标（T14） + 深链滚动动画（T13）作为唯一指示，白卡片保留
+
+### 关键技术决策
+
+1. **身份模型问题**：生产数据里 `tasks.creator_id` / `task_messages.sender_id`（本地 UUID，从 `sessionStore.currentUser.id`）与 `space_members.user_id`（另一套本地 UUID）**不一致**。这是本分支之前就存在的问题，原先 Edge Function 永远静默返回 "No partner" 200，所以没暴露。短期 workaround：Edge Function 改为对 space 内**所有** device_tokens fan-out + 客户端按 APNs `userInfo.sender_id` 过滤自收。长期修复留给后续分支。
+
+2. **冷启动路径上的三个同步陷阱**：
+   - COMPLETE action 先于 `AppNotificationDelegate.configure` 抵达 → 响应队列化（commit 97b6341）
+   - 深链 `NotificationCenter.post` 先于 HomeView 订阅 → `pendingHighlightTaskID` + `.task` 兜底（7db2e18）
+   - `pendingResponses` 读写跨执行上下文 → `@MainActor` 类级隔离（8558108）
+
+3. **UI tint 的最终形态**：原计划 Task 13/14 在"被提醒"状态下给行加珊瑚 tint（0.08 持续 / 0.18 深链），经三轮尝试发现任何可见的 fill 都会压过白卡设计。终态丢掉 card-fill tint，保留 🔔 图标 + 深链滚动动画。
+
+### 已验证不可行的方案
+
+- **方案 1**：`.listRowBackground(RoundedRectangle.fill(tint))` — tint 会横贯 list row 的完整宽度（包括 gutter），不限于卡片边界。
+- **方案 2**：`listRowBackground` 内加 `.padding(.horizontal, timelineRowHorizontalInset)` + `cornerRadius: 12` — cornerRadius 对不上 `PairTimelineCard` 自己的 28，视觉上还是糊。
+- **方案 3**：`.overlay(tint)` 放在 `PairTimelineCard` 的 `.clipShape` 之前 — tint 绝对定在卡片内，但覆盖整个白卡 surface，不管多低 opacity 都显著偏离白卡设计。
+- **方案 4（EF-side）**：按 `space_members.local_user_id` 做伴侣 join — 列存在（migration 003 加的）但生产数据里**全部为 NULL**，无法用。
+
+### 待续事项（下个分支）
+
+- 彻底修身份模型一致性（tasks.creator_id / task_messages.sender_id 和 space_members.user_id 对齐）—— 一旦对齐，Edge Function 可以回到精确的 partner 排除 + 去掉 client-side 自过滤。
+- Supabase APNs 从 sandbox 升到 production（entitlements 改 `aps-environment = production` 配合）。
+- 考虑把 APNs 发送加 retry（当前 non-410 错误只 log，不重试）。
+- Edge Function 的 display_name 查找现在永远 fallback 到 "伴侣"，身份对齐后可恢复真实名。
+
