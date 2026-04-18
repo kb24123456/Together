@@ -381,6 +381,9 @@ actor SupabaseSyncService {
 
         case .avatarAsset:
             break // 头像文件上传由 Storage 单独管理
+
+        case .taskMessage:
+            break // Placeholder; real payload implemented in Task 5
         }
     }
 
@@ -673,6 +676,7 @@ extension SyncEntityKind {
         case .space: return "spaces"
         case .memberProfile: return "space_members"
         case .avatarAsset: return "avatars"
+        case .taskMessage: return "task_messages"
         }
     }
 }

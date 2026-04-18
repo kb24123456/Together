@@ -9,6 +9,7 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
     case space
     case memberProfile
     case avatarAsset
+    case taskMessage   // Push-only event log entity (Supabase task_messages table)
 
     /// Maps entity kind to the CKRecord type used by the codec registry.
     var ckRecordType: String {
@@ -21,6 +22,7 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
         case .space: return SpaceRecordCodable.ckRecordType
         case .memberProfile: return MemberProfileRecordCodable.ckRecordType
         case .avatarAsset: return AvatarAssetRecordCodable.ckRecordType
+        case .taskMessage: return "TaskMessage"
         }
     }
 
@@ -42,6 +44,8 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
             self = .memberProfile
         case AvatarAssetRecordCodable.ckRecordType:
             self = .avatarAsset
+        case "TaskMessage":
+            self = .taskMessage
         default:
             return nil
         }

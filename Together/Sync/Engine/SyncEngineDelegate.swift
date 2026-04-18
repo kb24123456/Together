@@ -843,6 +843,9 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
                 data: nil
             )
             return AvatarAssetRecordCodable(asset: asset).toCKRecord(in: zoneID)
+
+        case .taskMessage:
+            return nil // Not synced via CloudKit; Supabase-only event log
         }
     }
 
