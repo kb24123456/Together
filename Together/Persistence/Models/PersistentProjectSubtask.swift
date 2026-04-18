@@ -10,6 +10,7 @@ final class PersistentProjectSubtask {
     var isCompleted: Bool
     var sortOrder: Int
     var updatedAt: Date
+    var isLocallyDeleted: Bool = false
 
     init(
         id: UUID,
@@ -18,7 +19,8 @@ final class PersistentProjectSubtask {
         title: String,
         isCompleted: Bool,
         sortOrder: Int,
-        updatedAt: Date = .now
+        updatedAt: Date = .now,
+        isLocallyDeleted: Bool = false
     ) {
         self.id = id
         self.projectID = projectID
@@ -27,6 +29,7 @@ final class PersistentProjectSubtask {
         self.isCompleted = isCompleted
         self.sortOrder = sortOrder
         self.updatedAt = updatedAt
+        self.isLocallyDeleted = isLocallyDeleted
     }
 }
 

@@ -238,7 +238,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
             throw RepositoryError.notFound
         }
 
-        context.delete(subtaskRecord)
+        // Tombstone 代替硬删，防止下次 pull 复活
+        subtaskRecord.isLocallyDeleted = true
+        subtaskRecord.updatedAt = .now
         record.updatedAt = .now
         try context.save()
 
@@ -284,6 +286,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
     ) throws -> [UUID: [ProjectSubtask]] {
         let allSubtasks = try context.fetch(
             FetchDescriptor<PersistentProjectSubtask>(
+                predicate: #Predicate<PersistentProjectSubtask> { $0.isLocallyDeleted == false },
                 sortBy: [SortDescriptor(\PersistentProjectSubtask.sortOrder, order: .forward)]
             )
         )
@@ -297,7 +300,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
 
     private func subtasks(for projectID: UUID, in context: ModelContext) throws -> [ProjectSubtask] {
         let descriptor = FetchDescriptor<PersistentProjectSubtask>(
-            predicate: #Predicate<PersistentProjectSubtask> { $0.projectID == projectID },
+            predicate: #Predicate<PersistentProjectSubtask> {
+                $0.projectID == projectID && $0.isLocallyDeleted == false
+            },
             sortBy: [SortDescriptor(\PersistentProjectSubtask.sortOrder, order: .forward)]
         )
         return try context.fetch(descriptor).map { $0.domainModel() }
@@ -305,7 +310,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
 
     private func resequenceSubtasks(projectID: UUID, context: ModelContext) throws {
         let descriptor = FetchDescriptor<PersistentProjectSubtask>(
-            predicate: #Predicate<PersistentProjectSubtask> { $0.projectID == projectID },
+            predicate: #Predicate<PersistentProjectSubtask> {
+                $0.projectID == projectID && $0.isLocallyDeleted == false
+            },
             sortBy: [SortDescriptor(\PersistentProjectSubtask.sortOrder, order: .forward)]
         )
         let records = try context.fetch(descriptor)

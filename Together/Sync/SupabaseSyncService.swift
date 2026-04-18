@@ -192,6 +192,7 @@ actor SupabaseSyncService {
             try await pullTasks(spaceID: spaceID, since: sinceISO)
             try await pullTaskLists(spaceID: spaceID, since: sinceISO)
             try await pullProjects(spaceID: spaceID, since: sinceISO)
+            try await pullProjectSubtasks(spaceID: spaceID, since: sinceISO)
             try await pullPeriodicTasks(spaceID: spaceID, since: sinceISO)
             try await pullSpaceMembers(spaceID: spaceID, since: sinceISO)
             try await pullSpaces(spaceID: spaceID, since: sinceISO)
@@ -243,6 +244,7 @@ actor SupabaseSyncService {
         let tasksStream = channel.postgresChange(AnyAction.self, schema: "public", table: "tasks", filter: spaceFilter)
         let listsStream = channel.postgresChange(AnyAction.self, schema: "public", table: "task_lists", filter: spaceFilter)
         let projectsStream = channel.postgresChange(AnyAction.self, schema: "public", table: "projects", filter: spaceFilter)
+        let subtasksStream = channel.postgresChange(AnyAction.self, schema: "public", table: "project_subtasks", filter: spaceFilter)
         let periodicStream = channel.postgresChange(AnyAction.self, schema: "public", table: "periodic_tasks", filter: spaceFilter)
         let membersStream = channel.postgresChange(AnyAction.self, schema: "public", table: "space_members", filter: spaceFilter)
         let spacesStream = channel.postgresChange(AnyAction.self, schema: "public", table: "spaces", filter: spacesFilter)
@@ -264,6 +266,11 @@ actor SupabaseSyncService {
         listeningTasks.append(Task { [weak self] in
             for await change in projectsStream {
                 await self?.handleRealtimeChange(change, table: "projects")
+            }
+        })
+        listeningTasks.append(Task { [weak self] in
+            for await change in subtasksStream {
+                await self?.handleRealtimeChange(change, table: "project_subtasks")
             }
         })
         listeningTasks.append(Task { [weak self] in
@@ -333,7 +340,7 @@ actor SupabaseSyncService {
         case .projectSubtask:
             let descriptor = FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate { $0.id == recordID })
             guard let subtask = try? context.fetch(descriptor).first else { return }
-            let dto = ProjectSubtaskDTO(from: subtask)
+            let dto = ProjectSubtaskDTO(from: subtask, spaceID: spaceID)
             try await client.from(tableName).upsert(dto, onConflict: "id").execute()
 
         case .periodicTask:
@@ -447,6 +454,23 @@ actor SupabaseSyncService {
 
     private func pullPeriodicTasks(spaceID: UUID, since: String) async throws {
         let rows: [PeriodicTaskDTO] = try await client.from("periodic_tasks")
+            .select()
+            .eq("space_id", value: spaceID.uuidString)
+            .gte("updated_at", value: since)
+            .execute()
+            .value
+
+        if !rows.isEmpty {
+            let context = ModelContext(modelContainer)
+            for dto in rows {
+                dto.applyToLocal(context: context)
+            }
+            try context.save()
+        }
+    }
+
+    private func pullProjectSubtasks(spaceID: UUID, since: String) async throws {
+        let rows: [ProjectSubtaskDTO] = try await client.from("project_subtasks")
             .select()
             .eq("space_id", value: spaceID.uuidString)
             .gte("updated_at", value: since)
@@ -996,6 +1020,7 @@ struct ProjectDTO: Codable, Sendable {
 /// 项目子任务 DTO
 struct ProjectSubtaskDTO: Codable, Sendable {
     let id: UUID
+    let spaceId: UUID
     let projectId: UUID
     let creatorId: UUID
     var title: String
@@ -1003,19 +1028,25 @@ struct ProjectSubtaskDTO: Codable, Sendable {
     var sortOrder: Int
     var updatedAt: Date
     var isDeleted: Bool
+    var deletedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, title
+        case spaceId = "space_id"
         case projectId = "project_id"
         case creatorId = "creator_id"
         case isCompleted = "is_completed"
         case sortOrder = "sort_order"
         case updatedAt = "updated_at"
         case isDeleted = "is_deleted"
+        case deletedAt = "deleted_at"
     }
 
-    nonisolated init(from persistent: PersistentProjectSubtask) {
+    /// `spaceID` 必填：project_subtasks 表的 space_id NOT NULL。
+    /// 一般由 pushUpsert 从 parent project 取得，测试 fixture 直接传。
+    nonisolated init(from persistent: PersistentProjectSubtask, spaceID: UUID) {
         self.id = persistent.id
+        self.spaceId = spaceID
         self.projectId = persistent.projectID
         self.creatorId = persistent.creatorID
         self.title = persistent.title
@@ -1023,6 +1054,7 @@ struct ProjectSubtaskDTO: Codable, Sendable {
         self.sortOrder = persistent.sortOrder
         self.updatedAt = persistent.updatedAt
         self.isDeleted = false
+        self.deletedAt = nil
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
@@ -1034,7 +1066,7 @@ struct ProjectSubtaskDTO: Codable, Sendable {
             existing.sortOrder = sortOrder
             existing.updatedAt = updatedAt
             if isDeleted {
-                context.delete(existing)
+                existing.isLocallyDeleted = true   // tombstone 代替 context.delete
             }
         } else if !isDeleted {
             let subtask = PersistentProjectSubtask(
