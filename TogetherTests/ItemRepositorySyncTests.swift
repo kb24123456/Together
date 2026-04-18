@@ -135,4 +135,71 @@ struct ItemRepositorySyncTests {
         #expect(remaining.count == 1)
         #expect(remaining.first?.isLocallyDeleted == true)
     }
+
+    @Test func updateItemStatus_records_upsert() async throws {
+        let container = try makeContainer()
+        let spy = SpyCoordinator()
+        let repo = LocalItemRepository(container: container, syncCoordinator: spy)
+
+        let spaceID = UUID()
+        let actorID = UUID()
+        let item = makeItem(spaceID: spaceID)
+        _ = try await repo.saveItem(item)
+
+        _ = try await repo.updateItemStatus(
+            itemID: item.id,
+            response: nil,
+            message: nil,
+            actorID: actorID
+        )
+
+        let recorded = await spy.recorded
+        let upserts = recorded.filter {
+            $0.entityKind == .task && $0.operation == .upsert
+        }
+        #expect(upserts.count == 2, "saveItem + updateItemStatus each record .upsert")
+        #expect(upserts.allSatisfy { $0.recordID == item.id })
+        #expect(upserts.allSatisfy { $0.spaceID == spaceID })
+    }
+
+    @Test func markCompleted_records_complete() async throws {
+        let container = try makeContainer()
+        let spy = SpyCoordinator()
+        let repo = LocalItemRepository(container: container, syncCoordinator: spy)
+
+        let spaceID = UUID()
+        let actorID = UUID()
+        let item = makeItem(spaceID: spaceID)
+        _ = try await repo.saveItem(item)
+
+        _ = try await repo.markCompleted(itemID: item.id, actorID: actorID, referenceDate: Date())
+
+        let recorded = await spy.recorded
+        let completes = recorded.filter { $0.operation == .complete }
+        #expect(completes.count == 1)
+        #expect(completes.first?.entityKind == .task)
+        #expect(completes.first?.recordID == item.id)
+        #expect(completes.first?.spaceID == spaceID)
+    }
+
+    @Test func markIncomplete_records_upsert() async throws {
+        let container = try makeContainer()
+        let spy = SpyCoordinator()
+        let repo = LocalItemRepository(container: container, syncCoordinator: spy)
+
+        let spaceID = UUID()
+        let actorID = UUID()
+        let item = makeItem(spaceID: spaceID)
+        _ = try await repo.saveItem(item)
+        _ = try await repo.markCompleted(itemID: item.id, actorID: actorID, referenceDate: Date())
+
+        _ = try await repo.markIncomplete(itemID: item.id, actorID: actorID, referenceDate: Date())
+
+        let recorded = await spy.recorded
+        // saveItem (.upsert) + markCompleted (.complete) + markIncomplete (.upsert)
+        let taskUpserts = recorded.filter {
+            $0.entityKind == .task && $0.operation == .upsert && $0.recordID == item.id
+        }
+        #expect(taskUpserts.count == 2, "saveItem + markIncomplete each record .upsert")
+    }
 }

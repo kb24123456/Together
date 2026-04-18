@@ -194,6 +194,13 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.updatedAt = .now
         record.update(from: item)
         try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
         return try hydratedItem(from: record, context: context)
     }
 
@@ -237,6 +244,13 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.updatedAt = .now
         record.update(from: item)
         try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .complete, recordID: itemID, spaceID: sid)
+            )
+        }
+
         return try hydratedItem(from: record, context: context)
     }
 
@@ -264,6 +278,13 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.updatedAt = .now
         record.update(from: item)
         try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
         return try hydratedItem(from: record, context: context)
     }
 
