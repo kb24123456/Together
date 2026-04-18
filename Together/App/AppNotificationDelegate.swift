@@ -6,10 +6,19 @@ private let notificationDelegateLogger = Logger(subsystem: "com.pigdog.Together"
 
 final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     private weak var appContext: AppContext?
+    private var pendingResponses: [UNNotificationResponse] = []
 
     func configure(appContext: AppContext) {
         self.appContext = appContext
         UNUserNotificationCenter.current().setNotificationCategories(NotificationActionCatalog.categories)
+        let drained = pendingResponses
+        pendingResponses.removeAll()
+        Task { @MainActor in
+            for response in drained {
+                notificationDelegateLogger.info("[Nudge] draining queued response actionIdentifier=\(response.actionIdentifier, privacy: .public)")
+                await appContext.handleNotificationResponse(response)
+            }
+        }
     }
 
     func userNotificationCenter(
@@ -31,7 +40,11 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard let appContext else { return }
-        await appContext.handleNotificationResponse(response)
+        if let appContext {
+            await appContext.handleNotificationResponse(response)
+        } else {
+            notificationDelegateLogger.info("[Nudge] appContext not yet configured, queuing response actionIdentifier=\(response.actionIdentifier, privacy: .public)")
+            pendingResponses.append(response)
+        }
     }
 }
