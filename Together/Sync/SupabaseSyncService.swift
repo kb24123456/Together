@@ -62,7 +62,12 @@ actor SupabaseSyncService {
             task.cancel()
         }
         listeningTasks.removeAll()
-        await realtimeChannel?.unsubscribe()
+        // 关键：必须用 removeChannel 而非 unsubscribe —— SDK 把 channel 按 topic 缓存在
+        // RealtimeClientV2 内部字典里；只 unsubscribe 不会从字典移除，下次同名 channel()
+        // 会返回旧实例，再注册 postgresChange 报 "Cannot add callbacks after subscribe()"
+        if let channel = realtimeChannel {
+            await client.realtimeV2.removeChannel(channel)
+        }
         realtimeChannel = nil
         spaceID = nil
         myUserID = nil
@@ -213,7 +218,15 @@ actor SupabaseSyncService {
         // 然后补拉最新数据
         await catchUp()
 
-        let channel = client.realtimeV2.channel("space-\(spaceID.uuidString)")
+        // 防御：如果 SDK 内部已经缓存了同名 channel（上次进程没干净 teardown，
+        // 或被其他实例创建），先 remove 再重新创建，避免 "Cannot add callbacks after subscribe()"
+        let topic = "space-\(spaceID.uuidString)"
+        let realtimeTopic = "realtime:\(topic)"
+        if let stale = client.realtimeV2.channels[realtimeTopic] {
+            await client.realtimeV2.removeChannel(stale)
+        }
+
+        let channel = client.realtimeV2.channel(topic)
 
         let spaceFilter = "space_id=eq.\(spaceID.uuidString)"
         let tasksStream = channel.postgresChange(AnyAction.self, schema: "public", table: "tasks", filter: spaceFilter)
