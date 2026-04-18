@@ -11,6 +11,7 @@ struct AppContainer {
     let userProfileRepository: UserProfileRepositoryProtocol
     let itemRepository: ItemRepositoryProtocol
     let taskTemplateRepository: TaskTemplateRepositoryProtocol
+    let taskMessageRepository: TaskMessageRepositoryProtocol
     let taskListRepository: TaskListRepositoryProtocol
     let projectRepository: ProjectRepositoryProtocol
     let decisionRepository: DecisionRepositoryProtocol

@@ -33,6 +33,7 @@ enum LocalServiceFactory {
 
         let itemRepository = LocalItemRepository(container: modelContainer, syncCoordinator: syncCoordinator)
         let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
+        let taskMessageRepository = LocalTaskMessageRepository(container: modelContainer)
         let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
@@ -67,6 +68,7 @@ enum LocalServiceFactory {
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
             taskTemplateRepository: taskTemplateRepository,
+            taskMessageRepository: taskMessageRepository,
             taskListRepository: LocalTaskListRepository(container: modelContainer, syncCoordinator: syncCoordinator),
             projectRepository: LocalProjectRepository(
                 container: modelContainer,
