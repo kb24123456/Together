@@ -15,6 +15,7 @@ final class PersistentPeriodicTask {
     var isActive: Bool
     var createdAt: Date
     var updatedAt: Date
+    var isLocallyDeleted: Bool = false
 
     init(
         id: UUID,
@@ -28,7 +29,8 @@ final class PersistentPeriodicTask {
         sortOrder: Double,
         isActive: Bool,
         createdAt: Date,
-        updatedAt: Date
+        updatedAt: Date,
+        isLocallyDeleted: Bool = false
     ) {
         self.id = id
         self.spaceID = spaceID
@@ -42,6 +44,7 @@ final class PersistentPeriodicTask {
         self.isActive = isActive
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.isLocallyDeleted = isLocallyDeleted
     }
 }
 

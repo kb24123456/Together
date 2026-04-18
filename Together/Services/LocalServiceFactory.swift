@@ -39,7 +39,10 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator,
             reminderScheduler: reminderScheduler
         )
-        let periodicTaskRepository = LocalPeriodicTaskRepository(container: modelContainer)
+        let periodicTaskRepository = LocalPeriodicTaskRepository(
+            container: modelContainer,
+            syncCoordinator: syncCoordinator
+        )
         let periodicTaskApplicationService = DefaultPeriodicTaskApplicationService(
             repository: periodicTaskRepository,
             reminderScheduler: reminderScheduler,

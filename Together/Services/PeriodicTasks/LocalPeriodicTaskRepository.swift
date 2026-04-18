@@ -3,16 +3,20 @@ import SwiftData
 
 actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
     private let container: ModelContainer
+    private let syncCoordinator: SyncCoordinatorProtocol?
 
-    init(container: ModelContainer) {
+    init(container: ModelContainer, syncCoordinator: SyncCoordinatorProtocol? = nil) {
         self.container = container
+        self.syncCoordinator = syncCoordinator
     }
 
     func fetchActiveTasks(spaceID: UUID?) async throws -> [PeriodicTask] {
         let context = ModelContext(container)
         let records = try context.fetch(
             FetchDescriptor<PersistentPeriodicTask>(
-                predicate: #Predicate<PersistentPeriodicTask> { $0.isActive == true }
+                predicate: #Predicate<PersistentPeriodicTask> {
+                    $0.isActive == true && $0.isLocallyDeleted == false
+                }
             )
         )
         return records
@@ -25,7 +29,9 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
         let context = ModelContext(container)
         let records = try context.fetch(
             FetchDescriptor<PersistentPeriodicTask>(
-                predicate: #Predicate<PersistentPeriodicTask> { $0.id == taskID }
+                predicate: #Predicate<PersistentPeriodicTask> {
+                    $0.id == taskID && $0.isLocallyDeleted == false
+                }
             )
         )
         return records.first?.domainModel()
@@ -39,14 +45,24 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
             )
         )
 
+        var savedTask = task
+        savedTask.updatedAt = .now
+
         if let record = existing.first {
-            record.update(from: task)
+            record.update(from: savedTask)
+            record.isLocallyDeleted = false   // 重新保存即恢复
         } else {
-            context.insert(PersistentPeriodicTask(task: task))
+            context.insert(PersistentPeriodicTask(task: savedTask))
         }
 
         try context.save()
-        return task
+
+        if let sid = savedTask.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: savedTask.id, spaceID: sid)
+            )
+        }
+        return savedTask
     }
 
     func deleteTask(taskID: UUID) async throws {
@@ -56,23 +72,30 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
                 predicate: #Predicate<PersistentPeriodicTask> { $0.id == taskID }
             )
         )
-        for record in records {
-            context.delete(record)
-        }
+        guard let record = records.first else { return }
+
+        let spaceID = record.spaceID
+        record.isLocallyDeleted = true
+        record.updatedAt = .now
         try context.save()
+
+        if let sid = spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .periodicTask, operation: .delete, recordID: taskID, spaceID: sid)
+            )
+        }
     }
 
     func markCompleted(taskID: UUID, periodKey: String, completedAt: Date) async throws -> PeriodicTask {
         let context = ModelContext(container)
         let records = try context.fetch(
             FetchDescriptor<PersistentPeriodicTask>(
-                predicate: #Predicate<PersistentPeriodicTask> { $0.id == taskID }
+                predicate: #Predicate<PersistentPeriodicTask> {
+                    $0.id == taskID && $0.isLocallyDeleted == false
+                }
             )
         )
-
-        guard let record = records.first else {
-            throw PeriodicTaskError.notFound
-        }
+        guard let record = records.first else { throw PeriodicTaskError.notFound }
 
         var task = record.domainModel()
         if !task.isCompleted(forPeriodKey: periodKey) {
@@ -80,8 +103,13 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
             task.updatedAt = completedAt
             record.update(from: task)
             try context.save()
-        }
 
+            if let sid = record.spaceID {
+                await syncCoordinator?.recordLocalChange(
+                    SyncChange(entityKind: .periodicTask, operation: .complete, recordID: taskID, spaceID: sid)
+                )
+            }
+        }
         return task
     }
 
@@ -89,13 +117,12 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
         let context = ModelContext(container)
         let records = try context.fetch(
             FetchDescriptor<PersistentPeriodicTask>(
-                predicate: #Predicate<PersistentPeriodicTask> { $0.id == taskID }
+                predicate: #Predicate<PersistentPeriodicTask> {
+                    $0.id == taskID && $0.isLocallyDeleted == false
+                }
             )
         )
-
-        guard let record = records.first else {
-            throw PeriodicTaskError.notFound
-        }
+        guard let record = records.first else { throw PeriodicTaskError.notFound }
 
         var task = record.domainModel()
         task.completions.removeAll { $0.periodKey == periodKey }
@@ -103,6 +130,11 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
         record.update(from: task)
         try context.save()
 
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: taskID, spaceID: sid)
+            )
+        }
         return task
     }
 }

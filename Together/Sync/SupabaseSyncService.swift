@@ -1121,7 +1121,7 @@ struct PeriodicTaskDTO: Codable, Sendable {
             existing.isActive = isActive
             existing.updatedAt = updatedAt
             if isDeleted {
-                context.delete(existing)
+                existing.isLocallyDeleted = true   // tombstone 代替 context.delete
             }
         } else if !isDeleted {
             let periodic = PersistentPeriodicTask(
