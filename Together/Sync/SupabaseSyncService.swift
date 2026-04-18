@@ -708,6 +708,7 @@ struct TaskDTO: Codable, Sendable {
     var deletedAt: Date?
     // 双人协作必需字段（Plan A 新增）
     var executionRole: String
+    var assignmentState: String
     var responseHistory: String?
     var assignmentMessages: String?
     var reminderRequestedAt: Date?
@@ -737,6 +738,7 @@ struct TaskDTO: Codable, Sendable {
         case isDeleted = "is_deleted"
         case deletedAt = "deleted_at"
         case executionRole = "execution_role"
+        case assignmentState = "assignment_state"
         case responseHistory = "response_history"
         case assignmentMessages = "assignment_messages"
         case reminderRequestedAt = "reminder_requested_at"
@@ -778,6 +780,7 @@ struct TaskDTO: Codable, Sendable {
         self.deletedAt = persistent.isLocallyDeleted ? Date() : nil
         // 双人协作字段
         self.executionRole = persistent.executionRoleRawValue
+        self.assignmentState = persistent.assignmentStateRawValue
         self.responseHistory = String(data: persistent.responseHistoryData, encoding: .utf8)
         self.assignmentMessages = String(data: persistent.assignmentMessagesData, encoding: .utf8)
         self.reminderRequestedAt = persistent.reminderRequestedAt
@@ -813,6 +816,7 @@ struct TaskDTO: Codable, Sendable {
         try c.encode(isDeleted, forKey: .isDeleted)
         try c.encodeIfPresent(deletedAt, forKey: .deletedAt)
         try c.encode(executionRole, forKey: .executionRole)
+        try c.encode(assignmentState, forKey: .assignmentState)
         try c.encodeIfPresent(responseHistory, forKey: .responseHistory)
         try c.encodeIfPresent(assignmentMessages, forKey: .assignmentMessages)
         try c.encodeIfPresent(reminderRequestedAt, forKey: .reminderRequestedAt)
@@ -841,6 +845,7 @@ struct TaskDTO: Codable, Sendable {
             existing.archivedAt = archivedAt
             existing.updatedAt = updatedAt
             existing.executionRoleRawValue = executionRole
+            existing.assignmentStateRawValue = assignmentState
             if let h = responseHistory, let d = h.data(using: .utf8) { existing.responseHistoryData = d }
             if let m = assignmentMessages, let d = m.data(using: .utf8) { existing.assignmentMessagesData = d }
             existing.reminderRequestedAt = reminderRequestedAt
@@ -851,9 +856,7 @@ struct TaskDTO: Codable, Sendable {
             }
         } else if !isDeleted {
             // INSERT: 本地不存在 & 未被软删除 → 创建新记录
-            let itemStatus = ItemStatus(rawValue: status) ?? .inProgress
-            let derivedAssignmentState = itemStatus.assignmentState.rawValue
-
+            // assignmentState 直接用 DTO 传来的（服务端权威），不再从 status 派生
             let item = PersistentItem(
                 id: id,
                 spaceID: spaceId,
@@ -869,7 +872,7 @@ struct TaskDTO: Codable, Sendable {
                 hasExplicitTime: hasExplicitTime,
                 remindAt: remindAt,
                 statusRawValue: status,
-                assignmentStateRawValue: derivedAssignmentState,
+                assignmentStateRawValue: assignmentState,
                 latestResponseData: nil,
                 responseHistoryData: responseHistory?.data(using: .utf8) ?? Data(),
                 assignmentMessagesData: assignmentMessages?.data(using: .utf8) ?? Data(),

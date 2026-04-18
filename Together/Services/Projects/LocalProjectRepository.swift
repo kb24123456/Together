@@ -189,6 +189,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         }
 
         subtaskRecord.isCompleted.toggle()
+        subtaskRecord.updatedAt = .now
         record.updatedAt = .now
         try normalizeProjectStatus(record: record, context: context)
         try context.save()
@@ -220,6 +221,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         }
 
         subtaskRecord.title = trimmed
+        subtaskRecord.updatedAt = .now
         record.updatedAt = .now
         try context.save()
 
