@@ -631,6 +631,14 @@ final class AppContext {
         if let taskIDString = response.notification.request.content.userInfo["task_id"] as? String,
            let taskID = UUID(uuidString: taskIDString),
            response.notification.request.content.categoryIdentifier == NotificationActionCatalog.taskNudgeCategoryIdentifier {
+            // Drop self-notifications: the Edge Function fans out to every device in the space,
+            // including the sender's own device. Ignore the push if sender_id matches current user.
+            if let senderIDString = response.notification.request.content.userInfo["sender_id"] as? String,
+               let currentUserID = sessionStore.currentUser?.id.uuidString,
+               senderIDString.lowercased() == currentUserID.lowercased() {
+                appContextLogger.info("[Nudge] handleNotificationResponse dropped self-notification senderID=\(senderIDString, privacy: .private)")
+                return
+            }
             await bootstrapIfNeeded()
             switch response.actionIdentifier {
             case NotificationActionCatalog.completeNudgeActionIdentifier:
