@@ -18,10 +18,17 @@ struct User: Identifiable, Hashable, Sendable {
     var preferences: NotificationSettings
 
     var avatarCacheFileName: String? {
+        // Prefer the explicit filename stored on the record — partner avatars
+        // carry a versioned name (`asset-{id}-v{N}.jpg`) that breaks UIImage's
+        // URL cache on each remote update. Fall back to the legacy
+        // assetID-derived name when avatarPhotoFileName is absent.
+        if let avatarPhotoFileName, !avatarPhotoFileName.isEmpty {
+            return avatarPhotoFileName
+        }
         if let avatarAssetID {
             return UserAvatarStorage.fileName(forAssetID: avatarAssetID)
         }
-        return avatarPhotoFileName
+        return nil
     }
 
     var avatarAsset: UserAvatarAsset {
