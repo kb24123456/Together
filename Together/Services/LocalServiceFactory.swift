@@ -37,6 +37,7 @@ enum LocalServiceFactory {
         let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: taskMessageRepository,
             syncCoordinator: syncCoordinator,
             reminderScheduler: reminderScheduler
         )

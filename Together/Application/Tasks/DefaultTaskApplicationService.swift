@@ -2,16 +2,19 @@ import Foundation
 
 actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     private let itemRepository: ItemRepositoryProtocol
+    private let taskMessageRepository: TaskMessageRepositoryProtocol
     private let syncCoordinator: SyncCoordinatorProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
     private let calendar = Calendar.current
 
     init(
         itemRepository: ItemRepositoryProtocol,
+        taskMessageRepository: TaskMessageRepositoryProtocol,
         syncCoordinator: SyncCoordinatorProtocol,
         reminderScheduler: ReminderSchedulerProtocol
     ) {
         self.itemRepository = itemRepository
+        self.taskMessageRepository = taskMessageRepository
         self.syncCoordinator = syncCoordinator
         self.reminderScheduler = reminderScheduler
     }
@@ -425,7 +428,10 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return saved
     }
 
-    /// No creatorID permission check: task creator sends reminders to the assignee (partner).
+    /// Task creator sends reminders to the assignee (partner). No creator
+    /// permission check (creator IS the sender). Dual-writes: bumps
+    /// reminder_requested_at on the task (foreground-fallback cache) AND
+    /// inserts a task_messages(type='nudge') row (APNs trigger source).
     func sendReminderToPartner(
         in spaceID: UUID,
         taskID: UUID,
@@ -434,24 +440,32 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         var item = try await existingTask(in: spaceID, taskID: taskID)
         guard item.assigneeMode == .partner else { throw RepositoryError.notFound }
 
-        // 冷却检查：30 秒内不允许重复催促
+        // 30 秒冷却
         if let lastReminder = item.reminderRequestedAt,
            Date.now.timeIntervalSince(lastReminder) < 30 {
             return item
         }
 
+        // 1. 更新 tasks.reminder_requested_at（前台兜底派生字段）
         item.reminderRequestedAt = .now
         item.updatedAt = .now
-
         let saved = try await itemRepository.saveItem(item)
         await syncCoordinator.recordLocalChange(
-            SyncChange(
-                entityKind: .task,
-                operation: .upsert,
-                recordID: saved.id,
-                spaceID: spaceID
-            )
+            SyncChange(entityKind: .task, operation: .upsert, recordID: saved.id, spaceID: spaceID)
         )
+
+        // 2. 插入 task_messages(type='nudge') 事件（push 触发 APNs）
+        let messageID = UUID()
+        try await taskMessageRepository.insertNudge(
+            messageID: messageID,
+            taskID: taskID,
+            senderID: actorID,
+            createdAt: Date.now
+        )
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
+        )
+
         return saved
     }
 

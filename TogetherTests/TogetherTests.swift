@@ -1177,6 +1177,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1212,6 +1213,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1247,6 +1249,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1291,6 +1294,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1416,6 +1420,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1456,6 +1461,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1570,6 +1576,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1610,6 +1617,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: NoopTaskMessageRepository(),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1661,6 +1669,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: NoopTaskMessageRepository(),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1752,6 +1761,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1791,6 +1801,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1839,6 +1850,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1882,6 +1894,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1916,6 +1929,7 @@ struct TogetherTests {
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: NoopTaskMessageRepository(),
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -3355,6 +3369,7 @@ struct TogetherTests {
             itemRepository: itemRepository,
             taskApplicationService: DefaultTaskApplicationService(
                 itemRepository: itemRepository,
+                taskMessageRepository: NoopTaskMessageRepository(),
                 syncCoordinator: NoOpSyncCoordinator(),
                 reminderScheduler: MockReminderScheduler()
             ),
@@ -4421,4 +4436,11 @@ private func makeUserProfileContainer(storeURL: URL) throws -> ModelContainer {
         cloudKitDatabase: .none
     )
     return try ModelContainer(for: PersistentUserProfile.self, configurations: configuration)
+}
+
+// MARK: - NoopTaskMessageRepository
+
+actor NoopTaskMessageRepository: TaskMessageRepositoryProtocol {
+    func insertNudge(messageID: UUID, taskID: UUID, senderID: UUID, createdAt: Date) async throws {}
+    func fetchMessage(messageID: UUID) async throws -> TaskMessage? { nil }
 }

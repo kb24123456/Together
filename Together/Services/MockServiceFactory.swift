@@ -18,6 +18,7 @@ enum MockServiceFactory {
         let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
+            taskMessageRepository: MockTaskMessageRepository(),
             syncCoordinator: syncCoordinator,
             reminderScheduler: reminderScheduler
         )

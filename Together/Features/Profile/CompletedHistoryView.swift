@@ -189,6 +189,7 @@ struct CompletedHistoryView: View {
                 itemRepository: MockItemRepository(),
                 taskApplicationService: DefaultTaskApplicationService(
                     itemRepository: MockItemRepository(),
+                    taskMessageRepository: MockTaskMessageRepository(),
                     syncCoordinator: NoOpSyncCoordinator(),
                     reminderScheduler: MockReminderScheduler()
                 ),
