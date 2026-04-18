@@ -28,6 +28,10 @@ final class RoutinesViewModel {
     var detailTask: PeriodicTask?
     var detailDetent: PresentationDetent = .height(316)
 
+    /// Fired after Repository/ApplicationService has already called recordLocalChange.
+    /// AppContext wires this to flushRecordedSharedMutation to trigger a Supabase push.
+    var onSharedMutationRecorded: ((SyncChange) -> Void)?
+
     init(
         sessionStore: SessionStore,
         periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol,
@@ -36,6 +40,12 @@ final class RoutinesViewModel {
         self.sessionStore = sessionStore
         self.periodicTaskApplicationService = periodicTaskApplicationService
         self.taskTemplateRepository = taskTemplateRepository
+    }
+
+    private func emitMutationRecorded(taskID: UUID, operation: SyncOperationKind, spaceID: UUID) {
+        onSharedMutationRecorded?(
+            SyncChange(entityKind: .periodicTask, operation: operation, recordID: taskID, spaceID: spaceID)
+        )
     }
 
     // MARK: - Grouped Tasks
@@ -155,6 +165,7 @@ final class RoutinesViewModel {
             if let index = tasks.firstIndex(where: { $0.id == taskID }) {
                 tasks[index] = updated
             }
+            emitMutationRecorded(taskID: taskID, operation: .upsert, spaceID: spaceID)
         } catch {
             // Reload to ensure consistency
             await load()
@@ -171,6 +182,7 @@ final class RoutinesViewModel {
                 draft: draft
             )
             tasks.append(created)
+            emitMutationRecorded(taskID: created.id, operation: .upsert, spaceID: spaceID)
         } catch {
             await load()
         }
@@ -189,6 +201,7 @@ final class RoutinesViewModel {
             if let index = tasks.firstIndex(where: { $0.id == taskID }) {
                 tasks[index] = updated
             }
+            emitMutationRecorded(taskID: taskID, operation: .upsert, spaceID: spaceID)
         } catch {
             await load()
         }
@@ -210,6 +223,7 @@ final class RoutinesViewModel {
         do {
             try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID, actorID: actorID)
             tasks.removeAll { $0.id == taskID }
+            emitMutationRecorded(taskID: taskID, operation: .delete, spaceID: spaceID)
         } catch {
             await load()
         }

@@ -387,6 +387,7 @@ final class AppContext {
         await listsViewModel.load()
         await projectsViewModel.load()
         await calendarViewModel.load()
+        await routinesViewModel.load()
 
         let currentUserID = sessionStore.currentUser?.id
         let allItems: [Item]
@@ -496,6 +497,22 @@ final class AppContext {
             guard let self else { return }
             Task {
                 await self.submitSharedMutation(change)
+            }
+        }
+        // RoutinesViewModel: Repository + ApplicationService both recordLocalChange,
+        // so we only need to trigger the push (same pattern as HomeViewModel).
+        routinesViewModel.onSharedMutationRecorded = { [weak self] change in
+            guard let self else { return }
+            Task {
+                await self.flushRecordedSharedMutation(change)
+            }
+        }
+        // ProjectsViewModel: Repository records save/delete/subtask mutations.
+        // ViewModel only needs to trigger the push.
+        projectsViewModel.onSharedMutationRecorded = { [weak self] change in
+            guard let self else { return }
+            Task {
+                await self.flushRecordedSharedMutation(change)
             }
         }
         configureSyncEngineForwarding()

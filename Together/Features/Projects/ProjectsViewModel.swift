@@ -10,9 +10,20 @@ final class ProjectsViewModel {
     var loadState: LoadableState = .idle
     var projects: [Project] = []
 
+    /// Fired after Repository recordLocalChange. AppContext wires this to
+    /// flushRecordedSharedMutation to trigger the Supabase push.
+    var onSharedMutationRecorded: ((SyncChange) -> Void)?
+
     init(sessionStore: SessionStore, projectRepository: ProjectRepositoryProtocol) {
         self.sessionStore = sessionStore
         self.projectRepository = projectRepository
+    }
+
+    private func emitMutationRecorded(projectID: UUID, operation: SyncOperationKind) {
+        guard let spaceID = sessionStore.currentSpace?.id else { return }
+        onSharedMutationRecorded?(
+            SyncChange(entityKind: .project, operation: operation, recordID: projectID, spaceID: spaceID)
+        )
     }
 
     var activeProjects: [Project] {
@@ -34,6 +45,7 @@ final class ProjectsViewModel {
                 actorID: actorID
             )
             replaceProject(updated)
+            emitMutationRecorded(projectID: projectID, operation: updated.status == .completed ? .complete : .upsert)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -53,6 +65,7 @@ final class ProjectsViewModel {
                 actorID: creatorID
             )
             replaceProject(updated)
+            emitMutationRecorded(projectID: projectID, operation: .upsert)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -67,6 +80,7 @@ final class ProjectsViewModel {
                 actorID: actorID
             )
             replaceProject(updated)
+            emitMutationRecorded(projectID: projectID, operation: .upsert)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -82,6 +96,7 @@ final class ProjectsViewModel {
                 actorID: actorID
             )
             replaceProject(updated)
+            emitMutationRecorded(projectID: projectID, operation: .upsert)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -96,6 +111,7 @@ final class ProjectsViewModel {
                 actorID: actorID
             )
             replaceProject(updated)
+            emitMutationRecorded(projectID: projectID, operation: .upsert)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -106,6 +122,7 @@ final class ProjectsViewModel {
         do {
             let archived = try await projectRepository.archiveProject(projectID: projectID, actorID: actorID)
             replaceProject(archived)
+            emitMutationRecorded(projectID: projectID, operation: .archive)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -126,6 +143,7 @@ final class ProjectsViewModel {
         do {
             try await projectRepository.deleteProject(projectID: projectID, actorID: actorID)
             projects.removeAll { $0.id == projectID }
+            emitMutationRecorded(projectID: projectID, operation: .delete)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
@@ -136,6 +154,7 @@ final class ProjectsViewModel {
         do {
             let updated = try await projectRepository.saveProject(project, actorID: actorID)
             replaceProject(updated)
+            emitMutationRecorded(projectID: updated.id, operation: .upsert)
         } catch {
             loadState = .failed(error.localizedDescription)
         }
