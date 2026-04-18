@@ -18,11 +18,12 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
 
         if let spaceID {
             descriptor = FetchDescriptor(
-                predicate: #Predicate<PersistentProject> { $0.spaceID == spaceID },
+                predicate: #Predicate<PersistentProject> { $0.spaceID == spaceID && $0.isLocallyDeleted == false },
                 sortBy: [SortDescriptor(\PersistentProject.updatedAt, order: .reverse)]
             )
         } else {
             descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentProject> { $0.isLocallyDeleted == false },
                 sortBy: [SortDescriptor(\PersistentProject.updatedAt, order: .reverse)]
             )
         }
@@ -47,6 +48,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
                 throw PermissionError.notCreator
             }
             record.update(from: savedProject)
+            record.isLocallyDeleted = false
         } else {
             context.insert(PersistentProject(project: savedProject))
         }
@@ -98,14 +100,18 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         )
         let subtaskRecords = try context.fetch(subtaskDescriptor)
         for subtaskRecord in subtaskRecords {
+            subtaskRecord.isLocallyDeleted = true
+            subtaskRecord.updatedAt = .now
+        }
+        record.isLocallyDeleted = true
+        record.updatedAt = .now
+        try context.save()
+
+        for subtaskRecord in subtaskRecords {
             await syncCoordinator.recordLocalChange(
                 SyncChange(entityKind: .projectSubtask, operation: .delete, recordID: subtaskRecord.id, spaceID: spaceID)
             )
-            context.delete(subtaskRecord)
         }
-        context.delete(record)
-        try context.save()
-
         await syncCoordinator.recordLocalChange(
             SyncChange(entityKind: .project, operation: .delete, recordID: projectID, spaceID: spaceID)
         )

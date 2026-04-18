@@ -15,6 +15,7 @@ final class PersistentProject {
     var createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+    var isLocallyDeleted: Bool = false
 
     init(
         id: UUID,
@@ -28,7 +29,8 @@ final class PersistentProject {
         remindAt: Date?,
         createdAt: Date,
         updatedAt: Date,
-        completedAt: Date?
+        completedAt: Date?,
+        isLocallyDeleted: Bool = false
     ) {
         self.id = id
         self.spaceID = spaceID
@@ -42,6 +44,7 @@ final class PersistentProject {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt
+        self.isLocallyDeleted = isLocallyDeleted
     }
 }
 

@@ -979,8 +979,9 @@ struct ProjectDTO: Codable, Sendable {
         self.createdAt = persistent.createdAt
         self.updatedAt = persistent.updatedAt
         self.completedAt = persistent.completedAt
-        self.isDeleted = false
-        self.deletedAt = nil
+        // 软删除使用 tombstone；isLocallyDeleted=true 表示要让对方也删除
+        self.isDeleted = persistent.isLocallyDeleted
+        self.deletedAt = persistent.isLocallyDeleted ? Date() : nil
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
@@ -996,7 +997,7 @@ struct ProjectDTO: Codable, Sendable {
             existing.completedAt = completedAt
             existing.updatedAt = updatedAt
             if isDeleted {
-                context.delete(existing)
+                existing.isLocallyDeleted = true
             }
         } else if !isDeleted {
             let project = PersistentProject(
