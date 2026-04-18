@@ -31,6 +31,7 @@ async function sendAPNs(
   deviceToken: string,
   notification: { title: string; body: string },
   taskId: string | undefined,
+  senderId: string | undefined,
 ): Promise<{ ok: boolean; status: number; deleteToken: boolean }> {
   const jwt = await getApnsJWT();
   const payload = {
@@ -41,6 +42,7 @@ async function sendAPNs(
       category: "TASK_NUDGE",
     },
     task_id: taskId,
+    sender_id: senderId,
   };
   const url = `https://api.sandbox.push.apple.com/3/device/${deviceToken}`;
   const res = await fetch(url, {
@@ -60,29 +62,28 @@ function buildNotification(
   table: string,
   type: string,
   record: Record<string, unknown>,
-  actorName: string,
 ): { title: string; body: string } | null {
   if (table === "tasks" && type === "INSERT") {
     if (record.assignee_mode === "partner") {
-      return { title: "新任务", body: `${actorName} 给你分配了「${record.title}」` };
+      return { title: "新任务", body: `伴侣给你分配了「${record.title}」` };
     }
     return null;
   }
   if (table === "tasks" && type === "UPDATE") {
     if (record.status === "completed") {
-      return { title: "任务完成", body: `${actorName} 完成了「${record.title}」` };
+      return { title: "任务完成", body: `伴侣完成了「${record.title}」` };
     }
     return null;
   }
-  if (table === "task_messages") {
+  if (table === "task_messages" && type === "INSERT") {
     if (record.type === "nudge") {
-      return { title: "提醒", body: `${actorName} 提醒你完成任务` };
+      return { title: "提醒", body: "伴侣提醒你完成任务" };
     }
     if (record.type === "comment") {
-      return { title: "留言", body: `${actorName} 给你留了言` };
+      return { title: "留言", body: "伴侣给你留了言" };
     }
     if (record.type === "rps_result") {
-      return { title: "✊✌️✋", body: `${actorName} 发起了石头剪刀布！` };
+      return { title: "✊✌️✋", body: "伴侣发起了石头剪刀布！" };
     }
   }
   return null;
@@ -93,11 +94,10 @@ Deno.serve(async (req: Request) => {
     const payload = await req.json();
     const { type, table, record } = payload;
 
-    const actorId = record?.creator_id || record?.sender_id;
-    if (!actorId) return new Response("No actor", { status: 200 });
+    const actorId: string | undefined = record?.creator_id || record?.sender_id;
 
-    // Look up space_id — either on record directly, or via tasks join for task_messages.
-    let spaceId = record?.space_id;
+    // Resolve space_id — either on record directly, or via tasks join for task_messages.
+    let spaceId: string | undefined = record?.space_id;
     if (!spaceId && table === "task_messages") {
       const { data: task } = await supabase
         .from("tasks")
@@ -108,35 +108,29 @@ Deno.serve(async (req: Request) => {
     }
     if (!spaceId) return new Response("No space", { status: 200 });
 
-    // Find partner (everyone else in space).
+    // Identity-routing workaround: the client writes tasks/task_messages with
+    // sessionStore.currentUser.id (local UUID), which does not match
+    // space_members.user_id in production data. Rather than trying to join
+    // through a missing bridge column, fan out to every device_token that
+    // belongs to any member of this space and let the receiving client
+    // filter out self-notifications by comparing sender_id in the APNs
+    // userInfo against its own currentUser.id.
     const { data: members } = await supabase
       .from("space_members")
       .select("user_id")
-      .eq("space_id", spaceId)
-      .neq("user_id", actorId);
+      .eq("space_id", spaceId);
 
-    if (!members || members.length === 0) return new Response("No partner", { status: 200 });
-    const partnerId = members[0].user_id;
+    if (!members || members.length === 0) return new Response("No members", { status: 200 });
 
-    // Partner's device tokens.
+    const memberIds = members.map((m) => m.user_id);
     const { data: tokens } = await supabase
       .from("device_tokens")
       .select("token")
-      .eq("user_id", partnerId);
+      .in("user_id", memberIds);
 
     if (!tokens || tokens.length === 0) return new Response("No tokens", { status: 200 });
 
-    // Actor display name.
-    const { data: actor } = await supabase
-      .from("space_members")
-      .select("display_name")
-      .eq("space_id", spaceId)
-      .eq("user_id", actorId)
-      .single();
-
-    const actorName = actor?.display_name || "伴侣";
-
-    const notification = buildNotification(table, type, record, actorName);
+    const notification = buildNotification(table, type, record);
     if (!notification) return new Response("Skip", { status: 200 });
 
     const taskId: string | undefined =
@@ -145,7 +139,7 @@ Deno.serve(async (req: Request) => {
     let sentCount = 0;
     for (const { token } of tokens) {
       try {
-        const result = await sendAPNs(token, notification, taskId);
+        const result = await sendAPNs(token, notification, taskId, actorId);
         if (result.ok) {
           sentCount++;
         } else if (result.deleteToken) {
