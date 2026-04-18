@@ -432,6 +432,7 @@ struct HomeView: View {
                         .transition(timelineTransition)
                         .onReceive(NotificationCenter.default.publisher(for: .openTaskFromNudge)) { notif in
                             guard let id = notif.userInfo?["task_id"] as? UUID else { return }
+                            _ = appContext.consumePendingHighlightTaskID()
                             highlight(id, via: scrollProxy)
                         }
                         .task {
