@@ -805,11 +805,6 @@ struct HomeView: View {
                         }
                     )
                 } else {
-                    let rowTint: Color? = {
-                        if highlightedTaskID == entry.id { return AppTheme.colors.coral.opacity(0.18) }
-                        if isNudged(entry) { return AppTheme.colors.coral.opacity(0.08) }
-                        return nil
-                    }()
                     HomeTimelineRow(
                         entry: entry,
                         isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.id, on: viewModel.selectedDate),
@@ -828,8 +823,7 @@ struct HomeView: View {
                         },
                         onOpenDetail: {
                             viewModel.presentItemDetail(entry.id)
-                        },
-                        backgroundTint: rowTint
+                        }
                     )
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button {
@@ -969,12 +963,7 @@ struct HomeView: View {
     }
 
     private func pairTimelineCardRow(entry: HomeTimelineEntry) -> some View {
-        let tint: Color? = {
-            if highlightedTaskID == entry.id { return AppTheme.colors.coral.opacity(0.18) }
-            if isNudged(entry) { return AppTheme.colors.coral.opacity(0.08) }
-            return nil
-        }()
-        return PairTimelineCard(
+        PairTimelineCard(
             entry: entry,
             quickReplyMessages: appContext.sessionStore.currentUser?.preferences.pairQuickReplyMessages
                 ?? NotificationSettings.defaultPairQuickReplyMessages,
@@ -1032,8 +1021,7 @@ struct HomeView: View {
                 Task {
                     await viewModel.sendReminderToPartner(entry.id)
                 }
-            },
-            backgroundTintOverlay: tint
+            }
         )
         .id(entry.id)
         .listRowInsets(
@@ -1992,7 +1980,6 @@ private struct HomeTimelineRow: View {
     let titleMinimumScaleFactor: CGFloat
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
-    var backgroundTint: Color? = nil
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
@@ -2077,13 +2064,6 @@ private struct HomeTimelineRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-        }
-        .background {
-            if let backgroundTint {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(backgroundTint)
-                    .allowsHitTesting(false)
-            }
         }
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
@@ -2281,7 +2261,6 @@ private struct PairTimelineCard: View {
     let onResend: () -> Void
     let onDelete: () -> Void
     let onSendReminder: () -> Void
-    var backgroundTintOverlay: Color? = nil
     @State private var isMorphingToAssigned = false
     @State private var completionAnimationCount = 0
     @State private var completionBadgeScale: CGFloat = 1
@@ -2323,12 +2302,6 @@ private struct PairTimelineCard: View {
                 }
                 AppTheme.colors.surfaceElevated
                     .frame(maxWidth: .infinity)
-            }
-        }
-        .overlay {
-            if let tint = backgroundTintOverlay {
-                tint
-                    .allowsHitTesting(false)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
