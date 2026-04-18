@@ -9,6 +9,7 @@ final class PersistentPairMembership {
     var nickname: String
     var joinedAt: Date
     var avatarSystemName: String?
+    /// Remote signed URL for the avatar JPEG (post migration 011). Name kept for SwiftData migration stability.
     var avatarPhotoFileName: String?
     var avatarAssetID: String?
     var avatarVersion: Int = 0
