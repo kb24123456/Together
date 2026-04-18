@@ -600,10 +600,12 @@ actor SupabaseSyncService {
         partner.nickname = dto.displayName
 
         let remoteVersion = dto.avatarVersion ?? 0
-        let versionIncreased = remoteVersion > partner.avatarVersion
-        let assetChanged = remoteVersion == partner.avatarVersion
-            && partner.avatarAssetID != dto.avatarAssetID
-        let shouldRefresh = versionIncreased || assetChanged
+        // Refresh on ANY divergence, not just forward bumps. Reinstall / restore
+        // from CloudKit can regress remote_version below local_version while the
+        // underlying bytes are actually new; a strict `>` gate would miss those.
+        let versionDiffers = remoteVersion != partner.avatarVersion
+        let assetChanged = partner.avatarAssetID != dto.avatarAssetID
+        let shouldRefresh = versionDiffers || assetChanged
 
         if shouldRefresh {
             if let assetID = dto.avatarAssetID, !assetID.isEmpty {

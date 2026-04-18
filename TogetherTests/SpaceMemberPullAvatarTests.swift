@@ -257,16 +257,16 @@ struct SpaceMemberPullAvatarTests {
         #expect(store.savedFiles.contains { $0.fileName == expected })
     }
 
-    @Test("Pull skips download when remote version <= local")
-    func pullSkipsDownloadOnStale() async throws {
+    @Test("Pull skips download when remote version == local && asset_id unchanged")
+    func pullSkipsWhenFullyInSync() async throws {
         let uploader = MockAvatarStorageUploader()
         let store = InMemoryAvatarMediaStore()
         let harness = try await PullTestHarness(uploader: uploader, store: store)
-        try harness.seedPartnerMembership(avatarVersion: 5, avatarAssetID: "asset-existing")
+        try harness.seedPartnerMembership(avatarVersion: 5, avatarAssetID: "asset-same")
         harness.setRemoteRow(
-            avatarVersion: 3,
-            avatarURL: "https://example.test/old.jpg",
-            avatarAssetID: "asset-old",
+            avatarVersion: 5,
+            avatarURL: "https://example.test/any.jpg",
+            avatarAssetID: "asset-same",
             avatarSystemName: nil
         )
 
@@ -275,8 +275,34 @@ struct SpaceMemberPullAvatarTests {
         try await Task.sleep(for: .milliseconds(300))
         #expect(store.savedFiles.isEmpty)
         let partner = try harness.loadPartnerMembership()
-        #expect(partner.avatarAssetID == "asset-existing")
+        #expect(partner.avatarAssetID == "asset-same")
         #expect(partner.avatarVersion == 5)
+    }
+
+    @Test("Pull refreshes when remote version regresses (reinstall scenario)")
+    func pullRefreshesOnVersionRegression() async throws {
+        let uploader = MockAvatarStorageUploader()
+        uploader.stubbedDownloadBytes = Data([0xAA, 0xBB])
+        let store = InMemoryAvatarMediaStore()
+        let harness = try await PullTestHarness(uploader: uploader, store: store)
+        try harness.seedPartnerMembership(avatarVersion: 6, avatarAssetID: "asset-same")
+        harness.setRemoteRow(
+            avatarVersion: 2,
+            avatarURL: "https://example.test/regressed.jpg",
+            avatarAssetID: "asset-same",
+            avatarSystemName: nil
+        )
+
+        try await harness.runPullSpaceMembers()
+
+        let partner = try harness.loadPartnerMembership()
+        #expect(partner.avatarVersion == 2)
+        let expected = store.partnerCacheFileName(for: "asset-same", version: 2)
+        #expect(partner.avatarPhotoFileName == expected)
+
+        var persisted: String?
+        for await name in store.persistedStream.prefix(1) { persisted = name }
+        #expect(persisted == expected)
     }
 
     @Test("Pull refreshes when remote version equal but asset_id differs")
