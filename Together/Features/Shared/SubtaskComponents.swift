@@ -41,6 +41,10 @@ struct SubtaskCheckbox: View {
                     .contentTransition(.symbolEffect(.replace))
                     .symbolEffect(.bounce, options: .speed(1.15), value: animationCount)
                     .opacity(isCompleted ? 1 : 0)
+                    .offset(
+                        x: AppTheme.metrics.checkmarkVisualOffset.width,
+                        y: AppTheme.metrics.checkmarkVisualOffset.height
+                    )
             }
             .frame(width: 28, height: 28)
             .scaleEffect(isAnimating ? badgeScale : 1)

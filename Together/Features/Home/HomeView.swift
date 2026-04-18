@@ -109,10 +109,7 @@ struct HomeView: View {
     }
 
     private var backgroundView: some View {
-        Group {
-            homeCanvasColor
-        }
-        .ignoresSafeArea()
+        GradientGridBackground()
     }
 
     private func bottomChromeContentMask(bottomInset: CGFloat) -> some View {
@@ -482,7 +479,7 @@ struct HomeView: View {
             Color.clear
                 .frame(height: 10)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(homeCanvasColor)
+                .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
             if viewModel.showsOverdueCapsule {
@@ -495,7 +492,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(homeCanvasColor)
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
             }
@@ -516,7 +513,7 @@ struct HomeView: View {
                         trailing: timelineRowHorizontalInset
                     )
                 )
-                .listRowBackground(homeCanvasColor)
+                .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
 
@@ -536,7 +533,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(homeCanvasColor)
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
                 if viewModel.showsCompletedItems {
@@ -546,7 +543,7 @@ struct HomeView: View {
                 Color.clear
                     .frame(height: timelineBottomInset)
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(homeCanvasColor)
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
         }
@@ -556,7 +553,6 @@ struct HomeView: View {
         .scrollDisabled(isOverlayModeActive)
         .environment(\.defaultMinListRowHeight, 0)
         .safeAreaPadding(.top, 0)
-        .background(homeCanvasColor)
         .applyScrollEdgeProtection()
         .refreshable {
             if appContext.sessionStore.hasActivePairSpace {
@@ -576,7 +572,7 @@ struct HomeView: View {
             Color.clear
                 .frame(height: 10)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(homeCanvasColor)
+                .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
             if viewModel.showsOverdueCapsule {
@@ -589,7 +585,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(homeCanvasColor)
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
 
@@ -609,7 +605,7 @@ struct HomeView: View {
                         trailing: timelineRowHorizontalInset
                     )
                 )
-                .listRowBackground(homeCanvasColor)
+                .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
 
@@ -626,7 +622,7 @@ struct HomeView: View {
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(homeCanvasColor)
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
                 if viewModel.showsCompletedItems, viewModel.completedTimelineEntries.isEmpty == false {
@@ -636,7 +632,7 @@ struct HomeView: View {
                 Color.clear
                     .frame(height: timelineBottomInset)
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(homeCanvasColor)
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
         }
@@ -645,7 +641,6 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .scrollDisabled(isOverlayModeActive)
         .environment(\.defaultMinListRowHeight, 0)
-        .background(homeCanvasColor)
         .applyScrollEdgeProtection()
         .refreshable {
             if appContext.sessionStore.hasActivePairSpace {
@@ -738,7 +733,7 @@ struct HomeView: View {
             Color.clear
                 .frame(height: timelineBottomInset)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(homeCanvasColor)
+                .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .modifier(CompletedSectionMotionModifier(isVisible: isCompletedSectionVisible))
                 .allowsHitTesting(false)
@@ -828,7 +823,7 @@ struct HomeView: View {
                     trailing: timelineRowHorizontalInset
                 )
             )
-            .listRowBackground(isCompletedRow ? Color.clear : homeCanvasColor)
+            .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .insertedListItemMotion(
                 isInserted: viewModel.isAnimatingInsertion(for: entry.id),
@@ -905,7 +900,7 @@ struct HomeView: View {
                     trailing: timelineRowHorizontalInset
                 )
             )
-            .listRowBackground(homeCanvasColor)
+            .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .onTapGesture {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -1001,7 +996,7 @@ struct HomeView: View {
                 trailing: timelineRowHorizontalInset
             )
         )
-        .listRowBackground(homeCanvasColor)
+        .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .insertedListItemMotion(
             isInserted: viewModel.isAnimatingInsertion(for: entry.id),
@@ -2156,6 +2151,10 @@ private struct HomeTimelineRow: View {
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, options: .speed(1.15), value: completionAnimationCount)
                 .opacity(checkmarkOpacity)
+                .offset(
+                    x: AppTheme.metrics.checkmarkVisualOffset.width,
+                    y: AppTheme.metrics.checkmarkVisualOffset.height
+                )
         }
         .scaleEffect(isAnimatingCompletion ? badgeScale : 1)
         .shadow(
@@ -3000,6 +2999,10 @@ private struct PairCompletionBadge: View {
                     .contentTransition(.symbolEffect(.replace))
                     .symbolEffect(.bounce, options: .speed(1.15), value: animationCount)
                     .opacity((isCompleted || isAnimatingCompletion) ? 1 : 0)
+                    .offset(
+                        x: AppTheme.metrics.checkmarkVisualOffset.width,
+                        y: AppTheme.metrics.checkmarkVisualOffset.height
+                    )
             }
             .frame(width: 40, height: 40)
             .scaleEffect(scale)

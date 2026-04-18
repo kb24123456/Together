@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# Swift
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# Icon / asset editing backups
+**/*.png.bak
+**/*.jpg.bak
+
+# Editor
+*.swp
+*~
+.vscode/

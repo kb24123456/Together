@@ -39,7 +39,7 @@ struct ProjectsView: View {
             if style == .layer {
                 AppTheme.colors.projectLayerBackground.ignoresSafeArea()
             } else {
-                AppTheme.colors.background.ignoresSafeArea()
+                GradientGridBackground()
             }
         }
     }
@@ -1039,6 +1039,10 @@ private struct ProjectCompletionBadge: View {
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, options: .speed(1.15), value: animationCount)
                 .opacity(isCompleted ? 1 : 0)
+                .offset(
+                    x: AppTheme.metrics.checkmarkVisualOffset.width,
+                    y: AppTheme.metrics.checkmarkVisualOffset.height
+                )
         }
         .scaleEffect(isAnimating ? badgeScale : 1)
         .shadow(

@@ -43,7 +43,7 @@ struct ListsView: View {
             .padding(AppTheme.spacing.xl)
         }
         .applyScrollEdgeProtection()
-        .background(AppTheme.colors.background.ignoresSafeArea())
+        .background(GradientGridBackground())
         .navigationTitle("清单")
         .toolbar(.visible, for: .navigationBar)
         .task {

@@ -97,6 +97,14 @@ enum AppTheme {
 
         static let shadow = Color(light: .init(red: 0.10, green: 0.10, blue: 0.09).opacity(0.08),
                                   dark: .black.opacity(0.30))
+
+        // MARK: - Gradient Grid Background
+
+        static let gradientBottom = Color(light: .init(red: 0.961, green: 0.938, blue: 0.922),
+                                          dark: .init(red: 0.130, green: 0.118, blue: 0.112))
+
+        static let gridLine = Color(light: .black.opacity(0.022),
+                                    dark: .white.opacity(0.02))
     }
 
     enum spacing {
@@ -111,6 +119,11 @@ enum AppTheme {
     enum radius {
         static let card: CGFloat = 20
         static let pill: CGFloat = 999
+    }
+
+    enum metrics {
+        /// SF Symbol "checkmark" 视觉居中补偿：字形短臂偏左下、长臂延伸右上，需向左下微调
+        static let checkmarkVisualOffset: CGSize = CGSize(width: -0.5, height: 0.5)
     }
 
     enum typography {
@@ -204,7 +217,7 @@ extension View {
     @ViewBuilder
     func applyScrollEdgeProtection() -> some View {
         if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
+            self.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
         } else {
             self
         }

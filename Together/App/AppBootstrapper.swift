@@ -20,6 +20,7 @@ final class AppBootstrapper {
     func bootstrapIfNeeded() async {
         guard phase == .idle else { return }
 
+        let startedAt = ContinuousClock.now
         phase = .bootstrapping
         StartupTrace.mark("AppBootstrapper.bootstrap.begin")
 
@@ -31,6 +32,13 @@ final class AppBootstrapper {
         self.appContext = appContext
 
         await appContext.bootstrapIfNeeded()
+
+        // Ensure the launch animation has time to play out.
+        let minLaunchDuration: Duration = .milliseconds(1200)
+        let elapsed = ContinuousClock.now - startedAt
+        if elapsed < minLaunchDuration {
+            try? await Task.sleep(for: minLaunchDuration - elapsed)
+        }
 
         if appContext.sessionStore.authState == .signedIn {
             phase = .ready

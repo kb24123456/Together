@@ -90,6 +90,10 @@ struct RoutinesTaskRow: View {
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, options: .speed(1.15), value: completionAnimationCount)
                 .opacity(isCompleted ? 1 : 0)
+                .offset(
+                    x: AppTheme.metrics.checkmarkVisualOffset.width,
+                    y: AppTheme.metrics.checkmarkVisualOffset.height
+                )
         }
         .scaleEffect(isAnimatingCompletion ? badgeScale : 1)
         .shadow(

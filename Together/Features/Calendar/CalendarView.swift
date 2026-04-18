@@ -78,7 +78,7 @@ struct CalendarView: View {
             .padding(.bottom, showsNavigationChrome ? AppTheme.spacing.xl : 164)
         }
         .applyScrollEdgeProtection()
-        .background(AppTheme.colors.background.ignoresSafeArea())
+        .background(GradientGridBackground())
         .navigationTitle("日历")
         .toolbar(showsNavigationChrome ? .visible : .hidden, for: .navigationBar)
         .task {
@@ -444,7 +444,7 @@ private extension View {
     func applyCalendarScrollEdgeProtection() -> some View {
         if #available(iOS 26.0, *) {
             self
-                .scrollEdgeEffectStyle(.hard, for: [.top, .bottom])
+                .scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
         } else {
             self
         }

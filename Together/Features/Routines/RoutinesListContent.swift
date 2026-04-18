@@ -55,7 +55,7 @@ struct RoutinesListContent: View {
                 taskList
             }
         }
-        .background(AppTheme.colors.background)
+        .background(GradientGridBackground())
         .sheet(isPresented: $viewModel.isEditorPresented) {
             RoutinesEditorSheet(viewModel: viewModel)
         }

@@ -48,6 +48,7 @@ struct TogetherApp: App {
                     AppLaunchView()
                 }
             }
+            .animation(.easeInOut(duration: 0.30), value: appBootstrapper.phase)
                 .task {
                     StartupTrace.mark("TogetherApp.root.task.start")
                     UNUserNotificationCenter.current().delegate = notificationDelegate

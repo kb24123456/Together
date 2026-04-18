@@ -43,7 +43,7 @@ struct AppRootView: View {
                 overlayChrome(bottomInset: proxy.safeAreaInsets.bottom, router: router)
             }
             .background(
-                AppTheme.colors.background.ignoresSafeArea()
+                GradientGridBackground()
             )
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
