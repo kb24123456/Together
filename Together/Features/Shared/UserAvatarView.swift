@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 #if canImport(UIKit)
 import UIKit
@@ -77,6 +78,12 @@ private struct AvatarPhotoView: View {
     #if canImport(UIKit)
     @State private var loadedImage: UIImage?
     @State private var reloadTick: Int = 0
+
+    private var partnerAvatarPublisher: AnyPublisher<Notification, Never> {
+        NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
     #endif
 
     var body: some View {
@@ -86,7 +93,7 @@ private struct AvatarPhotoView: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: size, height: size)
-                .onReceive(NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)) { notif in
+                .onReceive(partnerAvatarPublisher) { notif in
                     handleDownloadNotification(notif)
                 }
         } else if let image = UserAvatarRuntimeStore.image(for: fileName) {
@@ -94,7 +101,7 @@ private struct AvatarPhotoView: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: size, height: size)
-                .onReceive(NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)) { notif in
+                .onReceive(partnerAvatarPublisher) { notif in
                     handleDownloadNotification(notif)
                 }
         } else {
@@ -102,7 +109,7 @@ private struct AvatarPhotoView: View {
                 .task(id: "\(fileName)-\(reloadTick)") {
                     await loadImageIfNeeded()
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)) { notif in
+                .onReceive(partnerAvatarPublisher) { notif in
                     handleDownloadNotification(notif)
                 }
         }
