@@ -16,11 +16,12 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
 
         if let spaceID {
             listDescriptor = FetchDescriptor(
-                predicate: #Predicate<PersistentTaskList> { $0.spaceID == spaceID },
+                predicate: #Predicate<PersistentTaskList> { $0.spaceID == spaceID && $0.isLocallyDeleted == false },
                 sortBy: [SortDescriptor(\PersistentTaskList.sortOrder)]
             )
         } else {
             listDescriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentTaskList> { $0.isLocallyDeleted == false },
                 sortBy: [SortDescriptor(\PersistentTaskList.sortOrder)]
             )
         }
@@ -49,6 +50,7 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
                 throw PermissionError.notCreator
             }
             record.update(from: savedList)
+            record.isLocallyDeleted = false
         } else {
             context.insert(PersistentTaskList(list: savedList))
         }
@@ -93,11 +95,11 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
 
         if let spaceID {
             descriptor = FetchDescriptor(
-                predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID && $0.isArchived == false }
+                predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID && $0.isArchived == false && $0.isLocallyDeleted == false }
             )
         } else {
             descriptor = FetchDescriptor(
-                predicate: #Predicate<PersistentItem> { $0.isArchived == false }
+                predicate: #Predicate<PersistentItem> { $0.isArchived == false && $0.isLocallyDeleted == false }
             )
         }
 

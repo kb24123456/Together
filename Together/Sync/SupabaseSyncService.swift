@@ -899,8 +899,9 @@ struct TaskListDTO: Codable, Sendable {
         self.isArchived = persistent.isArchived
         self.createdAt = persistent.createdAt
         self.updatedAt = persistent.updatedAt
-        self.isDeleted = false
-        self.deletedAt = nil
+        // 软删除使用 tombstone；isLocallyDeleted=true 表示要让对方也删除
+        self.isDeleted = persistent.isLocallyDeleted
+        self.deletedAt = persistent.isLocallyDeleted ? Date() : nil
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
@@ -914,7 +915,7 @@ struct TaskListDTO: Codable, Sendable {
             existing.isArchived = isArchived
             existing.updatedAt = updatedAt
             if isDeleted {
-                context.delete(existing)
+                existing.isLocallyDeleted = true   // tombstone 代替 context.delete
             }
         } else if !isDeleted {
             let list = PersistentTaskList(

@@ -13,6 +13,7 @@ final class PersistentTaskList {
     var isArchived: Bool
     var createdAt: Date
     var updatedAt: Date
+    var isLocallyDeleted: Bool = false
 
     init(
         id: UUID,
@@ -24,7 +25,8 @@ final class PersistentTaskList {
         sortOrder: Double,
         isArchived: Bool,
         createdAt: Date,
-        updatedAt: Date
+        updatedAt: Date,
+        isLocallyDeleted: Bool = false
     ) {
         self.id = id
         self.spaceID = spaceID
@@ -36,6 +38,7 @@ final class PersistentTaskList {
         self.isArchived = isArchived
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.isLocallyDeleted = isLocallyDeleted
     }
 }
 
