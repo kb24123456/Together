@@ -1053,8 +1053,9 @@ struct ProjectSubtaskDTO: Codable, Sendable {
         self.isCompleted = persistent.isCompleted
         self.sortOrder = persistent.sortOrder
         self.updatedAt = persistent.updatedAt
-        self.isDeleted = false
-        self.deletedAt = nil
+        // 软删除使用 tombstone；isLocallyDeleted=true 表示要让对方也删除
+        self.isDeleted = persistent.isLocallyDeleted
+        self.deletedAt = persistent.isLocallyDeleted ? Date() : nil
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
@@ -1132,8 +1133,9 @@ struct PeriodicTaskDTO: Codable, Sendable {
         self.isActive = persistent.isActive
         self.createdAt = persistent.createdAt
         self.updatedAt = persistent.updatedAt
-        self.isDeleted = false
-        self.deletedAt = nil
+        // 软删除使用 tombstone；isLocallyDeleted=true 表示要让对方也删除
+        self.isDeleted = persistent.isLocallyDeleted
+        self.deletedAt = persistent.isLocallyDeleted ? Date() : nil
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
