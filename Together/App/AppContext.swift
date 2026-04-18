@@ -1,9 +1,12 @@
 import CloudKit
 import Foundation
 import Observation
+import os
 import Supabase
 import UIKit
 import UserNotifications
+
+private let appContextLogger = Logger(subsystem: "com.pigdog.Together", category: "AppContext")
 
 @MainActor
 @Observable
@@ -349,7 +352,7 @@ final class AppContext {
 
     private func submitSharedMutation(_ change: SyncChange) async {
         let serviceDescription = supabaseSyncService == nil ? "nil" : "active"
-        print("[SharedMutation] submit: kind=\(change.entityKind.rawValue) op=\(change.operation.rawValue) recordID=\(change.recordID.uuidString.prefix(8)) spaceID=\(change.spaceID.uuidString.prefix(8)) supabaseService=\(serviceDescription)")
+        appContextLogger.info("[SharedMutation] submit kind=\(change.entityKind.rawValue, privacy: .public) op=\(change.operation.rawValue, privacy: .public) recordID=\(change.recordID.uuidString, privacy: .public) spaceID=\(change.spaceID.uuidString, privacy: .public) supabaseService=\(serviceDescription, privacy: .public)")
         await container.syncCoordinator.recordLocalChange(change)
         await supabaseSyncService?.push()
         await refreshSharedSyncStatusAsync()
@@ -536,9 +539,18 @@ final class AppContext {
 
     private func configureSyncEngineForwarding() {
         let coordinator = container.syncEngineCoordinator
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             if let localCoordinator = container.syncCoordinator as? LocalSyncCoordinator {
-                await localCoordinator.setOnChangeRecorded { change in
+                await localCoordinator.setOnChangeRecorded { [weak self] change in
+                    // 只有 solo 变更才转发给 CKSyncEngine；pair 变更只走 Supabase
+                    let activeShared: UUID? = await MainActor.run { [weak self] in
+                        self?.activeSharedSpaceID
+                    }
+                    if let activeShared, change.spaceID == activeShared {
+                        // pair 共享空间的变更，跳过 CKSync
+                        return
+                    }
                     await coordinator.recordChange(change)
                 }
             }
