@@ -88,52 +88,30 @@ private struct AvatarPhotoView: View {
 
     var body: some View {
         #if canImport(UIKit)
-        if let loadedImage {
-            Image(uiImage: loadedImage)
-                .resizable()
-                .scaledToFill()
-                .frame(width: size, height: size)
-                .onReceive(partnerAvatarPublisher) { notif in
-                    handleDownloadNotification(notif)
-                }
-        } else if let image = UserAvatarRuntimeStore.image(for: fileName) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: size, height: size)
-                .onReceive(partnerAvatarPublisher) { notif in
-                    handleDownloadNotification(notif)
-                }
-        } else {
-            fallbackView
-                .task(id: "\(fileName)-\(reloadTick)") {
-                    await loadImageIfNeeded()
-                }
-                .onReceive(partnerAvatarPublisher) { notif in
-                    handleDownloadNotification(notif)
-                }
+        Group {
+            if let loadedImage {
+                Image(uiImage: loadedImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size, height: size)
+            } else {
+                fallbackView
+            }
+        }
+        .task(id: "\(fileName)#\(reloadTick)") {
+            await reloadFromDisk()
+        }
+        .onReceive(partnerAvatarPublisher) { _ in
+            // Any partner avatar write invalidates our in-memory copy so the
+            // next disk read sees the freshly written bytes.
+            UserAvatarRuntimeStore.remove(fileName: fileName)
+            loadedImage = nil
+            reloadTick &+= 1
         }
         #else
         fallbackView
         #endif
     }
-
-    #if canImport(UIKit)
-    private func handleDownloadNotification(_ notif: Notification) {
-        // Partner avatar just landed on disk for some fileName — if it matches
-        // the one this view is rendering, drop our cached UIImage state and
-        // force a reload on the next render.
-        guard
-            let assetID = notif.userInfo?["assetID"] as? String,
-            let version = notif.userInfo?["version"] as? Int
-        else { return }
-        let expected = UserAvatarStorage.partnerFileName(forAssetID: assetID, version: version)
-        guard expected == fileName else { return }
-        loadedImage = nil
-        UserAvatarRuntimeStore.remove(fileName: fileName)
-        reloadTick &+= 1
-    }
-    #endif
 
     private var fallbackView: some View {
         Circle()
@@ -148,25 +126,15 @@ private struct AvatarPhotoView: View {
 
     #if canImport(UIKit)
     @MainActor
-    private func loadImageIfNeeded() async {
-        guard loadedImage == nil else { return }
-
-        if let cachedImage = UserAvatarRuntimeStore.image(for: fileName) {
-            loadedImage = cachedImage
-            return
-        }
-
+    private func reloadFromDisk() async {
         await Task.yield()
-
-        guard let image = UIImage(
-            contentsOfFile: UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
-        ) else {
+        let path = UserAvatarStorage.fileURL(fileName: fileName).path(percentEncoded: false)
+        if let image = UIImage(contentsOfFile: path) {
+            UserAvatarRuntimeStore.store(image, for: fileName)
+            loadedImage = image
+        } else {
             loadedImage = nil
-            return
         }
-
-        UserAvatarRuntimeStore.store(image, for: fileName)
-        loadedImage = image
     }
     #endif
 }
