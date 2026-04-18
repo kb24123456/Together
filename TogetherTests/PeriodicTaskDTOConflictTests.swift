@@ -38,7 +38,7 @@ struct PeriodicTaskDTOConflictTests {
         #expect(fetched.first?.title == "newer")
     }
 
-    @Test func tombstone_preserved_when_stale_upsert_arrives() throws {
+    @Test func tombstone_not_resurrected_by_later_remote_upsert() throws {
         let container = try makeContainer()
         let context = ModelContext(container)
         let id = UUID()

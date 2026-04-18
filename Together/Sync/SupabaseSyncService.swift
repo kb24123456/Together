@@ -1082,9 +1082,9 @@ struct PeriodicTaskDTO: Codable, Sendable {
         case deletedAt = "deleted_at"
     }
 
-    nonisolated init(from persistent: PersistentPeriodicTask, spaceID: UUID? = nil) {
+    nonisolated init(from persistent: PersistentPeriodicTask, spaceID: UUID) {
         self.id = persistent.id
-        self.spaceId = spaceID ?? persistent.spaceID ?? UUID()
+        self.spaceId = spaceID
         self.creatorId = persistent.creatorID
         self.title = persistent.title
         self.notes = persistent.notes

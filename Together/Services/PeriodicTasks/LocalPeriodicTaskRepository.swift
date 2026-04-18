@@ -72,7 +72,7 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
                 predicate: #Predicate<PersistentPeriodicTask> { $0.id == taskID }
             )
         )
-        guard let record = records.first else { return }
+        guard let record = records.first else { throw PeriodicTaskError.notFound }
 
         let spaceID = record.spaceID
         record.isLocallyDeleted = true
