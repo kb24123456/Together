@@ -77,7 +77,13 @@ actor LocalPairingService: PairingServiceProtocol {
         )
     }
 
+    /// 协议要求的方法签名（本地生成 sharedSpaceID）
     func createInvite(from inviterID: UUID, displayName: String) async throws -> Invite {
+        try await createInvite(from: inviterID, displayName: displayName, sharedSpaceID: nil)
+    }
+
+    /// 扩展版本：允许外部传入 sharedSpaceID（Supabase 统一 UUID 场景）
+    func createInvite(from inviterID: UUID, displayName: String, sharedSpaceID: UUID?) async throws -> Invite {
         let context = ModelContext(container)
         let invites = (try? context.fetch(FetchDescriptor<PersistentInvite>())) ?? []
         let now = Date.now
@@ -97,8 +103,9 @@ actor LocalPairingService: PairingServiceProtocol {
             return pending.domainModel
         }
 
+        let resolvedSharedSpaceID = sharedSpaceID ?? UUID()
         let sharedSpace = Space(
-            id: UUID(),
+            id: resolvedSharedSpaceID,
             type: .pair,
             displayName: PairSpace.defaultSharedSpaceDisplayName,
             ownerUserID: inviterID,
@@ -249,6 +256,18 @@ actor LocalPairingService: PairingServiceProtocol {
 
         let inviterID = existingMemberships.first(where: { $0.userID != responderID })?.userID ?? responderID
         return await currentPairingContext(for: inviterID)
+    }
+
+    /// 更新本地邀请码（用 Supabase 生成的码替换本地码）
+    func updateInviteCode(pairSpaceID: UUID, newCode: String) async {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentInvite>(
+            predicate: #Predicate<PersistentInvite> { $0.pairSpaceID == pairSpaceID }
+        )
+        if let invite = (try? context.fetch(descriptor))?.first {
+            invite.inviteCode = newCode
+            try? context.save()
+        }
     }
 
     func acceptInviteByCode(_ code: String, responderID: UUID, responderDisplayName: String) async throws -> PairingContext {

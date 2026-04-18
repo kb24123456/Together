@@ -11,6 +11,7 @@ enum SupabaseClientProvider: Sendable {
 
     nonisolated(unsafe) static let shared = SupabaseClient(
         supabaseURL: projectURL,
-        supabaseKey: anonKey
+        supabaseKey: anonKey,
+        options: .init(auth: .init(emitLocalSessionAsInitialSession: true))
     )
 }
