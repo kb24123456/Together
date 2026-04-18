@@ -774,8 +774,14 @@ extension Notification.Name {
 
 extension AppContext: PairJoinObserver {
     func onSuccessfulPairJoin() async {
+        // 1) Prompt for notification permission once (added by partner-nudge feature)
         let status = await container.notificationService.authorizationStatus()
-        guard status == .notDetermined else { return }
-        _ = try? await container.notificationService.requestAuthorization()
+        if status == .notDetermined {
+            _ = try? await container.notificationService.requestAuthorization()
+        }
+        // 2) Trigger an immediate catchUp so the partner's existing avatar / state
+        //    is pulled into the local DB before the user hits Home.
+        await supabaseSyncService?.catchUp()
+        appContextLogger.info("[PairJoin] post-pair catchUp completed")
     }
 }
