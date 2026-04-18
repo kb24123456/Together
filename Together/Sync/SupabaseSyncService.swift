@@ -344,8 +344,12 @@ actor SupabaseSyncService {
         case .space:
             // 更新 spaces 表的 display_name
             let descriptor = FetchDescriptor<PersistentSpace>(predicate: #Predicate { $0.id == spaceID })
-            guard let space = try? context.fetch(descriptor).first else { return }
+            guard let space = try? context.fetch(descriptor).first else {
+                logger.error("[Push] ❌ .space: 本地找不到 PersistentSpace id=\(spaceID)")
+                return
+            }
             let dto = SpaceUpdateDTO(displayName: space.displayName)
+            logger.info("[Push] → spaces UPDATE display_name='\(space.displayName)' WHERE id=\(spaceID)")
             try await client.from("spaces")
                 .update(dto)
                 .eq("id", value: spaceID.uuidString)

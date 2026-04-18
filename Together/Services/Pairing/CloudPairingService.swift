@@ -92,9 +92,11 @@ actor CloudPairingService: PairingServiceProtocol {
         }
 
         // 2. 先在 Supabase 创建 space（获取统一 UUID）
+        // 注意：space.display_name 是"空间名"（如"我们的小家"），不是用户昵称。
+        // 之前误把 inviter 的 displayName（昵称）写成了 space 名 → 对方拉到看到对方昵称作为空间名
         let supabaseSpaceID = try await inviteGateway.createSpace(
             ownerID: supabaseUserID,
-            displayName: displayName
+            displayName: PairSpace.defaultSharedSpaceDisplayName
         )
 
         // 3. 将自己加入 space 作为 owner

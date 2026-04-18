@@ -348,6 +348,8 @@ final class AppContext {
     }
 
     private func submitSharedMutation(_ change: SyncChange) async {
+        let serviceDescription = supabaseSyncService == nil ? "nil" : "active"
+        print("[SharedMutation] submit: kind=\(change.entityKind.rawValue) op=\(change.operation.rawValue) recordID=\(change.recordID.uuidString.prefix(8)) spaceID=\(change.spaceID.uuidString.prefix(8)) supabaseService=\(serviceDescription)")
         await container.syncCoordinator.recordLocalChange(change)
         await supabaseSyncService?.push()
         await refreshSharedSyncStatusAsync()
