@@ -358,23 +358,9 @@ final class AppContext {
         await refreshSharedSyncStatusAsync()
     }
 
-    /// 同步后刷新所有相关 ViewModel 的数据，并检测对方发来的催促提醒
+    /// 同步后刷新所有相关 ViewModel 的数据。
     func reloadAfterSync() async {
         await restorePersistedUserProfileIfNeeded(force: true)
-        let spaceID = sessionStore.currentSpace?.id
-        let previousItems: [Item]
-        if let spaceID {
-            previousItems = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
-        } else {
-            previousItems = []
-        }
-        let previousReminders: [UUID: Date] = Dictionary(
-            uniqueKeysWithValues: previousItems
-                .compactMap { item -> (UUID, Date)? in
-                    guard let reminderAt = item.reminderRequestedAt else { return nil }
-                    return (item.id, reminderAt)
-                }
-        )
 
         // 先刷新 session state（空间名/头像等元数据），再 reload 依赖它的 ViewModel
         if let userID = sessionStore.currentUser?.id {
@@ -388,39 +374,6 @@ final class AppContext {
         await projectsViewModel.load()
         await calendarViewModel.load()
         await routinesViewModel.load()
-
-        let currentUserID = sessionStore.currentUser?.id
-        let allItems: [Item]
-        if let spaceID {
-            allItems = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
-        } else {
-            allItems = []
-        }
-        for item in allItems {
-            guard let reminderAt = item.reminderRequestedAt else { continue }
-            let previousDate = previousReminders[item.id]
-            if previousDate == nil || reminderAt > previousDate! {
-                if item.creatorID != currentUserID && item.assigneeMode == .partner {
-                    await scheduleReminderNotification(for: item, message: "催你完成任务啦！")
-                } else if item.creatorID == currentUserID && item.assigneeMode == .partner {
-                    await scheduleReminderNotification(for: item, message: "对方催你确认任务啦！")
-                }
-            }
-        }
-    }
-
-    private func scheduleReminderNotification(for item: Item, message: String) async {
-        let content = UNMutableNotificationContent()
-        content.title = item.title
-        content.body = message
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "reminder-\(item.id.uuidString)",
-            content: content,
-            trigger: nil
-        )
-        try? await UNUserNotificationCenter.current().add(request)
     }
 
     /// 推送本地已有数据到 Supabase（配对成功后调用）

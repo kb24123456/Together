@@ -2484,7 +2484,7 @@ private struct PairTimelineCard: View {
                 Image(systemName: "bell.badge")
                     .font(.system(size: 12, weight: .semibold))
                     .symbolEffect(.bounce.byLayer, value: reminderShakeCount)
-                Text("催一下")
+                Text("提醒")
                     .font(AppTheme.typography.sized(12, weight: .semibold))
             }
             .foregroundStyle(isOnCooldown ? AppTheme.colors.textTertiary : AppTheme.colors.coral)
