@@ -1814,6 +1814,39 @@ git push origin main
 
 ---
 
-## 实施日志
+## 实施日志（2026-04-18）
 
-（开工后追加）
+### 全部完成
+
+8 个 commit on `batch-1-symmetric-crud`：
+
+1. `e8d5f9e` feat(sync): periodicTask symmetric CRUD — tombstone, record, pull
+2. `9602076` refactor(sync): tighten periodicTask — throw on missing, non-optional DTO spaceID, mark* test coverage
+3. `f6aae55` feat(sync): projectSubtask symmetric CRUD — tombstone, record, pull
+4. `97977fa` fix(sync): DTO init derives isDeleted from persistent.isLocallyDeleted
+5. `2ce557a` feat(sync): taskList symmetric CRUD — tombstone on pull and resurrection
+6. `2e98883` test(sync): strengthen taskList resurrection + tombstone-persistence assertions
+7. `6ead31d` test(sync): make TaskList conflict assertion actually distinguish UPDATE ran
+8. `650d715` feat(sync): project symmetric CRUD — cascading tombstone, record, pull
+
+总体：21 files changed, +1517 / −51 lines。新增 12 个测试文件，39 个 @Test 用例（原 107 + 新 39 = 146 通过，regression `TEST SUCCEEDED`）。
+
+### 实施期间踩坑
+
+- **Task 2 code review 捞出 `deleteTask` silent return**：plan 的 Step 2 模板本来就是 `guard ... else { return }`，但 P4 gold standard（`LocalItemRepository.deleteItem`）是 `throw RepositoryError.notFound`。follow-up commit 改掉 + 补 `markCompleted/markIncomplete/resurrect` 的 3 件套漏测。
+- **Task 3 spec review 发现跨 entity 系统性遗漏**：只有 `TaskDTO.init` 正确从 `persistent.isLocallyDeleted` 派生 `isDeleted` / `deletedAt`；`PeriodicTaskDTO` / `ProjectSubtaskDTO` / `TaskListDTO` / `ProjectDTO` 全部硬编码 `false`。虽然当前 `pushDelete()` 用独立 `SoftDelete` 结构不走 DTO，但如果未来有 `.upsert` 落在 tombstoned 记录上就会悄悄复活远端 row。`97977fa` 先修 PeriodicTask+ProjectSubtask 两个；TaskList / Project 在 Task 4/5 自己修。
+- **Task 3 scheme 初次运行 `project_subtasks` Realtime 没订阅**：playbook §2 A6 "元数据表被遗忘"的复刻。`f6aae55` 顺手补订阅。
+- **Task 3 `project_subtasks` schema 反转认知**：playbook 原以为该表没有 `space_id`，但 MCP 查 information_schema 确认 `space_id uuid NOT NULL` 已经存在（migration 002 加的），且只缺 `deleted_at`（单独补 `004_add_deleted_at_to_project_subtasks.sql`）。所以 `pullProjectSubtasks` 是单步 `eq("space_id")` 查询，不是 plan 初稿里写的两步 projects→subtasks join。
+- **Task 4 code review 捞出测试写得"pass for the wrong reason"**：`tombstone_not_resurrected_by_later_remote_upsert` 三次 fixture 都用同一个 name 导致 `#expect(name == "x")` 退化成 tautology。`6ead31d` 把第三个 DTO 改成 `"x-after-tombstone"` 让断言真的能分辨 UPDATE 分支跑没跑。
+- **Realtime 一方（subtasks）加订阅后 `NoopReminderScheduler` 协议签名对齐**：原计划 template 漏了 `snoozeTaskReminder` / `resync` 方法 + `syncPeriodicTaskReminder` 少一个 `referenceDate` 参数。实施前 `grep` 了实际协议纠正。
+
+### 待后续批次处理（非 blocker）
+
+- `TaskListRepositoryProtocol` 没有 `deleteTaskList` 方法（plan §Step 4 YAGNI 明确跳过）；tombstone 基建都到位，未来上 UI 硬删时几行代码补上即可。
+- `PeriodicTask.syncCoordinator` 为 `SyncCoordinatorProtocol?` 可选（其他三个 repo 是非可选）。`LocalServiceFactory` 已注入，实际 prod 不会 nil；如要严格化可改成非可选 + `assertionFailure`。
+- DTO `applyToLocal` UPDATE 分支现在依赖"没有 `else { isLocallyDeleted = false }`"这条**隐式**不变式来保证 tombstone 单向。如果后续代码有人加 reset 分支，会悄悄破坏语义。**建议在每个 DTO 的 applyToLocal UPDATE 头部加一行显式 guard**：`if existing.isLocallyDeleted { return }` —— 这样 remote pull 根本不触碰 tombstoned 记录，不变式变显式。但这是 batch 2+ 级别的强化。
+- `makeContainer()` helper 现在在 8+ 个测试文件里复制；未来应提炼 `TogetherTests/TestContainer.swift`。
+- DTO `deletedAt = Date()` 用的是 push 时的 wall clock，不是用户实际删除那一刻；如果服务端需要审计精确时间，应把 `deletedAt` 存到 Persistent 模型。
+
+### Tasks 1-5 全部 ✅；Task 6 等待用户双端 E2E 验证 + 授权 push。
+
