@@ -432,19 +432,32 @@ struct HomeView: View {
                         .transition(timelineTransition)
                         .onReceive(NotificationCenter.default.publisher(for: .openTaskFromNudge)) { notif in
                             guard let id = notif.userInfo?["task_id"] as? UUID else { return }
-                            highlightedTaskID = id
-                            withAnimation {
-                                scrollProxy.scrollTo(id, anchor: .center)
-                            }
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .seconds(2))
-                                highlightedTaskID = nil
-                            }
+                            highlight(id, via: scrollProxy)
+                        }
+                        .task {
+                            // Cold-launch path: openTaskFromNotification fires before this
+                            // ScrollViewReader is alive, so onReceive never fires. Drain the
+                            // pending highlight stored on AppContext and apply it now.
+                            guard let id = appContext.consumePendingHighlightTaskID() else { return }
+                            highlight(id, via: scrollProxy)
                         }
                 }
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.selectedDateKey)
+    }
+
+    /// Scroll to and briefly highlight a task row. Called from both the hot path
+    /// (onReceive) and the cold-launch path (.task drain on ScrollViewReader).
+    private func highlight(_ id: UUID, via proxy: ScrollViewProxy) {
+        highlightedTaskID = id
+        withAnimation {
+            proxy.scrollTo(id, anchor: .center)
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            highlightedTaskID = nil
+        }
     }
 
     private var projectsModeContent: some View {

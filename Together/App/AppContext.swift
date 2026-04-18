@@ -712,6 +712,10 @@ final class AppContext {
 
     private var pendingDeepLinkTaskID: UUID?
 
+    /// Stored when openTaskFromNotification fires before HomeView.onReceive is alive (cold launch).
+    /// HomeView.onAppear drains this via consumePendingHighlightTaskID() to apply scroll+highlight.
+    private(set) var pendingHighlightTaskID: UUID?
+
     func rememberDeepLinkTaskID(_ id: UUID) {
         pendingDeepLinkTaskID = id
     }
@@ -722,9 +726,18 @@ final class AppContext {
         await openTaskFromNotification(taskID: id)
     }
 
+    func consumePendingHighlightTaskID() -> UUID? {
+        let id = pendingHighlightTaskID
+        pendingHighlightTaskID = nil
+        return id
+    }
+
     func openTaskFromNotification(taskID: UUID) async {
         await bootstrapIfNeeded()
         router.currentSurface = .today
+        // Store the id so HomeView.onAppear can drain it on cold launch, when onReceive hasn't
+        // subscribed yet and the post below would fire into the void.
+        pendingHighlightTaskID = taskID
         NotificationCenter.default.post(
             name: .openTaskFromNudge,
             object: nil,
