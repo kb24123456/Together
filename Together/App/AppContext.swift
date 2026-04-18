@@ -625,6 +625,23 @@ final class AppContext {
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {
+        // APNs-originated TASK_NUDGE: userInfo carries task_id directly;
+        // identifier is server-generated and does not follow AppNotification format.
+        if let taskIDString = response.notification.request.content.userInfo["task_id"] as? String,
+           let taskID = UUID(uuidString: taskIDString),
+           response.notification.request.content.categoryIdentifier == NotificationActionCatalog.taskNudgeCategoryIdentifier {
+            await bootstrapIfNeeded()
+            switch response.actionIdentifier {
+            case NotificationActionCatalog.completeNudgeActionIdentifier:
+                await completeTaskFromNotification(taskID: taskID)
+            case UNNotificationDefaultActionIdentifier:
+                await openTaskFromNotification(taskID: taskID)
+            default:
+                break
+            }
+            return
+        }
+
         await bootstrapIfNeeded()
 
         guard let parsed = AppNotification.parseIdentifier(response.notification.request.identifier) else {
@@ -697,10 +714,37 @@ final class AppContext {
     }
 
     func openTaskFromNotification(taskID: UUID) async {
-        // Full implementation in Task 12.
+        await bootstrapIfNeeded()
+        router.currentSurface = .today
+        NotificationCenter.default.post(
+            name: .openTaskFromNudge,
+            object: nil,
+            userInfo: ["task_id": taskID]
+        )
     }
 
     func completeTaskFromNotification(taskID: UUID) async {
-        // Full implementation in Task 12.
+        await bootstrapIfNeeded()
+
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+
+        do {
+            _ = try await container.taskApplicationService.completeTask(
+                in: spaceID, taskID: taskID, actorID: actorID
+            )
+            await flushRecordedSharedMutation(
+                SyncChange(entityKind: .task, operation: .complete, recordID: taskID, spaceID: spaceID)
+            )
+            await homeViewModel.reload()
+        } catch {
+            appContextLogger.error("[Nudge] complete failed: \(error.localizedDescription)")
+        }
     }
+}
+
+extension Notification.Name {
+    static let openTaskFromNudge = Notification.Name("openTaskFromNudge")
 }
