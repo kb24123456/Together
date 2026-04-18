@@ -859,9 +859,21 @@ struct HomeView: View {
                 )
             )
             .listRowBackground(
-                highlightedTaskID == entry.id
-                    ? AppTheme.colors.coral.opacity(0.18)
-                    : (isNudged(entry) ? AppTheme.colors.coral.opacity(0.08) : Color.clear)
+                Group {
+                    let tint: Color? = {
+                        if highlightedTaskID == entry.id { return AppTheme.colors.coral.opacity(0.18) }
+                        if isNudged(entry) { return AppTheme.colors.coral.opacity(0.08) }
+                        return nil
+                    }()
+                    if let tint {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(tint)
+                            .padding(.horizontal, timelineRowHorizontalInset)
+                            .padding(.vertical, 2)
+                    } else {
+                        Color.clear
+                    }
+                }
             )
             .listRowSeparator(.hidden)
             .insertedListItemMotion(
@@ -1037,9 +1049,21 @@ struct HomeView: View {
             )
         )
         .listRowBackground(
-            highlightedTaskID == entry.id
-                ? AppTheme.colors.coral.opacity(0.18)
-                : (isNudged(entry) ? AppTheme.colors.coral.opacity(0.08) : Color.clear)
+            Group {
+                let tint: Color? = {
+                    if highlightedTaskID == entry.id { return AppTheme.colors.coral.opacity(0.18) }
+                    if isNudged(entry) { return AppTheme.colors.coral.opacity(0.08) }
+                    return nil
+                }()
+                if let tint {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(tint)
+                        .padding(.horizontal, timelineRowHorizontalInset)
+                        .padding(.vertical, 2)
+                } else {
+                    Color.clear
+                }
+            }
         )
         .listRowSeparator(.hidden)
         .insertedListItemMotion(
