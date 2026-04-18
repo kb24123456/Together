@@ -4,7 +4,9 @@ import UserNotifications
 enum NotificationActionCatalog {
     static let taskCategoryIdentifier = "together.notification.task"
     static let genericCategoryIdentifier = "together.notification.generic"
+    static let taskNudgeCategoryIdentifier = "TASK_NUDGE"
     static let completeActionIdentifier = "together.notification.complete"
+    static let completeNudgeActionIdentifier = "COMPLETE_NUDGE"
 
     static let snoozeFiveMinutesIdentifier = "together.notification.snooze.5m"
     static let snoozeTenMinutesIdentifier = "together.notification.snooze.10m"
@@ -38,6 +40,18 @@ enum NotificationActionCatalog {
             UNNotificationCategory(
                 identifier: genericCategoryIdentifier,
                 actions: [],
+                intentIdentifiers: [],
+                options: [.customDismissAction]
+            ),
+            UNNotificationCategory(
+                identifier: taskNudgeCategoryIdentifier,
+                actions: [
+                    UNNotificationAction(
+                        identifier: completeNudgeActionIdentifier,
+                        title: "完成",
+                        options: []
+                    )
+                ],
                 intentIdentifiers: [],
                 options: [.customDismissAction]
             )
