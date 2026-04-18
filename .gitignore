@@ -15,6 +15,9 @@ Packages/
 Package.pins
 Package.resolved
 
+# Supabase CLI local cache
+supabase/.temp/
+
 # Icon / asset editing backups
 **/*.png.bak
 **/*.jpg.bak
