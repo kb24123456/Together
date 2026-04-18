@@ -681,4 +681,26 @@ final class AppContext {
             pairSummary: MockDataFactory.makePairSpaceSummary()
         )
     }
+
+    // MARK: - Deep-link Task Navigation
+
+    private var pendingDeepLinkTaskID: UUID?
+
+    func rememberDeepLinkTaskID(_ id: UUID) {
+        pendingDeepLinkTaskID = id
+    }
+
+    func consumeDeepLinkTaskIDIfAny() async {
+        guard let id = pendingDeepLinkTaskID else { return }
+        pendingDeepLinkTaskID = nil
+        await openTaskFromNotification(taskID: id)
+    }
+
+    func openTaskFromNotification(taskID: UUID) async {
+        // Full implementation in Task 12.
+    }
+
+    func completeTaskFromNotification(taskID: UUID) async {
+        // Full implementation in Task 12.
+    }
 }

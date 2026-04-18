@@ -57,6 +57,12 @@ struct TogetherApp: App {
                     )
                     appDelegate.bootstrapper = appBootstrapper
                     await appBootstrapper.bootstrapIfNeeded()
+                    // Cold-launch deep-link: transfer any APNs task_id captured before bootstrap.
+                    if let appContext = appBootstrapper.appContext,
+                       let taskID = appDelegate.consumePendingTaskIDFromNotification() {
+                        appContext.rememberDeepLinkTaskID(taskID)
+                        await appContext.consumeDeepLinkTaskIDIfAny()
+                    }
                     StartupTrace.mark("TogetherApp.root.task.end")
                 }
                 .task(id: appBootstrapper.isReady) {

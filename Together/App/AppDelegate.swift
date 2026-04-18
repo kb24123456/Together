@@ -6,6 +6,7 @@ import UIKit
 /// Responsibilities:
 /// - Register for remote notifications used by CloudKit sync.
 /// - Forward silent pushes to AppContext when the app is alive.
+/// - Capture cold-launch task_id from APNs userInfo for deep-link routing.
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate {
 
@@ -15,6 +16,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     /// AppContext consumes this via `consumePendingShareMetadata()` once ready.
     private(set) var pendingShareMetadata: CKShare.Metadata?
 
+    /// Captured from launchOptions[.remoteNotification] on cold launch.
+    /// Consumed once by `consumePendingTaskIDFromNotification()` after bootstrap.
+    private(set) var pendingTaskIDFromNotification: UUID?
+
     // MARK: - Launch
 
     func application(
@@ -23,7 +28,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         // CloudKit shared/private database subscriptions may still wake the app in background.
         application.registerForRemoteNotifications()
+
+        if let remote = launchOptions?[.remoteNotification] as? [AnyHashable: Any],
+           let taskIDString = remote["task_id"] as? String,
+           let taskID = UUID(uuidString: taskIDString) {
+            pendingTaskIDFromNotification = taskID
+        }
+
         return true
+    }
+
+    func consumePendingTaskIDFromNotification() -> UUID? {
+        let id = pendingTaskIDFromNotification
+        pendingTaskIDFromNotification = nil
+        return id
     }
 
     // MARK: - Remote Notifications
