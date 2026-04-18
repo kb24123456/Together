@@ -123,7 +123,8 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+        // Both partners may toggle project completion in shared spaces.
+        guard PairPermissionService.canToggleProjectCompletion(record.domainModel(taskCount: 0), actorID: actorID) else {
             throw PermissionError.notCreator
         }
 
@@ -181,7 +182,8 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+        // Both partners may check / uncheck a subtask in a shared project.
+        guard PairPermissionService.canToggleSubtaskCompletion(projectCreatorID: record.creatorID, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context) else {

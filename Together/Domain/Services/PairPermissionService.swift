@@ -34,6 +34,7 @@ enum PairPermissionService {
 
     // MARK: - Project
 
+    /// Rename / metadata edits (name, notes, target date) — creator only.
     static func canEditProject(_ project: Project, actorID: UUID) -> Bool {
         project.creatorID == actorID
     }
@@ -42,14 +43,28 @@ enum PairPermissionService {
         project.creatorID == actorID
     }
 
+    /// Toggle project completion — **both partners** may mark a shared project
+    /// as completed or reopen it. Space membership is already enforced by
+    /// Supabase RLS at the Repository boundary.
+    static func canToggleProjectCompletion(_ project: Project, actorID: UUID) -> Bool {
+        true
+    }
+
     // MARK: - ProjectSubtask (inherits from parent Project)
 
+    /// Rename subtask title, add subtask, delete subtask — creator-of-the-project only.
     static func canEditProjectSubtask(projectCreatorID: UUID, actorID: UUID) -> Bool {
         projectCreatorID == actorID
     }
 
     static func canDeleteProjectSubtask(projectCreatorID: UUID, actorID: UUID) -> Bool {
         projectCreatorID == actorID
+    }
+
+    /// Toggle a subtask's completion — **both partners** may check / uncheck a
+    /// shared subtask. Space membership already enforced upstream.
+    static func canToggleSubtaskCompletion(projectCreatorID: UUID, actorID: UUID) -> Bool {
+        true
     }
 
     // MARK: - PeriodicTask
