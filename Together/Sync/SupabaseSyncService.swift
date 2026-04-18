@@ -53,17 +53,20 @@ actor SupabaseSyncService {
     private var pendingAvatarURL: [UUID: URL] = [:]
 
     private let spaceMemberWriter: SpaceMemberWriter
+    private let spaceMemberReader: SpaceMemberReader
 
     init(
         modelContainer: ModelContainer,
         avatarUploader: AvatarStorageUploaderProtocol,
         avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore(),
-        spaceMemberWriter: SpaceMemberWriter? = nil
+        spaceMemberWriter: SpaceMemberWriter? = nil,
+        spaceMemberReader: SpaceMemberReader? = nil
     ) {
         self.modelContainer = modelContainer
         self.avatarUploader = avatarUploader
         self.avatarMediaStore = avatarMediaStore
         self.spaceMemberWriter = spaceMemberWriter ?? SupabaseSpaceMemberWriter()
+        self.spaceMemberReader = spaceMemberReader ?? SupabaseSpaceMemberReader()
     }
 
     /// 配置同步目标
@@ -71,6 +74,11 @@ actor SupabaseSyncService {
         self.spaceID = spaceID
         self.myUserID = myUserID
         self.myLocalUserID = myLocalUserID
+    }
+
+    /// Test-only entry point: runs only the pullSpaceMembers step with a fixed `since` value.
+    func pullSpaceMembersForTesting(spaceID: UUID) async throws {
+        try await pullSpaceMembers(spaceID: spaceID, since: ISO8601DateFormatter().string(from: .distantPast))
     }
 
     /// 清理资源
@@ -559,12 +567,7 @@ actor SupabaseSyncService {
 
     private func pullSpaceMembers(spaceID: UUID, since: String) async throws {
         guard let myUserID else { return }
-        let rows: [SpaceMemberDTO] = try await client.from("space_members")
-            .select()
-            .eq("space_id", value: spaceID.uuidString)
-            .gte("updated_at", value: since)
-            .execute()
-            .value
+        let rows = try await spaceMemberReader.fetchMembers(spaceID: spaceID, since: since)
 
         // 只处理对方的 profile（跳过自己的 Supabase user_id）
         let partnerRows = rows.filter { $0.userId != myUserID }
@@ -595,8 +598,37 @@ actor SupabaseSyncService {
         guard let partner = partnerMembership, let dto = partnerRows.first else { return }
 
         partner.nickname = dto.displayName
-        partner.avatarPhotoFileName = dto.avatarUrl
-        partner.avatarVersion = dto.avatarVersion ?? 0
+
+        let remoteVersion = dto.avatarVersion ?? 0
+        let versionIncreased = remoteVersion > partner.avatarVersion
+        let assetChanged = remoteVersion == partner.avatarVersion
+            && partner.avatarAssetID != dto.avatarAssetID
+        let shouldRefresh = versionIncreased || assetChanged
+
+        if shouldRefresh {
+            partner.avatarPhotoFileName = dto.avatarUrl
+            partner.avatarAssetID = dto.avatarAssetID
+            partner.avatarSystemName = dto.avatarSystemName
+            partner.avatarVersion = remoteVersion
+
+            if let urlString = dto.avatarUrl,
+               let url = URL(string: urlString),
+               let assetID = dto.avatarAssetID {
+                let uploaderRef = avatarUploader
+                let storeRef = avatarMediaStore
+                let log = logger
+                Task.detached(priority: .utility) {
+                    do {
+                        let bytes = try await uploaderRef.downloadAvatar(from: url)
+                        let fileName = storeRef.cacheFileName(for: assetID)
+                        try storeRef.persistAvatarData(bytes, fileName: fileName)
+                        log.info("downloaded partner avatar fileName=\(fileName, privacy: .public) bytes=\(bytes.count)")
+                    } catch {
+                        log.error("partner avatar download failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
 
         try context.save()
         logger.info("[Pull] ✅ 拉取对方 profile: \(dto.displayName)")
@@ -1338,6 +1370,27 @@ private struct SupabaseSpaceMemberWriter: SpaceMemberWriter {
             .eq("space_id", value: spaceID.uuidString)
             .eq("user_id", value: userID.uuidString)
             .execute()
+    }
+}
+
+// MARK: - SpaceMemberReader seam
+
+/// Abstracts the space_members SELECT call so tests can inject fake rows without hitting the network.
+protocol SpaceMemberReader: Sendable {
+    func fetchMembers(spaceID: UUID, since: String) async throws -> [SpaceMemberDTO]
+}
+
+/// Default production implementation that calls the Supabase client.
+private struct SupabaseSpaceMemberReader: SpaceMemberReader {
+    private let client = SupabaseClientProvider.shared
+
+    func fetchMembers(spaceID: UUID, since: String) async throws -> [SpaceMemberDTO] {
+        try await client.from("space_members")
+            .select()
+            .eq("space_id", value: spaceID.uuidString)
+            .gte("updated_at", value: since)
+            .execute()
+            .value
     }
 }
 
