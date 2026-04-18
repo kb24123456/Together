@@ -552,12 +552,25 @@ actor SupabaseSyncService {
     // MARK: - Realtime Handlers
 
     private func handleRealtimeChange(_ change: AnyAction, table: String) async {
-        // 回声过滤：若这条 recordID 我们刚刚 push 过，忽略 —— 避免自己数据绕一圈回来
-        // 触发冗余 catchUp
+        // 回声过滤：若这条 recordID 我们刚刚 push 过，且 incoming 事件里的 updated_at
+        // 不比我们推送的时间明显晚（<2s），视为自己 push 绕回来的回声，跳过。
+        //
+        // 关键：光看 recordID 会误把 partner 并发修改同一行的 Realtime 事件当作自己
+        // 回声吞掉。必须把 incoming 的 updated_at 跟 push 时间做对比：明显晚（>2s）
+        // 说明是服务端后续收到了 partner 的 UPDATE 并广播过来，不能跳过。
         if let recordID = Self.extractRecordID(from: change),
-           let pushedAt = recentlyPushedIDs[recordID],
-           Date().timeIntervalSince(pushedAt) < echoWindow {
-            return
+           let pushedAt = recentlyPushedIDs[recordID] {
+            let incomingUpdatedAt = Self.extractUpdatedAt(from: change)
+            let isLikelyPartnerUpdate: Bool
+            if let incomingUpdatedAt {
+                isLikelyPartnerUpdate = incomingUpdatedAt.timeIntervalSince(pushedAt) > 2.0
+            } else {
+                isLikelyPartnerUpdate = false
+            }
+            if !isLikelyPartnerUpdate,
+               Date().timeIntervalSince(pushedAt) < echoWindow {
+                return
+            }
         }
 
         await catchUp()
@@ -578,6 +591,24 @@ actor SupabaseSyncService {
         }
         guard let raw = record["id"]?.stringValue else { return nil }
         return UUID(uuidString: raw)
+    }
+
+    /// 从 AnyAction payload 取服务端最终写入的 updated_at（用于 echo filter 区分自己
+    /// push 的回声 vs partner 的并发修改）。
+    private static func extractUpdatedAt(from change: AnyAction) -> Date? {
+        let record: [String: AnyJSON]
+        switch change {
+        case .insert(let action): record = action.record
+        case .update(let action): record = action.record
+        case .delete(let action): record = action.oldRecord
+        }
+        guard let raw = record["updated_at"]?.stringValue else { return nil }
+        let isoFull = ISO8601DateFormatter()
+        isoFull.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = isoFull.date(from: raw) { return d }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        return iso.date(from: raw)
     }
 
     /// 清理过期的回声标记
