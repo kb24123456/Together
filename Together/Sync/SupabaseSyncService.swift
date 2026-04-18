@@ -357,6 +357,8 @@ actor SupabaseSyncService {
             let dto = SpaceMemberUpdateDTO(
                 displayName: profile.displayName,
                 avatarUrl: profile.avatarPhotoFileName,
+                avatarAssetID: profile.avatarAssetID,
+                avatarSystemName: profile.avatarSystemName,
                 avatarVersion: profile.avatarVersion
             )
             try await client.from("space_members")
@@ -1265,11 +1267,15 @@ struct PeriodicTaskDTO: Codable, Sendable {
 struct SpaceMemberUpdateDTO: Encodable, Sendable {
     let displayName: String
     let avatarUrl: String?
+    let avatarAssetID: String?
+    let avatarSystemName: String?
     let avatarVersion: Int
 
     enum CodingKeys: String, CodingKey {
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
+        case avatarAssetID = "avatar_asset_id"
+        case avatarSystemName = "avatar_system_name"
         case avatarVersion = "avatar_version"
     }
 }
@@ -1281,6 +1287,8 @@ struct SpaceMemberDTO: Decodable, Sendable {
     let userId: UUID
     let displayName: String
     let avatarUrl: String?
+    let avatarAssetID: String?
+    let avatarSystemName: String?
     let avatarVersion: Int?
     let role: String?
     let joinedAt: Date?
@@ -1292,6 +1300,8 @@ struct SpaceMemberDTO: Decodable, Sendable {
         case userId = "user_id"
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
+        case avatarAssetID = "avatar_asset_id"
+        case avatarSystemName = "avatar_system_name"
         case avatarVersion = "avatar_version"
         case role
         case joinedAt = "joined_at"
