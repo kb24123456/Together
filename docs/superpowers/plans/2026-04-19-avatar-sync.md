@@ -1175,4 +1175,73 @@ git push origin main
 
 ## 实施日志
 
-（开工后追加）
+### Timeline
+开工：2026-04-19（`main` 基线 `90f8bf2`）
+合并到 main：2026-04-19（`3efa20d` → `main`）
+
+### Commit SHAs（按任务顺序）
+
+Tasks 1-10（spec 内）:
+- `6f458c8` T1 migration 011（space_members 加 `avatar_asset_id` + `avatar_system_name`，创建 `avatars` private bucket + anon INSERT/UPDATE RLS）
+- `30e55fe` T2 PersistentPairMembership 加字段（实际上字段已存在，只补了文档注释）
+- `0f9a62b` T3 SpaceMemberUpdateDTO + SpaceMemberDTO + MemberProfileRecordCodable 加字段 + 序列化测试
+- `de5d39b` T4 AvatarStorageUploader 服务（真实 + mock） + path 格式测试
+- `649b769` T5 把 uploader 接入 AppContainer + SupabaseSyncService（顺便把 avatarMediaStore 也注入）
+- `7447aa1` T6 pushUpsert(.avatarAsset) 真上传 + memberProfile 带 signed URL + push 测试
+- `5a7a122` T7 pullSpaceMembers version-gated 下载 + SpaceMemberReader 测试 seam
+- `a3dfbf9` T7-fix 存储 cache filename 而非 signed URL（review 发现）
+- `78101d5` T8 PairSpaceSummaryResolver 补伴侣 avatar 字段 + 测试（resolver 已在 T7 提前修好，此处只补测试）
+- `d8966ba` T9 pair-join 回调追加 syncService.catchUp()
+- `b2a9dae` T10 EditProfileViewModel 300 KB 软上限警告
+
+Tasks 11+ 补丁（spec 外、调试中发现）:
+
+**Supabase Storage RLS 调试（4 轮）:**
+- `34541d7` migration 012：`TO anon` → `TO public`（SDK role 不稳）
+- `db05cdd` migration 013：给 `storage.buckets` 加 avatars SELECT policy（Storage server 要先 SELECT bucket 再 INSERT object）
+- `87c28d0` migration 014：给 `storage.objects` 加 avatars SELECT policy（`x-upsert: true` 触发 ON CONFLICT DO UPDATE，需要 SELECT 权限评估 USING）
+
+**UI 缓存调试（4 轮）:**
+- `dc5334b` 分区伴侣 cacheFileName `asset-{id}-v{version}.jpg` + 下载完成后发 `.partnerAvatarDownloaded`
+- `81293fe` pull 版本闸门从 `remote > local` 改为 `remote != local`（reinstall 后 version 回退也能同步）
+- `a77c3e3` User.avatarCacheFileName 优先返回 `avatarPhotoFileName`（此前它忽略新 versioned filename，UI 找不到文件回落到默认图）
+- `2c32c3f` 下载后 evict UIImage NSCache + AvatarPhotoView 监听 `.partnerAvatarDownloaded` 重置 loadedImage
+- `6467d15` `.onReceive` 加 `.receive(on: DispatchQueue.main)`（publisher 来自 Task.detached，默认在后台线程，导致 `@State` 变更被 SwiftUI 警告 "Publishing changes from background threads" 拒绝生效）
+- `fbf8b68` 砍掉 AvatarPhotoView 的 3 分支（loadedImage/cache-hit/fallback），合并为单分支，`.onReceive` 不再按 fileName 匹配——任何 partner avatar 下载都 evict + bump tick 强制重读盘
+
+最后 `3efa20d` docs 入库（spec + plan）。
+
+### 关键技术决策
+
+1. **Storage RLS 三连踩坑**：Supabase Storage 的 anon client 上传需要同时满足：
+   - `storage.buckets` 有 SELECT policy（server 要先查 bucket 存在）
+   - `storage.objects` 有 INSERT WITH CHECK policy（INSERT 本身）
+   - `storage.objects` 有 SELECT + UPDATE policy（`x-upsert: true` 触发 ON CONFLICT DO UPDATE）
+   
+   三个缺一个，整个链路静默挂掉报 "new row violates RLS policy"。隐私靠 `bucket.public=false` + 1 年 signed URL + UUID 组合的路径保持。
+
+2. **签名 URL vs 本地缓存文件名区分**：早期把 signed URL 存进 `PersistentPairMembership.avatarPhotoFileName` 了，但代码库其他地方（UI 读盘）把它当本地文件名处理。改为写 `asset-{id}-v{version}.jpg`（不跟 User.avatarAssetID 冲突）。
+
+3. **UIImage 缓存 by URL 是 footgun**：`NSCache<NSString, UIImage>` 按路径 key，磁盘内容变化但路径不变 → 缓存永远返回旧 UIImage。用"路径加 version 后缀"让每次新版本 key 不同，再加"下载完成后显式 evict"作为第二道保险。
+
+4. **SwiftUI `.onReceive` 默认 publisher 线程**：NotificationCenter.publisher 不自动切主线程。从 `Task.detached` post 的事件到达 `.onReceive` 的 closure 时仍在后台线程，对 `@State` 的写入被 SwiftUI runtime 警告并静默丢弃。**必须**在 publisher 链里 `.receive(on: DispatchQueue.main)`。
+
+### 已验证不可行的方案
+
+- **RLS `TO anon` (migration 011)**：SDK client 的 role 不稳定——`TO public` 才能覆盖。
+- **不加 SELECT policy**：想靠 signed URL 做反向证明，但上传侧 `x-upsert: true` 需要 SELECT 评估 ON CONFLICT 的 USING 子句。
+- **固定 cacheFileName `asset-{id}.jpg`（无版本）**：改头像后路径不变，UIImage 缓存永远返回旧图。
+- **pull version gate `remote > local`**：reinstall 后 remote version 回退到 1，但字节其实是新的——永远不下载。改为 `!=` 才对。
+- **AvatarPhotoView 按 fileName 精确匹配事件才 evict 缓存**：pairSpaceSummary 刷新有延迟，事件到达时 view 可能还没切到新 fileName → 匹配失败 → 不 evict → 缓存永远陈旧。改为任何事件都 evict。
+
+### 身份模型问题（已记录）
+
+本分支没触碰 `tasks.creator_id` / `space_members.user_id` 身份不一致问题，继续用 `push_on_task_change` trigger 的 fan-out + client 自过滤。头像同步虽然也走 `space_members`，但直接把成员 ID 写入 DTO，不依赖 auth.uid() 路由。
+
+### 待续事项（下个分支）
+
+- Storage bucket 老版本文件清理策略（每次改头像都留一个旧 `.jpg`，小，但积累会慢慢占空间）
+- `avatar_url` 在 DB 里存的是 signed URL，1 年后过期——暂未处理过期重生成
+- 用过期时 client 可能 403 下载失败，目前只 log，没触发 re-sync
+- 身份模型统一（与 partner-nudge 分支共用的历史遗留）
+
