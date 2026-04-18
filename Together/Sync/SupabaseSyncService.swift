@@ -238,11 +238,14 @@ actor SupabaseSyncService {
         let channel = client.realtimeV2.channel(topic)
 
         let spaceFilter = "space_id=eq.\(spaceID.uuidString)"
+        // spaces 表的主键列叫 id，不是 space_id，所以单独过滤
+        let spacesFilter = "id=eq.\(spaceID.uuidString)"
         let tasksStream = channel.postgresChange(AnyAction.self, schema: "public", table: "tasks", filter: spaceFilter)
         let listsStream = channel.postgresChange(AnyAction.self, schema: "public", table: "task_lists", filter: spaceFilter)
         let projectsStream = channel.postgresChange(AnyAction.self, schema: "public", table: "projects", filter: spaceFilter)
         let periodicStream = channel.postgresChange(AnyAction.self, schema: "public", table: "periodic_tasks", filter: spaceFilter)
         let membersStream = channel.postgresChange(AnyAction.self, schema: "public", table: "space_members", filter: spaceFilter)
+        let spacesStream = channel.postgresChange(AnyAction.self, schema: "public", table: "spaces", filter: spacesFilter)
 
         try? await channel.subscribe()
         self.realtimeChannel = channel
@@ -271,6 +274,11 @@ actor SupabaseSyncService {
         listeningTasks.append(Task { [weak self] in
             for await change in membersStream {
                 await self?.handleMemberChange(change)
+            }
+        })
+        listeningTasks.append(Task { [weak self] in
+            for await change in spacesStream {
+                await self?.handleRealtimeChange(change, table: "spaces")
             }
         })
 
