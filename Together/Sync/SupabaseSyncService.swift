@@ -121,7 +121,12 @@ actor SupabaseSyncService {
             sortBy: [SortDescriptor(\.changedAt)]
         )
 
-        guard let changes = try? context.fetch(descriptor), !changes.isEmpty else { return }
+        guard let changes = try? context.fetch(descriptor), !changes.isEmpty else {
+            // 关键：早返路径也必须释放 isPushing，否则后续 push 永远被守卫挡掉
+            finishPush()
+            return
+        }
+        logger.info("[Push] queue size = \(changes.count) for space \(spaceID)")
 
         for change in changes {
             do {
@@ -162,7 +167,11 @@ actor SupabaseSyncService {
         // 清理过期的回声标记
         pruneEchoWindow()
 
-        // 解除序列化锁；若飞行期间有其他 push 请求被合并，立即再跑一轮
+        finishPush()
+    }
+
+    /// 释放 push 序列化锁；若飞行期间有合并请求，立即再跑一轮
+    private func finishPush() {
         isPushing = false
         if pushRequestedDuringFlight {
             pushRequestedDuringFlight = false
