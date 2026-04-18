@@ -8,7 +8,7 @@
 - **Pattern P4**（`LocalItemRepository.saveItem/deleteItem` 模板）：Repository 内部在每个变更入口调用 `syncCoordinator.recordLocalChange`，删除统一走 tombstone（`isLocallyDeleted = true`），不再硬删。
 - **Pattern P6**（DTO 三分支 applyToLocal）：UPDATE 分支遇到 `isDeleted=true` 时设置 `existing.isLocallyDeleted = true`（而不是 `context.delete(existing)`），INSERT 分支若 `!isDeleted` 才创建。
 - 所有 fetch 查询 + `count` 统计都要用谓词 `$0.isLocallyDeleted == false` 过滤掉 tombstone。
-- 补 `pullProjectSubtasks(spaceID:since:)` 到 `catchUp()` —— `project_subtasks` 表本身没有 `space_id`，先查出该 space 的 project IDs，再 `in.(...)` 过滤。
+- 补 `pullProjectSubtasks(spaceID:since:)` 到 `catchUp()` —— `project_subtasks` 表已有 `space_id uuid NOT NULL`（migration 002 加的）+ `deleted_at`（migration 004 补的），单步查询 `eq("space_id", ...).gte("updated_at", ...)` 即可，不需要 join。
 
 **Tech Stack:** Swift 6 / SwiftData / Supabase swift SDK / Swift Testing (`Testing`) / Supabase MCP (`execute_sql`, `get_logs`, `apply_migration`)
 
@@ -831,9 +831,9 @@ final class PersistentProjectSubtask {
 
 extensions 保持不变。
 
-### Step 2: `ProjectSubtaskDTO.init` 加 `projectSpaceID`，applyToLocal 用 tombstone
+### Step 2: `ProjectSubtaskDTO` 加 `spaceId` 字段 + `deletedAt`，applyToLocal 用 tombstone
 
-`project_subtasks` 表 schema 上**没有** `space_id` 列（subtask 的 space 由 parent project 决定）。但为了与其他 DTO 对称、便于未来 join 查询，DTO 的 init 接受可选 `projectSpaceID` 形参（但不序列化到网络）。
+Schema 现状（2026-04-18 MCP 验证）：`project_subtasks` 有 `space_id uuid NOT NULL`（migration 002）+ `is_deleted boolean` + `deleted_at timestamptz`（migration 004）。DTO 与 schema 对齐即可，不需要两步查询。
 
 - [ ] Edit `Together/Sync/SupabaseSyncService.swift:996-1052`，把整个 `ProjectSubtaskDTO` 替换成：
 
@@ -841,6 +841,7 @@ extensions 保持不变。
 /// 项目子任务 DTO
 struct ProjectSubtaskDTO: Codable, Sendable {
     let id: UUID
+    let spaceId: UUID
     let projectId: UUID
     let creatorId: UUID
     var title: String
@@ -848,22 +849,25 @@ struct ProjectSubtaskDTO: Codable, Sendable {
     var sortOrder: Int
     var updatedAt: Date
     var isDeleted: Bool
+    var deletedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, title
+        case spaceId = "space_id"
         case projectId = "project_id"
         case creatorId = "creator_id"
         case isCompleted = "is_completed"
         case sortOrder = "sort_order"
         case updatedAt = "updated_at"
         case isDeleted = "is_deleted"
+        case deletedAt = "deleted_at"
     }
 
-    /// `projectSpaceID` 仅作形参保留（与其他 DTO init 签名对称），
-    /// project_subtasks 表没有 space_id 列，不序列化。
-    nonisolated init(from persistent: PersistentProjectSubtask, projectSpaceID: UUID? = nil) {
-        _ = projectSpaceID
+    /// `spaceID` 必填：project_subtasks 表的 space_id NOT NULL。
+    /// 一般由 pushUpsert 从 parent project 取得，测试 fixture 直接传。
+    nonisolated init(from persistent: PersistentProjectSubtask, spaceID: UUID) {
         self.id = persistent.id
+        self.spaceId = spaceID
         self.projectId = persistent.projectID
         self.creatorId = persistent.creatorID
         self.title = persistent.title
@@ -871,6 +875,7 @@ struct ProjectSubtaskDTO: Codable, Sendable {
         self.sortOrder = persistent.sortOrder
         self.updatedAt = persistent.updatedAt
         self.isDeleted = false
+        self.deletedAt = nil
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
@@ -908,32 +913,21 @@ struct ProjectSubtaskDTO: Codable, Sendable {
 case .projectSubtask:
     let descriptor = FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate { $0.id == recordID })
     guard let subtask = try? context.fetch(descriptor).first else { return }
-    let dto = ProjectSubtaskDTO(from: subtask, projectSpaceID: spaceID)
+    let dto = ProjectSubtaskDTO(from: subtask, spaceID: spaceID)
     try await client.from(tableName).upsert(dto, onConflict: "id").execute()
 ```
 
 ### Step 4: 新增 `pullProjectSubtasks(spaceID:since:)`
 
-`project_subtasks` 表没有 `space_id`，先查 projects 拿当前 space 的所有 project IDs，再 `in.(...)` 过滤。
+`project_subtasks` 表已有 `space_id uuid NOT NULL`，直接按 space 单步过滤。
 
 - [ ] 在 `Together/Sync/SupabaseSyncService.swift:463` 之前（`pullPeriodicTasks` 函数结束后、`pullSpaceMembers` 之前）插入：
 
 ```swift
 private func pullProjectSubtasks(spaceID: UUID, since: String) async throws {
-    // 1) 查 space 下的 project IDs
-    struct IDRow: Decodable { let id: UUID }
-    let projects: [IDRow] = try await client.from("projects")
-        .select("id")
-        .eq("space_id", value: spaceID.uuidString)
-        .execute()
-        .value
-    guard !projects.isEmpty else { return }
-    let projectIDs = projects.map { $0.id.uuidString }
-
-    // 2) 按 project_id in.(...) + updated_at gte 拉 subtasks
     let rows: [ProjectSubtaskDTO] = try await client.from("project_subtasks")
         .select()
-        .in("project_id", values: projectIDs)
+        .eq("space_id", value: spaceID.uuidString)
         .gte("updated_at", value: since)
         .execute()
         .value
@@ -1151,13 +1145,15 @@ extension ProjectSubtaskDTO {
             id: id, projectID: projectID, creatorID: UUID(),
             title: title, isCompleted: false, sortOrder: 0, updatedAt: updatedAt
         )
-        var dto = ProjectSubtaskDTO(from: persistent)
+        var dto = ProjectSubtaskDTO(from: persistent, spaceID: UUID())
         dto.isDeleted = isDeleted
         dto.updatedAt = updatedAt
         return dto
     }
 }
 ```
+
+> Fixture 里 `spaceID` 用新 UUID 即可，applyToLocal 不校验 space 归属（保存在 DTO 里只为 push 路径用）。
 
 - [ ] 创建 `TogetherTests/ProjectSubtaskDTOConflictTests.swift`：
 
@@ -1708,15 +1704,15 @@ git push origin main
 
 ```
 □ Supabase schema
-  ☐ is_deleted + deleted_at 列存在
-  ☐ space_id 列【N/A：subtask 的 space 由 parent project 决定】
-  ☐ Realtime publication 已含 project_subtasks
+  ☐ is_deleted + deleted_at 列存在（migration 004 补齐）
+  ☐ space_id NOT NULL ✓（migration 002 已加）
+  ☐ Realtime publication 已含 project_subtasks ✓
   ☐ updated_at trigger 存在
 
 □ 客户端 DTO (A8)
   ☐ Codable + Sendable ✓
   ☐ CodingKeys snake_case ✓
-  ☐ init(from:projectSpaceID:) 签名一致（本批新加）
+  ☐ init(from:spaceID:) 签名（本批新加，spaceID 非可选）
 
 □ push 路径 (A1, A2)
   ☐ pushUpsert case .projectSubtask 不为空 ✓
@@ -1726,7 +1722,7 @@ git push origin main
 
 □ pull 路径 (A3)
   ☐ catchUp 调用 pullProjectSubtasks（本批新加）
-  ☐ 两步查询 projects → subtasks ✓
+  ☐ 单步查询 eq space_id ✓
   ☐ Realtime 订阅 project_subtasks 并路由到 applyToLocal
 
 □ applyToLocal (P6, P7)
