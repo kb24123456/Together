@@ -249,7 +249,10 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         for modification in changes.modifications {
             let record = modification.record
             guard codecRegistry.canDecode(record.recordType) else {
-                logger.warning("[SyncDelegate] Unknown record type: \(record.recordType)")
+                // 静默掉 cloudkit.share —— 旧 CKShare 残留，对当前 Supabase pair sync 无用，会刷屏
+                if record.recordType != "cloudkit.share" {
+                    logger.warning("[SyncDelegate] Unknown record type: \(record.recordType)")
+                }
                 continue
             }
 
