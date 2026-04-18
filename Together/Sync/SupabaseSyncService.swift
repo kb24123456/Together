@@ -607,7 +607,7 @@ actor SupabaseSyncService {
 
         if shouldRefresh {
             if let assetID = dto.avatarAssetID, !assetID.isEmpty {
-                partner.avatarPhotoFileName = avatarMediaStore.cacheFileName(for: assetID)
+                partner.avatarPhotoFileName = avatarMediaStore.partnerCacheFileName(for: assetID, version: remoteVersion)
             } else {
                 partner.avatarPhotoFileName = nil
             }
@@ -621,12 +621,18 @@ actor SupabaseSyncService {
                 let uploaderRef = avatarUploader
                 let storeRef = avatarMediaStore
                 let log = logger
+                let targetVersion = remoteVersion
                 Task.detached(priority: .utility) {
                     do {
                         let bytes = try await uploaderRef.downloadAvatar(from: url)
-                        let fileName = storeRef.cacheFileName(for: assetID)
+                        let fileName = storeRef.partnerCacheFileName(for: assetID, version: targetVersion)
                         try storeRef.persistAvatarData(bytes, fileName: fileName)
                         log.info("downloaded partner avatar fileName=\(fileName, privacy: .public) bytes=\(bytes.count)")
+                        NotificationCenter.default.post(
+                            name: .partnerAvatarDownloaded,
+                            object: nil,
+                            userInfo: ["assetID": assetID, "version": targetVersion]
+                        )
                     } catch {
                         log.error("partner avatar download failed: \(error.localizedDescription)")
                     }
@@ -765,6 +771,7 @@ extension Notification.Name {
     static let pairMemberJoined = Notification.Name("pairMemberJoined")
     static let pairMemberRemoved = Notification.Name("pairMemberRemoved")
     static let supabaseRealtimeChanged = Notification.Name("supabaseRealtimeChanged")
+    static let partnerAvatarDownloaded = Notification.Name("partnerAvatarDownloaded")
 }
 
 // MARK: - TaskMessage DTO (write-only)

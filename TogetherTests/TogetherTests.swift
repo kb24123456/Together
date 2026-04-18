@@ -3753,6 +3753,10 @@ private struct FailingRepairAvatarMediaStore: UserAvatarMediaStoreProtocol {
         baseStore.cacheFileName(for: assetID)
     }
 
+    nonisolated func partnerCacheFileName(for assetID: String, version: Int) -> String {
+        baseStore.partnerCacheFileName(for: assetID, version: version)
+    }
+
     nonisolated func avatarData(named fileName: String) throws -> Data {
         try baseStore.avatarData(named: fileName)
     }

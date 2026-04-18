@@ -35,6 +35,10 @@ private final class InMemoryAvatarMediaStore: UserAvatarMediaStoreProtocol, @unc
         UserAvatarStorage.fileName(forAssetID: assetID)
     }
 
+    nonisolated func partnerCacheFileName(for assetID: String, version: Int) -> String {
+        UserAvatarStorage.partnerFileName(forAssetID: assetID, version: version)
+    }
+
     nonisolated func avatarData(named fileName: String) throws -> Data {
         lock.lock(); defer { lock.unlock() }
         guard let saved = _saved.first(where: { $0.fileName == fileName }) else {
@@ -241,7 +245,7 @@ struct SpaceMemberPullAvatarTests {
         let partner = try harness.loadPartnerMembership()
         #expect(partner.avatarVersion == 3)
         #expect(partner.avatarAssetID == "asset-new")
-        let expected = store.cacheFileName(for: "asset-new")
+        let expected = store.partnerCacheFileName(for: "asset-new", version: 3)
         #expect(partner.avatarPhotoFileName == expected)
 
         // Await the detached download by consuming from the async stream

@@ -496,6 +496,16 @@ final class AppContext {
                 await self.reloadAfterSync()
             }
         }
+        NotificationCenter.default.addObserver(
+            forName: .partnerAvatarDownloaded,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.reloadAfterSync()
+            }
+        }
     }
 
     private func configurePairSyncTeardown() {

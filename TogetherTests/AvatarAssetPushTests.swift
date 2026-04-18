@@ -17,6 +17,10 @@ private final class InMemoryAvatarMediaStore: UserAvatarMediaStoreProtocol, @unc
         "asset-\(assetID.lowercased()).jpg"
     }
 
+    nonisolated func partnerCacheFileName(for assetID: String, version: Int) -> String {
+        "asset-\(assetID.lowercased())-v\(version).jpg"
+    }
+
     nonisolated func avatarData(named fileName: String) throws -> Data {
         lock.lock(); defer { lock.unlock() }
         guard let data = storage[fileName] else {
