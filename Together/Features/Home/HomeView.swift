@@ -754,6 +754,12 @@ struct HomeView: View {
         }
     }
 
+    private func isNudged(_ entry: HomeTimelineEntry) -> Bool {
+        guard let reminderAt = entry.reminderRequestedAt else { return false }
+        guard let lastAction = entry.lastActionAt else { return true }
+        return reminderAt > lastAction
+    }
+
     @ViewBuilder
     private func timelineRows(
         _ entries: [HomeTimelineEntry],
@@ -841,7 +847,7 @@ struct HomeView: View {
             .listRowBackground(
                 highlightedTaskID == entry.id
                     ? AppTheme.colors.coral.opacity(0.18)
-                    : Color.clear
+                    : (isNudged(entry) ? AppTheme.colors.coral.opacity(0.08) : Color.clear)
             )
             .listRowSeparator(.hidden)
             .insertedListItemMotion(
@@ -1019,7 +1025,7 @@ struct HomeView: View {
         .listRowBackground(
             highlightedTaskID == entry.id
                 ? AppTheme.colors.coral.opacity(0.18)
-                : Color.clear
+                : (isNudged(entry) ? AppTheme.colors.coral.opacity(0.08) : Color.clear)
         )
         .listRowSeparator(.hidden)
         .insertedListItemMotion(
@@ -1978,6 +1984,12 @@ private struct HomeTimelineRow: View {
     @State private var rowOpacity: Double = 1
     @State private var reopeningCheckmarkOpacity: Double = 1
 
+    private var isNudgedEntry: Bool {
+        guard let reminderAt = entry.reminderRequestedAt else { return false }
+        guard let lastAction = entry.lastActionAt else { return true }
+        return reminderAt > lastAction
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Button(action: onToggleCompletion) {
@@ -2036,6 +2048,11 @@ private struct HomeTimelineRow: View {
 
                     VStack(alignment: .trailing, spacing: 6) {
                         HomeTimelineTimeText(entry: entry)
+                        if isNudgedEntry {
+                            Image(systemName: "bell.badge.fill")
+                                .foregroundStyle(AppTheme.colors.coral)
+                                .font(.caption)
+                        }
                     }
                 }
                 .contentShape(Rectangle())
@@ -3269,7 +3286,8 @@ private struct HomeOverdueSummarySheet: View {
                     primaryAvatar: nil,
                     secondaryAvatar: nil,
                     latestMessageAuthorName: nil,
-                    reminderRequestedAt: nil
+                    reminderRequestedAt: nil,
+                    lastActionAt: nil
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
                 isAnimatingReopening: false,

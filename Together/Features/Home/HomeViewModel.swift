@@ -42,6 +42,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let secondaryAvatar: HomeAvatar?
     let latestMessageAuthorName: String?
     let reminderRequestedAt: Date?
+    let lastActionAt: Date?
 
     var syncStateText: String? {
         syncState?.text
@@ -1506,7 +1507,8 @@ final class HomeViewModel {
             primaryAvatar: relationship.primaryAvatar,
             secondaryAvatar: relationship.secondaryAvatar,
             latestMessageAuthorName: latestMessageAuthorName(for: item),
-            reminderRequestedAt: item.reminderRequestedAt
+            reminderRequestedAt: item.reminderRequestedAt,
+            lastActionAt: item.lastActionAt
         )
     }
 
