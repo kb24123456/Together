@@ -206,6 +206,17 @@ actor SupabaseInviteGateway {
             .execute()
     }
 
+    /// 查询 space 当前剩余成员数（用于判断是否最后一人离开）
+    func remainingMemberCount(spaceID: UUID) async throws -> Int {
+        struct Row: Decodable { let userId: UUID; enum CodingKeys: String, CodingKey { case userId = "user_id" } }
+        let rows: [Row] = try await client.from("space_members")
+            .select("user_id")
+            .eq("space_id", value: spaceID.uuidString)
+            .execute()
+            .value
+        return rows.count
+    }
+
     /// 生成 6 位数字邀请码
     private func generateNumericCode(digits: Int) -> String {
         let max = Int(pow(10.0, Double(digits))) - 1

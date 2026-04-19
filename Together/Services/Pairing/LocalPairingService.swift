@@ -436,8 +436,28 @@ actor LocalPairingService: PairingServiceProtocol {
                 predicate: #Predicate<PersistentItem> { $0.spaceID == sharedSpaceID }
             )
         )
+        let sharedItemIDs = sharedItems.map(\.id)
+        if sharedItemIDs.isEmpty == false {
+            let sharedMessages = try context.fetch(
+                FetchDescriptor<PersistentTaskMessage>(
+                    predicate: #Predicate<PersistentTaskMessage> { sharedItemIDs.contains($0.taskID) }
+                )
+            )
+            for message in sharedMessages {
+                context.delete(message)
+            }
+        }
         for item in sharedItems {
             context.delete(item)
+        }
+
+        let sharedImportantDates = try context.fetch(
+            FetchDescriptor<PersistentImportantDate>(
+                predicate: #Predicate<PersistentImportantDate> { $0.spaceID == sharedSpaceID }
+            )
+        )
+        for event in sharedImportantDates {
+            context.delete(event)
         }
 
         let sharedLists = try context.fetch(

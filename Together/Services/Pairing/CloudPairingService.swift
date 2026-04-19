@@ -1,8 +1,11 @@
 import Foundation
+import os
 
 protocol PairJoinObserver: AnyObject, Sendable {
     func onSuccessfulPairJoin() async
 }
+
+private let cloudPairingLogger = Logger(subsystem: "com.pigdog.Together", category: "CloudPairing")
 
 /// 配对服务（Supabase 版）
 /// 组合 LocalPairingService（本地 SwiftData 状态）+ SupabaseInviteGateway（远程配对操作）
@@ -67,14 +70,28 @@ actor CloudPairingService: PairingServiceProtocol {
         // 2. 先 teardown Supabase sync（停 Realtime、冲完最后一批 push）
         await onPairSyncTeardown?(pairSpaceID)
 
-        // 3. Supabase 端归档 + 离开 space_members；best-effort，不阻断本地解绑
+        // 3. Supabase 端离开 space_members；若最后一人离开则归档 space。
+        //    best-effort，不阻断本地解绑；失败记录日志以便事后排查。
         if let supabaseSpaceID, let myID = await supabaseAuth.currentUserID {
             do {
                 try await inviteGateway.leaveSpace(spaceID: supabaseSpaceID, userID: myID)
-                try await inviteGateway.archiveSpace(spaceID: supabaseSpaceID)
             } catch {
-                // 记录但不抛出：即便网络失败，本地解绑仍然要完成
+                cloudPairingLogger.error("leaveSpace failed for space=\(supabaseSpaceID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
+
+            let remaining = (try? await inviteGateway.remainingMemberCount(spaceID: supabaseSpaceID)) ?? -1
+            if remaining == 0 {
+                do {
+                    try await inviteGateway.archiveSpace(spaceID: supabaseSpaceID)
+                } catch {
+                    cloudPairingLogger.error("archiveSpace failed for space=\(supabaseSpaceID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                }
+            } else if remaining < 0 {
+                cloudPairingLogger.notice("skipping archive for space=\(supabaseSpaceID.uuidString, privacy: .public): member count unknown")
+            }
+        } else {
+            let authed = await supabaseAuth.currentUserID != nil
+            cloudPairingLogger.notice("skipping Supabase unbind cleanup: supabaseSpaceID=\(supabaseSpaceID?.uuidString ?? "nil", privacy: .public) authed=\(authed, privacy: .public)")
         }
 
         // 4. 本地解绑（删除本地共享数据 + membership）
