@@ -284,6 +284,7 @@ actor SupabaseSyncService {
         let periodicStream = channel.postgresChange(AnyAction.self, schema: "public", table: "periodic_tasks", filter: spaceFilter)
         let membersStream = channel.postgresChange(AnyAction.self, schema: "public", table: "space_members", filter: spaceFilter)
         let spacesStream = channel.postgresChange(AnyAction.self, schema: "public", table: "spaces", filter: spacesFilter)
+        let importantDatesStream = channel.postgresChange(AnyAction.self, schema: "public", table: "important_dates", filter: spaceFilter)
 
         try? await channel.subscribe()
         self.realtimeChannel = channel
@@ -322,6 +323,11 @@ actor SupabaseSyncService {
         listeningTasks.append(Task { [weak self] in
             for await change in spacesStream {
                 await self?.handleRealtimeChange(change, table: "spaces")
+            }
+        })
+        listeningTasks.append(Task { [weak self] in
+            for await change in importantDatesStream {
+                await self?.handleImportantDateChange(change)
             }
         })
 
@@ -775,6 +781,20 @@ actor SupabaseSyncService {
         recentlyPushedIDs = recentlyPushedIDs.filter { $0.value > cutoff }
     }
 
+    private func handleImportantDateChange(_ change: AnyAction) async {
+        // Echo filter: 自己刚 push 成功的 record 在短窗口内跳过，避免 UI 闪烁
+        if let recordID = Self.extractRecordID(from: change),
+           let pushedAt = recentlyPushedIDs[recordID],
+           Date().timeIntervalSince(pushedAt) < echoWindow {
+            return
+        }
+        await catchUp()
+        await MainActor.run {
+            NotificationCenter.default.post(name: .importantDatesChanged, object: nil)
+            NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
+        }
+    }
+
     private func handleMemberChange(_ change: AnyAction) async {
         switch change {
         case .insert:
@@ -817,6 +837,7 @@ extension Notification.Name {
     static let pairMemberRemoved = Notification.Name("pairMemberRemoved")
     static let supabaseRealtimeChanged = Notification.Name("supabaseRealtimeChanged")
     static let partnerAvatarDownloaded = Notification.Name("partnerAvatarDownloaded")
+    static let importantDatesChanged = Notification.Name("importantDatesChanged")
 }
 
 // MARK: - TaskMessage DTO (write-only)
