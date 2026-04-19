@@ -43,4 +43,10 @@ struct AppThemeTokenTests {
         #expect(AppTheme.spacing.xl == 28)
         #expect(AppTheme.spacing.xxl == 36)
     }
+
+    @Test func pairAccentDistinctFromSoloAccent() {
+        // Visual distinction required — pair accent must differ from solo accent.
+        #expect(AppTheme.colors.pairAccent != AppTheme.colors.accent)
+        #expect(AppTheme.colors.pairAccentSoft != AppTheme.colors.accentSoft)
+    }
 }

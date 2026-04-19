@@ -58,6 +58,14 @@ enum AppTheme {
         static let accentSoft = Color(light: .init(red: 0.92, green: 0.96, blue: 0.94),
                                       dark: .init(red: 0.18, green: 0.26, blue: 0.24))
 
+        // MARK: - Pair Mode Accent (双人模式专属色系)
+
+        static let pairAccent = Color(light: .init(red: 0.87, green: 0.48, blue: 0.41),
+                                      dark: .init(red: 0.93, green: 0.60, blue: 0.52))
+
+        static let pairAccentSoft = Color(light: .init(red: 0.99, green: 0.93, blue: 0.91),
+                                          dark: .init(red: 0.30, green: 0.20, blue: 0.18))
+
         static let profileAccent = Color(light: .init(red: 0.29, green: 0.31, blue: 0.34),
                                          dark: .init(red: 0.78, green: 0.78, blue: 0.80))
 

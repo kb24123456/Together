@@ -234,17 +234,18 @@ struct HomeView: View {
         HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
             Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
                 .font(AppTheme.typography.sized(12, weight: .bold))
-                .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
+                .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.pairAccent : headerSecondaryColor)
                 .padding(.horizontal, AppTheme.spacing.sm)
                 .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
                 .background(
                     Capsule(style: .continuous)
                         .fill(
                             viewModel.isPairModeActive
-                            ? AppTheme.colors.coral.opacity(0.12)
+                            ? AppTheme.colors.pairAccentSoft
                             : AppTheme.colors.surfaceElevated
                         )
                 )
+                .animation(.spring(response: 0.3, dampingFraction: 0.86), value: viewModel.isPairModeActive)
 
             Text(viewModel.spaceDisplayName)
                 .font(AppTheme.typography.sized(13, weight: .semibold))
