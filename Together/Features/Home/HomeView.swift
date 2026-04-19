@@ -402,7 +402,7 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         if appContext.sessionStore.activeMode == .single,
-               appContext.routinesViewModel.hasPendingTasks {
+                           appContext.routinesViewModel.hasPendingTasks {
                             RoutinesSummaryCard(
                                 viewModel: appContext.routinesViewModel,
                                 onNavigateToRoutines: {
