@@ -432,6 +432,13 @@ struct HomeView: View {
                             )
                         }
 
+                        if appContext.sessionStore.activeMode == .pair {
+                            AnniversaryCapsuleView(
+                                nextEvent: nextAnniversaryEvent(),
+                                onTap: { isImportantDatesManagementPresented = true }
+                            )
+                        }
+
                         timelineSection
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)

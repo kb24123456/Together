@@ -83,6 +83,11 @@ final class AppContext {
         self.importantDatesViewModel = ImportantDatesViewModel(repository: container.importantDateRepository)
         self.importantDatesViewModel.onChange = { [weak self] in
             guard let self else { return }
+            // LocalImportantDateRepository.save/delete already recorded the change
+            // into PersistentSyncChange via syncCoordinator; we still need to kick
+            // SupabaseSyncService.push() so the row actually leaves the device.
+            await self.supabaseSyncService?.push()
+            await self.refreshSharedSyncStatusAsync()
             guard let pairSpaceID = self.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
             await self.container.anniversaryScheduler.refresh(
                 spaceID: pairSpaceID,
