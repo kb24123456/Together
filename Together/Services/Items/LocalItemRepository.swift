@@ -210,6 +210,15 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             throw RepositoryError.notFound
         }
 
+        ItemStatusDiagnosisLog.markCompletedBegin(
+            itemID: record.id,
+            oldStatus: record.statusRawValue,
+            oldCompletedAt: record.completedAt,
+            actorID: actorID,
+            creatorID: record.creatorID,
+            hasRepeatRule: record.repeatRuleData != nil
+        )
+
         var item = record.domainModel()
         if item.repeatRule == nil {
             // Only enforce role-based completion for .partner mode tasks (where
@@ -244,6 +253,19 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.updatedAt = .now
         record.update(from: item)
         try context.save()
+
+        ItemStatusDiagnosisLog.markCompletedSaved(
+            itemID: record.id,
+            newStatus: record.statusRawValue,
+            newCompletedAt: record.completedAt
+        )
+
+        let readback = try? fetchRecord(itemID: itemID, context: context)
+        ItemStatusDiagnosisLog.markCompletedReadback(
+            itemID: itemID,
+            readbackStatus: readback?.statusRawValue,
+            readbackCompletedAt: readback?.completedAt
+        )
 
         if let sid = record.spaceID {
             await syncCoordinator?.recordLocalChange(
