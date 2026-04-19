@@ -42,6 +42,7 @@ enum MockServiceFactory {
             itemRepository: itemRepository,
             taskTemplateRepository: taskTemplateRepository,
             taskMessageRepository: LocalTaskMessageRepository(container: mockModelContainer),
+            importantDateRepository: MockImportantDateRepository(),
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
             decisionRepository: MockDecisionRepository(),
