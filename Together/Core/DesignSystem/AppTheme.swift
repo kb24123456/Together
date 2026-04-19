@@ -108,6 +108,7 @@ enum AppTheme {
     }
 
     enum spacing {
+        static let xxs: CGFloat = 4
         static let xs: CGFloat = 6
         static let sm: CGFloat = 10
         static let md: CGFloat = 16
@@ -117,7 +118,13 @@ enum AppTheme {
     }
 
     enum radius {
+        static let xs: CGFloat = 9
+        static let sm: CGFloat = 11
+        static let md: CGFloat = 14
+        static let lg: CGFloat = 18
         static let card: CGFloat = 20
+        static let xl: CGFloat = 26
+        static let xxl: CGFloat = 34
         static let pill: CGFloat = 999
     }
 
