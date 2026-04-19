@@ -82,7 +82,7 @@ struct PersistenceController {
         }
 
         do {
-            try seedIfNeeded(container: container, includeMockItems: inMemory)
+            try seedIfNeeded(container: container, includeMockData: inMemory)
         } catch {
             errorOut = "seedIfNeeded: \(error)"
             return nil
@@ -250,7 +250,7 @@ struct PersistenceController {
             migratedContainer = try makeContainer(inMemory: false, includeLegacyRelayModels: false)
             try restoreSnapshot(snapshot, into: migratedContainer)
             try cleanupLegacyPeriodicDataIfNeeded(container: migratedContainer, inMemory: false)
-            try seedIfNeeded(container: migratedContainer, includeMockItems: false)
+            try seedIfNeeded(container: migratedContainer, includeMockData: false)
             StartupTrace.mark("PersistenceController.legacyRelayMigrationSucceeded")
             return migratedContainer
         } catch {
@@ -705,12 +705,16 @@ struct PersistenceController {
 
         try context.save()
     }
-    /// Seeds structural fixtures (spaces, lists, projects, subtasks) on an empty store.
+    /// Seeds mock fixtures (spaces, memberships, lists, projects, subtasks, items) on an empty store.
     ///
-    /// - Parameter includeMockItems: When `true`, also inserts the 8 mock `Item` fixtures
-    ///   from `MockDataFactory.makeItems()`. Production builds pass `false` so the real
-    ///   store starts empty of tasks; tests / previews pass `true` to get fixture data.
-    private static func seedIfNeeded(container: ModelContainer, includeMockItems: Bool) throws {
+    /// - Parameter includeMockData: When `true`, inserts the full mock dataset from
+    ///   `MockDataFactory` (used by in-memory tests and SwiftUI previews). Production
+    ///   passes `false`, in which case this function is a no-op — the real store starts
+    ///   completely empty, and `AppContext.bootstrapIfNeeded` creates the user's single
+    ///   space on first sign-in. Default lists / projects / items are created by the user.
+    private static func seedIfNeeded(container: ModelContainer, includeMockData: Bool) throws {
+        guard includeMockData else { return }
+
         let context = ModelContext(container)
         let spaceCount = try context.fetchCount(FetchDescriptor<PersistentSpace>())
 
@@ -748,10 +752,8 @@ struct PersistenceController {
             context.insert(PersistentProjectSubtask(subtask: subtask))
         }
 
-        if includeMockItems {
-            for item in MockDataFactory.makeItems() {
-                context.insert(PersistentItem(item: item))
-            }
+        for item in MockDataFactory.makeItems() {
+            context.insert(PersistentItem(item: item))
         }
 
         try context.save()
