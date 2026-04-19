@@ -3728,6 +3728,79 @@ git push origin main
 
 ---
 
-## 实施日志
+## 实施日志（2026-04-19 shipped to main）
 
-（开工后追加）
+36 commits merged ff-only → main at `2428982`. Supabase migrations 015 / 016 / 017 / 018 / 019 all applied to `nxielmwdoiwiwhzczrmt`. Full regression green at every step (Swift Testing only; XCTest untouched).
+
+### Commit history
+
+Feature commits (plan order, with any mid-stream fixes grouped):
+
+- `089fc5c` Task 1 — migration 015 hard-delete pair-space periodic_tasks
+- `b8b9abc` + `fc11434` Task 2 — migration 016 create important_dates (rebuilt after discovering 001 pre-created a Phase-3 placeholder with wrong schema)
+- `58decf4` Task 3 — domain model `ImportantDate` + enums + `nextOccurrence` (solar / lunar / leap-month fallback)
+- `10f358e` Task 4 — 6 `nextOccurrence` tests
+- `c3dece7` Task 5 — `PersistentImportantDate` SwiftData model (schema grew 16 → 17)
+- `12520b8` Task 6 — `PairPeriodicPurgeMigration` + postLaunch hook + 2 tests
+- `b21fcc3` Task 7 — `LocalImportantDateRepository` (actor) + protocol + 4 tests + `SyncEntityKind.importantDate` case + removed legacy `AnniversaryRepositoryProtocol` / `MockAnniversaryRepository` / `AnniversariesViewModel` / `AnniversariesView` (+ build-green stubs in `SupabaseSyncService.pushUpsert` / `SyncEngineDelegate.fetchAndEncode`)
+- `d8471be` Task 8 — DI wiring through `AppContainer` + factories + `MockImportantDateRepository`
+- `5f7b615` follow-up — migration 017 CHECK constraints (auto-merged from spawned chip before Task 10)
+- Task 9 — rolled into Task 7
+- `838e8f7` Task 10 — `ImportantDateDTO` Codable + `applyToLocal` + 3 round-trip tests (memberwise init preserved by moving `init(from:)` to extension)
+- `97b00ca` Task 11 — `pushUpsert(.importantDate)` + `ImportantDateWriter` seam + 2 push tests (delete reused generic `pushDelete`)
+- `1d3f4ea` Task 12 — `pullImportantDates` + `ImportantDateReader` seam + 3 pull tests (insert / update / tombstone)
+- `4ba46eb` Task 13 — realtime subscription + `.importantDatesChanged` notification + echo filter
+- `dd0a8cf` + `f107b6f` Task 14 — hide routines dock button + summary card when `activeMode == .pair`
+- `ce27da5` Task 15 — `LocalPeriodicTaskRepository.saveTask` pair-space guard + 3 tests
+- `69e8530` Task 16 — `ImportantDatesViewModel` skeleton wired into `AppContext`
+- `724f0c0` Task 17 — `AnniversaryNotificationScheduler` skeleton (fixed plan's `center.authorizationStatus()` call, actual API is `center.notificationSettings().authorizationStatus`)
+- `3426a95` Task 18 — empty commit documenting scheduler unit-test deferral to E2E
+- `8ccf3c9` Task 19 — scheduler wired through AppContainer + factories + postLaunch + `.importantDatesChanged` observer
+- `f112151` Task 20 — ViewModel `onChange` callback triggers scheduler refresh on save/delete
+- `b5ffb2e` Task 21 — `AnniversaryCapsuleView` + two timeline list mounting points + postLaunch `configure + load`
+- `aa489da` Task 22 — profile page anniversaries entry row (pair mode only)
+- `9d33d11` Task 24 — `ImportantDateEditSheet` (reordered ahead of 23 because 23 references 24 + 25)
+- `bb49224` Task 25 — `PresetHolidayPickerSheet`
+- `abcff5c` Task 23 — `ImportantDatesManagementView` empty state + list + add sheet
+- `eb92df5` Task 26 — home capsule + profile row wired to sheet via local `@State` (deliberately not AppRouter — profile is inside a fullScreenCover that would occlude a router-owned sheet)
+- `af7ce77` Task 27 — scheduler API refactored from provider closures to explicit `refresh(spaceID:partnerName:myName:myUserID:)` args (factories have no sessionStore handle; explicit args at call-time sidestep Swift 6 actor-isolation complexity)
+- `922b55e` Task 28 — empty commit documenting visual polish deferral to E2E
+
+E2E-driven fix commits (on top of the 28-task plan):
+
+- `6a9fd5d` Fix A+B — missing `supabaseSyncService.push()` call after VM save/delete (queued changes never left the device) + missing capsule mount in the tasksContent empty-state branch
+- `a6e1a06` Fix C — migration 018 relax INSERT RLS (the plan accidentally wrote `is_space_member(space_id) AND creator_id = auth.uid()` when all other pair tables use only `is_space_member(space_id)`; anon-key path couldn't satisfy the stricter clause)
+- `e8779e6` Fix D — migration 019 convert `date_value` from `date` to `timestamptz` (PostgREST returns bare `"YYYY-MM-DD"` for `date` columns, Swift's JSONDecoder cannot parse that as `Date` under any default strategy; timestamptz returns ISO8601 which the Supabase Swift SDK decodes out of the box)
+- `2428982` Fix E — VM `spaceID` configure when pair becomes active (postLaunch fires once-per-launch; if pair isn't ready yet the VM stays nil-configured and all subsequent `load()` calls short-circuit silently). Three defensive hooks: `startSupabaseSyncIfNeeded` after pair resolution, `ImportantDatesManagementView.task`, `HomeView.onReceive(.importantDatesChanged)`.
+
+### Decisions that diverged from the plan (keep in mind for future work)
+
+1. **RLS policy** — plan wrote anon open-to-public; controller chose `is_space_member()` to match other pair tables. Then E2E discovered the plan's own INSERT-side extra clause `creator_id = auth.uid()` was too strict for the project's two-user-id-universe identity model. 018 relaxed it to match tasks / projects / periodic_tasks.
+2. **`date_value` column type** — plan said `date`; E2E showed PostgREST/Swift decoder mismatch. 019 converted to `timestamptz`. UI still extracts year/month/day via `Calendar(.current)` so the forced 00:00 UTC component is display-invisible.
+3. **Delete path** — plan wanted `ImportantDateWriter.delete()`; the generic `pushDelete(entityKind:recordID:)` on `SupabaseSyncService` already uses `supabaseTableName + SoftDelete` struct and covers any kind. `ImportantDateWriter` only needed `upsert`.
+4. **`#Predicate` on optional `UUID`** — `Set<UUID>.contains(task.spaceID)` where `spaceID: UUID?` is not expressible in SwiftData's predicate DSL. `PairPeriodicPurgeMigration` fetches all rows and filters in Swift.
+5. **ViewModel API** — plan used provider closures for `partnerDisplayName` / `myDisplayName`. Factories don't have SessionStore handle (AppContext builds factory first). Rewrote scheduler to accept explicit `refresh(spaceID:partnerName:myName:myUserID:)` args; AppContext reads session at call time.
+6. **Task 23 ordering** — 23 references types from 24 + 25. Executed 24 → 25 → 23 in the commit log to keep every commit green on build.
+7. **Sheet routing** — plan assumed an AppRouter sheet enum. Project's AppRouter is a minimal `@Observable` with no sheet/destination API. Used local `@State` on HomeView and ProfileView for `isImportantDatesManagementPresented`; profile sheet is attached inside the fullScreenCover so it isn't occluded.
+8. **Scheduler unit tests** — `UNUserNotificationCenter` is a Swift singleton without a cheap seam. Deferred tests to E2E (per plan's recommended "Option 1") rather than refactoring a `NotificationCenterAdapter` protocol for MVP.
+9. **Visual polish pass** — Task 28 required human eyes; controller cannot iterate on pixels. Deferred to E2E user feedback.
+
+### Follow-ups left on the backlog (chips)
+
+- Add `CHECK` constraints to `important_dates` for kind / recurrence_rule / notify_days_before / preset consistency *(already auto-merged as `5f7b615` mid-way)*
+- Fix Feb 29 / lunar leap-month edge cases — extend `nextOccurrence` loop bounds from `0..<2` / `0..<3` to `0..<5` with targeted tests
+- Explicitly configure Supabase Swift client ISO8601 Date encoder/decoder (currently implicit, survives SDK upgrades only by luck)
+- Serialize `AnniversaryNotificationScheduler.refresh` against concurrent invocations (current implementation could race and remove its own just-added pending requests)
+- Backfill `pullImportantDates` when local store is empty (ignore `lastSyncedAt since` so a prior empty-successful catchUp can't hide later rows)
+- Clean up pair unbind side-effects — stale `space_members` rows on Supabase, local SwiftData rows tagged with the old spaceID (not anniversaries-specific, affects every pair-scoped table)
+
+### E2E outcomes (task 29, user-driven)
+
+User ran 10 cases on iPhone + iPad. Uncovered the 5 fix commits above; on the final iteration both devices reached steady state with correct cross-device sync:
+
+- Empty state shows "添加第一个纪念日" capsule correctly
+- Capsule + management view + profile entry all present in pair mode, hidden in solo
+- Routines dock button + summary card hidden in pair mode, unchanged in solo
+- iPhone create → iPad realtime receive via `.importantDatesChanged` channel → capsule and management view refresh
+- Local scheduler logs `scheduled anniversary notifications for N events` on every mutation
+- Supabase `important_dates` table synced; RLS policies green with the relaxed INSERT rule
