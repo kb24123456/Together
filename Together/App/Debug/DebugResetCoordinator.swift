@@ -64,7 +64,7 @@ enum DebugResetCoordinator {
         defaults: UserDefaults = .standard,
         deleteStoreFiles: () -> Void = { PersistenceController.deleteStoreFiles() },
         clearMigrationFlags: () -> Void = { Self.clearKnownMigrationFlags() },
-        wipeCloudZone: () -> Void = { Self.wipeSoloZoneBestEffort() }
+        wipeCloudZone: () -> Void = { Self.wipeAllCloudKitZonesBestEffort() }
     ) -> ApplyResult {
         let localPending = defaults.bool(forKey: pendingLocalNukeKey)
         let cloudPending = defaults.bool(forKey: pendingCloudWipeKey)
@@ -101,37 +101,65 @@ enum DebugResetCoordinator {
         }
     }
 
-    /// 清理 CloudKit solo zone。每次尝试 30s 超时，失败 (除了 zone 本就不存在) 重试至多 3 次。
+    /// 清理 CloudKit private DB 下所有自定义 zone（solo + 所有 pair-*）。
+    /// 默认 zone 过滤掉（系统 zone 不能删）。每次尝试 30s 超时，失败重试至多 3 次。
     /// 全部失败只 log 不抛，不 block 本地清。
-    private static func wipeSoloZoneBestEffort() {
+    private static func wipeAllCloudKitZonesBestEffort() {
         let container = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
-        let zoneID = CKRecordZone.ID(zoneName: "solo")
         let maxAttempts = 3
         let perAttemptTimeoutSeconds = 30
 
         for attempt in 1...maxAttempts {
-            let err = deleteZoneSync(
+            // Step 1: fetch all custom zones
+            let fetchResult = fetchAllCustomZoneIDsSync(
                 container: container,
-                zoneID: zoneID,
                 timeoutSeconds: perAttemptTimeoutSeconds
             )
 
-            guard let err else {
-                logger.info("Cloud solo zone wiped on attempt \(attempt).")
+            let zoneIDs: [CKRecordZone.ID]
+            switch fetchResult {
+            case .success(let ids):
+                zoneIDs = ids
+            case .failure(let err):
+                let code = (err as? CKError).map { "CKError.\($0.code.rawValue)" } ?? "non-CKError"
+                logger.error("""
+                    Cloud zones fetch attempt \(attempt)/\(maxAttempts) failed: \
+                    code=\(code, privacy: .public) \
+                    err=\(String(describing: err), privacy: .public)
+                    """)
+                if attempt < maxAttempts {
+                    Thread.sleep(forTimeInterval: 3)
+                    continue
+                }
+                logger.error("Cloud zones fetch exhausted \(maxAttempts) attempts; giving up. Local wipe still proceeding.")
                 return
             }
 
-            if let ckErr = err as? CKError,
-               ckErr.code == .unknownItem || ckErr.code == .zoneNotFound {
-                logger.info("Cloud solo zone already absent on attempt \(attempt).")
+            if zoneIDs.isEmpty {
+                logger.info("No CloudKit custom zones to wipe (attempt \(attempt)).")
                 return
             }
 
-            let code = (err as? CKError).map { "CKError.\($0.code.rawValue)" } ?? "non-CKError"
+            // Step 2: delete all fetched zones in one batch operation
+            let names = zoneIDs.map(\.zoneName).joined(separator: ", ")
+            logger.info("Wiping \(zoneIDs.count) CloudKit zones on attempt \(attempt): \(names, privacy: .public)")
+
+            let deleteErr = deleteZonesSync(
+                container: container,
+                zoneIDs: zoneIDs,
+                timeoutSeconds: perAttemptTimeoutSeconds
+            )
+
+            guard let deleteErr else {
+                logger.info("Wiped \(zoneIDs.count) CloudKit zones on attempt \(attempt).")
+                return
+            }
+
+            let code = (deleteErr as? CKError).map { "CKError.\($0.code.rawValue)" } ?? "non-CKError"
             logger.error("""
-                Cloud solo zone wipe attempt \(attempt)/\(maxAttempts) failed: \
+                Cloud zones delete attempt \(attempt)/\(maxAttempts) failed: \
                 code=\(code, privacy: .public) \
-                err=\(String(describing: err), privacy: .public)
+                err=\(String(describing: deleteErr), privacy: .public)
                 """)
 
             if attempt < maxAttempts {
@@ -140,31 +168,75 @@ enum DebugResetCoordinator {
         }
 
         logger.error("""
-            Cloud solo zone wipe exhausted \(maxAttempts) attempts; giving up. \
-            Local wipe still proceeding; zone may repopulate local on next sync.
+            Cloud zones wipe exhausted \(maxAttempts) attempts; giving up. \
+            Local wipe still proceeding; zones may repopulate local on next sync.
             """)
     }
 
-    /// 同步等待 CKDatabase zone 删除完成，用 semaphore 把 async callback 桥回 sync 上下文。
-    private static func deleteZoneSync(
+    /// 同步 fetch private DB 所有自定义 zone（过滤掉系统默认 zone `_defaultZone`）。
+    private static func fetchAllCustomZoneIDsSync(
         container: CKContainer,
-        zoneID: CKRecordZone.ID,
+        timeoutSeconds: Int
+    ) -> Result<[CKRecordZone.ID], Error> {
+        let semaphore = DispatchSemaphore(value: 0)
+        var finalResult: Result<[CKRecordZone.ID], Error> = .success([])
+        let defaultZoneName = CKRecordZone.default().zoneID.zoneName
+
+        container.privateCloudDatabase.fetchAllRecordZones { zones, error in
+            if let error {
+                finalResult = .failure(error)
+            } else {
+                let customIDs = (zones ?? [])
+                    .map(\.zoneID)
+                    .filter { $0.zoneName != defaultZoneName }
+                finalResult = .success(customIDs)
+            }
+            semaphore.signal()
+        }
+
+        let waitResult = semaphore.wait(timeout: .now() + .seconds(timeoutSeconds))
+        if waitResult == .timedOut {
+            return .failure(NSError(
+                domain: "DebugResetCoordinator",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Zones fetch timed out after \(timeoutSeconds)s"]
+            ))
+        }
+        return finalResult
+    }
+
+    /// 同步等待 batch zone 删除完成。
+    private static func deleteZonesSync(
+        container: CKContainer,
+        zoneIDs: [CKRecordZone.ID],
         timeoutSeconds: Int
     ) -> Error? {
+        guard !zoneIDs.isEmpty else { return nil }
+
         let semaphore = DispatchSemaphore(value: 0)
         var finalError: Error?
 
-        container.privateCloudDatabase.delete(withRecordZoneID: zoneID) { _, error in
-            finalError = error
+        let op = CKModifyRecordZonesOperation(
+            recordZonesToSave: nil,
+            recordZoneIDsToDelete: zoneIDs
+        )
+        op.modifyRecordZonesResultBlock = { result in
+            switch result {
+            case .success:
+                finalError = nil
+            case .failure(let err):
+                finalError = err
+            }
             semaphore.signal()
         }
+        container.privateCloudDatabase.add(op)
 
         let waitResult = semaphore.wait(timeout: .now() + .seconds(timeoutSeconds))
         if waitResult == .timedOut {
             return NSError(
                 domain: "DebugResetCoordinator",
                 code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Zone delete timed out after \(timeoutSeconds)s"]
+                userInfo: [NSLocalizedDescriptionKey: "Zones delete timed out after \(timeoutSeconds)s"]
             )
         }
         return finalError

@@ -73,7 +73,7 @@ struct ProfileDebugSection: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这是最后一次确认。点击后 app 会立即退出，下次启动时本地 + 云端都会被清空。")
+            Text("这是最后一次确认。点击后 app 会立即退出，下次启动时本地 + 云端所有 zone（solo + pair-*）都会被清空。云端清理最长可能等 90 秒（3 次重试 × 30 秒超时），请耐心等待。")
         }
     }
 }
