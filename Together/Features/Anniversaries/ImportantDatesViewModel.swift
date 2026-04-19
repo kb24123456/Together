@@ -7,6 +7,7 @@ import os
 final class ImportantDatesViewModel {
     var events: [ImportantDate] = []
     var isLoading = false
+    var onChange: (@MainActor @Sendable () async -> Void)?
 
     private let repository: ImportantDateRepositoryProtocol
     private var spaceID: UUID?
@@ -31,6 +32,16 @@ final class ImportantDatesViewModel {
         }
     }
 
+    func save(_ event: ImportantDate) async {
+        do {
+            try await repository.save(event)
+        } catch {
+            logger.error("save failed: \(error.localizedDescription)")
+        }
+        await load()
+        await onChange?()
+    }
+
     func delete(_ id: UUID) async {
         do {
             try await repository.delete(id: id)
@@ -38,5 +49,6 @@ final class ImportantDatesViewModel {
             logger.error("delete failed: \(error.localizedDescription)")
         }
         await load()
+        await onChange?()
     }
 }

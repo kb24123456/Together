@@ -81,6 +81,11 @@ final class AppContext {
             biometricAuthService: container.biometricAuthService
         )
         self.importantDatesViewModel = ImportantDatesViewModel(repository: container.importantDateRepository)
+        self.importantDatesViewModel.onChange = { [weak self] in
+            guard let self else { return }
+            guard let pairSpaceID = self.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
+            await self.container.anniversaryScheduler.refresh(spaceID: pairSpaceID)
+        }
     }
 
     static func makeContext() -> AppContext {
