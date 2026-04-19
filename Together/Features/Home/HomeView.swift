@@ -22,6 +22,7 @@ struct HomeView: View {
     @State private var previousScrollOffset: CGFloat = 0
     @State private var dockHideTask: Task<Void, Never>?
     @State private var highlightedTaskID: UUID?
+    @State private var isImportantDatesManagementPresented = false
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -100,6 +101,9 @@ struct HomeView: View {
             )
         ) {
             HomeOverdueSummarySheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isImportantDatesManagementPresented) {
+            ImportantDatesManagementView()
         }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
@@ -542,7 +546,7 @@ struct HomeView: View {
             if appContext.sessionStore.activeMode == .pair {
                 AnniversaryCapsuleView(
                     nextEvent: nextAnniversaryEvent(),
-                    onTap: { }
+                    onTap: { isImportantDatesManagementPresented = true }
                 )
                 .listRowInsets(
                     EdgeInsets(
@@ -652,7 +656,7 @@ struct HomeView: View {
             if appContext.sessionStore.activeMode == .pair {
                 AnniversaryCapsuleView(
                     nextEvent: nextAnniversaryEvent(),
-                    onTap: { }
+                    onTap: { isImportantDatesManagementPresented = true }
                 )
                 .listRowInsets(
                     EdgeInsets(

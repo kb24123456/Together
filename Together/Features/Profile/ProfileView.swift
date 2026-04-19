@@ -8,6 +8,7 @@ struct ProfileView: View {
     @State private var topChromeProgress: CGFloat = 0
     @State private var showsSignOutAlert: Bool = false
     @State private var showsClearCacheAlert: Bool = false
+    @State private var isImportantDatesManagementPresented = false
     @Namespace private var profileTransition
 
     var body: some View {
@@ -136,6 +137,9 @@ struct ProfileView: View {
             }
             .presentationDetents([.medium])
         }
+        .sheet(isPresented: $isImportantDatesManagementPresented) {
+            ImportantDatesManagementView()
+        }
         .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
             let progress = min(max(-offset / 56, 0), 1)
             topChromeProgress = progress
@@ -206,6 +210,7 @@ struct ProfileView: View {
     private var anniversariesEntryRow: some View {
         Button {
             HomeInteractionFeedback.selection()
+            isImportantDatesManagementPresented = true
         } label: {
             ProfileSettingsRow(title: "纪念日管理", value: "", showsChevron: true)
         }
