@@ -107,6 +107,19 @@ struct HomeView: View {
         .onDisappear {
             todayJumpRevealTask?.cancel()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .importantDatesChanged)) { _ in
+            Task { await appContext.importantDatesViewModel.load() }
+        }
+    }
+
+    private func nextAnniversaryEvent() -> ImportantDate? {
+        appContext.importantDatesViewModel.events
+            .compactMap { event -> (ImportantDate, Int)? in
+                guard let days = event.daysUntilNext() else { return nil }
+                return (event, days)
+            }
+            .sorted { $0.1 < $1.1 }
+            .first?.0
     }
 
     private var backgroundView: some View {
@@ -526,6 +539,23 @@ struct HomeView: View {
 
             }
 
+            if appContext.sessionStore.activeMode == .pair {
+                AnniversaryCapsuleView(
+                    nextEvent: nextAnniversaryEvent(),
+                    onTap: { }
+                )
+                .listRowInsets(
+                    EdgeInsets(
+                        top: 10,
+                        leading: timelineRowHorizontalInset,
+                        bottom: 8,
+                        trailing: timelineRowHorizontalInset
+                    )
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+
             if appContext.sessionStore.activeMode == .single,
                appContext.routinesViewModel.hasPendingTasks {
                 RoutinesSummaryCard(
@@ -617,6 +647,23 @@ struct HomeView: View {
                     )
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+            }
+
+            if appContext.sessionStore.activeMode == .pair {
+                AnniversaryCapsuleView(
+                    nextEvent: nextAnniversaryEvent(),
+                    onTap: { }
+                )
+                .listRowInsets(
+                    EdgeInsets(
+                        top: 10,
+                        leading: timelineRowHorizontalInset,
+                        bottom: 8,
+                        trailing: timelineRowHorizontalInset
+                    )
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
 
             if appContext.sessionStore.activeMode == .single,

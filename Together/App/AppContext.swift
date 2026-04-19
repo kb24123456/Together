@@ -149,6 +149,10 @@ final class AppContext {
         let purgeContext = ModelContext(PersistenceController.shared.container)
         PairPeriodicPurgeMigration.runIfNeeded(context: purgeContext)
         if let pairSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
+            importantDatesViewModel.configure(spaceID: pairSpaceID)
+            Task { [importantDatesViewModel] in
+                await importantDatesViewModel.load()
+            }
             Task { [container] in
                 await container.anniversaryScheduler.refresh(spaceID: pairSpaceID)
             }
