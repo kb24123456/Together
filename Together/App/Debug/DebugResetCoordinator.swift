@@ -101,10 +101,56 @@ enum DebugResetCoordinator {
         }
     }
 
-    /// Best-effort：失败只 log 不抛，不 block 本地清。
+    /// 清理 CloudKit solo zone。每次尝试 30s 超时，失败 (除了 zone 本就不存在) 重试至多 3 次。
+    /// 全部失败只 log 不抛，不 block 本地清。
     private static func wipeSoloZoneBestEffort() {
         let container = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
         let zoneID = CKRecordZone.ID(zoneName: "solo")
+        let maxAttempts = 3
+        let perAttemptTimeoutSeconds = 30
+
+        for attempt in 1...maxAttempts {
+            let err = deleteZoneSync(
+                container: container,
+                zoneID: zoneID,
+                timeoutSeconds: perAttemptTimeoutSeconds
+            )
+
+            guard let err else {
+                logger.info("Cloud solo zone wiped on attempt \(attempt).")
+                return
+            }
+
+            if let ckErr = err as? CKError,
+               ckErr.code == .unknownItem || ckErr.code == .zoneNotFound {
+                logger.info("Cloud solo zone already absent on attempt \(attempt).")
+                return
+            }
+
+            let code = (err as? CKError).map { "CKError.\($0.code.rawValue)" } ?? "non-CKError"
+            logger.error("""
+                Cloud solo zone wipe attempt \(attempt)/\(maxAttempts) failed: \
+                code=\(code, privacy: .public) \
+                err=\(String(describing: err), privacy: .public)
+                """)
+
+            if attempt < maxAttempts {
+                Thread.sleep(forTimeInterval: 3)
+            }
+        }
+
+        logger.error("""
+            Cloud solo zone wipe exhausted \(maxAttempts) attempts; giving up. \
+            Local wipe still proceeding; zone may repopulate local on next sync.
+            """)
+    }
+
+    /// 同步等待 CKDatabase zone 删除完成，用 semaphore 把 async callback 桥回 sync 上下文。
+    private static func deleteZoneSync(
+        container: CKContainer,
+        zoneID: CKRecordZone.ID,
+        timeoutSeconds: Int
+    ) -> Error? {
         let semaphore = DispatchSemaphore(value: 0)
         var finalError: Error?
 
@@ -113,14 +159,15 @@ enum DebugResetCoordinator {
             semaphore.signal()
         }
 
-        // 最多等 5 秒。超时也继续往下走。
-        _ = semaphore.wait(timeout: .now() + .seconds(5))
-
-        if let finalError {
-            logger.warning("Cloud solo zone wipe failed: \(String(describing: finalError))")
-        } else {
-            logger.info("Cloud solo zone wiped.")
+        let waitResult = semaphore.wait(timeout: .now() + .seconds(timeoutSeconds))
+        if waitResult == .timedOut {
+            return NSError(
+                domain: "DebugResetCoordinator",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Zone delete timed out after \(timeoutSeconds)s"]
+            )
         }
+        return finalError
     }
 }
 #endif
