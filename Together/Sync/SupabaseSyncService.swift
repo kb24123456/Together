@@ -91,6 +91,10 @@ actor SupabaseSyncService {
         try await pullImportantDates(spaceID: spaceID, since: ISO8601DateFormatter().string(from: .distantPast))
     }
 
+    internal func pullImportantDatesForTesting(spaceID: UUID, since: String) async throws {
+        try await pullImportantDates(spaceID: spaceID, since: since)
+    }
+
     /// 清理资源
     func teardown() async {
         for task in listeningTasks {
@@ -579,15 +583,23 @@ actor SupabaseSyncService {
     }
 
     private func pullImportantDates(spaceID: UUID, since: String) async throws {
-        let rows = try await importantDateReader.fetchRows(spaceID: spaceID, since: since)
-        guard !rows.isEmpty else { return }
-
+        // If the local store is empty, ignore `since` and do a full backfill.
+        // Protects against the race where a prior successful-but-empty catchUp
+        // pushed lastSyncedAt past rows that arrived later.
         let context = ModelContext(modelContainer)
+        let localCount = (try? context.fetchCount(FetchDescriptor<PersistentImportantDate>())) ?? 0
+        let effectiveSince = localCount == 0
+            ? ISO8601DateFormatter().string(from: .distantPast)
+            : since
+
+        let rows = try await importantDateReader.fetchRows(spaceID: spaceID, since: effectiveSince)
+        guard !rows.isEmpty else { return }
         for dto in rows {
             dto.applyToLocal(context: context)
         }
         try context.save()
-        logger.info("[Pull] ✅ importantDates rows=\(rows.count)")
+        let mode = effectiveSince == since ? "incremental" : "full-backfill"
+        logger.info("[Pull] ✅ importantDates rows=\(rows.count) since=\(mode)")
     }
 
     private func pullProjectSubtasks(spaceID: UUID, since: String) async throws {

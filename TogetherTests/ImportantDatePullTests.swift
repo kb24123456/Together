@@ -8,14 +8,21 @@ import SwiftData
 private final class StubImportantDateReader: ImportantDateReader, @unchecked Sendable {
     private let lock = NSLock()
     private var _rows: [ImportantDateDTO] = []
+    private var _lastSince: String?
 
     func setRows(_ rows: [ImportantDateDTO]) {
         lock.lock(); defer { lock.unlock() }
         _rows = rows
     }
 
+    var lastSince: String? {
+        lock.lock(); defer { lock.unlock() }
+        return _lastSince
+    }
+
     func fetchRows(spaceID: UUID, since: String) async throws -> [ImportantDateDTO] {
         lock.lock(); defer { lock.unlock() }
+        _lastSince = since
         return _rows
     }
 }
@@ -141,6 +148,31 @@ struct ImportantDatePullTests {
         let rows = try h.localRows()
         #expect(rows.count == 1)
         #expect(rows.first?.title == "新")
+    }
+
+    @Test("pull forces full backfill when local store is empty even if since is recent")
+    func pullFullBackfillWhenEmpty() async throws {
+        let h = try await ImportantDatePullHarness()
+
+        // Three rows whose updated_at is *before* the recent `since` we'll pass.
+        // Without the full-backfill branch, an incremental query with that `since`
+        // (filtered server-side via the stub's recorded `lastSince`) would skip them.
+        let oldUpdate = Date(timeIntervalSince1970: 1_700_000_000)
+        h.reader.setRows([
+            makeDTO(spaceID: h.spaceID, title: "A", updatedAt: oldUpdate),
+            makeDTO(spaceID: h.spaceID, title: "B", updatedAt: oldUpdate),
+            makeDTO(spaceID: h.spaceID, title: "C", updatedAt: oldUpdate),
+        ])
+
+        let recentSince = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: 1_800_000_000))
+        try await h.sut.pullImportantDatesForTesting(spaceID: h.spaceID, since: recentSince)
+
+        let rows = try h.localRows()
+        #expect(rows.count == 3)
+
+        // The reader must have been called with `.distantPast`, not the recent since.
+        let distantPast = ISO8601DateFormatter().string(from: .distantPast)
+        #expect(h.reader.lastSince == distantPast)
     }
 
     @Test("pull marks tombstone when remote is_deleted=true")
