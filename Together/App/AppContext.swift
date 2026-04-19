@@ -3,6 +3,7 @@ import Foundation
 import Observation
 import os
 import Supabase
+import SwiftData
 import UIKit
 import UserNotifications
 
@@ -138,6 +139,8 @@ final class AppContext {
         guard hasCompletedPostLaunchWork == false else { return }
         hasCompletedPostLaunchWork = true
         StartupTrace.mark("AppContext.postLaunch.begin")
+        let purgeContext = ModelContext(PersistenceController.shared.container)
+        PairPeriodicPurgeMigration.runIfNeeded(context: purgeContext)
         await restorePersistedUserProfileIfNeeded()
         await routinesViewModel.load()
         await syncReminderNotificationsIfNeeded()
