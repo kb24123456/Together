@@ -185,38 +185,38 @@ struct HomeItemDetailSheet: View {
                 compactHeaderSection
                 compactMetaSection
                 compactChipSection
-                    .padding(.top, 14)
+                    .padding(.top, AppTheme.spacing.md)
                 compactActionButtons
-                    .padding(.top, 12)
+                    .padding(.top, AppTheme.spacing.md)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 18)
-        .padding(.bottom, max(proxy.safeAreaInsets.bottom, 6))
+        .padding(.horizontal, AppTheme.spacing.xl)
+        .padding(.top, AppTheme.spacing.lg)
+        .padding(.bottom, max(proxy.safeAreaInsets.bottom, AppTheme.spacing.xs))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func expandedEditorLayout(proxy: GeometryProxy) -> some View {
         VStack(spacing: 0) {
             expandedCategorySwitcher
-                .padding(.top, 18)
-                .padding(.bottom, 8)
+                .padding(.top, AppTheme.spacing.lg)
+                .padding(.bottom, AppTheme.spacing.xs)
 
             expandedEditorSection
-                .padding(.horizontal, 26)
-                .padding(.top, 12)
-                .padding(.bottom, 24)
+                .padding(.horizontal, AppTheme.spacing.xl) // normalized 26→28
+                .padding(.top, AppTheme.spacing.md)
+                .padding(.bottom, AppTheme.spacing.lg) // normalized 24→20
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
-            expandedBottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, 8))
+            expandedBottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, AppTheme.spacing.xs))
         }
         .ignoresSafeArea(edges: .bottom)
     }
 
     private var expandedCategorySwitcher: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             ForEach(["模板", "任务", "周期", "项目"], id: \.self) { title in
                 let isActive = expandedCategoryTitle == title
 
@@ -240,12 +240,12 @@ struct HomeItemDetailSheet: View {
                         .font(AppTheme.typography.sized(18, weight: isActive ? .bold : .semibold))
                         .foregroundStyle(isActive ? AppTheme.colors.title : AppTheme.colors.textTertiary)
                         .scaleEffect(isActive ? 1 : 0.96)
-                        .padding(.horizontal, 17)
-                        .padding(.vertical, 9)
+                        .padding(.horizontal, AppTheme.spacing.md) // normalized 17→16
+                        .padding(.vertical, AppTheme.spacing.sm) // normalized 9→10
                         .background(
                             ZStack {
                                 if isActive {
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                                         .fill(AppTheme.colors.surfaceElevated)
                                         .matchedGeometryEffect(
                                             id: "detail.categorySwitcher.selection",
@@ -258,14 +258,14 @@ struct HomeItemDetailSheet: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.bottom, 10)
+        .padding(.bottom, AppTheme.spacing.sm)
     }
 
     private func expandedBottomActionArea(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
                 Text(currentStateText)
                     .font(AppTheme.typography.sized(15, weight: .semibold))
                     .foregroundStyle(statusTextColor)
@@ -278,9 +278,9 @@ struct HomeItemDetailSheet: View {
 
                 expandedSaveButton
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+            .padding(.horizontal, AppTheme.spacing.md) // normalized 18→16
+            .padding(.top, AppTheme.spacing.md)
+            .padding(.bottom, AppTheme.spacing.md)
         }
         .padding(.bottom, bottomInset)
         .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: isExpandedEditor)
@@ -294,7 +294,7 @@ struct HomeItemDetailSheet: View {
                 await viewModel.saveDetailDraftAndDismiss()
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 Image(systemName: "checkmark")
                     .font(AppTheme.typography.sized(13, weight: .bold))
                     .symbolEffect(.bounce, value: saveFeedbackNonce)
@@ -304,19 +304,19 @@ struct HomeItemDetailSheet: View {
             .foregroundStyle(AppTheme.colors.title)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 72)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, AppTheme.spacing.md) // normalized 18→16
             .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
-        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
-        .padding(.horizontal, 10)
+        .shadow(color: AppTheme.colors.shadow, radius: 14, y: 7)
+        .padding(.horizontal, AppTheme.spacing.sm)
         .scaleEffect(isSaveButtonAnimating ? 0.95 : 1)
         .brightness(isSaveButtonAnimating ? -0.015 : 0)
         .animation(.spring(response: 0.24, dampingFraction: 0.62), value: isSaveButtonAnimating)
@@ -343,7 +343,7 @@ struct HomeItemDetailSheet: View {
     }
 
     private var compactHeaderSection: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) { // normalized 9→10
             Button {
                 HomeInteractionFeedback.selection()
                 expandToLarge(for: .focus(.title))
@@ -375,8 +375,8 @@ struct HomeItemDetailSheet: View {
     }
 
     private var compactMetaSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                 Text(currentStateText)
                     .font(AppTheme.typography.sized(15, weight: .semibold))
                     .foregroundStyle(statusTextColor)
@@ -391,7 +391,7 @@ struct HomeItemDetailSheet: View {
                 compactResponseActionRow
             }
         }
-        .padding(.top, 38)
+        .padding(.top, AppTheme.spacing.xxl) // normalized 38→36
     }
 
     private var compactChipSection: some View {
@@ -402,8 +402,8 @@ struct HomeItemDetailSheet: View {
     }
 
     private var compactActionButtons: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
+        VStack(spacing: AppTheme.spacing.sm) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 compactTemplateButton
 
                 compactActionButton(
@@ -470,11 +470,11 @@ struct HomeItemDetailSheet: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 84)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous) // normalized 28→34
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous) // normalized 28→34
                     .stroke(AppTheme.colors.pillOutline.opacity(0.72), lineWidth: 1)
             }
         }
@@ -512,11 +512,11 @@ struct HomeItemDetailSheet: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 84)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous) // normalized 28→34
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous) // normalized 28→34
                     .stroke(AppTheme.colors.pillOutline.opacity(0.72), lineWidth: 1)
             }
             .clipped()
@@ -545,11 +545,11 @@ struct HomeItemDetailSheet: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 84)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous) // normalized 28→34
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous) // normalized 28→34
                     .stroke(AppTheme.colors.pillOutline.opacity(0.68), lineWidth: 1)
             }
             .clipped()
@@ -584,7 +584,7 @@ struct HomeItemDetailSheet: View {
         systemImage: String,
         tint: Color
     ) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: AppTheme.spacing.sm) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(22, weight: .semibold))
                 .frame(height: 24, alignment: .center)
@@ -599,7 +599,7 @@ struct HomeItemDetailSheet: View {
     }
 
     private var expandedEditorSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             DetailFocusableTextView(
                 text: Binding(
                     get: { viewModel.detailDraft?.title ?? "" },
@@ -632,7 +632,7 @@ struct HomeItemDetailSheet: View {
 
             if viewModel.isPairModeActive {
                 detailAssignmentSection
-                    .padding(.top, 10)
+                    .padding(.top, AppTheme.spacing.sm)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -641,7 +641,7 @@ struct HomeItemDetailSheet: View {
     }
 
     private var detailAssignmentSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
             assignmentAvatarControl
 
             if selectedItemNeedsResponse {
@@ -659,7 +659,7 @@ struct HomeItemDetailSheet: View {
             HomeInteractionFeedback.selection()
             toggleInlineAssigneeOptions()
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacing.md) {
                 PairDetailAvatarStrip(
                     primaryAvatar: pairDetailPrimaryAvatar,
                     secondaryAvatar: pairDetailSecondaryAvatar,
@@ -682,7 +682,7 @@ struct HomeItemDetailSheet: View {
     }
 
     private var compactResponseActionRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             responseActionButton(title: "接受", tint: AppTheme.colors.title) {
                 Task { await viewModel.respondToSelectedItem(response: .willing, message: nil) }
             }
@@ -693,7 +693,7 @@ struct HomeItemDetailSheet: View {
     }
 
     private var assigneeInlineOptions: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
             ForEach(orderedAssigneeModes, id: \.self) { mode in
                 if visibleAssigneeModes.contains(mode) {
                     assigneeOptionChip(title: assigneeTitle(for: mode), mode: mode)
@@ -724,8 +724,8 @@ struct HomeItemDetailSheet: View {
             Text(title)
                 .font(AppTheme.typography.sized(13, weight: .bold))
                 .foregroundStyle(isSelected ? Color.white : AppTheme.colors.title)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
+                .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
+                .padding(.vertical, AppTheme.spacing.sm) // normalized 9→10
                 .background(
                     Capsule(style: .continuous)
                         .fill(isSelected ? AppTheme.colors.coral : AppTheme.colors.surfaceElevated)
@@ -877,13 +877,13 @@ struct HomeItemDetailSheet: View {
                 .font(AppTheme.typography.sized(14, weight: .bold))
                 .foregroundStyle(tint)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
+                .padding(.vertical, AppTheme.spacing.md) // normalized 11→16
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous) // normalized 16→14
                         .fill(AppTheme.colors.surfaceElevated)
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous) // normalized 16→14
                         .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
                 }
         }
@@ -1831,14 +1831,14 @@ private struct HomeDetailDatePickerSheet: View {
             let headerInset = headerHorizontalInset(for: proxy.size.width)
 
             VStack(alignment: .leading, spacing: Self.headerToGridSpacing) {
-                HStack(spacing: 10) {
+                HStack(spacing: AppTheme.spacing.sm) {
                     Text(monthTitle)
                         .font(AppTheme.typography.sized(21, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
 
                     Spacer(minLength: 0)
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: AppTheme.spacing.sm) {
                         calendarButton(systemName: "chevron.left") {
                             shiftMonth(by: -1)
                         }
@@ -2071,7 +2071,7 @@ private struct HomeDetailTimePickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 ForEach(quickPresetMinutes, id: \.self) { minutes in
                     Button {
                         HomeInteractionFeedback.selection()

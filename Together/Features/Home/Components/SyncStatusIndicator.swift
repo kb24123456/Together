@@ -7,19 +7,19 @@ struct SyncStatusIndicator: View {
     @State private var showSuccess = false
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: AppTheme.spacing.xxs) {
             if status.level == .syncing {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(AppTheme.typography.sized(11, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.textTertiary)
                     .symbolEffect(.rotate, options: .repeating, value: status.level == .syncing)
             } else if status.failedMutationCount > 0 || resolvedErrorText != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(AppTheme.typography.sized(11, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.coral)
             } else if showSuccess {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(AppTheme.typography.sized(11, weight: .semibold))
                     .foregroundStyle(.green.opacity(0.7))
                     .transition(.opacity)
             }
@@ -31,7 +31,7 @@ struct SyncStatusIndicator: View {
                     .foregroundStyle(AppTheme.colors.textTertiary.opacity(0.6))
             } else {
                 Text("未同步")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(AppTheme.typography.sized(10, weight: .medium))
                     .foregroundStyle(AppTheme.colors.textTertiary.opacity(0.4))
             }
         }

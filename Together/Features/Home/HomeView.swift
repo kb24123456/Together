@@ -197,8 +197,8 @@ struct HomeView: View {
 
     private var headerSection: some View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                HStack(alignment: .center, spacing: AppTheme.spacing.xs) { // normalized 8→6
                     headerTitle(compact: isOverlayModeActive)
 
                     if !isOverlayModeActive, isTodayJumpButtonVisible {
@@ -231,12 +231,12 @@ struct HomeView: View {
     }
 
     private var spaceModeLine: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
             Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
                 .font(AppTheme.typography.sized(12, weight: .bold))
                 .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.horizontal, AppTheme.spacing.sm)
+                .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
                 .background(
                     Capsule(style: .continuous)
                         .fill(
@@ -312,8 +312,8 @@ struct HomeView: View {
         Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
             .font(AppTheme.typography.sized(12, weight: .bold))
             .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, AppTheme.spacing.sm)
+            .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
             .background(
                 Capsule(style: .continuous)
                     .fill(
@@ -329,8 +329,8 @@ struct HomeView: View {
             Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
                 .font(AppTheme.typography.sized(12, weight: .bold))
                 .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.horizontal, AppTheme.spacing.sm)
+                .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
                 .background(
                     Capsule(style: .continuous)
                         .fill(
@@ -422,7 +422,7 @@ struct HomeView: View {
         ZStack {
             if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
                         if appContext.sessionStore.activeMode == .single,
                            appContext.routinesViewModel.hasPendingTasks {
                             RoutinesSummaryCard(
@@ -447,8 +447,8 @@ struct HomeView: View {
                         timelineSection
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)
-                    .padding(.top, 14)
-                    .padding(.bottom, 144)
+                    .padding(.top, AppTheme.spacing.md) // normalized 14→16
+                    .padding(.bottom, 144) // specific layout constant, not a tier
                 }
                 .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
@@ -759,8 +759,8 @@ struct HomeView: View {
         }
         .font(AppTheme.typography.sized(13, weight: .semibold))
         .foregroundStyle(headerPrimaryColor)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
+        .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
         .frame(minHeight: 42)
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
@@ -988,8 +988,8 @@ struct HomeView: View {
                 Text("+\(entries.count - 1)")
                     .font(AppTheme.typography.sized(12, weight: .bold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, AppTheme.spacing.xs) // normalized 8→6
+                    .padding(.vertical, AppTheme.spacing.xxs)
                     .background(Capsule(style: .continuous).fill(AppTheme.colors.coral))
                     .offset(x: -8, y: -4)
             }
@@ -1111,7 +1111,7 @@ struct HomeView: View {
     private var calendarSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             calendarWeekdayHeader
-                .padding(.bottom, 8)
+                .padding(.bottom, AppTheme.spacing.xs) // normalized 8→6
 
             if viewModel.isMonthMode {
                 monthCalendarGrid
@@ -1364,10 +1364,10 @@ struct HomeView: View {
     private var timelineSection: some View {
         ZStack {
             if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
-                VStack(spacing: 28) {
-                    VStack(spacing: 12) {
+                VStack(spacing: AppTheme.spacing.xl) {
+                    VStack(spacing: AppTheme.spacing.md) {
                         Image(systemName: viewModel.isPairModeActive ? "leaf.fill" : "sun.max.fill")
-                            .font(.system(size: 36, weight: .light))
+                            .font(AppTheme.typography.sized(36, weight: .light))
                             .foregroundStyle(
                                 viewModel.isPairModeActive
                                     ? AppTheme.colors.sky.opacity(0.5)
@@ -1388,7 +1388,7 @@ struct HomeView: View {
                         HomeInteractionFeedback.selection()
                         onCreateTaskTapped()
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
                             Image(systemName: "plus")
                                 .font(AppTheme.typography.sized(14, weight: .semibold))
 
@@ -1396,8 +1396,8 @@ struct HomeView: View {
                                 .font(AppTheme.typography.sized(15, weight: .semibold))
                         }
                         .foregroundStyle(AppTheme.colors.title)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 11)
+                        .padding(.horizontal, AppTheme.spacing.lg)
+                        .padding(.vertical, AppTheme.spacing.md) // normalized 11→16
                         .background(
                             Capsule(style: .continuous)
                                 .fill(AppTheme.colors.surfaceElevated)
@@ -1423,7 +1423,7 @@ struct HomeView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.top, 60)
+                .padding(.top, 60) // specific empty-state inset, not a tier
             } else {
                 EmptyView()
             }
@@ -1443,7 +1443,7 @@ struct HomeView: View {
             }
             toggleCompletedSectionVisibility()
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 Text(viewModel.completedVisibilityButtonTitle)
                     .font(AppTheme.typography.sized(13, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.76))
@@ -1457,9 +1457,9 @@ struct HomeView: View {
                             .fill(AppTheme.colors.background.opacity(0.8))
                     )
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 10)
-            .padding(.vertical, 7)
+            .padding(.leading, AppTheme.spacing.md) // normalized 14→16
+            .padding(.trailing, AppTheme.spacing.sm)
+            .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
             .background(
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.surfaceElevated)
@@ -1479,7 +1479,7 @@ struct HomeView: View {
             HomeInteractionFeedback.selection()
             viewModel.presentOverdueSheet()
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 Image(systemName: "exclamationmark.circle.fill")
                     .font(AppTheme.typography.sized(16, weight: .semibold))
 
@@ -1493,8 +1493,8 @@ struct HomeView: View {
                     .foregroundStyle(AppTheme.colors.coral.opacity(0.8))
             }
             .foregroundStyle(AppTheme.colors.coral)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.md)
             .background(
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.coral.opacity(0.12))
@@ -2076,7 +2076,7 @@ private struct HomeTimelineRow: View {
                 onOpenDetail()
             } label: {
                 HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                         Text(entry.title)
                             .font(AppTheme.typography.sized(19, weight: .bold))
                             .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
@@ -2085,13 +2085,13 @@ private struct HomeTimelineRow: View {
                             .allowsTightening(true)
 
                         if (entry.assigneeText != nil || entry.needsResponse), entry.isCompleted == false {
-                            HStack(spacing: 8) {
+                            HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
                                 if let assigneeText = entry.assigneeText {
                                     Text(assigneeText)
                                         .font(AppTheme.typography.sized(12, weight: .bold))
                                         .foregroundStyle(entry.needsResponse ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.72))
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
+                                        .padding(.horizontal, AppTheme.spacing.sm)
+                                        .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
                                         .background(
                                             Capsule(style: .continuous)
                                                 .fill(
@@ -2118,12 +2118,12 @@ private struct HomeTimelineRow: View {
 
                     Spacer(minLength: 0)
 
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
                         HomeTimelineTimeText(entry: entry)
                         if isNudgedEntry {
                             Image(systemName: "bell.badge.fill")
                                 .foregroundStyle(AppTheme.colors.coral)
-                                .font(.caption)
+                                .font(AppTheme.typography.textStyle(.caption1))
                         }
                     }
                 }
@@ -2246,12 +2246,12 @@ private struct HomeTimelineRow: View {
 
     private var checkmarkBadge: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .fill(AppTheme.colors.coral.opacity(0.14))
                 .scaleEffect(badgeFillScale)
                 .opacity(entry.isCompleted ? 0 : badgeFillOpacity)
 
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .strokeBorder(
                     ringColor,
                     style: StrokeStyle(lineWidth: isAnimatingCompletion ? 1.8 : 1.6, dash: [3.6, 4.4])
@@ -2344,9 +2344,9 @@ private struct PairTimelineCard: View {
     @State private var isAwaitingCompletionCommit = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
             Button(action: handleCardTap) {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
                     headerRow
                     subtitleLine
                 }
@@ -2357,8 +2357,8 @@ private struct PairTimelineCard: View {
 
             bottomRow
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, AppTheme.spacing.md) // normalized 18→16
+        .padding(.vertical, AppTheme.spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             HStack(spacing: 0) {
@@ -2370,7 +2370,7 @@ private struct PairTimelineCard: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)) // normalized 28→34
         .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 16, y: 10)
         .scaleEffect(rowScale)
         .offset(y: rowVerticalOffset)
@@ -2430,7 +2430,7 @@ private struct PairTimelineCard: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Text(entry.title)
                 .font(AppTheme.typography.sized(20, weight: .bold))
                 .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.42) : AppTheme.colors.title)
@@ -2449,7 +2449,7 @@ private struct PairTimelineCard: View {
     }
 
     private var subtitleLine: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
             if let notes = entry.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
                notes.isEmpty == false {
                 Text(notes)
@@ -2469,13 +2469,13 @@ private struct PairTimelineCard: View {
     @ViewBuilder
     private var bottomRow: some View {
         if entry.syncState == .syncing {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                 messageIdentityRow
                 Spacer(minLength: 0)
                 syncStateBadge(text: "同步中", state: .syncing)
             }
         } else if entry.syncState == .confirmed {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                 messageIdentityRow
                 Spacer(minLength: 0)
                 syncStateBadge(text: "已同步", state: .confirmed)
@@ -2483,7 +2483,7 @@ private struct PairTimelineCard: View {
         } else {
         switch entry.pairCardStyle {
         case .request:
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                 messageIdentityRow
 
                 Spacer(minLength: 0)
@@ -2508,7 +2508,7 @@ private struct PairTimelineCard: View {
                 }
             }
         case .sent:
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                 messageIdentityRow
                 Spacer(minLength: 0)
 
@@ -2524,7 +2524,7 @@ private struct PairTimelineCard: View {
                 }
             }
         case .assigned, .shared, .standard:
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                 messageIdentityRow
 
                 Spacer(minLength: 0)
@@ -2553,8 +2553,8 @@ private struct PairTimelineCard: View {
                     ? .green.opacity(0.78)
                     : AppTheme.colors.body.opacity(0.62)
             )
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
+            .padding(.vertical, AppTheme.spacing.xs) // normalized 8→6
             .background(
                 Capsule(style: .continuous)
                     .fill(
@@ -2566,7 +2566,7 @@ private struct PairTimelineCard: View {
     }
 
     private var messageIdentityRow: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             PairTimelineAvatarStrip(
                 primaryAvatar: entry.primaryAvatar,
                 secondaryAvatar: entry.secondaryAvatar,
@@ -2593,16 +2593,16 @@ private struct PairTimelineCard: View {
             reminderShakeCount += 1
             onSendReminder()
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: AppTheme.spacing.xxs) {
                 Image(systemName: "bell.badge")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
                     .symbolEffect(.bounce.byLayer, value: reminderShakeCount)
                 Text("提醒")
                     .font(AppTheme.typography.sized(12, weight: .semibold))
             }
             .foregroundStyle(isOnCooldown ? AppTheme.colors.textTertiary : AppTheme.colors.coral)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
+            .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
             .background(
                 Capsule(style: .continuous)
                     .fill(isOnCooldown ? AppTheme.colors.background : AppTheme.colors.coral.opacity(0.12))
@@ -2621,8 +2621,8 @@ private struct PairTimelineCard: View {
                     .foregroundStyle(AppTheme.colors.body.opacity(0.84))
                     .lineLimit(1)
                     .minimumScaleFactor(0.84)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
+                    .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
+                    .padding(.vertical, AppTheme.spacing.sm) // normalized 9→10
                     .background(alignment: .bottomLeading) {
                         PairMessageBubbleBackground(fill: bubbleFillColor)
                     }
@@ -3049,8 +3049,8 @@ private struct PairCardPillButton: View {
             Text(title)
                 .font(AppTheme.typography.sized(13, weight: .bold))
                 .foregroundStyle(isPrimary ? Color.white : AppTheme.colors.title)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, AppTheme.spacing.md) // normalized 14→16
+                .padding(.vertical, AppTheme.spacing.sm)
                 .background(
                     Capsule(style: .continuous)
                         .fill(isPrimary ? AppTheme.colors.coral : AppTheme.colors.surfaceElevated)
@@ -3094,12 +3094,12 @@ private struct PairCompletionBadge: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                     .fill(accentColor.opacity(0.14))
                     .scaleEffect(fillScale)
                     .opacity(isCompleted ? 0 : fillOpacity)
 
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                     .strokeBorder(
                         accentColor.opacity(0.58),
                         style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
@@ -3279,12 +3279,12 @@ private struct HomeOverdueSummarySheet: View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.horizontal, AppTheme.spacing.xl)
-                .padding(.top, 22)
-                .padding(.bottom, 10)
+                .padding(.top, AppTheme.spacing.lg) // normalized 22→20
+                .padding(.bottom, AppTheme.spacing.sm)
 
             overdueList
                 .padding(.horizontal, AppTheme.spacing.xl)
-                .padding(.bottom, 8)
+                .padding(.bottom, AppTheme.spacing.xs) // normalized 8→6
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
@@ -3305,8 +3305,8 @@ private struct HomeOverdueSummarySheet: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                 Text("逾期任务")
                     .font(AppTheme.typography.sized(24, weight: .bold))
                     .foregroundStyle(AppTheme.colors.title)
@@ -3325,11 +3325,11 @@ private struct HomeOverdueSummarySheet: View {
 
     private var overdueList: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: AppTheme.spacing.md) {
                 overdueRows
             }
-            .padding(.top, 2)
-            .padding(.bottom, 10)
+            .padding(.top, 2) // specific visual offset, not a tier
+            .padding(.bottom, AppTheme.spacing.sm)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -3375,7 +3375,7 @@ private struct HomeOverdueSummarySheet: View {
                     viewModel.presentItemDetail(entry.id)
                 }
             )
-            .padding(.vertical, 12)
+            .padding(.vertical, AppTheme.spacing.md)
         }
     }
 

@@ -17,7 +17,7 @@ struct RoutinesSummaryCard: View {
             Button {
                 onNavigateToRoutines()
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: AppTheme.spacing.sm) {
                     Image(systemName: "square.stack")
                         .font(AppTheme.typography.sized(16, weight: .semibold))
 
@@ -31,8 +31,8 @@ struct RoutinesSummaryCard: View {
                         .foregroundStyle(AppTheme.colors.sky.opacity(0.8))
                 }
                 .foregroundStyle(AppTheme.colors.sky)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, AppTheme.spacing.md)
+                .padding(.vertical, AppTheme.spacing.md)
                 .background(
                     Capsule(style: .continuous)
                         .fill(AppTheme.colors.sky.opacity(0.12))
