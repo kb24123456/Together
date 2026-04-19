@@ -1503,3 +1503,111 @@ struct SpaceDTO: Decodable, Sendable {
         }
     }
 }
+
+struct ImportantDateDTO: Codable, Sendable {
+    let id: UUID
+    let spaceId: UUID
+    let creatorId: UUID
+    var kind: String
+    var title: String
+    var dateValue: Date
+    var isRecurring: Bool
+    var recurrenceRule: String?
+    var notifyDaysBefore: Int
+    var notifyOnDay: Bool
+    var icon: String?
+    var memberUserId: UUID?
+    var isPresetHoliday: Bool
+    var presetHolidayId: String?
+    var createdAt: Date
+    var updatedAt: Date
+    var isDeleted: Bool
+    var deletedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case spaceId = "space_id"
+        case creatorId = "creator_id"
+        case kind, title
+        case dateValue = "date_value"
+        case isRecurring = "is_recurring"
+        case recurrenceRule = "recurrence_rule"
+        case notifyDaysBefore = "notify_days_before"
+        case notifyOnDay = "notify_on_day"
+        case icon
+        case memberUserId = "member_user_id"
+        case isPresetHoliday = "is_preset_holiday"
+        case presetHolidayId = "preset_holiday_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case isDeleted = "is_deleted"
+        case deletedAt = "deleted_at"
+    }
+
+    nonisolated func applyToLocal(context: ModelContext) {
+        let id = self.id
+        let descriptor = FetchDescriptor<PersistentImportantDate>(
+            predicate: #Predicate { $0.id == id }
+        )
+        if let existing = try? context.fetch(descriptor).first {
+            if updatedAt < existing.updatedAt { return }
+            existing.spaceID = spaceId
+            existing.creatorID = creatorId
+            existing.kindRawValue = kind
+            existing.title = title
+            existing.dateValue = dateValue
+            existing.recurrenceRawValue = Recurrence(supabaseValue: recurrenceRule).rawValue
+            existing.notifyDaysBefore = notifyDaysBefore
+            existing.notifyOnDay = notifyOnDay
+            existing.icon = icon
+            existing.memberUserID = memberUserId
+            existing.isPresetHoliday = isPresetHoliday
+            existing.presetHolidayIDRawValue = presetHolidayId
+            existing.updatedAt = updatedAt
+            if isDeleted { existing.isLocallyDeleted = true }
+        } else if !isDeleted {
+            let new = PersistentImportantDate(
+                id: id,
+                spaceID: spaceId,
+                creatorID: creatorId,
+                kindRawValue: kind,
+                memberUserID: memberUserId,
+                title: title,
+                dateValue: dateValue,
+                recurrenceRawValue: Recurrence(supabaseValue: recurrenceRule).rawValue,
+                notifyDaysBefore: notifyDaysBefore,
+                notifyOnDay: notifyOnDay,
+                icon: icon,
+                isPresetHoliday: isPresetHoliday,
+                presetHolidayIDRawValue: presetHolidayId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                isLocallyDeleted: false
+            )
+            context.insert(new)
+        }
+    }
+}
+
+extension ImportantDateDTO {
+    nonisolated init(from persistent: PersistentImportantDate) {
+        self.id = persistent.id
+        self.spaceId = persistent.spaceID
+        self.creatorId = persistent.creatorID
+        self.kind = persistent.kindRawValue
+        self.title = persistent.title
+        self.dateValue = persistent.dateValue
+        self.isRecurring = persistent.recurrenceRawValue != "none"
+        self.recurrenceRule = Recurrence(rawValue: persistent.recurrenceRawValue)?.supabaseValue
+        self.notifyDaysBefore = persistent.notifyDaysBefore
+        self.notifyOnDay = persistent.notifyOnDay
+        self.icon = persistent.icon
+        self.memberUserId = persistent.memberUserID
+        self.isPresetHoliday = persistent.isPresetHoliday
+        self.presetHolidayId = persistent.presetHolidayIDRawValue
+        self.createdAt = persistent.createdAt
+        self.updatedAt = persistent.updatedAt
+        self.isDeleted = persistent.isLocallyDeleted
+        self.deletedAt = persistent.deletedAt
+    }
+}
