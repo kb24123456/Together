@@ -53,6 +53,8 @@ struct SubtaskCheckbox: View {
                 radius: isAnimating ? 8 : 0,
                 y: isAnimating ? 4 : 0
             )
+            .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onChange(of: isCompleted) { _, newValue in

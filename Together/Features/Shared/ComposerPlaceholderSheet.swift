@@ -2298,6 +2298,8 @@ private struct ComposerProjectSubtasksPanel: View {
                                         .font(AppTheme.typography.sized(20, weight: .semibold))
                                         .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
                                         .frame(width: 28, height: 28)
+                                        .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
 
@@ -2317,6 +2319,8 @@ private struct ComposerProjectSubtasksPanel: View {
                                         .font(AppTheme.typography.sized(11, weight: .bold))
                                         .foregroundStyle(AppTheme.colors.body.opacity(0.66))
                                         .frame(width: 18, height: 18)
+                                        .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }

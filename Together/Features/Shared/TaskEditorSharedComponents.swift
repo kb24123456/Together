@@ -285,6 +285,7 @@ struct TaskEditorChipRow: View {
                                 Image(systemName: "xmark")
                                     .font(AppTheme.typography.sized(11, weight: .bold))
                                     .frame(width: 16, height: 16)
+                                    .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -533,6 +534,7 @@ struct TaskEditorReminderOptionList: View {
                     Image(systemName: "minus")
                         .font(AppTheme.typography.sized(14, weight: .semibold))
                         .frame(width: 32, height: 32)
+                        .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -553,6 +555,7 @@ struct TaskEditorReminderOptionList: View {
                     Image(systemName: "plus")
                         .font(AppTheme.typography.sized(14, weight: .semibold))
                         .frame(width: 32, height: 32)
+                        .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -937,6 +940,7 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
                 .font(AppTheme.typography.sized(16, weight: .bold))
                 .foregroundStyle(AppTheme.colors.title)
                 .frame(width: 36, height: 36)
+                .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
