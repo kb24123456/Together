@@ -114,10 +114,25 @@ extension ImportantDate {
         let day = gregorian.component(.day, from: dateValue)
         var year = gregorian.component(.year, from: reference)
 
-        for _ in 0..<2 {
+        // Loop 5 iterations to always find the next leap-year Feb 29 if that's
+        // the source date. For non-Feb-29 birthdays, 2 iterations would suffice;
+        // 5 just gives headroom.
+        for _ in 0..<5 {
+            // Calendar.date(from:) silently wraps invalid components (Feb 29
+            // in a non-leap year → Mar 1), so we must validate that the returned
+            // date actually has the month/day we asked for.
             if let candidate = gregorian.date(from: DateComponents(year: year, month: month, day: day)),
+               gregorian.component(.month, from: candidate) == month,
+               gregorian.component(.day, from: candidate) == day,
                candidate > reference {
                 return candidate
+            }
+            // Feb 29 fallback: in a non-leap year, celebrate on Feb 28.
+            // Matches iOS Calendar / Reminders convention.
+            if month == 2, day == 29,
+               let fallback = gregorian.date(from: DateComponents(year: year, month: 2, day: 28)),
+               fallback > reference {
+                return fallback
             }
             year += 1
         }
@@ -131,7 +146,9 @@ extension ImportantDate {
         let lunarDay = chineseCal.component(.day, from: dateValue)
         var year = chineseCal.component(.year, from: reference)
 
-        for _ in 0..<3 {
+        // Loop 5 iterations so leap-month sources still find the next valid
+        // lunar year within a reasonable window.
+        for _ in 0..<5 {
             var comps = DateComponents()
             comps.year = year
             comps.month = lunarMonth
