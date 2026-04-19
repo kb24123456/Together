@@ -393,17 +393,37 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
         let descriptor = FetchDescriptor<PersistentItem>(
             predicate: #Predicate<PersistentItem> { $0.id == itemID }
         )
-        if let existing = try? context.fetch(descriptor).first {
+        let existing = try? context.fetch(descriptor).first
+
+        ItemStatusDiagnosisLog.soloSyncApplyBegin(
+            itemID: itemID,
+            incomingStatus: item.status.rawValue,
+            incomingCompletedAt: item.completedAt,
+            localStatus: existing?.statusRawValue,
+            localCompletedAt: existing?.completedAt,
+            incomingUpdatedAt: item.updatedAt,
+            localUpdatedAt: existing?.updatedAt,
+            hasPendingLocalSave: hasPendingLocalSave
+        )
+
+        let decision: ItemStatusDiagnosisLog.ApplyDecision
+        if let existing {
             if Self.shouldApplyFetchedRecord(
                 remoteUpdatedAt: item.updatedAt,
                 localUpdatedAt: existing.updatedAt,
                 hasPendingLocalSave: hasPendingLocalSave
             ) {
                 existing.update(from: item)
+                decision = .applied
+            } else {
+                decision = .skippedStale
             }
         } else {
             context.insert(PersistentItem(item: item))
+            decision = .applied
         }
+
+        ItemStatusDiagnosisLog.soloSyncApplyDone(itemID: itemID, decision: decision)
     }
 
     private func applyTaskList(_ list: TaskList, hasPendingLocalSave: Bool, context: ModelContext) {
