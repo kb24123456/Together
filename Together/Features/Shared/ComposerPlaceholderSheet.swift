@@ -2473,6 +2473,7 @@ private struct ComposerProjectSubtasksInline: View {
                     .foregroundStyle(AppTheme.colors.body.opacity(0.46))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("移除子任务")
         }
         .padding(.vertical, AppTheme.spacing.xs)
     }

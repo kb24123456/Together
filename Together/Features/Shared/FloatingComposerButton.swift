@@ -24,5 +24,7 @@ struct FloatingComposerButton: View {
                 .shadow(color: floatingPink.opacity(0.25), radius: 12, y: 8)
         }
         .menuStyle(.button)
+        .accessibilityLabel("新建")
+        .accessibilityHint("打开菜单选择新建任务或项目")
     }
 }

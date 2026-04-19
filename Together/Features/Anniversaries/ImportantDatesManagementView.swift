@@ -27,6 +27,7 @@ struct ImportantDatesManagementView: View {
                     Button {
                         showCreateSheet = true
                     } label: { Image(systemName: "plus") }
+                        .accessibilityLabel("添加纪念日")
                 }
             }
             .sheet(item: $showEdit) { event in

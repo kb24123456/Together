@@ -289,6 +289,7 @@ struct TaskEditorChipRow: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("清除")
                         }
                     }
                     .foregroundStyle(AppTheme.colors.body.opacity(0.84))
