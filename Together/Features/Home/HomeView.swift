@@ -905,7 +905,7 @@ struct HomeView: View {
 
                         if viewModel.canDeleteItem(entry.id) {
                             Button(role: .destructive) {
-                                HomeInteractionFeedback.selection()
+                                HomeInteractionFeedback.delete()
                                 Task {
                                     await viewModel.deleteItem(entry.id)
                                 }

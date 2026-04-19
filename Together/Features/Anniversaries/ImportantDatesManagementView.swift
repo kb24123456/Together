@@ -99,6 +99,7 @@ struct ImportantDatesManagementView: View {
                     .listRowBackground(Color.clear)
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
+                            HomeInteractionFeedback.delete()
                             Task { await viewModel.delete(event.id) }
                         } label: {
                             Image(systemName: "trash")

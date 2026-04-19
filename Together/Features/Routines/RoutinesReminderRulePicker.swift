@@ -44,7 +44,10 @@ struct RoutinesReminderRulePicker: View {
                 if let onDelete {
                     HStack {
                         Spacer()
-                        Button(role: .destructive) { onDelete() } label: {
+                        Button(role: .destructive) {
+                            HomeInteractionFeedback.delete()
+                            onDelete()
+                        } label: {
                             Image(systemName: "trash")
                                 .font(AppTheme.typography.sized(14, weight: .medium))
                                 .foregroundStyle(AppTheme.colors.danger)

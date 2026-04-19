@@ -148,6 +148,7 @@ struct ProfileView: View {
         .alert("确认退出", isPresented: $showsSignOutAlert) {
             Button("取消", role: .cancel) {}
             Button("退出登录", role: .destructive) {
+                HomeInteractionFeedback.warning()
                 Task { await viewModel.signOut() }
             }
         } message: {
@@ -156,6 +157,7 @@ struct ProfileView: View {
         .alert("清除缓存", isPresented: $showsClearCacheAlert) {
             Button("取消", role: .cancel) {}
             Button("清除", role: .destructive) {
+                HomeInteractionFeedback.delete()
                 viewModel.clearCache()
             }
         } message: {
@@ -287,7 +289,7 @@ struct ProfileView: View {
 
         case .paired:
             Button {
-                HomeInteractionFeedback.selection()
+                HomeInteractionFeedback.warning()
                 Task { await viewModel.unbindPairSpace() }
             } label: {
                 collaborationButtonLabel(title: "解绑双人空间", tint: AppTheme.colors.coral)

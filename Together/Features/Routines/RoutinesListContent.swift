@@ -177,6 +177,7 @@ struct RoutinesListContent: View {
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         if viewModel.canDeletePeriodicTask(task) {
                             Button(role: .destructive) {
+                                HomeInteractionFeedback.delete()
                                 Task {
                                     await viewModel.deleteTask(taskID: task.id)
                                 }

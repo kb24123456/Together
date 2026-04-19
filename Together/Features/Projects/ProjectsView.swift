@@ -788,7 +788,10 @@ private extension View {
                 }
         )
         .contextMenu {
-            Button(role: .destructive, action: onDelete) {
+            Button(role: .destructive) {
+                HomeInteractionFeedback.delete()
+                onDelete()
+            } label: {
                 Label("删除项目", systemImage: "trash")
             }
             .disabled(!canDelete)

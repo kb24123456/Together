@@ -149,6 +149,7 @@ struct HomeItemDetailSheet: View {
         ) {
             if let target = pendingConversionTarget {
                 Button("确认转换（将删除原任务）", role: .destructive) {
+                    HomeInteractionFeedback.delete()
                     Task {
                         switch target {
                         case .periodicTask:

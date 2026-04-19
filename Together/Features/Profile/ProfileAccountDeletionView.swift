@@ -39,6 +39,7 @@ struct ProfileAccountDeletionView: View {
         .alert("确认注销账号", isPresented: $showsFinalConfirmation) {
             Button("取消", role: .cancel) {}
             Button("确认注销", role: .destructive) {
+                HomeInteractionFeedback.delete()
                 Task {
                     await viewModel.requestAccountDeletion()
                 }

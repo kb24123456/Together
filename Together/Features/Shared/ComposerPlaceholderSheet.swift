@@ -1224,6 +1224,7 @@ struct ComposerTemplatePickerSheet: View {
                         .listRowBackground(Color.clear)
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
+                                HomeInteractionFeedback.delete()
                                 Task {
                                     await onDelete(template)
                                 }
