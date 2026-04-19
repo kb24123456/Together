@@ -52,6 +52,10 @@ struct ProfileView: View {
 
                     // MARK: - 退出登录
                     signOutFooter
+
+                    #if DEBUG
+                    ProfileDebugSection()
+                    #endif
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.top, AppTheme.spacing.md)
