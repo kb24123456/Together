@@ -31,7 +31,11 @@ struct ListsView: View {
                 CardSection(title: "自定义清单", subtitle: "后续在这里继续扩展标签、分组和批量整理") {
                     VStack(spacing: AppTheme.spacing.sm) {
                         if viewModel.customLists.isEmpty {
-                            EmptyStateCard(title: "还没有自定义清单", message: "下一步会把新建、编辑和整理流程接进这里。")
+                            EmptyStateCard(
+                                title: "还没有自定义清单",
+                                message: "下一步会把新建、编辑和整理流程接进这里。",
+                                systemImage: "list.bullet.clipboard"
+                            )
                         } else {
                             ForEach(viewModel.customLists) { list in
                                 listRow(list, isShared: viewModel.isPairModeActive)

@@ -63,11 +63,18 @@ struct ImportantDatesManagementView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: AppTheme.spacing.md) {
+            Image(systemName: "calendar.badge.plus")
+                .font(AppTheme.typography.sized(44, weight: .light))
+                .foregroundStyle(AppTheme.colors.pairAccent)
+                .padding(.top, AppTheme.spacing.xl)
+                .padding(.bottom, AppTheme.spacing.sm)
+                .accessibilityHidden(true)
+
             emptyCTA(title: "添加伴侣生日 🎂", isPrimary: true) { createBirthday(myself: false) }
             emptyCTA(title: "添加我的生日 🎁", isPrimary: false) { createBirthday(myself: true) }
             emptyCTA(title: "添加在一起纪念日 💕", isPrimary: false) { createAnniversary() }
             Button("+ 其他纪念日 / 添加常见节日") { showCreateSheet = true }
-                .foregroundStyle(AppTheme.colors.coral)
+                .foregroundStyle(AppTheme.colors.pairAccent)
                 .padding(.top, AppTheme.spacing.xs)
             Spacer()
         }

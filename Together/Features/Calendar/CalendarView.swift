@@ -46,7 +46,11 @@ struct CalendarView: View {
                 CardSection(title: "焦点日期任务", subtitle: "后续这里会承接日期切换和任务详情联动") {
                     VStack(spacing: AppTheme.spacing.sm) {
                         if viewModel.selectedItems.isEmpty {
-                            EmptyStateCard(title: "这一天还没有安排", message: "下一步会补齐跨天拖动、快速安排和焦点日期切换。")
+                            EmptyStateCard(
+                                title: "这一天还没有安排",
+                                message: "下一步会补齐跨天拖动、快速安排和焦点日期切换。",
+                                systemImage: "calendar"
+                            )
                         } else {
                             ForEach(viewModel.selectedItems) { item in
                                 if viewModel.isPairModeActive {

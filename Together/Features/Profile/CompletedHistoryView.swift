@@ -73,7 +73,8 @@ struct CompletedHistoryView: View {
     private var emptySection: some View {
         EmptyStateCard(
             title: "还没有历史任务",
-            message: "已完成任务会在这里沉淀，Today 只保留当前仍需处理的任务。"
+            message: "已完成任务会在这里沉淀，Today 只保留当前仍需处理的任务。",
+            systemImage: "checkmark.circle"
         )
         .listRowInsets(EdgeInsets(top: AppTheme.spacing.lg, leading: AppTheme.spacing.lg, bottom: AppTheme.spacing.lg, trailing: AppTheme.spacing.lg))
         .listRowBackground(AppTheme.colors.background)

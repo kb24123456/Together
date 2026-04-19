@@ -335,6 +335,12 @@ struct ProjectsListContent: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
+            Image(systemName: "folder.badge.plus")
+                .font(AppTheme.typography.sized(36, weight: .light))
+                .foregroundStyle(AppTheme.colors.accent)
+                .padding(.bottom, AppTheme.spacing.xs)
+                .accessibilityHidden(true)
+
             Text("还没有项目")
                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 .foregroundStyle(emptyStateTitleColor)
