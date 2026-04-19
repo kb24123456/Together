@@ -39,6 +39,15 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
 
     func saveTask(_ task: PeriodicTask) async throws -> PeriodicTask {
         let context = ModelContext(container)
+        // Guard: pair spaces don't support periodic tasks (see feat/pair-mode-anniversaries).
+        if let taskSpaceID = task.spaceID {
+            let pairDescriptor = FetchDescriptor<PersistentPairSpace>(
+                predicate: #Predicate<PersistentPairSpace> { $0.sharedSpaceID == taskSpaceID }
+            )
+            if let pairCount = try? context.fetch(pairDescriptor).count, pairCount > 0 {
+                throw PeriodicTaskError.notSupportedInPairMode
+            }
+        }
         let existing = try context.fetch(
             FetchDescriptor<PersistentPeriodicTask>(
                 predicate: #Predicate<PersistentPeriodicTask> { $0.id == task.id }
@@ -139,6 +148,7 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
     }
 }
 
-enum PeriodicTaskError: Error {
+enum PeriodicTaskError: Error, Equatable {
     case notFound
+    case notSupportedInPairMode
 }
