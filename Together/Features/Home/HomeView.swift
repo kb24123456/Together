@@ -2233,13 +2233,15 @@ private struct HomeTimelineRow: View {
     }
 
     private var subtitleColor: Color {
+        // Use textTertiary (dedicated tier) for default state to avoid
+        // compound opacity regressing dark-mode contrast below WCAG AA.
         guard entry.notes?.isEmpty != false else {
-            return AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.68)
+            return entry.isMuted ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.textTertiary
         }
         if entry.statusText == "已逾期" {
             return AppTheme.colors.coral.opacity(entry.isMuted ? 0.5 : 1)
         }
-        return AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.68)
+        return entry.isMuted ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.textTertiary
     }
 
     @ViewBuilder

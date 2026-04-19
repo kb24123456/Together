@@ -255,7 +255,9 @@ struct EditPairProfileView: View {
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, AppTheme.spacing.sm)
-                .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous))
+                // Surface kept at full token opacity — compound opacity risked
+                // breaking dark-mode card legibility against blurred background.
+                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous))
             }
 
             if viewModel.canRemovePhoto {
