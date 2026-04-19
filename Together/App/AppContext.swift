@@ -158,6 +158,7 @@ final class AppContext {
         StartupTrace.mark("AppContext.postLaunch.begin")
         let purgeContext = ModelContext(PersistenceController.shared.container)
         PairPeriodicPurgeMigration.runIfNeeded(context: purgeContext)
+        PairSpaceOrphanPurgeMigration.runIfNeeded(context: purgeContext)
         if let pairSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
             importantDatesViewModel.configure(spaceID: pairSpaceID)
             Task { [importantDatesViewModel] in
