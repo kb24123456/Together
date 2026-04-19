@@ -90,11 +90,11 @@ struct RoutinesCycleSection: View {
         GeometryReader { proxy in
             let progress = viewModel.periodProgress(for: cycle)
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 2) // 4pt progress bar — tiny radius intentional
                     .fill(AppTheme.colors.outline)
                     .frame(height: 4)
 
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 2) // 4pt progress bar — tiny radius intentional
                     .fill(AppTheme.colors.coral)
                     .frame(width: proxy.size.width * progress, height: 4)
             }

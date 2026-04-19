@@ -27,7 +27,7 @@ struct SyncStatusIndicator: View {
             // 同步时间戳（调试用）
             if let lastSyncedAt = status.lastSuccessfulSync {
                 Text(syncTimeText(lastSyncedAt))
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced)) // design: .monospaced intentional
                     .foregroundStyle(AppTheme.colors.textTertiary.opacity(0.6))
             } else {
                 Text("未同步")

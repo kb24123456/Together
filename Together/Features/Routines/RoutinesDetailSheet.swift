@@ -321,11 +321,11 @@ struct RoutinesDetailSheet: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 84)
                 .background(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                         .fill(AppTheme.colors.pillSurface)
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                         .stroke(AppTheme.colors.pillOutline.opacity(0.72), lineWidth: 1)
                 }
         }
