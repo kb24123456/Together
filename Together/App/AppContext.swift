@@ -84,7 +84,12 @@ final class AppContext {
         self.importantDatesViewModel.onChange = { [weak self] in
             guard let self else { return }
             guard let pairSpaceID = self.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
-            await self.container.anniversaryScheduler.refresh(spaceID: pairSpaceID)
+            await self.container.anniversaryScheduler.refresh(
+                spaceID: pairSpaceID,
+                partnerName: self.sessionStore.pairSpaceSummary?.partner?.displayName,
+                myName: self.sessionStore.currentUser?.displayName,
+                myUserID: self.sessionStore.currentUser?.id
+            )
         }
     }
 
@@ -153,8 +158,16 @@ final class AppContext {
             Task { [importantDatesViewModel] in
                 await importantDatesViewModel.load()
             }
+            let partnerName = sessionStore.pairSpaceSummary?.partner?.displayName
+            let myName = sessionStore.currentUser?.displayName
+            let myUserID = sessionStore.currentUser?.id
             Task { [container] in
-                await container.anniversaryScheduler.refresh(spaceID: pairSpaceID)
+                await container.anniversaryScheduler.refresh(
+                    spaceID: pairSpaceID,
+                    partnerName: partnerName,
+                    myName: myName,
+                    myUserID: myUserID
+                )
             }
         }
         await restorePersistedUserProfileIfNeeded()
@@ -533,7 +546,12 @@ final class AppContext {
             guard let self else { return }
             Task { @MainActor in
                 guard let pairSpaceID = self.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
-                await self.container.anniversaryScheduler.refresh(spaceID: pairSpaceID)
+                await self.container.anniversaryScheduler.refresh(
+                    spaceID: pairSpaceID,
+                    partnerName: self.sessionStore.pairSpaceSummary?.partner?.displayName,
+                    myName: self.sessionStore.currentUser?.displayName,
+                    myUserID: self.sessionStore.currentUser?.id
+                )
                 await self.reloadAfterSync()
             }
         }

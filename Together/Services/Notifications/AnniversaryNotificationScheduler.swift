@@ -3,32 +3,25 @@ import UserNotifications
 import os
 
 protocol AnniversaryNotificationSchedulerProtocol: Sendable {
-    func refresh(spaceID: UUID) async
+    func refresh(spaceID: UUID, partnerName: String?, myName: String?, myUserID: UUID?) async
 }
 
 actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol {
     private let repository: ImportantDateRepositoryProtocol
     private let center: UNUserNotificationCenter
-    private let partnerDisplayNameProvider: @Sendable () -> String?
-    private let myDisplayNameProvider: @Sendable () -> String?
     private let logger = Logger(subsystem: "com.pigdog.Together", category: "AnniversaryScheduler")
 
     private static let identifierPrefix = "anniversary-"
 
     init(
         repository: ImportantDateRepositoryProtocol,
-        center: UNUserNotificationCenter = .current(),
-        partnerDisplayNameProvider: @escaping @Sendable () -> String? = { nil },
-        myDisplayNameProvider: @escaping @Sendable () -> String? = { nil }
+        center: UNUserNotificationCenter = .current()
     ) {
         self.repository = repository
         self.center = center
-        self.partnerDisplayNameProvider = partnerDisplayNameProvider
-        self.myDisplayNameProvider = myDisplayNameProvider
     }
 
-    func refresh(spaceID: UUID) async {
-        // 1. Check authorization via notificationSettings()
+    func refresh(spaceID: UUID, partnerName: String?, myName: String?, myUserID: UUID?) async {
         let settings = await center.notificationSettings()
         let status = settings.authorizationStatus
         guard status == .authorized || status == .provisional else {
@@ -36,14 +29,12 @@ actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol
             return
         }
 
-        // 2. Remove any existing anniversary-prefixed pending
         let pending = await center.pendingNotificationRequests()
         let ourIDs = pending.filter { $0.identifier.hasPrefix(Self.identifierPrefix) }.map(\.identifier)
         if !ourIDs.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: ourIDs)
         }
 
-        // 3. Fetch events + sort by nextOccurrence
         guard let events = try? await repository.fetchAll(spaceID: spaceID) else { return }
         let now = Date.now
         let upcoming = events
@@ -54,7 +45,6 @@ actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol
             .sorted { $0.1 < $1.1 }
             .prefix(32)
 
-        // 4. Schedule 2 notifications per event (advance + day-of)
         for (event, next) in upcoming {
             if event.notifyDaysBefore > 0,
                let advanceDate = Calendar.current.date(byAdding: .day, value: -event.notifyDaysBefore, to: next),
@@ -64,7 +54,7 @@ actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol
                     identifier: "\(Self.identifierPrefix)\(event.id)-before",
                     triggerDate: triggerDate,
                     title: advanceTitle(for: event),
-                    body: advanceBody(for: event, daysUntil: event.notifyDaysBefore)
+                    body: advanceBody(for: event, daysUntil: event.notifyDaysBefore, partnerName: partnerName, myUserID: myUserID)
                 )
             }
             if event.notifyOnDay,
@@ -73,8 +63,8 @@ actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol
                 await schedule(
                     identifier: "\(Self.identifierPrefix)\(event.id)-day",
                     triggerDate: triggerDate,
-                    title: dayOfTitle(for: event),
-                    body: dayOfBody(for: event)
+                    title: dayOfTitle(for: event, myUserID: myUserID),
+                    body: dayOfBody(for: event, myUserID: myUserID)
                 )
             }
         }
@@ -115,44 +105,44 @@ actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol
         }
     }
 
-    private func advanceBody(for event: ImportantDate, daysUntil: Int) -> String {
+    private func advanceBody(for event: ImportantDate, daysUntil: Int, partnerName: String?, myUserID: UUID?) -> String {
         switch event.kind {
         case .birthday(let memberID):
-            let name = isMyself(memberID) ? "你的" : (partnerDisplayNameProvider().map { "\($0) 的" } ?? "伴侣的")
+            let name: String
+            if let myUserID, memberID == myUserID {
+                name = "你的"
+            } else {
+                name = partnerName.map { "\($0) 的" } ?? "伴侣的"
+            }
             return "\(name)生日还有 \(daysUntil) 天"
         case .anniversary:
             return "纪念日还有 \(daysUntil) 天"
-        case .holiday:
-            return "\(event.title) 还有 \(daysUntil) 天"
-        case .custom:
+        case .holiday, .custom:
             return "\(event.title) 还有 \(daysUntil) 天"
         }
     }
 
-    private func dayOfTitle(for event: ImportantDate) -> String {
+    private func dayOfTitle(for event: ImportantDate, myUserID: UUID?) -> String {
         switch event.kind {
         case .birthday(let memberID):
-            return isMyself(memberID) ? "🎉 生日快乐！" : "🎂 今天是伴侣生日"
+            if let myUserID, memberID == myUserID { return "🎉 生日快乐！" }
+            return "🎂 今天是伴侣生日"
         case .anniversary: return "💕 纪念日快乐"
         case .holiday: return "✨ \(event.title)快乐"
         case .custom: return "📌 今天是\(event.title)"
         }
     }
 
-    private func dayOfBody(for event: ImportantDate) -> String {
+    private func dayOfBody(for event: ImportantDate, myUserID: UUID?) -> String {
         switch event.kind {
         case .birthday(let memberID):
-            return isMyself(memberID) ? "祝自己生日快乐 🎂" : "别忘了说声生日快乐 💌"
+            if let myUserID, memberID == myUserID { return "祝自己生日快乐 🎂" }
+            return "别忘了说声生日快乐 💌"
         case .anniversary:
             let years = Calendar.current.dateComponents([.year], from: event.dateValue, to: .now).year ?? 0
             return years > 0 ? "今天是你们在一起的第 \(years) 周年" : "今天是你们的纪念日"
         case .holiday: return "祝你们节日愉快"
         case .custom: return event.title
         }
-    }
-
-    private func isMyself(_ memberID: UUID) -> Bool {
-        // Hook for future use; v1 scheduler doesn't know which user is local.
-        false
     }
 }

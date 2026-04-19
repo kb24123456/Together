@@ -3,7 +3,7 @@ import Foundation
 import SwiftData
 
 private struct NoopAnniversaryScheduler: AnniversaryNotificationSchedulerProtocol {
-    func refresh(spaceID: UUID) async {}
+    func refresh(spaceID: UUID, partnerName: String?, myName: String?, myUserID: UUID?) async {}
 }
 
 enum MockServiceFactory {
