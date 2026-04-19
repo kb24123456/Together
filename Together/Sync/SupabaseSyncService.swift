@@ -1055,9 +1055,24 @@ struct TaskDTO: Codable, Sendable {
 
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == id })
-        if let existing = try? context.fetch(descriptor).first {
+        let existing = try? context.fetch(descriptor).first
+
+        ItemStatusDiagnosisLog.supabaseApplyBegin(
+            itemID: id,
+            incomingStatus: status,
+            incomingCompletedAt: completedAt,
+            localStatus: existing?.statusRawValue,
+            localCompletedAt: existing?.completedAt,
+            incomingUpdatedAt: updatedAt,
+            localUpdatedAt: existing?.updatedAt
+        )
+
+        if let existing {
             // 冲突保护：incoming 比本地旧则跳过（网络乱序 / 时钟漂移场景）
-            if updatedAt < existing.updatedAt { return }
+            if updatedAt < existing.updatedAt {
+                ItemStatusDiagnosisLog.supabaseApplyDone(itemID: id, decision: .skippedStale)
+                return
+            }
             // UPDATE: 同步远端字段
             existing.title = title
             existing.notes = notes
@@ -1084,6 +1099,7 @@ struct TaskDTO: Codable, Sendable {
             if isDeleted {
                 existing.isLocallyDeleted = true
             }
+            ItemStatusDiagnosisLog.supabaseApplyDone(itemID: id, decision: .applied)
         } else if !isDeleted {
             // INSERT: 本地不存在 & 未被软删除 → 创建新记录
             // assignmentState 直接用 DTO 传来的（服务端权威），不再从 status 派生
@@ -1120,6 +1136,9 @@ struct TaskDTO: Codable, Sendable {
                 isLocallyDeleted: false
             )
             context.insert(item)
+            ItemStatusDiagnosisLog.supabaseApplyDone(itemID: id, decision: .applied)
+        } else {
+            ItemStatusDiagnosisLog.supabaseApplyDone(itemID: id, decision: .skippedNotFound)
         }
     }
 }
