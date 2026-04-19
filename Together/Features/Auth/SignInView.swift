@@ -134,6 +134,7 @@ struct SignInView: View {
                         return
                     }
                     errorMessage = error.localizedDescription
+                    HomeInteractionFeedback.error()
                 }
             }
         }

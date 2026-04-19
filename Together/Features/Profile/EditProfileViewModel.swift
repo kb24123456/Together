@@ -140,6 +140,7 @@ final class EditProfileViewModel {
         guard let data else {
             errorMessage = "读取照片失败，请重新选择。"
             showsErrorAlert = true
+            HomeInteractionFeedback.error()
             return
         }
 
@@ -147,6 +148,7 @@ final class EditProfileViewModel {
         guard let image = UIImage(data: data) else {
             errorMessage = "无法解析所选照片，请更换一张图片。"
             showsErrorAlert = true
+            HomeInteractionFeedback.error()
             return
         }
         pendingCropImage = image.normalizedOrientationImage()
@@ -155,6 +157,7 @@ final class EditProfileViewModel {
         #else
         errorMessage = "当前设备不支持头像编辑。"
         showsErrorAlert = true
+        HomeInteractionFeedback.error()
         #endif
     }
 
@@ -270,6 +273,7 @@ final class EditProfileViewModel {
             else {
                 errorMessage = "头像保存失败，请重新裁剪。"
                 showsErrorAlert = true
+                HomeInteractionFeedback.error()
                 return false
             }
             if data.count > 300_000 {
@@ -279,6 +283,7 @@ final class EditProfileViewModel {
             #else
             errorMessage = "当前设备不支持头像编辑。"
             showsErrorAlert = true
+            HomeInteractionFeedback.error()
             return false
             #endif
         case .removedToSystem:
@@ -323,6 +328,7 @@ final class EditProfileViewModel {
             #endif
             errorMessage = error.localizedDescription
             showsErrorAlert = true
+            HomeInteractionFeedback.error()
             return false
         }
     }

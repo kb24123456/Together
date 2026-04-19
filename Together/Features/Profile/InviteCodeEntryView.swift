@@ -120,6 +120,7 @@ struct InviteCodeEntryView: View {
         let error = await onAccept(trimmedCode)
         if let error {
             errorMessage = error
+            HomeInteractionFeedback.error()
         }
         isLoading = false
     }
