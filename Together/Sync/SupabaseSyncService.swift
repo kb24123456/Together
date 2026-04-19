@@ -54,19 +54,22 @@ actor SupabaseSyncService {
 
     private let spaceMemberWriter: SpaceMemberWriter
     private let spaceMemberReader: SpaceMemberReader
+    private let importantDateWriter: ImportantDateWriter
 
     init(
         modelContainer: ModelContainer,
         avatarUploader: AvatarStorageUploaderProtocol,
         avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore(),
         spaceMemberWriter: SpaceMemberWriter? = nil,
-        spaceMemberReader: SpaceMemberReader? = nil
+        spaceMemberReader: SpaceMemberReader? = nil,
+        importantDateWriter: ImportantDateWriter? = nil
     ) {
         self.modelContainer = modelContainer
         self.avatarUploader = avatarUploader
         self.avatarMediaStore = avatarMediaStore
         self.spaceMemberWriter = spaceMemberWriter ?? SupabaseSpaceMemberWriter()
         self.spaceMemberReader = spaceMemberReader ?? SupabaseSpaceMemberReader()
+        self.importantDateWriter = importantDateWriter ?? SupabaseImportantDateWriter()
     }
 
     /// 配置同步目标
@@ -462,8 +465,17 @@ actor SupabaseSyncService {
             try await client.from(tableName).insert(dto).execute()
 
         case .importantDate:
-            // Supabase push for important_dates lands in a later task.
-            return
+            let descriptor = FetchDescriptor<PersistentImportantDate>(
+                predicate: #Predicate { $0.id == recordID }
+            )
+            guard let existing = try? context.fetch(descriptor).first else {
+                logger.warning("[Push] importantDate not found locally id=\(recordID.uuidString)")
+                return
+            }
+            let dto = ImportantDateDTO(from: existing)
+            try await importantDateWriter.upsert(dto: dto)
+            recentlyPushedIDs[recordID] = Date()
+            logger.info("[Push] ✅ importantDate upsert id=\(recordID.uuidString)")
         }
     }
 
@@ -1609,5 +1621,23 @@ extension ImportantDateDTO {
         self.updatedAt = persistent.updatedAt
         self.isDeleted = persistent.isLocallyDeleted
         self.deletedAt = persistent.deletedAt
+    }
+}
+
+// MARK: - ImportantDateWriter seam
+
+/// Abstracts the important_dates UPSERT call so tests can capture DTOs without hitting the network.
+protocol ImportantDateWriter: Sendable {
+    func upsert(dto: ImportantDateDTO) async throws
+}
+
+/// Default production implementation that calls the Supabase client.
+private struct SupabaseImportantDateWriter: ImportantDateWriter {
+    private let client = SupabaseClientProvider.shared
+
+    func upsert(dto: ImportantDateDTO) async throws {
+        try await client.from("important_dates")
+            .upsert(dto, onConflict: "id")
+            .execute()
     }
 }
