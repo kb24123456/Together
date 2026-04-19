@@ -56,8 +56,8 @@ struct ComposerPlaceholderSheet: View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
                 categorySwitcher
-                    .padding(.top, 18)
-                    .padding(.bottom, 8)
+                    .padding(.top, AppTheme.spacing.md) // 18→16
+                    .padding(.bottom, AppTheme.spacing.xs) // 8→6
 
                 ComposerPage(
                     category: draftState.category,
@@ -73,9 +73,9 @@ struct ComposerPlaceholderSheet: View {
                     focusCoordinator: focusCoordinator,
                     isProjectSubtaskMode: isProjectSubtaskMode
                 )
-                .padding(.horizontal, 26)
-                .padding(.top, 12)
-                .padding(.bottom, 24)
+                .padding(.horizontal, AppTheme.spacing.xl) // 26→28
+                .padding(.top, AppTheme.spacing.md) // 12→16
+                .padding(.bottom, AppTheme.spacing.lg) // 24→20
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(AppTheme.colors.surface)
@@ -150,7 +150,7 @@ struct ComposerPlaceholderSheet: View {
     }
 
     private var categorySwitcher: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             ForEach(ComposerCategory.allCases) { category in
                 Button {
                     ComposerButtonHaptics.selection()
@@ -172,12 +172,12 @@ struct ComposerPlaceholderSheet: View {
                             : AppTheme.colors.textTertiary
                         )
                         .scaleEffect(draftState.category == category ? 1 : 0.96)
-                        .padding(.horizontal, 17)
-                        .padding(.vertical, 9)
+                        .padding(.horizontal, AppTheme.spacing.md) // 17→16
+                        .padding(.vertical, AppTheme.spacing.sm) // 9→10
                         .background(
                             ZStack {
                                 if draftState.category == category {
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                                         .fill(AppTheme.colors.surfaceElevated)
                                         .matchedGeometryEffect(
                                             id: "composer.categorySwitcher.selection",
@@ -190,20 +190,20 @@ struct ComposerPlaceholderSheet: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.bottom, 10)
+        .padding(.bottom, AppTheme.spacing.sm)
     }
 
     private func bottomActionArea(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: draftState.hasMeaningfulContent ? 12 : 0) {
+            VStack(alignment: .leading, spacing: draftState.hasMeaningfulContent ? AppTheme.spacing.md : 0) { // 12→16
                 if showsTemplateButton {
                     templateCapsuleButton
                 }
 
                 if draftState.category != .template {
-                    HStack(alignment: .center, spacing: 12) {
+                    HStack(alignment: .center, spacing: AppTheme.spacing.md) { // 12→16
                         chipRow(trailingInset: 0)
                     }
                 }
@@ -212,9 +212,9 @@ struct ComposerPlaceholderSheet: View {
                     stackedPrimaryActionButton
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+            .padding(.horizontal, AppTheme.spacing.md) // 18→16
+            .padding(.top, AppTheme.spacing.md) // 12→16
+            .padding(.bottom, AppTheme.spacing.md)
             .background(
                 LinearGradient(
                     colors: [.clear, AppTheme.colors.surface.opacity(0.97)],
@@ -236,16 +236,16 @@ struct ComposerPlaceholderSheet: View {
             ComposerButtonHaptics.selection()
             openMenu(.template)
         } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: AppTheme.spacing.xxs) {
                 Image(systemName: "bookmark")
                     .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .padding(.trailing, 2)
+                    .padding(.trailing, AppTheme.spacing.xxs) // 2→4
                 Text("模板")
                     .font(AppTheme.typography.sized(14, weight: .semibold))
             }
             .foregroundStyle(AppTheme.colors.body.opacity(0.84))
-            .padding(.horizontal, 13)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 13) // intentional — between sm(10) and md(16)
+            .padding(.vertical, AppTheme.spacing.xs)
             .background {
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
@@ -261,7 +261,7 @@ struct ComposerPlaceholderSheet: View {
     private var stackedPrimaryActionButton: some View {
         primaryActionButtonBody
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, AppTheme.spacing.sm)
             .modifier(
                 TaskEditorPrimaryActionOvershootModifier(
                     trigger: draftState.hasMeaningfulContent,
@@ -284,7 +284,7 @@ struct ComposerPlaceholderSheet: View {
                 await save()
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 Image(systemName: "checkmark")
                     .font(AppTheme.typography.sized(13, weight: .bold))
                     .symbolEffect(.bounce, value: primaryActionFeedbackNonce)
@@ -295,13 +295,13 @@ struct ComposerPlaceholderSheet: View {
             .foregroundStyle(AppTheme.colors.title)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 72)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, AppTheme.spacing.md) // 18→16
             .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
             }
         }
@@ -309,7 +309,7 @@ struct ComposerPlaceholderSheet: View {
         .disabled(isSaving)
         .scaleEffect(isSaving ? 0.98 : (isPrimaryActionAnimating ? 0.95 : 1))
         .brightness(isPrimaryActionAnimating ? -0.015 : 0)
-        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
+        .shadow(color: AppTheme.colors.shadow, radius: 14, y: 7)
         .animation(.spring(response: 0.24, dampingFraction: 0.62), value: isPrimaryActionAnimating)
     }
 
@@ -838,7 +838,7 @@ private struct ComposerSmartSuggestionBar: View {
     var body: some View {
         if !suggestions.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: AppTheme.spacing.xs) { // 8→6
                     ForEach(suggestions) { suggestion in
                         Button {
                             HomeInteractionFeedback.selection()
@@ -847,15 +847,15 @@ private struct ComposerSmartSuggestionBar: View {
                             }
                             applySuggestion(suggestion)
                         } label: {
-                            HStack(spacing: 5) {
+                            HStack(spacing: AppTheme.spacing.xxs) { // 5→4
                                 Image(systemName: suggestion.icon)
                                     .font(AppTheme.typography.sized(11, weight: .semibold))
                                 Text(suggestion.display)
                                     .font(AppTheme.typography.sized(13, weight: .medium))
                             }
                             .foregroundStyle(AppTheme.colors.coral)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
+                            .padding(.horizontal, AppTheme.spacing.md) // 12→16
+                            .padding(.vertical, AppTheme.spacing.xs) // 7→6
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(AppTheme.colors.coral.opacity(0.1))
@@ -1245,7 +1245,7 @@ struct ComposerTemplateRow: View {
     let template: TaskTemplate
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Text(template.title)
                 .font(AppTheme.typography.sized(18, weight: .bold))
                 .foregroundStyle(AppTheme.colors.title)
@@ -1260,9 +1260,9 @@ struct ComposerTemplateRow: View {
             }
 
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 72), spacing: 8, alignment: .leading)],
+                columns: [GridItem(.adaptive(minimum: 72), spacing: AppTheme.spacing.xs, alignment: .leading)], // 8→6
                 alignment: .leading,
-                spacing: 8
+                spacing: AppTheme.spacing.xs // 8→6
             ) {
                 templateBadge(title: "任务", systemImage: "square.stack.3d.up")
                 if let time = template.time {
@@ -1280,28 +1280,28 @@ struct ComposerTemplateRow: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.md) // 14→16
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                 .fill(AppTheme.colors.pillSurface)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                 .stroke(AppTheme.colors.pillOutline.opacity(0.88), lineWidth: 1)
         }
     }
 
     private func templateBadge(title: String, systemImage: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: AppTheme.spacing.xs) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(11, weight: .bold))
             Text(title)
                 .font(AppTheme.typography.sized(12, weight: .semibold))
         }
         .foregroundStyle(AppTheme.colors.body.opacity(0.78))
-        .padding(.horizontal, 10)
+        .padding(.horizontal, AppTheme.spacing.sm)
         .frame(height: 30)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
@@ -1343,7 +1343,7 @@ private struct ComposerPage: View {
     }
 
     private var editorPage: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // 12→16
             ComposerFocusableTextView(
                 text: $draftState.title,
                 focusedField: $focusedField,
@@ -1388,7 +1388,7 @@ private struct ComposerPage: View {
 
             if isPairMode, category != .project, category != .periodic {
                 composerAssignmentSection
-                    .padding(.top, 10)
+                    .padding(.top, AppTheme.spacing.sm)
             }
 
             if category == .project && isProjectSubtaskMode {
@@ -1402,7 +1402,7 @@ private struct ComposerPage: View {
     }
 
     private var composerAssignmentSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // 12→16
             Text("归属给")
                 .font(AppTheme.typography.sized(14, weight: .bold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.72))
@@ -1419,14 +1419,14 @@ private struct ComposerPage: View {
                     .font(AppTheme.typography.sized(15, weight: .medium))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.82))
                     .lineLimit(1...3)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, AppTheme.spacing.md) // 14→16
+                    .padding(.vertical, AppTheme.spacing.md) // 12→16
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                             .fill(AppTheme.colors.surfaceElevated)
                     )
                     .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                             .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
                     }
             }
@@ -2287,9 +2287,9 @@ private struct ComposerProjectSubtasksPanel: View {
         VStack(spacing: 0) {
             if !draftState.projectSubtasks.isEmpty {
                 ScrollView {
-                    VStack(spacing: 10) {
+                    VStack(spacing: AppTheme.spacing.sm) {
                         ForEach(draftState.projectSubtasks) { subtask in
-                            HStack(spacing: 12) {
+                            HStack(spacing: AppTheme.spacing.md) { // 12→16
                                 Button {
                                     ComposerButtonHaptics.selection()
                                     draftState.toggleProjectSubtask(subtask.id)
@@ -2320,7 +2320,7 @@ private struct ComposerProjectSubtasksPanel: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, AppTheme.spacing.md)
                             .frame(minHeight: 54)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .modifier(TaskEditorMenuOptionGlassModifier())
@@ -2331,14 +2331,14 @@ private struct ComposerProjectSubtasksPanel: View {
                         }
                     }
                     .animation(.spring(response: 0.35, dampingFraction: 0.75), value: draftState.projectSubtasks)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 6)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, AppTheme.spacing.md) // 18→16
+                    .padding(.top, AppTheme.spacing.xs)
+                    .padding(.bottom, AppTheme.spacing.md) // 12→16
                 }
                 .scrollIndicators(.hidden)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacing.md) { // 12→16
                 TextField("添加子任务", text: $draftState.projectSubtaskInput)
                     .font(AppTheme.typography.sized(16, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.title)
@@ -2353,13 +2353,13 @@ private struct ComposerProjectSubtasksPanel: View {
                     .foregroundStyle(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
                     .disabled(draftState.projectSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(AppTheme.colors.pillSurface))
-            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(AppTheme.colors.pillOutline, lineWidth: 1))
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
-            .padding(.bottom, 18)
+            .padding(.horizontal, AppTheme.spacing.md) // 18→16
+            .padding(.vertical, AppTheme.spacing.md) // 14→16
+            .background(RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous).fill(AppTheme.colors.pillSurface))
+            .overlay(RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous).stroke(AppTheme.colors.pillOutline, lineWidth: 1))
+            .padding(.horizontal, AppTheme.spacing.md) // 18→16
+            .padding(.top, AppTheme.spacing.xs) // 8→6
+            .padding(.bottom, AppTheme.spacing.md) // 18→16
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
@@ -2390,7 +2390,7 @@ private struct ComposerProjectSubtasksInline: View {
     @State private var subtaskDraft = ""
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: AppTheme.spacing.xs) {
             ForEach(draftState.projectSubtasks) { subtask in
                 subtaskRow(subtask)
                     .transition(.asymmetric(
@@ -2414,7 +2414,7 @@ private struct ComposerProjectSubtasksInline: View {
 
     @ViewBuilder
     private func subtaskRow(_ subtask: ProjectSubtaskDraft) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             Button {
                 ComposerButtonHaptics.selection()
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
@@ -2469,7 +2469,7 @@ private struct ComposerProjectSubtasksInline: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, AppTheme.spacing.xs)
     }
 
     private func subtaskBinding(for subtask: ProjectSubtaskDraft) -> Binding<String> {
@@ -2493,7 +2493,7 @@ private struct ComposerProjectSubtasksInline: View {
     }
 
     private var addInputRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             Image(systemName: "plus.circle.fill")
                 .font(AppTheme.typography.sized(17, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.coral.opacity(
@@ -2508,7 +2508,7 @@ private struct ComposerProjectSubtasksInline: View {
                 .focused($isInputFocused)
                 .onSubmit { addSubtask() }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, AppTheme.spacing.xs)
     }
 
     private func addSubtask() {
@@ -2527,7 +2527,7 @@ private struct ComposerPeriodicCyclePanel: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: AppTheme.spacing.sm) {
                 ForEach(PeriodicCycle.allCases, id: \.self) { cycle in
                     Button {
                         ComposerButtonHaptics.selection()
@@ -2546,7 +2546,7 @@ private struct ComposerPeriodicCyclePanel: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                        .padding(.horizontal, 18)
+                        .padding(.horizontal, AppTheme.spacing.lg)
                         .contentShape(
                             RoundedRectangle(
                                 cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
@@ -2579,17 +2579,17 @@ private struct ComposerPeriodicReminderPanel: View {
                         rule: $draftState.periodicReminderRules[index],
                         cycle: draftState.periodicCycle
                     )
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AppTheme.spacing.lg)
 
                     if index < draftState.periodicReminderRules.count - 1 {
                         Divider()
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, AppTheme.spacing.lg)
+                            .padding(.vertical, AppTheme.spacing.xs)
                     }
                 }
             }
-            .padding(.top, 8)
-            .padding(.bottom, 20)
+            .padding(.top, AppTheme.spacing.xs)
+            .padding(.bottom, AppTheme.spacing.lg)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -2673,7 +2673,7 @@ private struct ComposerMenuSheet: View {
 
     private func optionList(options: [ComposerOptionRow]) -> some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: AppTheme.spacing.sm) {
                 ForEach(options) { option in
                     Button {
                         ComposerButtonHaptics.selection()
@@ -2692,7 +2692,7 @@ private struct ComposerMenuSheet: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(minHeight: ComposerMenuOptionMetrics.height)
-                        .padding(.horizontal, 18)
+                        .padding(.horizontal, AppTheme.spacing.lg)
                         .contentShape(
                             RoundedRectangle(
                                 cornerRadius: ComposerMenuOptionMetrics.cornerRadius,
@@ -2779,14 +2779,14 @@ private struct ComposerDatePickerSheet: View {
             let headerInset = headerHorizontalInset(for: proxy.size.width)
 
             VStack(alignment: .leading, spacing: Self.headerToGridSpacing) {
-                HStack(spacing: 10) {
+                HStack(spacing: AppTheme.spacing.sm) {
                     Text(monthTitle)
                         .font(AppTheme.typography.sized(21, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
 
                     Spacer(minLength: 0)
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: AppTheme.spacing.sm) {
                         calendarButton(systemName: "chevron.left") {
                             shiftMonth(by: -1)
                         }
@@ -3048,7 +3048,7 @@ private struct ComposerTimePickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 ForEach(quickPresetMinutes, id: \.self) { minutes in
                     Button {
                         ComposerButtonHaptics.selection()

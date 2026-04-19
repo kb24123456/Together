@@ -24,15 +24,15 @@ struct HomeDockBar: View {
     @State private var suppressHubPrimaryTap = false
 
     private let groupedControlHeight: CGFloat = 40
-    private let groupedCapsuleVerticalPadding: CGFloat = 6
+    private let groupedCapsuleVerticalPadding: CGFloat = AppTheme.spacing.xs
     private let hubButtonDiameter: CGFloat = 48
     private let buttonWidth: CGFloat = 54
-    private let selectionCornerRadius: CGFloat = 20
+    private let selectionCornerRadius: CGFloat = AppTheme.radius.card
     private let dockSymbolSize: CGFloat = 22
     private let hubHitTargetSize: CGFloat = 60
 
     var body: some View {
-        HStack(alignment: .center, spacing: 32) {
+        HStack(alignment: .center, spacing: 32) { // intentional wide hub gap
             groupedButtons
             hubPrimaryButton
         }
@@ -46,7 +46,7 @@ struct HomeDockBar: View {
     private var groupedButtons: some View {
         Group {
             if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 18) {
+                GlassEffectContainer(spacing: 18) { // system glass container spacing — intentional
                     groupedButtonsContent
                 }
             } else {
@@ -56,7 +56,7 @@ struct HomeDockBar: View {
     }
 
     private var groupedButtonsContent: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: AppTheme.spacing.xxs) {
             dockButton(
                 destination: .profile,
                 systemImage: "slider.horizontal.3",
@@ -92,7 +92,7 @@ struct HomeDockBar: View {
                 action: onProjectsTapped
             )
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, AppTheme.spacing.xs)
         .padding(.vertical, groupedCapsuleVerticalPadding)
         .modifier(DockGroupedCapsuleModifier())
     }
@@ -157,10 +157,10 @@ struct HomeDockBar: View {
         }
         .buttonStyle(.plain)
         .modifier(GlassCircleModifier())
-        .padding(6)
+        .padding(AppTheme.spacing.xs)
         .frame(width: hubHitTargetSize, height: hubHitTargetSize)
         .contentShape(Rectangle())
-        .padding(-6)
+        .padding(-6) // intentional negative to offset hit-target padding
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.35)
                 .onEnded { _ in
@@ -254,7 +254,7 @@ private extension View {
     func glassEffectIfAvailable(in namespace: Namespace.ID, id: String) -> some View {
         if #available(iOS 26.0, *) {
             self
-                .glassEffect(.regular.tint(.white.opacity(0.2)), in: .rect(cornerRadius: 18))
+                .glassEffect(.regular.tint(.white.opacity(0.2)), in: .rect(cornerRadius: AppTheme.radius.lg))
                 .glassEffectID(id, in: namespace)
         } else {
             self

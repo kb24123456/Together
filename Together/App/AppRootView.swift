@@ -326,8 +326,8 @@ struct AppRootView: View {
     }
 
     private func quickCaptureDebugPanel(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 Image(systemName: "exclamationmark.bubble")
                     .font(AppTheme.typography.sized(14, weight: .semibold))
                 Text("快速捕捉提交诊断")
@@ -344,19 +344,19 @@ struct AppRootView: View {
             }
 
             Text(message)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(.system(size: 11, weight: .medium, design: .monospaced)) // design: .monospaced intentional
                 .foregroundStyle(AppTheme.colors.body.opacity(0.84))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(14)
+        .padding(AppTheme.spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
                 .fill(.white.opacity(0.96))
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
                 .stroke(AppTheme.colors.separator.opacity(0.8), lineWidth: 1)
         }
         .shadow(color: AppTheme.colors.shadow.opacity(0.16), radius: 16, y: 8)
@@ -379,8 +379,8 @@ struct AppRootView: View {
     }
 
     private var quickCaptureBar: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            HStack(spacing: 10) {
+        HStack(alignment: .bottom, spacing: AppTheme.spacing.xs) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 Image(systemName: "square.and.pencil")
                     .font(AppTheme.typography.sized(18, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.9))
@@ -443,8 +443,8 @@ struct AppRootView: View {
                 .contentShape(Rectangle())
                 .disabled(isSubmittingQuickCapture)
             }
-            .padding(.leading, 18)
-            .padding(.trailing, 6)
+            .padding(.leading, AppTheme.spacing.lg)
+            .padding(.trailing, AppTheme.spacing.xs)
             .frame(height: quickCaptureFieldHeight, alignment: .center)
             .modifier(QuickCaptureFieldGlassModifier())
 
@@ -471,7 +471,7 @@ struct AppRootView: View {
     private func dockHubActionTray(bottomPadding: CGFloat) -> some View {
         Group {
             if #available(iOS 26.0, *) {
-                GlassEffectContainer(spacing: 10) {
+                GlassEffectContainer(spacing: AppTheme.spacing.sm) {
                     dockHubActionTrayContent
                 }
             } else {
@@ -484,17 +484,17 @@ struct AppRootView: View {
     }
 
     private var dockHubActionTrayContent: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: AppTheme.spacing.sm) {
             ForEach(DockHubAction.allCases) { action in
                 Button {
                     performDockHubAction(action)
                 } label: {
-                    HStack(spacing: 12) {
+                    HStack(spacing: AppTheme.spacing.md) {
                         Image(systemName: action.systemImage)
                             .font(AppTheme.typography.sized(17, weight: .semibold))
                             .frame(width: 22, height: 22)
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) { // tight title/subtitle gap
                             Text(action.title)
                                 .font(AppTheme.typography.sized(16, weight: .semibold))
 
@@ -506,8 +506,8 @@ struct AppRootView: View {
                         Spacer(minLength: 0)
                     }
                     .foregroundStyle(action.isAvailable ? AppTheme.colors.body : AppTheme.colors.body.opacity(0.42))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, AppTheme.spacing.md)
+                    .padding(.vertical, AppTheme.spacing.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
@@ -901,7 +901,7 @@ private struct VoiceActivityIndicator: View {
 
         Group {
             if showsDotState {
-                HStack(alignment: .center, spacing: 2.5) {
+                HStack(alignment: .center, spacing: 2.5) { // tight waveform gap — intentional
                     ForEach(0..<5, id: \.self) { _ in
                         Circle()
                             .fill(AppTheme.colors.body.opacity(0.75))
@@ -913,7 +913,7 @@ private struct VoiceActivityIndicator: View {
                     let time = context.date.timeIntervalSinceReferenceDate
                     let voiceStrength = min(max(effectiveLevel, 0.72), 1)
 
-                    HStack(alignment: .center, spacing: 2.5) {
+                    HStack(alignment: .center, spacing: 2.5) { // tight waveform gap — intentional
                         ForEach(Array(barBaseHeights.enumerated()), id: \.offset) { index, baseHeight in
                             let ripple = (sin((time * 8.4) + phaseOffsets[index]) + 1) * 0.5
                             let animatedWeight = 0.25 + ripple * 0.75
@@ -1364,7 +1364,7 @@ private struct QuickCaptureTranscriptPreviewCard: View {
     let isPreparing: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
             Text(isPreparing ? "正在准备语音输入…" : "实时转写")
                 .font(AppTheme.typography.sized(14, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.48))
@@ -1378,8 +1378,8 @@ private struct QuickCaptureTranscriptPreviewCard: View {
             }
             .frame(minHeight: 88, maxHeight: 150)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, AppTheme.spacing.lg)
+        .padding(.vertical, AppTheme.spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(QuickCaptureTranscriptPreviewGlassModifier())
         .accessibilityElement(children: .combine)
@@ -1392,12 +1392,12 @@ private struct QuickCaptureTranscriptPreviewGlassModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous))
         } else {
             content
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                         .stroke(.white.opacity(0.62), lineWidth: 1)
                 }
                 .shadow(color: AppTheme.colors.shadow.opacity(0.1), radius: 16, y: 8)
@@ -1417,17 +1417,17 @@ private struct DockHubActionGlassModifier: ViewModifier {
                 content
                     .glassEffect(
                         .regular.tint(.white.opacity(0.08)),
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                     )
             }
         } else {
             content
                 .background(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                         .fill(.white.opacity(isAvailable ? 0.84 : 0.72))
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                         .stroke(.white.opacity(0.62), lineWidth: 1)
                 }
                 .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 14, y: 6)
@@ -1455,8 +1455,8 @@ private struct QuickCaptureTimeOnlyConfirmationSheet: View {
             Text("确认时间")
                 .font(AppTheme.typography.sized(18, weight: .bold))
                 .foregroundStyle(AppTheme.colors.title)
-                .padding(.top, 20)
-                .padding(.bottom, 4)
+                .padding(.top, AppTheme.spacing.lg)
+                .padding(.bottom, AppTheme.spacing.xxs)
 
             TaskEditorTimePickerSheet(
                 selectedTime: $selectedTime,
@@ -1482,7 +1482,7 @@ private struct QuickCaptureSheetGlassBackgroundModifier: ViewModifier {
                 .presentationBackground {
                     Rectangle()
                         .fill(.clear)
-                        .glassEffect(.regular, in: .rect(cornerRadius: 56, style: .continuous))
+                        .glassEffect(.regular, in: .rect(cornerRadius: 56, style: .continuous)) // system glass shape — intentional oversized radius
                 }
         } else {
             content
@@ -1519,7 +1519,7 @@ private struct QuickCaptureDateTimeConfirmationSheet: View {
                 .foregroundStyle(AppTheme.colors.title)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
-                .padding(.top, 24)
+                .padding(.top, AppTheme.spacing.lg) // normalized 24→lg(20)
 
             VStack(spacing: 0) {
                 TaskEditorDatePickerSheet(
@@ -1531,16 +1531,16 @@ private struct QuickCaptureDateTimeConfirmationSheet: View {
 
                 Divider()
                     .overlay(AppTheme.colors.separator.opacity(0.2))
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, AppTheme.spacing.md)
 
                 QuickCaptureInlineTimeRow(selectedDate: $selectedDate)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, AppTheme.spacing.md)
+                    .padding(.vertical, AppTheme.spacing.md)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
+            .padding(.horizontal, AppTheme.spacing.lg)
+            .padding(.top, AppTheme.spacing.md)
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacing.md) {
                 Button {
                     onCancel()
                 } label: {
@@ -1562,9 +1562,9 @@ private struct QuickCaptureDateTimeConfirmationSheet: View {
                 .buttonStyle(QuickCaptureSheetActionButtonStyle(isPrimary: true))
                 .disabled(isSubmitting)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 20)
+            .padding(.horizontal, AppTheme.spacing.lg)
+            .padding(.top, AppTheme.spacing.md)
+            .padding(.bottom, AppTheme.spacing.lg)
         }
         .frame(maxWidth: .infinity, alignment: .top)
     }
@@ -1592,7 +1592,7 @@ private struct QuickCaptureInlineTimeRow: View {
     @Binding var selectedDate: Date
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: AppTheme.spacing.md) {
             Text("时间")
                 .font(AppTheme.typography.sized(16, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.7))
@@ -1609,7 +1609,7 @@ private struct QuickCaptureInlineTimeRow: View {
             .datePickerStyle(.compact)
             .tint(AppTheme.colors.title)
             .blendMode(.normal)
-            .padding(.horizontal, 4)
+            .padding(.horizontal, AppTheme.spacing.xxs)
             .frame(height: 44)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

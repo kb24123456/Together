@@ -8,8 +8,8 @@ struct StatusBadge: View {
         Text(title)
             .font(AppTheme.typography.textStyle(.caption1, weight: .semibold))
             .foregroundStyle(tint)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, AppTheme.spacing.sm)
+            .padding(.vertical, AppTheme.spacing.xs)
             .background(tint.opacity(0.12), in: Capsule())
     }
 }

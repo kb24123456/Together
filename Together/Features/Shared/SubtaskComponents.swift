@@ -22,12 +22,12 @@ struct SubtaskCheckbox: View {
             onToggle()
         } label: {
             ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xs, style: .continuous)
                     .fill(AppTheme.colors.coral.opacity(0.14))
                     .scaleEffect(fillScale)
                     .opacity(isCompleted ? 0 : fillOpacity)
 
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xs, style: .continuous)
                     .strokeBorder(
                         isCompleted
                             ? Color.clear

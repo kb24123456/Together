@@ -252,13 +252,13 @@ struct TaskEditorChipRow: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 ForEach(chips) { chip in
-                    HStack(spacing: chip.showsTrailingClear ? 8 : 3) {
+                    HStack(spacing: chip.showsTrailingClear ? AppTheme.spacing.xs : AppTheme.spacing.xxs) {
                         Button {
                             onChipTap(chip.menu)
                         } label: {
-                            HStack(spacing: 3) {
+                            HStack(spacing: AppTheme.spacing.xxs) {
                                 TaskEditorAnimatedChipIcon(
                                     systemImage: chip.systemImage,
                                     menu: chip.menu,
@@ -291,8 +291,8 @@ struct TaskEditorChipRow: View {
                         }
                     }
                     .foregroundStyle(AppTheme.colors.body.opacity(0.84))
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 13) // intentional — between sm(10) and md(16)
+                    .padding(.vertical, AppTheme.spacing.xs)
                     .modifier(
                         TaskEditorChipSurfaceModifier(
                             animationID: chip.id,
@@ -308,7 +308,7 @@ struct TaskEditorChipRow: View {
                 }
             }
             .padding(.trailing, trailingInset)
-            .padding(.vertical, 2)
+            .padding(.vertical, AppTheme.spacing.xxs) // 2→4
             .animation(.spring(response: 0.3, dampingFraction: 0.86), value: chips.map(\.id).joined(separator: "|"))
         }
         .scrollIndicators(.hidden)
@@ -330,7 +330,7 @@ struct TaskEditorOptionList: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: AppTheme.spacing.sm) {
                 ForEach(options) { option in
                     Button {
                         selectionFeedback()
@@ -349,7 +349,7 @@ struct TaskEditorOptionList: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                        .padding(.horizontal, 18)
+                        .padding(.horizontal, AppTheme.spacing.md) // 18→16
                         .contentShape(
                             RoundedRectangle(
                                 cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
@@ -373,7 +373,7 @@ extension TaskEditorOptionList {
     static func preferredHeight(optionCount: Int) -> CGFloat {
         let clampedCount = max(optionCount, 1)
         let rowsHeight = CGFloat(clampedCount) * TaskEditorMenuOptionMetrics.height
-        let spacingHeight = CGFloat(max(clampedCount - 1, 0)) * 10
+        let spacingHeight = CGFloat(max(clampedCount - 1, 0)) * AppTheme.spacing.sm
         let verticalPadding = TaskEditorMenuOptionMetrics.outerInset * 2
         return rowsHeight + spacingHeight + verticalPadding
     }
@@ -410,7 +410,7 @@ struct TaskEditorReminderOptionList: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: 10) {
+                VStack(spacing: AppTheme.spacing.sm) {
                     optionButton(title: "不提醒", isSelected: selectedOffset == nil) {
                         onSelect(nil)
                     }
@@ -453,7 +453,7 @@ struct TaskEditorReminderOptionList: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                            .padding(.horizontal, 18)
+                            .padding(.horizontal, AppTheme.spacing.md) // 18→16
                             .contentShape(
                                 RoundedRectangle(
                                     cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
@@ -503,7 +503,7 @@ struct TaskEditorReminderOptionList: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, AppTheme.spacing.md) // 18→16
             .contentShape(
                 RoundedRectangle(
                     cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
@@ -523,8 +523,8 @@ struct TaskEditorReminderOptionList: View {
     }
 
     private var customPickerRow: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 4) {
+        HStack(spacing: AppTheme.spacing.md) { // 12→16
+            HStack(spacing: AppTheme.spacing.xxs) {
                 Button {
                     selectionFeedback()
                     customValue = max(1, customValue - 1)
@@ -558,14 +558,14 @@ struct TaskEditorReminderOptionList: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(AppTheme.colors.body.opacity(0.7))
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, AppTheme.spacing.xs) // 8→6
+            .padding(.vertical, AppTheme.spacing.xs)
             .background(
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
 
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 ForEach(CustomReminderUnit.allCases, id: \.rawValue) { unit in
                     Button {
                         selectionFeedback()
@@ -576,7 +576,7 @@ struct TaskEditorReminderOptionList: View {
                             .font(AppTheme.typography.sized(14, weight: .semibold))
                             .foregroundStyle(customUnit == unit ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.5))
                             .frame(maxHeight: .infinity)
-                            .padding(.horizontal, 12)
+                            .padding(.horizontal, AppTheme.spacing.md) // 12→16
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(customUnit == unit ? AppTheme.colors.pillSurface : Color.clear)
@@ -585,15 +585,15 @@ struct TaskEditorReminderOptionList: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, AppTheme.spacing.xxs)
             .frame(maxHeight: .infinity)
             .background(
                 Capsule(style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
         }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 14)
+        .padding(.horizontal, AppTheme.spacing.md) // 18→16
+        .padding(.bottom, AppTheme.spacing.md) // 14→16
     }
 
     private func applyCustomValue() {
@@ -662,9 +662,9 @@ struct TaskEditorSettingsSheet<Content: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-                .padding(.horizontal, 22)
-                .padding(.top, 18)
-                .padding(.bottom, 10)
+                .padding(.horizontal, AppTheme.spacing.lg) // 22→20
+                .padding(.top, AppTheme.spacing.md) // 18→16
+                .padding(.bottom, AppTheme.spacing.sm)
 
             ZStack {
                 content(displayedMenu)
@@ -691,9 +691,9 @@ struct TaskEditorSettingsSheet<Content: View>: View {
                     displayedMenu = nextMenu
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 8)
-            .padding(.bottom, 14)
+            .padding(.horizontal, AppTheme.spacing.lg) // 22→20
+            .padding(.top, AppTheme.spacing.xs) // 8→6
+            .padding(.bottom, AppTheme.spacing.md) // 14→16
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: activeMenu) { oldValue, newValue in
@@ -706,12 +706,12 @@ struct TaskEditorSettingsSheet<Content: View>: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.spacing.md) { // 12→16
             TaskEditorSettingsHeaderButton(title: "取消", action: onCancel)
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 Text(title)
                     .font(AppTheme.typography.sized(24, weight: .bold))
                     .foregroundStyle(AppTheme.colors.title)
@@ -766,18 +766,18 @@ private struct TaskEditorSettingsHeaderButton: View {
 struct TaskEditorSettingsPresentationBackground: View {
     var body: some View {
         if #available(iOS 26.0, *) {
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                 .fill(.clear)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 34, style: .continuous))
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.46), lineWidth: 1)
                 }
         } else {
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay {
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                         .stroke(Color.white.opacity(0.42), lineWidth: 1)
                 }
         }
@@ -884,9 +884,9 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
                 }
             }
         )
-        .padding(.horizontal, 18)
-        .padding(.top, switcherPlacement == .bottom ? 0 : 14)
-        .padding(.bottom, switcherPlacement == .bottom ? 10 : 10)
+        .padding(.horizontal, AppTheme.spacing.md) // 18→16
+        .padding(.top, switcherPlacement == .bottom ? 0 : AppTheme.spacing.md) // 14→16
+        .padding(.bottom, switcherPlacement == .bottom ? AppTheme.spacing.sm : AppTheme.spacing.sm)
     }
 
     private var currentTitle: String {
@@ -894,7 +894,7 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.spacing.md) { // 12→16
             topBarButton(systemImage: "xmark", accessibilityLabel: "关闭", action: onClose)
 
             Spacer(minLength: 0)
@@ -913,9 +913,9 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
             .opacity(onSave == nil ? 0.35 : 1)
             .allowsHitTesting(onSave != nil)
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 16)
-        .padding(.bottom, 12)
+        .padding(.horizontal, AppTheme.spacing.md) // 18→16
+        .padding(.top, AppTheme.spacing.md)
+        .padding(.bottom, AppTheme.spacing.md) // 12→16
     }
 
     private var titleView: some View {
@@ -998,7 +998,7 @@ private struct TaskEditorMenuSwitcher: View {
     @State private var lastRotatedMenu: TaskEditorMenu? = nil
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             ForEach(menus) { menu in
                 let itemPresentation = presentation(menu)
                 Button {
@@ -1123,7 +1123,7 @@ struct TaskEditorDatePickerSheet: View {
             let headerInset = headerHorizontalInset(for: proxy.size.width)
 
             VStack(alignment: .leading, spacing: Self.headerToGridSpacing) {
-                HStack(spacing: 8) {
+                HStack(spacing: AppTheme.spacing.xs) { // 8→6
                     Text(monthTitle)
                         .font(AppTheme.typography.sized(20, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
@@ -1131,7 +1131,7 @@ struct TaskEditorDatePickerSheet: View {
 
                     Spacer(minLength: 0)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: AppTheme.spacing.xs) { // 8→6
                         calendarButton(systemName: "chevron.left") {
                             shiftMonth(by: -1)
                         }
@@ -1414,7 +1414,7 @@ struct TaskEditorTimePickerSheet: View {
 
             VStack(spacing: 0) {
                 if showsQuickPresets {
-                    HStack(spacing: 10) {
+                    HStack(spacing: AppTheme.spacing.sm) {
                         ForEach(quickPresetMinutes, id: \.self) { minutes in
                             Button {
                                 selectionFeedback()
@@ -1588,7 +1588,7 @@ struct TaskEditorSettingsTimePage: View {
     let selectionFeedback: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppTheme.spacing.md) { // 12→16
             TaskEditorCenteredWeekDatePicker(
                 selectedDate: $selectedDate,
                 selectionFeedback: selectionFeedback
@@ -1608,9 +1608,9 @@ struct TaskEditorSettingsTimePage: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 4)
-        .padding(.bottom, 6)
+        .padding(.horizontal, AppTheme.spacing.md) // 18→16
+        .padding(.top, AppTheme.spacing.xxs)
+        .padding(.bottom, AppTheme.spacing.xs)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -1690,7 +1690,7 @@ struct TaskEditorCenteredWeekDatePicker: View {
                         selectedDate = date
                     }
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: AppTheme.spacing.xxs) {
                         Text(weekdayLabel(for: date))
                             .font(AppTheme.typography.sized(13, weight: .semibold))
                             .foregroundStyle(isSelected ? AppTheme.colors.coral : AppTheme.colors.textTertiary)
@@ -1712,12 +1712,12 @@ struct TaskEditorCenteredWeekDatePicker: View {
                     .frame(height: 78)
                     .background {
                         if isSelected {
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                                 .fill(AppTheme.colors.pillSurface)
                         }
                     }
                     .overlay {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                             .stroke(
                                 isSelected ? AppTheme.colors.pillOutline : AppTheme.colors.outline.opacity(0.08),
                                 lineWidth: 1
@@ -1727,7 +1727,7 @@ struct TaskEditorCenteredWeekDatePicker: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, AppTheme.spacing.xs)
     }
 
     private func centeredDates(shiftedByWeeks offset: Int) -> [Date] {
@@ -1830,7 +1830,7 @@ struct TaskEditorSettingsMonthPage: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: AppTheme.spacing.xs) { // 8→6
             LazyVGrid(columns: calendarColumns, spacing: 0) {
                 ForEach(weekdaySymbols, id: \.self) { symbol in
                     Text(symbol)
@@ -1848,9 +1848,9 @@ struct TaskEditorSettingsMonthPage: View {
             .contentShape(Rectangle())
             .gesture(monthDragGesture)
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.horizontal, AppTheme.spacing.sm)
+        .padding(.top, AppTheme.spacing.xs) // 8→6
+        .padding(.bottom, AppTheme.spacing.xxs)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: selectedDate) { _, newValue in
             let month = Calendar.current.date(
@@ -1906,7 +1906,7 @@ struct TaskEditorSettingsMonthPage: View {
     }
 
     private var monthGrid: some View {
-        LazyVGrid(columns: calendarColumns, spacing: 8) {
+        LazyVGrid(columns: calendarColumns, spacing: AppTheme.spacing.xs) { // 8→6
             ForEach(monthCells) { cell in
                 Button {
                     selectionFeedback()
@@ -2017,7 +2017,7 @@ struct TaskEditorSingleColumnTimeWheel: View {
                 selectionCapsuleFill: selectionCapsuleFill,
                 showsIcon: showsSelectionIcon
             )
-                .padding(.horizontal, 18)
+                .padding(.horizontal, AppTheme.spacing.md) // 18→16
                 .allowsHitTesting(false)
         }
     }
@@ -2300,10 +2300,10 @@ private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
     var body: some View {
         HStack {
             Spacer(minLength: 0)
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 if showsIcon {
                     Image(systemName: "clock.fill")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.system(size: 18, weight: .semibold, design: .rounded)) // design: .rounded intentional
                         .foregroundStyle(AppTheme.colors.body.opacity(0.82))
                 }
 

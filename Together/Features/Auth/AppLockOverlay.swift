@@ -14,7 +14,7 @@ struct AppLockOverlay: View {
 
             VStack(spacing: AppTheme.spacing.lg) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 40, weight: .light))
+                    .font(AppTheme.typography.sized(40, weight: .light))
                     .foregroundStyle(AppTheme.colors.sky)
 
                 Text("Together 已锁定")

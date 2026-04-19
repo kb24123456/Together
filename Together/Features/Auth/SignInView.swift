@@ -18,7 +18,7 @@ struct SignInView: View {
 
                 VStack(spacing: AppTheme.spacing.md) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 64, weight: .light))
+                        .font(AppTheme.typography.sized(64, weight: .light))
                         .foregroundStyle(AppTheme.colors.accent)
                         .symbolEffect(.breathe, options: .repeating)
 
@@ -69,9 +69,9 @@ struct SignInView: View {
                     Button {
                         performDevSignIn()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: AppTheme.spacing.xs) {
                             Image(systemName: "hammer.fill")
-                                .font(.system(size: 14))
+                                .font(AppTheme.typography.sized(14))
                             Text("开发者快速登录")
                                 .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                         }
