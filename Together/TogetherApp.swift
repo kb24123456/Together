@@ -9,6 +9,9 @@ struct TogetherApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        #if DEBUG
+        DebugResetCoordinator.applyPendingNukeIfNeeded()
+        #endif
         StartupTrace.mark("TogetherApp.init")
     }
 
