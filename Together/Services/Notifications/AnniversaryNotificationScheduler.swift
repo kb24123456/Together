@@ -13,6 +13,21 @@ actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol
 
     private static let identifierPrefix = "anniversary-"
 
+    /// Refresh serialization: the actor serializes method entry, but every
+    /// `await` inside the body releases the actor. Without a guard, a second
+    /// refresh call can enter during the first one's await, run its own
+    /// "remove all anniversary- prefixed pending" step, and nuke requests the
+    /// first call just added. Queue the latest args and replay once after the
+    /// in-flight refresh finishes.
+    private struct QueuedRefresh {
+        let spaceID: UUID
+        let partnerName: String?
+        let myName: String?
+        let myUserID: UUID?
+    }
+    private var isRefreshing = false
+    private var queued: QueuedRefresh?
+
     init(
         repository: ImportantDateRepositoryProtocol,
         center: UNUserNotificationCenter = .current()
@@ -22,6 +37,40 @@ actor AnniversaryNotificationScheduler: AnniversaryNotificationSchedulerProtocol
     }
 
     func refresh(spaceID: UUID, partnerName: String?, myName: String?, myUserID: UUID?) async {
+        if isRefreshing {
+            // Coalesce concurrent callers to the most-recent args. Latest-wins
+            // is correct because the scheduler is stateless between cycles:
+            // every refresh starts by wiping all anniversary- pending requests.
+            queued = QueuedRefresh(
+                spaceID: spaceID,
+                partnerName: partnerName,
+                myName: myName,
+                myUserID: myUserID
+            )
+            return
+        }
+
+        isRefreshing = true
+        await performRefresh(
+            spaceID: spaceID,
+            partnerName: partnerName,
+            myName: myName,
+            myUserID: myUserID
+        )
+        isRefreshing = false
+
+        if let next = queued {
+            queued = nil
+            await refresh(
+                spaceID: next.spaceID,
+                partnerName: next.partnerName,
+                myName: next.myName,
+                myUserID: next.myUserID
+            )
+        }
+    }
+
+    private func performRefresh(spaceID: UUID, partnerName: String?, myName: String?, myUserID: UUID?) async {
         let settings = await center.notificationSettings()
         let status = settings.authorizationStatus
         guard status == .authorized || status == .provisional else {
