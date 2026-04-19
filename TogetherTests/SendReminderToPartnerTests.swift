@@ -14,6 +14,7 @@ struct SendReminderToPartnerTests {
             PersistentItemOccurrenceCompletion.self, PersistentTaskTemplate.self,
             PersistentSyncChange.self, PersistentSyncState.self, PersistentPeriodicTask.self,
             PersistentPairingHistory.self, PersistentTaskMessage.self,
+            PersistentImportantDate.self,
             configurations: config
         )
     }

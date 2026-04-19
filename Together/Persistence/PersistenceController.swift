@@ -207,6 +207,7 @@ struct PersistenceController {
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
             PersistentTaskMessage.self,
+            PersistentImportantDate.self,
             configurations: configuration
         )
     }

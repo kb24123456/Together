@@ -127,6 +127,7 @@ private final class PullTestHarness {
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
             PersistentTaskMessage.self,
+            PersistentImportantDate.self,
             configurations: config
         )
 

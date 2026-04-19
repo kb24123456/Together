@@ -90,6 +90,7 @@ private func makeInMemoryContainer() throws -> ModelContainer {
         PersistentPeriodicTask.self,
         PersistentPairingHistory.self,
         PersistentTaskMessage.self,
+        PersistentImportantDate.self,
         configurations: config
     )
 }
