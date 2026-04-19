@@ -99,7 +99,7 @@ struct PersistenceController {
     }
 
     /// Removes all SQLite artefacts for the persistent store.
-    private static func deleteStoreFiles() {
+    static func deleteStoreFiles() {
         let storeURL = persistentStoreURL
         let base = storeURL.deletingLastPathComponent()
             .appendingPathComponent(storeURL.deletingPathExtension().lastPathComponent)
@@ -274,7 +274,7 @@ struct PersistenceController {
         || firstError.contains("LegacyRelay")
     }
 
-    private static var persistentStoreURL: URL {
+    static var persistentStoreURL: URL {
         let applicationSupportDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -289,7 +289,7 @@ struct PersistenceController {
         return directory.appendingPathComponent("Together.store")
     }
 
-    private static var persistentStoreSupportURL: URL {
+    static var persistentStoreSupportURL: URL {
         URL(fileURLWithPath: persistentStoreURL.path + "_SUPPORT")
     }
 
@@ -318,7 +318,7 @@ struct PersistenceController {
         }
     }
 
-    private static func storeArtifactURLs() -> [URL] {
+    static func storeArtifactURLs() -> [URL] {
         let storeURL = persistentStoreURL
         let base = storeURL.deletingLastPathComponent()
             .appendingPathComponent(storeURL.deletingPathExtension().lastPathComponent)
