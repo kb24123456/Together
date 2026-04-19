@@ -846,6 +846,9 @@ final class SyncEngineDelegate: CKSyncEngineDelegate {
 
         case .taskMessage:
             return nil // Not synced via CloudKit; Supabase-only event log
+
+        case .importantDate:
+            return nil // CloudKit encoding handled in a later task
         }
     }
 

@@ -79,7 +79,6 @@ enum LocalServiceFactory {
                 syncCoordinator: syncCoordinator
             ),
             decisionRepository: MockDecisionRepository(),
-            anniversaryRepository: MockAnniversaryRepository(),
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,
             periodicTaskRepository: periodicTaskRepository,

@@ -460,6 +460,10 @@ actor SupabaseSyncService {
             let dto = TaskMessagePushDTO(from: message)
             // Insert, not upsert — each row is an immutable event-log entry.
             try await client.from(tableName).insert(dto).execute()
+
+        case .importantDate:
+            // Supabase push for important_dates lands in a later task.
+            return
         }
     }
 
@@ -833,6 +837,7 @@ extension SyncEntityKind {
         case .memberProfile: return "space_members"
         case .avatarAsset: return "avatars"
         case .taskMessage: return "task_messages"
+        case .importantDate: return "important_dates"
         }
     }
 }
