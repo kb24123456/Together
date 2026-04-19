@@ -19,6 +19,7 @@ struct HomeDockBar: View {
     let onHubPrimaryTapped: () -> Void
     let onHubLongPressed: () -> Void
     let onProjectsTapped: () -> Void
+    let showsRoutinesButton: Bool
 
     @State private var suppressHubPrimaryTap = false
 
@@ -72,14 +73,16 @@ struct HomeDockBar: View {
                 isDisabled: false,
                 action: onCalendarTapped
             )
-            dockButton(
-                destination: .routines,
-                systemImage: "square.stack",
-                activeSystemImage: "arrow.counterclockwise",
-                accessibilityLabel: isRoutinesModeActive ? "返回 Today" : "打开例行事务",
-                isDisabled: false,
-                action: onRoutinesTapped
-            )
+            if showsRoutinesButton {
+                dockButton(
+                    destination: .routines,
+                    systemImage: "square.stack",
+                    activeSystemImage: "arrow.counterclockwise",
+                    accessibilityLabel: isRoutinesModeActive ? "返回 Today" : "打开例行事务",
+                    isDisabled: false,
+                    action: onRoutinesTapped
+                )
+            }
             dockButton(
                 destination: .projects,
                 systemImage: "checklist",

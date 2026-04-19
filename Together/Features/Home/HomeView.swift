@@ -401,7 +401,8 @@ struct HomeView: View {
             if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
-                        if appContext.routinesViewModel.hasPendingTasks {
+                        if appContext.sessionStore.activeMode == .single,
+               appContext.routinesViewModel.hasPendingTasks {
                             RoutinesSummaryCard(
                                 viewModel: appContext.routinesViewModel,
                                 onNavigateToRoutines: {
@@ -525,7 +526,8 @@ struct HomeView: View {
 
             }
 
-            if appContext.routinesViewModel.hasPendingTasks {
+            if appContext.sessionStore.activeMode == .single,
+               appContext.routinesViewModel.hasPendingTasks {
                 RoutinesSummaryCard(
                     viewModel: appContext.routinesViewModel,
                     onNavigateToRoutines: {
@@ -617,7 +619,8 @@ struct HomeView: View {
                     .listRowSeparator(.hidden)
             }
 
-            if appContext.routinesViewModel.hasPendingTasks {
+            if appContext.sessionStore.activeMode == .single,
+               appContext.routinesViewModel.hasPendingTasks {
                 RoutinesSummaryCard(
                     viewModel: appContext.routinesViewModel,
                     onNavigateToRoutines: {

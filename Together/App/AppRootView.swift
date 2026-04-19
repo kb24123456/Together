@@ -276,7 +276,8 @@ struct AppRootView: View {
                     },
                     onProjectsTapped: {
                         toggleProjectsSurface(router: router)
-                    }
+                    },
+                    showsRoutinesButton: appContext.sessionStore.activeMode == .single
                 )
                 .padding(.bottom, dockPeripheralInset)
                 .offset(y: appContext.homeViewModel.isDockHidden ? 120 : 0)
