@@ -195,8 +195,21 @@ struct ProfileView: View {
                 value: viewModel.collaborationSummary
             )
 
+            if viewModel.bindingState == .paired {
+                anniversariesEntryRow
+            }
+
             collaborationActionRow
         }
+    }
+
+    private var anniversariesEntryRow: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+        } label: {
+            ProfileSettingsRow(title: "纪念日管理", value: "", showsChevron: true)
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
