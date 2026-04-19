@@ -22,6 +22,7 @@ final class AppContext {
     let calendarViewModel: CalendarViewModel
     let profileViewModel: ProfileViewModel
     let routinesViewModel: RoutinesViewModel
+    let importantDatesViewModel: ImportantDatesViewModel
 
     /// Sync health monitor exposed for UI binding (from SyncEngineCoordinator).
     let syncHealthMonitor: SyncHealthMonitor
@@ -79,6 +80,7 @@ final class AppContext {
             reminderScheduler: container.reminderScheduler,
             biometricAuthService: container.biometricAuthService
         )
+        self.importantDatesViewModel = ImportantDatesViewModel(repository: container.importantDateRepository)
     }
 
     static func makeContext() -> AppContext {
