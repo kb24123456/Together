@@ -47,7 +47,16 @@ struct ImportantDatesManagementView: View {
                 PresetHolidayPickerSheet()
             }
         }
-        .task { await viewModel.load() }
+        .task {
+            // postLaunch may have fired before the pair was ready (e.g. right
+            // after a fresh re-pair), leaving viewModel.spaceID nil and load()
+            // short-circuiting. Re-configure here now that the user has
+            // definitely entered a paired context.
+            if let pairSpaceID = appContext.sessionStore.pairSpaceSummary?.sharedSpace.id {
+                viewModel.configure(spaceID: pairSpaceID)
+            }
+            await viewModel.load()
+        }
     }
 
     // MARK: - Empty state

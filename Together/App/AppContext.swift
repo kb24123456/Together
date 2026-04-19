@@ -254,6 +254,14 @@ final class AppContext {
         self.activeSharedSpaceID = sharedSpaceID
         sessionStore.updateSharedSyncStatus(SharedSyncStatus(level: .syncing, pendingMutationCount: 0, failedMutationCount: 0))
 
+        // Pair is now active and we know the sharedSpaceID. postLaunch may have
+        // fired earlier before the pair was ready, leaving importantDatesViewModel
+        // unconfigured. Configure + load now so UI queries return rows.
+        importantDatesViewModel.configure(spaceID: sharedSpaceID)
+        Task { [importantDatesViewModel] in
+            await importantDatesViewModel.load()
+        }
+
         await service.startListening()
     }
 

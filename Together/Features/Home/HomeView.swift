@@ -112,7 +112,12 @@ struct HomeView: View {
             todayJumpRevealTask?.cancel()
         }
         .onReceive(NotificationCenter.default.publisher(for: .importantDatesChanged)) { _ in
-            Task { await appContext.importantDatesViewModel.load() }
+            Task {
+                if let pairSpaceID = appContext.sessionStore.pairSpaceSummary?.sharedSpace.id {
+                    appContext.importantDatesViewModel.configure(spaceID: pairSpaceID)
+                }
+                await appContext.importantDatesViewModel.load()
+            }
         }
     }
 
