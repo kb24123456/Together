@@ -60,4 +60,31 @@ enum HomeInteractionFeedback {
         selectionGenerator.selectionChanged()
         #endif
     }
+
+    /// 破坏性删除确认触感（警告级 notification）。
+    static func delete() {
+        #if canImport(UIKit)
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.warning)
+        #endif
+    }
+
+    /// 错误路径触感（error notification），配合 alert 给用户多一层感知。
+    static func error() {
+        #if canImport(UIKit)
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(.error)
+        #endif
+    }
+
+    /// 警示性触感（medium impact），用于表单验证失败或 unbind 二次确认。
+    static func warning() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.92)
+        #endif
+    }
 }
