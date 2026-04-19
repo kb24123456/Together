@@ -36,8 +36,8 @@ struct RoutinesListContent: View {
 
             periodInfoBar
                 .padding(.horizontal, AppTheme.spacing.xl)
-                .padding(.top, 8)
-                .padding(.bottom, 6)
+                .padding(.top, AppTheme.spacing.xs)
+                .padding(.bottom, AppTheme.spacing.xs)
 
             if viewModel.tasks.isEmpty && viewModel.loadState == .loaded && !appContext.sessionStore.isViewingPairSpace {
                 ScrollView {
@@ -85,7 +85,7 @@ struct RoutinesListContent: View {
     // MARK: - Capsule Tab Bar
 
     private var cycleTabBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             ForEach(cycleTabs, id: \.self) { cycle in
                 Button {
                     HomeInteractionFeedback.selection()
@@ -93,7 +93,7 @@ struct RoutinesListContent: View {
                         selectedCycle = cycle
                     }
                 } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: AppTheme.spacing.xs) {
                         Text(cycle.title)
                             .font(AppTheme.typography.sized(18, weight: selectedCycle == cycle ? .bold : .semibold))
                             .foregroundStyle(
@@ -113,8 +113,8 @@ struct RoutinesListContent: View {
                                 )
                         }
                     }
-                    .padding(.horizontal, 17)
-                    .padding(.vertical, 9)
+                    .padding(.horizontal, AppTheme.spacing.md)
+                    .padding(.vertical, AppTheme.spacing.sm)
                 }
                 .buttonStyle(.plain)
             }
@@ -166,9 +166,9 @@ struct RoutinesListContent: View {
                 RoutinesTaskRow(task: task, viewModel: viewModel)
                     .listRowInsets(
                         EdgeInsets(
-                            top: 4,
+                            top: AppTheme.spacing.xxs,
                             leading: AppTheme.spacing.xl,
-                            bottom: 4,
+                            bottom: AppTheme.spacing.xxs,
                             trailing: AppTheme.spacing.xl
                         )
                     )
@@ -202,10 +202,10 @@ struct RoutinesListContent: View {
     // MARK: - Empty States
 
     private var routinesEmptyState: some View {
-        VStack(spacing: 28) {
-            VStack(spacing: 12) {
+        VStack(spacing: AppTheme.spacing.xl) {
+            VStack(spacing: AppTheme.spacing.md) {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 36, weight: .light))
+                    .font(AppTheme.typography.sized(36, weight: .light))
                     .foregroundStyle(AppTheme.colors.accent.opacity(0.45))
                     .symbolEffect(.breathe.plain, options: .repeating)
 
@@ -222,7 +222,7 @@ struct RoutinesListContent: View {
                 HomeInteractionFeedback.selection()
                 appContext.router.activeComposer = .newPeriodicTask
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: AppTheme.spacing.xs) {
                     Image(systemName: "plus")
                         .font(AppTheme.typography.sized(14, weight: .semibold))
 
@@ -230,8 +230,8 @@ struct RoutinesListContent: View {
                         .font(AppTheme.typography.sized(15, weight: .semibold))
                 }
                 .foregroundStyle(AppTheme.colors.title)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 11)
+                .padding(.horizontal, AppTheme.spacing.lg)
+                .padding(.vertical, AppTheme.spacing.sm)
                 .background(
                     Capsule(style: .continuous)
                         .fill(AppTheme.colors.surfaceElevated)
@@ -240,14 +240,14 @@ struct RoutinesListContent: View {
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 60)
+        .padding(.top, 60) // empty-state hero offset, outside token scale
     }
 
     private var emptyTabState: some View {
-        VStack(spacing: 28) {
-            VStack(spacing: 12) {
+        VStack(spacing: AppTheme.spacing.xl) {
+            VStack(spacing: AppTheme.spacing.md) {
                 Image(systemName: "tray")
-                    .font(.system(size: 36, weight: .light))
+                    .font(AppTheme.typography.sized(36, weight: .light))
                     .foregroundStyle(AppTheme.colors.sky.opacity(0.45))
                     .symbolEffect(.breathe.plain, options: .repeating)
 
@@ -264,15 +264,15 @@ struct RoutinesListContent: View {
                 HomeInteractionFeedback.selection()
                 appContext.router.activeComposer = .newPeriodicTask
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: AppTheme.spacing.xs) {
                     Image(systemName: "plus")
                         .font(AppTheme.typography.sized(14, weight: .semibold))
                     Text("新建例行事务")
                         .font(AppTheme.typography.sized(15, weight: .semibold))
                 }
                 .foregroundStyle(AppTheme.colors.title)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 11)
+                .padding(.horizontal, AppTheme.spacing.lg)
+                .padding(.vertical, AppTheme.spacing.sm)
                 .background(
                     Capsule(style: .continuous)
                         .fill(AppTheme.colors.surfaceElevated)
@@ -281,7 +281,7 @@ struct RoutinesListContent: View {
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 60)
+        .padding(.top, 60) // empty-state hero offset, outside token scale
     }
 
 }

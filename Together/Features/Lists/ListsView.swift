@@ -54,13 +54,13 @@ struct ListsView: View {
 
     private var pairModeHeader: some View {
         CardSection(title: "双人清单", subtitle: viewModel.spaceSummary) {
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacing.md) {
                 PairListModeAvatarStrip(
                     currentUser: viewModel.currentUser,
                     partner: viewModel.partner
                 )
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                     Text("共享清单")
                         .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.title)
@@ -90,8 +90,8 @@ struct ListsView: View {
                 Text("共享")
                     .font(AppTheme.typography.sized(11, weight: .bold))
                     .foregroundStyle(AppTheme.colors.coral)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, AppTheme.spacing.sm)
+                    .padding(.vertical, AppTheme.spacing.xs)
                     .background(
                         Capsule(style: .continuous)
                             .fill(AppTheme.colors.coral.opacity(0.12))
@@ -102,7 +102,7 @@ struct ListsView: View {
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, AppTheme.spacing.xxs)
     }
 }
 

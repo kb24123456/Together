@@ -6,9 +6,9 @@ struct AnniversaryCapsuleView: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(AppTheme.typography.sized(15, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.coral)
                 Text(title)
                     .font(AppTheme.typography.sized(14, weight: .semibold))
@@ -18,10 +18,10 @@ struct AnniversaryCapsuleView: View {
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.72))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                     .fill(AppTheme.colors.surfaceElevated)
             )
         }

@@ -41,7 +41,7 @@ struct RoutinesTaskRow: View {
                 viewModel.presentDetail(for: task)
             } label: {
                 HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                         Text(task.title)
                             .font(AppTheme.typography.sized(19, weight: .bold))
                             .foregroundStyle(isCompleted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
@@ -70,13 +70,13 @@ struct RoutinesTaskRow: View {
     private var completionBadge: some View {
         ZStack {
             // Fill flash on completion
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .fill(AppTheme.colors.coral.opacity(0.14))
                 .scaleEffect(badgeFillScale)
                 .opacity(isCompleted ? 0 : badgeFillOpacity)
 
             // Dashed ring
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .strokeBorder(
                     ringColor,
                     style: StrokeStyle(lineWidth: isAnimatingCompletion ? 1.8 : 1.6, dash: [3.6, 4.4])
@@ -145,8 +145,8 @@ struct RoutinesTaskRow: View {
             Text("逾期")
                 .font(AppTheme.typography.sized(12, weight: .bold))
                 .foregroundStyle(AppTheme.colors.coral)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.horizontal, AppTheme.spacing.sm)
+                .padding(.vertical, AppTheme.spacing.xxs)
                 .background(
                     Capsule(style: .continuous)
                         .fill(AppTheme.colors.coral.opacity(0.12))
@@ -155,8 +155,8 @@ struct RoutinesTaskRow: View {
             Text("临近")
                 .font(AppTheme.typography.sized(12, weight: .bold))
                 .foregroundStyle(AppTheme.colors.warning)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.horizontal, AppTheme.spacing.sm)
+                .padding(.vertical, AppTheme.spacing.xxs)
                 .background(
                     Capsule(style: .continuous)
                         .fill(AppTheme.colors.warning.opacity(0.12))

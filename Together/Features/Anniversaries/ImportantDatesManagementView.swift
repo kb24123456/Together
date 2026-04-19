@@ -62,13 +62,13 @@ struct ImportantDatesManagementView: View {
     // MARK: - Empty state
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AppTheme.spacing.md) {
             emptyCTA(title: "添加伴侣生日 🎂", isPrimary: true) { createBirthday(myself: false) }
             emptyCTA(title: "添加我的生日 🎁", isPrimary: false) { createBirthday(myself: true) }
             emptyCTA(title: "添加在一起纪念日 💕", isPrimary: false) { createAnniversary() }
             Button("+ 其他纪念日 / 添加常见节日") { showCreateSheet = true }
                 .foregroundStyle(AppTheme.colors.coral)
-                .padding(.top, 8)
+                .padding(.top, AppTheme.spacing.xs)
             Spacer()
         }
         .padding()
@@ -80,9 +80,9 @@ struct ImportantDatesManagementView: View {
                 .font(AppTheme.typography.sized(18, weight: .bold))
                 .foregroundStyle(isPrimary ? .white : AppTheme.colors.title)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
+                .padding(.vertical, AppTheme.spacing.lg)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.md)
                         .fill(isPrimary ? AppTheme.colors.coral : AppTheme.colors.surfaceElevated)
                 )
         }
@@ -95,7 +95,7 @@ struct ImportantDatesManagementView: View {
         List {
             ForEach(viewModel.events.sorted { nextKey($0) < nextKey($1) }) { event in
                 row(event: event)
-                    .listRowInsets(.init(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowInsets(.init(top: AppTheme.spacing.xs, leading: AppTheme.spacing.md, bottom: AppTheme.spacing.xs, trailing: AppTheme.spacing.md))
                     .listRowBackground(Color.clear)
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
@@ -111,19 +111,19 @@ struct ImportantDatesManagementView: View {
     }
 
     private func row(event: ImportantDate) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.spacing.md) {
             Image(systemName: event.icon ?? defaultIcon(for: event.kind))
-                .font(.system(size: 20))
+                .font(AppTheme.typography.sized(20))
                 .foregroundStyle(AppTheme.colors.coral)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title).font(.headline)
-                Text(dateLabel(for: event)).font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                Text(event.title).font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                Text(dateLabel(for: event)).font(AppTheme.typography.textStyle(.caption1)).foregroundStyle(.secondary)
             }
             Spacer()
-            Text(daysLabel(for: event)).font(.subheadline).foregroundStyle(AppTheme.colors.coral)
+            Text(daysLabel(for: event)).font(AppTheme.typography.textStyle(.subheadline)).foregroundStyle(AppTheme.colors.coral)
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 14).fill(AppTheme.colors.surfaceElevated))
+        .background(RoundedRectangle(cornerRadius: AppTheme.radius.md).fill(AppTheme.colors.surfaceElevated))
     }
 
     private func nextKey(_ event: ImportantDate) -> Date {

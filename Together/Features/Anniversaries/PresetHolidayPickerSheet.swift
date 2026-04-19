@@ -25,7 +25,7 @@ struct PresetHolidayPickerSheet: View {
                             .foregroundStyle(selectedIDs.contains(preset) ? AppTheme.colors.coral : .secondary)
                         Text(preset.defaultTitle).foregroundStyle(.primary)
                         Spacer()
-                        Text(nextDateLabel(for: preset)).font(.caption).foregroundStyle(.secondary)
+                        Text(nextDateLabel(for: preset)).font(AppTheme.typography.textStyle(.caption1)).foregroundStyle(.secondary)
                     }
                 }
                 .buttonStyle(.plain)

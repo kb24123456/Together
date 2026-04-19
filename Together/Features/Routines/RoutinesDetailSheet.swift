@@ -127,22 +127,22 @@ struct RoutinesDetailSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 compactHeaderSection
                 compactMetaSection
-                    .padding(.top, 38)
+                    .padding(.top, 38) // compact layout hero gap, outside token scale
                 compactChipSection
-                    .padding(.top, 14)
+                    .padding(.top, AppTheme.spacing.md)
                 compactActionButtons
-                    .padding(.top, 12)
+                    .padding(.top, AppTheme.spacing.md)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 18)
-        .padding(.bottom, max(proxy.safeAreaInsets.bottom, 6))
+        .padding(.horizontal, AppTheme.spacing.xl)
+        .padding(.top, AppTheme.spacing.md)
+        .padding(.bottom, max(proxy.safeAreaInsets.bottom, AppTheme.spacing.xs))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var compactHeaderSection: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Button {
                 HomeInteractionFeedback.selection()
                 expandToLarge(for: .focus(.title))
@@ -174,7 +174,7 @@ struct RoutinesDetailSheet: View {
     }
 
     private var compactMetaSection: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Text(currentStateText)
                 .font(AppTheme.typography.sized(15, weight: .semibold))
                 .foregroundStyle(statusTextColor)
@@ -189,7 +189,7 @@ struct RoutinesDetailSheet: View {
     }
 
     private var compactActionButtons: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             compactTemplateButton
             compactEditButton
             compactDeleteButton
@@ -227,11 +227,11 @@ struct RoutinesDetailSheet: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 84)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .stroke(AppTheme.colors.pillOutline.opacity(0.72), lineWidth: 1)
             }
             .clipped()
@@ -295,11 +295,11 @@ struct RoutinesDetailSheet: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 84)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .stroke(AppTheme.colors.pillOutline.opacity(0.68), lineWidth: 1)
             }
             .clipped()
@@ -337,7 +337,7 @@ struct RoutinesDetailSheet: View {
         systemImage: String,
         tint: Color
     ) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: AppTheme.spacing.sm) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(22, weight: .semibold))
                 .frame(height: 24, alignment: .center)
@@ -356,11 +356,11 @@ struct RoutinesDetailSheet: View {
     private func expandedEditorLayout(proxy: GeometryProxy) -> some View {
         VStack(spacing: 0) {
             expandedCategorySwitcher
-                .padding(.top, 18)
-                .padding(.bottom, 8)
+                .padding(.top, AppTheme.spacing.md)
+                .padding(.bottom, AppTheme.spacing.xs)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
                     TextField("事务名称", text: $title, axis: .vertical)
                         .font(AppTheme.typography.sized(28, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
@@ -371,9 +371,9 @@ struct RoutinesDetailSheet: View {
                         .foregroundStyle(AppTheme.colors.body.opacity(0.78))
                         .focused($focusedField, equals: .notes)
                 }
-                .padding(.horizontal, 26)
-                .padding(.top, 12)
-                .padding(.bottom, 160)
+                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.top, AppTheme.spacing.md)
+                .padding(.bottom, 160) // scroll-content bottom offset, outside token scale
                 .disabled(!canEditDetailTask)
                 .opacity(canEditDetailTask ? 1 : 0.7)
             }
@@ -381,13 +381,13 @@ struct RoutinesDetailSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
-            expandedBottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, 8))
+            expandedBottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, AppTheme.spacing.xs))
         }
         .ignoresSafeArea(edges: .bottom)
     }
 
     private var expandedCategorySwitcher: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             ForEach(["模板", "任务", "周期", "项目"], id: \.self) { title in
                 let isActive = title == "周期"
 
@@ -401,12 +401,12 @@ struct RoutinesDetailSheet: View {
                         .font(AppTheme.typography.sized(18, weight: isActive ? .bold : .semibold))
                         .foregroundStyle(isActive ? AppTheme.colors.title : AppTheme.colors.textTertiary)
                         .scaleEffect(isActive ? 1 : 0.96)
-                        .padding(.horizontal, 17)
-                        .padding(.vertical, 9)
+                        .padding(.horizontal, AppTheme.spacing.md)
+                        .padding(.vertical, AppTheme.spacing.sm)
                         .background(
                             ZStack {
                                 if isActive {
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                                         .fill(AppTheme.colors.surfaceElevated)
                                         .matchedGeometryEffect(
                                             id: "routinesDetail.categorySwitcher.selection",
@@ -420,14 +420,14 @@ struct RoutinesDetailSheet: View {
                 .disabled(!isActive)
             }
         }
-        .padding(.bottom, 10)
+        .padding(.bottom, AppTheme.spacing.sm)
     }
 
     private func expandedBottomActionArea(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
                 Text(currentStateText)
                     .font(AppTheme.typography.sized(15, weight: .semibold))
                     .foregroundStyle(statusTextColor)
@@ -440,9 +440,9 @@ struct RoutinesDetailSheet: View {
 
                 expandedSaveButton
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.top, AppTheme.spacing.md)
+            .padding(.bottom, AppTheme.spacing.md)
             .background(
                 LinearGradient(
                     colors: [.clear, AppTheme.colors.surface.opacity(0.97)],
@@ -467,7 +467,7 @@ struct RoutinesDetailSheet: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 Image(systemName: "checkmark")
                     .font(AppTheme.typography.sized(13, weight: .bold))
                     .symbolEffect(.bounce, value: saveFeedbackNonce)
@@ -477,19 +477,19 @@ struct RoutinesDetailSheet: View {
             .foregroundStyle(AppTheme.colors.title)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 72)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, AppTheme.spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
-        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
-        .padding(.horizontal, 10)
+        .shadow(color: AppTheme.colors.shadow, radius: 14, y: 7)
+        .padding(.horizontal, AppTheme.spacing.sm)
         .scaleEffect(isSaveButtonAnimating ? 0.95 : 1)
         .brightness(isSaveButtonAnimating ? -0.015 : 0)
         .animation(.spring(response: 0.24, dampingFraction: 0.62), value: isSaveButtonAnimating)
@@ -771,7 +771,7 @@ private struct RoutinesDetailMenuSheet: View {
 
     private var periodicCyclePanel: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: AppTheme.spacing.sm) {
                 ForEach(PeriodicCycle.allCases, id: \.self) { c in
                     Button {
                         HomeInteractionFeedback.selection()
@@ -790,7 +790,7 @@ private struct RoutinesDetailMenuSheet: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                        .padding(.horizontal, 18)
+                        .padding(.horizontal, AppTheme.spacing.md)
                         .contentShape(
                             RoundedRectangle(
                                 cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
@@ -817,17 +817,17 @@ private struct RoutinesDetailMenuSheet: View {
                         rule: $reminderRules[index],
                         cycle: cycle
                     )
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AppTheme.spacing.lg)
 
                     if index < reminderRules.count - 1 {
                         Divider()
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, AppTheme.spacing.lg)
+                            .padding(.vertical, AppTheme.spacing.xs)
                     }
                 }
             }
-            .padding(.top, 8)
-            .padding(.bottom, 20)
+            .padding(.top, AppTheme.spacing.xs)
+            .padding(.bottom, AppTheme.spacing.lg)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

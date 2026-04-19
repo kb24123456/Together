@@ -34,7 +34,7 @@ struct ImportantDateEditSheet: View {
                 if case .birthday = event.kind {
                     Section {
                         Text("生日不能修改所属用户")
-                            .font(.caption)
+                            .font(AppTheme.typography.textStyle(.caption1))
                             .foregroundStyle(.secondary)
                     }
                 }

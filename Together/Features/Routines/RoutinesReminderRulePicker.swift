@@ -52,25 +52,25 @@ struct RoutinesReminderRulePicker: View {
                         .buttonStyle(.plain)
                     }
                     .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+                    .padding(.top, AppTheme.spacing.xs)
+                    .padding(.bottom, AppTheme.spacing.xxs)
                 }
 
                 // Row 1: 自然日 / 工作日 — always visible when supported, disabled in beforeEnd mode
                 if supportsBusinessDay {
                     dayTypeRow
-                        .padding(.top, 10)
+                        .padding(.top, AppTheme.spacing.sm)
                         .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
-                        .padding(.bottom, 6)
+                        .padding(.bottom, AppTheme.spacing.xs)
                         .opacity(dayMode == .beforeEnd ? 0.32 : 1)
                         .allowsHitTesting(dayMode == .absoluteDay)
                 }
 
                 // Row 2: 第几天 / 截止前几天
                 dayModeRow
-                    .padding(.top, supportsBusinessDay ? 0 : 10)
+                    .padding(.top, supportsBusinessDay ? 0 : AppTheme.spacing.sm)
                     .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
-                    .padding(.bottom, 6)
+                    .padding(.bottom, AppTheme.spacing.xs)
 
                 // Day number wheel
                 PeriodicDayWheelView(
@@ -93,7 +93,7 @@ struct RoutinesReminderRulePicker: View {
     // MARK: - Option rows
 
     private var dayTypeRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             ForEach(DayType.allCases, id: \.rawValue) { type in
                 Button { dayType = type } label: {
                     Text(type.label)
@@ -102,10 +102,10 @@ struct RoutinesReminderRulePicker: View {
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: Self.optionRowHeight)
                         .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                                 .fill(AppTheme.colors.pillSurface.opacity(type == dayType ? 1 : 0.5))
                         )
-                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous))
                 }
                 .buttonStyle(TaskEditorMenuOptionButtonStyle())
             }
@@ -113,7 +113,7 @@ struct RoutinesReminderRulePicker: View {
     }
 
     private var dayModeRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: AppTheme.spacing.sm) {
             ForEach(DayMode.allCases, id: \.rawValue) { mode in
                 Button {
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
@@ -126,10 +126,10 @@ struct RoutinesReminderRulePicker: View {
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: Self.optionRowHeight)
                         .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                                 .fill(AppTheme.colors.pillSurface.opacity(mode == dayMode ? 1 : 0.5))
                         )
-                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .contentShape(RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous))
                 }
                 .buttonStyle(TaskEditorMenuOptionButtonStyle())
             }
@@ -226,7 +226,7 @@ private struct PeriodicDayWheelView: View {
                 capsuleHeight: capsuleHeight,
                 fill: selectionCapsuleFill
             )
-            .padding(.horizontal, 18)
+            .padding(.horizontal, AppTheme.spacing.md)
             .allowsHitTesting(false)
         }
     }

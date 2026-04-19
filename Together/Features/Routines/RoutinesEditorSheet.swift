@@ -29,7 +29,7 @@ struct RoutinesEditorSheet: View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
                         TextField("事务名称", text: $title, axis: .vertical)
                             .font(AppTheme.typography.sized(28, weight: .bold))
                             .foregroundStyle(AppTheme.colors.title)
@@ -40,16 +40,16 @@ struct RoutinesEditorSheet: View {
                             .foregroundStyle(AppTheme.colors.body.opacity(0.78))
                             .focused($focusedField, equals: .notes)
                     }
-                    .padding(.horizontal, 26)
-                    .padding(.top, 18)
-                    .padding(.bottom, 160)
+                    .padding(.horizontal, AppTheme.spacing.xl)
+                    .padding(.top, AppTheme.spacing.md)
+                    .padding(.bottom, 160) // scroll-content bottom offset, outside token scale
                 }
                 .scrollIndicators(.hidden)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(AppTheme.colors.surface)
             .overlay(alignment: .bottom) {
-                bottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, 8))
+                bottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, AppTheme.spacing.xs))
             }
             .overlay {
                 if activeMenu != nil {
@@ -92,7 +92,7 @@ struct RoutinesEditorSheet: View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: hasMeaningfulContent ? 12 : 0) {
+            VStack(alignment: .leading, spacing: hasMeaningfulContent ? AppTheme.spacing.md : 0) {
                 chipRow { menu in
                     HomeInteractionFeedback.selection()
                     openMenu(menu)
@@ -102,9 +102,9 @@ struct RoutinesEditorSheet: View {
                     primaryActionButton
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.top, AppTheme.spacing.md)
+            .padding(.bottom, AppTheme.spacing.md)
             .background(
                 LinearGradient(
                     colors: [.clear, AppTheme.colors.surface.opacity(0.97)],
@@ -180,7 +180,7 @@ struct RoutinesEditorSheet: View {
             triggerPrimaryActionAnimation()
             save()
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 Image(systemName: "checkmark")
                     .font(AppTheme.typography.sized(13, weight: .bold))
                     .symbolEffect(.bounce, value: primaryActionFeedbackNonce)
@@ -190,22 +190,22 @@ struct RoutinesEditorSheet: View {
             .foregroundStyle(AppTheme.colors.title)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 72)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, AppTheme.spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .fill(AppTheme.colors.pillSurface)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
                     .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
         .scaleEffect(isPrimaryActionAnimating ? 0.95 : 1)
         .brightness(isPrimaryActionAnimating ? -0.015 : 0)
-        .shadow(color: Color.black.opacity(0.05), radius: 14, y: 7)
+        .shadow(color: AppTheme.colors.shadow, radius: 14, y: 7)
         .animation(.spring(response: 0.24, dampingFraction: 0.62), value: isPrimaryActionAnimating)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, AppTheme.spacing.sm)
         .transition(.offset(y: 18).combined(with: .opacity))
     }
 
@@ -299,7 +299,7 @@ private struct RoutinesEditorMenuSheet: View {
 
     private var periodicCyclePanel: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: AppTheme.spacing.sm) {
                 ForEach(PeriodicCycle.allCases, id: \.self) { c in
                     Button {
                         HomeInteractionFeedback.selection()
@@ -318,7 +318,7 @@ private struct RoutinesEditorMenuSheet: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .frame(minHeight: TaskEditorMenuOptionMetrics.height)
-                        .padding(.horizontal, 18)
+                        .padding(.horizontal, AppTheme.spacing.md)
                         .contentShape(
                             RoundedRectangle(
                                 cornerRadius: TaskEditorMenuOptionMetrics.cornerRadius,
@@ -345,17 +345,17 @@ private struct RoutinesEditorMenuSheet: View {
                         rule: $reminderRules[index],
                         cycle: cycle
                     )
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, AppTheme.spacing.lg)
 
                     if index < reminderRules.count - 1 {
                         Divider()
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, AppTheme.spacing.lg)
+                            .padding(.vertical, AppTheme.spacing.xs)
                     }
                 }
             }
-            .padding(.top, 8)
-            .padding(.bottom, 20)
+            .padding(.top, AppTheme.spacing.xs)
+            .padding(.bottom, AppTheme.spacing.lg)
         }
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

@@ -67,7 +67,7 @@ struct CalendarView: View {
                                         }
                                     }
                                     .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                                    .padding(.vertical, 2)
+                                    .padding(.vertical, AppTheme.spacing.xxs)
                                 }
                             }
                         }
@@ -75,7 +75,7 @@ struct CalendarView: View {
                 }
             }
             .padding(AppTheme.spacing.xl)
-            .padding(.bottom, showsNavigationChrome ? AppTheme.spacing.xl : 164)
+            .padding(.bottom, showsNavigationChrome ? AppTheme.spacing.xl : 164) // tab-bar clearance, outside token scale
         }
         .applyScrollEdgeProtection()
         .background(GradientGridBackground())
@@ -89,13 +89,13 @@ struct CalendarView: View {
     private var pairModeHeader: some View {
         CardSection(title: "双人日历", subtitle: viewModel.spaceSummary) {
             VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
-                HStack(spacing: 12) {
+                HStack(spacing: AppTheme.spacing.md) {
                     PairModeAvatarStrip(
                         currentUser: viewModel.currentUser,
                         partner: viewModel.partner
                     )
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                         Text("共享安排")
                             .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                             .foregroundStyle(AppTheme.colors.title)
@@ -108,14 +108,14 @@ struct CalendarView: View {
                 }
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: AppTheme.spacing.xs) {
                         ForEach(CalendarPairTaskFilter.allCases, id: \.self) { filter in
                             Button(filter.title) {
                                 viewModel.setPairTaskFilter(filter)
                             }
                             .buttonStyle(.plain)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
+                            .padding(.horizontal, AppTheme.spacing.md)
+                            .padding(.vertical, AppTheme.spacing.sm)
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(
@@ -157,8 +157,8 @@ private struct PairCalendarTaskCard: View {
     let trailingText: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: AppTheme.spacing.md) {
                 Text(item.title)
                     .font(AppTheme.typography.sized(18, weight: .bold))
                     .foregroundStyle(AppTheme.colors.title)
@@ -182,7 +182,7 @@ private struct PairCalendarTaskCard: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.84)
 
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 PairCalendarAvatarStrip(
                     currentUser: currentUser,
                     partner: partner,
@@ -201,13 +201,13 @@ private struct PairCalendarTaskCard: View {
                 statusChip
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(backgroundFill)
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                 .stroke(borderColor, lineWidth: 1)
         }
     }
@@ -293,8 +293,8 @@ private struct PairCalendarTaskCard: View {
         Text(statusText)
             .font(AppTheme.typography.sized(12, weight: .bold))
             .foregroundStyle(statusForeground)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.xs)
             .background(
                 Capsule(style: .continuous)
                     .fill(statusBackground)

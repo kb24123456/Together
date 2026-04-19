@@ -26,8 +26,8 @@ struct ProjectsView: View {
             style: style,
             showsHeader: true,
             isPresented: true,
-            contentTopPadding: style == .layer ? 150 : AppTheme.spacing.xl,
-            contentBottomPadding: style == .layer ? 240 : AppTheme.spacing.xl
+            contentTopPadding: style == .layer ? 150 : AppTheme.spacing.xl, // layer chrome offset, outside token scale
+            contentBottomPadding: style == .layer ? 240 : AppTheme.spacing.xl // layer chrome offset, outside token scale
         )
         .background(backgroundView)
         .navigationTitle(style == .screen ? "项目" : "")
@@ -315,7 +315,7 @@ struct ProjectsListContent: View {
                     showsArchivedProjects.toggle()
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: AppTheme.spacing.xs) {
                     Text(showsArchivedProjects ? "收起已完成项目" : "查看已完成项目")
                         .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
                         .foregroundStyle(sectionSubtitleColor)
@@ -386,7 +386,7 @@ struct ProjectsListContent: View {
     }
 
     private var projectModeTopProtectionInset: CGFloat {
-        showsHeader ? 0 : 4
+        showsHeader ? 0 : AppTheme.spacing.xxs
     }
 
     private var visibleProjectIDs: [UUID] {
@@ -557,9 +557,9 @@ private struct ProjectListRow: View {
             )
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                 HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                         titleRegion
                         subtitleAction
                     }
@@ -590,7 +590,7 @@ private struct ProjectListRow: View {
             }
         }
         .padding(.horizontal, horizontalInset)
-        .padding(.vertical, 14)
+        .padding(.vertical, AppTheme.spacing.md)
         .contentShape(Rectangle())
         .animation(isExpanded ? expandedStateAnimation : collapseStateAnimation, value: isExpanded)
         .onChange(of: project.name) { _, newValue in
@@ -724,7 +724,7 @@ private struct ProjectListRow: View {
                 onSubtitleTapped()
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: AppTheme.spacing.xxs) {
                 Text(subtitleActionText)
                     .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
                     .foregroundStyle(subtitleActionTextColor)
@@ -739,14 +739,14 @@ private struct ProjectListRow: View {
 
     private var deadlineEditorButton: some View {
         Button(action: deadlineAction) {
-            VStack(alignment: .trailing, spacing: 8) {
+            VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
                 Text(deadlineText)
                     .font(AppTheme.typography.sized(18, weight: .semibold))
                     .foregroundStyle(deadlineColor)
                     .multilineTextAlignment(.trailing)
 
                 if project.subtasks.isEmpty == false {
-                    HStack(alignment: .center, spacing: 8) {
+                    HStack(alignment: .center, spacing: AppTheme.spacing.xs) {
                         ProjectProgressBar(progress: project.subtaskProgress, tint: progressTint)
 
                         Text("\(project.completedSubtaskCount)/\(project.subtasks.count)")
@@ -801,7 +801,7 @@ private struct ProjectDeadlinePickerSheet: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Text("修改截止日期")
                 .font(AppTheme.typography.sized(22, weight: .bold))
                 .foregroundStyle(AppTheme.colors.title)
@@ -835,7 +835,7 @@ private struct ProjectSubtasksSection: View {
     @State private var subtaskDraft = ""
     @FocusState private var isInputFocused: Bool
     @FocusState private var focusedSubtaskID: UUID?
-    private let verticalSpacing: CGFloat = 10
+    private let verticalSpacing: CGFloat = AppTheme.spacing.sm
 
     var body: some View {
         VStack(alignment: .leading, spacing: verticalSpacing) {
@@ -845,7 +845,7 @@ private struct ProjectSubtasksSection: View {
                     animationBatch: animationBatch,
                     reduceMotion: reduceMotion
                 ) {
-                    HStack(alignment: .center, spacing: 10) {
+                    HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
                         SubtaskCheckbox(
                             isCompleted: subtask.isCompleted,
                             onToggle: { onToggleSubtask(subtask.id) }
@@ -893,7 +893,7 @@ private struct ProjectSubtasksSection: View {
                 animationBatch: animationBatch,
                 reduceMotion: reduceMotion
             ) {
-                HStack(spacing: 10) {
+                HStack(spacing: AppTheme.spacing.sm) {
                     Button(action: addSubtask) {
                         Image(systemName: "plus.circle.fill")
                             .font(AppTheme.typography.sized(17, weight: .semibold))
@@ -1021,12 +1021,12 @@ private struct ProjectCompletionBadge: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .fill(AppTheme.colors.coral.opacity(0.14))
                 .scaleEffect(fillScale)
                 .opacity(isCompleted ? 0 : fillOpacity)
 
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .strokeBorder(
                     isAnimating ? AppTheme.colors.body.opacity(0.32) : AppTheme.colors.body.opacity(0.44),
                     style: StrokeStyle(lineWidth: isAnimating ? 1.8 : 1.6, dash: [3.6, 4.4])

@@ -34,7 +34,7 @@ struct RoutinesCycleSection: View {
                         if task.id != sortedTasks.last?.id {
                             Divider()
                                 .foregroundStyle(AppTheme.colors.separator)
-                                .padding(.leading, 36)
+                                .padding(.leading, AppTheme.spacing.xxl)
                         }
                     }
                 }
@@ -56,7 +56,7 @@ struct RoutinesCycleSection: View {
             }
         } label: {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                     Text(cycle.title)
                         .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.title)
@@ -78,7 +78,7 @@ struct RoutinesCycleSection: View {
                 Spacer()
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.textTertiary)
                     .rotationEffect(.degrees(isExpanded ? 0 : -90))
             }
