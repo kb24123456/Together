@@ -2,6 +2,10 @@ import CloudKit
 import Foundation
 import SwiftData
 
+private struct NoopAnniversaryScheduler: AnniversaryNotificationSchedulerProtocol {
+    func refresh(spaceID: UUID) async {}
+}
+
 enum MockServiceFactory {
     @MainActor
     static func makeContainer() -> AppContainer {
@@ -43,6 +47,7 @@ enum MockServiceFactory {
             taskTemplateRepository: taskTemplateRepository,
             taskMessageRepository: LocalTaskMessageRepository(container: mockModelContainer),
             importantDateRepository: MockImportantDateRepository(),
+            anniversaryScheduler: NoopAnniversaryScheduler(),
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
             decisionRepository: MockDecisionRepository(),

@@ -143,6 +143,11 @@ final class AppContext {
         StartupTrace.mark("AppContext.postLaunch.begin")
         let purgeContext = ModelContext(PersistenceController.shared.container)
         PairPeriodicPurgeMigration.runIfNeeded(context: purgeContext)
+        if let pairSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
+            Task { [container] in
+                await container.anniversaryScheduler.refresh(spaceID: pairSpaceID)
+            }
+        }
         await restorePersistedUserProfileIfNeeded()
         await routinesViewModel.load()
         await syncReminderNotificationsIfNeeded()
@@ -508,6 +513,18 @@ final class AppContext {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
+                await self.reloadAfterSync()
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .importantDatesChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                guard let pairSpaceID = self.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
+                await self.container.anniversaryScheduler.refresh(spaceID: pairSpaceID)
                 await self.reloadAfterSync()
             }
         }

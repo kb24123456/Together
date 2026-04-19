@@ -38,6 +38,9 @@ enum LocalServiceFactory {
             modelContainer: modelContainer,
             syncCoordinator: syncCoordinator
         )
+        let anniversaryScheduler = AnniversaryNotificationScheduler(
+            repository: importantDateRepository
+        )
         let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
@@ -77,6 +80,7 @@ enum LocalServiceFactory {
             taskTemplateRepository: taskTemplateRepository,
             taskMessageRepository: taskMessageRepository,
             importantDateRepository: importantDateRepository,
+            anniversaryScheduler: anniversaryScheduler,
             taskListRepository: LocalTaskListRepository(container: modelContainer, syncCoordinator: syncCoordinator),
             projectRepository: LocalProjectRepository(
                 container: modelContainer,
