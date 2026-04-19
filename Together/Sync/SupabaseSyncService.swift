@@ -55,6 +55,7 @@ actor SupabaseSyncService {
     private let spaceMemberWriter: SpaceMemberWriter
     private let spaceMemberReader: SpaceMemberReader
     private let importantDateWriter: ImportantDateWriter
+    private let importantDateReader: ImportantDateReader
 
     init(
         modelContainer: ModelContainer,
@@ -62,7 +63,8 @@ actor SupabaseSyncService {
         avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore(),
         spaceMemberWriter: SpaceMemberWriter? = nil,
         spaceMemberReader: SpaceMemberReader? = nil,
-        importantDateWriter: ImportantDateWriter? = nil
+        importantDateWriter: ImportantDateWriter? = nil,
+        importantDateReader: ImportantDateReader? = nil
     ) {
         self.modelContainer = modelContainer
         self.avatarUploader = avatarUploader
@@ -70,6 +72,7 @@ actor SupabaseSyncService {
         self.spaceMemberWriter = spaceMemberWriter ?? SupabaseSpaceMemberWriter()
         self.spaceMemberReader = spaceMemberReader ?? SupabaseSpaceMemberReader()
         self.importantDateWriter = importantDateWriter ?? SupabaseImportantDateWriter()
+        self.importantDateReader = importantDateReader ?? SupabaseImportantDateReader()
     }
 
     /// 配置同步目标
@@ -82,6 +85,10 @@ actor SupabaseSyncService {
     /// Test-only entry point to exercise pull without Supabase network I/O.
     internal func pullSpaceMembersForTesting(spaceID: UUID) async throws {
         try await pullSpaceMembers(spaceID: spaceID, since: ISO8601DateFormatter().string(from: .distantPast))
+    }
+
+    internal func pullImportantDatesForTesting(spaceID: UUID) async throws {
+        try await pullImportantDates(spaceID: spaceID, since: ISO8601DateFormatter().string(from: .distantPast))
     }
 
     /// 清理资源
@@ -224,6 +231,7 @@ actor SupabaseSyncService {
             try await pullPeriodicTasks(spaceID: spaceID, since: sinceISO)
             try await pullSpaceMembers(spaceID: spaceID, since: sinceISO)
             try await pullSpaces(spaceID: spaceID, since: sinceISO)
+            try await pullImportantDates(spaceID: spaceID, since: sinceISO)
 
             lastSyncedAt = Date()
             logger.info("[CatchUp] ✅ 完成补拉")
@@ -562,6 +570,18 @@ actor SupabaseSyncService {
             }
             try context.save()
         }
+    }
+
+    private func pullImportantDates(spaceID: UUID, since: String) async throws {
+        let rows = try await importantDateReader.fetchRows(spaceID: spaceID, since: since)
+        guard !rows.isEmpty else { return }
+
+        let context = ModelContext(modelContainer)
+        for dto in rows {
+            dto.applyToLocal(context: context)
+        }
+        try context.save()
+        logger.info("[Pull] ✅ importantDates rows=\(rows.count)")
     }
 
     private func pullProjectSubtasks(spaceID: UUID, since: String) async throws {
@@ -1639,5 +1659,26 @@ private struct SupabaseImportantDateWriter: ImportantDateWriter {
         try await client.from("important_dates")
             .upsert(dto, onConflict: "id")
             .execute()
+    }
+}
+
+// MARK: - ImportantDateReader seam
+
+/// Abstracts the important_dates SELECT call so tests can inject fake rows without hitting the network.
+protocol ImportantDateReader: Sendable {
+    func fetchRows(spaceID: UUID, since: String) async throws -> [ImportantDateDTO]
+}
+
+/// Default production implementation that calls the Supabase client.
+private struct SupabaseImportantDateReader: ImportantDateReader {
+    private let client = SupabaseClientProvider.shared
+
+    func fetchRows(spaceID: UUID, since: String) async throws -> [ImportantDateDTO] {
+        try await client.from("important_dates")
+            .select()
+            .eq("space_id", value: spaceID.uuidString)
+            .gte("updated_at", value: since)
+            .execute()
+            .value
     }
 }
