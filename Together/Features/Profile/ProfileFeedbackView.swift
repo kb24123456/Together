@@ -17,10 +17,10 @@ struct ProfileFeedbackView: View {
                     .frame(height: 20)
 
                 Image(systemName: "envelope.circle.fill")
-                    .font(.system(size: 56))
+                    .font(AppTheme.typography.sized(56))
                     .foregroundStyle(AppTheme.colors.accent)
 
-                VStack(spacing: 8) {
+                VStack(spacing: AppTheme.spacing.xs) {
                     Text("意见反馈")
                         .font(AppTheme.typography.sized(22, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
@@ -37,7 +37,7 @@ struct ProfileFeedbackView: View {
                     HomeInteractionFeedback.selection()
                     sendFeedbackEmail()
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: AppTheme.spacing.sm) {
                         Image(systemName: "envelope")
                             .font(AppTheme.typography.sized(16, weight: .semibold))
                         Text("发送邮件反馈")
@@ -45,9 +45,9 @@ struct ProfileFeedbackView: View {
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, AppTheme.spacing.md)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                             .fill(AppTheme.colors.accent)
                     )
                 }
@@ -55,7 +55,7 @@ struct ProfileFeedbackView: View {
                 .padding(.horizontal, AppTheme.spacing.xl)
 
                 // 设备信息
-                VStack(spacing: 6) {
+                VStack(spacing: AppTheme.spacing.xs) {
                     Text("当前设备信息")
                         .font(AppTheme.typography.sized(13, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.textTertiary)

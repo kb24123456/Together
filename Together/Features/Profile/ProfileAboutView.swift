@@ -8,9 +8,9 @@ struct ProfileAboutView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
                 // App 标识
-                VStack(spacing: 10) {
+                VStack(spacing: AppTheme.spacing.sm) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 52))
+                        .font(AppTheme.typography.sized(52))
                         .foregroundStyle(AppTheme.colors.sky)
 
                     Text("Together")

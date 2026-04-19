@@ -98,7 +98,7 @@ struct ProfilePrivacyPolicyView: View {
     }
 
     private func policySection(title: String, content: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
             Text(title)
                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)

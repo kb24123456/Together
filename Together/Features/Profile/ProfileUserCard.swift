@@ -41,7 +41,7 @@ struct ProfileUserCard: View {
 
             textColumn
                 .padding(.leading, avatarTextGap)
-                .padding(.trailing, 22)
+                .padding(.trailing, AppTheme.spacing.lg)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .frame(height: cardHeight)

@@ -49,8 +49,8 @@ struct ProfileAccountDeletionView: View {
     }
 
     private var warningSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(AppTheme.typography.sized(20, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.warning)
@@ -81,7 +81,7 @@ struct ProfileAccountDeletionView: View {
     }
 
     private func deletionItem(icon: String, text: String) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.spacing.md) {
             Image(systemName: icon)
                 .font(AppTheme.typography.sized(15, weight: .medium))
                 .foregroundStyle(AppTheme.colors.danger)
@@ -91,11 +91,11 @@ struct ProfileAccountDeletionView: View {
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                 .foregroundStyle(AppTheme.colors.title)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, AppTheme.spacing.xxs)
     }
 
     private var confirmationInputSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
             Text("请输入你的昵称「\(expectedName)」以确认注销")
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                 .foregroundStyle(AppTheme.colors.body)
@@ -103,14 +103,14 @@ struct ProfileAccountDeletionView: View {
             TextField("输入昵称", text: $confirmationText)
                 .font(AppTheme.typography.textStyle(.body, weight: .medium))
                 .foregroundStyle(AppTheme.colors.title)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.horizontal, AppTheme.spacing.md)
+                .padding(.vertical, AppTheme.spacing.md)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                         .fill(AppTheme.colors.surfaceElevated)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                         .stroke(AppTheme.colors.outline, lineWidth: 1)
                 )
         }
@@ -121,7 +121,7 @@ struct ProfileAccountDeletionView: View {
             HomeInteractionFeedback.selection()
             showsFinalConfirmation = true
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 if viewModel.isAccountDeletionInProgress {
                     ProgressView()
                         .tint(.white)
@@ -131,9 +131,9 @@ struct ProfileAccountDeletionView: View {
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, AppTheme.spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                     .fill(isConfirmationValid ? AppTheme.colors.danger : AppTheme.colors.danger.opacity(0.4))
             )
         }

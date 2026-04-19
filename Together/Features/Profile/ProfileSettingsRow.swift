@@ -53,7 +53,7 @@ struct ProfileSettingsRow: View {
     }
 
     private func valueAccessory(value: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: AppTheme.spacing.xs) {
             Text(value)
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                 .foregroundStyle(AppTheme.colors.body.opacity(isEnabled ? 0.64 : 0.42))
@@ -68,17 +68,17 @@ struct ProfileSettingsRow: View {
     }
 
     private func rowShell<Accessory: View>(@ViewBuilder accessory: () -> Accessory) -> some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Text(title)
                 .font(AppTheme.typography.textStyle(.body, weight: .medium))
                 .foregroundStyle(AppTheme.colors.title.opacity(isEnabled ? 1 : 0.42))
                 .lineLimit(2)
 
-            Spacer(minLength: 12)
+            Spacer(minLength: AppTheme.spacing.md)
 
             accessory()
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, AppTheme.spacing.sm)
         .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
         .contentShape(Rectangle())
         .opacity(isEnabled ? 1 : 0.76)

@@ -139,7 +139,7 @@ struct EditProfileView: View {
                         .font(AppTheme.typography.textStyle(.body, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.title)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, AppTheme.spacing.md)
                         .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -159,7 +159,7 @@ struct EditProfileView: View {
                 .font(AppTheme.typography.textStyle(.body, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, AppTheme.spacing.md)
                 .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
             }
 
@@ -188,7 +188,7 @@ struct EditProfileView: View {
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, AppTheme.spacing.sm)
-                .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous))
             }
 
             if viewModel.canRemovePhoto {
@@ -250,8 +250,8 @@ struct EditProfileView: View {
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .padding(.horizontal, AppTheme.spacing.md)
-                .padding(.vertical, 16)
-                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(.vertical, AppTheme.spacing.md)
+                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous))
 
             if let validationMessage = viewModel.nameValidationMessage {
                 Text(validationMessage)
@@ -448,8 +448,8 @@ struct AvatarCropperView: View {
         .font(AppTheme.typography.textStyle(.body, weight: .semibold))
         .foregroundStyle(Color.white)
         .padding(.horizontal, AppTheme.spacing.md)
-        .padding(.vertical, 16)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(.vertical, AppTheme.spacing.md)
+        .background(AppTheme.colors.glassTint, in: RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous))
     }
 
     private func cropGesture(cropDiameter: CGFloat) -> some Gesture {

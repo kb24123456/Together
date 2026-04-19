@@ -38,7 +38,7 @@ struct CompletedHistoryView: View {
                                         await viewModel.delete(item)
                                     }
                                 }
-                                .tint(.red)
+                                .tint(AppTheme.colors.danger)
                             }
                         }
                     }
@@ -75,13 +75,13 @@ struct CompletedHistoryView: View {
             title: "还没有历史任务",
             message: "已完成任务会在这里沉淀，Today 只保留当前仍需处理的任务。"
         )
-        .listRowInsets(EdgeInsets(top: 24, leading: 20, bottom: 24, trailing: 20))
+        .listRowInsets(EdgeInsets(top: AppTheme.spacing.lg, leading: AppTheme.spacing.lg, bottom: AppTheme.spacing.lg, trailing: AppTheme.spacing.lg))
         .listRowBackground(AppTheme.colors.background)
         .listRowSeparator(.hidden)
     }
 
     private var loadingRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.spacing.md) {
             ProgressView()
             Text("正在加载更多历史任务")
                 .foregroundStyle(AppTheme.colors.body.opacity(0.72))
@@ -92,7 +92,7 @@ struct CompletedHistoryView: View {
     }
 
     private func historyRow(for item: Item) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
             Text(item.title)
                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
@@ -105,7 +105,7 @@ struct CompletedHistoryView: View {
                 .font(AppTheme.typography.textStyle(.subheadline))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.72))
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                 Text(viewModel.completedDateText(for: item))
                 if viewModel.isArchived(item) {
                     Text(viewModel.archivedDateText(for: item))
@@ -114,7 +114,7 @@ struct CompletedHistoryView: View {
             .font(AppTheme.typography.textStyle(.caption1))
             .foregroundStyle(AppTheme.colors.body.opacity(0.64))
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, AppTheme.spacing.xs)
     }
 
     private func detailView(for item: Item) -> some View {
@@ -137,7 +137,7 @@ struct CompletedHistoryView: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
                     if viewModel.isArchived(item) {
                         Button("移回当前列表", systemImage: "arrow.uturn.backward.circle") {
                             Task {
@@ -156,7 +156,7 @@ struct CompletedHistoryView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .tint(.red)
+                    .tint(AppTheme.colors.danger)
                 }
             }
             .padding(AppTheme.spacing.xl)

@@ -16,7 +16,7 @@ struct InviteCodeEntryView: View {
 
                 VStack(spacing: AppTheme.spacing.md) {
                     Image(systemName: "person.2.fill")
-                        .font(.system(size: 48, weight: .semibold))
+                        .font(AppTheme.typography.sized(48, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.profileAccent)
 
                     Text("输入邀请码")
@@ -31,7 +31,7 @@ struct InviteCodeEntryView: View {
 
                 VStack(spacing: AppTheme.spacing.sm) {
                     TextField("000000", text: $code)
-                        .font(.system(size: 32, weight: .bold, design: .monospaced))
+                        .font(.system(size: 32, weight: .bold, design: .monospaced)) // design: .monospaced intentional
                         .keyboardType(.numberPad)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -39,11 +39,11 @@ struct InviteCodeEntryView: View {
                         .tracking(8)
                         .padding()
                         .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                                 .fill(AppTheme.colors.surfaceElevated)
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                                 .stroke(AppTheme.colors.outline.opacity(0.2), lineWidth: 1)
                         )
                         .onChange(of: code) {
@@ -78,9 +78,9 @@ struct InviteCodeEntryView: View {
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, AppTheme.spacing.md)
                     .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
                             .fill(isCodeComplete ? AppTheme.colors.profileAccent : AppTheme.colors.outline)
                     )
                 }

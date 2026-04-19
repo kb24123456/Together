@@ -86,6 +86,9 @@ enum AppTheme {
 
         // MARK: - Borders & Shadows
 
+        static let glassTint = Color(light: .white.opacity(0.08),
+                                     dark: .white.opacity(0.06))
+
         static let outline = Color(light: .black.opacity(0.08),
                                    dark: .white.opacity(0.10))
 

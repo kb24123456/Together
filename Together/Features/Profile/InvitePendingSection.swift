@@ -14,16 +14,16 @@ struct InvitePendingSection: View {
     @State private var pollTask: Task<Void, Never>?
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: AppTheme.spacing.sm) {
             if let invite, let code = Optional(invite.inviteCode), !code.isEmpty {
                 if remainingSeconds > 0 {
                     // ── 邀请码展示 ──
                     inviteCodeCard(code: code)
 
                     // ── 倒计时 ──
-                    HStack(spacing: 4) {
+                    HStack(spacing: AppTheme.spacing.xxs) {
                         Image(systemName: "clock")
-                            .font(.system(size: 12))
+                            .font(AppTheme.typography.sized(12))
                         Text("有效期剩余 \(formattedTime)")
                             .font(AppTheme.typography.sized(13, weight: .medium))
                     }
@@ -40,13 +40,13 @@ struct InvitePendingSection: View {
                             .foregroundStyle(AppTheme.colors.danger)
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 2)
+                    .padding(.top, AppTheme.spacing.xxs)
                 } else {
                     // ── 已过期 ──
-                    VStack(spacing: 8) {
-                        HStack(spacing: 6) {
+                    VStack(spacing: AppTheme.spacing.xs) {
+                        HStack(spacing: AppTheme.spacing.xs) {
                             Image(systemName: "clock.badge.xmark")
-                                .font(.system(size: 14))
+                                .font(AppTheme.typography.sized(14))
                             Text("邀请码已过期")
                                 .font(AppTheme.typography.sized(14, weight: .medium))
                         }
@@ -84,18 +84,18 @@ struct InvitePendingSection: View {
     // MARK: - Subviews
 
     private func inviteCodeCard(code: String) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppTheme.spacing.md) {
             Text("邀请码")
                 .font(AppTheme.typography.sized(12, weight: .medium))
                 .foregroundStyle(AppTheme.colors.textTertiary)
 
             // 6 位数字大号等宽显示，字间距加大
             Text(formatDigits(code))
-                .font(.system(size: 36, weight: .bold, design: .monospaced))
+                .font(.system(size: 36, weight: .bold, design: .monospaced)) // design: .monospaced intentional
                 .foregroundStyle(AppTheme.colors.title)
                 .tracking(8)
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacing.md) {
                 Button {
                     onCopy(code)
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.7)) {
@@ -114,8 +114,8 @@ struct InvitePendingSection: View {
                     .foregroundStyle(
                         copiedCode ? AppTheme.colors.profileAccent : AppTheme.colors.body
                     )
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, AppTheme.spacing.md)
+                    .padding(.vertical, AppTheme.spacing.xs)
                     .background(
                         Capsule()
                             .fill(
@@ -131,8 +131,8 @@ struct InvitePendingSection: View {
                     Label("分享", systemImage: "square.and.arrow.up")
                         .font(AppTheme.typography.sized(13, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.body)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, AppTheme.spacing.md)
+                        .padding(.vertical, AppTheme.spacing.xs)
                         .background(
                             Capsule()
                                 .fill(AppTheme.colors.backgroundSoft.opacity(0.9))
@@ -142,13 +142,13 @@ struct InvitePendingSection: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .padding(.vertical, AppTheme.spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                 .fill(AppTheme.colors.surfaceElevated)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                 .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
         }
     }
@@ -158,13 +158,13 @@ struct InvitePendingSection: View {
             .font(AppTheme.typography.sized(14, weight: .bold))
             .foregroundStyle(tint)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, AppTheme.spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                     .fill(AppTheme.colors.surfaceElevated)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                     .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
             }
     }

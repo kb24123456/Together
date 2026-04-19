@@ -221,7 +221,7 @@ struct ProfileView: View {
     private var collaborationActionRow: some View {
         switch viewModel.bindingState {
         case .singleTrial, .unbound:
-            VStack(spacing: 10) {
+            VStack(spacing: AppTheme.spacing.sm) {
                 Button {
                     HomeInteractionFeedback.selection()
                     Task { await viewModel.createInvite() }
@@ -235,7 +235,7 @@ struct ProfileView: View {
                         .font(AppTheme.typography.sized(12, weight: .medium))
                         .foregroundStyle(AppTheme.colors.danger)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, AppTheme.spacing.xs)
                 }
 
                 Button {
@@ -267,7 +267,7 @@ struct ProfileView: View {
             )
 
         case .inviteReceived:
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 Button {
                     HomeInteractionFeedback.selection()
                     Task { await viewModel.acceptInvite() }
@@ -301,13 +301,13 @@ struct ProfileView: View {
             .font(AppTheme.typography.sized(14, weight: .bold))
             .foregroundStyle(tint)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, AppTheme.spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                     .fill(AppTheme.colors.surfaceElevated)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                     .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
             }
     }
@@ -479,7 +479,7 @@ struct ProfileView: View {
                 Text("切到后台时自动锁定，需要\(viewModel.biometricTypeName)或密码解锁")
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.textTertiary)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, AppTheme.spacing.xxs)
             }
         }
     }
@@ -552,7 +552,7 @@ struct ProfileView: View {
 
     private var appearanceSection: some View {
         ProfileSettingsGroupCard(title: "外观") {
-            HStack(spacing: 4) {
+            HStack(spacing: AppTheme.spacing.xxs) {
                 ForEach(AppearanceMode.allCases, id: \.self) { mode in
                     let isSelected = appContext.appearanceManager.mode == mode
 
@@ -566,7 +566,7 @@ struct ProfileView: View {
                             .font(AppTheme.typography.sized(13, weight: .semibold))
                             .foregroundStyle(isSelected ? .white : AppTheme.colors.body)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
+                            .padding(.vertical, AppTheme.spacing.sm)
                             .background(
                                 Capsule(style: .continuous)
                                     .fill(isSelected ? AppTheme.colors.sky : .clear)
@@ -589,9 +589,9 @@ struct ProfileView: View {
                 .font(AppTheme.typography.sized(15, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.danger)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, AppTheme.spacing.md)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                         .fill(AppTheme.colors.surfaceElevated)
                 )
                 .shadow(color: AppTheme.colors.shadow.opacity(0.14), radius: 8, y: 4)
@@ -643,7 +643,7 @@ struct ProfileView: View {
         onSelect: @escaping (Int) -> Void,
         onCustom: (() -> Void)? = nil
     ) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: AppTheme.spacing.xs) {
             ForEach(options, id: \.self) { option in
                 ProfileInlineOptionButton(
                     title: label(option),
@@ -669,7 +669,7 @@ struct ProfileView: View {
 
 private struct ProBannerRow: View {
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: AppTheme.spacing.md) {
             // 皇冠图标
             ZStack {
                 Circle()
@@ -677,11 +677,11 @@ private struct ProBannerRow: View {
                     .frame(width: 40, height: 40)
 
                 Image(systemName: "crown.fill")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(AppTheme.typography.sized(18, weight: .bold))
                     .foregroundStyle(.black)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                 Text("Together Pro")
                     .font(AppTheme.typography.sized(17, weight: .bold))
                     .foregroundStyle(.white)
@@ -697,10 +697,10 @@ private struct ProBannerRow: View {
                 .font(AppTheme.typography.sized(14, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.5))
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [Color(white: 0.18), Color(white: 0.08)],
@@ -710,7 +710,7 @@ private struct ProBannerRow: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
                 .stroke(
                     AngularGradient(
                         colors: [
@@ -742,7 +742,7 @@ private struct ProfileQuickReplyEditor: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: AppTheme.spacing.xs) {
             ForEach(messages.indices, id: \.self) { index in
                 TextField("预设留言", text: Binding(
                     get: { messages[index] },
@@ -750,10 +750,10 @@ private struct ProfileQuickReplyEditor: View {
                 ))
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                 .foregroundStyle(AppTheme.colors.title)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.horizontal, AppTheme.spacing.md)
+                .padding(.vertical, AppTheme.spacing.md)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                         .fill(AppTheme.colors.backgroundSoft.opacity(0.92))
                 )
             }
@@ -765,9 +765,9 @@ private struct ProfileQuickReplyEditor: View {
             .font(AppTheme.typography.sized(14, weight: .bold))
             .foregroundStyle(AppTheme.colors.title)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, AppTheme.spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                     .fill(AppTheme.colors.surfaceElevated)
             )
         }
@@ -826,16 +826,16 @@ private struct ProfileExpandableDisclosureRow<Content: View>: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(spacing: 8) {
+            VStack(spacing: AppTheme.spacing.xs) {
                 Divider()
                     .overlay(AppTheme.colors.outline.opacity(0.45))
-                    .padding(.bottom, 2)
+                    .padding(.bottom, AppTheme.spacing.xxs)
 
                 content
             }
-            .padding(.top, 10)
+            .padding(.top, AppTheme.spacing.sm)
         } label: {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                 ProfileSettingsRow(
                     title: title,
                     value: value
@@ -859,7 +859,7 @@ private struct ProfilePlainDisclosureGroupStyle: DisclosureGroupStyle {
                     configuration.isExpanded.toggle()
                 }
             } label: {
-                HStack(alignment: .center, spacing: 12) {
+                HStack(alignment: .center, spacing: AppTheme.spacing.md) {
                     configuration.label
 
                     Image(systemName: "chevron.down")
@@ -885,7 +885,7 @@ private struct ProfileInlineOptionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.spacing.md) {
                 Text(title)
                     .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                     .foregroundStyle(isSelected ? AppTheme.colors.sky : AppTheme.colors.title)
@@ -898,11 +898,11 @@ private struct ProfileInlineOptionButton: View {
                         .foregroundStyle(AppTheme.colors.sky)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
                     .fill(isSelected ? AppTheme.colors.sky.opacity(0.1) : .clear)
             )
         }

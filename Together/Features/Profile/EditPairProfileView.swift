@@ -151,9 +151,9 @@ struct EditPairProfileView: View {
     /// 双人头像区域：左侧自己（可编辑），右侧对方（只读）
     private var avatarPairSection: some View {
         VStack(spacing: AppTheme.spacing.md) {
-            HStack(alignment: .center, spacing: 24) {
+            HStack(alignment: .center, spacing: AppTheme.spacing.lg) {
                 // 自己的头像（可编辑）
-                VStack(spacing: 8) {
+                VStack(spacing: AppTheme.spacing.xs) {
                     ZStack {
                         Circle()
                             .fill(AppTheme.colors.surfaceElevated)
@@ -173,7 +173,7 @@ struct EditPairProfileView: View {
                     .foregroundStyle(AppTheme.colors.body.opacity(0.3))
 
                 // 对方的头像（只读）
-                VStack(spacing: 8) {
+                VStack(spacing: AppTheme.spacing.xs) {
                     ZStack {
                         Circle()
                             .fill(AppTheme.colors.surfaceElevated)
@@ -206,7 +206,7 @@ struct EditPairProfileView: View {
                         .font(AppTheme.typography.textStyle(.body, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.title)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, AppTheme.spacing.md)
                         .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -226,7 +226,7 @@ struct EditPairProfileView: View {
                 .font(AppTheme.typography.textStyle(.body, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, AppTheme.spacing.md)
                 .background(AppTheme.colors.surfaceElevated, in: Capsule(style: .continuous))
             }
 
@@ -255,7 +255,7 @@ struct EditPairProfileView: View {
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, AppTheme.spacing.sm)
-                .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous))
             }
 
             if viewModel.canRemovePhoto {
@@ -317,8 +317,8 @@ struct EditPairProfileView: View {
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .padding(.horizontal, AppTheme.spacing.md)
-                .padding(.vertical, 16)
-                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(.vertical, AppTheme.spacing.md)
+                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous))
 
             if let message = viewModel.nameValidationMessage {
                 Text(message)
@@ -330,12 +330,12 @@ struct EditPairProfileView: View {
                     .foregroundStyle(AppTheme.colors.body.opacity(0.7))
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: AppTheme.spacing.xs) {
                 Text("对方昵称")
                     .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.title)
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 10))
+                    .font(AppTheme.typography.sized(10))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.3))
             }
             .padding(.top, AppTheme.spacing.md)
@@ -344,9 +344,9 @@ struct EditPairProfileView: View {
                 .font(AppTheme.typography.textStyle(.title3, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.5))
                 .padding(.horizontal, AppTheme.spacing.md)
-                .padding(.vertical, 16)
+                .padding(.vertical, AppTheme.spacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(AppTheme.colors.surfaceElevated.opacity(0.6), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(AppTheme.colors.surfaceElevated.opacity(0.6), in: RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous))
         }
     }
 
@@ -362,8 +362,8 @@ struct EditPairProfileView: View {
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .padding(.horizontal, AppTheme.spacing.md)
-                .padding(.vertical, 16)
-                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(.vertical, AppTheme.spacing.md)
+                .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous))
                 .disabled(!canRenameSpace)
                 .opacity(canRenameSpace ? 1 : 0.4)
 

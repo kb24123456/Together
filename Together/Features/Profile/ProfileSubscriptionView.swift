@@ -8,9 +8,9 @@ struct ProfileSubscriptionView: View {
         ScrollView {
             VStack(spacing: 0) {
                 // MARK: - 皇冠品牌区
-                VStack(spacing: 8) {
+                VStack(spacing: AppTheme.spacing.xs) {
                     Image(systemName: "crown.fill")
-                        .font(.system(size: 52))
+                        .font(AppTheme.typography.sized(52))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [Color(white: 0.55), Color(white: 0.75)],
@@ -18,8 +18,8 @@ struct ProfileSubscriptionView: View {
                                 endPoint: .bottom
                             )
                         )
-                        .shadow(color: .black.opacity(0.1), radius: 6, y: 4)
-                        .padding(.top, 32)
+                        .shadow(color: AppTheme.colors.shadow, radius: 6, y: 4)
+                        .padding(.top, AppTheme.spacing.xxl)
 
                     Text("Together Pro")
                         .font(AppTheme.typography.sized(28, weight: .bold))
@@ -29,10 +29,10 @@ struct ProfileSubscriptionView: View {
                         .font(AppTheme.typography.sized(15, weight: .medium))
                         .foregroundStyle(AppTheme.colors.textTertiary)
                 }
-                .padding(.bottom, 28)
+                .padding(.bottom, AppTheme.spacing.xl)
 
                 // MARK: - 当前状态
-                HStack(spacing: 8) {
+                HStack(spacing: AppTheme.spacing.xs) {
                     Image(systemName: "gift.fill")
                         .font(AppTheme.typography.sized(15, weight: .medium))
                         .foregroundStyle(AppTheme.colors.sky)
@@ -40,14 +40,14 @@ struct ProfileSubscriptionView: View {
                         .font(AppTheme.typography.sized(14, weight: .medium))
                         .foregroundStyle(AppTheme.colors.body)
                 }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 16)
+                .padding(.vertical, AppTheme.spacing.md)
+                .padding(.horizontal, AppTheme.spacing.md)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
                         .fill(AppTheme.colors.sky.opacity(0.08))
                 )
                 .padding(.horizontal, AppTheme.spacing.lg)
-                .padding(.bottom, 28)
+                .padding(.bottom, AppTheme.spacing.xl)
 
                 // MARK: - 功能列表
                 VStack(spacing: 0) {
@@ -58,7 +58,7 @@ struct ProfileSubscriptionView: View {
                         Spacer()
                     }
                     .padding(.horizontal, AppTheme.spacing.lg)
-                    .padding(.bottom, 14)
+                    .padding(.bottom, AppTheme.spacing.md)
 
                     VStack(spacing: 0) {
                         ProFeatureRow(icon: "infinity", title: "无限任务", subtitle: "不限数量添加你的任务")
@@ -70,10 +70,10 @@ struct ProfileSubscriptionView: View {
                         ProFeatureRow(icon: "calendar", title: "日历视图", subtitle: "按日期查看和管理任务")
                         ProFeatureRow(icon: "lock.shield.fill", title: "隐私保护", subtitle: "Face ID / 密码锁定应用")
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, AppTheme.spacing.md)
+                    .padding(.vertical, AppTheme.spacing.sm)
                     .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
                             .fill(AppTheme.colors.surfaceElevated)
                     )
                     .shadow(color: AppTheme.colors.shadow.opacity(0.2), radius: 10, y: 4)
@@ -96,13 +96,13 @@ private struct ProFeatureRow: View {
     let subtitle: String
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: AppTheme.spacing.md) {
             Image(systemName: icon)
                 .font(AppTheme.typography.sized(18, weight: .medium))
                 .foregroundStyle(AppTheme.colors.sky)
                 .frame(width: 32, alignment: .center)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                 Text(title)
                     .font(AppTheme.typography.textStyle(.subheadline, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.title)
@@ -115,10 +115,10 @@ private struct ProFeatureRow: View {
             Spacer()
 
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 20))
+                .font(AppTheme.typography.sized(20))
                 .foregroundStyle(AppTheme.colors.sky.opacity(0.7))
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.md)
     }
 }

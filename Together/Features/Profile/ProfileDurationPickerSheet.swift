@@ -114,9 +114,9 @@ private struct ProfileMinuteSelectionCapsule: View {
     var body: some View {
         HStack {
             Spacer(minLength: 0)
-            HStack(spacing: 10) {
+            HStack(spacing: AppTheme.spacing.sm) {
                 Image(systemName: "timer")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded)) // design: .rounded intentional
                     .foregroundStyle(AppTheme.colors.body.opacity(0.82))
 
                 Text(minuteText)
@@ -141,7 +141,7 @@ private struct ProfileMinuteSelectionCapsule: View {
                 cornerRadius: ProfileDurationPickerMetrics.selectionCapsuleHeight * 0.5,
                 style: .continuous
             )
-            .strokeBorder(Color.white.opacity(0.78), lineWidth: 1)
+            .strokeBorder(AppTheme.colors.pillOutline, lineWidth: 1)
         )
         .shadow(color: AppTheme.colors.shadow.opacity(0.12), radius: 16, y: 5)
         .animation(.easeInOut(duration: 0.22), value: minuteText)
@@ -418,7 +418,7 @@ private struct ProfileDurationGlassModifier: ViewModifier {
                         cornerRadius: ProfileDurationPickerMetrics.buttonCornerRadius,
                         style: .continuous
                     )
-                    .stroke(.white.opacity(0.66), lineWidth: 1)
+                    .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
                 }
         }
     }
