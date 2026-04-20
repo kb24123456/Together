@@ -110,6 +110,8 @@ struct ProfileView: View {
                 ProfileFeedbackView()
             case .about:
                 ProfileAboutView(appVersion: viewModel.appVersionString)
+            case .appearance:
+                ProfileAppearanceView()
             case .notificationSettings, .futureCollaboration:
                 EmptyView()
             }

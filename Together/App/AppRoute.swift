@@ -40,4 +40,5 @@ enum ProfileRoute: Hashable {
     case subscription
     case feedback
     case about
+    case appearance
 }
