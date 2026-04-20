@@ -508,9 +508,9 @@ struct ProfileView: View {
 
             if viewModel.appLockEnabled {
                 Text("切到后台时自动锁定，需要\(viewModel.biometricTypeName)或密码解锁")
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.textTertiary)
-                    .padding(.horizontal, AppTheme.spacing.xxs)
+                    .font(AppTheme.typography.sized(12, weight: .regular))
+                    .foregroundStyle(AppTheme.colors.textTertiary.opacity(0.78))
+                    .padding(.horizontal, AppTheme.spacing.xs)
             }
         }
     }
@@ -681,18 +681,17 @@ private struct ProfileQuickReplyEditor: View {
                 )
             }
 
-            Button("保存预设") {
-                onSave(messages)
-                messages = NotificationSettings.normalizedPairQuickReplyMessages(messages)
+            HStack {
+                Spacer()
+                Button("保存") {
+                    HomeInteractionFeedback.selection()
+                    onSave(messages)
+                    messages = NotificationSettings.normalizedPairQuickReplyMessages(messages)
+                }
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.selectionTint)
             }
-            .font(AppTheme.typography.sized(14, weight: .bold))
-            .foregroundStyle(AppTheme.colors.title)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, AppTheme.spacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
+            .padding(.top, AppTheme.spacing.xs)
         }
     }
 }
