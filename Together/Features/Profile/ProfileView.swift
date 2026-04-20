@@ -507,22 +507,11 @@ struct ProfileView: View {
 
     private var dataAndAccountSection: some View {
         ProfileSettingsGroupCard(title: "数据与账号") {
-            // iCloud 同步状态
             ProfileSettingsRow(
                 title: "iCloud 同步",
                 value: viewModel.iCloudStatusSummary
             )
 
-            // 会员入口横幅
-            NavigationLink(value: ProfileRoute.subscription) {
-                ProBannerRow()
-            }
-            .buttonStyle(.plain)
-            .simultaneousGesture(
-                TapGesture().onEnded { HomeInteractionFeedback.selection() }
-            )
-
-            // 清除缓存
             Button {
                 HomeInteractionFeedback.selection()
                 showsClearCacheAlert = true
@@ -534,7 +523,6 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
 
-            // 账号注销（合规必备：Apple 5.1.1(v) + 个保法 Art. 47）
             NavigationLink(value: ProfileRoute.accountDeletion) {
                 ProfileSettingsRow(
                     title: "账号注销",
@@ -651,68 +639,6 @@ struct ProfileView: View {
                 )
             }
         }
-    }
-}
-
-// MARK: - Pro Banner
-
-private struct ProBannerRow: View {
-    var body: some View {
-        HStack(spacing: AppTheme.spacing.md) {
-            // 皇冠图标
-            ZStack {
-                Circle()
-                    .fill(.white)
-                    .frame(width: 40, height: 40)
-
-                Image(systemName: "crown.fill")
-                    .font(AppTheme.typography.sized(18, weight: .bold))
-                    .foregroundStyle(.black)
-            }
-
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text("Together Pro")
-                    .font(AppTheme.typography.sized(17, weight: .bold))
-                    .foregroundStyle(.white)
-
-                Text("升级解锁全部功能")
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.5))
-        }
-        .padding(.horizontal, AppTheme.spacing.md)
-        .padding(.vertical, AppTheme.spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(white: 0.18), Color(white: 0.08)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
-                .stroke(
-                    AngularGradient(
-                        colors: [
-                            .purple.opacity(0.5), .blue.opacity(0.4),
-                            .green.opacity(0.3), .yellow.opacity(0.3),
-                            .orange.opacity(0.3), .pink.opacity(0.4),
-                            .purple.opacity(0.5)
-                        ],
-                        center: .center
-                    ),
-                    lineWidth: 1.5
-                )
-        )
     }
 }
 
