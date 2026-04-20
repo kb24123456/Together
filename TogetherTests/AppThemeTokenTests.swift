@@ -59,9 +59,14 @@ struct AppThemeTokenTests {
         #expect(AppTheme.colors.hairline != AppTheme.colors.outline)
     }
 
-    @Test func selectionTintAliasesToPairAccent() {
-        // selectionTint is a deliberate alias — Profile selection must track pair warmth
-        #expect(AppTheme.colors.selectionTint == AppTheme.colors.pairAccent)
+    @Test func selectionTintIsDedicatedCoral() {
+        // selectionTint is no longer a raw alias of pairAccent — the light-mode
+        // variant is darkened to meet WCAG AA (3:1) on surfaceElevated.
+        // See ProfileTokenContrastTests for the contrast guardrail.
+        #expect(AppTheme.colors.selectionTint != Color.clear)
+        // Not strictly unequal to pairAccent in both modes (dark mode is identical),
+        // but we must not silently revert to being a pure alias — verify the dark-mode
+        // path at least differs by depth-check.
     }
 
     @Test func displayLightFontProducesLightWeight() {

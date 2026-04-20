@@ -105,10 +105,19 @@ enum AppTheme {
         static let hairline = Color(light: .init(red: 0.16, green: 0.18, blue: 0.19).opacity(0.10),
                                     dark: .white.opacity(0.08))
 
-        /// Profile-module alias for selection accent. Aliases to `pairAccent` so Profile's
-        /// selected states (options, checkmarks) stay on the pair-warm coral rather than sky.
+        /// Profile-module selection accent. Shares the warm coral hue with `pairAccent`
+        /// but the light-mode variant is deepened to meet WCAG AA (3:1) on near-white
+        /// `surfaceElevated` — the brand `pairAccent` itself sits at ~2.8:1 which is
+        /// fine for large decorative uses (4pt dot, avatar backgrounds) but not for
+        /// information-bearing UI like the selection checkmark. Dark-mode variant
+        /// matches pairAccent dark (already compliant). Guarded by
+        /// `ProfileTokenContrastTests`.
+        ///
         /// Do NOT use outside Profile module.
-        static let selectionTint = pairAccent
+        static let selectionTint = Color(
+            light: .init(red: 0.78, green: 0.40, blue: 0.33),
+            dark: .init(red: 0.93, green: 0.60, blue: 0.52)
+        )
 
         static let outlineStrong = Color(light: .init(red: 0.74, green: 0.74, blue: 0.74),
                                          dark: .init(red: 0.36, green: 0.36, blue: 0.38))
