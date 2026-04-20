@@ -54,6 +54,8 @@ struct AppRootView: View {
                         ToolbarItem(placement: .topBarLeading) {
                             NavigationLink(value: ProfileRoute.completedHistory) {
                                 Text("日志")
+                                    .font(AppTheme.typography.body)
+                                    .foregroundStyle(AppTheme.colors.title)
                             }
                             .simultaneousGesture(
                                 TapGesture().onEnded {
@@ -66,6 +68,8 @@ struct AppRootView: View {
                             Button("关闭") {
                                 router.isProfilePresented = false
                             }
+                            .font(AppTheme.typography.body)
+                            .foregroundStyle(AppTheme.colors.title)
                         }
                 }
             }
