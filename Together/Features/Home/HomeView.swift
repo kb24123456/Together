@@ -225,11 +225,31 @@ struct HomeView: View {
 
             Spacer(minLength: 0)
 
+            logbookEntryButton(compact: isOverlayModeActive)
+
             headerAvatarButton(compact: isOverlayModeActive)
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
         .animation(.spring(response: 0.34, dampingFraction: 0.82), value: viewModel.showsPairAvatarPreview)
+    }
+
+    private func logbookEntryButton(compact: Bool) -> some View {
+        NavigationLink(value: HomeRoute.logbook) {
+            Image(systemName: "book.closed")
+                .font(AppTheme.typography.sized(22, weight: .semibold))
+                .foregroundStyle(headerPrimaryColor)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                HomeInteractionFeedback.selection()
+            }
+        )
+        .accessibilityLabel("日志")
+        .accessibilityHint("查看已完成任务")
     }
 
     private var spaceModeLine: some View {

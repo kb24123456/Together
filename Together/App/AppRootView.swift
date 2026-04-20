@@ -30,6 +30,12 @@ struct AppRootView: View {
             ZStack(alignment: .bottom) {
                 NavigationStack {
                     rootSurfaceView(router: router)
+                        .navigationDestination(for: HomeRoute.self) { route in
+                            switch route {
+                            case .logbook:
+                                CompletedHistoryView(viewModel: appContext.makeCompletedHistoryViewModel())
+                            }
+                        }
                 }
                 .blur(radius: isQuickCapturePresented ? 8 : 0)
                 .allowsHitTesting(!isQuickCapturePresented)

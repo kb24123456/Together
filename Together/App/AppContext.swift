@@ -373,6 +373,29 @@ final class AppContext {
         await startSupabaseSyncIfNeeded()
     }
 
+    /// Creates a CompletedHistoryViewModel wired to shared dependencies.
+    /// Used by both Home (via HomeRoute.logbook) and Profile so the two
+    /// Logbook entries share one wiring with mutation callbacks that flow
+    /// through the same AppContext plumbing.
+    @MainActor
+    func makeCompletedHistoryViewModel() -> CompletedHistoryViewModel {
+        let vm = CompletedHistoryViewModel(
+            sessionStore: sessionStore,
+            itemRepository: container.itemRepository,
+            taskApplicationService: container.taskApplicationService,
+            taskListRepository: container.taskListRepository,
+            projectRepository: container.projectRepository
+        )
+        vm.onTaskMutated = { [weak self] spaceID in
+            self?.syncAfterMutation(spaceID: spaceID)
+        }
+        vm.onSharedMutationRecorded = { [weak self] change in
+            guard let self else { return }
+            Task { await self.submitSharedMutation(change) }
+        }
+        return vm
+    }
+
     /// 本地数据变更后触发同步。
     /// Solo 变更走 CKSyncEngine；pair 变更走 Supabase push。
     func syncAfterMutation(spaceID: UUID) {
