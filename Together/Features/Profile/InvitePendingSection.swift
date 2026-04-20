@@ -143,14 +143,6 @@ struct InvitePendingSection: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, AppTheme.spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                .fill(AppTheme.colors.surfaceElevated)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
-        }
     }
 
     private func actionButtonLabel(title: String, tint: Color) -> some View {
