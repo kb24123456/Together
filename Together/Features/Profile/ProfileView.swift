@@ -9,6 +9,7 @@ struct ProfileView: View {
     @State private var showsSignOutAlert: Bool = false
     @State private var showsClearCacheAlert: Bool = false
     @State private var isImportantDatesManagementPresented = false
+    @State private var pairCardAnimationID: Int = 0
     @Namespace private var profileTransition
 
     var body: some View {
@@ -32,7 +33,8 @@ struct ProfileView: View {
                             secondaryAvatarState: viewModel.profileCardSecondaryAvatarState,
                             subtitle: viewModel.identityCardSubtitle
                         )
-                        .id(appContext.sessionStore.userProfileRevision)
+                        .id("\(appContext.sessionStore.userProfileRevision)-\(pairCardAnimationID)")
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
                         .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
                     }
                     .buttonStyle(.plain)
@@ -134,6 +136,9 @@ struct ProfileView: View {
             if oldState != .paired, newState == .paired {
                 let generator = UINotificationFeedbackGenerator()
                 generator.notificationOccurred(.success)
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    pairCardAnimationID &+= 1
+                }
             }
         }
         .sheet(isPresented: $viewModel.inviteCodeEntryPresented) {
