@@ -131,6 +131,9 @@ final class AppContext {
             pairingService: container.pairingService
         )
         if sessionStore.authState == .signedIn {
+            if sessionStore.singleSpace == nil {
+                await setupSpacesForCurrentUserIfNeeded()
+            }
             await restorePersistedUserProfileIfNeeded()
         }
         hasBootstrapped = true
