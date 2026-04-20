@@ -71,14 +71,8 @@ struct ProfileUserCard: View {
             }
         }
         .padding(.top, AppTheme.spacing.xl)
-        .padding(.bottom, AppTheme.spacing.lg)
+        .padding(.bottom, AppTheme.spacing.xxl)
         .frame(maxWidth: .infinity)
-        .background(alignment: .bottom) {
-            Rectangle()
-                .fill(AppTheme.colors.hairline)
-                .frame(height: 1)
-                .frame(maxWidth: .infinity)
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(accessibilityHint)
@@ -103,11 +97,12 @@ struct ProfileUserCard: View {
         let selfBadge = avatarBadge(primaryAvatar, diameter: pairAvatarDiameter, fillColor: AppTheme.colors.avatarWarm)
         let partnerBadge = avatarBadge(partner, diameter: pairAvatarDiameter, fillColor: AppTheme.colors.avatarNeutral)
 
+        // Self on top of partner: this device's user owns the visual foreground.
         return ZStack(alignment: .leading) {
-            selfBadge
-                .zIndex(1)
             partnerBadge
                 .offset(x: pairOverlapOffset)
+                .zIndex(1)
+            selfBadge
                 .zIndex(2)
         }
         .frame(width: pairAvatarDiameter + pairOverlapOffset, height: pairAvatarDiameter)
