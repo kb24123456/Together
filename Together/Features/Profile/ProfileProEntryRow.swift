@@ -6,47 +6,40 @@ import SwiftUI
 /// disappear; the subtitle transforms (see `ProSubscriptionStatus`).
 struct ProfileProEntryRow: View {
     let status: ProSubscriptionStatus
-    let onTap: () -> Void
 
     var body: some View {
-        Button(action: {
-            HomeInteractionFeedback.selection()
-            onTap()
-        }) {
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                Circle()
-                    .fill(AppTheme.colors.pairAccent)
-                    .frame(width: 4, height: 4)
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            Circle()
+                .fill(AppTheme.colors.pairAccent)
+                .frame(width: 4, height: 4)
 
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                    Text("Together Pro")
-                        .font(AppTheme.typography.sized(15, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                Text("Together Pro")
+                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .lineLimit(1)
 
-                    Text(status.subtitleText)
-                        .font(AppTheme.typography.sized(12, weight: .regular))
-                        .foregroundStyle(AppTheme.colors.textTertiary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                }
-
-                Spacer(minLength: AppTheme.spacing.md)
-
-                Image(systemName: "chevron.right")
-                    .font(AppTheme.typography.sized(11, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.36))
+                Text(status.subtitleText)
+                    .font(AppTheme.typography.sized(12, weight: .regular))
+                    .foregroundStyle(AppTheme.colors.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.sm)
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
-            .contentShape(Rectangle())
+
+            Spacer(minLength: AppTheme.spacing.md)
+
+            Image(systemName: "chevron.right")
+                .font(AppTheme.typography.sized(11, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.36))
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.sm)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
+                .fill(AppTheme.colors.surfaceElevated)
+        )
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Together Pro，\(status.subtitleText)")
         .accessibilityHint(status.accessibilityStateLabel)

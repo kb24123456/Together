@@ -46,10 +46,7 @@ struct ProfileView: View {
 
                     // MARK: - Pro 入口
                     NavigationLink(value: ProfileRoute.subscription) {
-                        ProfileProEntryRow(
-                            status: viewModel.proSubscriptionStatus,
-                            onTap: {}
-                        )
+                        ProfileProEntryRow(status: viewModel.proSubscriptionStatus)
                     }
                     .buttonStyle(.plain)
                     .simultaneousGesture(
