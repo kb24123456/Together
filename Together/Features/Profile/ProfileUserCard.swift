@@ -33,7 +33,7 @@ enum ProfileCardSecondaryAvatarState: Hashable {
 struct ProfileUserCard: View {
     private let soloAvatarDiameter: CGFloat = 112
     private let pairAvatarDiameter: CGFloat = 92
-    private let pairOverlapOffset: CGFloat = 28    // ~30% overlap of pairAvatarDiameter
+    private let pairOverlapOffset: CGFloat = 64    // 30% overlap of pairAvatarDiameter ((92 - 64) / 92 ≈ 30%)
     private let nameTopGap: CGFloat = AppTheme.spacing.md
     private let subtitleTopGap: CGFloat = AppTheme.spacing.xxs
 
@@ -51,8 +51,8 @@ struct ProfileUserCard: View {
                 .padding(.bottom, nameTopGap)
 
             Text(displayTitle)
-                .font(AppTheme.typography.displayLight(22))
-                .tracking(0.3)
+                .font(AppTheme.typography.sized(22, weight: .regular))
+                .tracking(0.2)
                 .foregroundStyle(AppTheme.colors.title)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
