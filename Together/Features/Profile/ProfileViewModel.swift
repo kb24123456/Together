@@ -59,6 +59,11 @@ final class ProfileViewModel {
     var createInviteError: String?
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
+    /// Pro subscription status. Defaults to `.free`. Will be driven by StoreKit 2
+    /// in a future feature — for now the Pro entry row always renders the free
+    /// CTA subtitle. Wiring real StoreKit state is an out-of-scope follow-up
+    /// (see spec §11.1).
+    var proSubscriptionStatus: ProSubscriptionStatus = .free
     var onProfileSaved: ((_ user: User) -> Void)?
     var onSharedMutationRecorded: ((_ change: SyncChange) -> Void)?
 
@@ -320,6 +325,32 @@ final class ProfileViewModel {
         formatter.allowedUnits = [.useMB, .useKB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(cacheSize))
+    }
+
+    /// Number of whole days since the shared pair space was created.
+    /// Returns 0 when not paired (UI branch will hide the "{N} 天" segment).
+    var pairDaysCount: Int {
+        guard
+            sessionStore.hasActivePairSpace,
+            let createdAt = sessionStore.pairSpaceSummary?.sharedSpace.createdAt
+        else {
+            return 0
+        }
+        let days = Calendar(identifier: .gregorian)
+            .dateComponents([.day], from: createdAt, to: .now)
+            .day ?? 0
+        return max(0, days)
+    }
+
+    /// Empty string when not paired; "配对 N 天" when paired.
+    var pairDaysLabel: String {
+        guard pairDaysCount > 0 else { return "" }
+        return "配对 \(pairDaysCount) 天"
+    }
+
+    /// Subtitle for the Pro entry row. Derived from `proSubscriptionStatus`.
+    var proSubtitleText: String {
+        proSubscriptionStatus.subtitleText
     }
 
     func updateAppLockEnabled(_ isEnabled: Bool) {
