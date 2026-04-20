@@ -47,11 +47,10 @@ struct ProfileView: View {
                     // MARK: - 分组设置
                     collaborationSection
                     executionPreferencesSection
-                    notificationsAndHistorySection
+                    notificationsAndAppearanceSection
                     securitySection
                     dataAndAccountSection
                     aboutRow
-                    appearanceSection
 
                     // MARK: - 退出登录
                     signOutFooter
@@ -417,10 +416,10 @@ struct ProfileView: View {
         .animation(profileListAnimation, value: viewModel.completedTaskAutoArchiveEnabled)
     }
 
-    // MARK: - 通知与权限
+    // MARK: - 通知与外观
 
-    private var notificationsAndHistorySection: some View {
-        ProfileSettingsGroupCard(title: "通知与权限") {
+    private var notificationsAndAppearanceSection: some View {
+        ProfileSettingsGroupCard(title: "通知与外观") {
             if viewModel.notificationAuthorization == .authorized {
                 ProfileSettingsRow(
                     title: "提醒权限",
@@ -446,7 +445,6 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
             }
 
-            // 统一权限管理入口 → 跳转系统设置
             Button {
                 HomeInteractionFeedback.selection()
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -461,10 +459,10 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
 
-            NavigationLink(value: ProfileRoute.completedHistory) {
+            NavigationLink(value: ProfileRoute.appearance) {
                 ProfileSettingsRow(
-                    title: "历史任务",
-                    value: "查看",
+                    title: "外观",
+                    value: appearanceValueLabel,
                     showsChevron: true
                 )
             }
@@ -475,6 +473,10 @@ struct ProfileView: View {
                 }
             )
         }
+    }
+
+    private var appearanceValueLabel: String {
+        appContext.appearanceManager.mode.title
     }
 
     // MARK: - 安全与隐私
@@ -559,36 +561,6 @@ struct ProfileView: View {
             .simultaneousGesture(
                 TapGesture().onEnded { HomeInteractionFeedback.selection() }
             )
-        }
-    }
-
-    // MARK: - 外观（紧凑样式）
-
-    private var appearanceSection: some View {
-        ProfileSettingsGroupCard(title: "外观") {
-            HStack(spacing: AppTheme.spacing.xxs) {
-                ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                    let isSelected = appContext.appearanceManager.mode == mode
-
-                    Button {
-                        HomeInteractionFeedback.selection()
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                            appContext.appearanceManager.mode = mode
-                        }
-                    } label: {
-                        Text(mode.title)
-                            .font(AppTheme.typography.sized(13, weight: .semibold))
-                            .foregroundStyle(isSelected ? .white : AppTheme.colors.body)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, AppTheme.spacing.sm)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(isSelected ? AppTheme.colors.sky : .clear)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
     }
 
