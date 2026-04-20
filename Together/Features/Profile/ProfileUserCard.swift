@@ -31,9 +31,9 @@ enum ProfileCardSecondaryAvatarState: Hashable {
 /// The card has NO background — it sits directly on the page's warm
 /// off-white and is separated from the first group by a hairline divider.
 struct ProfileUserCard: View {
-    private let soloAvatarDiameter: CGFloat = 80
-    private let pairAvatarDiameter: CGFloat = 72
-    private let pairOverlapOffset: CGFloat = 22    // ~30% overlap of pairAvatarDiameter
+    private let soloAvatarDiameter: CGFloat = 112
+    private let pairAvatarDiameter: CGFloat = 92
+    private let pairOverlapOffset: CGFloat = 28    // ~30% overlap of pairAvatarDiameter
     private let nameTopGap: CGFloat = AppTheme.spacing.md
     private let subtitleTopGap: CGFloat = AppTheme.spacing.xxs
 
