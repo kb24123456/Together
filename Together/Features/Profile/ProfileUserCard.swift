@@ -33,7 +33,10 @@ enum ProfileCardSecondaryAvatarState: Hashable {
 struct ProfileUserCard: View {
     private let soloAvatarDiameter: CGFloat = 112
     private let pairAvatarDiameter: CGFloat = 92
-    private let pairOverlapOffset: CGFloat = 64    // 30% overlap of pairAvatarDiameter ((92 - 64) / 92 ≈ 30%)
+    /// Amount (in pt) the two pair avatars overlap each other horizontally.
+    /// At 20pt on 92pt diameter, ~22% overlap — the two circles read as a
+    /// joined pair without one dominating the other.
+    private let pairAvatarOverlap: CGFloat = 20
     private let nameTopGap: CGFloat = AppTheme.spacing.md
     private let subtitleTopGap: CGFloat = AppTheme.spacing.xxs
 
@@ -97,15 +100,17 @@ struct ProfileUserCard: View {
         let selfBadge = avatarBadge(primaryAvatar, diameter: pairAvatarDiameter, fillColor: AppTheme.colors.avatarWarm)
         let partnerBadge = avatarBadge(partner, diameter: pairAvatarDiameter, fillColor: AppTheme.colors.avatarNeutral)
 
-        // Self on top of partner: this device's user owns the visual foreground.
-        return ZStack(alignment: .leading) {
-            partnerBadge
-                .offset(x: pairOverlapOffset)
-                .zIndex(1)
+        // HStack with negative spacing overlaps the two avatars by
+        // pairAvatarOverlap. HStack's intrinsic content size (2 * D − overlap)
+        // lets the parent VStack center the pair as a balanced unit. Self has
+        // higher zIndex so its full circle renders above partner in the
+        // overlap region — this device's user owns the visual foreground.
+        return HStack(spacing: -pairAvatarOverlap) {
             selfBadge
                 .zIndex(2)
+            partnerBadge
+                .zIndex(1)
         }
-        .frame(width: pairAvatarDiameter + pairOverlapOffset, height: pairAvatarDiameter)
     }
 
     private func avatarBadge(_ avatar: ProfileCardAvatar, diameter: CGFloat, fillColor: Color) -> some View {
