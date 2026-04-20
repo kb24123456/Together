@@ -555,7 +555,7 @@ struct ProfileView: View {
         ProfileSettingsGroupCard(title: "") {
             NavigationLink(value: ProfileRoute.about) {
                 ProfileSettingsRow(
-                    title: "关于 Together",
+                    title: "关于",
                     value: "v\(viewModel.appVersionString)",
                     showsChevron: true
                 )
@@ -577,16 +577,12 @@ struct ProfileView: View {
             Text("退出登录")
                 .font(AppTheme.typography.sized(15, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.danger)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, AppTheme.spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                        .fill(AppTheme.colors.surfaceElevated)
-                )
-                .shadow(color: AppTheme.colors.shadow.opacity(0.14), radius: 8, y: 4)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.top, AppTheme.spacing.sm)
+        .padding(.top, AppTheme.spacing.lg)
+        .accessibilityHint("退出后需要重新登录")
     }
 
     // MARK: - Helpers
