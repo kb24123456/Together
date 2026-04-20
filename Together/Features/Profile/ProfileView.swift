@@ -750,7 +750,7 @@ private struct ProfileExpandableDisclosureRow<Content: View>: View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(spacing: AppTheme.spacing.xs) {
                 Divider()
-                    .overlay(AppTheme.colors.outline.opacity(0.45))
+                    .overlay(AppTheme.colors.hairline)
                     .padding(.bottom, AppTheme.spacing.xxs)
 
                 content
@@ -777,7 +777,7 @@ private struct ProfilePlainDisclosureGroupStyle: DisclosureGroupStyle {
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 HomeInteractionFeedback.selection()
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                     configuration.isExpanded.toggle()
                 }
             } label: {
