@@ -6,6 +6,7 @@ enum ProfileExpandedSetting: Hashable {
     case defaultSnooze
     case completedArchive
     case pairQuickReplies
+    case appearance
 }
 
 enum ProfileCustomDurationKind: Hashable, Identifiable {

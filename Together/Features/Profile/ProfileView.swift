@@ -118,8 +118,6 @@ struct ProfileView: View {
                 ProfileFeedbackView()
             case .about:
                 ProfileAboutView(appVersion: viewModel.appVersionString)
-            case .appearance:
-                ProfileAppearanceView()
             case .notificationSettings, .futureCollaboration:
                 EmptyView()
             }
@@ -227,6 +225,7 @@ struct ProfileView: View {
 
             collaborationActionRow
         }
+        .animation(.spring(response: 0.38, dampingFraction: 0.86), value: viewModel.bindingState)
     }
 
     private var anniversariesEntryRow: some View {
@@ -432,31 +431,6 @@ struct ProfileView: View {
 
     private var notificationsAndAppearanceSection: some View {
         ProfileSettingsGroupCard(title: "通知与外观") {
-            if viewModel.notificationAuthorization == .authorized {
-                ProfileSettingsRow(
-                    title: "提醒权限",
-                    value: "已开启"
-                )
-            } else {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    if viewModel.notificationAuthorization == .denied {
-                        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
-                            openURL(url)
-                        }
-                    } else {
-                        Task { await viewModel.requestNotifications() }
-                    }
-                } label: {
-                    ProfileSettingsRow(
-                        title: "提醒权限",
-                        value: viewModel.notificationAuthorization == .denied ? "去开启" : "未开启",
-                        showsChevron: true
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-
             Button {
                 HomeInteractionFeedback.selection()
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -471,20 +445,15 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
 
-            NavigationLink(value: ProfileRoute.appearance) {
-                ProfileSettingsRow(
-                    title: "外观",
-                    value: appearanceValueLabel,
-                    showsChevron: true
-                )
+            expandableSelectionRow(
+                title: "外观",
+                value: appearanceValueLabel,
+                setting: .appearance
+            ) {
+                appearanceOptionsContent
             }
-            .buttonStyle(.plain)
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    HomeInteractionFeedback.selection()
-                }
-            )
         }
+        .animation(profileListAnimation, value: appContext.appearanceManager.mode)
     }
 
     private var appearanceValueLabel: String {
@@ -616,6 +585,22 @@ struct ProfileView: View {
             ),
             content: content
         )
+    }
+
+    private var appearanceOptionsContent: some View {
+        VStack(spacing: AppTheme.spacing.xs) {
+            ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                ProfileInlineOptionButton(
+                    title: mode.title,
+                    isSelected: appContext.appearanceManager.mode == mode
+                ) {
+                    HomeInteractionFeedback.selection()
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        appContext.appearanceManager.mode = mode
+                    }
+                }
+            }
+        }
     }
 
     private func selectionContent(
