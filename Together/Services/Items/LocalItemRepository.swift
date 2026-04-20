@@ -248,6 +248,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         }
         item.lastActionByUserID = actorID
         item.lastActionAt = .now
+        item.completedByUserID = actorID
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = .now
@@ -295,6 +296,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         }
         item.lastActionByUserID = actorID
         item.lastActionAt = .now
+        item.completedByUserID = nil
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = .now

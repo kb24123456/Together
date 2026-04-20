@@ -26,6 +26,10 @@ final class PersistentItem {
     var createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+    /// Authoritative completer — set once on markCompleted, cleared on
+    /// markIncomplete. Preserved across later post-completion actions
+    /// (archive/unarchive) unlike lastActionByUserID.
+    var completedByUserID: UUID?
     var isPinned: Bool
     var isDraft: Bool
     var isArchived: Bool
@@ -58,6 +62,7 @@ final class PersistentItem {
         createdAt: Date,
         updatedAt: Date,
         completedAt: Date?,
+        completedByUserID: UUID? = nil,
         isPinned: Bool,
         isDraft: Bool,
         isArchived: Bool,
@@ -89,6 +94,7 @@ final class PersistentItem {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt
+        self.completedByUserID = completedByUserID
         self.isPinned = isPinned
         self.isDraft = isDraft
         self.isArchived = isArchived
@@ -125,6 +131,7 @@ extension PersistentItem {
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
             completedAt: item.completedAt,
+            completedByUserID: item.completedByUserID,
             isPinned: item.isPinned,
             isDraft: item.isDraft,
             isArchived: item.isArchived,
@@ -160,6 +167,7 @@ extension PersistentItem {
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: repeatRuleData == nil ? completedAt : nil,
+            completedByUserID: completedByUserID,
             occurrenceCompletions: occurrenceCompletions,
             isPinned: isPinned,
             isDraft: isDraft,
@@ -191,6 +199,7 @@ extension PersistentItem {
         lastActionAt = item.lastActionAt
         updatedAt = item.updatedAt
         completedAt = item.repeatRule == nil ? item.completedAt : nil
+        completedByUserID = item.completedByUserID
         isPinned = item.isPinned
         isDraft = item.isDraft
         isArchived = item.isArchived

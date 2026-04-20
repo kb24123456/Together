@@ -79,6 +79,13 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+    /// Authoritative actor who marked the task complete. Set exactly
+    /// once on markCompleted and cleared on markIncomplete. Unlike
+    /// `lastActionByUserID` (which drifts as the record receives other
+    /// actions after completion), this stays pinned to the completer.
+    /// Display code prefers this field; falls back to
+    /// `lastActionByUserID` for pre-migration rows where it is nil.
+    var completedByUserID: UUID? = nil
     var occurrenceCompletions: [ItemOccurrenceCompletion] = []
     var isPinned: Bool = false
     var isDraft: Bool

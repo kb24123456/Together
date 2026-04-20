@@ -137,7 +137,10 @@ struct CompletedHistoryView: View {
 
     @ViewBuilder
     private func completionAvatar(for item: Item) -> some View {
-        let completerID = item.lastActionByUserID
+        // Prefer the authoritative completedByUserID; fall back to
+        // lastActionByUserID for pre-migration rows that haven't been
+        // touched by a post-upgrade completion action yet.
+        let completerID = item.completedByUserID ?? item.lastActionByUserID
         let asset = viewModel.avatarAsset(forUserID: completerID)
         let displayName = viewModel.displayName(forUserID: completerID)
         UserAvatarView(
@@ -153,7 +156,8 @@ struct CompletedHistoryView: View {
     }
 
     private func pairModeAccessibilityLabel(for item: Item) -> String {
-        let completer = viewModel.displayName(forUserID: item.lastActionByUserID)
+        let completerID = item.completedByUserID ?? item.lastActionByUserID
+        let completer = viewModel.displayName(forUserID: completerID)
         let completedDate = viewModel.completedDateText(for: item)
         if viewModel.isPairMode {
             return "\(completer) 完成 · \(item.title) · \(completedDate)"

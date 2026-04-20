@@ -932,6 +932,7 @@ struct TaskDTO: Codable, Sendable {
     var createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
+    var completedByUserID: UUID?
     var isArchived: Bool
     var archivedAt: Date?
     var isDeleted: Bool
@@ -963,6 +964,7 @@ struct TaskDTO: Codable, Sendable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case completedAt = "completed_at"
+        case completedByUserID = "completed_by_user_id"
         case isArchived = "is_archived"
         case archivedAt = "archived_at"
         case isDeleted = "is_deleted"
@@ -1003,6 +1005,7 @@ struct TaskDTO: Codable, Sendable {
         self.createdAt = persistent.createdAt
         self.updatedAt = persistent.updatedAt
         self.completedAt = persistent.completedAt
+        self.completedByUserID = persistent.completedByUserID
         self.isArchived = persistent.isArchived
         self.archivedAt = persistent.archivedAt
         // 软删除使用 tombstone；isLocallyDeleted=true 表示要让对方也删除
@@ -1041,6 +1044,7 @@ struct TaskDTO: Codable, Sendable {
         try c.encode(createdAt, forKey: .createdAt)
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(completedAt, forKey: .completedAt)
+        try c.encodeIfPresent(completedByUserID, forKey: .completedByUserID)
         try c.encode(isArchived, forKey: .isArchived)
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
         try c.encode(isDeleted, forKey: .isDeleted)
@@ -1086,6 +1090,7 @@ struct TaskDTO: Codable, Sendable {
             existing.isPinned = isPinned
             existing.isDraft = isDraft
             existing.completedAt = completedAt
+            existing.completedByUserID = completedByUserID
             existing.isArchived = isArchived
             existing.archivedAt = archivedAt
             existing.updatedAt = updatedAt
@@ -1127,6 +1132,7 @@ struct TaskDTO: Codable, Sendable {
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 completedAt: completedAt,
+                completedByUserID: completedByUserID,
                 isPinned: isPinned,
                 isDraft: isDraft,
                 isArchived: isArchived,

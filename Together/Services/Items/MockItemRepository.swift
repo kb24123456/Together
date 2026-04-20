@@ -214,6 +214,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
         }
         item.lastActionByUserID = actorID
         item.lastActionAt = MockDataFactory.now
+        item.completedByUserID = actorID
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = MockDataFactory.now
@@ -239,6 +240,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
         }
         item.lastActionByUserID = actorID
         item.lastActionAt = MockDataFactory.now
+        item.completedByUserID = nil
         item.isArchived = false
         item.archivedAt = nil
         item.updatedAt = MockDataFactory.now
