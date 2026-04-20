@@ -11,19 +11,22 @@ struct ProfileSettingsRow: View {
     private let isEnabled: Bool
     private let showsChevron: Bool
     private let chevronSystemName: String
+    private let titleColor: Color?
 
     init(
         title: String,
         value: String,
         isEnabled: Bool = true,
         showsChevron: Bool = false,
-        chevronSystemName: String = "chevron.right"
+        chevronSystemName: String = "chevron.right",
+        titleColor: Color? = nil
     ) {
         self.title = title
         self.style = .value(value)
         self.isEnabled = isEnabled
         self.showsChevron = showsChevron
         self.chevronSystemName = chevronSystemName
+        self.titleColor = titleColor
     }
 
     init(
@@ -36,6 +39,7 @@ struct ProfileSettingsRow: View {
         self.isEnabled = isEnabled
         self.showsChevron = false
         self.chevronSystemName = "chevron.right"
+        self.titleColor = nil
     }
 
     var body: some View {
@@ -71,7 +75,7 @@ struct ProfileSettingsRow: View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Text(title)
                 .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                .foregroundStyle(AppTheme.colors.title.opacity(isEnabled ? 1 : 0.42))
+                .foregroundStyle((titleColor ?? AppTheme.colors.title).opacity(isEnabled ? 1 : 0.42))
                 .lineLimit(2)
 
             Spacer(minLength: AppTheme.spacing.md)

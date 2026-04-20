@@ -234,31 +234,38 @@ struct ProfileView: View {
     private var collaborationActionRow: some View {
         switch viewModel.bindingState {
         case .singleTrial, .unbound:
-            VStack(spacing: AppTheme.spacing.sm) {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    Task { await viewModel.createInvite() }
-                } label: {
-                    collaborationButtonLabel(title: "发起双人邀请", tint: AppTheme.colors.title)
-                }
-                .buttonStyle(.plain)
-
-                if let err = viewModel.createInviteError {
-                    Text(err)
-                        .font(AppTheme.typography.sized(12, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.danger)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, AppTheme.spacing.xs)
-                }
-
-                Button {
-                    HomeInteractionFeedback.selection()
-                    viewModel.inviteCodeEntryPresented = true
-                } label: {
-                    collaborationButtonLabel(title: "输入邀请码", tint: AppTheme.colors.profileAccent)
-                }
-                .buttonStyle(.plain)
+            Button {
+                HomeInteractionFeedback.selection()
+                Task { await viewModel.createInvite() }
+            } label: {
+                ProfileSettingsRow(
+                    title: "发起双人邀请",
+                    value: "",
+                    showsChevron: true
+                )
             }
+            .buttonStyle(.plain)
+
+            if let err = viewModel.createInviteError {
+                Text(err)
+                    .font(AppTheme.typography.sized(12, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.danger)
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, AppTheme.spacing.xs)
+                    .padding(.bottom, AppTheme.spacing.xs)
+            }
+
+            Button {
+                HomeInteractionFeedback.selection()
+                viewModel.inviteCodeEntryPresented = true
+            } label: {
+                ProfileSettingsRow(
+                    title: "输入邀请码",
+                    value: "",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
 
         case .invitePending:
             InvitePendingSection(
@@ -280,49 +287,45 @@ struct ProfileView: View {
             )
 
         case .inviteReceived:
-            HStack(spacing: AppTheme.spacing.sm) {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    Task { await viewModel.acceptInvite() }
-                } label: {
-                    collaborationButtonLabel(title: "接受邀请", tint: AppTheme.colors.title)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    HomeInteractionFeedback.selection()
-                    Task { await viewModel.declineInvite() }
-                } label: {
-                    collaborationButtonLabel(title: "拒绝", tint: AppTheme.colors.coral)
-                }
-                .buttonStyle(.plain)
+            Button {
+                HomeInteractionFeedback.selection()
+                Task { await viewModel.acceptInvite() }
+            } label: {
+                ProfileSettingsRow(
+                    title: "接受邀请",
+                    value: "",
+                    showsChevron: true
+                )
             }
+            .buttonStyle(.plain)
+
+            Button {
+                HomeInteractionFeedback.selection()
+                Task { await viewModel.declineInvite() }
+            } label: {
+                ProfileSettingsRow(
+                    title: "拒绝邀请",
+                    value: "",
+                    showsChevron: false,
+                    titleColor: AppTheme.colors.danger
+                )
+            }
+            .buttonStyle(.plain)
 
         case .paired:
             Button {
                 HomeInteractionFeedback.warning()
                 Task { await viewModel.unbindPairSpace() }
             } label: {
-                collaborationButtonLabel(title: "解绑双人空间", tint: AppTheme.colors.coral)
+                ProfileSettingsRow(
+                    title: "解除双人空间",
+                    value: "",
+                    showsChevron: false,
+                    titleColor: AppTheme.colors.danger
+                )
             }
             .buttonStyle(.plain)
         }
-    }
-
-    private func collaborationButtonLabel(title: String, tint: Color) -> some View {
-        Text(title)
-            .font(AppTheme.typography.sized(14, weight: .bold))
-            .foregroundStyle(tint)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, AppTheme.spacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                    .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
-            }
     }
 
     // MARK: - 执行偏好
