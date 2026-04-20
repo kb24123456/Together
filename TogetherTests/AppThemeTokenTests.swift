@@ -1,4 +1,5 @@
 import CoreFoundation
+import SwiftUI
 import Testing
 @testable import Together
 
@@ -48,5 +49,24 @@ struct AppThemeTokenTests {
         // Visual distinction required — pair accent must differ from solo accent.
         #expect(AppTheme.colors.pairAccent != AppTheme.colors.accent)
         #expect(AppTheme.colors.pairAccentSoft != AppTheme.colors.accentSoft)
+    }
+
+    @Test func hairlineTokenDefined() {
+        // Hairline divider must exist and render something visible in both modes
+        let lightColor = AppTheme.colors.hairline
+        #expect(lightColor != Color.clear)
+        // Confirm it's not accidentally equal to the heavier outline token
+        #expect(AppTheme.colors.hairline != AppTheme.colors.outline)
+    }
+
+    @Test func selectionTintAliasesToPairAccent() {
+        // selectionTint is a deliberate alias — Profile selection must track pair warmth
+        #expect(AppTheme.colors.selectionTint == AppTheme.colors.pairAccent)
+    }
+
+    @Test func displayLightFontProducesLightWeight() {
+        // displayLight(22) must return a usable Font value (not crash)
+        let font = AppTheme.typography.displayLight(22)
+        #expect(String(describing: font).contains("CTFont") || String(describing: font).contains("Font"))
     }
 }

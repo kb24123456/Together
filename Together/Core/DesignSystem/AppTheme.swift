@@ -100,6 +100,16 @@ enum AppTheme {
         static let outline = Color(light: .black.opacity(0.08),
                                    dark: .white.opacity(0.10))
 
+        /// Ultra-thin divider for editorial separation between identity card and groups.
+        /// Weaker than `outline` and `separator`.
+        static let hairline = Color(light: .init(red: 0.16, green: 0.18, blue: 0.19).opacity(0.10),
+                                    dark: .white.opacity(0.08))
+
+        /// Profile-module alias for selection accent. Aliases to `pairAccent` so Profile's
+        /// selected states (options, checkmarks) stay on the pair-warm coral rather than sky.
+        /// Do NOT use outside Profile module.
+        static let selectionTint = pairAccent
+
         static let outlineStrong = Color(light: .init(red: 0.74, green: 0.74, blue: 0.74),
                                          dark: .init(red: 0.36, green: 0.36, blue: 0.38))
 
@@ -154,6 +164,13 @@ enum AppTheme {
 
         static func sized(_ size: CGFloat, weight: UIFont.Weight = .regular) -> Font {
             Font(uiFont(size: size, weight: weight))
+        }
+
+        /// Editorial large-display helper. Pins weight to `.light` so name card titles
+        /// feel airy and restrained rather than bold. No font bundling — relies on
+        /// system rounded Chinese fallback configured in `uiFont(size:weight:)`.
+        static func displayLight(_ size: CGFloat) -> Font {
+            Font(uiFont(size: size, weight: .light))
         }
 
         #if canImport(UIKit)
