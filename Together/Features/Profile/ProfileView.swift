@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var showsClearCacheAlert: Bool = false
     @State private var isImportantDatesManagementPresented = false
     @State private var pairCardAnimationID: Int = 0
+    @State private var isInvitePendingSheetPresented: Bool = false
     @Namespace private var profileTransition
 
     var body: some View {
@@ -56,9 +57,7 @@ struct ProfileView: View {
                     // MARK: - 分组设置
                     collaborationSection
                     executionPreferencesSection
-                    notificationsAndAppearanceSection
-                    securitySection
-                    dataAndAccountSection
+                    systemSettingsSection
                     aboutRow
 
                     // MARK: - 退出登录
@@ -148,12 +147,51 @@ struct ProfileView: View {
                     pairCardAnimationID &+= 1
                 }
             }
+
+            // Auto-present the invite sheet when transitioning INTO invitePending,
+            // and auto-dismiss when leaving the state (paired / singleTrial / unbound).
+            if newState == .invitePending {
+                isInvitePendingSheetPresented = true
+            } else if oldState == .invitePending {
+                isInvitePendingSheetPresented = false
+            }
         }
         .sheet(isPresented: $viewModel.inviteCodeEntryPresented) {
             InviteCodeEntryView(isPresented: $viewModel.inviteCodeEntryPresented) { code in
                 await viewModel.acceptInviteByCode(code)
             }
             .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $isInvitePendingSheetPresented) {
+            // Manual sheet dismiss (swipe / drag) should cancel the invite
+            // so the state returns to singleTrial/unbound and the row flow
+            // is coherent.
+            Task { await viewModel.cancelCurrentInvite() }
+        } content: {
+            NavigationStack {
+                InvitePendingSection(
+                    invite: viewModel.activeInvite,
+                    onCopy: { code in
+                        UIPasteboard.general.string = code
+                        HomeInteractionFeedback.selection()
+                    },
+                    onCheckAccepted: {
+                        await viewModel.checkInviteAccepted()
+                    },
+                    onCancel: {
+                        await viewModel.cancelCurrentInvite()
+                    },
+                    onRegenerate: {
+                        await viewModel.cancelCurrentInvite()
+                        await viewModel.createInvite()
+                    }
+                )
+                .padding(AppTheme.spacing.lg)
+                .navigationTitle("双人邀请")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $isImportantDatesManagementPresented) {
             ImportantDatesManagementView()
@@ -276,23 +314,19 @@ struct ProfileView: View {
             .buttonStyle(.plain)
 
         case .invitePending:
-            InvitePendingSection(
-                invite: viewModel.activeInvite,
-                onCopy: { code in
-                    UIPasteboard.general.string = code
-                    HomeInteractionFeedback.selection()
-                },
-                onCheckAccepted: {
-                    await viewModel.checkInviteAccepted()
-                },
-                onCancel: {
-                    await viewModel.cancelCurrentInvite()
-                },
-                onRegenerate: {
-                    await viewModel.cancelCurrentInvite()
-                    await viewModel.createInvite()
-                }
-            )
+            // Sheet-presented; no inline content. Tapping the row while in
+            // this state re-opens the sheet so the user isn't stranded.
+            Button {
+                HomeInteractionFeedback.selection()
+                isInvitePendingSheetPresented = true
+            } label: {
+                ProfileSettingsRow(
+                    title: "双人邀请进行中",
+                    value: "查看邀请码",
+                    showsChevron: true
+                )
+            }
+            .buttonStyle(.plain)
 
         case .inviteReceived:
             Button {
@@ -427,10 +461,10 @@ struct ProfileView: View {
         .animation(profileListAnimation, value: viewModel.completedTaskAutoArchiveEnabled)
     }
 
-    // MARK: - 通知与外观
+    // MARK: - 系统设置（合并通知与外观 / 安全与隐私 / 数据与账号）
 
-    private var notificationsAndAppearanceSection: some View {
-        ProfileSettingsGroupCard(title: "通知与外观") {
+    private var systemSettingsSection: some View {
+        ProfileSettingsGroupCard(title: "系统设置") {
             Button {
                 HomeInteractionFeedback.selection()
                 if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -452,18 +486,7 @@ struct ProfileView: View {
             ) {
                 appearanceOptionsContent
             }
-        }
-        .animation(profileListAnimation, value: appContext.appearanceManager.mode)
-    }
 
-    private var appearanceValueLabel: String {
-        appContext.appearanceManager.mode.title
-    }
-
-    // MARK: - 安全与隐私
-
-    private var securitySection: some View {
-        ProfileSettingsGroupCard(title: "安全与隐私") {
             ProfileSettingsRow(
                 title: "应用锁定（\(viewModel.biometricTypeName)）",
                 isOn: Binding(
@@ -472,19 +495,6 @@ struct ProfileView: View {
                 )
             )
 
-            if viewModel.appLockEnabled {
-                Text("切到后台时自动锁定，需要\(viewModel.biometricTypeName)或密码解锁")
-                    .font(AppTheme.typography.sized(12, weight: .regular))
-                    .foregroundStyle(AppTheme.colors.textTertiary.opacity(0.78))
-                    .padding(.horizontal, AppTheme.spacing.xs)
-            }
-        }
-    }
-
-    // MARK: - 数据与账号
-
-    private var dataAndAccountSection: some View {
-        ProfileSettingsGroupCard(title: "数据与账号") {
             ProfileSettingsRow(
                 title: "iCloud 同步",
                 value: viewModel.iCloudStatusSummary
@@ -513,6 +523,11 @@ struct ProfileView: View {
                 TapGesture().onEnded { HomeInteractionFeedback.selection() }
             )
         }
+        .animation(profileListAnimation, value: appContext.appearanceManager.mode)
+    }
+
+    private var appearanceValueLabel: String {
+        appContext.appearanceManager.mode.title
     }
 
     // MARK: - 关于 Together（跳转子页面）
