@@ -6,8 +6,17 @@ struct CompletedHistoryView: View {
 
     var body: some View {
         List {
+            if viewModel.isPairMode, let summary = viewModel.pairSummary {
+                LogbookPairSummaryHero(summary: summary)
+                    .listRowBackground(AppTheme.colors.background)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
+            }
+
             if viewModel.sections.isEmpty {
-                emptySection
+                if viewModel.isPairMode == false {
+                    emptySection
+                }
             } else {
                 ForEach(viewModel.sections) { section in
                     Section(section.title) {
@@ -53,7 +62,7 @@ struct CompletedHistoryView: View {
         .applyScrollEdgeProtection()
         .scrollContentBackground(.hidden)
         .background(AppTheme.colors.background.ignoresSafeArea())
-        .navigationTitle("历史任务")
+        .navigationTitle("日志")
         .searchable(text: $viewModel.searchText, prompt: "搜索已完成任务")
         .sheet(item: $selectedItem) { item in
             NavigationStack {
@@ -93,29 +102,63 @@ struct CompletedHistoryView: View {
     }
 
     private func historyRow(for item: Item) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-            Text(item.title)
-                .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .allowsTightening(true)
-                .multilineTextAlignment(.leading)
-
-            Text(viewModel.subtitle(for: item))
-                .font(AppTheme.typography.textStyle(.subheadline))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text(viewModel.completedDateText(for: item))
-                if viewModel.isArchived(item) {
-                    Text(viewModel.archivedDateText(for: item))
-                }
+        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+            if viewModel.isPairMode {
+                completionAvatar(for: item)
             }
-            .font(AppTheme.typography.textStyle(.caption1))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.64))
+
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                Text(item.title)
+                    .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .allowsTightening(true)
+                    .multilineTextAlignment(.leading)
+
+                Text(viewModel.subtitle(for: item))
+                    .font(AppTheme.typography.textStyle(.subheadline))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                    Text(viewModel.completedDateText(for: item))
+                    if viewModel.isArchived(item) {
+                        Text(viewModel.archivedDateText(for: item))
+                    }
+                }
+                .font(AppTheme.typography.textStyle(.caption1))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.64))
+            }
         }
         .padding(.vertical, AppTheme.spacing.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(pairModeAccessibilityLabel(for: item))
+    }
+
+    @ViewBuilder
+    private func completionAvatar(for item: Item) -> some View {
+        let completerID = item.lastActionByUserID
+        let asset = viewModel.avatarAsset(forUserID: completerID)
+        let displayName = viewModel.displayName(forUserID: completerID)
+        UserAvatarView(
+            avatarAsset: asset,
+            displayName: displayName,
+            size: 20,
+            fillColor: AppTheme.colors.avatarWarm,
+            symbolColor: AppTheme.colors.title.opacity(0.82),
+            symbolFont: AppTheme.typography.sized(10, weight: .semibold),
+            overrideImage: nil
+        )
+        .padding(.top, 2)
+    }
+
+    private func pairModeAccessibilityLabel(for item: Item) -> String {
+        let completer = viewModel.displayName(forUserID: item.lastActionByUserID)
+        let completedDate = viewModel.completedDateText(for: item)
+        if viewModel.isPairMode {
+            return "\(completer) 完成 · \(item.title) · \(completedDate)"
+        }
+        return "\(item.title) · \(completedDate)"
     }
 
     private func detailView(for item: Item) -> some View {
