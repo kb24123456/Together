@@ -810,14 +810,14 @@ private struct ProfileInlineOptionButton: View {
             HStack(spacing: AppTheme.spacing.md) {
                 Text(title)
                     .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                    .foregroundStyle(isSelected ? AppTheme.colors.sky : AppTheme.colors.title)
+                    .foregroundStyle(isSelected ? AppTheme.colors.selectionTint : AppTheme.colors.title)
 
                 Spacer()
 
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(AppTheme.typography.sized(13, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.sky)
+                        .foregroundStyle(AppTheme.colors.selectionTint)
                 }
             }
             .padding(.horizontal, AppTheme.spacing.md)
@@ -825,7 +825,7 @@ private struct ProfileInlineOptionButton: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                    .fill(isSelected ? AppTheme.colors.sky.opacity(0.1) : .clear)
+                    .fill(isSelected ? AppTheme.colors.selectionTint.opacity(0.08) : .clear)
             )
         }
         .buttonStyle(.plain)

@@ -35,7 +35,7 @@ struct ProfileSubscriptionView: View {
                 HStack(spacing: AppTheme.spacing.xs) {
                     Image(systemName: "gift.fill")
                         .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.sky)
+                        .foregroundStyle(AppTheme.colors.selectionTint)
                     Text("当前为免费版，所有功能均可使用")
                         .font(AppTheme.typography.sized(14, weight: .medium))
                         .foregroundStyle(AppTheme.colors.body)
@@ -44,7 +44,7 @@ struct ProfileSubscriptionView: View {
                 .padding(.horizontal, AppTheme.spacing.md)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
-                        .fill(AppTheme.colors.sky.opacity(0.08))
+                        .fill(AppTheme.colors.selectionTint.opacity(0.08))
                 )
                 .padding(.horizontal, AppTheme.spacing.lg)
                 .padding(.bottom, AppTheme.spacing.xl)
@@ -99,7 +99,7 @@ private struct ProFeatureRow: View {
         HStack(spacing: AppTheme.spacing.md) {
             Image(systemName: icon)
                 .font(AppTheme.typography.sized(18, weight: .medium))
-                .foregroundStyle(AppTheme.colors.sky)
+                .foregroundStyle(AppTheme.colors.selectionTint)
                 .frame(width: 32, alignment: .center)
 
             VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
@@ -116,7 +116,7 @@ private struct ProFeatureRow: View {
 
             Image(systemName: "checkmark.circle.fill")
                 .font(AppTheme.typography.sized(20))
-                .foregroundStyle(AppTheme.colors.sky.opacity(0.7))
+                .foregroundStyle(AppTheme.colors.selectionTint.opacity(0.7))
         }
         .padding(.horizontal, AppTheme.spacing.md)
         .padding(.vertical, AppTheme.spacing.md)

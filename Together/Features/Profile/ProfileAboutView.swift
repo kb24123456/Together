@@ -11,7 +11,7 @@ struct ProfileAboutView: View {
                 VStack(spacing: AppTheme.spacing.sm) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(AppTheme.typography.sized(52))
-                        .foregroundStyle(AppTheme.colors.sky)
+                        .foregroundStyle(AppTheme.colors.selectionTint)
 
                     Text("Together")
                         .font(AppTheme.typography.sized(20, weight: .bold))

@@ -30,7 +30,7 @@ struct CompletedHistoryView: View {
                                             await viewModel.restore(item)
                                         }
                                     }
-                                    .tint(AppTheme.colors.sky)
+                                    .tint(AppTheme.colors.selectionTint)
                                 }
 
                                 Button("删除", systemImage: "trash") {
