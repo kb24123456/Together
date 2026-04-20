@@ -29,7 +29,8 @@ struct ProfileView: View {
                                 avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
                                 overrideImage: nil
                             ),
-                            secondaryAvatarState: viewModel.profileCardSecondaryAvatarState
+                            secondaryAvatarState: viewModel.profileCardSecondaryAvatarState,
+                            subtitle: viewModel.identityCardSubtitle
                         )
                         .id(appContext.sessionStore.userProfileRevision)
                         .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)

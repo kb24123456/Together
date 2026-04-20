@@ -23,141 +23,133 @@ enum ProfileCardSecondaryAvatarState: Hashable {
     case user(ProfileCardAvatar)
 }
 
+/// Identity card at the top of Profile. Vertical layout: avatars on top,
+/// name below, subtitle under name. In solo mode shows a single 64pt
+/// avatar; in pair mode shows two 56pt avatars overlapping ~30% with
+/// self on the left (bottom z-order) and partner on the right (top).
+///
+/// The card has NO background — it sits directly on the page's warm
+/// off-white and is separated from the first group by a hairline divider.
 struct ProfileUserCard: View {
-    private let avatarDiameter: CGFloat = 84
-    private let cardHeight: CGFloat = 116
-    private let avatarLeadingInset: CGFloat = 18
-    private let avatarRevealWidth: CGFloat = 32
-    private let avatarTextGap: CGFloat = 14
+    private let soloAvatarDiameter: CGFloat = 64
+    private let pairAvatarDiameter: CGFloat = 56
+    private let pairOverlapOffset: CGFloat = 28    // 50% of pairAvatarDiameter
+    private let nameTopGap: CGFloat = AppTheme.spacing.md
+    private let subtitleTopGap: CGFloat = AppTheme.spacing.xxs
 
     let primaryName: String
     let secondaryName: String?
     let primaryAvatar: ProfileCardAvatar
     let secondaryAvatarState: ProfileCardSecondaryAvatarState
+    /// Subtitle displayed beneath the name. E.g. "独立工作空间" or
+    /// "我们的小家 · 配对 124 天".
+    let subtitle: String
 
     var body: some View {
-        HStack(alignment: .center, spacing: 0) {
-            avatarGroup
+        VStack(spacing: 0) {
+            avatarCluster
+                .padding(.bottom, nameTopGap)
 
-            textColumn
-                .padding(.leading, avatarTextGap)
-                .padding(.trailing, AppTheme.spacing.lg)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            Text(displayTitle)
+                .font(AppTheme.typography.displayLight(22))
+                .tracking(0.3)
+                .foregroundStyle(AppTheme.colors.title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, AppTheme.spacing.lg)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+
+            if subtitle.isEmpty == false {
+                Text(subtitle)
+                    .font(AppTheme.typography.textStyle(.footnote, weight: .regular))
+                    .foregroundStyle(AppTheme.colors.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .padding(.top, subtitleTopGap)
+                    .padding(.horizontal, AppTheme.spacing.lg)
+            }
         }
-        .frame(height: cardHeight)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Capsule(style: .continuous)
-                .fill(AppTheme.colors.surfaceElevated)
-        )
-        .shadow(color: AppTheme.colors.shadow.opacity(0.2), radius: 10, y: 5)
+        .padding(.top, AppTheme.spacing.xl)
+        .padding(.bottom, AppTheme.spacing.lg)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .bottom) {
+            Rectangle()
+                .fill(AppTheme.colors.hairline)
+                .frame(height: 1)
+                .frame(maxWidth: .infinity)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHint)
     }
 
-    private var avatarGroup: some View {
-        ZStack(alignment: .leading) {
-            switch secondaryAvatarState {
-            case .placeholder:
-                placeholderBadge
-                    .offset(x: secondaryAvatarOffset)
-            case .user(let avatar):
-                avatarBadge(avatar, fillColor: AppTheme.colors.avatarNeutral)
-                    .offset(x: secondaryAvatarOffset)
-            }
+    // MARK: - Avatar cluster
 
-            avatarBadge(primaryAvatar, fillColor: AppTheme.colors.avatarWarm)
+    @ViewBuilder
+    private var avatarCluster: some View {
+        if case .user(let partnerAvatar) = secondaryAvatarState, secondaryName != nil {
+            pairAvatars(partner: partnerAvatar)
+        } else {
+            singleAvatar
         }
-        .frame(width: avatarTrackWidth, height: cardHeight, alignment: .leading)
-        .padding(.leading, avatarLeadingInset)
     }
 
-    private func avatarBadge(_ avatar: ProfileCardAvatar, fillColor: Color) -> some View {
+    private var singleAvatar: some View {
+        avatarBadge(primaryAvatar, diameter: soloAvatarDiameter, fillColor: AppTheme.colors.avatarWarm)
+    }
+
+    private func pairAvatars(partner: ProfileCardAvatar) -> some View {
+        let selfBadge = avatarBadge(primaryAvatar, diameter: pairAvatarDiameter, fillColor: AppTheme.colors.avatarWarm)
+        let partnerBadge = avatarBadge(partner, diameter: pairAvatarDiameter, fillColor: AppTheme.colors.avatarNeutral)
+
+        return ZStack(alignment: .leading) {
+            selfBadge
+                .zIndex(1)
+            partnerBadge
+                .offset(x: pairOverlapOffset)
+                .zIndex(2)
+        }
+        .frame(width: pairAvatarDiameter + pairOverlapOffset, height: pairAvatarDiameter)
+    }
+
+    private func avatarBadge(_ avatar: ProfileCardAvatar, diameter: CGFloat, fillColor: Color) -> some View {
         UserAvatarView(
             avatarAsset: avatar.avatarAsset,
             displayName: avatar.displayName,
-            size: avatarDiameter,
+            size: diameter,
             fillColor: fillColor,
             symbolColor: AppTheme.colors.title.opacity(0.82),
-            symbolFont: AppTheme.typography.sized(28, weight: .semibold),
+            symbolFont: AppTheme.typography.sized(diameter * 0.38, weight: .semibold),
             overrideImage: avatar.overrideImage
         )
-            .overlay {
-                Circle()
-                    .stroke(AppTheme.colors.surfaceElevated.opacity(0.94), lineWidth: 2)
-            }
-            .shadow(color: AppTheme.colors.shadow.opacity(0.18), radius: 8, y: 4)
-            .accessibilityLabel(avatar.displayName)
-            .zIndex(2)
-    }
-
-    private var placeholderBadge: some View {
-        ZStack {
+        .overlay {
             Circle()
-                .fill(AppTheme.colors.surface.opacity(0.01))
-
-            Circle()
-                .stroke(
-                    AppTheme.colors.outlineStrong.opacity(0.5),
-                    style: StrokeStyle(lineWidth: 2, dash: [6, 5])
-                )
-
-            Image(systemName: "plus")
-                .font(AppTheme.typography.sized(24, weight: .bold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                .stroke(AppTheme.colors.background, lineWidth: 2)
         }
-        .frame(width: avatarDiameter, height: avatarDiameter)
-        .shadow(color: AppTheme.colors.shadow.opacity(0.12), radius: 6, y: 3)
-        .accessibilityLabel("等待另一位加入")
-        .zIndex(1)
     }
 
-    private var secondaryAvatarOffset: CGFloat {
-        avatarDiameter - avatarRevealWidth
-    }
+    // MARK: - Derived copy
 
-    private var avatarTrackWidth: CGFloat {
-        avatarDiameter + secondaryAvatarOffset
-    }
-
-    @ViewBuilder
-    private var textColumn: some View {
+    private var displayTitle: String {
         if let secondaryName {
-            VStack(alignment: .center, spacing: 0) {
-                Text(primaryName)
-                    .font(AppTheme.typography.sized(18, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-
-                Text("&")
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.56))
-                    .lineLimit(1)
-
-                Text(secondaryName)
-                    .font(AppTheme.typography.sized(18, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-            }
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        } else {
-            Text(primaryName)
-                .font(AppTheme.typography.sized(22, weight: .bold))
-                .foregroundStyle(AppTheme.colors.title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            return "\(primaryName) & \(secondaryName)"
         }
+        return primaryName
     }
+
+    // MARK: - Accessibility
 
     private var accessibilityLabel: String {
         if let secondaryName {
-            return "\(primaryName) 和 \(secondaryName)"
+            let suffix = subtitle.isEmpty ? "" : "，\(subtitle)"
+            return "\(primaryName) 和 \(secondaryName)\(suffix)"
         }
-        return primaryName
+        let suffix = subtitle.isEmpty ? "" : "，\(subtitle)"
+        return "\(primaryName)\(suffix)"
+    }
+
+    private var accessibilityHint: String {
+        secondaryName == nil ? "编辑个人资料" : "编辑双人资料"
     }
 }

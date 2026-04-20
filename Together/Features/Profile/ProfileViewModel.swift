@@ -243,6 +243,20 @@ final class ProfileViewModel {
         return "\(baseName) · \(syncStateText)"
     }
 
+    /// Subtitle displayed below the name in the identity card.
+    /// Solo: "独立工作空间". Pair: "{space name} · 配对 {N} 天" (days segment
+    /// omitted when 0).
+    var identityCardSubtitle: String {
+        guard isPairMode else {
+            return "独立工作空间"
+        }
+        let spaceName = pairSpaceDisplayName
+        if pairDaysCount > 0 {
+            return "\(spaceName) · \(pairDaysLabel)"
+        }
+        return spaceName
+    }
+
     var collaborationSummary: String {
         bindingState.description
     }
