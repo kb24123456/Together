@@ -427,6 +427,47 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
     }
 
+    func completedItemStats(spaceID: UUID?, referenceDate: Date) async throws -> CompletedItemStats {
+        let context = ModelContext(container)
+        let records = try completedRecords(spaceID: spaceID, context: context)
+            .filter { !$0.isLocallyDeleted && $0.completedAt != nil }
+
+        guard records.isEmpty == false else {
+            return .empty
+        }
+
+        let monthComponents = calendar.dateComponents([.year, .month], from: referenceDate)
+
+        var thisMonthCount = 0
+        var earliestDate: Date = .distantFuture
+        var earliestTitle: String? = nil
+        var latestDate: Date = .distantPast
+
+        for record in records {
+            guard let completedAt = record.completedAt else { continue }
+
+            if completedAt < earliestDate {
+                earliestDate = completedAt
+                earliestTitle = record.title
+            }
+            if completedAt > latestDate {
+                latestDate = completedAt
+            }
+
+            let comps = calendar.dateComponents([.year, .month], from: completedAt)
+            if comps.year == monthComponents.year && comps.month == monthComponents.month {
+                thisMonthCount += 1
+            }
+        }
+
+        return CompletedItemStats(
+            totalCount: records.count,
+            thisMonthCount: thisMonthCount,
+            firstItemTitle: earliestTitle,
+            lastCompletedAt: latestDate == .distantPast ? nil : latestDate
+        )
+    }
+
     private func completedRecords(spaceID: UUID?, context: ModelContext) throws -> [PersistentItem] {
         let records: [PersistentItem]
 

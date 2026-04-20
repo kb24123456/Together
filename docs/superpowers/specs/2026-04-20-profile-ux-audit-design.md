@@ -112,7 +112,11 @@
 
 **Pair 模式**：
 ```
-      ○○  ← 两个 56pt avatar，partner 往右 offset 28pt（50%），视觉重叠 ~30%
+      ○○  ← 两个 92pt avatar，HStack(spacing: -20pt) → ~22% 重叠
+          ↑    公式：overlap_ratio = overlap_amount / diameter
+               历史实现 bug：早期用 offset=28pt on 56pt 误以为 30%，
+               实际为 (56-28)/56 = 50% 重叠；改用 HStack-with-negative-
+               spacing 几何更直观，避免再犯
           z-index: self 在下，partner 在上
     [name & partner]   ← 同 Solo 字号
    [space · N 天]   ← 同 Solo 字号
@@ -370,7 +374,7 @@ extension AppTheme.typography {
 
 **名片区**：
 - avatar: 56pt (pair each) / 64pt (solo)
-- avatar overlap offset: 28pt on x
+- avatar overlap amount: 20pt (HStack negative spacing), ~22% overlap
 - name: 22pt `.light`, tracking 0.3
 - subtitle: 13pt `.regular` `textTertiary`
 

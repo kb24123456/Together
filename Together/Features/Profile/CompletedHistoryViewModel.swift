@@ -258,52 +258,29 @@ final class CompletedHistoryViewModel {
         }
     }
 
-    /// Bounded full-fetch aggregation for the Logbook pair hero.
-    /// Typical user has <1000 items; acceptable for MVP. Follow-up:
-    /// dedicated count-only repository method (spec §9 limitation).
+    /// Aggregates Logbook pair hero stats via the dedicated
+    /// `completedItemStats` repository method. Single fetch, no full
+    /// domain-model hydration per row — scales cleanly to thousands of
+    /// completed items.
     private func refreshPairSummaryIfNeeded(spaceID: UUID) async {
         guard isPairMode else {
             pairSummary = nil
             return
         }
 
-        let allItems: [Item]
+        let stats: CompletedItemStats
         do {
-            allItems = try await itemRepository.fetchCompletedItems(
-                spaceID: spaceID,
-                searchText: nil,
-                before: nil,
-                limit: Int.max
-            )
+            stats = try await itemRepository.completedItemStats(spaceID: spaceID, referenceDate: .now)
         } catch {
             pairSummary = nil
             return
         }
 
-        let now = Date()
-        let monthComponents = calendar.dateComponents([.year, .month], from: now)
-
-        let thisMonthCount = allItems.filter { item in
-            guard let completedAt = item.completedAt else { return false }
-            let comps = calendar.dateComponents([.year, .month], from: completedAt)
-            return comps.year == monthComponents.year && comps.month == monthComponents.month
-        }.count
-
-        let firstItem = allItems.min { a, b in
-            let aDate = a.completedAt ?? a.updatedAt
-            let bDate = b.completedAt ?? b.updatedAt
-            return aDate < bDate
-        }
-
-        let lastCompletedAt = allItems
-            .compactMap { $0.completedAt }
-            .max()
-
         pairSummary = LogbookPairSummary(
-            totalCount: allItems.count,
-            thisMonthCount: thisMonthCount,
-            firstItemTitle: firstItem?.title,
-            lastCompletedAt: lastCompletedAt
+            totalCount: stats.totalCount,
+            thisMonthCount: stats.thisMonthCount,
+            firstItemTitle: stats.firstItemTitle,
+            lastCompletedAt: stats.lastCompletedAt
         )
     }
 

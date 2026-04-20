@@ -41,6 +41,30 @@ final class MockItemRepository: ItemRepositoryProtocol {
             .map { $0 }
     }
 
+    func completedItemStats(spaceID: UUID?, referenceDate: Date) async throws -> CompletedItemStats {
+        let spaceItems = items.filter { $0.spaceID == spaceID && $0.completedAt != nil }
+        guard spaceItems.isEmpty == false else { return .empty }
+
+        let monthComponents = calendar.dateComponents([.year, .month], from: referenceDate)
+        let thisMonthCount = spaceItems.filter { item in
+            guard let completedAt = item.completedAt else { return false }
+            let comps = calendar.dateComponents([.year, .month], from: completedAt)
+            return comps.year == monthComponents.year && comps.month == monthComponents.month
+        }.count
+
+        let firstItem = spaceItems.min { a, b in
+            (a.completedAt ?? .distantFuture) < (b.completedAt ?? .distantFuture)
+        }
+        let lastCompletedAt = spaceItems.compactMap(\.completedAt).max()
+
+        return CompletedItemStats(
+            totalCount: spaceItems.count,
+            thisMonthCount: thisMonthCount,
+            firstItemTitle: firstItem?.title,
+            lastCompletedAt: lastCompletedAt
+        )
+    }
+
     func fetchCompletedItems(
         spaceID: UUID?,
         searchText: String?,
