@@ -41,7 +41,3 @@ enum ProfileRoute: Hashable {
     case feedback
     case about
 }
-
-enum HomeRoute: Hashable {
-    case logbook
-}

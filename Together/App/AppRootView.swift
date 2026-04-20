@@ -30,12 +30,6 @@ struct AppRootView: View {
             ZStack(alignment: .bottom) {
                 NavigationStack {
                     rootSurfaceView(router: router)
-                        .navigationDestination(for: HomeRoute.self) { route in
-                            switch route {
-                            case .logbook:
-                                CompletedHistoryView(viewModel: appContext.makeCompletedHistoryViewModel())
-                            }
-                        }
                 }
                 .blur(radius: isQuickCapturePresented ? 8 : 0)
                 .allowsHitTesting(!isQuickCapturePresented)
@@ -57,6 +51,17 @@ struct AppRootView: View {
             NavigationStack {
                 ProfileView(viewModel: appContext.profileViewModel)
                     .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            NavigationLink(value: ProfileRoute.completedHistory) {
+                                Text("日志")
+                            }
+                            .simultaneousGesture(
+                                TapGesture().onEnded {
+                                    HomeInteractionFeedback.selection()
+                                }
+                            )
+                            .accessibilityHint("查看已完成任务")
+                        }
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("关闭") {
                                 router.isProfilePresented = false
