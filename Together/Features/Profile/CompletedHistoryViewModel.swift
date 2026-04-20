@@ -26,6 +26,12 @@ final class CompletedHistoryViewModel {
     var hasLoaded = false
     var canLoadMore = true
 
+    /// Aggregated stats for the Logbook pair-mode hero. Nil when solo.
+    /// Populated during `reload()` via a separate full-count fetch.
+    private(set) var pairSummary: LogbookPairSummary?
+
+    var isPairMode: Bool { sessionStore.hasActivePairSpace }
+
     private var projectNames: [UUID: String] = [:]
     private var taskListNames: [UUID: String] = [:]
 
@@ -100,6 +106,8 @@ final class CompletedHistoryViewModel {
             canLoadMore = false
             hasLoaded = true
         }
+
+        await refreshPairSummaryIfNeeded(spaceID: spaceID)
     }
 
     func loadMoreIfNeeded(currentItem item: Item) async {
@@ -185,6 +193,33 @@ final class CompletedHistoryViewModel {
         item.isArchived && item.archivedAt != nil
     }
 
+    /// Returns the avatar asset for a given user ID. Resolves:
+    /// - currentUser.id → currentUser.avatarAsset
+    /// - partner user ID → partner.avatarAsset
+    /// - nil or unknown → `.system("person.fill")`
+    func avatarAsset(forUserID userID: UUID?) -> UserAvatarAsset {
+        guard let userID else { return .system("person.fill") }
+        if userID == sessionStore.currentUser?.id {
+            return sessionStore.currentUser?.avatarAsset ?? .system("person.crop.circle.fill")
+        }
+        if let partner = sessionStore.pairSpaceSummary?.partner, partner.id == userID {
+            return partner.avatarAsset ?? .system("person.crop.circle.fill")
+        }
+        return .system("person.fill")
+    }
+
+    /// Resolves a display name for VoiceOver. Mirrors `avatarAsset`'s lookup.
+    func displayName(forUserID userID: UUID?) -> String {
+        guard let userID else { return "未知完成者" }
+        if userID == sessionStore.currentUser?.id {
+            return sessionStore.currentUser?.displayName ?? "我"
+        }
+        if let partner = sessionStore.pairSpaceSummary?.partner, partner.id == userID {
+            return partner.displayName
+        }
+        return "未知完成者"
+    }
+
     private var normalizedSearchText: String? {
         let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -221,6 +256,55 @@ final class CompletedHistoryViewModel {
         if let projects = try? await projects {
             projectNames = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.name) })
         }
+    }
+
+    /// Bounded full-fetch aggregation for the Logbook pair hero.
+    /// Typical user has <1000 items; acceptable for MVP. Follow-up:
+    /// dedicated count-only repository method (spec §9 limitation).
+    private func refreshPairSummaryIfNeeded(spaceID: UUID) async {
+        guard isPairMode else {
+            pairSummary = nil
+            return
+        }
+
+        let allItems: [Item]
+        do {
+            allItems = try await itemRepository.fetchCompletedItems(
+                spaceID: spaceID,
+                searchText: nil,
+                before: nil,
+                limit: Int.max
+            )
+        } catch {
+            pairSummary = nil
+            return
+        }
+
+        let now = Date()
+        let monthComponents = calendar.dateComponents([.year, .month], from: now)
+
+        let thisMonthCount = allItems.filter { item in
+            guard let completedAt = item.completedAt else { return false }
+            let comps = calendar.dateComponents([.year, .month], from: completedAt)
+            return comps.year == monthComponents.year && comps.month == monthComponents.month
+        }.count
+
+        let firstItem = allItems.min { a, b in
+            let aDate = a.completedAt ?? a.updatedAt
+            let bDate = b.completedAt ?? b.updatedAt
+            return aDate < bDate
+        }
+
+        let lastCompletedAt = allItems
+            .compactMap { $0.completedAt }
+            .max()
+
+        pairSummary = LogbookPairSummary(
+            totalCount: allItems.count,
+            thisMonthCount: thisMonthCount,
+            firstItemTitle: firstItem?.title,
+            lastCompletedAt: lastCompletedAt
+        )
     }
 
     private func runAutoArchiveIfNeeded(spaceID: UUID) async {
