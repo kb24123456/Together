@@ -44,6 +44,18 @@ struct ProfileView: View {
                         }
                     )
 
+                    // MARK: - Pro 入口
+                    NavigationLink(value: ProfileRoute.subscription) {
+                        ProfileProEntryRow(
+                            status: viewModel.proSubscriptionStatus,
+                            onTap: {}
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .simultaneousGesture(
+                        TapGesture().onEnded { HomeInteractionFeedback.selection() }
+                    )
+
                     // MARK: - 分组设置
                     collaborationSection
                     executionPreferencesSection
