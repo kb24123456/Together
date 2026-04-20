@@ -17,6 +17,7 @@ struct AppRootView: View {
     @State private var pendingQuickCaptureConfirmation: QuickCapturePendingConfirmation?
     @State private var isDockHubExpanded = false
     @State private var dockHubNotice: DockHubNotice?
+    @State private var profileNavigationPath = NavigationPath()
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
 
     private let quickCaptureTranscriptPreviewThreshold = 16
@@ -48,20 +49,17 @@ struct AppRootView: View {
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .fullScreenCover(isPresented: $router.isProfilePresented) {
-            NavigationStack {
+            NavigationStack(path: $profileNavigationPath) {
                 ProfileView(viewModel: appContext.profileViewModel)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
-                            NavigationLink(value: ProfileRoute.completedHistory) {
-                                Text("日志")
-                                    .font(AppTheme.typography.body)
-                                    .foregroundStyle(AppTheme.colors.title)
+                            Button("日志") {
+                                HomeInteractionFeedback.selection()
+                                profileNavigationPath.append(ProfileRoute.completedHistory)
                             }
-                            .simultaneousGesture(
-                                TapGesture().onEnded {
-                                    HomeInteractionFeedback.selection()
-                                }
-                            )
+                            .font(AppTheme.typography.body)
+                            .fontWeight(.medium)
+                            .foregroundStyle(AppTheme.colors.title)
                             .accessibilityHint("查看已完成任务")
                         }
                         ToolbarItem(placement: .topBarTrailing) {
@@ -69,11 +67,15 @@ struct AppRootView: View {
                                 router.isProfilePresented = false
                             }
                             .font(AppTheme.typography.body)
+                            .fontWeight(.medium)
                             .foregroundStyle(AppTheme.colors.title)
                         }
                 }
             }
             .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
+            .onDisappear {
+                profileNavigationPath = NavigationPath()
+            }
         }
         .sheet(item: $router.activeComposer, onDismiss: {
             router.pendingComposerTitle = nil

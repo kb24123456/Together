@@ -11,20 +11,24 @@ struct ProfileSettingsGroupCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            Text(title)
-                .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+            if title.isEmpty == false {
+                Text(title)
+                    .font(AppTheme.typography.textStyle(.footnote, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.52))
+                    .tracking(0.4)
+                    .padding(.horizontal, AppTheme.spacing.md)
+            }
 
-            VStack(spacing: AppTheme.spacing.md) {
+            VStack(spacing: 0) {
                 content
             }
             .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
-            .shadow(color: AppTheme.colors.shadow.opacity(0.34), radius: 14, y: 6)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppTheme.colors.hairline)
+                .frame(height: 1)
+                .padding(.horizontal, AppTheme.spacing.md)
         }
     }
 }
