@@ -72,3 +72,32 @@ struct UpsellTriggerTests {
         #expect(UpsellTrigger.anniversaryQuota.id == UpsellTrigger.anniversaryQuota.id)
     }
 }
+
+@Suite
+struct PremiumGateErrorTests {
+    @Test func quotaExceededIsEquatable() {
+        let a = PremiumGateError.quotaExceeded(limit: 5, feature: .anniversary)
+        let b = PremiumGateError.quotaExceeded(limit: 5, feature: .anniversary)
+        let c = PremiumGateError.quotaExceeded(limit: 3, feature: .project)
+        #expect(a == b)
+        #expect(a != c)
+    }
+}
+
+@Suite
+struct DateProviderTests {
+    @Test func systemProviderReturnsCurrentTime() {
+        let provider = SystemDateProvider()
+        let before = Date()
+        let mid = provider.now()
+        let after = Date()
+        #expect(mid >= before && mid <= after)
+    }
+
+    @Test func fixedProviderReturnsFixedTime() {
+        let fixed = Date(timeIntervalSince1970: 1000)
+        let provider = FixedDateProvider(fixed: fixed)
+        #expect(provider.now() == fixed)
+        #expect(provider.now() == fixed)  // 多次调用仍相同
+    }
+}
