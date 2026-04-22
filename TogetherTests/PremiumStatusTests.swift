@@ -54,3 +54,21 @@ struct PremiumStatusTests {
         #expect(decoded == original)
     }
 }
+
+@Suite
+struct UpsellTriggerTests {
+    @Test func allCasesHaveUniqueIDs() {
+        let ids: Set<String> = [
+            UpsellTrigger.anniversaryQuota.id,
+            UpsellTrigger.projectQuota.id,
+            UpsellTrigger.logbookHistory.id,
+            UpsellTrigger.crossDeviceSync.id
+        ]
+        #expect(ids.count == 4)
+    }
+
+    @Test func identifiableIsStable() {
+        // Same case should produce same id twice
+        #expect(UpsellTrigger.anniversaryQuota.id == UpsellTrigger.anniversaryQuota.id)
+    }
+}
