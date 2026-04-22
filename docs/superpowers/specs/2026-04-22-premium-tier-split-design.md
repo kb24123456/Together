@@ -1,11 +1,12 @@
 # Premium Tier Split — Product Design Spec
 
 - **Date**: 2026-04-22
-- **Status**: Approved (written-spec review round 3)
+- **Status**: **Final** — 经 3 轮复核后批准，作为 Phase 2/3 spec 的产品输入
 - **Revision history**:
   - rev 1 — 初版 spec 落盘
   - rev 2 — 补齐配对空间配额规则（authored-by model）、混合会员状态（沾光模式）、措辞统一
   - rev 3 — 明确 Lists/Routines 不做配额 + 数据迁移原则 + 配额执行层（仅客户端）+ TestFlight ④ 宽限叠加说明
+  - **Final — 2026-04-22 用户批准**
 - **Scope**: 付费功能划分（产品决策层）。不含代码、不含定价、不含 UI 细节。
 - **Follow-up specs**:
   - *Premium Infrastructure* (RevenueCat + Supabase + PremiumGate) — Phase 2
