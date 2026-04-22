@@ -20,21 +20,4 @@ final class AppRouter {
     var isRoutinesModePresented: Bool {
         currentSurface == .routines
     }
-
-    var selectedDockDestination: DockDestination? {
-        if isProfilePresented {
-            return .profile
-        }
-
-        switch currentSurface {
-        case .today:
-            return nil
-        case .calendar:
-            return .calendar
-        case .routines:
-            return .routines
-        case .projects:
-            return .projects
-        }
-    }
 }

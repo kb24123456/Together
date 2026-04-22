@@ -47,7 +47,6 @@ final class AppContext {
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
             itemRepository: container.itemRepository,
-            quickCaptureParser: container.quickCaptureParser,
             taskTemplateRepository: container.taskTemplateRepository
         )
         self.listsViewModel = ListsViewModel(

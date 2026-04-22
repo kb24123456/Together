@@ -19,7 +19,6 @@ enum MockServiceFactory {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let userProfileRepository = MockUserProfileRepository()
-        let quickCaptureParser = RuleBasedQuickCaptureParser()
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
             taskMessageRepository: MockTaskMessageRepository(),
@@ -39,7 +38,6 @@ enum MockServiceFactory {
             authService: MockAuthService(),
             spaceService: MockSpaceService(),
             taskApplicationService: taskApplicationService,
-            quickCaptureParser: quickCaptureParser,
             syncCoordinator: syncCoordinator,
             pairingService: MockRelationshipService(),
             userProfileRepository: userProfileRepository,

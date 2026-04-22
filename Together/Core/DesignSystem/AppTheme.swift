@@ -261,7 +261,7 @@ extension View {
     @ViewBuilder
     func applyScrollEdgeProtection() -> some View {
         if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+            self.scrollEdgeEffectStyle(nil, for: [.top, .bottom])
         } else {
             self
         }

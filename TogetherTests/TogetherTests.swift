@@ -749,7 +749,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
 
@@ -840,7 +839,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         viewModel.items = [item]
@@ -906,7 +904,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         viewModel.items = [item]
@@ -1548,7 +1545,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
 
@@ -2014,7 +2010,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: itemRepository,
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
 
@@ -2093,7 +2088,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
 
@@ -2238,7 +2232,6 @@ struct TogetherTests {
             sessionStore: receiverSession,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         receiverViewModel.items = [declinedTask]
@@ -2247,7 +2240,6 @@ struct TogetherTests {
             sessionStore: senderSession,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         senderViewModel.items = [declinedTask]
@@ -2270,7 +2262,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: itemRepository,
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
 
@@ -2307,32 +2298,6 @@ struct TogetherTests {
         let completedIDs = await taskService.completedTaskIDs()
         #expect(completedIDs == [item.id])
         #expect(viewModel.items.first?.isCompleted(on: baseDate, calendar: Calendar.current) == true)
-    }
-
-    @Test
-    func dockHubPresentationStateCollapsesWhenBlockingChromeAppears() {
-        let state = DockHubPresentationState(
-            isProjectModePresented: false,
-            isQuickCapturePresented: true,
-            isProfilePresented: false,
-            hasActiveComposer: false,
-            hasPendingQuickCaptureConfirmation: false
-        )
-
-        #expect(state.shouldCollapseHub == true)
-    }
-
-    @Test
-    func dockHubPresentationStateStaysExpandedInDefaultTodayContext() {
-        let state = DockHubPresentationState(
-            isProjectModePresented: false,
-            isQuickCapturePresented: false,
-            isProfilePresented: false,
-            hasActiveComposer: false,
-            hasPendingQuickCaptureConfirmation: false
-        )
-
-        #expect(state.shouldCollapseHub == false)
     }
 
     @Test
@@ -3398,7 +3363,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         let now = Date.now
@@ -3442,7 +3406,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         let calendar = Calendar.current
@@ -3537,7 +3500,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         let calendar = Calendar.current
@@ -3611,7 +3573,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: TestItemRepository(),
-            quickCaptureParser: RuleBasedQuickCaptureParser(),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
         let calendar = Calendar.current

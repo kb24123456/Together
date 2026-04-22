@@ -19,8 +19,6 @@ struct HomeView: View {
     @State private var isCompletedSectionTransitioning = false
     @State private var monthPagerOffset: CGFloat = 0
     @State private var isMonthPagerSettling = false
-    @State private var previousScrollOffset: CGFloat = 0
-    @State private var dockHideTask: Task<Void, Never>?
     @State private var highlightedTaskID: UUID?
     @State private var isImportantDatesManagementPresented = false
 
@@ -32,7 +30,7 @@ struct HomeView: View {
     private let contentCardCornerRadius: CGFloat = 40
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
-    private let timelineBottomInset: CGFloat = 188
+    private let timelineBottomInset: CGFloat = 24
     private let monthGridSpacing: CGFloat = 8
     private let monthCompressedGridSpacing: CGFloat = 4
     private let monthDayCellHeight: CGFloat = 46
@@ -54,9 +52,6 @@ struct HomeView: View {
                 contentCard
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, contentTopInset(safeAreaTop: proxy.safeAreaInsets.top))
-                    .mask {
-                        bottomChromeContentMask(bottomInset: proxy.safeAreaInsets.bottom)
-                    }
                     .offset(y: contentCardVerticalOffset)
                     .scaleEffect(contentCardScale, anchor: .top)
 
@@ -135,35 +130,6 @@ struct HomeView: View {
 
     private var backgroundView: some View {
         GradientGridBackground()
-    }
-
-    private func bottomChromeContentMask(bottomInset: CGFloat) -> some View {
-        let fadeHeight = max(78, bottomInset + 42)
-
-        return GeometryReader { proxy in
-            VStack(spacing: 0) {
-                Rectangle()
-                    .fill(.white)
-                    .frame(height: max(0, proxy.size.height - fadeHeight))
-
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .white, location: 0),
-                                .init(color: .white, location: 0.72),
-                                .init(color: .white.opacity(0.94), location: 0.84),
-                                .init(color: .white.opacity(0.72), location: 0.92),
-                                .init(color: .white.opacity(0.34), location: 0.97),
-                                .init(color: .white.opacity(0.12), location: 1)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(height: fadeHeight)
-            }
-        }
     }
 
     private func topChrome(safeAreaTop: CGFloat) -> some View {
@@ -451,7 +417,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, AppTheme.spacing.xl)
                     .padding(.top, AppTheme.spacing.md) // normalized 14→16
-                    .padding(.bottom, 144) // specific layout constant, not a tier
+                    .padding(.bottom, AppTheme.spacing.lg)
                 }
                 .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
@@ -639,11 +605,6 @@ struct HomeView: View {
             }
             await viewModel.reload()
         }
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y + geo.contentInsets.top
-        } action: { oldOffset, newOffset in
-            handleScrollOffsetChange(from: oldOffset, to: newOffset)
-        }
     }
 
     private var pairTimelineList: some View {
@@ -744,11 +705,6 @@ struct HomeView: View {
                 await appContext.syncPairSpaceIfNeeded()
             }
             await viewModel.reload()
-        }
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y + geo.contentInsets.top
-        } action: { oldOffset, newOffset in
-            handleScrollOffsetChange(from: oldOffset, to: newOffset)
         }
     }
 
@@ -1941,43 +1897,6 @@ struct HomeView: View {
         }
 
         return viewModel.isSelectedDate(date)
-    }
-
-    // MARK: - Dock Auto-Hide on Scroll
-
-    private func handleScrollOffsetChange(from oldOffset: CGFloat, to newOffset: CGFloat) {
-        let delta = newOffset - oldOffset
-        let scrollThreshold: CGFloat = 6
-
-        guard abs(delta) > scrollThreshold else { return }
-
-        let isScrollingUp = delta > 0   // content moving up = finger dragging up
-        let shouldHide = isScrollingUp && newOffset > 30  // only hide after some scroll
-
-        dockHideTask?.cancel()
-
-        if shouldHide {
-            if !viewModel.isDockHidden {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                    viewModel.isDockHidden = true
-                }
-            }
-            // Auto-restore after 1.8s of no scroll activity
-            dockHideTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1.8))
-                guard !Task.isCancelled else { return }
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                    viewModel.isDockHidden = false
-                }
-            }
-        } else {
-            // Scrolling down → show dock immediately
-            if viewModel.isDockHidden {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
-                    viewModel.isDockHidden = false
-                }
-            }
-        }
     }
 
 }

@@ -5,7 +5,6 @@ struct AppContainer {
     let authService: AuthServiceProtocol
     let spaceService: SpaceServiceProtocol
     let taskApplicationService: TaskApplicationServiceProtocol
-    let quickCaptureParser: QuickCaptureParserProtocol
     let syncCoordinator: SyncCoordinatorProtocol
     let pairingService: PairingServiceProtocol
     let userProfileRepository: UserProfileRepositoryProtocol

@@ -101,21 +101,6 @@ private struct HomeItemOccurrenceKey: Hashable {
     let dayStart: Date
 }
 
-struct QuickCapturePendingConfirmation: Identifiable, Hashable, Sendable {
-    let id: UUID
-    let rawInput: String
-    let title: String
-    let suggestedReminderAt: Date
-    let confirmationKind: QuickCaptureConfirmationKind
-}
-
-enum QuickCaptureTaskCreationResult: Sendable, Equatable {
-    case saved
-    case needsTimeConfirmation(QuickCapturePendingConfirmation)
-    case suggestPeriodicTask(title: String)
-    case failed
-}
-
 struct TaskTemplateSaveResult: Sendable, Equatable {
     let templateID: UUID
     let isNewlyCreated: Bool
@@ -128,7 +113,6 @@ final class HomeViewModel {
     private let sessionStore: SessionStore
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
-    private let quickCaptureParser: QuickCaptureParserProtocol
     private let taskTemplateRepository: TaskTemplateRepositoryProtocol
 
     /// 任务操作完成后的回调，参数为 spaceID，用于触发同步
@@ -167,13 +151,11 @@ final class HomeViewModel {
         sessionStore: SessionStore,
         taskApplicationService: TaskApplicationServiceProtocol,
         itemRepository: ItemRepositoryProtocol,
-        quickCaptureParser: QuickCaptureParserProtocol,
         taskTemplateRepository: TaskTemplateRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
         self.itemRepository = itemRepository
-        self.quickCaptureParser = quickCaptureParser
         self.taskTemplateRepository = taskTemplateRepository
     }
 
@@ -583,86 +565,6 @@ final class HomeViewModel {
 
     func dismissOverdueSheet() {
         isOverdueSheetPresented = false
-    }
-
-    func createQuickCaptureTask(title: String) async -> QuickCaptureTaskCreationResult {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return .failed }
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else {
-            return .failed
-        }
-
-        let parseResult = quickCaptureParser.parse(trimmedTitle, now: .now, calendar: calendar)
-
-        if parseResult.saveDecision == .suggestPeriodicTask {
-            return .suggestPeriodicTask(title: parseResult.title)
-        }
-
-        if parseResult.saveDecision == .confirmTime,
-           let suggestedReminderAt = parseResult.parsedDate {
-            return .needsTimeConfirmation(
-                QuickCapturePendingConfirmation(
-                    id: UUID(),
-                    rawInput: parseResult.rawInput,
-                    title: parseResult.title,
-                    suggestedReminderAt: suggestedReminderAt,
-                    confirmationKind: parseResult.confirmationKind
-                )
-            )
-        }
-
-        let draft = quickCaptureDraft(
-            title: parseResult.title,
-            scheduledAt: parseResult.parsedDate,
-            hasExplicitTime: parseResult.timeStatus == .exact
-        )
-
-        do {
-            let item = try await taskApplicationService.createTask(
-                in: spaceID,
-                actorID: actorID,
-                draft: draft
-            )
-            await reload(insertedItemIDs: [item.id])
-            emitSharedTaskMutation(.upsert, taskID: item.id, spaceID: spaceID)
-            return .saved
-        } catch {
-            return .failed
-        }
-    }
-
-    func confirmQuickCaptureTask(
-        _ confirmation: QuickCapturePendingConfirmation,
-        reminderAt: Date
-    ) async -> Bool {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else {
-            return false
-        }
-
-        let draft = quickCaptureDraft(
-            title: confirmation.title,
-            scheduledAt: reminderAt,
-            hasExplicitTime: true
-        )
-
-        do {
-            let item = try await taskApplicationService.createTask(
-                in: spaceID,
-                actorID: actorID,
-                draft: draft
-            )
-            await reload(insertedItemIDs: [item.id])
-            emitSharedTaskMutation(.upsert, taskID: item.id, spaceID: spaceID)
-            return true
-        } catch {
-            return false
-        }
     }
 
     func loadIfNeeded() async {
@@ -1226,27 +1128,6 @@ final class HomeViewModel {
             guard Task.isCancelled == false else { return }
             await self.persistDetailDraft()
         }
-    }
-
-    private func quickCaptureDraft(
-        title: String,
-        scheduledAt: Date?,
-        hasExplicitTime: Bool
-    ) -> TaskDraft {
-        if let scheduledAt {
-            return TaskDraft(
-                title: title,
-                dueAt: scheduledAt,
-                hasExplicitTime: hasExplicitTime,
-                remindAt: scheduledAt
-            )
-        }
-
-        return TaskDraft(
-            title: title,
-            dueAt: dateOnlyDueDate(for: selectedDate),
-            hasExplicitTime: false
-        )
     }
 
     @discardableResult
