@@ -1,7 +1,7 @@
 # Premium Infrastructure — Phase 2 Technical Design Spec
 
 - **Date**: 2026-04-22
-- **Status**: Draft (pending written-spec review)
+- **Status**: **Final** — 2026-04-22 用户批准，作为 writing-plans 输入
 - **Scope**: Phase 2 技术实现设计 —— RevenueCat + Supabase + 客户端 `PremiumGate` + 各模块门禁改造
 - **Upstream spec**: `docs/superpowers/specs/2026-04-22-premium-tier-split-design.md` (Final)
 - **Roadmap**: `docs/superpowers/plans/2026-04-22-premium-rollout-roadmap.md`
