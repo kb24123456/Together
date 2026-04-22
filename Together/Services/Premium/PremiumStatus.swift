@@ -6,13 +6,13 @@ import Foundation
 /// - `.free` 无任何会员权益
 /// - `.pro(source:, expiresAt:)` 活跃会员；`expiresAt == nil` 即永久
 /// - `.gracePeriod(...)` 订阅或 grant 最近 14 天内过期；Logbook 仍展示全历史
-enum PremiumStatus: Equatable, Codable {
+enum PremiumStatus: Equatable, Codable, Sendable {
     case unknown
     case free
     case pro(source: PremiumSource, expiresAt: Date?)
     case gracePeriod(originalExpiry: Date, logbookFullUntil: Date)
 
-    enum PremiumSource: String, Codable {
+    enum PremiumSource: String, Codable, Sendable {
         case subscription
         case grant
     }
