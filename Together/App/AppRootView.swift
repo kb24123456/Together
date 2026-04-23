@@ -44,6 +44,7 @@ struct AppRootView: View {
                 }
             }
             .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
+            .paywallRootSheet(appContext)   // fullScreenCover 内再挂一份，否则 paywall sheet 会被 Profile cover 挡住
             .onDisappear {
                 profileNavigationPath = NavigationPath()
             }
@@ -74,27 +75,7 @@ struct AppRootView: View {
                 appContext.rootPaywallPresentation.requestTrigger(trigger)
             }
         }
-        .sheet(item: Binding(
-            get: { appContext.rootPaywallPresentation.presenting },
-            set: { new in
-                if new == nil { appContext.rootPaywallPresentation.dismissCurrent() }
-            }
-        )) { kind in
-            UpsellSheet(
-                displayKind: kind.toDisplayKind(),
-                purchasing: appContext.paywallPurchasing,
-                gate: appContext.container.premiumGate,
-                onFinished: { _ in
-                    appContext.rootPaywallPresentation.dismissCurrent()
-                }
-            )
-        }
-        .onChange(of: appContext.rootPaywallPresentation.presenting) { oldKind, _ in
-            // sheet 关闭时 binding set-nil → presenting 变 nil；统一入口做 cleanup
-            guard appContext.rootPaywallPresentation.presenting == nil,
-                  let dismissed = oldKind else { return }
-            appContext.paywallDidDismiss(kind: dismissed)
-        }
+        .paywallRootSheet(appContext)
         .task {
             StartupTrace.mark("AppRootView.visible")
         }
