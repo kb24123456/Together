@@ -990,14 +990,40 @@ extension AppContext {
     /// 触发。只有 true → false 的翻转才需要干预：关掉当前跑着的 CKSyncEngine，
     /// 避免非 Pro 用户继续享受跨设备同步到下次冷启动才停。
     ///
-    /// TODO(Phase 3 UI): 这里应当 surface UpsellTrigger，让用户看到"订阅到期→升级恢复同步"CTA。
-    /// 当前只做数据面，UI 提示留给 Phase 3。
+    /// Pro→Free 运行时：数据面停同步 + UI 面通过 rootPaywallPresentation 弹 lapse sheet。
+    /// spec § 2.5。
     func handlePremiumStatusChange(wasPremium: Bool, isPremium: Bool) async {
         guard wasPremium, !isPremium else { return }
         premiumLogger.info("Premium lapsed at runtime — stopping solo sync")
         await container.syncEngineCoordinator.stopSoloSync()
         // 清 debounce 时间戳：下次前台再回时立即 refresh 拿最新状态（可能是网络恢复导致的误判）
         lastPremiumRefreshAt = nil
+
+        #if DEBUG
+        // DEBUG override picker 切 Pro→Free 会反复触发；不自动推 UI 避免骚扰。
+        // 开发者测 lapse UI 走 ProfileDebugSection 的手动按钮。
+        if container.premiumGate.overrideStatus != nil {
+            premiumLogger.info("paywall.lapse.skippedForOverride")
+            return
+        }
+        #endif
+
+        let now = Date()
+        let expiredAt = container.premiumGate.latestEntitlementExpiration
+        let dedupKey = PremiumLapseNotice.dedupKey(expiredAt: expiredAt, detectedAt: now)
+
+        guard !lapseAcknowledgedStore.contains(dedupKey) else {
+            premiumLogger.info("paywall.lapse.deduped dedupKey=\(dedupKey, privacy: .public)")
+            return
+        }
+
+        let notice = PremiumLapseNotice(
+            entitlementExpiredAt: expiredAt,
+            detectedAt: now,
+            dedupKey: dedupKey
+        )
+        premiumLogger.info("paywall.lapse.requested dedupKey=\(dedupKey, privacy: .public)")
+        rootPaywallPresentation.requestLapse(notice)
     }
 
     /// 付费墙 sheet 关闭后的统一清理入口。由 AppRootView 观察 `rootPaywallPresentation.presenting`

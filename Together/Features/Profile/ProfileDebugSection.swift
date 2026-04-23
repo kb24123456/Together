@@ -136,6 +136,20 @@ struct ProfileDebugSection: View {
             }
             .buttonStyle(.bordered)
             .disabled(isRefreshing)
+
+            // 手动触发 Pro→Free lapse sheet（DEBUG only）。dedupKey 带 UUID 绕 store，
+            // 配合 override picker 拨动不自动弹的设计，开发者可反复测 lapse UI。
+            Button {
+                let notice = PremiumLapseNotice.debugSample(now: Date())
+                appContext.rootPaywallPresentation.requestLapse(notice)
+            } label: {
+                HStack {
+                    Image(systemName: "bell.badge.fill")
+                    Text("模拟 Pro → Free lapse sheet")
+                    Spacer()
+                }
+            }
+            .buttonStyle(.bordered)
         }
         .padding(AppTheme.spacing.md)
         .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))

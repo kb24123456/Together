@@ -14,3 +14,31 @@ struct PremiumLapseNotice: Identifiable, Equatable, Sendable {
 
     var id: String { dedupKey }
 }
+
+// MARK: - DedupKey helper
+
+extension PremiumLapseNotice {
+    /// 计算 dedupKey。有真实 `expiredAt` 时按秒精确；没有时按天 fallback（避免同日反复弹）。
+    /// spec § 2.5。
+    static func dedupKey(expiredAt: Date?, detectedAt: Date) -> String {
+        if let d = expiredAt {
+            return "lapse:\(Int(d.timeIntervalSince1970))"
+        }
+        let day = Int(detectedAt.timeIntervalSince1970 / 86_400)
+        return "lapse:fallback:\(day)"
+    }
+}
+
+#if DEBUG
+extension PremiumLapseNotice {
+    /// DEBUG 手动触发 lapse sheet 专用。dedupKey 用 UUID 保证 `LapseAcknowledgedStore.contains`
+    /// 永不命中，可反复点按钮测 UI。
+    static func debugSample(now: Date) -> PremiumLapseNotice {
+        PremiumLapseNotice(
+            entitlementExpiredAt: now.addingTimeInterval(-86_400),
+            detectedAt: now,
+            dedupKey: "lapse:debug:\(UUID().uuidString)"
+        )
+    }
+}
+#endif
