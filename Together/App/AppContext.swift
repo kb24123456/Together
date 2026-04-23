@@ -919,6 +919,8 @@ extension AppContext {
         let appUserID = user.id.uuidString
 
         if !Purchases.isConfigured {
+            // Release build 带着占位 key 会在这里 crash（防止废 build 上架）
+            RevenueCatConfig.assertProductionKeyConfigured()
             Purchases.configure(
                 withAPIKey: RevenueCatConfig.publicSDKKey,
                 appUserID: appUserID
