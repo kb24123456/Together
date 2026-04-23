@@ -62,7 +62,8 @@ final class AppContext {
         )
         self.projectsViewModel = ProjectsViewModel(
             sessionStore: sessionStore,
-            projectRepository: container.projectRepository
+            projectRepository: container.projectRepository,
+            premiumGate: container.premiumGate
         )
         self.calendarViewModel = CalendarViewModel(
             sessionStore: sessionStore,

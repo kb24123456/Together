@@ -69,6 +69,18 @@ struct AppRootView: View {
         .font(AppTheme.typography.body)
         .tint(AppTheme.colors.title)
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
+        .alert(
+            "项目已达上限",
+            isPresented: Binding(
+                get: { appContext.projectsViewModel.pendingUpsellTrigger == .projectQuota },
+                set: { if !$0 { appContext.projectsViewModel.dismissUpsell() } }
+            )
+        ) {
+            Button("好的", role: .cancel) { appContext.projectsViewModel.dismissUpsell() }
+            // TODO(Phase 3): 替换为 "升级 Together Pro" 按钮跳转付费墙
+        } message: {
+            Text("免费用户最多创建 \(ProjectsViewModel.freeProjectQuota) 个项目。升级 Together Pro 可解锁无限。")
+        }
         .task {
             StartupTrace.mark("AppRootView.visible")
         }

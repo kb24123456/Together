@@ -671,28 +671,25 @@ struct ComposerPlaceholderSheet: View {
                     )
                 )
             case .project:
-                let project = try await appContext.container.projectRepository.saveProject(
+                // 走 ViewModel.createNew 以激活项目配额门禁。
+                // 超额时 created 为 nil，pendingUpsellTrigger 已被设置——
+                // sheet 正常 dismiss，ProjectsView 观察到 trigger 后弹 alert。
+                let created = await appContext.projectsViewModel.createNew(
                     draftState.projectDraft(spaceID: spaceID, creatorID: actorID),
-                    actorID: actorID
+                    subtasks: draftState.projectSubtasks.map {
+                        (title: $0.title, isCompleted: $0.isCompleted)
+                    }
                 )
-                for subtask in draftState.projectSubtasks {
-                    _ = try await appContext.container.projectRepository.addSubtask(
-                        projectID: project.id,
-                        title: subtask.title,
-                        isCompleted: subtask.isCompleted,
-                        creatorID: actorID,
-                        actorID: actorID
+                if let project = created {
+                    await appContext.flushRecordedSharedMutation(
+                        SyncChange(
+                            entityKind: .project,
+                            operation: .upsert,
+                            recordID: project.id,
+                            spaceID: spaceID
+                        )
                     )
                 }
-                await appContext.projectsViewModel.load()
-                await appContext.flushRecordedSharedMutation(
-                    SyncChange(
-                        entityKind: .project,
-                        operation: .upsert,
-                        recordID: project.id,
-                        spaceID: spaceID
-                    )
-                )
             }
 
             focusedField = nil

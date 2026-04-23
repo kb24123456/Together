@@ -4,19 +4,35 @@ import Observation
 @MainActor
 @Observable
 final class ProjectsViewModel {
+    /// 免费用户自己创建的项目上限（spec § 产品切分）。
+    static let freeProjectQuota = 3
+
     private let sessionStore: SessionStore
     private let projectRepository: ProjectRepositoryProtocol
+    private let premiumGate: PremiumGate
 
     var loadState: LoadableState = .idle
     var projects: [Project] = []
+
+    /// Upsell 信号。超配额时置 `.projectQuota`，View 观察后提示升级并调 `dismissUpsell()`。
+    private(set) var pendingUpsellTrigger: UpsellTrigger?
 
     /// Fired after Repository recordLocalChange. AppContext wires this to
     /// flushRecordedSharedMutation to trigger the Supabase push.
     var onSharedMutationRecorded: ((SyncChange) -> Void)?
 
-    init(sessionStore: SessionStore, projectRepository: ProjectRepositoryProtocol) {
+    init(
+        sessionStore: SessionStore,
+        projectRepository: ProjectRepositoryProtocol,
+        premiumGate: PremiumGate
+    ) {
         self.sessionStore = sessionStore
         self.projectRepository = projectRepository
+        self.premiumGate = premiumGate
+    }
+
+    func dismissUpsell() {
+        pendingUpsellTrigger = nil
     }
 
     private func emitMutationRecorded(projectID: UUID, operation: SyncOperationKind) {
@@ -157,6 +173,43 @@ final class ProjectsViewModel {
             emitMutationRecorded(projectID: updated.id, operation: .upsert)
         } catch {
             loadState = .failed(error.localizedDescription)
+        }
+    }
+
+    /// 新建项目。自带配额门禁：非 Pro 且 own count >= 3 时阻断并置 upsell trigger。
+    /// 返回创建好的 `Project`；配额拦截时返回 nil，主叫方据此决定是否进一步交互。
+    /// 子任务由主叫方传入，成功创建后按顺序写入仓库。
+    @discardableResult
+    func createNew(
+        _ project: Project,
+        subtasks: [(title: String, isCompleted: Bool)] = []
+    ) async -> Project? {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
+        if !premiumGate.isPremium {
+            let ownCount = projects.filter { $0.creatorID == actorID }.count
+            if ownCount >= Self.freeProjectQuota {
+                pendingUpsellTrigger = .projectQuota
+                return nil
+            }
+        }
+
+        do {
+            let created = try await projectRepository.saveProject(project, actorID: actorID)
+            for subtask in subtasks {
+                _ = try await projectRepository.addSubtask(
+                    projectID: created.id,
+                    title: subtask.title,
+                    isCompleted: subtask.isCompleted,
+                    creatorID: actorID,
+                    actorID: actorID
+                )
+            }
+            await load()
+            emitMutationRecorded(projectID: created.id, operation: .upsert)
+            return created
+        } catch {
+            loadState = .failed(error.localizedDescription)
+            return nil
         }
     }
 
