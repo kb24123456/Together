@@ -28,4 +28,8 @@ struct AppContainer {
 
     // CKSyncEngine-based sync (private DB, solo zone only)
     let syncEngineCoordinator: SyncEngineCoordinator
+
+    // Premium (Together Pro) 门禁。bootstrap / teardown 由 AppContext 驱动，
+    // 这里只负责装配。
+    let premiumGate: PremiumGate
 }

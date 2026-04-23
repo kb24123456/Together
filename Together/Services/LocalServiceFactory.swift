@@ -59,6 +59,8 @@ enum LocalServiceFactory {
 
         let avatarUploader = AvatarStorageUploader(client: SupabaseClientProvider.shared)
 
+        let premiumGate = Self.makePremiumGate()
+
         // CKSyncEngine coordinator (private DB, solo zone only)
         let healthMonitor = SyncHealthMonitor()
         let syncEngineCoordinator = SyncEngineCoordinator(
@@ -93,9 +95,21 @@ enum LocalServiceFactory {
             biometricAuthService: BiometricAuthService(),
             avatarUploader: avatarUploader,
             cloudKitContainer: ckContainer,
-            syncEngineCoordinator: syncEngineCoordinator
+            syncEngineCoordinator: syncEngineCoordinator,
+            premiumGate: premiumGate
         )
         StartupTrace.mark("LocalServiceFactory.makeContainer.end")
         return container
+    }
+
+    @MainActor
+    private static func makePremiumGate() -> PremiumGate {
+        let dateProvider = SystemDateProvider()
+        return PremiumGate(
+            rcClient: RevenueCatClient(),
+            grantsLoader: SupabaseGrantsLoader(client: SupabaseClientProvider.shared),
+            cache: PremiumStatusCache(defaults: .standard, dateProvider: dateProvider),
+            dateProvider: dateProvider
+        )
     }
 }

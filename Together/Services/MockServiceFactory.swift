@@ -34,6 +34,16 @@ enum MockServiceFactory {
 
         let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
 
+        // PremiumGate 在 mock/preview 环境里保持 inert：bootstrap 从不被调用，
+        // 内部依赖不会触发任何 I/O，也不会写真实 UserDefaults。
+        let premiumDate = SystemDateProvider()
+        let premiumGate = PremiumGate(
+            rcClient: RevenueCatClient(),
+            grantsLoader: SupabaseGrantsLoader(client: SupabaseClientProvider.shared),
+            cache: PremiumStatusCache(defaults: .standard, dateProvider: premiumDate),
+            dateProvider: premiumDate
+        )
+
         return AppContainer(
             authService: MockAuthService(),
             spaceService: MockSpaceService(),
@@ -60,7 +70,8 @@ enum MockServiceFactory {
                 ckContainer: ckContainer,
                 modelContainer: mockModelContainer,
                 healthMonitor: SyncHealthMonitor()
-            )
+            ),
+            premiumGate: premiumGate
         )
     }
 }
