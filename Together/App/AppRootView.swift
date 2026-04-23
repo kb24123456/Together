@@ -77,9 +77,30 @@ struct AppRootView: View {
             )
         ) {
             Button("好的", role: .cancel) { appContext.projectsViewModel.dismissUpsell() }
-            // TODO(Phase 3): 替换为 "升级 Together Pro" 按钮跳转付费墙
+            // TODO(Task 9b): 替换为 "升级 Together Pro" 按钮跳转付费墙
         } message: {
             Text("免费用户最多创建 \(ProjectsViewModel.freeProjectQuota) 个项目。升级 Together Pro 可解锁无限。")
+        }
+        .sheet(item: Binding(
+            get: { appContext.rootPaywallPresentation.presenting },
+            set: { new in
+                if new == nil { appContext.rootPaywallPresentation.dismissCurrent() }
+            }
+        )) { kind in
+            UpsellSheet(
+                displayKind: kind.toDisplayKind(),
+                purchasing: appContext.paywallPurchasing,
+                gate: appContext.container.premiumGate,
+                onFinished: { _ in
+                    appContext.rootPaywallPresentation.dismissCurrent()
+                }
+            )
+        }
+        .onChange(of: appContext.rootPaywallPresentation.presenting) { oldKind, _ in
+            // sheet 关闭时 binding set-nil → presenting 变 nil；统一入口做 cleanup
+            guard appContext.rootPaywallPresentation.presenting == nil,
+                  let dismissed = oldKind else { return }
+            appContext.paywallDidDismiss(kind: dismissed)
         }
         .task {
             StartupTrace.mark("AppRootView.visible")

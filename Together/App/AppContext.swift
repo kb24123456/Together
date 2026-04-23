@@ -29,6 +29,17 @@ final class AppContext {
     /// Sync health monitor exposed for UI binding (from SyncEngineCoordinator).
     let syncHealthMonitor: SyncHealthMonitor
 
+    // MARK: - Paywall (Session A Task 9a)
+
+    /// 付费墙 sheet 合并器——AppRootView 挂唯一的 `.sheet(item:)` 观察本属性。
+    let rootPaywallPresentation = RootPaywallPresentation()
+
+    /// lapse 通知去重（UserDefaults 持久化）。
+    let lapseAcknowledgedStore = LapseAcknowledgedStore()
+
+    /// 生产购买抽象。复用同一实例跨所有 UpsellSheet / UpsellContent（packageCache 一致）。
+    let paywallPurchasing: PaywallPurchasingProtocol = RevenueCatPaywallPurchasing()
+
     private(set) var hasBootstrapped = false
     private var hasCompletedPostLaunchWork = false
     private var hasSyncedReminderNotifications = false
@@ -987,6 +998,23 @@ extension AppContext {
         await container.syncEngineCoordinator.stopSoloSync()
         // 清 debounce 时间戳：下次前台再回时立即 refresh 拿最新状态（可能是网络恢复导致的误判）
         lastPremiumRefreshAt = nil
+    }
+
+    /// 付费墙 sheet 关闭后的统一清理入口。由 AppRootView 观察 `rootPaywallPresentation.presenting`
+    /// 从非 nil 变 nil 时调用。Session A § 5.2。
+    func paywallDidDismiss(kind: RootPaywallPresentation.Kind) {
+        switch kind {
+        case .quota(.projectQuota):
+            projectsViewModel.dismissUpsell()
+        case .quota(.anniversaryQuota):
+            importantDatesViewModel.dismissUpsell()
+        case .lapse(let notice):
+            lapseAcknowledgedStore.insert(notice.dedupKey)
+            premiumLogger.info("paywall.lapse.acknowledged dedupKey=\(notice.dedupKey, privacy: .public)")
+        case .quota(.logbookHistory), .quota(.crossDeviceSync):
+            // Session B/C 接入 VM 源后补
+            break
+        }
     }
 
     /// 自动检查 invite 是否已被接受——冷启动 + scene 激活时触发。
