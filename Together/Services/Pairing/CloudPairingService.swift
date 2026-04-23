@@ -226,7 +226,10 @@ actor CloudPairingService: PairingServiceProtocol {
             inviterUserID: inviterLocalUserID,
             inviterDisplayName: inviterName,
             responderID: responderID,
-            responderDisplayName: responderDisplayName
+            responderDisplayName: responderDisplayName,
+            // 用邀请创建时间作为 space 的 createdAt——和 inviter 侧 `createPairInvite`
+            // 里存的 `now` 几乎同时，两台设备的"配对 N 天"显示一致。
+            spaceCreatedAt: supabaseInvite.createdAt
         )
 
         // 7. 更新本地元数据

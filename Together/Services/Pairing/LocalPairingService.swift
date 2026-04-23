@@ -156,17 +156,22 @@ actor LocalPairingService: PairingServiceProtocol {
     }
 
     /// Called by CloudPairingService on Device B after getting remote invite details.
+    ///
+    /// `spaceCreatedAt` 必须传远端真实时间戳（通常用 `supabaseInvite.createdAt`，
+    /// 即邀请创建时间，与对端 inviter 侧本地 `createPairInvite` 的时间接近），
+    /// 这样两台设备的 `配对 N 天` 显示会一致。如果这里填 epoch 0 / nil，UI 会
+    /// 算出几万天的错值。
     func setupPairingFromRemote(
         pairSpaceID: UUID,
         sharedSpaceID: UUID,
         inviterUserID: UUID,
         inviterDisplayName: String,
         responderID: UUID,
-        responderDisplayName: String
+        responderDisplayName: String,
+        spaceCreatedAt: Date
     ) async throws -> PairingContext {
         let context = ModelContext(container)
         let now = Date.now
-        let placeholderTimestamp = Date(timeIntervalSince1970: 0)
 
         // Avoid duplicate setup
         let existing = try context.fetch(
@@ -181,8 +186,8 @@ actor LocalPairingService: PairingServiceProtocol {
                 displayName: PairSpace.defaultSharedSpaceDisplayName,
                 ownerUserID: inviterUserID,
                 status: .active,
-                createdAt: placeholderTimestamp,
-                updatedAt: placeholderTimestamp,
+                createdAt: spaceCreatedAt,
+                updatedAt: now,
                 archivedAt: nil
             )
             let pairSpace = PairSpace(
@@ -192,8 +197,8 @@ actor LocalPairingService: PairingServiceProtocol {
                 memberA: PairMember(userID: inviterUserID, nickname: inviterDisplayName, joinedAt: now),
                 memberB: PairMember(userID: responderID, nickname: responderDisplayName, joinedAt: now),
                 dataBoundaryToken: sharedSpaceID,
-                createdAt: placeholderTimestamp,
-                activatedAt: placeholderTimestamp,
+                createdAt: spaceCreatedAt,
+                activatedAt: now,
                 endedAt: nil
             )
             context.insert(PersistentSpace(space: sharedSpace))
