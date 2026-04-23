@@ -87,7 +87,11 @@ final class AppContext {
             biometricAuthService: container.biometricAuthService,
             premiumGate: container.premiumGate
         )
-        self.importantDatesViewModel = ImportantDatesViewModel(repository: container.importantDateRepository)
+        self.importantDatesViewModel = ImportantDatesViewModel(
+            sessionStore: sessionStore,
+            premiumGate: container.premiumGate,
+            repository: container.importantDateRepository
+        )
         self.importantDatesViewModel.onChange = { [weak self] in
             guard let self else { return }
             // LocalImportantDateRepository.save/delete already recorded the change
