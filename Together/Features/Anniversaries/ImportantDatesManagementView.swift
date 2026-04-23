@@ -47,17 +47,10 @@ struct ImportantDatesManagementView: View {
             .sheet(isPresented: $showPresetPicker) {
                 PresetHolidayPickerSheet()
             }
-            .alert(
-                "纪念日已达上限",
-                isPresented: Binding(
-                    get: { viewModel.pendingUpsellTrigger == .anniversaryQuota },
-                    set: { if !$0 { viewModel.dismissUpsell() } }
-                )
-            ) {
-                Button("好的", role: .cancel) { viewModel.dismissUpsell() }
-                // TODO(Phase 3): 替换为 "升级 Together Pro" 按钮跳转付费墙
-            } message: {
-                Text("免费用户最多创建 \(ImportantDatesViewModel.freeAnniversaryQuota) 个纪念日。升级 Together Pro 可解锁无限。")
+            .onChange(of: viewModel.pendingUpsellTrigger) { _, new in
+                if let trigger = new {
+                    appContext.rootPaywallPresentation.requestTrigger(trigger)
+                }
             }
         }
         .task {
