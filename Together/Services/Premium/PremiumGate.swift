@@ -31,6 +31,14 @@ final class PremiumGate {
     private var bootstrapToken = UUID()
     private var currentUserID: UUID?
 
+    /// 最近一次成功 RC fetch 看到的 entitlement expirationDate（含已失效快照）。
+    /// 用于 Pro→Free lapse 时读真实到期日，而非本地检测时间。Session A § 2.5。
+    private var cachedProExpirationDate: Date?
+
+    /// 最近一次成功 RC fetch 的 entitlement expirationDate；nil 代表还未 fetch
+    /// 或 RC 从未返回过 entitlement。不被 `logOut()` 清空（lapse 发生在 logOut 之后）。
+    var latestEntitlementExpiration: Date? { cachedProExpirationDate }
+
     init(
         rcClient: RCClientProtocol,
         grantsLoader: GrantsLoaderProtocol,
@@ -84,6 +92,8 @@ final class PremiumGate {
     private func safeFetchRC() async -> Result<RCEntitlementSnapshot, Error> {
         do {
             let info = try await rcClient.fetchCustomerInfo()
+            // 无条件缓存 expirationDate（即使 isProActive == false 也可能有 expirationDate）
+            cachedProExpirationDate = info.proExpirationDate
             return .success(info)
         } catch {
             return .failure(error)
