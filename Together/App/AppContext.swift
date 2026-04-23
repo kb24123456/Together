@@ -195,16 +195,18 @@ final class AppContext {
         await routinesViewModel.load()
         await syncReminderNotificationsIfNeeded()
 
-        // Start sync engines
+        // 启动顺序对外部读者说明：
+        //   1. 先恢复 Supabase session —— configurePremiumGate 需要 auth.uid() 来查
+        //      premium_grants（RLS policy `auth.uid() = user_id`）。
+        //   2. 激活 Premium 门禁 —— startSoloSyncEngineIfNeeded 和若干业务 gate
+        //      会读 premiumGate.isPremium，必须在它们之前 bootstrap 完成。
+        //   3. 启动 CKSyncEngine solo（Pro-only）。
+        //   4. 启动 Supabase 双人同步。
         if sessionStore.authState == .signedIn {
-            await startSoloSyncEngineIfNeeded()
-
-            // 恢复 Supabase session 并启动双人同步
             _ = await supabaseAuth.restoreSession()
-            await startSupabaseSyncIfNeeded()
-
-            // 激活 Premium 门禁（RC configure + logIn + PremiumGate.bootstrap）
             await configurePremiumGate()
+            await startSoloSyncEngineIfNeeded()
+            await startSupabaseSyncIfNeeded()
         }
 
         StartupTrace.mark("AppContext.postLaunch.end")
@@ -927,11 +929,16 @@ extension AppContext {
     private static let premiumRefreshInterval: TimeInterval = 3600
 
     private func runConfigurePremiumGate() async {
-        guard let user = sessionStore.currentUser else {
-            premiumLogger.debug("configurePremiumGate skipped: no current user")
+        // 关键：用 **Supabase** auth.uid 作为身份锚点，而不是本地 `User.id`。
+        // - `premium_grants` 的 RLS 按 `auth.uid() = user_id` 过滤，查询时依赖 session。
+        // - RC `appUserID` 必须和 Supabase auth 对齐（spec § 1），否则订阅状态在设备间不连续。
+        // 本地 `sessionStore.currentUser.id` 是 Apple Sign-In 生成的独立 UUID，和
+        // Supabase `auth.users.id` 是两套（详见历史身份不对齐笔记），**不能**通用。
+        guard let supabaseUserID = await supabaseAuth.currentUserID else {
+            premiumLogger.debug("configurePremiumGate skipped: no active Supabase session")
             return
         }
-        let appUserID = user.id.uuidString
+        let appUserID = supabaseUserID.uuidString
 
         if !Purchases.isConfigured {
             RevenueCatConfig.assertProductionKeyConfigured()
@@ -949,7 +956,7 @@ extension AppContext {
             }
         }
 
-        await container.premiumGate.bootstrap(userID: user.id)
+        await container.premiumGate.bootstrap(userID: supabaseUserID)
         lastPremiumRefreshAt = Date()
         premiumLogger.info("PremiumGate bootstrapped → \(String(describing: self.container.premiumGate.status), privacy: .public)")
     }
