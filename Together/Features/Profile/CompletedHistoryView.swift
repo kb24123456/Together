@@ -242,7 +242,22 @@ struct CompletedHistoryView: View {
                     reminderScheduler: MockReminderScheduler()
                 ),
                 taskListRepository: MockTaskListRepository(),
-                projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler())
+                projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+                premiumGate: {
+                    // Preview 里 inert PremiumGate + DEBUG 覆盖为 Pro，这样预览 UI
+                    // 看到完整历史（不被 30 天 floor 裁剪）。
+                    let date = SystemDateProvider()
+                    let gate = PremiumGate(
+                        rcClient: RevenueCatClient(),
+                        grantsLoader: SupabaseGrantsLoader(client: SupabaseClientProvider.shared),
+                        cache: PremiumStatusCache(defaults: .standard, dateProvider: date),
+                        dateProvider: date
+                    )
+                    #if DEBUG
+                    gate.overrideStatus = .pro(source: .subscription, expiresAt: nil)
+                    #endif
+                    return gate
+                }()
             )
         )
     }

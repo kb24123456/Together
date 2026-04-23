@@ -3,6 +3,22 @@ import Foundation
 import SwiftData
 import Testing
 @testable import Together
+
+/// 所有需要 ProfileViewModel / CompletedHistoryViewModel 的测试共用这个 inert
+/// PremiumGate：空 stub，status 默认 `.unknown`，调 `bootstrap` 才会触发 I/O。
+@MainActor
+fileprivate func makeTestPremiumGate() -> PremiumGate {
+    let date = SystemDateProvider()
+    return PremiumGate(
+        rcClient: StubRCClient(),
+        grantsLoader: StubGrantsLoader(),
+        cache: PremiumStatusCache(
+            defaults: UserDefaults(suiteName: UUID().uuidString)!,
+            dateProvider: date
+        ),
+        dateProvider: date
+    )
+}
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -606,7 +622,8 @@ struct TogetherTests {
             taskApplicationService: TestHomeTaskApplicationService(),
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
-            reminderScheduler: MockReminderScheduler()
+            reminderScheduler: MockReminderScheduler(),
+            premiumGate: makeTestPremiumGate()
         )
         viewModel.onSharedMutationRecorded = { _ in
             Task {
@@ -663,7 +680,8 @@ struct TogetherTests {
             taskApplicationService: TestHomeTaskApplicationService(),
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
-            reminderScheduler: MockReminderScheduler()
+            reminderScheduler: MockReminderScheduler(),
+            premiumGate: makeTestPremiumGate()
         )
 
         #expect(viewModel.spaceSummary == "一起的任务空间 · 同步中")
@@ -705,7 +723,8 @@ struct TogetherTests {
             taskApplicationService: TestHomeTaskApplicationService(),
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
-            reminderScheduler: MockReminderScheduler()
+            reminderScheduler: MockReminderScheduler(),
+            premiumGate: makeTestPremiumGate()
         )
 
         #expect(viewModel.spaceSummary == "一起的任务空间 · 已同步")
@@ -2121,7 +2140,8 @@ struct TogetherTests {
             itemRepository: TestItemRepository(),
             taskApplicationService: TestHomeTaskApplicationService(),
             taskListRepository: MockTaskListRepository(),
-            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler())
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+            premiumGate: makeTestPremiumGate()
         )
 
         let taskID = UUID()
@@ -3339,7 +3359,8 @@ struct TogetherTests {
                 reminderScheduler: MockReminderScheduler()
             ),
             taskListRepository: MockTaskListRepository(),
-            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler())
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+            premiumGate: makeTestPremiumGate()
         )
 
         await viewModel.reload()

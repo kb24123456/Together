@@ -84,7 +84,8 @@ final class AppContext {
             taskListRepository: container.taskListRepository,
             projectRepository: container.projectRepository,
             reminderScheduler: container.reminderScheduler,
-            biometricAuthService: container.biometricAuthService
+            biometricAuthService: container.biometricAuthService,
+            premiumGate: container.premiumGate
         )
         self.importantDatesViewModel = ImportantDatesViewModel(repository: container.importantDateRepository)
         self.importantDatesViewModel.onChange = { [weak self] in

@@ -16,7 +16,11 @@ final class CompletedHistoryViewModel {
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let taskListRepository: TaskListRepositoryProtocol
     private let projectRepository: ProjectRepositoryProtocol
+    private let premiumGate: PremiumGate
     private let pageSize = 30
+
+    /// 非 Pro 用户 Logbook 历史的天数上限（spec 产品切分 §2）。
+    private static let freeLogbookFloorDays = 30
 
     var onTaskMutated: ((UUID) -> Void)?
     var onSharedMutationRecorded: ((SyncChange) -> Void)?
@@ -40,13 +44,22 @@ final class CompletedHistoryViewModel {
         itemRepository: ItemRepositoryProtocol,
         taskApplicationService: TaskApplicationServiceProtocol,
         taskListRepository: TaskListRepositoryProtocol,
-        projectRepository: ProjectRepositoryProtocol
+        projectRepository: ProjectRepositoryProtocol,
+        premiumGate: PremiumGate
     ) {
         self.sessionStore = sessionStore
         self.itemRepository = itemRepository
         self.taskApplicationService = taskApplicationService
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
+        self.premiumGate = premiumGate
+    }
+
+    /// Pro / gracePeriod 用户返回 nil（看完整历史）；free / unknown 返回 30 天前时间戳
+    /// 作为 `fetchCompletedItems(since:)` 的下界，隐藏更早的完成记录。
+    private var logbookSinceFloor: Date? {
+        guard !premiumGate.allowsFullLogbook else { return nil }
+        return calendar.date(byAdding: .day, value: -Self.freeLogbookFloorDays, to: Date())
     }
 
     var sections: [CompletedHistorySection] {
@@ -96,6 +109,7 @@ final class CompletedHistoryViewModel {
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
                 before: nil,
+                since: logbookSinceFloor,
                 limit: pageSize
             )
             items = fetched
@@ -237,6 +251,7 @@ final class CompletedHistoryViewModel {
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
                 before: cursor,
+                since: logbookSinceFloor,
                 limit: pageSize
             )
             items.append(contentsOf: fetched)

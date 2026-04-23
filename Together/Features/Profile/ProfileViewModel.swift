@@ -48,6 +48,7 @@ final class ProfileViewModel {
     private let projectRepository: ProjectRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
     private let biometricAuthService: BiometricAuthServiceProtocol
+    private let premiumGate: PremiumGate
 
     var onTaskMutated: ((_ spaceID: UUID) -> Void)?
     var loadState: LoadableState = .idle
@@ -79,7 +80,8 @@ final class ProfileViewModel {
         taskListRepository: TaskListRepositoryProtocol,
         projectRepository: ProjectRepositoryProtocol,
         reminderScheduler: ReminderSchedulerProtocol,
-        biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService()
+        biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService(),
+        premiumGate: PremiumGate
     ) {
         self.sessionStore = sessionStore
         self.authService = authService
@@ -92,6 +94,7 @@ final class ProfileViewModel {
         self.projectRepository = projectRepository
         self.reminderScheduler = reminderScheduler
         self.biometricAuthService = biometricAuthService
+        self.premiumGate = premiumGate
     }
 
     var currentUser: User? { sessionStore.currentUser }
@@ -645,7 +648,8 @@ final class ProfileViewModel {
             itemRepository: itemRepository,
             taskApplicationService: taskApplicationService,
             taskListRepository: taskListRepository,
-            projectRepository: projectRepository
+            projectRepository: projectRepository,
+            premiumGate: premiumGate
         )
         viewModel.onTaskMutated = onTaskMutated
         viewModel.onSharedMutationRecorded = onSharedMutationRecorded
