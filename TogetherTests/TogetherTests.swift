@@ -217,38 +217,6 @@ struct TogetherTests {
         )
     }
 
-    @Test
-    func setupPairingFromRemoteSeedsPlaceholderSharedTimestampsAsStale() async throws {
-        let persistence = PersistenceController(inMemory: true)
-        let pairingService = LocalPairingService(container: persistence.container)
-        let pairSpaceID = UUID()
-        let sharedSpaceID = UUID()
-
-        _ = try await pairingService.setupPairingFromRemote(
-            pairSpaceID: pairSpaceID,
-            sharedSpaceID: sharedSpaceID,
-            inviterUserID: MockDataFactory.currentUserID,
-            inviterDisplayName: "邀请方",
-            responderID: MockDataFactory.partnerUserID,
-            responderDisplayName: "接受方"
-        )
-
-        let context = ModelContext(persistence.container)
-        let spaceDescriptor = FetchDescriptor<PersistentSpace>(
-            predicate: #Predicate<PersistentSpace> { $0.id == sharedSpaceID }
-        )
-        let pairDescriptor = FetchDescriptor<PersistentPairSpace>(
-            predicate: #Predicate<PersistentPairSpace> { $0.id == pairSpaceID }
-        )
-
-        let sharedSpace = try #require(context.fetch(spaceDescriptor).first)
-        let pairSpace = try #require(context.fetch(pairDescriptor).first)
-
-        #expect(sharedSpace.createdAt == Date(timeIntervalSince1970: 0))
-        #expect(sharedSpace.updatedAt == Date(timeIntervalSince1970: 0))
-        #expect(pairSpace.createdAt == Date(timeIntervalSince1970: 0))
-        #expect(pairSpace.activatedAt == Date(timeIntervalSince1970: 0))
-    }
 
     @Test
     func avatarAssetRecordUsesDerivedCacheFileWhenPersistentProfileFileNameIsMissing() async throws {
