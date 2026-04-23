@@ -24,14 +24,39 @@ actor StubRCClient: RCClientProtocol {
 
 actor StubGrantsLoader: GrantsLoaderProtocol {
     private var _nextResult: Result<[PremiumGrant], Error> = .success([])
-    private var _fetchDelay: Duration = .zero
+    private(set) var receivedUserIDs: [UUID] = []
+
+    // 显式 hold/release 信号（替代 sleep 时序）
+    private var _shouldHoldNext = false
+    private var _heldContinuation: CheckedContinuation<Void, Never>?
+    private var _didEnterHoldContinuation: CheckedContinuation<Void, Never>?
 
     func setNextResult(_ r: Result<[PremiumGrant], Error>) { _nextResult = r }
-    func setFetchDelay(_ d: Duration) { _fetchDelay = d }
+
+    /// 让下一次 fetch 在真正执行前挂起，直到 `releaseHeld()` 被调用。
+    func holdNextFetch() { _shouldHoldNext = true }
+
+    /// 等待 held fetch 真正进入挂起点（用于保证时序而非 sleep）。
+    func waitUntilHeld() async {
+        if _heldContinuation != nil { return }
+        await withCheckedContinuation { c in _didEnterHoldContinuation = c }
+    }
+
+    /// 释放 held fetch。
+    func releaseHeld() {
+        _heldContinuation?.resume()
+        _heldContinuation = nil
+    }
 
     func fetchActiveGrants(userID: UUID) async throws -> [PremiumGrant] {
-        if _fetchDelay != .zero {
-            try? await Task.sleep(for: _fetchDelay)
+        receivedUserIDs.append(userID)
+        if _shouldHoldNext {
+            _shouldHoldNext = false
+            await withCheckedContinuation { c in
+                _heldContinuation = c
+                _didEnterHoldContinuation?.resume()
+                _didEnterHoldContinuation = nil
+            }
         }
         return try _nextResult.get()
     }
@@ -95,6 +120,47 @@ struct PremiumGateLifecycleTests {
         #expect(gate.status == .free)
     }
 
+    @Test func refreshWithoutBootstrapIsNoOp() async {
+        let (gate, _, grants) = makeGate()
+        // 配置一个会让 status 变 .pro 的结果；如果 refresh 真的跑了，这个会被应用
+        await grants.setNextResult(.success([
+            PremiumGrant(
+                id: UUID(), userID: UUID(), category: .developer,
+                reason: nil, grantedAt: Date(), expiresAt: nil
+            )
+        ]))
+
+        await gate.refresh()
+
+        // 没 bootstrap 过 → currentUserID == nil → refresh 应 no-op
+        #expect(gate.status == .unknown)
+        let received = await grants.receivedUserIDs
+        #expect(received.isEmpty)
+    }
+
+    @Test func refreshAfterBootstrapRerunsWithSameUserID() async {
+        let (gate, _, grants) = makeGate()
+        let userID = UUID()
+
+        // 第一次 bootstrap：空 grants → .free
+        await gate.bootstrap(userID: userID)
+        #expect(gate.status == .free)
+
+        // 变更 grants，refresh 应拉取新的结果并更新 status
+        await grants.setNextResult(.success([
+            PremiumGrant(
+                id: UUID(), userID: userID, category: .developer,
+                reason: nil, grantedAt: Date(), expiresAt: nil
+            )
+        ]))
+        await gate.refresh()
+
+        #expect(gate.isPremium)
+        let received = await grants.receivedUserIDs
+        // refresh 必须用 bootstrap 时捕获的同一 userID，不能掉/换
+        #expect(received == [userID, userID])
+    }
+
     @Test func logOutClearsStatusAndCache() async {
         let (gate, _, grants) = makeGate()
         let grant = PremiumGrant(
@@ -124,30 +190,35 @@ struct PremiumGateLifecycleTests {
     #endif
 
     @Test func staleBootstrapResultIsDiscarded() async {
-        // 快速连续两次 bootstrap，后者应胜出
+        // 两次 bootstrap 交叠：A 的 grants fetch 被 hold 住，B 在中间完成并推进 token；
+        // A 释放后结果应被 token 校验丢弃。不依赖 sleep 时序。
         let (gate, _, grants) = makeGate()
         let userA = UUID()
         let userB = UUID()
 
-        await grants.setFetchDelay(.milliseconds(100))
+        // A 的结果会让 status 变 .pro——如果 stale 检查失效就会看到
+        await grants.holdNextFetch()
         await grants.setNextResult(.success([
             PremiumGrant(
                 id: UUID(), userID: userA, category: .developer,
                 reason: nil, grantedAt: Date(), expiresAt: nil
             )
         ]))
+
         let taskA = Task { await gate.bootstrap(userID: userA) }
 
-        // 立刻发起第二次 bootstrap（不同结果）
-        try? await Task.sleep(for: .milliseconds(10))
-        await grants.setFetchDelay(.zero)
+        // 显式等 A 的 grants fetch 进入挂起点——保证 A 的 token 已写入
+        await grants.waitUntilHeld()
+
+        // 换成 B 的结果（空 grants → .free），B 不 hold，直接跑完
         await grants.setNextResult(.success([]))
         await gate.bootstrap(userID: userB)
 
-        // 等 A 完成
+        // 释放 A；A 恢复后 token 已不匹配，合并结果会被丢弃
+        await grants.releaseHeld()
         await taskA.value
 
-        // 最终 status 应是 B 的（.free），不是 A 的 .pro
+        // 最终 status 是 B 的 .free，而不是 A 的 .pro
         #expect(gate.status == .free)
     }
 }
