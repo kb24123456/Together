@@ -9,7 +9,7 @@ import UIKit
 import UserNotifications
 
 private let appContextLogger = Logger(subsystem: "com.pigdog.Together", category: "AppContext")
-private let premiumLogger = Logger(subsystem: "com.pigdog.Together", category: "Premium")
+// premiumLogger 定义在 Together/Services/Premium/PremiumLogger.swift 作为 module-internal
 
 @MainActor
 @Observable

@@ -544,6 +544,8 @@ if outcome == .success {
 
 Release build 无 `debugOverrideMasksPro` 分支（`PaywallError` 该 case 也可 `#if DEBUG`）。
 
+**restore 路径同等对称**（v8.1 补）：restore 成功不再做 `isPremium` 严格校验——RC 的 `.success` outcome 已在生产实现里检查了 `entitlement.isActive`，延迟传播不应误导用户。但 **DEBUG override** 分支保持：`restore` 成功 + `overrideStatus != nil` → `state = .failed(.debugOverrideMasksPro)`，开发者反馈一致。
+
 ### 2.13 i18n（R18）
 
 Session A 沿用项目现状——中文硬编码，不引入 Localizable.strings。所有文案集中到 `UpsellCopy.swift` 常量，将来 i18n 只需换此一处。
@@ -578,6 +580,7 @@ Session A 沿用项目现状——中文硬编码，不引入 Localizable.string
 | `paywall.purchase.failed` | error | packageID, errorCode |
 | `paywall.restore.start / succeeded / failed` | info/error | — |
 | `paywall.refresh.postPurchase` | info | isPremium |
+| `paywall.refresh.postRestore` | info | isPremium |
 | `paywall.lapse.requested` | info | expiredAt, dedupKey |
 | `paywall.lapse.deduped` | info | dedupKey |
 
