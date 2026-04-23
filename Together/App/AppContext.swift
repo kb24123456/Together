@@ -959,4 +959,18 @@ extension AppContext {
         lastPremiumRefreshAt = nil
         premiumLogger.info("PremiumGate torn down")
     }
+
+    /// Pro → Free 运行时转变处理（P2.1）。由 TogetherApp 的 `.onChange(of: premiumGate.isPremium)`
+    /// 触发。只有 true → false 的翻转才需要干预：关掉当前跑着的 CKSyncEngine，
+    /// 避免非 Pro 用户继续享受跨设备同步到下次冷启动才停。
+    ///
+    /// TODO(Phase 3 UI): 这里应当 surface UpsellTrigger，让用户看到"订阅到期→升级恢复同步"CTA。
+    /// 当前只做数据面，UI 提示留给 Phase 3。
+    func handlePremiumStatusChange(wasPremium: Bool, isPremium: Bool) async {
+        guard wasPremium, !isPremium else { return }
+        premiumLogger.info("Premium lapsed at runtime — stopping solo sync")
+        await container.syncEngineCoordinator.stopSoloSync()
+        // 清 debounce 时间戳：下次前台再回时立即 refresh 拿最新状态（可能是网络恢复导致的误判）
+        lastPremiumRefreshAt = nil
+    }
 }

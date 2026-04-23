@@ -83,6 +83,16 @@ struct TogetherApp: App {
                         appBootstrapper.handleSignOut()
                     }
                 }
+                .onChange(of: appBootstrapper.appContext?.container.premiumGate.isPremium ?? false) { oldValue, newValue in
+                    // Pro → Free 运行时转变：停同步，避免非 Pro 继续享受跨设备到下次冷启动才断。
+                    guard let appContext = appBootstrapper.appContext else { return }
+                    Task {
+                        await appContext.handlePremiumStatusChange(
+                            wasPremium: oldValue,
+                            isPremium: newValue
+                        )
+                    }
+                }
                 .onOpenURL { url in
                     // Universal Link 邀请跳转
                     if let appContext = appBootstrapper.appContext {
