@@ -147,8 +147,17 @@ final class PremiumGate {
             )
         }
 
-        // Step 4: 双查询失败 + 有缓存？
-        if case .failure = rcResult, case .failure = grantsResult, let cached = cachedStatus {
+        // Step 4: Supabase grants 查询失败 + 有缓存 → 回退缓存。
+        //
+        // 原设计要求"双方都失败"才回退。实测发现 RevenueCat SDK 离线时
+        // 不抛错——返回上次缓存的 CustomerInfo（isActive = false），所以
+        // 「双失败」几乎永远不成立。真正的离线信号只有 Supabase query 失败。
+        //
+        // 放宽为单失败即回退：
+        //   - 若 grants 成功（即便空数组） + RC 没激活 → 真的无 Pro → .free
+        //   - 若 grants 失败（网络真坏）→ 无法确认 grant 状态 → 信任缓存
+        // 缓存自带 7 天 TTL，即使用户在 Pro 过期前后长期离线，最终也会老化掉。
+        if case .failure = grantsResult, let cached = cachedStatus {
             return cached
         }
 

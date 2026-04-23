@@ -154,6 +154,30 @@ struct PremiumGateMergeTests {
         #expect(status == .free)
     }
 
+    /// 真实离线场景：RC SDK 离线会返回 stale `.success(isProActive: false)` 而不抛错，
+    /// 只有 Supabase 查询才会真实失败。原"双失败"要求在实测里从不触发，会
+    /// 错把离线 Pro 用户算成 Free。放宽为 grants 单失败即回退缓存。
+    @Test func grantsFailureAloneUsesCacheEvenWhenRCStaleInactive() {
+        let cached = PremiumStatus.pro(source: .grant, expiresAt: nil)
+        let status = PremiumGate.computeStatus(
+            rcResult: .success(RCEntitlementSnapshot(isProActive: false, proExpirationDate: nil)),
+            grantsResult: .failure(NSError(domain: "network", code: -1009)),
+            cachedStatus: cached,
+            now: now
+        )
+        #expect(status == cached)
+    }
+
+    @Test func grantsFailureWithRCInactiveNoCacheReturnsFree() {
+        let status = PremiumGate.computeStatus(
+            rcResult: .success(RCEntitlementSnapshot(isProActive: false, proExpirationDate: nil)),
+            grantsResult: .failure(NSError(domain: "network", code: -1009)),
+            cachedStatus: nil,
+            now: now
+        )
+        #expect(status == .free)
+    }
+
     @Test func oneFailureOneSuccessIgnoresCacheUsesSuccess() {
         let cached = PremiumStatus.pro(source: .grant, expiresAt: nil)
         let grant = PremiumGrant(
