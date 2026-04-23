@@ -47,6 +47,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         spaceID: UUID?,
         searchText: String?,
         before: Date?,
+        since: Date?,
         limit: Int
     ) async throws -> [Item] {
         let context = ModelContext(container)
@@ -57,6 +58,9 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             guard let completedAt = record.completedAt else { return false }
             let cursorDate = record.archivedAt ?? completedAt
             if let before, cursorDate >= before {
+                return false
+            }
+            if let since, cursorDate < since {
                 return false
             }
             guard let searchText = searchText?.trimmingCharacters(in: .whitespacesAndNewlines),

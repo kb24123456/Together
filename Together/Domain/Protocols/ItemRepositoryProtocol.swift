@@ -20,10 +20,13 @@ struct CompletedItemStats: Equatable, Sendable {
 
 protocol ItemRepositoryProtocol: Sendable {
     func fetchActiveItems(spaceID: UUID?) async throws -> [Item]
+    /// 拉取已完成（非归档）条目。`since != nil` 时只返回 `cursorDate >= since` 的记录，
+    /// 用于 Premium 层面给非 Pro 用户加 30 天历史 floor（spec 产品切分 §2）。
     func fetchCompletedItems(
         spaceID: UUID?,
         searchText: String?,
         before: Date?,
+        since: Date?,
         limit: Int
     ) async throws -> [Item]
     /// Aggregate stats (count, this-month count, first title, last date)
@@ -56,6 +59,23 @@ protocol ItemRepositoryProtocol: Sendable {
 extension ItemRepositoryProtocol {
     func fetchItems(spaceID: UUID?) async throws -> [Item] {
         try await fetchActiveItems(spaceID: spaceID)
+    }
+
+    /// 无 `since` 参数的便捷 overload。给不关心 Premium 30 天 floor 的调用点用
+    /// （例如账号注销时的全量删）。Premium 相关代码路径应直接调带 since 的版本。
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item] {
+        try await fetchCompletedItems(
+            spaceID: spaceID,
+            searchText: searchText,
+            before: before,
+            since: nil,
+            limit: limit
+        )
     }
 
     func completedItemStats(spaceID: UUID?) async throws -> CompletedItemStats {

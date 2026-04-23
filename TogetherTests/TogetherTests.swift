@@ -3856,6 +3856,7 @@ actor TestItemRepository: ItemRepositoryProtocol {
         spaceID: UUID?,
         searchText: String?,
         before: Date?,
+        since: Date?,
         limit: Int
     ) async throws -> [Item] {
         let normalizedLimit = max(limit, 1)
@@ -3867,6 +3868,9 @@ actor TestItemRepository: ItemRepositoryProtocol {
                 guard let completedAt = item.completedAt else { return false }
                 let cursorDate = item.archivedAt ?? completedAt
                 if let before, cursorDate >= before {
+                    return false
+                }
+                if let since, cursorDate < since {
                     return false
                 }
                 guard let normalizedSearch, normalizedSearch.isEmpty == false else {
