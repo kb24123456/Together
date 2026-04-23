@@ -77,6 +77,9 @@ struct TogetherApp: App {
                 }
                 .onChange(of: appBootstrapper.appContext?.sessionStore.authState) { _, newValue in
                     if newValue == .signedOut, appBootstrapper.phase == .ready {
+                        if let appContext = appBootstrapper.appContext {
+                            Task { await appContext.teardownPremiumGate() }
+                        }
                         appBootstrapper.handleSignOut()
                     }
                 }
@@ -121,6 +124,7 @@ struct TogetherApp: App {
                         if appContext.sessionStore.hasActivePairSpace {
                             Task { await appContext.syncPairSpaceIfNeeded() }
                         }
+                        Task { await appContext.refreshPremiumGateIfStale() }
                     default:
                         break
                     }

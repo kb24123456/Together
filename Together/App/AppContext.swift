@@ -2,6 +2,7 @@ import CloudKit
 import Foundation
 import Observation
 import os
+import RevenueCat
 import Supabase
 import SwiftData
 import UIKit
@@ -36,6 +37,11 @@ final class AppContext {
     private var isStartingSupabaseSync = false  // 防止 startSupabaseSyncIfNeeded 多 Task 并发穿 guard
     private nonisolated(unsafe) let supabaseAuth = SupabaseAuthService()
     private var activeSharedSpaceID: UUID?
+
+    // Premium 生命周期：configure/teardown/refresh 通过任务链串行化，
+    // 避免快速登入-登出-再登入导致的 RC configure vs logIn 竞争。
+    private var premiumGateTask: Task<Void, Never>?
+    private var lastPremiumRefreshAt: Date?
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
@@ -189,6 +195,9 @@ final class AppContext {
             // 恢复 Supabase session 并启动双人同步
             _ = await supabaseAuth.restoreSession()
             await startSupabaseSyncIfNeeded()
+
+            // 激活 Premium 门禁（RC configure + logIn + PremiumGate.bootstrap）
+            await configurePremiumGate()
         }
 
         StartupTrace.mark("AppContext.postLaunch.end")
@@ -858,5 +867,73 @@ extension AppContext: PairJoinObserver {
         //    is pulled into the local DB before the user hits Home.
         await supabaseSyncService?.catchUp()
         appContextLogger.info("[PairJoin] post-pair catchUp completed")
+    }
+}
+
+// MARK: - Premium lifecycle
+
+extension AppContext {
+    /// 登入成功或冷启动已登入时调用。
+    /// 串行：若有前一个 premium task（configure/teardown/refresh）仍在跑，先等它完成。
+    func configurePremiumGate() async {
+        let previous = premiumGateTask
+        let task = Task { @MainActor in
+            if let previous { await previous.value }
+            await self.runConfigurePremiumGate()
+        }
+        premiumGateTask = task
+        await task.value
+    }
+
+    /// 登出时调用。
+    func teardownPremiumGate() async {
+        let previous = premiumGateTask
+        let task = Task { @MainActor in
+            if let previous { await previous.value }
+            await self.runTeardownPremiumGate()
+        }
+        premiumGateTask = task
+        await task.value
+    }
+
+    /// 前台激活时的条件刷新。1 小时内已刷过就 no-op。
+    func refreshPremiumGateIfStale() async {
+        if let last = lastPremiumRefreshAt,
+           Date().timeIntervalSince(last) < Self.premiumRefreshInterval {
+            return
+        }
+        let previous = premiumGateTask
+        let task = Task { @MainActor in
+            if let previous { await previous.value }
+            await self.container.premiumGate.refresh()
+            self.lastPremiumRefreshAt = Date()
+        }
+        premiumGateTask = task
+        await task.value
+    }
+
+    private static let premiumRefreshInterval: TimeInterval = 3600
+
+    private func runConfigurePremiumGate() async {
+        guard let user = sessionStore.currentUser else { return }
+        let appUserID = user.id.uuidString
+
+        if !Purchases.isConfigured {
+            Purchases.configure(
+                withAPIKey: RevenueCatConfig.publicSDKKey,
+                appUserID: appUserID
+            )
+        } else {
+            _ = try? await Purchases.shared.logIn(appUserID)
+        }
+
+        await container.premiumGate.bootstrap(userID: user.id)
+        lastPremiumRefreshAt = Date()
+    }
+
+    private func runTeardownPremiumGate() async {
+        _ = try? await Purchases.shared.logOut()
+        container.premiumGate.logOut()
+        lastPremiumRefreshAt = nil
     }
 }
