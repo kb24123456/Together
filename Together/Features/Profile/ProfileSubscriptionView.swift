@@ -1,124 +1,70 @@
 import SwiftUI
 
-/// 会员页面 — 当前为功能预览，StoreKit 2 接入后替换
+/// Profile → Together Pro 入口的落地页。
+///
+/// - Free / unknown：内嵌 `UpsellContent`（局部 VM，`.generic` hero，成功后 pop nav）
+/// - Pro / gracePeriod：Session A 仅占位文案，Session B 填订阅管理、续费日期、"在 App Store 管理订阅"
 struct ProfileSubscriptionView: View {
+    @Environment(AppContext.self) private var appContext
     @Environment(\.dismiss) private var dismiss
+    @State private var localViewModel: PaywallViewModel?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // MARK: - 皇冠品牌区
-                VStack(spacing: AppTheme.spacing.xs) {
-                    Image(systemName: "crown.fill")
-                        .font(AppTheme.typography.sized(52))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color(white: 0.55), Color(white: 0.75)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .shadow(color: AppTheme.colors.shadow, radius: 6, y: 4)
-                        .padding(.top, AppTheme.spacing.xxl)
-
-                    Text("Together Pro")
-                        .font(AppTheme.typography.sized(28, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.title)
-
-                    Text("即将推出")
-                        .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.textTertiary)
-                }
-                .padding(.bottom, AppTheme.spacing.xl)
-
-                // MARK: - 当前状态
-                HStack(spacing: AppTheme.spacing.xs) {
-                    Image(systemName: "gift.fill")
-                        .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.selectionTint)
-                    Text("当前为免费版，所有功能均可使用")
-                        .font(AppTheme.typography.sized(14, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body)
-                }
-                .padding(.vertical, AppTheme.spacing.md)
-                .padding(.horizontal, AppTheme.spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
-                        .fill(AppTheme.colors.selectionTint.opacity(0.08))
-                )
-                .padding(.horizontal, AppTheme.spacing.lg)
-                .padding(.bottom, AppTheme.spacing.xl)
-
-                // MARK: - 功能列表
-                VStack(spacing: 0) {
-                    HStack {
-                        Text("Pro 功能")
-                            .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.title)
-                        Spacer()
-                    }
-                    .padding(.horizontal, AppTheme.spacing.lg)
-                    .padding(.bottom, AppTheme.spacing.md)
-
-                    VStack(spacing: 0) {
-                        ProFeatureRow(icon: "infinity", title: "无限任务", subtitle: "不限数量添加你的任务")
-                        ProFeatureRow(icon: "person.2.fill", title: "双人协作", subtitle: "共享任务空间，实时同步")
-                        ProFeatureRow(icon: "square.stack", title: "例行事务", subtitle: "周期任务自动生成与追踪")
-                        ProFeatureRow(icon: "icloud.fill", title: "iCloud 同步", subtitle: "多设备同步你的任务")
-                        ProFeatureRow(icon: "bell.badge.fill", title: "智能提醒", subtitle: "临期提醒与自定义通知")
-                        ProFeatureRow(icon: "folder.fill", title: "项目管理", subtitle: "项目分组与子任务拆解")
-                        ProFeatureRow(icon: "calendar", title: "日历视图", subtitle: "按日期查看和管理任务")
-                        ProFeatureRow(icon: "lock.shield.fill", title: "隐私保护", subtitle: "Face ID / 密码锁定应用")
-                    }
-                    .padding(.horizontal, AppTheme.spacing.md)
-                    .padding(.vertical, AppTheme.spacing.sm)
-                    .background(
-                        RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
-                            .fill(AppTheme.colors.surfaceElevated)
-                    )
-                    .shadow(color: AppTheme.colors.shadow.opacity(0.2), radius: 10, y: 4)
-                    .padding(.horizontal, AppTheme.spacing.lg)
-                }
+        Group {
+            switch appContext.container.premiumGate.status {
+            case .free, .unknown:
+                freeState
+            case .pro, .gracePeriod:
+                proPlaceholder
             }
-            .padding(.bottom, AppTheme.spacing.xxl)
         }
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("会员")
         .navigationBarTitleDisplayMode(.inline)
     }
-}
 
-// MARK: - 功能行
+    // MARK: - Free state: embed UpsellContent
 
-private struct ProFeatureRow: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        HStack(spacing: AppTheme.spacing.md) {
-            Image(systemName: icon)
-                .font(AppTheme.typography.sized(18, weight: .medium))
-                .foregroundStyle(AppTheme.colors.selectionTint)
-                .frame(width: 32, alignment: .center)
-
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text(title)
-                    .font(AppTheme.typography.textStyle(.subheadline, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-
-                Text(subtitle)
-                    .font(AppTheme.typography.sized(12, weight: .regular))
-                    .foregroundStyle(AppTheme.colors.textTertiary)
-            }
-
-            Spacer()
-
-            Image(systemName: "checkmark.circle.fill")
-                .font(AppTheme.typography.sized(20))
-                .foregroundStyle(AppTheme.colors.selectionTint.opacity(0.7))
+    @ViewBuilder
+    private var freeState: some View {
+        if let vm = localViewModel {
+            UpsellContent(displayKind: .generic, viewModel: vm)
+        } else {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .task {
+                    let vm = PaywallViewModel(
+                        purchasing: appContext.paywallPurchasing,
+                        premiumGate: appContext.container.premiumGate,
+                        onFinished: { [dismiss] reason in
+                            if reason == .purchasedOrRestored {
+                                dismiss()
+                            }
+                            // userClosed / pendingApproval：停留在 Profile nav 内
+                        }
+                    )
+                    localViewModel = vm
+                    await vm.load()
+                }
         }
-        .padding(.horizontal, AppTheme.spacing.md)
-        .padding(.vertical, AppTheme.spacing.md)
+    }
+
+    // MARK: - Pro / grace placeholder (Session B 重写)
+
+    private var proPlaceholder: some View {
+        VStack(spacing: AppTheme.spacing.md) {
+            Image(systemName: "crown.fill")
+                .font(AppTheme.typography.sized(48, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.pairAccent)
+            Text("Together Pro 已激活")
+                .font(AppTheme.typography.sized(20, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+            Text("感谢支持。订阅管理 / 续费详情将在后续版本上线。")
+                .font(AppTheme.typography.sized(13))
+                .foregroundStyle(AppTheme.colors.textTertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, AppTheme.spacing.xl)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

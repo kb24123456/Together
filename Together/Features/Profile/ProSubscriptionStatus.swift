@@ -9,6 +9,9 @@ enum ProSubscriptionStatus: Equatable {
     case free
     case trial(daysLeft: Int, renewalDate: Date)
     case active(renewalDate: Date)
+    /// Ask to Buy / SCA 家长审批中。spec § 2.10 / § 10 ③ 决策：立即关 sheet 后 Profile
+    /// 子标题提示"等待家长审批"，避免用户以为付款失败。
+    case pendingApproval
 
     /// Short, single-line subtitle copy for the Pro entry row.
     /// Kept under 40 Chinese chars to avoid wrapping on narrow devices.
@@ -20,6 +23,8 @@ enum ProSubscriptionStatus: Equatable {
             return "试用剩余 \(daysLeft) 天 · \(Self.shortDateFormatter.string(from: renewalDate)) 续费"
         case let .active(renewalDate):
             return "订阅中 · 下次续费 \(Self.shortDateFormatter.string(from: renewalDate))"
+        case .pendingApproval:
+            return "等待家长审批 · 批准后自动生效"
         }
     }
 
@@ -32,6 +37,8 @@ enum ProSubscriptionStatus: Equatable {
             return "试用中，剩余 \(daysLeft) 天"
         case let .active(renewalDate):
             return "订阅中，下次续费 \(Self.shortDateFormatter.string(from: renewalDate))"
+        case .pendingApproval:
+            return "购买提交中，等待家长审批"
         }
     }
 
