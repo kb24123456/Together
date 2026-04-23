@@ -9,6 +9,7 @@ import UIKit
 import UserNotifications
 
 private let appContextLogger = Logger(subsystem: "com.pigdog.Together", category: "AppContext")
+private let premiumLogger = Logger(subsystem: "com.pigdog.Together", category: "Premium")
 
 @MainActor
 @Observable
@@ -907,6 +908,7 @@ extension AppContext {
             if let previous { await previous.value }
             await self.container.premiumGate.refresh()
             self.lastPremiumRefreshAt = Date()
+            premiumLogger.info("PremiumGate refreshed → \(String(describing: self.container.premiumGate.status), privacy: .public)")
         }
         premiumGateTask = task
         await task.value
@@ -915,27 +917,42 @@ extension AppContext {
     private static let premiumRefreshInterval: TimeInterval = 3600
 
     private func runConfigurePremiumGate() async {
-        guard let user = sessionStore.currentUser else { return }
+        guard let user = sessionStore.currentUser else {
+            premiumLogger.debug("configurePremiumGate skipped: no current user")
+            return
+        }
         let appUserID = user.id.uuidString
 
         if !Purchases.isConfigured {
-            // Release build 带着占位 key 会在这里 crash（防止废 build 上架）
             RevenueCatConfig.assertProductionKeyConfigured()
             Purchases.configure(
                 withAPIKey: RevenueCatConfig.publicSDKKey,
                 appUserID: appUserID
             )
+            premiumLogger.info("RC configured for user \(appUserID, privacy: .private(mask: .hash))")
         } else {
-            _ = try? await Purchases.shared.logIn(appUserID)
+            do {
+                _ = try await Purchases.shared.logIn(appUserID)
+                premiumLogger.info("RC logIn ok for user \(appUserID, privacy: .private(mask: .hash))")
+            } catch {
+                premiumLogger.error("RC logIn failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
 
         await container.premiumGate.bootstrap(userID: user.id)
         lastPremiumRefreshAt = Date()
+        premiumLogger.info("PremiumGate bootstrapped → \(String(describing: self.container.premiumGate.status), privacy: .public)")
     }
 
     private func runTeardownPremiumGate() async {
-        _ = try? await Purchases.shared.logOut()
+        do {
+            _ = try await Purchases.shared.logOut()
+        } catch {
+            // Purchases.logOut 在"已是匿名"时会抛错——无害，调低为 debug
+            premiumLogger.debug("RC logOut noop/failed: \(error.localizedDescription, privacy: .public)")
+        }
         container.premiumGate.logOut()
         lastPremiumRefreshAt = nil
+        premiumLogger.info("PremiumGate torn down")
     }
 }
