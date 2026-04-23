@@ -212,7 +212,11 @@ final class AppContext {
             await container.syncEngineCoordinator.configureSoloSpaceID(soloSpaceID)
         }
 
-        await container.syncEngineCoordinator.startSoloSync()
+        // Pro-only：跨设备同步是 Together Pro 功能，非 Pro 用户仅本地 + iCloud 账号锁定。
+        // `isPremium` 在调用时点取快照；运行时转为 Free 的收尾由 stopSyncIfLostPremium 处理。
+        await container.syncEngineCoordinator.startSoloSync(
+            isPremium: container.premiumGate.isPremium
+        )
 
         await container.syncEngineCoordinator.setSoloRemoteChangesCallback { [weak self] count in
             guard let self, count > 0 else { return }

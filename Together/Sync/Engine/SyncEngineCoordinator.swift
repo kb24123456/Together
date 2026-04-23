@@ -33,6 +33,12 @@ actor SyncEngineCoordinator {
 
     static let soloZoneID = CKRecordZone.ID(zoneName: "solo")
 
+    // MARK: - Test Affordance
+
+    /// 外部可读的"solo engine 是否在跑"快照。仅供测试和 UI 观察，actor 内部
+    /// 依旧直接读 `soloEngine`。
+    var isRunningSolo: Bool { soloEngine != nil }
+
     // MARK: - Init
 
     init(
@@ -57,7 +63,18 @@ actor SyncEngineCoordinator {
 
     /// Starts CKSyncEngine for the solo zone (single-mode data, multi-device sync).
     /// Called once at app launch after authentication.
-    func startSoloSync() {
+    ///
+    /// - Parameter isPremium: 由调用方（`AppContext`）传入的 `PremiumGate.isPremium`
+    ///   快照。非 Pro 用户直接 early-return，不启动 CKSyncEngine，让跨设备同步
+    ///   变成 Pro-only 功能。判定留在调用点：actor 存 @MainActor `PremiumGate` 会
+    ///   引入不必要的跨 actor 调度，而 startSoloSync 在项目里只有一个调用点，
+    ///   choke-point 策略依旧成立。
+    func startSoloSync(isPremium: Bool) {
+        guard isPremium else {
+            logger.info("[Coordinator] Solo engine skipped: user is not premium")
+            return
+        }
+
         guard soloEngine == nil else {
             logger.info("[Coordinator] Solo engine already running")
             return
