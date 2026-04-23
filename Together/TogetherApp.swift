@@ -135,6 +135,7 @@ struct TogetherApp: App {
                             Task { await appContext.syncPairSpaceIfNeeded() }
                         }
                         Task { await appContext.refreshPremiumGateIfStale() }
+                        Task { await appContext.autoCheckInviteAcceptedIfPending() }
                     default:
                         break
                     }

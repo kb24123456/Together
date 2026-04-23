@@ -207,6 +207,8 @@ final class AppContext {
             await configurePremiumGate()
             await startSoloSyncEngineIfNeeded()
             await startSupabaseSyncIfNeeded()
+            // 自动检查是否有待接受的邀请已被对端接受
+            await autoCheckInviteAcceptedIfPending()
         }
 
         StartupTrace.mark("AppContext.postLaunch.end")
@@ -985,5 +987,13 @@ extension AppContext {
         await container.syncEngineCoordinator.stopSoloSync()
         // 清 debounce 时间戳：下次前台再回时立即 refresh 拿最新状态（可能是网络恢复导致的误判）
         lastPremiumRefreshAt = nil
+    }
+
+    /// 自动检查 invite 是否已被接受——冷启动 + scene 激活时触发。
+    /// 没有这个自动化，发出邀请后要用户主动点"检查是否已接受"按钮才能 sync 本地状态，
+    /// 稍一遗忘 iPhone 就会一直停在 `invitePending`，即使对端 iPad 早已接受。
+    func autoCheckInviteAcceptedIfPending() async {
+        guard sessionStore.bindingState == .invitePending else { return }
+        await profileViewModel.checkInviteAccepted()
     }
 }
