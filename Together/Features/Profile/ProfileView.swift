@@ -163,11 +163,12 @@ struct ProfileView: View {
             .presentationDetents([.medium])
         }
         .sheet(isPresented: $isInvitePendingSheetPresented) {
-            // Manual sheet dismiss (swipe / drag) should cancel the invite
-            // so the state returns to singleTrial/unbound and the row flow
-            // is coherent.
-            Task { await viewModel.cancelCurrentInvite() }
-        } content: {
+            // 下滑关闭 sheet **不**取消邀请——只是把卡片收起来。
+            // 原先这里会自动 cancelCurrentInvite()，结果用户为了切到对端输入
+            // 邀请码，下滑 sheet 离开就把自己的 pair state 一并清回 singleTrial，
+            // 对端接受成功后 inviter 侧永远无法 finalize 到 paired。
+            // 显式取消走 sheet 内的 "取消" 按钮。状态仍是 .invitePending 时，
+            // Profile 页会渲染 "双人邀请进行中" 的 row 让用户重新打开。
             NavigationStack {
                 InvitePendingSection(
                     invite: viewModel.activeInvite,
