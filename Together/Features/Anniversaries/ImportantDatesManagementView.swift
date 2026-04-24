@@ -7,6 +7,9 @@ struct ImportantDatesManagementView: View {
     @State private var showEdit: ImportantDate?
     @State private var showCreateSheet = false
     @State private var showPresetPicker = false
+    /// PresetHolidayPickerSheet 内批量保存时如果因配额停止，标记下来；
+    /// sheet 关闭动画完成 (.sheet onDismiss) 后再 requestQuotaUpsell，避免多 sheet 冲突
+    @State private var presetPickerHitQuota = false
 
     private var viewModel: ImportantDatesViewModel {
         appContext.importantDatesViewModel
@@ -44,8 +47,13 @@ struct ImportantDatesManagementView: View {
                 Button("✏️ 自定义") { createCustom() }
                 Button("取消", role: .cancel) {}
             }
-            .sheet(isPresented: $showPresetPicker) {
-                PresetHolidayPickerSheet()
+            .sheet(isPresented: $showPresetPicker, onDismiss: {
+                if presetPickerHitQuota {
+                    presetPickerHitQuota = false
+                    viewModel.requestQuotaUpsell()
+                }
+            }) {
+                PresetHolidayPickerSheet(onQuotaHit: { presetPickerHitQuota = true })
             }
             .onChange(of: viewModel.pendingUpsellTrigger) { _, new in
                 if let trigger = new {

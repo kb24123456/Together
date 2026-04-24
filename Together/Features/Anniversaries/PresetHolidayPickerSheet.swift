@@ -4,6 +4,11 @@ struct PresetHolidayPickerSheet: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.dismiss) private var dismiss
 
+    /// 当 picker 内的批量保存因配额停止时由父视图收到通知，
+    /// 父视图在 `onDismiss` 里 requestQuotaUpsell——保证 sheet 关闭动画完成后才弹 paywall，
+    /// 避开 iOS 多 sheet 冲突。
+    var onQuotaHit: (() -> Void)? = nil
+
     @State private var selectedIDs: Set<PresetHolidayID> = []
 
     private var viewModel: ImportantDatesViewModel {
@@ -91,7 +96,12 @@ struct PresetHolidayPickerSheet: View {
         })
 
         Task {
+            var quotaHit = false
             for preset in selectedIDs where existing[preset] == nil {
+                if !viewModel.canCreateAnotherForCurrentUser() {
+                    quotaHit = true
+                    break
+                }
                 let event = ImportantDate(
                     id: UUID(), spaceID: spaceID, creatorID: myID,
                     kind: .holiday, title: preset.defaultTitle,
@@ -105,6 +115,9 @@ struct PresetHolidayPickerSheet: View {
             }
             for (preset, event) in existing where !selectedIDs.contains(preset) {
                 await viewModel.delete(event.id)
+            }
+            if quotaHit {
+                onQuotaHit?()
             }
             dismiss()
         }
