@@ -6,7 +6,7 @@ import os
 @Observable
 final class ImportantDatesViewModel {
     /// 免费用户自己创建的纪念日上限（spec § 产品切分）。
-    static let freeAnniversaryQuota = 5
+    static let freeAnniversaryQuota = 3
 
     var events: [ImportantDate] = []
     var isLoading = false

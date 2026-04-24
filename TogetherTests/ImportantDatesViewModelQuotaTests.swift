@@ -6,20 +6,22 @@ import Testing
 @Suite
 struct ImportantDatesViewModelQuotaTests {
 
+    // 配额从 5 调整为 3（2026-04-24 产品决策，纪念日比项目高频更适合做付费门槛）
+
     @Test func freeUnderQuotaAllowsCreate() async {
-        let (vm, _, me, _) = await makeViewModel(existingCountByMe: 4)
+        let (vm, _, me, _) = await makeViewModel(existingCountByMe: 2)
         await vm.createNew(makeDraft(creatorID: me))
 
         #expect(vm.pendingUpsellTrigger == nil)
-        #expect(vm.events.filter { $0.creatorID == me }.count == 5)
+        #expect(vm.events.filter { $0.creatorID == me }.count == 3)
     }
 
     @Test func freeAtQuotaBlocksCreate() async {
-        let (vm, _, me, _) = await makeViewModel(existingCountByMe: 5)
+        let (vm, _, me, _) = await makeViewModel(existingCountByMe: 3)
         await vm.createNew(makeDraft(creatorID: me))
 
         #expect(vm.pendingUpsellTrigger == .anniversaryQuota)
-        #expect(vm.events.filter { $0.creatorID == me }.count == 5)  // 未新增
+        #expect(vm.events.filter { $0.creatorID == me }.count == 3)  // 未新增
     }
 
     @Test func proBypassesQuota() async {
@@ -34,17 +36,17 @@ struct ImportantDatesViewModelQuotaTests {
 
     @Test func partnerEventsDoNotCountAgainstMyQuota() async {
         let (vm, _, me, _) = await makeViewModel(
-            existingCountByMe: 4,
+            existingCountByMe: 2,
             existingCountByPartner: 100
         )
         await vm.createNew(makeDraft(creatorID: me))
 
         #expect(vm.pendingUpsellTrigger == nil)
-        #expect(vm.events.filter { $0.creatorID == me }.count == 5)
+        #expect(vm.events.filter { $0.creatorID == me }.count == 3)
     }
 
     @Test func dismissUpsellClearsTrigger() async {
-        let (vm, _, me, _) = await makeViewModel(existingCountByMe: 5)
+        let (vm, _, me, _) = await makeViewModel(existingCountByMe: 3)
         await vm.createNew(makeDraft(creatorID: me))
         #expect(vm.pendingUpsellTrigger == .anniversaryQuota)
 

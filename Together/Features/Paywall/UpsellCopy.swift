@@ -47,7 +47,7 @@ enum UpsellCopy {
         switch displayKind {
         case .trigger(.anniversaryQuota):
             Hero(title: "记录所有重要的日子",
-                 subtitle: "免费版最多 5 个纪念日",
+                 subtitle: "免费版最多 3 个纪念日",
                  lapseBanner: nil)
         case .trigger(.projectQuota):
             Hero(title: "让每个项目都有位置",

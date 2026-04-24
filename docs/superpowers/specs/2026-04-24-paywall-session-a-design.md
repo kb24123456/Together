@@ -285,7 +285,7 @@ hero 按 trigger 切；benefits 列表首位提升，其余按固定顺序。
 
 | Trigger | Hero 标题 | Hero 副标 | Benefits 首位 |
 |---|---|---|---|
-| `.anniversaryQuota` | 记录所有重要的日子 | 免费版最多 5 个纪念日 | 无限纪念日 |
+| `.anniversaryQuota` | 记录所有重要的日子 | 免费版最多 3 个纪念日 | 无限纪念日 |
 | `.projectQuota` | 让每个项目都有位置 | 免费版最多 3 个项目 | 无限项目 |
 | `.logbookHistory` | 重温每一次完成 | 免费版仅查看近 30 天记录 | 全量 Logbook 历史 |
 | `.crossDeviceSync` | 找回你在其他设备的数据 | 开启 iPhone 与 iPad 同步 | 本人跨设备同步 |
@@ -756,7 +756,7 @@ func paywallDidDismiss(kind: RootPaywallPresentation.Kind) {
 
 新增 `docs/superpowers/runbooks/phase-3-paywall-smoke.md`，场景：
 
-1. Free override → 建第 6 个纪念日 → sheet 弹 → 选年 → 买成功 → sheet 自动 1.2s 后关 → 再建不拦
+1. Free override → 建第 4 个纪念日 → sheet 弹 → 选年 → 买成功 → sheet 自动 1.2s 后关 → 再建不拦
 2. Free override → 建第 4 个项目 → 同上
 3. 购买中途取消 → sheet 不关，state 回 ready
 4. 关网 → 买 → inline 错误 → 联网 → 重试通过

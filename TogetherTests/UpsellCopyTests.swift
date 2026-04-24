@@ -9,7 +9,7 @@ struct UpsellCopyHeroTests {
     @Test func anniversaryQuotaHero() {
         let hero = UpsellCopy.hero(for: .trigger(.anniversaryQuota))
         #expect(hero.title == "记录所有重要的日子")
-        #expect(hero.subtitle == "免费版最多 5 个纪念日")
+        #expect(hero.subtitle == "免费版最多 3 个纪念日")
         #expect(hero.lapseBanner == nil)
     }
 
