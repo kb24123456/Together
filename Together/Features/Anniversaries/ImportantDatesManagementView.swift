@@ -28,7 +28,12 @@ struct ImportantDatesManagementView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showCreateSheet = true
+                        // 入口预检：超额直接弹 paywall，不弹 menu
+                        if viewModel.canCreateAnotherForCurrentUser() {
+                            showCreateSheet = true
+                        } else {
+                            viewModel.requestQuotaUpsell()
+                        }
                     } label: { Image(systemName: "plus") }
                         .accessibilityLabel("添加纪念日")
                 }
@@ -60,6 +65,10 @@ struct ImportantDatesManagementView: View {
                     appContext.rootPaywallPresentation.requestTrigger(trigger)
                 }
             }
+            // ImportantDatesManagementView 本身是 HomeView 的 sheet——
+            // 必须在此层也挂一份 paywallRootSheet，paywall 才能嵌套在 management sheet 之上 present。
+            // 否则 AppRoot 顶层的 .sheet 被 management sheet 占着，iOS 多 sheet 限制会卡住 paywall。
+            .paywallRootSheet(appContext)
         }
         .task {
             // postLaunch may have fired before the pair was ready (e.g. right
