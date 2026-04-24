@@ -194,6 +194,7 @@ struct ImportantDatesManagementView: View {
     // MARK: - Create actions
 
     private func createBirthday(myself: Bool) {
+        guard quotaCheckPasses() else { return }
         guard let myID = appContext.sessionStore.currentUser?.id,
               let partnerID = appContext.sessionStore.pairSpaceSummary?.partner?.id,
               let spaceID = appContext.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
@@ -211,6 +212,7 @@ struct ImportantDatesManagementView: View {
     }
 
     private func createAnniversary() {
+        guard quotaCheckPasses() else { return }
         guard let myID = appContext.sessionStore.currentUser?.id,
               let spaceID = appContext.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
         let seed = ImportantDate(
@@ -224,6 +226,7 @@ struct ImportantDatesManagementView: View {
     }
 
     private func createCustom() {
+        guard quotaCheckPasses() else { return }
         guard let myID = appContext.sessionStore.currentUser?.id,
               let spaceID = appContext.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
         let seed = ImportantDate(
@@ -234,5 +237,13 @@ struct ImportantDatesManagementView: View {
             icon: "star.fill", presetHolidayID: nil, updatedAt: .now
         )
         showEdit = seed
+    }
+
+    /// 弹 EditSheet 之前的配额预检：超额时直接 requestQuotaUpsell 让 root sheet 弹 paywall，
+    /// 不打开 EditSheet——避免 EditSheet 与 paywall sheet 的多 sheet 冲突。
+    private func quotaCheckPasses() -> Bool {
+        if viewModel.canCreateAnotherForCurrentUser() { return true }
+        viewModel.requestQuotaUpsell()
+        return false
     }
 }

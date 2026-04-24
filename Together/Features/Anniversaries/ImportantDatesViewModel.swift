@@ -80,6 +80,22 @@ final class ImportantDatesViewModel {
         pendingUpsellTrigger = nil
     }
 
+    /// View 层在弹"添加纪念日 EditSheet"之前调用做预检。
+    /// 返回 false 表示当前用户已超额，应当直接 `requestQuotaUpsell()`，**不要**弹 EditSheet——
+    /// 否则 EditSheet 关闭动画与 paywall sheet 的 present 会冲突（iOS 多 sheet 限制）。
+    func canCreateAnotherForCurrentUser() -> Bool {
+        guard let currentUserID = sessionStore.currentUser?.id, !premiumGate.isPremium else {
+            return true
+        }
+        let ownCount = events.filter { $0.creatorID == currentUserID }.count
+        return ownCount < Self.freeAnniversaryQuota
+    }
+
+    /// 配额预检失败后调用：触发 paywall，但不写 repo。
+    func requestQuotaUpsell() {
+        pendingUpsellTrigger = .anniversaryQuota
+    }
+
     func delete(_ id: UUID) async {
         do {
             try await repository.delete(id: id)
