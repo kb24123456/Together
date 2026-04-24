@@ -83,16 +83,9 @@ struct TogetherApp: App {
                         appBootstrapper.handleSignOut()
                     }
                 }
-                .onChange(of: appBootstrapper.appContext?.container.premiumGate.isPremium ?? false) { oldValue, newValue in
-                    // Pro → Free 运行时转变：停同步，避免非 Pro 继续享受跨设备到下次冷启动才断。
-                    guard let appContext = appBootstrapper.appContext else { return }
-                    Task {
-                        await appContext.handlePremiumStatusChange(
-                            wasPremium: oldValue,
-                            isPremium: newValue
-                        )
-                    }
-                }
+                // Pro→Free 运行时 onChange 已挪到 AppRootView（那边 body 显式读 isPremium
+                // 建立 observation 追踪；TogetherApp body 的 onChange modifier 参数不足以让
+                // SwiftUI 追踪 @Observable computed property 变化，iOS 26 真机实测不触发）
                 .onOpenURL { url in
                     // Universal Link 邀请跳转
                     if let appContext = appBootstrapper.appContext {

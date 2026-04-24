@@ -9,6 +9,10 @@ struct AppRootView: View {
     var body: some View {
         @Bindable var router = appContext.router
 
+        // 显式 read isPremium 建立 @Observable 追踪依赖，确保 body re-evaluate 时
+        // .onChange(of:) 能检测到变化（修 Phase 2 真机 onChange 不触发的 bug）
+        let isPremiumNow = appContext.container.premiumGate.isPremium
+
         NavigationStack {
             rootSurfaceView(router: router)
                 .toolbar {
@@ -73,6 +77,15 @@ struct AppRootView: View {
         .onChange(of: appContext.projectsViewModel.pendingUpsellTrigger) { _, new in
             if let trigger = new {
                 appContext.rootPaywallPresentation.requestTrigger(trigger)
+            }
+        }
+        .onChange(of: isPremiumNow) { oldValue, newValue in
+            // Pro → Free 运行时：数据面停同步 + UI 面 lapse sheet
+            Task {
+                await appContext.handlePremiumStatusChange(
+                    wasPremium: oldValue,
+                    isPremium: newValue
+                )
             }
         }
         .paywallRootSheet(appContext)
