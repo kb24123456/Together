@@ -11,11 +11,12 @@ struct ProfileSubscriptionView: View {
 
     var body: some View {
         Group {
-            switch appContext.container.premiumGate.status {
-            case .free, .unknown:
-                freeState
-            case .pro, .gracePeriod:
+            // 用 isPremium 而非 status：让 DEBUG override 生效，并把 grace period 视作 Pro
+            // （grace period UI 由 Session B 单独做横幅）。Spec § 4.4。
+            if appContext.container.premiumGate.isPremium {
                 proPlaceholder
+            } else {
+                freeState
             }
         }
         .background(AppTheme.colors.background.ignoresSafeArea())
