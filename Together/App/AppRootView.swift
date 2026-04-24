@@ -217,7 +217,13 @@ struct AppRootView: View {
         case .today, .calendar:
             router.activeComposer = .newTask
         case .projects:
-            router.activeComposer = .newProject
+            // 入口预检：超额直接弹 paywall，不弹 Composer——
+            // 避免用户填一堆草稿再被告知付费的糟糕体验
+            if appContext.projectsViewModel.canCreateAnotherForCurrentUser() {
+                router.activeComposer = .newProject
+            } else {
+                appContext.projectsViewModel.requestQuotaUpsell()
+            }
         case .routines:
             router.activeComposer = .newPeriodicTask
         }

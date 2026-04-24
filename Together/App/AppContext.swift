@@ -520,6 +520,11 @@ final class AppContext {
         }
         homeViewModel.onConvertToProject = { [weak self] title in
             guard let self else { return }
+            // 入口预检：超额直接弹 paywall，不弹 Composer
+            if !self.projectsViewModel.canCreateAnotherForCurrentUser() {
+                self.projectsViewModel.requestQuotaUpsell()
+                return
+            }
             router.pendingComposerTitle = title
             router.activeComposer = .newProject
         }

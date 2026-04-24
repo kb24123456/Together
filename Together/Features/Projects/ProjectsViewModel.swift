@@ -35,6 +35,22 @@ final class ProjectsViewModel {
         pendingUpsellTrigger = nil
     }
 
+    /// View 层在弹 ProjectComposer 之前调用做预检。
+    /// 返回 false 表示当前用户已超额，应直接 `requestQuotaUpsell()`，**不要**弹 Composer——
+    /// 否则用户填了一堆 draft 才被告知付费，体验差。
+    func canCreateAnotherForCurrentUser() -> Bool {
+        guard let currentUserID = sessionStore.currentUser?.id, !premiumGate.isPremium else {
+            return true
+        }
+        let ownCount = projects.filter { $0.creatorID == currentUserID }.count
+        return ownCount < Self.freeProjectQuota
+    }
+
+    /// 配额预检失败后调用：触发 paywall，但不写 repo。
+    func requestQuotaUpsell() {
+        pendingUpsellTrigger = .projectQuota
+    }
+
     private func emitMutationRecorded(projectID: UUID, operation: SyncOperationKind) {
         guard let spaceID = sessionStore.currentSpace?.id else { return }
         onSharedMutationRecorded?(
