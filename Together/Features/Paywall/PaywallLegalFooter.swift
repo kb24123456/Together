@@ -20,6 +20,10 @@ struct PaywallLegalFooter: View {
             .font(AppTheme.typography.sized(11, weight: .medium))
             .foregroundStyle(AppTheme.colors.body)
         }
+        // 父容器 UpsellContent root VStack 是 alignment: .leading；iPad 横屏宽屏下
+        // 不显式占满宽度的话整个 footer 会被 push 到左侧。设 maxWidth: .infinity
+        // 让内部 multilineTextAlignment(.center) + HStack 居中生效。
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, AppTheme.spacing.sm)
         .padding(.vertical, AppTheme.spacing.sm)
     }
