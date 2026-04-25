@@ -1,7 +1,7 @@
 # Phase 3 · Session B — 订阅管理 + Grace Period UI + 合规文案 TDD Plan
 
 - **Date**: 2026-04-25
-- **Status**: **v2** — v1 → v2 自 review 收敛
+- **Status**: **v3** — v1 → v2 → v3 收敛（v3 加 smoke 期间撞 bug 复盘 + effectiveStatus 回归守卫）
 - **Spec**: `docs/superpowers/specs/2026-04-25-paywall-session-b-design.md` (v4)
 - **Base commit**: `34ec1af` (tag `phase-3-session-a-stable`)
 - **Execution mode**: Subagent-Driven TDD —— 复杂 task 双 review（spec + code quality），简单 task 仅 spec review
@@ -645,3 +645,18 @@ Session A 用了 22h；Session B scope 较小（5 模块 vs 10 模块 + 合并�
   - rollback 策略覆盖 PremiumGate 通知机制不存在 / pendingApproval 数据流不清楚两个高风险点
   - 14 task = 14 commit（含 Task 3 占位 + Task 12 nil 策略 split）
   - 进入 writing-tests / 执行 Task 1 阶段
+
+- **v2 → v3（Smoke 期间发现 + 复盘）**：打掉 PP1 共 1 条
+  - **PP1 / Smoke S1 撞 bug**：`ProfileSubscriptionDetailSection` 切到 Pro/Grace 态显示空白
+    - **根因**：plan 没区分 `PremiumGate.status`（raw 合并状态，不含 DEBUG override）vs "view 应读的 effective status"。Task 6/7/9 的 view 都直接读 `gate.status`，DEBUG override picker 切换时 `isPremium` 翻 true 进 Pro 分支，但 detail section switch 走 `.unknown` → `EmptyView`
+    - **Fix**（commit `c550dd9`）：PremiumGate 加 `effectiveStatus` getter (`overrideStatus ?? status`)；ProfileSubscriptionView / CompletedHistoryView / PendingApprovalObserver 3 处改读 `effectiveStatus`；AppContext 诊断 OSLog 保留 raw status
+    - **回归守卫**（独立 commit）：`PremiumGateEffectiveStatusTests` 7 case 显式测试 raw vs effective 分离行为
+  - **教训**（应进 Session C plan）：
+    - **Spec / Plan 应显式区分 raw status vs effective status**——View 层默认应该用 effective；Service 层（lapse 检测、诊断 log、内部合并逻辑）才用 raw。Session B 之前从未需要这个区分（isPremium 已经是 computed 含 override），但加 view 直接 `switch status` 暴露盲区
+    - **Smoke 验证前应用 DEBUG override picker 自验**——这正是 picker 的设计目的；执行期跑过 Preview 但没在真机走 picker → 单元测试也没区分 raw vs effective → bug 直到真机 smoke 才暴露
+- **v3 收敛判定**：
+  - PP1 闭环（hotfix + 回归测试 + plan 复盘）
+  - 全 suite + 真机 smoke S1/S2/S5 PASS；S3/S4/S6 留 TestFlight（DEBUG mock 天然限制）
+  - tag `phase-3-session-b-stable` 已推 origin
+  - 法律 URL 部署（together-app-legal repo + GitHub Pages）已 production；LegalURLs.swift 已替换 placeholder
+  - 进入下一阶段（TestFlight 准备 / Session C scope 评估）

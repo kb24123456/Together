@@ -1,7 +1,7 @@
 # Phase 3 · Session B — 订阅管理 + Grace Period UI + 合规文案 Design Spec
 
 - **Date**: 2026-04-25
-- **Status**: **v4** — 5 条产品/运营决策用户已拍板（D1-A / D2-A / D3-A+animation / D4-D / D5-A），spec 全部收敛，进入 writing-plans
+- **Status**: **v5** — v4 全部决策落定 + 执行期发现 raw vs effective status 边界遗漏，v5 补 § 2.1.1 effectiveStatus API 设计决策
 - **Scope**: 在 Session A 已落地的付费墙 + 购买流之上，补齐"订阅管理 / Grace Period 横幅 / 合规文案 / Ask to Buy 翻转 / Restore 多场景"5 个收尾模块。
 - **Inputs**:
   - Session A 收敛版：`docs/superpowers/specs/2026-04-24-paywall-session-a-design.md`（v8）
@@ -120,6 +120,19 @@ PaywallLegalFooter
 - `.pro(.subscription)` 且 nil 视作异常：tag 为 R26 防御 fallback 显示"订阅有效"（不暴露日期），同时 OSLog warning
 
 **续费 vs 已取消文案选择**：当前不区分 willRenew（RC `EntitlementInfo.willRenew` 未由 PremiumGate 暴露，扩展 = scope 增）。Session B 文案统一用**中性措辞**"有效期至 YYYY 年 M 月 D 日"，不写"下次续费"避免误导已取消但仍在 active 期的用户。区分 willRenew 留 Session C。
+
+### 2.1.1 PremiumGate `effectiveStatus` API（v5 加；执行期补充）
+
+**问题（v4 spec 遗漏）**：v4 spec 默认 view 直接读 `gate.status`，但 `status` 是真实合并状态，不含 DEBUG override；`isPremium` / `allowsFullLogbook` 等 computed 用 `(overrideStatus ?? status)` 已经处理了 override，但**新加的 view（DetailSection / GracePeriodBanner / CompletedHistoryView）需要 `switch` 拆 status case**，直接读 raw 漏掉 override → DEBUG picker 切 Pro/Grace 时显示空白（Session B Smoke S1 撞到）。
+
+**决策（v5 / commit `c550dd9` 落地）**：PremiumGate 暴露 `effectiveStatus: PremiumStatus { overrideStatus ?? status }`。
+- **View 层应读 effectiveStatus**：DetailSection / Banner / 任何 `switch gate.???.case` 的 view 必须用此值
+- **Service 层继续用 raw status**：lapse 检测 / 诊断 OSLog / 内部合并 = 关心真实 RC + grant 状态，不应被 override 干扰
+- `isPremium` / `allowsFullLogbook` 改实现为读 `effectiveStatus`（行为不变，单一来源）
+
+**回归守卫**：`PremiumGateEffectiveStatusTests` 7 case 显式覆盖 raw vs effective 分离行为；任何后续 view 误读 raw status 会被 smoke/PR review 时这套测试的存在 documentation 提醒（虽然不能直接拦截）。
+
+**Session C 应补**：新增 view 写 spec 时显式标"View 层读 effectiveStatus"（架构原则），避免再次遗漏。
 
 ### 2.2 "在 App Store 管理订阅"实现：StoreKit 2 sheet + URL 回落
 
@@ -554,3 +567,14 @@ final class AppContainer {
   - 14 个 commit 颗粒度独立可测；编译期强制 case 完整性
   - 与 Session A 协议层 / 合并器 / 状态机零冲突
   - 进入 writing-plans 阶段
+
+- **v4 → v5（执行期 + smoke 期补）**：打掉 R27 共 1 条
+  - **R27 / Smoke S1 撞 bug**：v4 spec 默认 view 直接读 `gate.status`，但 status 不含 DEBUG override；新加 view 内 `switch gate.status` 拆 case 时 picker 切 Pro/Grace 走 `.unknown` 命中 EmptyView（详情见 plan v3 的 PP1 复盘）
+  - **修复**（v5 落地）：spec 加 § 2.1.1 PremiumGate `effectiveStatus` API；3 处 view + Observer 改读 effective；Service 层（OSLog 诊断）保留 raw；hotfix commit `c550dd9` + 回归测试 `PremiumGateEffectiveStatusTests` 7 case
+  - **教训**：Spec / Plan 应显式标"View 层读 effectiveStatus"（架构原则）；新加 view 时 review 应 cover raw vs effective 区分。Session C 写 spec 时记得开头列此原则
+- **v5 收敛判定**：
+  - R27 闭环（spec 补 § 2.1.1 + 回归测试）
+  - 真机 smoke S1/S2/S5 PASS；S3/S4/S6 留 TestFlight
+  - 法律 URL 部署 production（github.com/kb24123456/together-app-legal）
+  - tag `phase-3-session-b-stable` 已推 origin
+  - Session B scope 全部完成；进入 TestFlight / Session C 评估
