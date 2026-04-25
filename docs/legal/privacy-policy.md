@@ -1,10 +1,8 @@
 # Together 隐私政策
 
-**生效日期**：[NEEDS_OPERATOR_INPUT: 生效日期 YYYY-MM-DD]
-**开发者**：[NEEDS_OPERATOR_INPUT: 开发者实名 / 主体名称]
-**联系邮箱**：[NEEDS_OPERATOR_INPUT: 联系邮箱]
-
-> ⚠️ **本文件为草案**，需经使用者本人审阅、补全联系方式后方可正式发布。建议正式发布前请法律顾问复核，同时对照更新 App Store Connect 的"Privacy Nutrition Label"。
+**生效日期**：2026-04-25
+**开发者**：廖云丰 (Yunfeng Liao)
+**联系邮箱**：billy357831193+together@gmail.com
 
 ---
 
@@ -51,7 +49,7 @@ Together（以下简称"本应用"或"我们"）非常重视您的个人信息�
 
 - 我们使用 Supabase 作为身份认证与元数据存储服务（包括账号映射、配对关系、会员状态等）
 - Supabase 官方隐私政策：https://supabase.com/privacy
-- 服务数据中心位置：[待您确认 —— 通常是 US-East、Singapore 或具体 region]
+- 服务数据中心位置：亚太地区·孟买 (AWS `ap-south-1`)
 
 ### 2.3 RevenueCat（订阅管理）
 
@@ -165,14 +163,13 @@ Together（以下简称"本应用"或"我们"）非常重视您的个人信息�
 
 如您对本政策有任何疑问、投诉或请求，请联系：
 
-- **邮箱**：[NEEDS_OPERATOR_INPUT: 联系邮箱]
+- **邮箱**：billy357831193+together@gmail.com
 - **应用内反馈**：Profile → 反馈
-- **通信地址**：[OPTIONAL: 通信地址]
 
 ---
 
-**最后更新**：2026-04-25（Session B 占位标签规范化）
+**最后更新**：2026-04-25
 
 **历史版本**：
 - 2026-04-22 初版草案
-- 2026-04-25 Session B：占位标签由 `[待填写]` 改为 `[NEEDS_OPERATOR_INPUT: 字段名]`，便于运营批量替换
+- 2026-04-25 正式版：填实开发者主体 / 邮箱 / 生效日期 / Supabase region；部署到 GitHub Pages
