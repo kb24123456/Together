@@ -6,22 +6,27 @@
 
 | 文件 | 用途 | 状态 |
 |---|---|---|
-| `terms-of-service.md` | 服务条款 | 🟡 草案（待补联系方式、法律顾问复核） |
-| `privacy-policy.md` | 隐私政策 | 🟡 草案（待补联系方式、Supabase region、法律顾问复核） |
+| `terms-of-service.md` | 服务条款 | 🟡 草案（含 grace period § 3.4；待补 `[NEEDS_OPERATOR_INPUT:...]` 字段、法律顾问复核） |
+| `privacy-policy.md` | 隐私政策 | 🟡 草案（待补 `[NEEDS_OPERATOR_INPUT:...]` 字段、Supabase region、法律顾问复核） |
 
-## 正式发布前必做
+## 正式发布前必做（运营 owner）
 
-- [ ] 补全两份文件中所有 `[待填写]` 占位符
+- [ ] 用 grep 找全 `[NEEDS_OPERATOR_INPUT:` 占位符并替换：
+  ```bash
+  grep -rn "NEEDS_OPERATOR_INPUT" docs/legal/
+  ```
 - [ ] 请律师或法律顾问对完整内容复核
 - [ ] 确认 Supabase 数据中心 region（更新隐私政策 § 2.2）
 - [ ] 选择托管方案并生成可访问 URL：
   - 自建域名子页面（最专业）
   - GitHub Pages（免费、Apple 接受，建议路径 `legal.together-app.com` 或类似）
+  - Cloudflare Pages / Vercel（免费 tier，5 分钟搞定）
   - Notion 公开页（最简单但不够正式）
+- [ ] 将最终 URL 替换到 `Together/Services/Premium/LegalURLs.swift`（当前是
+      `https://placeholder.together-app.com/...`，单独 PR 提交）
 - [ ] 将最终 URL 记录到：
   - 本 README 下方
   - 项目 `CLAUDE.md` 或 `README.md`
-  - Phase 3 付费墙 UI 的 SwiftUI 代码中（作为常量）
 
 ## 正式托管 URL（填入后即生效）
 
