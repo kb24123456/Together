@@ -8,7 +8,8 @@ struct CompletedHistoryView: View {
     var body: some View {
         List {
             // Grace period 横幅置顶（高于 hero）—— 硬时间窗通知优先级最高。
-            if case .gracePeriod(_, let logbookFullUntil) = appContext.container.premiumGate.status {
+            // 用 effectiveStatus 含 DEBUG override，让 picker 切到 grace 也能验证横幅渲染。
+            if case .gracePeriod(_, let logbookFullUntil) = appContext.container.premiumGate.effectiveStatus {
                 GracePeriodBanner(
                     logbookFullUntil: logbookFullUntil,
                     onTap: { daysRemaining in

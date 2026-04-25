@@ -30,7 +30,7 @@ final class PendingApprovalObserver {
     /// 启动 observation。AppContainer 在 init 末尾调用一次。Re-register 在 onChange 内自循环。
     func start() {
         isStopped = false
-        lastSeenStatus = premiumGate.status
+        lastSeenStatus = premiumGate.effectiveStatus
         observeNext()
     }
 
@@ -57,14 +57,16 @@ final class PendingApprovalObserver {
     // MARK: - Private
 
     /// withObservationTracking onChange 是 fire-once；每次触发后必须重新注册才能继续接收。
+    /// 监听 effectiveStatus 让 DEBUG override 切换也能触发（用于 S5 真机 smoke）；
+    /// release 下 override 永远 nil，effective == raw status 行为不变。
     private func observeNext() {
         guard !isStopped else { return }
         withObservationTracking {
-            _ = premiumGate.status
+            _ = premiumGate.effectiveStatus
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, !self.isStopped else { return }
-                self.recordStatus(self.premiumGate.status)
+                self.recordStatus(self.premiumGate.effectiveStatus)
                 self.observeNext()
             }
         }

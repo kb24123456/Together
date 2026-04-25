@@ -11,8 +11,12 @@ import Observation
 final class PremiumGate {
     private(set) var status: PremiumStatus = .unknown
 
-    var isPremium: Bool { (overrideStatus ?? status).isPremium }
-    var allowsFullLogbook: Bool { (overrideStatus ?? status).allowsFullLogbook }
+    /// View 层应该用这个，含 DEBUG override（与 isPremium / allowsFullLogbook 一致）。
+    /// `status` 是真实合并状态，仅 PremiumGate 内部 / 测试 / lapse 检测路径使用。
+    var effectiveStatus: PremiumStatus { overrideStatus ?? status }
+
+    var isPremium: Bool { effectiveStatus.isPremium }
+    var allowsFullLogbook: Bool { effectiveStatus.allowsFullLogbook }
 
     #if DEBUG
     var overrideStatus: PremiumStatus?

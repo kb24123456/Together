@@ -17,7 +17,7 @@ struct ProfileSubscriptionView: View {
             // 用 isPremium 而非 status：让 DEBUG override 生效，并把 grace period 视作 Pro。
             if appContext.container.premiumGate.isPremium {
                 ProfileSubscriptionDetailSection(
-                    status: appContext.container.premiumGate.status,
+                    status: appContext.container.premiumGate.effectiveStatus,
                     onRequestRenewal: { daysRemaining in
                         appContext.rootPaywallPresentation.requestTrigger(
                             .graceExpiring(daysRemaining: daysRemaining)
