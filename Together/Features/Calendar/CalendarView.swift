@@ -114,26 +114,12 @@ struct CalendarView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: AppTheme.spacing.xs) {
                         ForEach(CalendarPairTaskFilter.allCases, id: \.self) { filter in
-                            Button(filter.title) {
+                            PillToggleButton(
+                                title: filter.title,
+                                isActive: viewModel.pairTaskFilter == filter
+                            ) {
                                 viewModel.setPairTaskFilter(filter)
                             }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, AppTheme.spacing.md)
-                            .padding(.vertical, AppTheme.spacing.sm)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(
-                                        viewModel.pairTaskFilter == filter
-                                        ? AppTheme.colors.coral
-                                        : AppTheme.colors.surfaceElevated
-                                    )
-                            )
-                            .foregroundStyle(
-                                viewModel.pairTaskFilter == filter
-                                ? Color.white
-                                : AppTheme.colors.title
-                            )
-                            .font(AppTheme.typography.sized(13, weight: .bold))
                         }
                     }
                 }
@@ -214,6 +200,10 @@ private struct PairCalendarTaskCard: View {
             RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
                 .stroke(borderColor, lineWidth: 1)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("任务：\(item.title)"))
+        .accessibilityValue(Text(accessibilityValueText))
+        .accessibilityHint(Text(messageText))
     }
 
     private var subtitleText: String {
@@ -224,6 +214,14 @@ private struct PairCalendarTaskCard: View {
             return "这一天里的一条共享安排"
         }
         return "轻点查看这条安排"
+    }
+
+    private var accessibilityValueText: String {
+        var parts: [String] = []
+        if let trailingText, trailingText.isEmpty == false { parts.append(trailingText) }
+        parts.append(statusText)
+        if subtitleText.isEmpty == false { parts.append(subtitleText) }
+        return parts.joined(separator: "，")
     }
 
     private var messageText: String {
@@ -294,15 +292,7 @@ private struct PairCalendarTaskCard: View {
     }
 
     private var statusChip: some View {
-        Text(statusText)
-            .font(AppTheme.typography.sized(12, weight: .bold))
-            .foregroundStyle(statusForeground)
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.xs)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(statusBackground)
-            )
+        Badge(text: statusText, tint: statusForeground, background: statusBackground)
     }
 
     private var statusText: String {

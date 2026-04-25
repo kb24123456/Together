@@ -171,6 +171,7 @@ struct ImportantDatesManagementView: View {
             Image(systemName: event.icon ?? defaultIcon(for: event.kind))
                 .font(AppTheme.typography.sized(20))
                 .foregroundStyle(AppTheme.colors.coral)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                 Text(event.title).font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 Text(dateLabel(for: event)).font(AppTheme.typography.textStyle(.caption1)).foregroundStyle(.secondary)
@@ -180,6 +181,10 @@ struct ImportantDatesManagementView: View {
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: AppTheme.radius.md).fill(AppTheme.colors.surfaceElevated))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(event.title))
+        .accessibilityValue(Text("\(dateLabel(for: event))，\(daysLabel(for: event))"))
+        .accessibilityHint(Text("轻点编辑这个纪念日"))
     }
 
     private func nextKey(_ event: ImportantDate) -> Date {

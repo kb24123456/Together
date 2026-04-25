@@ -91,22 +91,18 @@ struct ListsView: View {
             Spacer()
 
             if isShared {
-                Text("共享")
-                    .font(AppTheme.typography.sized(11, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.coral)
-                    .padding(.horizontal, AppTheme.spacing.sm)
-                    .padding(.vertical, AppTheme.spacing.xs)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(AppTheme.colors.coral.opacity(0.12))
-                    )
+                Badge(text: "共享", tint: AppTheme.colors.coral, size: .small)
             }
 
             Text("\(list.taskCount)")
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body)
+                .accessibilityHidden(true)
         }
         .padding(.vertical, AppTheme.spacing.xxs)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(list.name))
+        .accessibilityValue(Text("\(list.taskCount) 个任务\(isShared ? "，已共享" : "")"))
     }
 }
 

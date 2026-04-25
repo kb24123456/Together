@@ -200,20 +200,11 @@ struct HomeView: View {
 
     private var spaceModeLine: some View {
         HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
-            Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
-                .font(AppTheme.typography.sized(12, weight: .bold))
-                .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.pairAccent : headerSecondaryColor)
-                .padding(.horizontal, AppTheme.spacing.sm)
-                .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(
-                            viewModel.isPairModeActive
-                            ? AppTheme.colors.pairAccentSoft
-                            : AppTheme.colors.surfaceElevated
-                        )
-                )
-                .animation(.spring(response: 0.3, dampingFraction: 0.86), value: viewModel.isPairModeActive)
+            ModeIndicator(
+                isPairMode: viewModel.isPairModeActive,
+                soloTint: headerSecondaryColor
+            )
+            .animation(AppTheme.motion.snappy, value: viewModel.isPairModeActive)
 
             Text(viewModel.spaceDisplayName)
                 .font(AppTheme.typography.sized(13, weight: .semibold))
@@ -278,37 +269,23 @@ struct HomeView: View {
     }
 
     private var projectModeIndicator: some View {
-        Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
-            .font(AppTheme.typography.sized(12, weight: .bold))
-            .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
-            .padding(.horizontal, AppTheme.spacing.sm)
-            .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
-            .background(
-                Capsule(style: .continuous)
-                    .fill(
-                        viewModel.isPairModeActive
-                        ? AppTheme.colors.coral.opacity(0.12)
-                        : AppTheme.colors.surfaceElevated
-                    )
-            )
+        ModeIndicator(
+            isPairMode: viewModel.isPairModeActive,
+            pairTint: AppTheme.colors.coral,
+            pairBackground: AppTheme.colors.coral.opacity(0.12),
+            soloTint: headerSecondaryColor
+        )
     }
 
     private var routinesModeHeaderMeta: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            Text(viewModel.isPairModeActive ? "双人模式" : "单人模式")
-                .font(AppTheme.typography.sized(12, weight: .bold))
-                .foregroundStyle(viewModel.isPairModeActive ? AppTheme.colors.coral : headerSecondaryColor)
-                .padding(.horizontal, AppTheme.spacing.sm)
-                .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(
-                            viewModel.isPairModeActive
-                            ? AppTheme.colors.coral.opacity(0.12)
-                            : AppTheme.colors.surfaceElevated
-                        )
-                )
-                .layoutPriority(2)
+            ModeIndicator(
+                isPairMode: viewModel.isPairModeActive,
+                pairTint: AppTheme.colors.coral,
+                pairBackground: AppTheme.colors.coral.opacity(0.12),
+                soloTint: headerSecondaryColor
+            )
+            .layoutPriority(2)
 
             Text(routinesModeSummary)
                 .font(AppTheme.typography.sized(13, weight: .semibold))
