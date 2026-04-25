@@ -26,4 +26,22 @@ struct LegalURLsTests {
         #expect(!LegalURLs.privacy.absoluteString.isEmpty)
         #expect(!LegalURLs.terms.absoluteString.isEmpty)
     }
+
+    @Test func privacyURLHostIsNotPlaceholder() {
+        let host = LegalURLs.privacy.host ?? ""
+        #expect(!host.contains("placeholder"))
+    }
+
+    @Test func termsURLHostIsNotPlaceholder() {
+        let host = LegalURLs.terms.host ?? ""
+        #expect(!host.contains("placeholder"))
+    }
+
+    @Test func privacyURLPathContainsPrivacyPolicy() {
+        #expect(LegalURLs.privacy.path.contains("privacy-policy"))
+    }
+
+    @Test func termsURLPathContainsTermsOfService() {
+        #expect(LegalURLs.terms.path.contains("terms-of-service"))
+    }
 }
