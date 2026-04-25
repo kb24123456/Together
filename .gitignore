@@ -29,3 +29,6 @@ supabase/.temp/
 
 # Superpowers brainstorming cache
 .superpowers/
+
+# Claude Code runtime locks / scheduled task state
+.claude/
