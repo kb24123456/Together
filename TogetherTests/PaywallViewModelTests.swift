@@ -282,6 +282,34 @@ struct PaywallViewModelRestoreTests {
         #expect(vm.state == .failed(.nothingToRestore))
         #expect(rec.reasons.isEmpty)
     }
+
+    @Test func restoreNetworkErrorIsPreserved() async {
+        let (gate, _, _) = makeGate()
+        let stub = StubPaywallPurchasing()
+        await stub.setNextRestoreOutcomes([.failure(PaywallError.network)])
+        let rec = FinishRecorder()
+        let vm = makeVM(gate: gate, stub: stub, recorder: rec)
+
+        await vm.load()
+        await vm.restore()
+
+        #expect(vm.state == .failed(.network))
+        #expect(rec.reasons.isEmpty)
+    }
+
+    @Test func restoreGenericErrorMappedToUnknown() async {
+        let (gate, _, _) = makeGate()
+        let stub = StubPaywallPurchasing()
+        await stub.setNextRestoreOutcomes([.failure(NSError(domain: "test", code: -1))])
+        let rec = FinishRecorder()
+        let vm = makeVM(gate: gate, stub: stub, recorder: rec)
+
+        await vm.load()
+        await vm.restore()
+
+        #expect(vm.state == .failed(.unknown))
+        #expect(rec.reasons.isEmpty)
+    }
 }
 
 // MARK: - finishOnce gate / isInFlight / dismissError / requestClose
