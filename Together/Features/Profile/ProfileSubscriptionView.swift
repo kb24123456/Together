@@ -3,7 +3,10 @@ import SwiftUI
 /// Profile → Together Pro 入口的落地页。
 ///
 /// - Free / unknown：内嵌 `UpsellContent`（局部 VM，`.generic` hero，成功后 pop nav）
-/// - Pro / gracePeriod：Session A 仅占位文案，Session B 填订阅管理、续费日期、"在 App Store 管理订阅"
+/// - Pro / gracePeriod：渲染 `ProfileSubscriptionDetailSection`（订阅管理 / 续费日期 / grace 续订）
+///
+/// pendingApproval 视觉由 `ProfileProEntryRow` 的 subtitle 承担（Session A 已就位），
+/// 详情页本 view 不另作分支。
 struct ProfileSubscriptionView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.dismiss) private var dismiss
@@ -11,10 +14,16 @@ struct ProfileSubscriptionView: View {
 
     var body: some View {
         Group {
-            // 用 isPremium 而非 status：让 DEBUG override 生效，并把 grace period 视作 Pro
-            // （grace period UI 由 Session B 单独做横幅）。Spec § 4.4。
+            // 用 isPremium 而非 status：让 DEBUG override 生效，并把 grace period 视作 Pro。
             if appContext.container.premiumGate.isPremium {
-                proPlaceholder
+                ProfileSubscriptionDetailSection(
+                    status: appContext.container.premiumGate.status,
+                    onRequestRenewal: { daysRemaining in
+                        appContext.rootPaywallPresentation.requestTrigger(
+                            .graceExpiring(daysRemaining: daysRemaining)
+                        )
+                    }
+                )
             } else {
                 freeState
             }
@@ -48,24 +57,5 @@ struct ProfileSubscriptionView: View {
                     await vm.load()
                 }
         }
-    }
-
-    // MARK: - Pro / grace placeholder (Session B 重写)
-
-    private var proPlaceholder: some View {
-        VStack(spacing: AppTheme.spacing.md) {
-            Image(systemName: "crown.fill")
-                .font(AppTheme.typography.sized(48, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.pairAccent)
-            Text("Together Pro 已激活")
-                .font(AppTheme.typography.sized(20, weight: .bold))
-                .foregroundStyle(AppTheme.colors.title)
-            Text("感谢支持。订阅管理 / 续费详情将在后续版本上线。")
-                .font(AppTheme.typography.sized(13))
-                .foregroundStyle(AppTheme.colors.textTertiary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, AppTheme.spacing.xl)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
