@@ -1045,6 +1045,9 @@ extension AppContext {
         case .quota(.logbookHistory), .quota(.crossDeviceSync):
             // Session B/C 接入 VM 源后补
             break
+        case .quota(.graceExpiring):
+            // Banner 触发，无 VM dismiss 回调；用户主动 retry / 忽略均无副作用
+            break
         }
     }
 

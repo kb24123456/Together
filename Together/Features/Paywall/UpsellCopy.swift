@@ -27,6 +27,7 @@ enum UpsellCopy {
         case .trigger(.projectQuota): .unlimitedProjects
         case .trigger(.logbookHistory): .fullLogbook
         case .trigger(.crossDeviceSync): .crossDeviceSync
+        case .trigger(.graceExpiring): nil
         case .lapse: .crossDeviceSync
         case .generic: nil
         }
@@ -60,6 +61,10 @@ enum UpsellCopy {
         case .trigger(.crossDeviceSync):
             Hero(title: "找回你在其他设备的数据",
                  subtitle: "开启 iPhone 与 iPad 同步",
+                 lapseBanner: nil)
+        case .trigger(.graceExpiring(let daysRemaining)):
+            Hero(title: "续订 Together Pro，保留你的回忆",
+                 subtitle: "你的订阅将在 \(daysRemaining) 天后彻底失效。续订后立即恢复完整体验。",
                  lapseBanner: nil)
         case .lapse:
             Hero(title: "找回你在其他设备的数据",

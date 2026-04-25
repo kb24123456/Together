@@ -5,10 +5,11 @@ import Foundation
 /// 观察式消费模式：ViewModel 暴露 `pendingUpsellTrigger: UpsellTrigger?`，
 /// View 通过 `.sheet(item:)` 展示对应 Phase 3 付费墙视图。
 enum UpsellTrigger: Identifiable, Equatable, Sendable {
-    case anniversaryQuota     // 新建第 6 个纪念日
-    case projectQuota         // 新建第 4 个项目
-    case logbookHistory       // Logbook 滚到 31 天前
-    case crossDeviceSync      // 新设备首次打开且本机无数据
+    case anniversaryQuota                          // 新建第 6 个纪念日
+    case projectQuota                              // 新建第 4 个项目
+    case logbookHistory                            // Logbook 滚到 31 天前
+    case crossDeviceSync                           // 新设备首次打开且本机无数据
+    case graceExpiring(daysRemaining: Int)         // 宽限期内续订入口（GracePeriodBanner 触发）
 
     var id: String {
         switch self {
@@ -16,6 +17,7 @@ enum UpsellTrigger: Identifiable, Equatable, Sendable {
         case .projectQuota: return "project_quota"
         case .logbookHistory: return "logbook_history"
         case .crossDeviceSync: return "cross_device_sync"
+        case .graceExpiring(let n): return "grace_expiring_\(n)"
         }
     }
 }

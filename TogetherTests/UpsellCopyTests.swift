@@ -52,6 +52,19 @@ struct UpsellCopyHeroTests {
         #expect(hero.subtitle == "解锁全部 Pro 功能")
         #expect(hero.lapseBanner == nil)
     }
+
+    @Test func graceExpiringHeroInjectsDays() {
+        let hero = UpsellCopy.hero(for: .trigger(.graceExpiring(daysRemaining: 7)))
+        #expect(hero.title == "续订 Together Pro，保留你的回忆")
+        #expect(hero.subtitle.contains("7 天"))
+        #expect(hero.subtitle.contains("彻底失效"))
+        #expect(hero.lapseBanner == nil)
+    }
+
+    @Test func graceExpiringHeroSingleDay() {
+        let hero = UpsellCopy.hero(for: .trigger(.graceExpiring(daysRemaining: 1)))
+        #expect(hero.subtitle.contains("1 天"))
+    }
 }
 
 // MARK: - Benefits
@@ -99,6 +112,12 @@ struct UpsellCopyBenefitsTests {
         let benefits = UpsellCopy.benefits(highlightedBy: .trigger(.projectQuota))
         // unlimitedProjects 应只出现一次（被提首位，不重复在原位）
         #expect(benefits.filter { $0 == .unlimitedProjects }.count == 1)
+    }
+
+    @Test func graceExpiringUsesDefaultOrder() {
+        // grace 不强调单一 benefit（与 generic 一致），保持默认顺序
+        let benefits = UpsellCopy.benefits(highlightedBy: .trigger(.graceExpiring(daysRemaining: 7)))
+        #expect(benefits == UpsellCopy.defaultBenefitOrder)
     }
 }
 
