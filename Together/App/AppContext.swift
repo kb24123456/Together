@@ -40,6 +40,10 @@ final class AppContext {
     /// 生产购买抽象。复用同一实例跨所有 UpsellSheet / UpsellContent（packageCache 一致）。
     let paywallPurchasing: PaywallPurchasingProtocol = RevenueCatPaywallPurchasing()
 
+    /// 监听 PremiumGate.status 转活边沿（non-pro→pro），记 OSLog 让 Session C 评估升级。
+    /// 进程级生命周期（spec § 2.6）；init 末尾 start，无 stop。
+    let pendingApprovalObserver: PendingApprovalObserver
+
     private(set) var hasBootstrapped = false
     private var hasCompletedPostLaunchWork = false
     private var hasSyncedReminderNotifications = false
@@ -61,6 +65,7 @@ final class AppContext {
         self.router = router
         self.appearanceManager = appearanceManager
         self.syncHealthMonitor = container.syncEngineCoordinator.healthMonitor
+        self.pendingApprovalObserver = PendingApprovalObserver(premiumGate: container.premiumGate)
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
@@ -119,6 +124,8 @@ final class AppContext {
                 myUserID: self.sessionStore.currentUser?.id
             )
         }
+        // Session B Task 11: 启动 status 转活监听（OSLog only）
+        self.pendingApprovalObserver.start()
     }
 
     static func makeContext() -> AppContext {
