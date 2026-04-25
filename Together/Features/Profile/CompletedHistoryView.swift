@@ -2,10 +2,26 @@ import SwiftUI
 
 struct CompletedHistoryView: View {
     @Bindable var viewModel: CompletedHistoryViewModel
+    @Environment(AppContext.self) private var appContext
     @State private var selectedItem: Item?
 
     var body: some View {
         List {
+            // Grace period 横幅置顶（高于 hero）—— 硬时间窗通知优先级最高。
+            if case .gracePeriod(_, let logbookFullUntil) = appContext.container.premiumGate.status {
+                GracePeriodBanner(
+                    logbookFullUntil: logbookFullUntil,
+                    onTap: { daysRemaining in
+                        appContext.rootPaywallPresentation.requestTrigger(
+                            .graceExpiring(daysRemaining: daysRemaining)
+                        )
+                    }
+                )
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+
             if viewModel.isPairMode, let summary = viewModel.pairSummary {
                 LogbookPairSummaryHero(summary: summary)
                     .listRowBackground(AppTheme.colors.background)
