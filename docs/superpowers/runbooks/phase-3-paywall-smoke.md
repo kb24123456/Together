@@ -152,13 +152,13 @@ subsystem: `com.pigdog.Together` / category: `Premium`
 
 ## § 3. 已知不在 Session A Scope（留 B/C）
 
-- 订阅管理（续费日期 / "在 App Store 管理订阅" 链接）— Session B
-- Grace Period 专用 UI（Logbook 顶部横幅）— Session B
-- 真实 Privacy / ToS URL（当前指 example.com/placeholder）— Session B
+- ~~订阅管理（续费日期 / "在 App Store 管理订阅" 链接）— Session B~~ ✅ Session B 已落地（§ 6 S1）
+- ~~Grace Period 专用 UI（Logbook 顶部横幅）— Session B~~ ✅ Session B 已落地（§ 6 S2）
+- 真实 Privacy / ToS URL（当前指 placeholder.together-app.com，需运营拍板部署后单独 PR 替换 LegalURLs.swift）— pre-TestFlight
 - VoiceOver / Dynamic Type 深度审计 — Session C
 - StoreKit Configuration `.storekit` 本地测试 — Session C
 - Sentry / Crashlytics — Session C
-- 新设备首次打开的 `.crossDeviceSync` 一次性引导 — Session B / C
+- 新设备首次打开的 `.crossDeviceSync` 一次性引导 — Session C
 
 ---
 
@@ -189,3 +189,92 @@ subsystem: `com.pigdog.Together` / category: `Premium`
 git tag phase-3-session-a
 git push origin phase-3-session-a
 ```
+
+---
+
+## § 6. Session B 真机 smoke (S1–S6)
+
+Session B 收尾模块（订阅管理 / Grace Period UI / 合规文案 / Restore 多场景 / Ask to Buy 翻转）的真机验证；Session A § 1-5 通过后再开。
+
+### 前置
+
+- Sandbox Apple ID 已登录真机（同 Session A）
+- 至少一次成功购买（让 Pro 状态可观察）
+- Family Share 测试账号（用于 S4，可选）
+
+### S1 — 在 App Store 管理订阅
+
+| 步 | 操作 | 期望 |
+|---|---|---|
+| 1 | Pro 态打开 Profile → "Together Pro" 入口 → 进会员详情 | 显示"Together Pro · 已激活" + "有效期至 YYYY 年 M 月 D 日" + "在 App Store 管理订阅"按钮 |
+| 2 | 点 "在 App Store 管理订阅" | 弹原生 StoreKit sheet（Apple 标准订阅管理 UI），可看到当前订阅 + 取消按钮，无须离开 app |
+| 3 | 关闭 sheet | 回到会员详情页，状态不变 |
+
+> **Sandbox 提示**：Sandbox 环境下 manageSubscriptionsSheet 可能不弹或弹空 sheet（Apple 已知问题）。失败不阻塞，TestFlight / 正式环境再验证。
+
+### S2 — Grace Period 横幅 + 续订
+
+| 步 | 操作 | 期望 |
+|---|---|---|
+| 1 | 触发 grace 状态：Sandbox 加速续订失败 / DEBUG override 设 `.gracePeriod` / 手动改 RC 测试 entitlement 即将过期 | `PremiumGate.status == .gracePeriod` |
+| 2 | 打开 Logbook（Profile → Logbook） | 顶部出现黄色横幅"⚠ 订阅已到期 · 剩 N 天可看全历史"，置于 LogbookPairSummaryHero 之上（如启用 pair 模式） |
+| 3 | 点横幅 | 触发付费墙 sheet，hero 标题 "续订 Together Pro，保留你的回忆"，subtitle 含 "N 天后彻底失效" |
+| 4 | 关 paywall（取消） | 回 Logbook，横幅仍在；再点仍可弹（不被 dedup 吃掉） |
+| 5 | 在 Profile → 会员中心 grace 态 | 黄色警告区"订阅已到期 · 剩 N 天" + "立即续订"按钮 + "在 App Store 管理订阅"按钮 |
+
+### S3 — 卸载重装 Restore
+
+| 步 | 操作 | 期望 |
+|---|---|---|
+| 1 | 已购买 Pro 的 Sandbox 账号；卸载 app | 数据清空 |
+| 2 | 重装 app + Sandbox 登录 + 进 Profile → 会员中心 | Free 态（PremiumGate 还没 fetch 到 entitlement）|
+| 3 | 在 paywall 内点"恢复购买" | loading 1-3s 后状态翻 Pro，无错误；OSLog 含 `paywall.refresh.postRestore isPremium=true` |
+
+### S4 — Family Share Restore（如有家庭账号）
+
+| 步 | 操作 | 期望 |
+|---|---|---|
+| 1 | 主账号已购 Pro（开启 Apple Family Share 共享购买）；副账号登录 app | 副账号 Free 态 |
+| 2 | 副账号点"恢复购买" | 同 S3 翻 Pro；RC `EntitlementInfo` 显示 ownership = familyShared（OSLog 可观察）|
+
+> RC SDK + Apple 后台同步控制，本应用不直接兜底。失败时记录 OSLog + 用户体感供运营评估，**不阻塞 Session B 验收**。
+
+### S5 — Ask to Buy → 家长批准 → 前台翻转
+
+| 步 | 操作 | 期望 |
+|---|---|---|
+| 1 | Sandbox Ask to Buy 设备（家长 / 子账号配对）登录 | Free 态 |
+| 2 | 点购买 | RC 返回 `.pending`；paywall sheet 关闭；ProfileProEntryRow 子标题"等待家长审批 · 批准后自动生效" |
+| 3 | 家长批准（在家长设备 Settings 或 Mail 通知） | 几秒内 RC 后台收到事件，下次 PremiumGate.refresh 翻 Pro |
+| 4 | App 保持前台，下拉 Profile 或重新进入 | OSLog `PendingApprovalObserver: status_transition.activated from=.free to=.pro(...)`；ProfileProEntryRow 翻"订阅中"|
+
+> **后台场景**：若 step 3 时 app 在后台，重启后 lastSeenStatus reset 不会触发 OSLog（已知，留 Session C 评估）。
+
+### S6 — Restore 错误文案
+
+| 步 | 操作 | 期望文案（UpsellContent inline）|
+|---|---|---|
+| 1 | 全新 Sandbox 账号无任何订阅，点"恢复购买" | "未找到已购买订阅 · 请确认使用购买时的 Apple ID" |
+| 2 | 飞行模式下点"恢复购买" | "网络连接异常 · 请检查网络后重试" |
+
+### Session B 完成标记
+
+- [ ] S1 PASS（或标 "Sandbox sheet 不稳定，TestFlight 验证"）
+- [ ] S2 PASS（grace banner 渲染 + CTA 触发 + dedup skip）
+- [ ] S3 PASS
+- [ ] S4 PASS（或标 "无家庭账号"延后到 TestFlight）
+- [ ] S5 PASS（前台路径；后台路径标 known limitation）
+- [ ] S6 两条文案 PASS
+- [ ] Session A § 1-5 全 suite 不回归
+- [ ] OSLog `PendingApprovalObserver` category 至少出现过 1 次（在 S5）
+
+全部勾选后打 tag：
+
+```bash
+git tag phase-3-session-b-stable
+git push origin phase-3-session-b-stable
+```
+
+**Pre-TestFlight 单独 PR**（不在 Session B 14 commit 内）：
+- 替换 `Together/Services/Premium/LegalURLs.swift` 的 placeholder host 为运营拍板的终值 URL
+- 法律文档 `docs/legal/*.md` 内 `[NEEDS_OPERATOR_INPUT: ...]` 字段填实
