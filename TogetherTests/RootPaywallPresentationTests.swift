@@ -129,6 +129,38 @@ struct RootPaywallPresentationDedupTests {
         // 两个 lapse 都插队头，后来者更靠前
         #expect(p.queue == [.lapse(n2), .lapse(n1)])
     }
+
+    @Test func graceExpiringSkipsDedupSameValue() {
+        // Session B Task 12: grace 主动续订点击不应被合并器吃掉
+        let p = RootPaywallPresentation()
+        p.requestTrigger(.anniversaryQuota)
+        p.requestTrigger(.graceExpiring(daysRemaining: 7))
+        p.requestTrigger(.graceExpiring(daysRemaining: 7))   // 第二次相同 N
+        #expect(p.queue == [
+            .quota(.graceExpiring(daysRemaining: 7)),
+            .quota(.graceExpiring(daysRemaining: 7))
+        ])
+    }
+
+    @Test func graceExpiringDifferentValuesAlsoCoexist() {
+        let p = RootPaywallPresentation()
+        p.requestTrigger(.projectQuota)
+        p.requestTrigger(.graceExpiring(daysRemaining: 7))
+        p.requestTrigger(.graceExpiring(daysRemaining: 5))
+        #expect(p.queue == [
+            .quota(.graceExpiring(daysRemaining: 7)),
+            .quota(.graceExpiring(daysRemaining: 5))
+        ])
+    }
+
+    @Test func nonGraceQuotaStillDeduped() {
+        // 守卫：dedup skip 仅作用于 graceExpiring；其他 quota case 仍 dedup
+        let p = RootPaywallPresentation()
+        p.requestTrigger(.projectQuota)
+        p.requestTrigger(.anniversaryQuota)
+        p.requestTrigger(.anniversaryQuota)   // 应被 dedup
+        #expect(p.queue == [.quota(.anniversaryQuota)])
+    }
 }
 
 @MainActor

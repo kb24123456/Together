@@ -65,12 +65,23 @@ final class RootPaywallPresentation {
             presenting = kind
             return
         }
-        if presenting == kind { return }
-        if queue.contains(kind) { return }
+        // .quota(.graceExpiring) 不去重：用户主动点 banner 续订不应被合并器吃掉。
+        // 其他 kind（配额拦截 / lapse）保持 dedup 防多次配额触发误弹。Spec § 2.4。
+        if !skipsDedup(kind) {
+            if presenting == kind { return }
+            if queue.contains(kind) { return }
+        }
         if insertAtHead {
             queue.insert(kind, at: 0)
         } else {
             queue.append(kind)
+        }
+    }
+
+    private func skipsDedup(_ kind: Kind) -> Bool {
+        switch kind {
+        case .quota(.graceExpiring): return true
+        case .quota, .lapse: return false
         }
     }
 }
