@@ -1201,11 +1201,17 @@ struct ComposerTemplatePickerSheet: View {
                 ProgressView("正在读取模板…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if templates.isEmpty {
-                ContentUnavailableView(
-                    "还没有可用模板",
-                    systemImage: "square.stack.3d.up.slash",
-                    description: Text("先在任务详情里把常用任务保存为模板。")
-                )
+                VStack {
+                    EmptyStateCard(
+                        title: "还没有可用模板",
+                        message: "先在任务详情里把常用任务保存为模板。",
+                        illustration: "EmptyTemplate"
+                    )
+                    .padding(.horizontal, AppTheme.spacing.lg)
+                    Spacer()
+                }
+                .padding(.top, AppTheme.spacing.xl)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 List {
                     ForEach(templates) { template in

@@ -38,7 +38,13 @@ final class AppContext {
     let lapseAcknowledgedStore = LapseAcknowledgedStore()
 
     /// 生产购买抽象。复用同一实例跨所有 UpsellSheet / UpsellContent（packageCache 一致）。
+    /// DEBUG 用 Stub（中文 + ¥ 样本数据）方便 UI 验收，不打 Apple Sandbox / RC TestStore；
+    /// Release / TestFlight 用真 RC。
+    #if DEBUG
+    let paywallPurchasing: PaywallPurchasingProtocol = StubPaywallPurchasing()
+    #else
     let paywallPurchasing: PaywallPurchasingProtocol = RevenueCatPaywallPurchasing()
+    #endif
 
     /// 监听 PremiumGate.status 转活边沿（non-pro→pro），记 OSLog 让 Session C 评估升级。
     /// 进程级生命周期（spec § 2.6）；init 末尾 start，无 stop。

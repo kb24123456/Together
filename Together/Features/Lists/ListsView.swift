@@ -34,7 +34,7 @@ struct ListsView: View {
                             EmptyStateCard(
                                 title: "还没有自定义清单",
                                 message: "下一步会把新建、编辑和整理流程接进这里。",
-                                systemImage: "list.bullet.clipboard"
+                                illustration: "EmptyList"
                             )
                         } else {
                             ForEach(viewModel.customLists) { list in

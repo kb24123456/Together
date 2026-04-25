@@ -767,7 +767,8 @@ struct HomeView: View {
             return false
         }
 
-        let calendar = Calendar.current
+        var calendar = Calendar.current
+        calendar.firstWeekday = 1  // 与 HomeViewModel 周日首日约定对齐
         return !calendar.isDate(viewModel.selectedDate, equalTo: .now, toGranularity: .weekOfYear)
     }
 
@@ -1124,13 +1125,15 @@ struct HomeView: View {
                     triggerSoftDateFeedback()
                 } label: {
                     VStack(spacing: 0) {
-                        Text(date, format: .dateTime.day())
+                        Text("\(Calendar.current.component(.day, from: date))")
                             .font(
                                 AppTheme.typography.sized(
                                     isOverlayModeActive ? 18 : 22,
                                     weight: isSelected ? .bold : .semibold
                                 )
                             )
+                            .monospacedDigit()
+                            .lineLimit(1)
                             .foregroundStyle(
                                 isSelected
                                 ? AppTheme.colors.title
@@ -1325,14 +1328,12 @@ struct HomeView: View {
             if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 VStack(spacing: AppTheme.spacing.xl) {
                     VStack(spacing: AppTheme.spacing.md) {
-                        Image(systemName: viewModel.isPairModeActive ? "leaf.fill" : "sun.max.fill")
-                            .font(AppTheme.typography.sized(36, weight: .light))
-                            .foregroundStyle(
-                                viewModel.isPairModeActive
-                                    ? AppTheme.colors.sky.opacity(0.5)
-                                    : AppTheme.colors.coral.opacity(0.4)
-                            )
-                            .symbolEffect(.breathe.plain, options: .repeating)
+                        Image("EmptyCalendar")
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 120, height: 120)
+                            .accessibilityHidden(true)
 
                         Text(viewModel.isPairModeActive ? "共享空间暂无待办" : "今天没有待办事项")
                             .font(AppTheme.typography.sized(17, weight: .semibold))

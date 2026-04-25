@@ -5,33 +5,29 @@ struct SignInView: View {
     let authService: AuthServiceProtocol
     let onSignedIn: (AuthSession) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isSigningIn = false
     @State private var errorMessage: String?
 
     var body: some View {
         ZStack {
-            AppTheme.colors.homeBackground
+            backgroundMesh
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer()
+                Spacer(minLength: 0)
 
-                VStack(spacing: AppTheme.spacing.md) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(AppTheme.typography.sized(64, weight: .light))
-                        .foregroundStyle(AppTheme.colors.accent)
-                        .symbolEffect(.breathe, options: .repeating)
+                VStack(spacing: AppTheme.spacing.xl) {
+                    BrandLogoStatic()
 
-                    Text("Together")
-                        .font(AppTheme.typography.textStyle(.largeTitle, weight: .bold))
+                    Text("十有八九，常想一二")
+                        .font(AppTheme.typography.sized(22, weight: .regular))
+                        .tracking(2)
                         .foregroundStyle(AppTheme.colors.title)
-
-                    Text("一起，更好地完成每一件事")
-                        .font(AppTheme.typography.textStyle(.subheadline, weight: .regular))
-                        .foregroundStyle(AppTheme.colors.body)
+                        .multilineTextAlignment(.center)
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 VStack(spacing: AppTheme.spacing.md) {
                     if let errorMessage {
@@ -47,7 +43,7 @@ struct SignInView: View {
                     } onCompletion: { _ in
                         // Handling is done via the authService directly
                     }
-                    .signInWithAppleButtonStyle(.black)
+                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                     .frame(height: 50)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.radius.card))
                     .disabled(isSigningIn)
@@ -63,6 +59,8 @@ struct SignInView: View {
                         guard isSigningIn == false else { return }
                         performSignIn()
                     }
+
+                    legalFooter
 
                     #if DEBUG
                     // 模拟器 / 开发环境快速登录（生成随机用户，用于配对测试）
@@ -88,7 +86,60 @@ struct SignInView: View {
                 .padding(.bottom, AppTheme.spacing.xxl)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: errorMessage)
+        .animation(AppTheme.motion.micro, value: errorMessage)
+    }
+
+    private var backgroundMesh: some View {
+        let baseColors: [Color] = colorScheme == .dark
+            ? [
+                AppTheme.colors.background,
+                Color(red: 0.16, green: 0.13, blue: 0.13),
+                Color(red: 0.13, green: 0.15, blue: 0.18),
+                AppTheme.colors.background,
+                Color(red: 0.18, green: 0.14, blue: 0.13),
+                AppTheme.colors.background,
+                AppTheme.colors.background,
+                Color(red: 0.13, green: 0.16, blue: 0.18),
+                AppTheme.colors.background
+            ]
+            : [
+                AppTheme.colors.background,
+                Color(red: 0.99, green: 0.93, blue: 0.91),
+                Color(red: 0.91, green: 0.95, blue: 0.99),
+                AppTheme.colors.background,
+                Color(red: 0.98, green: 0.94, blue: 0.92),
+                AppTheme.colors.background,
+                AppTheme.colors.background,
+                Color(red: 0.93, green: 0.96, blue: 0.99),
+                AppTheme.colors.background
+            ]
+
+        return MeshGradient(
+            width: 3,
+            height: 3,
+            points: [
+                .init(0, 0), .init(0.5, 0), .init(1, 0),
+                .init(0, 0.5), .init(0.5, 0.5), .init(1, 0.5),
+                .init(0, 1), .init(0.5, 1), .init(1, 1)
+            ],
+            colors: baseColors
+        )
+    }
+
+    private var legalFooter: some View {
+        HStack(spacing: 4) {
+            Text("登录即同意")
+            Link("隐私政策", destination: LegalURLs.privacy)
+                .foregroundStyle(AppTheme.colors.body)
+                .underline()
+            Text("·")
+            Link("使用条款", destination: LegalURLs.terms)
+                .foregroundStyle(AppTheme.colors.body)
+                .underline()
+        }
+        .font(AppTheme.typography.sized(11, weight: .regular))
+        .foregroundStyle(AppTheme.colors.textTertiary)
+        .padding(.top, AppTheme.spacing.xs)
     }
 
     #if DEBUG

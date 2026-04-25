@@ -334,23 +334,26 @@ struct ProjectsListContent: View {
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            Image(systemName: "folder.badge.plus")
-                .font(AppTheme.typography.sized(36, weight: .light))
-                .foregroundStyle(AppTheme.colors.accent)
-                .padding(.bottom, AppTheme.spacing.xs)
+        VStack(alignment: .center, spacing: AppTheme.spacing.sm) {
+            Image("EmptyList")
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 110, height: 110)
                 .accessibilityHidden(true)
 
             Text("还没有项目")
                 .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 .foregroundStyle(emptyStateTitleColor)
+                .multilineTextAlignment(.center)
 
             Text("先创建一个项目，再把拆解步骤留在项目层里推进。")
                 .foregroundStyle(sectionSubtitleColor)
+                .multilineTextAlignment(.center)
         }
         .padding(.horizontal, horizontalInset)
         .padding(.vertical, AppTheme.spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
         .background(cardBackground)
     }
 

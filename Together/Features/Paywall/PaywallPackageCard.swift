@@ -1,50 +1,78 @@
 import SwiftUI
 
-/// 单个 package 卡片。选中态 `pairAccent` 边框，试用徽章右上。
+/// 单个 package 卡片（Doit!Pro 风格）。
+/// 选中态：**黑底白字 + 顶部 neon 渐变光晕**（最大视觉锚点）
+/// 未选态：白底黑字 + 浅 outline
+/// 卡片纵向布局：plan 名（小）→ 价格（大粗）→ 副标题（小）
 struct PaywallPackageCard: View {
     let package: PaywallPackage
     let isSelected: Bool
+    /// 顶部小徽章文案（年付 "省 41%"），nil 不显示。selected 时也会显示。
+    var topBadge: String? = nil
     let onSelect: () -> Void
 
-    private var trialText: String? { UpsellCopy.formatTrial(package.introductoryOffer) }
+    private var foreground: Color {
+        isSelected ? .white : AppTheme.colors.title
+    }
+    private var subtitleColor: Color {
+        isSelected ? .white.opacity(0.7) : AppTheme.colors.body.opacity(0.85)
+    }
+    private var planNameColor: Color {
+        isSelected ? .white.opacity(0.85) : AppTheme.colors.body
+    }
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                selectionIndicator
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                    Text(package.localizedTitle)
-                        .font(AppTheme.typography.sized(16, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title)
-                    Text(UpsellCopy.formatPriceLine(package))
-                        .font(AppTheme.typography.sized(14, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body)
+            ZStack(alignment: .top) {
+                // 卡片主体
+                VStack(spacing: AppTheme.spacing.xxs) {
+                    Spacer(minLength: AppTheme.spacing.sm)
+                    Text(UpsellCopy.packageDisplayName(package))
+                        .font(AppTheme.typography.cardLabel)
+                        .foregroundStyle(planNameColor)
+                    Text(package.localizedPriceString)
+                        .font(AppTheme.typography.priceLarge)
+                        .foregroundStyle(foreground)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                    Text(UpsellCopy.packageSubtitle(package))
+                        .font(AppTheme.typography.cardCaption)
+                        .foregroundStyle(subtitleColor)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, AppTheme.spacing.xxs)
+                    Spacer(minLength: AppTheme.spacing.sm)
                 }
-                Spacer()
-                if let trialText {
-                    Text(trialText)
-                        .font(AppTheme.typography.sized(11, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.pairAccent)
+                .frame(maxWidth: .infinity, minHeight: 116)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
+                        .fill(isSelected ? AppTheme.colors.title : AppTheme.colors.surface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
+                        .stroke(isSelected ? Color.clear : AppTheme.colors.outline, lineWidth: 1)
+                )
+
+                // 顶部 neon 光晕 — 仅选中态
+                if isSelected {
+                    neonStrip
+                        .padding(.horizontal, AppTheme.spacing.xs)
+                        .padding(.top, 0)
+                        .allowsHitTesting(false)
+                }
+
+                // 顶部 badge — capsule，跨在卡片顶部边缘
+                if let topBadge {
+                    Text(topBadge)
+                        .font(AppTheme.typography.sized(10, weight: .bold))
+                        .foregroundStyle(.white)
                         .padding(.horizontal, AppTheme.spacing.sm)
-                        .padding(.vertical, AppTheme.spacing.xxs)
-                        .background(
-                            Capsule().fill(AppTheme.colors.pairAccent.opacity(0.12))
-                        )
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(AppTheme.colors.pairAccent))
+                        .offset(y: -10)
+                        .accessibilityHidden(true)
                 }
             }
-            .padding(AppTheme.spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
-                    .stroke(
-                        isSelected ? AppTheme.colors.pairAccent : Color.clear,
-                        lineWidth: 2
-                    )
-            )
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
@@ -54,56 +82,54 @@ struct PaywallPackageCard: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var selectionIndicator: some View {
-        ZStack {
-            Circle()
-                .stroke(
-                    isSelected ? AppTheme.colors.pairAccent : AppTheme.colors.textTertiary.opacity(0.5),
-                    lineWidth: 1.5
-                )
-                .frame(width: 20, height: 20)
-            if isSelected {
-                Circle()
-                    .fill(AppTheme.colors.pairAccent)
-                    .frame(width: 10, height: 10)
-            }
-        }
+    /// neon 光晕：4 色横向渐变 + 微 blur，营造科技/奢华感。
+    private var neonStrip: some View {
+        LinearGradient(
+            colors: [
+                AppTheme.colors.violet.opacity(0.95),
+                AppTheme.colors.sky,
+                AppTheme.colors.pairAccent,
+                AppTheme.colors.sun
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(height: 4)
+        .clipShape(Capsule())
+        .blur(radius: 1.5)
+        .padding(.top, 6)
     }
 
     private var accessibilityLabel: String {
         let price = UpsellCopy.formatPriceLine(package)
-        if let trial = trialText {
-            return "\(package.localizedTitle)，\(price)，\(trial)"
-        }
-        return "\(package.localizedTitle)，\(price)"
+        let badge = topBadge ?? UpsellCopy.formatTrial(package.introductoryOffer) ?? ""
+        let parts = [UpsellCopy.packageDisplayName(package), price, badge].filter { !$0.isEmpty }
+        return parts.joined(separator: "，")
     }
 }
 
 #if DEBUG
-#Preview("Unselected") {
-    PaywallPackageCard(
-        package: StubPaywallPurchasing.sampleOffering.packages[0],
-        isSelected: false,
-        onSelect: {}
-    )
-    .padding()
-}
-
-#Preview("Selected annual with trial") {
-    PaywallPackageCard(
-        package: StubPaywallPurchasing.sampleOffering.packages[1],
-        isSelected: true,
-        onSelect: {}
-    )
-    .padding()
-}
-
-#Preview("Lifetime") {
-    PaywallPackageCard(
-        package: StubPaywallPurchasing.sampleOffering.packages[2],
-        isSelected: false,
-        onSelect: {}
-    )
+#Preview("Three plans row") {
+    HStack(spacing: AppTheme.spacing.sm) {
+        PaywallPackageCard(
+            package: StubPaywallPurchasing.sampleOffering.packages[2],
+            isSelected: true,
+            topBadge: nil,
+            onSelect: {}
+        )
+        PaywallPackageCard(
+            package: StubPaywallPurchasing.sampleOffering.packages[1],
+            isSelected: false,
+            topBadge: "省 41%",
+            onSelect: {}
+        )
+        PaywallPackageCard(
+            package: StubPaywallPurchasing.sampleOffering.packages[0],
+            isSelected: false,
+            topBadge: nil,
+            onSelect: {}
+        )
+    }
     .padding()
 }
 #endif

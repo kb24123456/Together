@@ -74,8 +74,9 @@ struct ProfileSubscriptionDetailSectionExpirationTextTests {
     @Test func validDateReturnsFormatted() {
         let date = Date(timeIntervalSince1970: 1_800_000_000)  // 2027-01-15
         let text = ProfileSubscriptionDetailSection.expirationText(date)
-        #expect(text.hasPrefix("有效期至 "))
+        // 重构后 label "有效期" 由 infoRow 提供，本函数只返回日期串。
         #expect(text.contains("2027"))
+        #expect(text.hasPrefix("有效期至 ") == false)
     }
 }
 

@@ -13,6 +13,26 @@ enum UpsellCopy {
 
         var id: String { rawValue }
         var displayText: String { rawValue }
+
+        /// 卡片化权益的 SF Symbol icon
+        var iconName: String {
+            switch self {
+            case .crossDeviceSync: "ipad.and.iphone"
+            case .unlimitedAnniversaries: "heart.text.square.fill"
+            case .unlimitedProjects: "rectangle.stack.fill"
+            case .fullLogbook: "books.vertical.fill"
+            }
+        }
+
+        /// 一句话补充描述
+        var subtitleText: String {
+            switch self {
+            case .crossDeviceSync: "iPhone 与 iPad 实时同步"
+            case .unlimitedAnniversaries: "生日 / 节日 / 自定义不限量"
+            case .unlimitedProjects: "项目数量不再受限"
+            case .fullLogbook: "永久查看所有完成历史"
+            }
+        }
     }
 
     /// 固定顺序（`.generic` / 无 trigger 走此序列）
@@ -91,6 +111,88 @@ enum UpsellCopy {
     static func formatTrial(_ intro: PaywallIntroOffer?) -> String? {
         guard let intro, intro.isFreeTrial else { return nil }
         return "前 \(periodCountString(intro.period))免费"
+    }
+
+    // MARK: - Marketing labels (per-card)
+
+    /// 套餐卡片显示的中文短名（不依赖 RC localizedTitle，避免 RC 后台配英文时穿透到 UI）。
+    /// 月付 / 年付 / 终身。其他 period 退回原 localizedTitle。
+    static func packageDisplayName(_ pkg: PaywallPackage) -> String {
+        guard let period = pkg.subscriptionPeriod else { return "终身" }
+        switch period {
+        case .month(1): return "月付"
+        case .year(1): return "年付"
+        case .day, .week, .month, .year: return pkg.localizedTitle
+        }
+    }
+
+    /// 套餐卡片上的简短副标题。
+    /// - 月付 → "月付无压力"
+    /// - 年付 → "前 7 天免费" / "/月 ¥X.XX 起"
+    /// - 终身 → "一次性 · 永久"
+    static func packageSubtitle(_ pkg: PaywallPackage) -> String {
+        guard let period = pkg.subscriptionPeriod else {
+            return "一次性 · 永久"
+        }
+        if let trial = formatTrial(pkg.introductoryOffer) {
+            return trial
+        }
+        switch period {
+        case .month: return "月付无压力"
+        case .year: return "/月 \(approximateMonthlyPriceLine(pkg)) 起"
+        default: return formatPriceLine(pkg)
+        }
+    }
+
+    /// "每天约 ¥0.54"。无 subscriptionPeriod（终身）返回 nil。
+    static func formatDailyCost(_ pkg: PaywallPackage) -> String? {
+        guard let period = pkg.subscriptionPeriod else { return nil }
+        let days: Decimal
+        switch period {
+        case .day(let n): days = Decimal(n)
+        case .week(let n): days = Decimal(n) * 7
+        case .month(let n): days = Decimal(n) * 30
+        case .year(let n): days = Decimal(n) * 365
+        }
+        guard days > 0 else { return nil }
+        let perDay = pkg.price / days
+        let formatter = currencyFormatter(for: pkg.currencyCode)
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        guard let str = formatter.string(from: perDay as NSDecimalNumber) else { return nil }
+        return "每天约 \(str)"
+    }
+
+    /// 年付相对月付节省百分比。仅当 monthly = .month(1) 且 yearly = .year(1) 时返回。
+    /// 例：月 ¥28 × 12 = ¥336，年 ¥198 → 节省 41%
+    static func annualizedSavingsPercent(monthly: PaywallPackage, yearly: PaywallPackage) -> Int? {
+        guard let mP = monthly.subscriptionPeriod, case .month(1) = mP,
+              let yP = yearly.subscriptionPeriod, case .year(1) = yP,
+              monthly.price > 0, yearly.price > 0 else { return nil }
+        let annualizedMonthly = monthly.price * 12
+        guard annualizedMonthly > 0, yearly.price < annualizedMonthly else { return nil }
+        let savings = (annualizedMonthly - yearly.price) / annualizedMonthly * 100
+        let percent = (savings as NSDecimalNumber).intValue
+        return percent > 0 ? percent : nil
+    }
+
+    /// 年付套餐折算成"每月" 价格："¥16.50"
+    private static func approximateMonthlyPriceLine(_ pkg: PaywallPackage) -> String {
+        guard let period = pkg.subscriptionPeriod, case .year(let n) = period, n > 0 else {
+            return pkg.localizedPriceString
+        }
+        let perMonth = pkg.price / Decimal(n * 12)
+        let formatter = currencyFormatter(for: pkg.currencyCode)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: perMonth as NSDecimalNumber) ?? pkg.localizedPriceString
+    }
+
+    private static func currencyFormatter(for code: String) -> NumberFormatter {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = code
+        return f
     }
 
     // MARK: - Legal footer（spec § 2.11，Apple 3.1.2(a) 模板）

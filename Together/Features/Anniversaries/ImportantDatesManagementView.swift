@@ -5,7 +5,6 @@ struct ImportantDatesManagementView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showEdit: ImportantDate?
-    @State private var showCreateSheet = false
     @State private var showPresetPicker = false
     /// PresetHolidayPickerSheet 内批量保存时如果因配额停止，标记下来；
     /// sheet 关闭动画完成 (.sheet onDismiss) 后再 requestQuotaUpsell，避免多 sheet 冲突
@@ -27,30 +26,50 @@ struct ImportantDatesManagementView: View {
             .navigationTitle("纪念日")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        // 入口预检：超额直接弹 paywall，不弹 menu
-                        if viewModel.canCreateAnotherForCurrentUser() {
-                            showCreateSheet = true
-                        } else {
-                            viewModel.requestQuotaUpsell()
+                    Menu {
+                        Button {
+                            createBirthday(myself: false)
+                        } label: {
+                            Label("伴侣生日", systemImage: "gift.fill")
                         }
-                    } label: { Image(systemName: "plus") }
-                        .accessibilityLabel("添加纪念日")
+                        .disabled(existingBirthday(myself: false) != nil)
+
+                        Button {
+                            createBirthday(myself: true)
+                        } label: {
+                            Label("我的生日", systemImage: "person.crop.circle.fill")
+                        }
+                        .disabled(existingBirthday(myself: true) != nil)
+
+                        Button {
+                            createAnniversary()
+                        } label: {
+                            Label("在一起纪念日", systemImage: "heart.fill")
+                        }
+                        .disabled(hasAnniversary())
+
+                        Divider()
+
+                        Button {
+                            guard quotaCheckPasses() else { return }
+                            showPresetPicker = true
+                        } label: {
+                            Label("添加常见节日", systemImage: "calendar.badge.plus")
+                        }
+
+                        Button {
+                            createCustom()
+                        } label: {
+                            Label("自定义", systemImage: "pencil")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("添加纪念日")
                 }
             }
             .sheet(item: $showEdit) { event in
                 ImportantDateEditSheet(event: event)
-            }
-            .confirmationDialog("添加纪念日", isPresented: $showCreateSheet) {
-                Button("🎂 伴侣生日") { createBirthday(myself: false) }
-                    .disabled(existingBirthday(myself: false) != nil)
-                Button("🎁 我的生日") { createBirthday(myself: true) }
-                    .disabled(existingBirthday(myself: true) != nil)
-                Button("💕 在一起纪念日") { createAnniversary() }
-                    .disabled(hasAnniversary())
-                Button("🎉 添加常见节日") { showPresetPicker = true }
-                Button("✏️ 自定义") { createCustom() }
-                Button("取消", role: .cancel) {}
             }
             .sheet(isPresented: $showPresetPicker, onDismiss: {
                 if presetPickerHitQuota {
@@ -86,17 +105,22 @@ struct ImportantDatesManagementView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: AppTheme.spacing.md) {
-            Image(systemName: "calendar.badge.plus")
-                .font(AppTheme.typography.sized(44, weight: .light))
-                .foregroundStyle(AppTheme.colors.pairAccent)
-                .padding(.top, AppTheme.spacing.xl)
+            Image("EmptyAnniversary")
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 140, height: 140)
+                .padding(.top, AppTheme.spacing.lg)
                 .padding(.bottom, AppTheme.spacing.sm)
                 .accessibilityHidden(true)
 
             emptyCTA(title: "添加伴侣生日 🎂", isPrimary: true) { createBirthday(myself: false) }
             emptyCTA(title: "添加我的生日 🎁", isPrimary: false) { createBirthday(myself: true) }
             emptyCTA(title: "添加在一起纪念日 💕", isPrimary: false) { createAnniversary() }
-            Button("+ 其他纪念日 / 添加常见节日") { showCreateSheet = true }
+            Button("+ 其他纪念日 / 添加常见节日") {
+                guard quotaCheckPasses() else { return }
+                showPresetPicker = true
+            }
                 .foregroundStyle(AppTheme.colors.pairAccent)
                 .padding(.top, AppTheme.spacing.xs)
             Spacer()
@@ -127,13 +151,14 @@ struct ImportantDatesManagementView: View {
                 row(event: event)
                     .listRowInsets(.init(top: AppTheme.spacing.xs, leading: AppTheme.spacing.md, bottom: AppTheme.spacing.xs, trailing: AppTheme.spacing.md))
                     .listRowBackground(Color.clear)
-                    .swipeActions(edge: .trailing) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             HomeInteractionFeedback.delete()
                             Task { await viewModel.delete(event.id) }
                         } label: {
-                            Image(systemName: "trash")
+                            Label("删除", systemImage: "trash.fill")
                         }
+                        .tint(.red)
                     }
                     .onTapGesture { showEdit = event }
             }

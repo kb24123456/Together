@@ -17,35 +17,71 @@ struct PresetHolidayPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            List(PresetHolidayID.allCases, id: \.self) { preset in
-                Button {
-                    if selectedIDs.contains(preset) {
-                        selectedIDs.remove(preset)
-                    } else {
-                        selectedIDs.insert(preset)
+            ZStack {
+                GradientGridBackground()
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: AppTheme.spacing.lg) {
+                        ProfileSettingsGroupCard(title: "勾选要添加的节日") {
+                            ForEach(Array(PresetHolidayID.allCases.enumerated()), id: \.element) { index, preset in
+                                if index > 0 {
+                                    Rectangle()
+                                        .fill(AppTheme.colors.hairline)
+                                        .frame(height: 0.5)
+                                }
+                                presetRow(preset)
+                            }
+                        }
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: selectedIDs.contains(preset) ? "checkmark.square.fill" : "square")
-                            .foregroundStyle(selectedIDs.contains(preset) ? AppTheme.colors.coral : .secondary)
-                        Text(preset.defaultTitle).foregroundStyle(.primary)
-                        Spacer()
-                        Text(nextDateLabel(for: preset)).font(AppTheme.typography.textStyle(.caption1)).foregroundStyle(.secondary)
-                    }
+                    .padding(.top, AppTheme.spacing.lg)
+                    .padding(.bottom, AppTheme.spacing.xxl)
                 }
-                .buttonStyle(.plain)
             }
             .navigationTitle("常见节日")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { dismiss() }
+                        .foregroundStyle(AppTheme.colors.body)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { save() }.disabled(selectedIDs.isEmpty)
+                    Button("完成") { save() }
+                        .font(AppTheme.typography.textStyle(.body, weight: .semibold))
+                        .foregroundStyle(selectedIDs.isEmpty ? AppTheme.colors.textTertiary : AppTheme.colors.title)
+                        .disabled(selectedIDs.isEmpty)
                 }
             }
         }
         .onAppear { seedSelection() }
+    }
+
+    private func presetRow(_ preset: PresetHolidayID) -> some View {
+        let isChecked = selectedIDs.contains(preset)
+        return Button {
+            if isChecked {
+                selectedIDs.remove(preset)
+            } else {
+                selectedIDs.insert(preset)
+            }
+        } label: {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(isChecked ? AppTheme.colors.selectionTint : AppTheme.colors.textTertiary)
+                Text(preset.defaultTitle)
+                    .font(AppTheme.typography.textStyle(.body, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.title)
+                Spacer(minLength: 0)
+                Text(nextDateLabel(for: preset))
+                    .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.64))
+            }
+            .padding(.vertical, AppTheme.spacing.sm)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func seedSelection() {

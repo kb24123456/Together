@@ -49,7 +49,7 @@ struct CalendarView: View {
                             EmptyStateCard(
                                 title: "这一天还没有安排",
                                 message: "下一步会补齐跨天拖动、快速安排和焦点日期切换。",
-                                systemImage: "calendar"
+                                illustration: "EmptyCalendar"
                             )
                         } else {
                             ForEach(viewModel.selectedItems) { item in

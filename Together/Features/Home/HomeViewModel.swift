@@ -109,7 +109,14 @@ struct TaskTemplateSaveResult: Sendable, Equatable {
 @MainActor
 @Observable
 final class HomeViewModel {
-    private let calendar = Calendar.current
+    private let calendar: Calendar = {
+        // 强制周日首日：weekdaySymbols 是 ["日","一",...,"六"]，view 渲染依赖同一约定。
+        // 切换 development region 到 zh-Hans 会让 Calendar.current.firstWeekday=2（周一），
+        // 此时列头和日期 cell 错位 1 列，故显式锁定。
+        var cal = Calendar.current
+        cal.firstWeekday = 1
+        return cal
+    }()
     private let sessionStore: SessionStore
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
@@ -1139,6 +1146,8 @@ final class HomeViewModel {
             let detailDraft
         else { return false }
 
+        let previousDueAt = savedDetailDraft?.dueAt
+
         do {
             let saved = try await taskApplicationService.updateTask(
                 in: spaceID,
@@ -1151,9 +1160,25 @@ final class HomeViewModel {
             self.savedDetailDraft = refreshedDraft
             replaceItem(saved)
             emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
+
+            // dueAt 跨天变化时，原日期视图需要重新拉取以移除/纳入该任务
+            if dueDateScopeChanged(from: previousDueAt, to: saved.dueAt) {
+                await reload()
+            }
             return true
         } catch {
             return false
+        }
+    }
+
+    private func dueDateScopeChanged(from previous: Date?, to current: Date?) -> Bool {
+        switch (previous, current) {
+        case (nil, nil):
+            return false
+        case (nil, _), (_, nil):
+            return true
+        case let (.some(p), .some(c)):
+            return calendar.isDate(p, inSameDayAs: c) == false
         }
     }
 
