@@ -246,6 +246,17 @@ extension ImportantDate {
         let now = cal.startOfDay(for: .now)
         return cal.dateComponents([.day], from: start, to: now).day ?? 0
     }
+
+    /// Sort key for the Today pinned-anniversary stack (spec §5.1):
+    /// - recurring events → next occurrence
+    /// - .none-recurrence + anchor in future → anchor itself
+    /// - .none-recurrence + anchor passed → distantFuture (don't compete for top slot)
+    func displayAnchorDate(now: Date = .now) -> Date {
+        if recurrence != .none {
+            return nextOccurrence(after: now) ?? .distantFuture
+        }
+        return dateValue > now ? dateValue : .distantFuture
+    }
 }
 
 extension ImportantDate {
