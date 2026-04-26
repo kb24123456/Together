@@ -22,6 +22,7 @@ struct AppContainer {
     let periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
     let biometricAuthService: BiometricAuthServiceProtocol
     let avatarUploader: AvatarStorageUploaderProtocol
+    let userProfileRemote: UserProfileRemoteRepositoryProtocol
 
     // CloudKit infrastructure
     let cloudKitContainer: CKContainer

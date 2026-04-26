@@ -37,6 +37,34 @@ final class AvatarStorageUploader: AvatarStorageUploaderProtocol, @unchecked Sen
         return signed
     }
 
+    func uploadAvatarUserScoped(
+        bytes: Data,
+        userID: UUID,
+        version: Int
+    ) async throws -> URL {
+        let path = Self.userScopedAvatarPath(userID: userID, version: version)
+        _ = try await client.storage
+            .from(bucketID)
+            .upload(
+                path,
+                data: bytes,
+                options: FileOptions(
+                    cacheControl: "31536000",
+                    contentType: "image/jpeg",
+                    upsert: true
+                )
+            )
+        let signed = try await client.storage
+            .from(bucketID)
+            .createSignedURL(path: path, expiresIn: signedURLExpirySeconds)
+        logger.info("uploaded user-scoped avatar path=\(path, privacy: .public) bytes=\(bytes.count)")
+        return signed
+    }
+
+    static func userScopedAvatarPath(userID: UUID, version: Int) -> String {
+        "users/\(userID.uuidString.lowercased())/\(version).jpg"
+    }
+
     func downloadAvatar(from url: URL) async throws -> Data {
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse else {

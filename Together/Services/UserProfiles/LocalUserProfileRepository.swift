@@ -238,6 +238,62 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         return updatedUser
     }
 
+    func hydrateFromRemote(
+        for user: User,
+        displayName: String,
+        avatarBytes: Data?,
+        avatarAssetID: String?,
+        avatarSystemName: String?,
+        avatarVersion: Int
+    ) async throws -> User {
+        let context = ModelContext(container)
+        let userID = user.id
+
+        var hydratedUser = user
+        hydratedUser.displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        hydratedUser.avatarSystemName = avatarSystemName
+        hydratedUser.avatarAssetID = avatarAssetID
+        hydratedUser.avatarVersion = avatarVersion
+        hydratedUser.updatedAt = .now
+
+        if let bytes = avatarBytes, let assetID = avatarAssetID {
+            let fileName = avatarMediaStore.cacheFileName(for: assetID)
+            do {
+                try avatarMediaStore.persistAvatarData(bytes, fileName: fileName)
+                hydratedUser.avatarPhotoFileName = fileName
+                preloadRuntimeAvatarIfPossible(data: bytes, fileName: fileName)
+            } catch {
+                throw UserProfileSaveError.avatarFileWriteFailed(underlying: error)
+            }
+        } else {
+            hydratedUser.avatarPhotoFileName = nil
+        }
+
+        let descriptor = FetchDescriptor<PersistentUserProfile>(
+            predicate: #Predicate { $0.userID == userID }
+        )
+        do {
+            if let existing = try context.fetch(descriptor).first {
+                existing.update(from: hydratedUser)
+                if let bytes = avatarBytes {
+                    existing.avatarPhotoData = bytes
+                } else {
+                    existing.avatarPhotoData = nil
+                }
+            } else {
+                let record = PersistentUserProfile(user: hydratedUser)
+                if let bytes = avatarBytes {
+                    record.avatarPhotoData = bytes
+                }
+                context.insert(record)
+            }
+            try context.save()
+            return hydratedUser
+        } catch {
+            throw UserProfileSaveError.profilePersistenceFailed(underlying: error)
+        }
+    }
+
     private func applyAvatarPayload(
         to record: PersistentUserProfile,
         avatarUpdate: UserAvatarUpdate

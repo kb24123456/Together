@@ -92,6 +92,7 @@ private final class PullTestHarness {
     let sut: SupabaseSyncService
     let store: InMemoryAvatarMediaStore
     let reader: StubSpaceMemberReader
+    let userProfileRemote: MockUserProfileRemoteRepository
 
     let spaceID: UUID
     let mySupabaseUserID: UUID
@@ -100,7 +101,11 @@ private final class PullTestHarness {
     let partnerLocalUserID: UUID
     let pairSpaceLocalID: UUID
 
-    init(uploader: MockAvatarStorageUploader, store: InMemoryAvatarMediaStore) async throws {
+    init(
+        uploader: MockAvatarStorageUploader,
+        store: InMemoryAvatarMediaStore,
+        userProfileSeed: [UserProfileDTO] = []
+    ) async throws {
         self.store = store
         self.spaceID = UUID()
         self.mySupabaseUserID = UUID()
@@ -134,11 +139,15 @@ private final class PullTestHarness {
         let reader = StubSpaceMemberReader()
         self.reader = reader
 
+        let userProfileRemote = MockUserProfileRemoteRepository(seed: userProfileSeed)
+        self.userProfileRemote = userProfileRemote
+
         self.sut = SupabaseSyncService(
             modelContainer: container,
             avatarUploader: uploader,
             avatarMediaStore: store,
-            spaceMemberReader: reader
+            spaceMemberReader: reader,
+            userProfileRemote: userProfileRemote
         )
         await sut.configure(
             spaceID: spaceID,
@@ -304,6 +313,66 @@ struct SpaceMemberPullAvatarTests {
         var persisted: String?
         for await name in store.persistedStream.prefix(1) { persisted = name }
         #expect(persisted == expected)
+    }
+
+    @Test("Pull prefers user_profiles row over space_members when both exist")
+    func pullPrefersUserProfiles() async throws {
+        let uploader = MockAvatarStorageUploader()
+        uploader.stubbedDownloadBytes = Data([0x01, 0x02])
+        let store = InMemoryAvatarMediaStore()
+
+        // Note: PullTestHarness fixes partnerSupabaseUserID at init time, so we
+        // build the harness first, *then* read its UUID to seed the mock — same
+        // pattern as setRemoteRow.
+        let harness = try await PullTestHarness(uploader: uploader, store: store)
+        let userProfileDTO = UserProfileDTO(
+            userID: harness.partnerSupabaseUserID,
+            displayName: "From-User-Profiles",
+            avatarURL: "https://example.test/up.jpg",
+            avatarAssetID: "asset-from-up",
+            avatarSystemName: nil,
+            avatarVersion: 7,
+            updatedAt: nil
+        )
+        try await harness.userProfileRemote.upsertOwn(userProfileDTO)
+
+        try harness.seedPartnerMembership(avatarVersion: 1, avatarAssetID: "asset-stale-sm")
+        // space_members 给一份 stale 数据；预期被 user_profiles 覆盖
+        harness.setRemoteRow(
+            avatarVersion: 1,
+            avatarURL: "https://example.test/sm-stale.jpg",
+            avatarAssetID: "asset-stale-sm",
+            avatarSystemName: "person.crop.circle"
+        )
+
+        try await harness.runPullSpaceMembers()
+
+        let partner = try harness.loadPartnerMembership()
+        #expect(partner.nickname == "From-User-Profiles")
+        #expect(partner.avatarVersion == 7)
+        #expect(partner.avatarAssetID == "asset-from-up")
+    }
+
+    @Test("Pull falls back to space_members when user_profiles row is missing")
+    func pullFallsBackToSpaceMembersWhenUserProfilesMissing() async throws {
+        let uploader = MockAvatarStorageUploader()
+        let store = InMemoryAvatarMediaStore()
+        // 不 seed user_profiles，模拟 1.0 老 partner 还没升级
+        let harness = try await PullTestHarness(uploader: uploader, store: store)
+        try harness.seedPartnerMembership(avatarVersion: 1, avatarAssetID: "asset-old")
+        harness.setRemoteRow(
+            avatarVersion: 4,
+            avatarURL: "https://example.test/sm.jpg",
+            avatarAssetID: "asset-from-sm",
+            avatarSystemName: nil
+        )
+
+        try await harness.runPullSpaceMembers()
+
+        let partner = try harness.loadPartnerMembership()
+        #expect(partner.nickname == "Partner")  // space_members 的 displayName
+        #expect(partner.avatarVersion == 4)
+        #expect(partner.avatarAssetID == "asset-from-sm")
     }
 
     @Test("Pull refreshes when remote version equal but asset_id differs")

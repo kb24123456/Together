@@ -56,6 +56,7 @@ actor SupabaseSyncService {
     private let spaceMemberReader: SpaceMemberReader
     private let importantDateWriter: ImportantDateWriter
     private let importantDateReader: ImportantDateReader
+    private let userProfileRemote: UserProfileRemoteRepositoryProtocol
 
     init(
         modelContainer: ModelContainer,
@@ -64,7 +65,8 @@ actor SupabaseSyncService {
         spaceMemberWriter: SpaceMemberWriter? = nil,
         spaceMemberReader: SpaceMemberReader? = nil,
         importantDateWriter: ImportantDateWriter? = nil,
-        importantDateReader: ImportantDateReader? = nil
+        importantDateReader: ImportantDateReader? = nil,
+        userProfileRemote: UserProfileRemoteRepositoryProtocol? = nil
     ) {
         self.modelContainer = modelContainer
         self.avatarUploader = avatarUploader
@@ -73,6 +75,7 @@ actor SupabaseSyncService {
         self.spaceMemberReader = spaceMemberReader ?? SupabaseSpaceMemberReader()
         self.importantDateWriter = importantDateWriter ?? SupabaseImportantDateWriter()
         self.importantDateReader = importantDateReader ?? SupabaseImportantDateReader()
+        self.userProfileRemote = userProfileRemote ?? UserProfileRemoteRepository(client: SupabaseClientProvider.shared)
     }
 
     /// 配置同步目标
@@ -652,31 +655,58 @@ actor SupabaseSyncService {
             partnerMembership = memberships.count == 2 ? memberships.last : memberships.first
         }
 
-        guard let partner = partnerMembership, let dto = partnerRows.first else { return }
+        guard let partner = partnerMembership, let spaceMemberDTO = partnerRows.first else { return }
 
-        partner.nickname = dto.displayName
+        // 优先读 user_profiles（user-scoped，1.0.1 dual-write），失败/缺失则 fallback
+        // 到 space_members。fallback 路径保持 1.0 老对端兼容（partner 还没升级时
+        // user_profiles 没他的行）。
+        let partnerUserID = spaceMemberDTO.userId
+        let userProfileDTO = (try? await userProfileRemote.fetchByUserID(partnerUserID))
 
-        let remoteVersion = dto.avatarVersion ?? 0
+        let displayName: String
+        let avatarURLString: String?
+        let avatarAssetID: String?
+        let avatarSystemName: String?
+        let remoteVersion: Int
+
+        if let up = userProfileDTO {
+            displayName = up.displayName
+            avatarURLString = up.avatarURL
+            avatarAssetID = up.avatarAssetID
+            avatarSystemName = up.avatarSystemName
+            remoteVersion = up.avatarVersion
+            logger.info("[Pull] 优先 user_profiles 拉取 partner=\(partnerUserID.uuidString, privacy: .public) version=\(remoteVersion)")
+        } else {
+            displayName = spaceMemberDTO.displayName
+            avatarURLString = spaceMemberDTO.avatarUrl
+            avatarAssetID = spaceMemberDTO.avatarAssetID
+            avatarSystemName = spaceMemberDTO.avatarSystemName
+            remoteVersion = spaceMemberDTO.avatarVersion ?? 0
+            logger.info("[Pull] fallback space_members partner=\(partnerUserID.uuidString, privacy: .public) version=\(remoteVersion)")
+        }
+
+        partner.nickname = displayName
+
         // Refresh on ANY divergence, not just forward bumps. Reinstall / restore
         // from CloudKit can regress remote_version below local_version while the
         // underlying bytes are actually new; a strict `>` gate would miss those.
         let versionDiffers = remoteVersion != partner.avatarVersion
-        let assetChanged = partner.avatarAssetID != dto.avatarAssetID
+        let assetChanged = partner.avatarAssetID != avatarAssetID
         let shouldRefresh = versionDiffers || assetChanged
 
         if shouldRefresh {
-            if let assetID = dto.avatarAssetID, !assetID.isEmpty {
+            if let assetID = avatarAssetID, !assetID.isEmpty {
                 partner.avatarPhotoFileName = avatarMediaStore.partnerCacheFileName(for: assetID, version: remoteVersion)
             } else {
                 partner.avatarPhotoFileName = nil
             }
-            partner.avatarAssetID = dto.avatarAssetID
-            partner.avatarSystemName = dto.avatarSystemName
+            partner.avatarAssetID = avatarAssetID
+            partner.avatarSystemName = avatarSystemName
             partner.avatarVersion = remoteVersion
 
-            if let urlString = dto.avatarUrl,
+            if let urlString = avatarURLString,
                let url = URL(string: urlString),
-               let assetID = dto.avatarAssetID {
+               let assetID = avatarAssetID {
                 let uploaderRef = avatarUploader
                 let storeRef = avatarMediaStore
                 let log = logger
@@ -707,7 +737,7 @@ actor SupabaseSyncService {
         }
 
         try context.save()
-        logger.info("[Pull] ✅ 拉取对方 profile: \(dto.displayName)")
+        logger.info("[Pull] ✅ 拉取对方 profile: \(displayName)")
     }
 
     private func pullSpaces(spaceID: UUID, since: String) async throws {
