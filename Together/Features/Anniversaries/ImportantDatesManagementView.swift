@@ -9,6 +9,7 @@ struct ImportantDatesManagementView: View {
     /// PresetHolidayPickerSheet 内批量保存时如果因配额停止，标记下来；
     /// sheet 关闭动画完成 (.sheet onDismiss) 后再 requestQuotaUpsell，避免多 sheet 冲突
     @State private var presetPickerHitQuota = false
+    @State private var showsPinCapAlert = false
 
     private var viewModel: ImportantDatesViewModel {
         appContext.importantDatesViewModel
@@ -88,6 +89,12 @@ struct ImportantDatesManagementView: View {
             // 必须在此层也挂一份 paywallRootSheet，paywall 才能嵌套在 management sheet 之上 present。
             // 否则 AppRoot 顶层的 .sheet 被 management sheet 占着，iOS 多 sheet 限制会卡住 paywall。
             .paywallRootSheet(appContext)
+            .alert("已达 \(ImportantDatesViewModel.pinnedToTodayCap) 个固定上限",
+                   isPresented: $showsPinCapAlert) {
+                Button("好的", role: .cancel) {}
+            } message: {
+                Text("Today 最多只能固定 \(ImportantDatesViewModel.pinnedToTodayCap) 个纪念日。请先取消其他纪念日的固定。")
+            }
         }
         .task {
             // postLaunch may have fired before the pair was ready (e.g. right
@@ -152,7 +159,7 @@ struct ImportantDatesManagementView: View {
         // user feedback (build-7 partner-side review), drop the card and
         // keep the iOS-native hairline separator as the sole row chrome.
         List {
-            ForEach(viewModel.events.sorted { nextKey($0) < nextKey($1) }) { event in
+            ForEach(orderedEvents) { event in
                 row(event: event)
                     .listRowInsets(.init(top: AppTheme.spacing.md, leading: AppTheme.spacing.md, bottom: AppTheme.spacing.md, trailing: AppTheme.spacing.md))
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -172,6 +179,18 @@ struct ImportantDatesManagementView: View {
 
     private func row(event: ImportantDate) -> some View {
         HStack(spacing: AppTheme.spacing.md) {
+            // Pin toggle (spec §6.1) — leading icon, rose-tinted, single-tap toggle.
+            Button {
+                togglePin(event: event)
+            } label: {
+                Image(systemName: event.isPinnedToToday ? "bookmark.fill" : "bookmark")
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.rose)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(event.isPinnedToToday ? "取消固定到 Today" : "固定到 Today")
+
             Image(systemName: event.icon ?? defaultIcon(for: event.kind))
                 .font(AppTheme.typography.sized(20))
                 .foregroundStyle(AppTheme.colors.rose)
@@ -192,6 +211,18 @@ struct ImportantDatesManagementView: View {
 
     private func nextKey(_ event: ImportantDate) -> Date {
         event.nextOccurrence(after: .now) ?? .distantFuture
+    }
+
+    /// Pinned items float to the top (spec §6.1). Within each group items
+    /// stay sorted by displayAnchorDate so the user's next event is always
+    /// visually closest.
+    private var orderedEvents: [ImportantDate] {
+        viewModel.events.sorted { lhs, rhs in
+            if lhs.isPinnedToToday != rhs.isPinnedToToday {
+                return lhs.isPinnedToToday
+            }
+            return lhs.displayAnchorDate() < rhs.displayAnchorDate()
+        }
     }
 
     private func dateLabel(for event: ImportantDate) -> String {
@@ -223,6 +254,20 @@ struct ImportantDatesManagementView: View {
             viewerSupabaseUserID: appContext.currentSupabaseUserID,
             partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName
         )
+    }
+
+    /// Spec §6.1. Caps at 6 simultaneously pinned; pinning a 7th opens an alert.
+    private func togglePin(event: ImportantDate) {
+        if !event.isPinnedToToday,
+           !ImportantDatesViewModel.canPinAnotherToToday(events: viewModel.events) {
+            showsPinCapAlert = true
+            return
+        }
+        var updated = event
+        updated.isPinnedToToday.toggle()
+        updated.updatedAt = .now
+        Task { await viewModel.updateExisting(updated) }
+        HomeInteractionFeedback.selection()
     }
 
     private func defaultIcon(for kind: ImportantDateKind) -> String {
