@@ -8,7 +8,32 @@ final class ImportantDatesViewModel {
     /// 免费用户自己创建的纪念日上限（spec § 产品切分）。
     static let freeAnniversaryQuota = 3
 
+    /// 1.0 hard cap on Today pinned anniversaries (spec §5.2).
+    /// Above 6 the stacked view becomes visually crowded; UI surfaces an
+    /// alert when the user tries to pin a 7th.
+    static let pinnedToTodayCap = 6
+
+    /// Filters and sorts events for the Today pinned area.
+    /// Sort by displayAnchorDate ascending so the next-occurring pinned
+    /// event sits at the top of the stack (closest in time = highest
+    /// salience).
+    nonisolated static func pinnedEvents(from events: [ImportantDate], now: Date = .now) -> [ImportantDate] {
+        events
+            .filter { $0.isPinnedToToday }
+            .sorted { $0.displayAnchorDate(now: now) < $1.displayAnchorDate(now: now) }
+    }
+
+    /// Predicate the View consults before showing the pin toggle's "on" state.
+    nonisolated static func canPinAnotherToToday(events: [ImportantDate]) -> Bool {
+        events.filter { $0.isPinnedToToday }.count < pinnedToTodayCap
+    }
+
     var events: [ImportantDate] = []
+
+    /// Convenience for HomeView's PinnedAnniversaryArea.
+    var pinnedEvents: [ImportantDate] {
+        Self.pinnedEvents(from: events)
+    }
     var isLoading = false
     var onChange: (@MainActor @Sendable () async -> Void)?
 
