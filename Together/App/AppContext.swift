@@ -964,7 +964,19 @@ extension AppContext: PairJoinObserver {
         //    so the partner's avatar / nickname / existing tasks land in local DB
         //    before the user hits Home.
         await startSupabaseSyncIfNeeded()
-        appContextLogger.info("[PairJoin] sync started + initial catchUp completed")
+
+        // 4) Eagerly push own profile (display name + avatar) so the partner sees
+        //    correct nickname/avatar within seconds instead of waiting for the
+        //    next profile-edit save. updateSyncPolling's seedPairMetadata path
+        //    also covers this, but only fires when the SwiftUI onChange picks up
+        //    pairSpaceSummary — that observer can be late on the host side.
+        //    syncProfileToPartner is a no-op when there's no shared mutation
+        //    queued, and dedupes server-side by upsert, so calling it twice is
+        //    safe.
+        if let user = sessionStore.currentUser {
+            await syncProfileToPartner(user: user)
+        }
+        appContextLogger.info("[PairJoin] sync started + initial catchUp + profile push completed")
     }
 }
 

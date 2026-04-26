@@ -352,7 +352,7 @@ struct UpsellContent: View {
         case .network: "网络连接异常"
         case .unknown: "出错了"
         case .entitlementNotReady: "购买已提交"
-        case .nothingToRestore: "未找到已购买订阅"
+        case .nothingToRestore: "未检测到可恢复的购买记录"
         #if DEBUG
         case .debugOverrideMasksPro: "DEBUG: override 拦住购买结果"
         #endif
@@ -365,7 +365,7 @@ struct UpsellContent: View {
         case .network: "请检查网络后重试"
         case .unknown: "请稍后重试；多次失败请联系我们"
         case .entitlementNotReady: "正在同步，请稍后回 Profile 确认"
-        case .nothingToRestore: "请确认使用购买时的 Apple ID"
+        case .nothingToRestore: "请确认登录的 Apple ID 是否曾购买过 Together Pro"
         #if DEBUG
         case .debugOverrideMasksPro: "切到无 override 状态可验证真实解锁"
         #endif

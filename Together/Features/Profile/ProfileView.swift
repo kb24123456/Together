@@ -8,6 +8,7 @@ struct ProfileView: View {
     @State private var topChromeProgress: CGFloat = 0
     @State private var showsSignOutAlert: Bool = false
     @State private var showsClearCacheAlert: Bool = false
+    @State private var showsUnpairConfirm: Bool = false
     @State private var isImportantDatesManagementPresented = false
     @State private var pairCardAnimationID: Int = 0
     @State private var isInvitePendingSheetPresented: Bool = false
@@ -358,7 +359,7 @@ struct ProfileView: View {
         case .paired:
             Button {
                 HomeInteractionFeedback.warning()
-                Task { await viewModel.unbindPairSpace() }
+                showsUnpairConfirm = true
             } label: {
                 ProfileSettingsRow(
                     title: "解除双人空间",
@@ -368,6 +369,18 @@ struct ProfileView: View {
                 )
             }
             .buttonStyle(.plain)
+            .confirmationDialog(
+                "确定要解除双人空间吗？",
+                isPresented: $showsUnpairConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("解除双人空间", role: .destructive) {
+                    Task { await viewModel.unbindPairSpace() }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("解除后双方都将退出共享，已同步的任务、列表、纪念日不会被删除，但不再继续同步。对方设备会自动跟随退出共享。")
+            }
         }
     }
 
