@@ -247,3 +247,42 @@ extension ImportantDate {
         return cal.dateComponents([.day], from: start, to: now).day ?? 0
     }
 }
+
+extension ImportantDate {
+    /// Display mode the UI uses for this event's primary metric.
+    /// `forwardCount` = "已经 N 天" since anchor.
+    /// `countdown`    = "还有 N 天" until next occurrence (or anchor if anchor in future).
+    enum DisplayMode { case forwardCount, countdown }
+
+    /// Spec §3.1 decision table.
+    func selectMode(now: Date = .now) -> DisplayMode {
+        // Rule 1: anchor in future → always countdown to anchor.
+        if dateValue > now { return .countdown }
+
+        // Rule 2: anchor in past → kind-specific.
+        switch kind {
+        case .birthday, .holiday:
+            // Always countdown — annual cycle, days-since not meaningful.
+            return .countdown
+        case .anniversary:
+            return modeForRecurring(now: now)
+        case .custom:
+            switch recurrence {
+            case .none:
+                return .forwardCount
+            case .solarAnnual, .lunarAnnual:
+                return modeForRecurring(now: now)
+            }
+        }
+    }
+
+    /// Recurring + past-anchor rule: default forwardCount unless next
+    /// occurrence is within 30 days (then flip to countdown to give the
+    /// user lead time on the upcoming celebration).
+    private func modeForRecurring(now: Date) -> DisplayMode {
+        guard let until = daysUntilNext(from: now), until < 30 else {
+            return .forwardCount
+        }
+        return .countdown
+    }
+}
