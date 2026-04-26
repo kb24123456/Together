@@ -1,6 +1,9 @@
 import AuthenticationServices
 import Foundation
+import os
 import SwiftData
+
+private let appleAuthLogger = Logger(subsystem: "com.pigdog.Together", category: "AppleAuth")
 
 enum AppleAuthError: LocalizedError {
     case credentialNotAppleID
@@ -55,6 +58,23 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
     }
 
     func signInWithApple() async throws -> AuthSession {
+        // CRITICAL: clear any stale Supabase session before exchanging a fresh
+        // Apple identity token. Without this, supabase-swift's session manager
+        // keeps the existing access_token (potentially belonging to a previously
+        // signed-in user on this device) and the new idToken exchange becomes a
+        // silent no-op. Symptom seen in build-5 paired testing: device A's
+        // SupabaseAuthService.currentUserID kept returning device B's auth.uid,
+        // so every client.from(...) call ran with the wrong identity (tasks
+        // written with the wrong creator_supabase_user_id, push fan-out filter
+        // suppressing the wrong recipient, partner-side INSERT events not
+        // matching the expected user channel).
+        do {
+            try await supabaseAuth.signOut()
+        } catch {
+            // Already-signed-out is fine; log other failures but don't block sign-in.
+            appleAuthLogger.notice("supabase pre-signIn signOut: \(error.localizedDescription, privacy: .public)")
+        }
+
         // 生成 nonce 用于 Supabase 防重放攻击
         let nonce = SupabaseAuthService.randomNonce()
         currentNonce = nonce
@@ -69,10 +89,20 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
 
         KeychainHelper.save(key: Self.appleUserIDKey, string: appleUserID)
 
-        // 提取 identityToken 并登录 Supabase
+        // 提取 identityToken 并登录 Supabase. Don't swallow the error — the
+        // previous `try?` was the proximate cause of the build-5 stale-session
+        // bug because callers couldn't tell the supabase token didn't refresh.
+        // Log any failure loudly so it's visible in Console.app.
         if let tokenData = appleIDCredential.identityToken,
            let idToken = String(data: tokenData, encoding: .utf8) {
-            try? await supabaseAuth.signInWithApple(idToken: idToken, nonce: nonce)
+            do {
+                try await supabaseAuth.signInWithApple(idToken: idToken, nonce: nonce)
+            } catch {
+                appleAuthLogger.error("supabase signInWithApple failed: \(error.localizedDescription, privacy: .public)")
+                // Surface the failure rather than silently leaving the user
+                // with an Apple-only session.
+                throw AppleAuthError.unknown(error)
+            }
         }
 
         // Apple only provides fullName on the very first authorization.
@@ -94,6 +124,17 @@ final class AppleAuthService: AuthServiceProtocol, @unchecked Sendable {
     func signOut() async {
         KeychainHelper.delete(key: Self.appleUserIDKey)
         KeychainHelper.delete(key: Self.displayNameKey)
+        // Mandatory: clear Supabase session too. The original implementation
+        // only nuked Apple-side keychain and left supabase-swift's persisted
+        // access_token / refresh_token on disk, so the next sign-in (even of
+        // a different Apple ID) silently kept the previous user's auth.uid.
+        // Build-5 357/786 testing revealed this as the root cause of "device A
+        // keeps writing rows under device B's user_id" after a sign-out cycle.
+        do {
+            try await supabaseAuth.signOut()
+        } catch {
+            appleAuthLogger.error("supabase signOut failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Private

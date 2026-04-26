@@ -169,6 +169,23 @@ extension ImportantDate {
         return nil
     }
 
+    /// Returns the display title for a birthday event from the perspective of
+    /// `viewerUserID`. The raw `title` field stays "伴侣生日"/"我的生日" as
+    /// stored by the creator, but rendering must be viewer-relative — partner A
+    /// who tags their event "伴侣生日" (target = B) should see B's actual name,
+    /// while partner B sees the same row as "我的生日". For non-birthday events
+    /// the stored title is returned as-is.
+    func displayTitle(viewerLocalUserID: UUID?, partnerDisplayName: String?) -> String {
+        guard case .birthday(let memberUserID) = kind else { return title }
+        if let viewerLocalUserID, memberUserID == viewerLocalUserID {
+            return "我的生日"
+        }
+        if let partnerDisplayName, !partnerDisplayName.isEmpty {
+            return "\(partnerDisplayName)的生日"
+        }
+        return "伴侣生日"
+    }
+
     func daysUntilNext(from reference: Date = .now, calendar: Calendar = .current) -> Int? {
         guard let next = nextOccurrence(after: reference, calendar: calendar) else { return nil }
         let start = calendar.startOfDay(for: reference)

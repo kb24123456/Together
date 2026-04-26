@@ -2,6 +2,14 @@ import SwiftUI
 
 struct AnniversaryCapsuleView: View {
     let nextEvent: ImportantDate?
+    /// Local User.id of the device's currentUser — birthday events whose
+    /// memberUserID matches this render as "我的生日"; otherwise as
+    /// "{partnerName}的生日". Pass nil if not signed in (rare; falls back to
+    /// stored title which is whatever the creator typed).
+    var viewerLocalUserID: UUID? = nil
+    /// Partner's display name shown in "{name}的生日". When nil/empty falls
+    /// back to "伴侣生日".
+    var partnerDisplayName: String? = nil
     let onTap: () -> Void
 
     var body: some View {
@@ -35,7 +43,7 @@ struct AnniversaryCapsuleView: View {
 
     private var title: String {
         guard let event = nextEvent else { return "添加第一个纪念日" }
-        return event.title
+        return event.displayTitle(viewerLocalUserID: viewerLocalUserID, partnerDisplayName: partnerDisplayName)
     }
 
     private var detail: String {

@@ -173,7 +173,7 @@ struct ImportantDatesManagementView: View {
                 .foregroundStyle(AppTheme.colors.coral)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text(event.title).font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                Text(displayTitle(for: event)).font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 Text(dateLabel(for: event)).font(AppTheme.typography.textStyle(.caption1)).foregroundStyle(.secondary)
             }
             Spacer()
@@ -182,7 +182,7 @@ struct ImportantDatesManagementView: View {
         .padding()
         .background(RoundedRectangle(cornerRadius: AppTheme.radius.md).fill(AppTheme.colors.surfaceElevated))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(event.title))
+        .accessibilityLabel(Text(displayTitle(for: event)))
         .accessibilityValue(Text("\(dateLabel(for: event))，\(daysLabel(for: event))"))
         .accessibilityHint(Text("轻点编辑这个纪念日"))
     }
@@ -208,6 +208,16 @@ struct ImportantDatesManagementView: View {
     private func daysLabel(for event: ImportantDate) -> String {
         guard let days = event.daysUntilNext() else { return "-" }
         return days == 0 ? "今天" : "还有 \(days) 天"
+    }
+
+    /// Birthday rows are viewer-relative — partner A's "伴侣生日" must read as
+    /// "我的生日" to partner B (and vice versa). Non-birthday rows pass through
+    /// the stored title unchanged.
+    private func displayTitle(for event: ImportantDate) -> String {
+        event.displayTitle(
+            viewerLocalUserID: appContext.sessionStore.currentUser?.id,
+            partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName
+        )
     }
 
     private func defaultIcon(for kind: ImportantDateKind) -> String {
