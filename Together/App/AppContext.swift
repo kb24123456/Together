@@ -247,6 +247,7 @@ final class AppContext {
             // user_profiles hydrate 必须在 startSupabaseSyncIfNeeded 之前 await 完成，
             // 否则 pair sync 启动后 push 路径可能用旧的 local 覆盖云端最新值。
             await hydrateOwnProfileFromCloudIfNeeded()
+            await hydratePairSpaceFromCloudIfNeeded()
             await startSupabaseSyncIfNeeded()
             // 自动检查是否有待接受的邀请已被对端接受
             await autoCheckInviteAcceptedIfPending()
@@ -539,6 +540,161 @@ final class AppContext {
         } catch {
             appContextLogger.error("[OwnProfile] hydrate persist failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// Reinstall recovery (1.0.1 §10): when local SwiftData is empty after a
+    /// fresh install but Supabase has an active pair space the user belongs to,
+    /// rebuild the local PersistentPairSpace + both PersistentPairMembership
+    /// rows from cloud data so the UI returns to its paired state without
+    /// requiring the user to re-pair manually.
+    ///
+    /// Triggered after `hydrateOwnProfileFromCloudIfNeeded()` in the
+    /// post-launch sequence; idempotent — bails out when local PairSpace is
+    /// already active.
+    func hydratePairSpaceFromCloudIfNeeded() async {
+        guard let myAuthUID = await supabaseAuth.currentUserID else { return }
+        guard let localUser = sessionStore.currentUser else { return }
+
+        let modelContainer = PersistenceController.shared.container
+        let context = ModelContext(modelContainer)
+
+        // Bail if local already has an active pair space — no recovery needed.
+        let existingSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+        if existingSpaces.contains(where: { $0.statusRawValue == "active" }) {
+            appContextLogger.info("[PairRestore] skip — local pair space already active")
+            return
+        }
+
+        // Find an active space I belong to via PostgREST inner join.
+        struct SpaceRow: Decodable {
+            let id: UUID
+            let displayName: String
+            let createdAt: Date
+            let ownerUserId: UUID
+            enum CodingKeys: String, CodingKey {
+                case id
+                case displayName = "display_name"
+                case createdAt = "created_at"
+                case ownerUserId = "owner_user_id"
+            }
+        }
+
+        let spaceRows: [SpaceRow]
+        do {
+            spaceRows = try await SupabaseClientProvider.shared
+                .from("spaces")
+                .select("id, display_name, created_at, owner_user_id, space_members!inner(user_id)")
+                .eq("status", value: "active")
+                .eq("space_members.user_id", value: myAuthUID.uuidString)
+                .order("created_at", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+        } catch {
+            appContextLogger.error("[PairRestore] spaces query failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard let space = spaceRows.first else {
+            appContextLogger.info("[PairRestore] no active pair space found in cloud for current user")
+            return
+        }
+
+        // Pull both members of that space.
+        struct MemberRow: Decodable {
+            let userId: UUID
+            let displayName: String
+            let avatarUrl: String?
+            let avatarAssetId: String?
+            let avatarSystemName: String?
+            let avatarVersion: Int?
+            let joinedAt: Date
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case displayName = "display_name"
+                case avatarUrl = "avatar_url"
+                case avatarAssetId = "avatar_asset_id"
+                case avatarSystemName = "avatar_system_name"
+                case avatarVersion = "avatar_version"
+                case joinedAt = "joined_at"
+            }
+        }
+        let members: [MemberRow]
+        do {
+            members = try await SupabaseClientProvider.shared
+                .from("space_members")
+                .select("user_id, display_name, avatar_url, avatar_asset_id, avatar_system_name, avatar_version, joined_at")
+                .eq("space_id", value: space.id.uuidString)
+                .execute()
+                .value
+        } catch {
+            appContextLogger.error("[PairRestore] members query failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard members.count == 2,
+              let mine = members.first(where: { $0.userId == myAuthUID }),
+              let partner = members.first(where: { $0.userId != myAuthUID }) else {
+            appContextLogger.info("[PairRestore] expected 2 members, got \(members.count) — skipping rebuild")
+            return
+        }
+
+        // Build local SwiftData rows using exact PersistentPairSpace.init signature.
+        // activatedAt: an "active" space was definitely activated — use createdAt as
+        // a safe floor value since the cloud spaces table doesn't expose activated_at.
+        let pairSpace = PersistentPairSpace(
+            id: space.id,
+            sharedSpaceID: space.id,
+            statusRawValue: "active",
+            displayName: nil,
+            createdAt: space.createdAt,
+            activatedAt: space.createdAt,
+            endedAt: nil,
+            cloudKitZoneName: space.id.uuidString,
+            ownerRecordID: space.ownerUserId.uuidString,
+            isZoneOwner: space.ownerUserId == myAuthUID
+        )
+        context.insert(pairSpace)
+
+        let selfMembership = PersistentPairMembership(
+            id: UUID(),
+            pairSpaceID: pairSpace.id,
+            userID: localUser.id,
+            nickname: mine.displayName,
+            joinedAt: mine.joinedAt,
+            avatarSystemName: mine.avatarSystemName,
+            avatarPhotoFileName: nil,
+            avatarAssetID: mine.avatarAssetId,
+            avatarVersion: mine.avatarVersion ?? 0
+        )
+        context.insert(selfMembership)
+
+        // Partner gets a fresh local UUID — we don't have their device-local id
+        // and never will (it's device-private). Existing partner-side code on
+        // this device only knows them by this UUID anyway.
+        let partnerMembership = PersistentPairMembership(
+            id: UUID(),
+            pairSpaceID: pairSpace.id,
+            userID: UUID(),
+            nickname: partner.displayName,
+            joinedAt: partner.joinedAt,
+            avatarSystemName: partner.avatarSystemName,
+            avatarPhotoFileName: nil,
+            avatarAssetID: partner.avatarAssetId,
+            avatarVersion: partner.avatarVersion ?? 0
+        )
+        context.insert(partnerMembership)
+
+        do {
+            try context.save()
+            appContextLogger.info("[PairRestore] rebuilt PairSpace \(space.id, privacy: .public)")
+        } catch {
+            appContextLogger.error("[PairRestore] save failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        // Refresh sessionStore so UI picks up new pair state immediately.
+        let updatedPairingCtx = await container.pairingService.currentPairingContext(for: localUser.id)
+        let updatedSpaceCtx = await container.spaceService.currentSpaceContext(for: localUser.id)
+        sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
     }
 
     func restorePersistedUserProfileIfNeeded(force: Bool = false) async {
