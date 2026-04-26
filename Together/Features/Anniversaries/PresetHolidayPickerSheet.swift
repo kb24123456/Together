@@ -53,6 +53,8 @@ struct PresetHolidayPickerSheet: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .onAppear { seedSelection() }
     }
 
@@ -145,7 +147,8 @@ struct PresetHolidayPickerSheet: View {
                     recurrence: preset.recurrence,
                     notifyDaysBefore: 7, notifyOnDay: true,
                     icon: preset.defaultIcon, presetHolidayID: preset,
-                    updatedAt: .now
+                    updatedAt: .now,
+                    isPinnedToToday: true   // Spec §6.3 — preset holidays auto-pinned for Today.
                 )
                 await viewModel.save(event)
             }
