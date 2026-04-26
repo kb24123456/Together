@@ -96,6 +96,8 @@ struct ImportantDatesManagementView: View {
                 Text("Today 最多只能固定 \(ImportantDatesViewModel.pinnedToTodayCap) 个纪念日。请先取消其他纪念日的固定。")
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .task {
             // postLaunch may have fired before the pair was ready (e.g. right
             // after a fresh re-pair), leaving viewModel.spaceID nil and load()
