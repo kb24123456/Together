@@ -20,6 +20,10 @@ final class PersistentImportantDate {
     var updatedAt: Date
     var isLocallyDeleted: Bool
     var deletedAt: Date?
+    /// 1.0 anniversary pin: when true, this row appears in the Today
+    /// pinned-anniversary stack. Default false; SwiftData lightweight
+    /// migration (default-valued field) auto-applies — no explicit migration plan needed.
+    var isPinnedToToday: Bool = false
 
     init(
         id: UUID,
@@ -38,7 +42,8 @@ final class PersistentImportantDate {
         createdAt: Date = .now,
         updatedAt: Date = .now,
         isLocallyDeleted: Bool = false,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
+        isPinnedToToday: Bool = false
     ) {
         self.id = id
         self.spaceID = spaceID
@@ -57,6 +62,7 @@ final class PersistentImportantDate {
         self.updatedAt = updatedAt
         self.isLocallyDeleted = isLocallyDeleted
         self.deletedAt = deletedAt
+        self.isPinnedToToday = isPinnedToToday
     }
 
     func domainModel() -> ImportantDate {
@@ -83,7 +89,8 @@ final class PersistentImportantDate {
             notifyOnDay: notifyOnDay,
             icon: icon,
             presetHolidayID: presetHolidayIDRawValue.flatMap(PresetHolidayID.init(rawValue:)),
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            isPinnedToToday: isPinnedToToday
         )
     }
 
@@ -110,7 +117,8 @@ final class PersistentImportantDate {
             icon: event.icon,
             isPresetHoliday: event.presetHolidayID != nil,
             presetHolidayIDRawValue: event.presetHolidayID?.rawValue,
-            updatedAt: event.updatedAt
+            updatedAt: event.updatedAt,
+            isPinnedToToday: event.isPinnedToToday
         )
     }
 
@@ -136,5 +144,6 @@ final class PersistentImportantDate {
         self.isPresetHoliday = event.presetHolidayID != nil
         self.presetHolidayIDRawValue = event.presetHolidayID?.rawValue
         self.updatedAt = event.updatedAt
+        self.isPinnedToToday = event.isPinnedToToday
     }
 }

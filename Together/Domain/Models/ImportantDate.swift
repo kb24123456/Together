@@ -89,6 +89,8 @@ struct ImportantDate: Identifiable, Hashable, Sendable {
     var icon: String?
     var presetHolidayID: PresetHolidayID?
     var updatedAt: Date
+    /// 1.0 anniversary pin (spec §2.1). Drives Today's Pinned Anniversary stack.
+    var isPinnedToToday: Bool = false
 
     static let validNotifyDaysBefore: [Int] = [1, 3, 7, 15, 30]
 }
