@@ -39,15 +39,32 @@ enum Recurrence: String, Hashable, Sendable, Codable {
 }
 
 enum PresetHolidayID: String, CaseIterable, Sendable, Codable {
-    case valentines
-    case qixi
-    case springFestival
+    // Existing
+    case valentines       // 公历 2/14
+    case qixi             // 农历 7/7
+    case springFestival   // 农历正月初一
+
+    // 1.0 expansion (spec §4.1)
+    case newYear          // 公历 1/1
+    case qingming         // 节气 ≈ 公历 4/5（hardcoded schedule 提供精确日期）
+    case laborDay         // 公历 5/1
+    case dragonBoat       // 农历 5/5
+    case midAutumn        // 农历 8/15
+    case nationalDay      // 公历 10/1
+    case christmas        // 公历 12/25
 
     var defaultTitle: String {
         switch self {
         case .valentines: return "情人节"
         case .qixi: return "七夕"
         case .springFestival: return "春节"
+        case .newYear: return "元旦"
+        case .qingming: return "清明节"
+        case .laborDay: return "劳动节"
+        case .dragonBoat: return "端午节"
+        case .midAutumn: return "中秋节"
+        case .nationalDay: return "国庆节"
+        case .christmas: return "圣诞节"
         }
     }
 
@@ -56,22 +73,46 @@ enum PresetHolidayID: String, CaseIterable, Sendable, Codable {
         case .valentines: return "heart.fill"
         case .qixi: return "sparkles"
         case .springFestival: return "party.popper.fill"
+        case .newYear: return "fireworks"
+        case .qingming: return "leaf.fill"
+        case .laborDay: return "hammer.fill"
+        case .dragonBoat: return "sailboat.fill"
+        case .midAutumn: return "moon.fill"
+        case .nationalDay: return "flag.fill"
+        case .christmas: return "gift.fill"
         }
     }
 
     var recurrence: Recurrence {
         switch self {
-        case .valentines: return .solarAnnual
-        case .qixi, .springFestival: return .lunarAnnual
+        case .valentines, .newYear, .laborDay, .nationalDay, .christmas:
+            return .solarAnnual
+        case .qixi, .springFestival, .dragonBoat, .midAutumn:
+            return .lunarAnnual
+        case .qingming:
+            // Qingming follows the solar term (太阳黄经 15°), not a fixed
+            // solar or lunar date. We mark it solarAnnual so daysUntilNext
+            // works on the seed date as a reasonable fallback; the precise
+            // year-by-year date comes from HolidayScheduleData.lookup.
+            return .solarAnnual
         }
     }
 
-    /// Month/day in the relevant calendar (solar for valentines, lunar for qixi/spring).
+    /// Month/day in the relevant calendar (solar for solarAnnual, lunar for lunarAnnual).
+    /// For qingming this is the typical solar date 4/5 — actual year-specific
+    /// date is overridden by HolidayScheduleData when available.
     var monthDay: (month: Int, day: Int) {
         switch self {
-        case .valentines: return (2, 14)       // solar
-        case .qixi: return (7, 7)              // lunar
-        case .springFestival: return (1, 1)    // lunar
+        case .valentines: return (2, 14)
+        case .qixi: return (7, 7)
+        case .springFestival: return (1, 1)
+        case .newYear: return (1, 1)
+        case .qingming: return (4, 5)
+        case .laborDay: return (5, 1)
+        case .dragonBoat: return (5, 5)
+        case .midAutumn: return (8, 15)
+        case .nationalDay: return (10, 1)
+        case .christmas: return (12, 25)
         }
     }
 }
