@@ -82,6 +82,12 @@ enum AppTheme {
         static let sky = Color(red: 0.42, green: 0.70, blue: 0.98)
         static let secondaryAccent = Color(red: 0.86, green: 0.78, blue: 0.67)
         static let coral = Color(red: 0.87, green: 0.48, blue: 0.41)
+        /// Romantic rose pink, paired with `coral`. Used for anniversary
+        /// surfaces (birthday capsules, "在一起 N 天" counter, etc.) where
+        /// coral would clash with the existing overdue / pair-accent palette
+        /// already coral-toned. Tuned to read as warm-romantic rather than
+        /// hot magenta.
+        static let rose = Color(red: 0.93, green: 0.45, blue: 0.62)
         static let sun = Color(red: 0.93, green: 0.74, blue: 0.18)
         static let violet = Color(red: 0.44, green: 0.28, blue: 0.91)
 

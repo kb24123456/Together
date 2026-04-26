@@ -146,11 +146,15 @@ struct ImportantDatesManagementView: View {
     // MARK: - List
 
     private var list: some View {
+        // Plain list with default row separators only — the previous design
+        // wrapped each row in a surfaceElevated rounded card on top of the
+        // separator, which read as visually heavy and redundant. Per
+        // user feedback (build-7 partner-side review), drop the card and
+        // keep the iOS-native hairline separator as the sole row chrome.
         List {
             ForEach(viewModel.events.sorted { nextKey($0) < nextKey($1) }) { event in
                 row(event: event)
-                    .listRowInsets(.init(top: AppTheme.spacing.xs, leading: AppTheme.spacing.md, bottom: AppTheme.spacing.xs, trailing: AppTheme.spacing.md))
-                    .listRowBackground(Color.clear)
+                    .listRowInsets(.init(top: AppTheme.spacing.md, leading: AppTheme.spacing.md, bottom: AppTheme.spacing.md, trailing: AppTheme.spacing.md))
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             HomeInteractionFeedback.delete()
@@ -170,17 +174,16 @@ struct ImportantDatesManagementView: View {
         HStack(spacing: AppTheme.spacing.md) {
             Image(systemName: event.icon ?? defaultIcon(for: event.kind))
                 .font(AppTheme.typography.sized(20))
-                .foregroundStyle(AppTheme.colors.coral)
+                .foregroundStyle(AppTheme.colors.rose)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                 Text(displayTitle(for: event)).font(AppTheme.typography.textStyle(.headline, weight: .semibold))
                 Text(dateLabel(for: event)).font(AppTheme.typography.textStyle(.caption1)).foregroundStyle(.secondary)
             }
             Spacer()
-            Text(daysLabel(for: event)).font(AppTheme.typography.textStyle(.subheadline)).foregroundStyle(AppTheme.colors.coral)
+            Text(daysLabel(for: event)).font(AppTheme.typography.textStyle(.subheadline)).foregroundStyle(AppTheme.colors.rose)
         }
-        .padding()
-        .background(RoundedRectangle(cornerRadius: AppTheme.radius.md).fill(AppTheme.colors.surfaceElevated))
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(displayTitle(for: event)))
         .accessibilityValue(Text("\(dateLabel(for: event))，\(daysLabel(for: event))"))

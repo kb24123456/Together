@@ -13,27 +13,37 @@ struct AnniversaryCapsuleView: View {
     let onTap: () -> Void
 
     var body: some View {
+        // Mirrors HomeView.overdueReminderCapsule sizing — sm spacing,
+        // 16pt semibold icon, 14pt semibold title, md horizontal/vertical
+        // padding, capsule with tinted-rose fill at 12% opacity. This keeps
+        // the anniversary pill visually consistent with the overdue and
+        // periodic capsules elsewhere in the home feed; rose accent
+        // distinguishes the romantic context from the alert-coral overdue
+        // pill.
         Button(action: onTap) {
             HStack(spacing: AppTheme.spacing.sm) {
                 Image(systemName: icon)
-                    .font(AppTheme.typography.sized(15, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.coral)
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+
                 Text(title)
                     .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-                Spacer()
+
+                Spacer(minLength: 0)
+
                 Text(detail)
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
             }
-            .padding(.horizontal, AppTheme.spacing.lg)
-            .padding(.vertical, AppTheme.spacing.sm)
+            .foregroundStyle(AppTheme.colors.rose)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.md)
             .background(
                 Capsule(style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
+                    .fill(AppTheme.colors.rose.opacity(0.12))
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(title))
     }
 
     private var icon: String {
