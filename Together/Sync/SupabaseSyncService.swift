@@ -380,7 +380,10 @@ actor SupabaseSyncService {
         case .task:
             let descriptor = FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == recordID })
             guard let item = try? context.fetch(descriptor).first else { return }
-            let dto = TaskDTO(from: item, spaceID: spaceID)
+            // myUserID = Supabase auth.uid of the current device. Stamping it
+            // into TaskDTO.creator_supabase_user_id lets the push edge function
+            // drop the sender's device_tokens server-side (migration 023).
+            let dto = TaskDTO(from: item, spaceID: spaceID, supabaseUserID: myUserID)
             try await client.from(tableName).upsert(dto, onConflict: "id").execute()
 
         case .taskList:
@@ -478,7 +481,7 @@ actor SupabaseSyncService {
                 predicate: #Predicate { $0.id == recordID }
             )
             guard let message = try? context.fetch(descriptor).first else { return }
-            let dto = TaskMessagePushDTO(from: message)
+            let dto = TaskMessagePushDTO(from: message, supabaseUserID: myUserID)
             // Insert, not upsert — each row is an immutable event-log entry.
             try await client.from(tableName).insert(dto).execute()
 
@@ -861,6 +864,10 @@ struct TaskMessagePushDTO: Encodable, Sendable {
     let id: UUID
     let taskId: UUID
     let senderId: UUID
+    /// Migration 023: Supabase auth.uid of the sender. Same purpose as
+    /// TaskDTO.creatorSupabaseUserID — lets edge function drop sender's
+    /// tokens server-side without relying on willPresent client filter.
+    let senderSupabaseUserID: UUID?
     let type: String
     let createdAt: Date
 
@@ -868,23 +875,36 @@ struct TaskMessagePushDTO: Encodable, Sendable {
         case id, type
         case taskId = "task_id"
         case senderId = "sender_id"
+        case senderSupabaseUserID = "sender_supabase_user_id"
         case createdAt = "created_at"
     }
 
-    nonisolated init(from persistent: PersistentTaskMessage) {
+    nonisolated init(from persistent: PersistentTaskMessage, supabaseUserID: UUID? = nil) {
         self.id = persistent.id
         self.taskId = persistent.taskID
         self.senderId = persistent.senderID
+        self.senderSupabaseUserID = supabaseUserID
         self.type = persistent.type
         self.createdAt = persistent.createdAt
     }
 
-    nonisolated init(id: UUID, taskId: UUID, senderId: UUID, type: String, createdAt: Date) {
+    nonisolated init(id: UUID, taskId: UUID, senderId: UUID, senderSupabaseUserID: UUID? = nil, type: String, createdAt: Date) {
         self.id = id
         self.taskId = taskId
         self.senderId = senderId
+        self.senderSupabaseUserID = senderSupabaseUserID
         self.type = type
         self.createdAt = createdAt
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(taskId, forKey: .taskId)
+        try c.encode(senderId, forKey: .senderId)
+        try c.encodeIfPresent(senderSupabaseUserID, forKey: .senderSupabaseUserID)
+        try c.encode(type, forKey: .type)
+        try c.encode(createdAt, forKey: .createdAt)
     }
 }
 
@@ -944,6 +964,12 @@ struct TaskDTO: Codable, Sendable {
     var assignmentMessages: String?
     var reminderRequestedAt: Date?
     var locationText: String?
+    /// Migration 023: Supabase auth.uid of the user who created/last-pushed this
+    /// task. Used by send-push-notification edge function to drop the sender's
+    /// device_tokens server-side (avoids the willPresent-only client filter
+    /// that misses background/locked deliveries — the "user gets a push for
+    /// their own action" bug). Optional so old rows decode cleanly.
+    var creatorSupabaseUserID: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, title, notes, status
@@ -951,6 +977,7 @@ struct TaskDTO: Codable, Sendable {
         case listId = "list_id"
         case projectId = "project_id"
         case creatorId = "creator_id"
+        case creatorSupabaseUserID = "creator_supabase_user_id"
         case assigneeMode = "assignee_mode"
         case dueAt = "due_at"
         case hasExplicitTime = "has_explicit_time"
@@ -977,12 +1004,13 @@ struct TaskDTO: Codable, Sendable {
         case locationText = "location_text"
     }
 
-    nonisolated init(from persistent: PersistentItem, spaceID: UUID) {
+    nonisolated init(from persistent: PersistentItem, spaceID: UUID, supabaseUserID: UUID? = nil) {
         self.id = persistent.id
         self.spaceId = spaceID
         self.listId = persistent.listID
         self.projectId = persistent.projectID
         self.creatorId = persistent.creatorID
+        self.creatorSupabaseUserID = supabaseUserID
         self.title = persistent.title
         self.notes = persistent.notes
         self.assigneeMode = persistent.assigneeModeRawValue
@@ -1028,6 +1056,7 @@ struct TaskDTO: Codable, Sendable {
         try c.encodeIfPresent(listId, forKey: .listId)
         try c.encodeIfPresent(projectId, forKey: .projectId)
         try c.encode(creatorId, forKey: .creatorId)
+        try c.encodeIfPresent(creatorSupabaseUserID, forKey: .creatorSupabaseUserID)
         try c.encode(title, forKey: .title)
         try c.encodeIfPresent(notes, forKey: .notes)
         try c.encode(assigneeMode, forKey: .assigneeMode)

@@ -108,13 +108,18 @@ Deno.serve(async (req: Request) => {
     }
     if (!spaceId) return new Response("No space", { status: 200 });
 
-    // Identity-routing workaround: the client writes tasks/task_messages with
-    // sessionStore.currentUser.id (local UUID), which does not match
-    // space_members.user_id in production data. Rather than trying to join
-    // through a missing bridge column, fan out to every device_token that
-    // belongs to any member of this space and let the receiving client
-    // filter out self-notifications by comparing sender_id in the APNs
-    // userInfo against its own currentUser.id.
+    // Server-side sender exclusion (post-migration 023).
+    // The client now writes the Supabase auth.uid into
+    // tasks.creator_supabase_user_id / task_messages.sender_supabase_user_id
+    // alongside the legacy local-UUID creator_id. When that column is set we
+    // can drop the sender's device_tokens directly, avoiding the
+    // willPresent-only client filter that misses background/locked deliveries
+    // (the "user gets a push for their own action" bug). Old rows written by
+    // pre-migration clients leave the column null; in that case we fall back
+    // to fanning out to every member and rely on client-side filtering.
+    const senderSupabaseUserId: string | undefined =
+      record?.creator_supabase_user_id || record?.sender_supabase_user_id || undefined;
+
     const { data: members } = await supabase
       .from("space_members")
       .select("user_id")
@@ -122,7 +127,12 @@ Deno.serve(async (req: Request) => {
 
     if (!members || members.length === 0) return new Response("No members", { status: 200 });
 
-    const memberIds = members.map((m) => m.user_id);
+    const memberIds = members
+      .map((m) => m.user_id)
+      .filter((id) => senderSupabaseUserId ? id !== senderSupabaseUserId : true);
+
+    if (memberIds.length === 0) return new Response("No recipients (sender excluded)", { status: 200 });
+
     const { data: tokens } = await supabase
       .from("device_tokens")
       .select("token")

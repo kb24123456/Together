@@ -960,9 +960,27 @@ extension AppContext: PairJoinObserver {
             sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
         }
 
-        // 3) Start pair sync (idempotent). startListening internally runs catchUp,
-        //    so the partner's avatar / nickname / existing tasks land in local DB
-        //    before the user hits Home.
+        // 3) Force teardown + full restart of pair sync. Why this is mandatory
+        //    rather than just startSupabaseSyncIfNeeded:
+        //    - Unbind → re-pair within one session leaves a stale
+        //      supabaseSyncService bound to the old space's Realtime channel
+        //      and lastSyncedAt watermark. The `service != nil` guard inside
+        //      startSupabaseSyncIfNeeded would short-circuit, so the host
+        //      keeps listening on the wrong channel and never receives the
+        //      partner's task INSERT/UPDATE events (build-4 testing showed
+        //      357 push-OK but receive-blank for 786's tasks).
+        //    - Resetting lastSyncedAt forces a full distantPast catchUp on
+        //      the new space, so first-frame state (existing rows + partner
+        //      profile) is pulled atomically rather than depending on later
+        //      Realtime deltas.
+        if let staleSpaceID = sessionStore.currentPairSpace?.id {
+            await teardownSupabaseSync(pairSpaceID: staleSpaceID)
+        }
+        if let newSharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
+            UserDefaults.standard.removeObject(
+                forKey: "together.supabase.lastSyncedAt.\(newSharedSpaceID.uuidString)"
+            )
+        }
         await startSupabaseSyncIfNeeded()
 
         // 4) Eagerly push own profile (display name + avatar) so the partner sees
