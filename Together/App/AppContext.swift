@@ -60,6 +60,19 @@ final class AppContext {
     private nonisolated(unsafe) let supabaseAuth = SupabaseAuthService()
     private var activeSharedSpaceID: UUID?
 
+    /// Supabase auth.uid of the current device's signed-in user. Cached on
+    /// pair-sync startup; nil before sign-in or while sync is being torn down.
+    /// Stable across UI refreshes and survives Sign-in-with-Apple sessions on
+    /// the same Apple ID, so it's the right key for cross-device-unique
+    /// identity (e.g. ImportantDateKind.birthday(memberUserID:) in 1.0.1+
+    /// uses this rather than the local-only User.id which differs per device).
+    private(set) var currentSupabaseUserID: UUID?
+
+    /// Supabase auth.uid of the paired partner. Resolved by reading
+    /// space_members and excluding `currentSupabaseUserID`. Set when a pair
+    /// sync starts; cleared on teardown.
+    private(set) var partnerSupabaseUserID: UUID?
+
     // Premium 生命周期：configure/teardown/refresh 通过任务链串行化，
     // 避免快速登入-登出-再登入导致的 RC configure vs logIn 竞争。
     private var premiumGateTask: Task<Void, Never>?
@@ -303,7 +316,21 @@ final class AppContext {
         // 这样即便 startListening 内部 await 很久，其他 Task 的 `supabaseSyncService != nil` 也会挡住。
         self.supabaseSyncService = service
         self.activeSharedSpaceID = sharedSpaceID
+        self.currentSupabaseUserID = myUserID
         sessionStore.updateSharedSyncStatus(SharedSyncStatus(level: .syncing, pendingMutationCount: 0, failedMutationCount: 0))
+
+        // Resolve partner's supabase user_id from space_members.
+        // Detached so we don't block the main sync startup.
+        Task { [weak self] in
+            guard let self else { return }
+            let partnerID = await Self.resolvePartnerSupabaseUserID(
+                spaceID: sharedSpaceID,
+                excluding: myUserID
+            )
+            await MainActor.run {
+                self.partnerSupabaseUserID = partnerID
+            }
+        }
 
         // Pair is now active and we know the sharedSpaceID. postLaunch may have
         // fired earlier before the pair was ready, leaving importantDatesViewModel
@@ -321,9 +348,29 @@ final class AppContext {
         await supabaseSyncService?.teardown()
         supabaseSyncService = nil
         activeSharedSpaceID = nil
+        currentSupabaseUserID = nil
+        partnerSupabaseUserID = nil
         isStartingSupabaseSync = false
         seededPairMetadataSpaceIDs.remove(pairSpaceID)
         sessionStore.updateSharedSyncStatus(.idle)
+    }
+
+    /// Reads the partner's Supabase auth.uid by querying space_members and
+    /// excluding the current user's own row. Returns nil if the row hasn't
+    /// landed yet (Realtime ordering can place this call before the partner's
+    /// INSERT replicates) — caller should be prepared for a transient nil.
+    nonisolated private static func resolvePartnerSupabaseUserID(
+        spaceID: UUID,
+        excluding selfID: UUID
+    ) async -> UUID? {
+        struct Row: Decodable { let userId: UUID; enum CodingKeys: String, CodingKey { case userId = "user_id" } }
+        let rows: [Row]? = try? await SupabaseClientProvider.shared.from("space_members")
+            .select("user_id")
+            .eq("space_id", value: spaceID.uuidString)
+            .neq("user_id", value: selfID.uuidString)
+            .execute()
+            .value
+        return rows?.first?.userId
     }
 
     /// Queues the current user's shared member profile into the shared authority sync path.

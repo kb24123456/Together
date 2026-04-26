@@ -2,11 +2,11 @@ import SwiftUI
 
 struct AnniversaryCapsuleView: View {
     let nextEvent: ImportantDate?
-    /// Local User.id of the device's currentUser — birthday events whose
-    /// memberUserID matches this render as "我的生日"; otherwise as
-    /// "{partnerName}的生日". Pass nil if not signed in (rare; falls back to
-    /// stored title which is whatever the creator typed).
-    var viewerLocalUserID: UUID? = nil
+    /// Supabase auth.uid of the viewer (cross-device unique). Birthday events
+    /// whose memberUserID matches this render as "我的生日"; otherwise as
+    /// "{partnerName}的生日". Pass nil before sync starts (rare; falls back to
+    /// the stored creator-perspective title).
+    var viewerSupabaseUserID: UUID? = nil
     /// Partner's display name shown in "{name}的生日". When nil/empty falls
     /// back to "伴侣生日".
     var partnerDisplayName: String? = nil
@@ -26,10 +26,10 @@ struct AnniversaryCapsuleView: View {
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.72))
             }
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.md)
+            .padding(.horizontal, AppTheme.spacing.lg)
+            .padding(.vertical, AppTheme.spacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
+                Capsule(style: .continuous)
                     .fill(AppTheme.colors.surfaceElevated)
             )
         }
@@ -43,7 +43,7 @@ struct AnniversaryCapsuleView: View {
 
     private var title: String {
         guard let event = nextEvent else { return "添加第一个纪念日" }
-        return event.displayTitle(viewerLocalUserID: viewerLocalUserID, partnerDisplayName: partnerDisplayName)
+        return event.displayTitle(viewerSupabaseUserID: viewerSupabaseUserID, partnerDisplayName: partnerDisplayName)
     }
 
     private var detail: String {

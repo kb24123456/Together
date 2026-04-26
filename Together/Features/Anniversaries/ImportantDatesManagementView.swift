@@ -213,9 +213,11 @@ struct ImportantDatesManagementView: View {
     /// Birthday rows are viewer-relative — partner A's "伴侣生日" must read as
     /// "我的生日" to partner B (and vice versa). Non-birthday rows pass through
     /// the stored title unchanged.
+    /// Compares against `currentSupabaseUserID` (cross-device unique) rather
+    /// than the local `currentUser.id` (device-local).
     private func displayTitle(for event: ImportantDate) -> String {
         event.displayTitle(
-            viewerLocalUserID: appContext.sessionStore.currentUser?.id,
+            viewerSupabaseUserID: appContext.currentSupabaseUserID,
             partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName
         )
     }
@@ -232,8 +234,8 @@ struct ImportantDatesManagementView: View {
     // MARK: - Existing checks
 
     private func existingBirthday(myself: Bool) -> ImportantDate? {
-        guard let myID = appContext.sessionStore.currentUser?.id,
-              let partnerID = appContext.sessionStore.pairSpaceSummary?.partner?.id else { return nil }
+        guard let myID = appContext.currentSupabaseUserID,
+              let partnerID = appContext.partnerSupabaseUserID else { return nil }
         let target = myself ? myID : partnerID
         return viewModel.events.first { event in
             if case .birthday(let m) = event.kind { return m == target }
@@ -252,12 +254,20 @@ struct ImportantDatesManagementView: View {
 
     private func createBirthday(myself: Bool) {
         guard quotaCheckPasses() else { return }
-        guard let myID = appContext.sessionStore.currentUser?.id,
-              let partnerID = appContext.sessionStore.pairSpaceSummary?.partner?.id,
+        // Use Supabase auth.uid (cross-device unique) for memberUserID and
+        // creatorID so the row reads identically on both partners' devices.
+        // Local User.id differs across devices for the same Apple ID after
+        // a re-pair / reinstall, which broke "我的生日" detection on the
+        // non-creating side (build-6 paired testing showed partner B saw
+        // partner A's "伴侣生日" rendered as "{partnerA's name}的生日"
+        // because partner A's local ID never matches partner B's local ID).
+        guard let mySupabaseID = appContext.currentSupabaseUserID,
+              let partnerSupabaseID = appContext.partnerSupabaseUserID,
+              let myLocalID = appContext.sessionStore.currentUser?.id,
               let spaceID = appContext.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
-        let memberID = myself ? myID : partnerID
+        let memberID = myself ? mySupabaseID : partnerSupabaseID
         let seed = ImportantDate(
-            id: UUID(), spaceID: spaceID, creatorID: myID,
+            id: UUID(), spaceID: spaceID, creatorID: myLocalID,
             kind: .birthday(memberUserID: memberID),
             title: myself ? "我的生日" : "伴侣生日",
             dateValue: .now,

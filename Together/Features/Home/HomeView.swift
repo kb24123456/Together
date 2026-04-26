@@ -386,6 +386,8 @@ struct HomeView: View {
                         if appContext.sessionStore.activeMode == .pair {
                             AnniversaryCapsuleView(
                                 nextEvent: nextAnniversaryEvent(),
+                                viewerSupabaseUserID: appContext.currentSupabaseUserID,
+                                partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
                                 onTap: { isImportantDatesManagementPresented = true }
                             )
                         }
@@ -504,6 +506,8 @@ struct HomeView: View {
             if appContext.sessionStore.activeMode == .pair {
                 AnniversaryCapsuleView(
                     nextEvent: nextAnniversaryEvent(),
+                    viewerSupabaseUserID: appContext.currentSupabaseUserID,
+                    partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
                     onTap: { isImportantDatesManagementPresented = true }
                 )
                 .listRowInsets(
@@ -609,6 +613,8 @@ struct HomeView: View {
             if appContext.sessionStore.activeMode == .pair {
                 AnniversaryCapsuleView(
                     nextEvent: nextAnniversaryEvent(),
+                    viewerSupabaseUserID: appContext.currentSupabaseUserID,
+                    partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
                     onTap: { isImportantDatesManagementPresented = true }
                 )
                 .listRowInsets(

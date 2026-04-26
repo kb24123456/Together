@@ -170,14 +170,18 @@ extension ImportantDate {
     }
 
     /// Returns the display title for a birthday event from the perspective of
-    /// `viewerUserID`. The raw `title` field stays "伴侣生日"/"我的生日" as
-    /// stored by the creator, but rendering must be viewer-relative — partner A
-    /// who tags their event "伴侣生日" (target = B) should see B's actual name,
-    /// while partner B sees the same row as "我的生日". For non-birthday events
-    /// the stored title is returned as-is.
-    func displayTitle(viewerLocalUserID: UUID?, partnerDisplayName: String?) -> String {
+    /// `viewerSupabaseUserID`. The raw `title` field stays "伴侣生日"/"我的生日"
+    /// as stored by the creator, but rendering must be viewer-relative —
+    /// partner A who tags their event "伴侣生日" (target = B) should see B's
+    /// actual name, while partner B sees the same row as "我的生日". For
+    /// non-birthday events the stored title is returned as-is.
+    ///
+    /// Uses Supabase auth.uid (cross-device unique) rather than local
+    /// User.id (which differs across devices for the same person after
+    /// re-pair / reinstall, breaking the "is this my own birthday" check).
+    func displayTitle(viewerSupabaseUserID: UUID?, partnerDisplayName: String?) -> String {
         guard case .birthday(let memberUserID) = kind else { return title }
-        if let viewerLocalUserID, memberUserID == viewerLocalUserID {
+        if let viewerSupabaseUserID, memberUserID == viewerSupabaseUserID {
             return "我的生日"
         }
         if let partnerDisplayName, !partnerDisplayName.isEmpty {
