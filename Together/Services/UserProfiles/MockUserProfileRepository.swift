@@ -44,4 +44,23 @@ actor MockUserProfileRepository: UserProfileRepositoryProtocol {
         records[user.id] = updatedUser
         return updatedUser
     }
+
+    func hydrateFromRemote(
+        for user: User,
+        displayName: String,
+        avatarBytes: Data?,
+        avatarAssetID: String?,
+        avatarSystemName: String?,
+        avatarVersion: Int
+    ) async throws -> User {
+        var hydrated = user
+        hydrated.displayName = displayName
+        hydrated.avatarSystemName = avatarSystemName
+        hydrated.avatarAssetID = avatarAssetID
+        hydrated.avatarVersion = avatarVersion
+        hydrated.avatarPhotoFileName = avatarBytes != nil ? "mock-hydrated-avatar.jpg" : nil
+        hydrated.updatedAt = .now
+        records[user.id] = hydrated
+        return hydrated
+    }
 }

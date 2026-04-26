@@ -58,6 +58,7 @@ enum LocalServiceFactory {
         )
 
         let avatarUploader = AvatarStorageUploader(client: SupabaseClientProvider.shared)
+        let userProfileRemote = UserProfileRemoteRepository(client: SupabaseClientProvider.shared)
 
         let premiumGate = Self.makePremiumGate()
 
@@ -94,6 +95,7 @@ enum LocalServiceFactory {
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
             avatarUploader: avatarUploader,
+            userProfileRemote: userProfileRemote,
             cloudKitContainer: ckContainer,
             syncEngineCoordinator: syncEngineCoordinator,
             premiumGate: premiumGate

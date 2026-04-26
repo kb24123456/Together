@@ -36,6 +36,16 @@ final class MockAvatarStorageUploader: AvatarStorageUploaderProtocol, @unchecked
         return url
     }
 
+    func uploadAvatarUserScoped(bytes: Data, userID: UUID, version: Int) async throws -> URL {
+        lock.lock()
+        // No space context for user-scoped uploads; record a fresh placeholder UUID.
+        // Tests should inspect userID/version, not spaceID, for these calls.
+        _uploads.append(UploadRecord(bytes: bytes, spaceID: UUID(), userID: userID, version: version))
+        let url = _stubbedURL
+        lock.unlock()
+        return url
+    }
+
     func downloadAvatar(from url: URL) async throws -> Data {
         lock.lock(); defer { lock.unlock() }
         return _stubbedDownloadBytes

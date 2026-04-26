@@ -54,6 +54,7 @@ final class AppContext {
     private var hasCompletedPostLaunchWork = false
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
+    private var hasHydratedOwnProfile = false
     private var seededPairMetadataSpaceIDs: Set<UUID> = []
     private var supabaseSyncService: SupabaseSyncService?
     private var isStartingSupabaseSync = false  // 防止 startSupabaseSyncIfNeeded 多 Task 并发穿 guard
@@ -243,6 +244,9 @@ final class AppContext {
             _ = await supabaseAuth.restoreSession()
             await configurePremiumGate()
             await startSoloSyncEngineIfNeeded()
+            // user_profiles hydrate 必须在 startSupabaseSyncIfNeeded 之前 await 完成，
+            // 否则 pair sync 启动后 push 路径可能用旧的 local 覆盖云端最新值。
+            await hydrateOwnProfileFromCloudIfNeeded()
             await startSupabaseSyncIfNeeded()
             // 自动检查是否有待接受的邀请已被对端接受
             await autoCheckInviteAcceptedIfPending()
@@ -307,7 +311,8 @@ final class AppContext {
 
         let service = SupabaseSyncService(
             modelContainer: PersistenceController.shared.container,
-            avatarUploader: container.avatarUploader
+            avatarUploader: container.avatarUploader,
+            userProfileRemote: container.userProfileRemote
         )
         let localUserID = sessionStore.currentUser?.id
         await service.configure(spaceID: sharedSpaceID, myUserID: myUserID, myLocalUserID: localUserID)
@@ -373,6 +378,64 @@ final class AppContext {
         return rows?.first?.userId
     }
 
+    /// Pushes the user's profile to the user-scoped `user_profiles` table.
+    ///
+    /// Independent of pair status — runs in single mode too, so that reinstall
+    /// + SIWA can later hydrate displayName/avatar back from the cloud.
+    /// Avatar bytes are uploaded at `users/{userID}/{version}.jpg` (see
+    /// AvatarStorageUploader.uploadAvatarUserScoped). Best-effort: any error
+    /// is logged but not surfaced — local save has already succeeded.
+    ///
+    /// `force=true` re-uploads bytes even if avatarVersion hasn't bumped.
+    /// Default skips redundant byte uploads via UserDefaults watermark
+    /// `together.userProfile.lastSyncedAvatarVersion.{userID}`.
+    func syncOwnProfileToCloud(user: User, force: Bool = false) async {
+        let watermarkKey = "together.userProfile.lastSyncedAvatarVersion.\(user.id.uuidString.lowercased())"
+        let lastSyncedVersion = UserDefaults.standard.integer(forKey: watermarkKey)
+        var avatarURLString: String?
+
+        // Avatar bytes upload — only if we actually have a photo on disk and
+        // version has bumped (or caller forces).
+        if user.avatarAssetID != nil,
+           let fileName = user.avatarCacheFileName {
+            let avatarStore = LocalUserAvatarMediaStore()
+            let shouldUpload = (force || user.avatarVersion > lastSyncedVersion) && avatarStore.fileExists(named: fileName)
+            if shouldUpload {
+                do {
+                    let bytes = try avatarStore.avatarData(named: fileName)
+                    let signed = try await container.avatarUploader.uploadAvatarUserScoped(
+                        bytes: bytes,
+                        userID: user.id,
+                        version: user.avatarVersion
+                    )
+                    avatarURLString = signed.absoluteString
+                    UserDefaults.standard.set(user.avatarVersion, forKey: watermarkKey)
+                    appContextLogger.info("[OwnProfile] avatar uploaded version=\(user.avatarVersion) bytes=\(bytes.count)")
+                } catch {
+                    appContextLogger.error("[OwnProfile] avatar upload failed: \(error.localizedDescription, privacy: .public)")
+                    // Fall through with avatarURLString=nil; row upsert still
+                    // proceeds so displayName / metadata at least propagate.
+                }
+            }
+        }
+
+        let dto = UserProfileDTO(
+            userID: user.id,
+            displayName: user.displayName,
+            avatarURL: avatarURLString,
+            avatarAssetID: user.avatarAssetID,
+            avatarSystemName: user.avatarSystemName,
+            avatarVersion: user.avatarVersion,
+            updatedAt: nil
+        )
+        do {
+            try await container.userProfileRemote.upsertOwn(dto)
+            appContextLogger.info("[OwnProfile] upserted user_profiles version=\(user.avatarVersion)")
+        } catch {
+            appContextLogger.error("[OwnProfile] upsertOwn failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// Queues the current user's shared member profile into the shared authority sync path.
     func syncProfileToPartner(user: User) async {
         guard let summary = sessionStore.pairSpaceSummary,
@@ -400,6 +463,82 @@ final class AppContext {
                 spaceID: summary.sharedSpace.id
             )
         )
+    }
+
+    /// Pulls the user's profile from `user_profiles` if cloud is fresher than
+    /// local. Runs once per cold start, before pair sync starts so partner
+    /// pushes don't race against our hydrate.
+    ///
+    /// Triggers hydrate when:
+    ///   - local.displayName 为空 且 dto.displayName 非空（重装+SIWA 后 SwiftData 空）
+    ///   - dto.avatarVersion > local.avatarVersion（多端编辑追赶）
+    ///
+    /// Best-effort: any failure (no session / network / nil row) is logged
+    /// and the function returns silently. Does NOT mutate local state when
+    /// remote is stale or equal; that's syncOwnProfileToCloud's job at next
+    /// onProfileSaved.
+    func hydrateOwnProfileFromCloudIfNeeded() async {
+        guard hasHydratedOwnProfile == false else { return }
+        guard sessionStore.authState == .signedIn,
+              let localUser = sessionStore.currentUser else { return }
+
+        let dto: UserProfileDTO?
+        do {
+            dto = try await container.userProfileRemote.fetchOwn()
+        } catch {
+            appContextLogger.error("[OwnProfile] hydrate fetchOwn failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        guard let dto else {
+            // 云端没有 row — 026 backfill 兜底应该让现有用户都有；新用户走 onProfileSaved
+            // 触发首次 upsert。这里 nothing to do。
+            hasHydratedOwnProfile = true
+            return
+        }
+
+        let localEmpty = localUser.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let cloudHasName = dto.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let cloudVersionNewer = dto.avatarVersion > localUser.avatarVersion
+        let shouldHydrate = (localEmpty && cloudHasName) || cloudVersionNewer
+
+        guard shouldHydrate else {
+            hasHydratedOwnProfile = true
+            appContextLogger.info("[OwnProfile] hydrate skip — local up-to-date (localVer=\(localUser.avatarVersion) cloudVer=\(dto.avatarVersion))")
+            return
+        }
+
+        // 下载头像 bytes（如果云端有 url 且 assetID）
+        var avatarBytes: Data?
+        if let urlString = dto.avatarURL,
+           let url = URL(string: urlString),
+           dto.avatarAssetID != nil {
+            do {
+                avatarBytes = try await container.avatarUploader.downloadAvatar(from: url)
+            } catch {
+                appContextLogger.error("[OwnProfile] hydrate avatar download failed: \(error.localizedDescription, privacy: .public)")
+                // 继续 hydrate displayName / metadata,头像下次启动再补
+            }
+        }
+
+        do {
+            let hydrated = try await container.userProfileRepository.hydrateFromRemote(
+                for: localUser,
+                displayName: dto.displayName,
+                avatarBytes: avatarBytes,
+                avatarAssetID: dto.avatarAssetID,
+                avatarSystemName: dto.avatarSystemName,
+                avatarVersion: dto.avatarVersion
+            )
+            sessionStore.currentUser = hydrated
+            hasHydratedOwnProfile = true
+            // 同步成功后,把 watermark 也更新,避免下次 syncOwnProfileToCloud 误判要重传 bytes
+            let watermarkKey = "together.userProfile.lastSyncedAvatarVersion.\(hydrated.id.uuidString.lowercased())"
+            UserDefaults.standard.set(dto.avatarVersion, forKey: watermarkKey)
+            appContextLogger.info("[OwnProfile] hydrated displayName=\(hydrated.displayName, privacy: .private) version=\(dto.avatarVersion)")
+        } catch {
+            appContextLogger.error("[OwnProfile] hydrate persist failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func restorePersistedUserProfileIfNeeded(force: Bool = false) async {
@@ -590,7 +729,12 @@ final class AppContext {
         }
         profileViewModel.onProfileSaved = { [weak self] user in
             guard let self else { return }
-            Task { await self.syncProfileToPartner(user: user) }
+            Task {
+                // user_profiles 是 user-scoped,无论是否配对都推
+                await self.syncOwnProfileToCloud(user: user)
+                // space_members 仍然 dual-write,1.0 老对端兼容
+                await self.syncProfileToPartner(user: user)
+            }
         }
         profileViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
