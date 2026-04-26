@@ -118,16 +118,6 @@ struct HomeView: View {
         }
     }
 
-    private func nextAnniversaryEvent() -> ImportantDate? {
-        appContext.importantDatesViewModel.events
-            .compactMap { event -> (ImportantDate, Int)? in
-                guard let days = event.daysUntilNext() else { return nil }
-                return (event, days)
-            }
-            .sorted { $0.1 < $1.1 }
-            .first?.0
-    }
-
     private var backgroundView: some View {
         GradientGridBackground()
     }
@@ -384,11 +374,11 @@ struct HomeView: View {
                         }
 
                         if appContext.sessionStore.activeMode == .pair {
-                            AnniversaryCapsuleView(
-                                nextEvent: nextAnniversaryEvent(),
+                            PinnedAnniversaryArea(
+                                pinnedEvents: appContext.importantDatesViewModel.pinnedEvents,
                                 viewerSupabaseUserID: appContext.currentSupabaseUserID,
                                 partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
-                                onTap: { isImportantDatesManagementPresented = true }
+                                onTapEvent: { _ in isImportantDatesManagementPresented = true }
                             )
                         }
 
@@ -504,11 +494,11 @@ struct HomeView: View {
             }
 
             if appContext.sessionStore.activeMode == .pair {
-                AnniversaryCapsuleView(
-                    nextEvent: nextAnniversaryEvent(),
+                PinnedAnniversaryArea(
+                    pinnedEvents: appContext.importantDatesViewModel.pinnedEvents,
                     viewerSupabaseUserID: appContext.currentSupabaseUserID,
                     partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
-                    onTap: { isImportantDatesManagementPresented = true }
+                    onTapEvent: { _ in isImportantDatesManagementPresented = true }
                 )
                 .listRowInsets(
                     EdgeInsets(
@@ -611,11 +601,11 @@ struct HomeView: View {
             }
 
             if appContext.sessionStore.activeMode == .pair {
-                AnniversaryCapsuleView(
-                    nextEvent: nextAnniversaryEvent(),
+                PinnedAnniversaryArea(
+                    pinnedEvents: appContext.importantDatesViewModel.pinnedEvents,
                     viewerSupabaseUserID: appContext.currentSupabaseUserID,
                     partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
-                    onTap: { isImportantDatesManagementPresented = true }
+                    onTapEvent: { _ in isImportantDatesManagementPresented = true }
                 )
                 .listRowInsets(
                     EdgeInsets(
