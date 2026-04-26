@@ -1642,6 +1642,9 @@ struct ImportantDateDTO: Codable, Sendable {
     var updatedAt: Date
     var isDeleted: Bool
     var deletedAt: Date?
+    /// 1.0 anniversary pin (spec §2.1). Default false on decode for
+    /// pre-migration rows (column added by migration 024).
+    var isPinnedToToday: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -1661,6 +1664,7 @@ struct ImportantDateDTO: Codable, Sendable {
         case updatedAt = "updated_at"
         case isDeleted = "is_deleted"
         case deletedAt = "deleted_at"
+        case isPinnedToToday = "is_pinned_to_today"
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
@@ -1682,6 +1686,7 @@ struct ImportantDateDTO: Codable, Sendable {
             existing.memberUserID = memberUserId
             existing.isPresetHoliday = isPresetHoliday
             existing.presetHolidayIDRawValue = presetHolidayId
+            existing.isPinnedToToday = isPinnedToToday
             existing.updatedAt = updatedAt
             if isDeleted { existing.isLocallyDeleted = true }
         } else if !isDeleted {
@@ -1701,7 +1706,8 @@ struct ImportantDateDTO: Codable, Sendable {
                 presetHolidayIDRawValue: presetHolidayId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
-                isLocallyDeleted: false
+                isLocallyDeleted: false,
+                isPinnedToToday: isPinnedToToday
             )
             context.insert(new)
         }
@@ -1728,6 +1734,31 @@ extension ImportantDateDTO {
         self.updatedAt = persistent.updatedAt
         self.isDeleted = persistent.isLocallyDeleted
         self.deletedAt = persistent.deletedAt
+        self.isPinnedToToday = persistent.isPinnedToToday
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(UUID.self, forKey: .id)
+        self.spaceId = try c.decode(UUID.self, forKey: .spaceId)
+        self.creatorId = try c.decode(UUID.self, forKey: .creatorId)
+        self.kind = try c.decode(String.self, forKey: .kind)
+        self.title = try c.decode(String.self, forKey: .title)
+        self.dateValue = try c.decode(Date.self, forKey: .dateValue)
+        self.isRecurring = try c.decode(Bool.self, forKey: .isRecurring)
+        self.recurrenceRule = try c.decodeIfPresent(String.self, forKey: .recurrenceRule)
+        self.notifyDaysBefore = try c.decode(Int.self, forKey: .notifyDaysBefore)
+        self.notifyOnDay = try c.decode(Bool.self, forKey: .notifyOnDay)
+        self.icon = try c.decodeIfPresent(String.self, forKey: .icon)
+        self.memberUserId = try c.decodeIfPresent(UUID.self, forKey: .memberUserId)
+        self.isPresetHoliday = try c.decode(Bool.self, forKey: .isPresetHoliday)
+        self.presetHolidayId = try c.decodeIfPresent(String.self, forKey: .presetHolidayId)
+        self.createdAt = try c.decode(Date.self, forKey: .createdAt)
+        self.updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        self.isDeleted = try c.decode(Bool.self, forKey: .isDeleted)
+        self.deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
+        // Default false to keep pre-migration JSON decodable.
+        self.isPinnedToToday = (try c.decodeIfPresent(Bool.self, forKey: .isPinnedToToday)) ?? false
     }
 }
 
