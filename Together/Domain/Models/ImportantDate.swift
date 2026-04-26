@@ -296,4 +296,18 @@ extension ImportantDate {
         }
         return .countdown
     }
+
+    /// True when this event has both meaningful forwardCount and
+    /// countdown metrics (spec §3.2). Used to gate long-press peek
+    /// — birthday/holiday only have countdown, peek is a no-op there.
+    var hasPeekableAlternateMode: Bool {
+        switch kind {
+        case .anniversary:
+            return recurrence != .none
+        case .custom:
+            return recurrence != .none && dateValue <= .now
+        case .birthday, .holiday:
+            return false
+        }
+    }
 }
