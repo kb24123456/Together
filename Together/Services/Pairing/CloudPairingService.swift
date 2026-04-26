@@ -118,6 +118,32 @@ actor CloudPairingService: PairingServiceProtocol {
             throw PairingError.cloudKitUnavailable // 复用已有错误类型
         }
 
+        // 1.5 best-effort 清理本人历史 zombie：取消 pending invites + 归档 1-member 孤儿
+        //     space。why: 用户重复点击「重新邀请」会在 Supabase 堆 active 1-member
+        //     space + pending invite，旧 invite 仍能被对端 lookup（24h 过期前 RLS 允许
+        //     anyone-lookup-pending），出现"对方接受了不知道哪个邀请"歧义。失败不阻断
+        //     主流程，仅记日志以便事后排查。
+        do {
+            try await inviteGateway.cancelAllPendingInvites(inviterID: supabaseUserID)
+        } catch {
+            cloudPairingLogger.error("cancelAllPendingInvites failed: \(error.localizedDescription, privacy: .public)")
+        }
+        do {
+            let orphans = try await inviteGateway.listOrphanActiveSpaces(ownerID: supabaseUserID)
+            for spaceID in orphans {
+                do {
+                    try await inviteGateway.archiveSpace(spaceID: spaceID)
+                } catch {
+                    cloudPairingLogger.error("archive orphan space=\(spaceID.uuidString, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            if !orphans.isEmpty {
+                cloudPairingLogger.info("archived \(orphans.count) orphan space(s) before createInvite")
+            }
+        } catch {
+            cloudPairingLogger.error("listOrphanActiveSpaces failed: \(error.localizedDescription, privacy: .public)")
+        }
+
         // 2. 先在 Supabase 创建 space（获取统一 UUID）
         // 注意：space.display_name 是"空间名"（如"我们的小家"），不是用户昵称。
         // 之前误把 inviter 的 displayName（昵称）写成了 space 名 → 对方拉到看到对方昵称作为空间名

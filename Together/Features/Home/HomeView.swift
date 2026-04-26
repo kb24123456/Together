@@ -1906,6 +1906,7 @@ private extension View {
     }
 }
 
+#if DEBUG
 #Preview("Home Default") {
     makeHomePreview()
 }
@@ -1936,6 +1937,7 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
         onCreateTaskTapped: {}
     )
 }
+#endif
 
 private struct HomeTimelineRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

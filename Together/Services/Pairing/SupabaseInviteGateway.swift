@@ -147,6 +147,35 @@ actor SupabaseInviteGateway {
             .execute()
     }
 
+    /// 取消本人名下所有 pending invite（创建新邀请前的清理）
+    /// best-effort，失败由调用方记录日志，不阻断主流程
+    func cancelAllPendingInvites(inviterID: UUID) async throws {
+        try await client.from("pair_invites")
+            .update(["status": "cancelled"])
+            .eq("inviter_id", value: inviterID.uuidString)
+            .eq("status", value: "pending")
+            .execute()
+    }
+
+    /// 查询本人 owner 名下、status=active 且只有自己一人 / 零人的孤儿 space。
+    /// 用于在创建新邀请前归档历史 zombie space。
+    func listOrphanActiveSpaces(ownerID: UUID) async throws -> [UUID] {
+        struct SpaceRow: Decodable { let id: UUID }
+        let candidates: [SpaceRow] = try await client.from("spaces")
+            .select("id")
+            .eq("owner_user_id", value: ownerID.uuidString)
+            .eq("status", value: "active")
+            .execute()
+            .value
+
+        var orphans: [UUID] = []
+        for row in candidates {
+            let count = (try? await remainingMemberCount(spaceID: row.id)) ?? 2
+            if count <= 1 { orphans.append(row.id) }
+        }
+        return orphans
+    }
+
     /// 创建共享空间（配对流程第一步）
     func createSpace(ownerID: UUID, displayName: String) async throws -> UUID {
         struct SpaceRow: Codable {

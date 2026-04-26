@@ -720,11 +720,13 @@ private struct ProfileScrollOffsetKey: PreferenceKey {
     }
 }
 
+#if DEBUG
 #Preview("Profile") {
     NavigationStack {
         ProfileView(viewModel: AppContext.makeBootstrappedContext().profileViewModel)
     }
 }
+#endif
 
 private struct ProfileExpandableDisclosureRow<Content: View>: View {
     let title: String

@@ -63,21 +63,21 @@ actor StubPaywallPurchasing: PaywallPurchasingProtocol {
         packages: [
             PaywallPackage(
                 id: "monthly", productID: "com.test.monthly",
-                localizedTitle: "月度 Pro", localizedPriceString: "¥18",
-                price: 18, currencyCode: "CNY",
+                localizedTitle: "月度 Pro", localizedPriceString: "¥8",
+                price: 8, currencyCode: "CNY",
                 subscriptionPeriod: .month(1), introductoryOffer: nil
             ),
             PaywallPackage(
                 id: "annual", productID: "com.test.annual",
-                localizedTitle: "年度 Pro", localizedPriceString: "¥98",
-                price: 98, currencyCode: "CNY",
+                localizedTitle: "年度 Pro", localizedPriceString: "¥28",
+                price: 28, currencyCode: "CNY",
                 subscriptionPeriod: .year(1),
                 introductoryOffer: PaywallIntroOffer(period: .day(7), price: 0)
             ),
             PaywallPackage(
                 id: "lifetime", productID: "com.test.lifetime",
-                localizedTitle: "终身 Pro", localizedPriceString: "¥198",
-                price: 198, currencyCode: "CNY",
+                localizedTitle: "终身 Pro", localizedPriceString: "¥38",
+                price: 38, currencyCode: "CNY",
                 subscriptionPeriod: nil, introductoryOffer: nil
             )
         ]

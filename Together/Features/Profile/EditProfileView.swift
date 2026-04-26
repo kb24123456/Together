@@ -616,6 +616,7 @@ struct CameraCaptureView: UIViewControllerRepresentable {
 }
 #endif
 
+#if DEBUG
 #Preview("Edit Profile") {
     let context = AppContext.makeBootstrappedContext()
     NavigationStack {
@@ -626,3 +627,4 @@ struct CameraCaptureView: UIViewControllerRepresentable {
         )
     }
 }
+#endif

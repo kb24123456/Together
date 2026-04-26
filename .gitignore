@@ -32,3 +32,8 @@ supabase/.temp/
 
 # Claude Code runtime locks / scheduled task state
 .claude/
+
+# Apple / RevenueCat secrets — NEVER commit
+*.p8
+SubscriptionKey_*.p8
+AuthKey_*.p8

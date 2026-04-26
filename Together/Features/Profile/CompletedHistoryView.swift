@@ -238,6 +238,7 @@ struct CompletedHistoryView: View {
     }
 }
 
+#if DEBUG
 #Preview("Completed History") {
     NavigationStack {
         CompletedHistoryView(
@@ -280,3 +281,4 @@ struct CompletedHistoryView: View {
     }
     .environment(AppContext.makeBootstrappedContext())
 }
+#endif

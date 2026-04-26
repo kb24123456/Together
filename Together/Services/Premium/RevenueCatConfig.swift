@@ -14,7 +14,7 @@ enum RevenueCatConfig {
         #if DEBUG
         return "test_vSgWSmgUqnLiCKZvjDshWoFySiT"
         #else
-        return productionKeyPlaceholder
+        return "appl_koHbDHsCMItIBGguDIqkaaBtZTw"
         #endif
     }()
 

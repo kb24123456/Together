@@ -13,7 +13,7 @@ struct Badge: View {
     /// 默认 tint.opacity(0.12)，可显式覆盖（如选中态用实色）
     var background: Color? = nil
     var size: Size = .regular
-    var weight: Font.Weight = .bold
+    var weight: UIFont.Weight = .bold
 
     private var fontSize: CGFloat {
         switch size {

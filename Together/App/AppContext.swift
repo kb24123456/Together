@@ -598,6 +598,16 @@ final class AppContext {
             }
         }
         NotificationCenter.default.addObserver(
+            forName: .pairMemberRemoved,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.handlePartnerLeftPairSpace()
+            }
+        }
+        NotificationCenter.default.addObserver(
             forName: .partnerAvatarDownloaded,
             object: nil,
             queue: .main
@@ -900,6 +910,33 @@ extension Notification.Name {
     static let openTaskFromNudge = Notification.Name("openTaskFromNudge")
 }
 
+extension AppContext {
+    /// Handles the Realtime "partner deleted their space_members row" event.
+    /// Triggered by SupabaseSyncService.handleMemberChange(.delete) → .pairMemberRemoved.
+    /// Without this handler the device whose partner left would stay stuck displaying
+    /// "已配对" forever (the bug reported during paired testing where 357 unpairs but
+    /// 786 keeps showing paired state).
+    @MainActor
+    func handlePartnerLeftPairSpace() async {
+        guard let pairSpace = sessionStore.currentPairSpace,
+              pairSpace.status == .active,
+              let userID = sessionStore.currentUser?.id else {
+            return
+        }
+        let pairSpaceID = pairSpace.id
+        do {
+            _ = try await container.pairingService.unbind(pairSpaceID: pairSpaceID, actorID: userID)
+            appContextLogger.info("[PairLeave] local unbind completed after partner left")
+        } catch {
+            appContextLogger.error("[PairLeave] local unbind failed: \(error.localizedDescription, privacy: .public)")
+        }
+        let updatedPairingCtx = await container.pairingService.currentPairingContext(for: userID)
+        let updatedSpaceCtx = await container.spaceService.currentSpaceContext(for: userID)
+        sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
+        await reloadAfterSync()
+    }
+}
+
 extension AppContext: PairJoinObserver {
     func onSuccessfulPairJoin() async {
         // 1) Prompt for notification permission once (added by partner-nudge feature)
@@ -907,10 +944,27 @@ extension AppContext: PairJoinObserver {
         if status == .notDetermined {
             _ = try? await container.notificationService.requestAuthorization()
         }
-        // 2) Trigger an immediate catchUp so the partner's existing avatar / state
-        //    is pulled into the local DB before the user hits Home.
-        await supabaseSyncService?.catchUp()
-        appContextLogger.info("[PairJoin] post-pair catchUp completed")
+
+        // 2) Refresh sessionStore so pairSpaceSummary reflects the new active state.
+        //    Why: this observer is invoked BEFORE the calling ViewModel runs
+        //    `apply(pairingContext:)` (CloudPairingService.checkAndFinalizeIfAccepted →
+        //    pairJoinObserver?.onSuccessfulPairJoin → return → ProfileViewModel.apply).
+        //    Without an explicit refresh here the host side would see a stale
+        //    pairSpaceSummary, the `status == .active` guard in startSupabaseSyncIfNeeded
+        //    would fail, and pair sync would never start until the user toggled
+        //    scenePhase. That race is exactly the "host sees nothing from partner"
+        //    failure mode reported during paired testing.
+        if let userID = sessionStore.currentUser?.id {
+            let updatedPairingCtx = await container.pairingService.currentPairingContext(for: userID)
+            let updatedSpaceCtx = await container.spaceService.currentSpaceContext(for: userID)
+            sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
+        }
+
+        // 3) Start pair sync (idempotent). startListening internally runs catchUp,
+        //    so the partner's avatar / nickname / existing tasks land in local DB
+        //    before the user hits Home.
+        await startSupabaseSyncIfNeeded()
+        appContextLogger.info("[PairJoin] sync started + initial catchUp completed")
     }
 }
 
@@ -965,26 +1019,27 @@ extension AppContext {
         // - RC `appUserID` 必须和 Supabase auth 对齐（spec § 1），否则订阅状态在设备间不连续。
         // 本地 `sessionStore.currentUser.id` 是 Apple Sign-In 生成的独立 UUID，和
         // Supabase `auth.users.id` 是两套（详见历史身份不对齐笔记），**不能**通用。
+        //
+        // RC 启动顺序（防 paywall fatal）：先 anonymous configure（无 appUserID），
+        // 这样未登录用户进 paywall 也能拉 offerings；登录后用 `logIn` 把 anonymous
+        // 购买 alias 到真 Supabase user（RC 自动 merge）。
+        if !Purchases.isConfigured {
+            RevenueCatConfig.assertProductionKeyConfigured()
+            Purchases.configure(withAPIKey: RevenueCatConfig.publicSDKKey)
+            premiumLogger.info("RC anonymous configure")
+        }
+
         guard let supabaseUserID = await supabaseAuth.currentUserID else {
-            premiumLogger.debug("configurePremiumGate skipped: no active Supabase session")
+            premiumLogger.debug("configurePremiumGate skipped: no active Supabase session (RC stays anonymous)")
             return
         }
         let appUserID = supabaseUserID.uuidString
 
-        if !Purchases.isConfigured {
-            RevenueCatConfig.assertProductionKeyConfigured()
-            Purchases.configure(
-                withAPIKey: RevenueCatConfig.publicSDKKey,
-                appUserID: appUserID
-            )
-            premiumLogger.info("RC configured for user \(appUserID, privacy: .private(mask: .hash))")
-        } else {
-            do {
-                _ = try await Purchases.shared.logIn(appUserID)
-                premiumLogger.info("RC logIn ok for user \(appUserID, privacy: .private(mask: .hash))")
-            } catch {
-                premiumLogger.error("RC logIn failed: \(error.localizedDescription, privacy: .public)")
-            }
+        do {
+            _ = try await Purchases.shared.logIn(appUserID)
+            premiumLogger.info("RC logIn ok for user \(appUserID, privacy: .private(mask: .hash))")
+        } catch {
+            premiumLogger.error("RC logIn failed: \(error.localizedDescription, privacy: .public)")
         }
 
         await container.premiumGate.bootstrap(userID: supabaseUserID)

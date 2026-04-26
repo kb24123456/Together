@@ -15,6 +15,10 @@ actor RevenueCatPaywallPurchasing: PaywallPurchasingProtocol {
     init() {}
 
     func loadOfferings() async throws -> PaywallOffering {
+        // RC SDK fatal error guard: 未登录 / Supabase session 未建立时 Purchases 还没
+        // configure，调 .shared 会 SDK 内部 fatal。提前 throw `.noOfferings`，paywall
+        // UI 走"加载失败"路径，用户不会闪退。
+        guard Purchases.isConfigured else { throw PaywallError.noOfferings }
         let offerings = try await Purchases.shared.offerings()
         guard let current = offerings.current else {
             throw PaywallError.noOfferings
@@ -28,6 +32,7 @@ actor RevenueCatPaywallPurchasing: PaywallPurchasingProtocol {
     }
 
     func purchase(packageID: String) async throws -> PaywallPurchaseOutcome {
+        guard Purchases.isConfigured else { throw PaywallError.unknown }
         guard let pkg = packageCache[packageID] else {
             // packageID 过期（未调 loadOfferings 就 purchase，或 offering 已被替换）——
             // 不应发生于正常 VM 流程；fallback 为 unknown 错误，OSLog 定位
@@ -42,6 +47,7 @@ actor RevenueCatPaywallPurchasing: PaywallPurchasingProtocol {
     }
 
     func restorePurchases() async throws -> PaywallPurchaseOutcome {
+        guard Purchases.isConfigured else { throw PaywallError.unknown }
         let info = try await Purchases.shared.restorePurchases()
         let ent = info.entitlements[RevenueCatConfig.entitlementIdentifier]
         return ent?.isActive == true ? .success : .nothingToRestore
