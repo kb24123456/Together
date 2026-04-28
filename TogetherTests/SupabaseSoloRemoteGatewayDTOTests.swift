@@ -42,13 +42,15 @@ struct SupabaseSoloRemoteGatewayDTOTests {
             platform: .iphone,
             deviceName: "iPhone",
             appVersion: "1.0",
-            buildNumber: "13"
+            buildNumber: "13",
+            pushToken: "push-token"
         )
 
         #expect(dto.userID == userID)
         #expect(dto.installationID == installationID)
         #expect(dto.platform == "iphone")
         #expect(dto.deviceName == "iPhone")
+        #expect(dto.pushToken == "push-token")
     }
 
     @Test("device installation upsert encodes snake case keys")
@@ -62,6 +64,7 @@ struct SupabaseSoloRemoteGatewayDTOTests {
             deviceName: "iPhone",
             appVersion: "1.0",
             buildNumber: "13",
+            pushToken: "push-token",
             now: Date(timeIntervalSince1970: 2_000)
         )
 
@@ -72,11 +75,13 @@ struct SupabaseSoloRemoteGatewayDTOTests {
         #expect(payload["device_name"] as? String == "iPhone")
         #expect(payload["app_version"] as? String == "1.0")
         #expect(payload["build_number"] as? String == "13")
+        #expect(payload["push_token"] as? String == "push-token")
         #expect(payload["is_active"] as? Bool == true)
         #expect(payload["last_seen_at"] != nil)
         #expect(payload["userID"] == nil)
         #expect(payload["installationID"] == nil)
         #expect(payload["deviceName"] == nil)
+        #expect(payload["pushToken"] == nil)
     }
 
     @Test("ensure single space rpc params encode snake case argument names")

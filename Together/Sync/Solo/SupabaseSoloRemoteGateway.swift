@@ -35,6 +35,7 @@ struct DeviceInstallationUpsertDTO: Codable, Sendable {
     let deviceName: String?
     let appVersion: String?
     let buildNumber: String?
+    let pushToken: String?
     let isActive: Bool
     let lastSeenAt: Date
 
@@ -45,6 +46,7 @@ struct DeviceInstallationUpsertDTO: Codable, Sendable {
         case deviceName = "device_name"
         case appVersion = "app_version"
         case buildNumber = "build_number"
+        case pushToken = "push_token"
         case isActive = "is_active"
         case lastSeenAt = "last_seen_at"
     }
@@ -56,6 +58,7 @@ struct DeviceInstallationUpsertDTO: Codable, Sendable {
         deviceName: String?,
         appVersion: String?,
         buildNumber: String?,
+        pushToken: String? = nil,
         now: Date = .now
     ) {
         self.userID = userID
@@ -64,6 +67,7 @@ struct DeviceInstallationUpsertDTO: Codable, Sendable {
         self.deviceName = deviceName
         self.appVersion = appVersion
         self.buildNumber = buildNumber
+        self.pushToken = pushToken
         self.isActive = true
         self.lastSeenAt = now
     }
