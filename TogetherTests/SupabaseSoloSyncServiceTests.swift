@@ -531,6 +531,38 @@ struct SupabaseSoloSyncServiceTests {
         #expect(snapshot.lastPushedAt == pushedAt)
     }
 
+    @Test("diagnostics with nil space reports all-space mutation counts")
+    func diagnosticsWithNilSpaceReportsAllSpaceMutationCounts() async throws {
+        let harness = try SoloSyncHarness()
+        let firstSpaceID = UUID()
+        let secondSpaceID = UUID()
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: UUID(), spaceID: firstSpaceID)))
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: UUID(), spaceID: secondSpaceID)))
+
+        let firstFailed = PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: UUID(), spaceID: firstSpaceID))
+        firstFailed.lifecycleState = .failed
+        context.insert(firstFailed)
+
+        let secondFailed = PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: UUID(), spaceID: secondSpaceID))
+        secondFailed.lifecycleState = .failed
+        context.insert(secondFailed)
+        try context.save()
+
+        let snapshot = await harness.service.diagnostics(
+            userID: harness.userID,
+            spaceID: nil,
+            platform: .iphone,
+            isPro: false
+        )
+
+        #expect(snapshot.spaceID == nil)
+        #expect(snapshot.pendingMutationCount == 2)
+        #expect(snapshot.failedMutationCount == 2)
+        #expect(harness.remote.fetchSnapshotCallCount() == 0)
+    }
+
     @Test("diagnostics captures remote fetch error without throwing")
     func diagnosticsCapturesRemoteFetchError() async throws {
         let harness = try SoloSyncHarness()
