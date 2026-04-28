@@ -93,6 +93,56 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.metadata.lastPushedAt(spaceID: remoteSpaceID) != nil)
     }
 
+    @Test("pair data is not adopted as solo bootstrap data")
+    func pairDataIsNotRewrittenToRemoteSoloSpace() async throws {
+        let harness = try SoloSyncHarness()
+        let pairSpaceID = UUID()
+        let remoteSpaceID = UUID()
+        let taskID = UUID()
+        let importantDateID = UUID()
+        harness.remote.setSpaceID(remoteSpaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: pairSpaceID,
+                type: .pair,
+                displayName: "共享空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: .now,
+                updatedAt: .now
+            )
+        ))
+        context.insert(PersistentItem.sample(id: taskID, spaceID: pairSpaceID, creatorID: harness.userID, title: "shared task"))
+        context.insert(PersistentImportantDate.sample(id: importantDateID, spaceID: pairSpaceID, creatorID: harness.userID, title: "shared date"))
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: taskID, spaceID: pairSpaceID)))
+        try context.save()
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        let spaces = try context.fetch(FetchDescriptor<PersistentSpace>())
+        let items = try context.fetch(FetchDescriptor<PersistentItem>())
+        let dates = try context.fetch(FetchDescriptor<PersistentImportantDate>())
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+
+        #expect(Set(spaces.map(\.id)) == Set([pairSpaceID, remoteSpaceID]))
+        #expect(spaces.first(where: { $0.id == pairSpaceID })?.typeRawValue == SpaceType.pair.rawValue)
+        #expect(spaces.first(where: { $0.id == remoteSpaceID })?.typeRawValue == SpaceType.single.rawValue)
+        #expect(items.first(where: { $0.id == taskID })?.spaceID == pairSpaceID)
+        #expect(dates.first(where: { $0.id == importantDateID })?.spaceID == pairSpaceID)
+        #expect(changes.first(where: { $0.recordID == taskID })?.spaceID == pairSpaceID)
+        #expect(harness.remote.upsertCallCount() == 0)
+        #expect(harness.remote.fetchSnapshotCallCount() == 1)
+        #expect(harness.metadata.migrationCompletedAt(spaceID: remoteSpaceID) != nil)
+    }
+
     @Test("iPad without Pro throws requiresPro and does not fetch or push")
     func ipadWithoutProBlocked() async throws {
         let harness = try SoloSyncHarness()

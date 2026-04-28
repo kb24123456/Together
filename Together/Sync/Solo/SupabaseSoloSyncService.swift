@@ -70,7 +70,6 @@ actor SupabaseSoloSyncService {
     }
 
     func pushPending(spaceID: UUID, userID: UUID) async throws {
-        logger.debug("Solo pushPending placeholder spaceID=\(spaceID.uuidString, privacy: .public) userID=\(userID.uuidString, privacy: .public)")
     }
 }
 
@@ -101,7 +100,8 @@ private extension SupabaseSoloSyncService {
             $0.typeRawValue == SpaceType.single.rawValue &&
             $0.statusRawValue == SpaceStatus.active.rawValue
         }
-        let dataBearingSpaceID = try dataBearingSingleSpaceID(context: context)
+        let activeSingleIDs = Set(activeSingles.map(\.id))
+        let dataBearingSpaceID = try dataBearingSingleSpaceID(context: context, activeSingleIDs: activeSingleIDs)
 
         if let oldID = dataBearingSpaceID, oldID != remoteSpaceID {
             if let exact = activeSingles.first(where: { $0.id == remoteSpaceID }) {
@@ -162,29 +162,41 @@ private extension SupabaseSoloSyncService {
         ))
     }
 
-    func dataBearingSingleSpaceID(context: ModelContext) throws -> UUID? {
+    func dataBearingSingleSpaceID(context: ModelContext, activeSingleIDs: Set<UUID>) throws -> UUID? {
         let items = try context.fetch(FetchDescriptor<PersistentItem>())
-        if let spaceID = items.first(where: { $0.spaceID != nil && !$0.isLocallyDeleted })?.spaceID {
+        if let spaceID = items.first(where: { item in
+            guard let spaceID = item.spaceID else { return false }
+            return activeSingleIDs.contains(spaceID) && !item.isLocallyDeleted
+        })?.spaceID {
             return spaceID
         }
 
         let taskLists = try context.fetch(FetchDescriptor<PersistentTaskList>())
-        if let spaceID = taskLists.first(where: { !$0.isLocallyDeleted })?.spaceID {
+        if let spaceID = taskLists.first(where: {
+            activeSingleIDs.contains($0.spaceID) && !$0.isLocallyDeleted
+        })?.spaceID {
             return spaceID
         }
 
         let projects = try context.fetch(FetchDescriptor<PersistentProject>())
-        if let spaceID = projects.first(where: { !$0.isLocallyDeleted })?.spaceID {
+        if let spaceID = projects.first(where: {
+            activeSingleIDs.contains($0.spaceID) && !$0.isLocallyDeleted
+        })?.spaceID {
             return spaceID
         }
 
         let periodicTasks = try context.fetch(FetchDescriptor<PersistentPeriodicTask>())
-        if let spaceID = periodicTasks.first(where: { $0.spaceID != nil && !$0.isLocallyDeleted })?.spaceID {
+        if let spaceID = periodicTasks.first(where: { periodicTask in
+            guard let spaceID = periodicTask.spaceID else { return false }
+            return activeSingleIDs.contains(spaceID) && !periodicTask.isLocallyDeleted
+        })?.spaceID {
             return spaceID
         }
 
         let importantDates = try context.fetch(FetchDescriptor<PersistentImportantDate>())
-        return importantDates.first(where: { !$0.isLocallyDeleted })?.spaceID
+        return importantDates.first(where: {
+            activeSingleIDs.contains($0.spaceID) && !$0.isLocallyDeleted
+        })?.spaceID
     }
 
     func reassignSoloData(from oldSpaceID: UUID, to newSpaceID: UUID, context: ModelContext) throws {
