@@ -72,6 +72,7 @@ enum MockServiceFactory {
                 modelContainer: mockModelContainer,
                 healthMonitor: SyncHealthMonitor()
             ),
+            supabaseSoloSyncService: SupabaseSoloSyncService(modelContainer: mockModelContainer),
             premiumGate: premiumGate
         )
     }

@@ -69,6 +69,7 @@ enum LocalServiceFactory {
             modelContainer: modelContainer,
             healthMonitor: healthMonitor
         )
+        let supabaseSoloSyncService = SupabaseSoloSyncService(modelContainer: modelContainer)
 
         let container = AppContainer(
             authService: AppleAuthService(container: modelContainer),
@@ -98,6 +99,7 @@ enum LocalServiceFactory {
             userProfileRemote: userProfileRemote,
             cloudKitContainer: ckContainer,
             syncEngineCoordinator: syncEngineCoordinator,
+            supabaseSoloSyncService: supabaseSoloSyncService,
             premiumGate: premiumGate
         )
         StartupTrace.mark("LocalServiceFactory.makeContainer.end")

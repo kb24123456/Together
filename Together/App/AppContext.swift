@@ -238,11 +238,13 @@ final class AppContext {
         //      premium_grants（RLS policy `auth.uid() = user_id`）。
         //   2. 激活 Premium 门禁 —— startSoloSyncEngineIfNeeded 和若干业务 gate
         //      会读 premiumGate.isPremium，必须在它们之前 bootstrap 完成。
-        //   3. 启动 CKSyncEngine solo（Pro-only）。
-        //   4. 启动 Supabase 双人同步。
+        //   3. 启动 Supabase solo recovery（Pro-only）。
+        //   4. 暂时保留 CKSyncEngine solo（Pro-only）。
+        //   5. 启动 Supabase 双人同步。
         if sessionStore.authState == .signedIn {
             _ = await supabaseAuth.restoreSession()
             await configurePremiumGate()
+            await startSupabaseSoloSyncRecoveryIfNeeded()
             await startSoloSyncEngineIfNeeded()
             // user_profiles hydrate 必须在 startSupabaseSyncIfNeeded 之前 await 完成，
             // 否则 pair sync 启动后 push 路径可能用旧的 local 覆盖云端最新值。
@@ -254,6 +256,34 @@ final class AppContext {
         }
 
         StartupTrace.mark("AppContext.postLaunch.end")
+    }
+
+    private func startSupabaseSoloSyncRecoveryIfNeeded() async {
+        guard let supabaseUserID = await supabaseAuth.currentUserID else {
+            appContextLogger.debug("[SupabaseSolo] recovery skipped: no active Supabase session")
+            return
+        }
+
+        let displayName = sessionStore.currentUser?.displayName ?? "我"
+        guard let localUserID = sessionStore.currentUser?.id else {
+            appContextLogger.debug("[SupabaseSolo] recovery skipped: no local user")
+            return
+        }
+
+        do {
+            try await container.supabaseSoloSyncService.start(
+                userID: supabaseUserID,
+                localUserID: localUserID,
+                displayName: displayName,
+                platform: .current,
+                isPro: container.premiumGate.isPremium
+            )
+            appContextLogger.info("[SupabaseSolo] recovery completed")
+        } catch SoloSyncServiceError.requiresPro {
+            appContextLogger.info("[SupabaseSolo] recovery skipped: requires Pro")
+        } catch {
+            appContextLogger.error("[SupabaseSolo] recovery failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - CKSyncEngine Setup
