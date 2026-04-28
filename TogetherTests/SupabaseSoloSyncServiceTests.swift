@@ -166,6 +166,107 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.remote.fetchSnapshotCallCount() == 0)
         #expect(harness.remote.upsertCallCount() == 0)
     }
+
+    @Test("baseline startup pushes pending solo task changes and clears outbox")
+    func baselineStartupPushesPendingSoloTaskChanges() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+        harness.remote.setSpaceID(spaceID)
+        harness.metadata.markMigrationCompleted(spaceID: spaceID, at: .now, build: "13")
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: spaceID,
+                type: .single,
+                displayName: "我的空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: .now,
+                updatedAt: .now
+            )
+        ))
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "pending task"))
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: taskID, spaceID: spaceID)))
+        try context.save()
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        let upserted = harness.remote.upsertedSnapshot()
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+
+        #expect(upserted.tasks.map(\.title) == ["pending task"])
+        #expect(upserted.tasks.first?.spaceId == spaceID)
+        #expect(harness.remote.upsertCallCount() == 1)
+        #expect(changes.isEmpty)
+        #expect(harness.metadata.lastPushedAt(spaceID: spaceID) != nil)
+    }
+
+    @Test("pending important date is pushed and cleared")
+    func pendingImportantDatePushesAndClearsOutbox() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let importantDateID = UUID()
+        harness.metadata.markMigrationCompleted(spaceID: spaceID, at: .now, build: "13")
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentImportantDate.sample(id: importantDateID, spaceID: spaceID, creatorID: harness.userID, title: "renewal"))
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .importantDate, operation: .upsert, recordID: importantDateID, spaceID: spaceID)))
+        try context.save()
+
+        try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+
+        let upserted = harness.remote.upsertedSnapshot()
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+
+        #expect(upserted.importantDates.map(\.title) == ["renewal"])
+        #expect(upserted.importantDates.first?.spaceId == spaceID)
+        #expect(harness.remote.upsertCallCount() == 1)
+        #expect(changes.isEmpty)
+        #expect(harness.metadata.lastPushedAt(spaceID: spaceID) != nil)
+    }
+
+    @Test("remote upsert failure leaves changes failed with last error")
+    func remoteUpsertFailureLeavesChangesFailed() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+        harness.remote.setUpsertError(FakeSoloRemoteError.upsertFailed)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "will fail"))
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: taskID, spaceID: spaceID)))
+        try context.save()
+
+        do {
+            try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+            Issue.record("Expected upsert failure")
+        } catch FakeSoloRemoteError.upsertFailed {
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+        let change = try #require(changes.first)
+
+        #expect(harness.remote.upsertCallCount() == 1)
+        #expect(changes.count == 1)
+        #expect(change.lifecycleState == .failed)
+        #expect(change.lastAttemptedAt != nil)
+        #expect(change.lastError?.contains("upsertFailed") == true)
+        #expect(harness.metadata.lastPushedAt(spaceID: spaceID) == nil)
+    }
+}
+
+private enum FakeSoloRemoteError: Error {
+    case upsertFailed
 }
 
 private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @unchecked Sendable {
@@ -173,6 +274,7 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
     private var _spaceID = UUID()
     private var _snapshot = SoloRemoteSnapshot()
     private var _upserted = SoloRemoteSnapshot()
+    private var _upsertError: Error?
     private var _ensureSingleSpaceCallCount = 0
     private var _registerDeviceCallCount = 0
     private var _fetchSnapshotCallCount = 0
@@ -184,6 +286,10 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
 
     func setSnapshot(_ snapshot: SoloRemoteSnapshot) {
         lock.withLock { _snapshot = snapshot }
+    }
+
+    func setUpsertError(_ error: Error?) {
+        lock.withLock { _upsertError = error }
     }
 
     func upsertedSnapshot() -> SoloRemoteSnapshot {
@@ -225,8 +331,15 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
     }
 
     func upsert(snapshot: SoloRemoteSnapshot) async throws {
-        lock.withLock {
+        let error = lock.withLock {
             _upsertCallCount += 1
+            return _upsertError
+        }
+        if let error {
+            throw error
+        }
+
+        lock.withLock {
             _upserted.tasks.append(contentsOf: snapshot.tasks)
             _upserted.taskLists.append(contentsOf: snapshot.taskLists)
             _upserted.projects.append(contentsOf: snapshot.projects)

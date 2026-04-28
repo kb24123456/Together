@@ -5,6 +5,7 @@ import os
 enum SoloSyncServiceError: Error, Equatable {
     case requiresPro
     case missingSingleSpace
+    case missingLocalRow(entityKind: String, recordID: UUID)
 }
 
 actor SupabaseSoloSyncService {
@@ -70,6 +71,44 @@ actor SupabaseSoloSyncService {
     }
 
     func pushPending(spaceID: UUID, userID: UUID) async throws {
+        let context = ModelContext(modelContainer)
+        let pendingRaw = SyncMutationLifecycleState.pending.rawValue
+        let failedRaw = SyncMutationLifecycleState.failed.rawValue
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> {
+                $0.spaceID == spaceID &&
+                ($0.lifecycleStateRawValue == pendingRaw || $0.lifecycleStateRawValue == failedRaw)
+            },
+            sortBy: [SortDescriptor(\PersistentSyncChange.changedAt, order: .forward)]
+        )
+
+        let changes = try context.fetch(descriptor)
+        let handledChanges = changes.filter { Self.supportsSoloPush(entityKindRawValue: $0.entityKindRawValue) }
+        guard handledChanges.isEmpty == false else { return }
+
+        do {
+            let snapshot = try makePendingSnapshot(from: handledChanges, spaceID: spaceID, userID: userID, context: context)
+            guard snapshot.hasRows else { return }
+
+            let attemptedAt = Date()
+            for change in handledChanges {
+                change.lifecycleState = .sending
+                change.lastAttemptedAt = attemptedAt
+                change.lastError = nil
+            }
+            try context.save()
+
+            try await remote.upsert(snapshot: snapshot)
+
+            for change in handledChanges {
+                context.delete(change)
+            }
+            try context.save()
+            metadata.setLastPushedAt(Date(), spaceID: spaceID)
+        } catch {
+            try markFailed(handledChanges, error: error, context: context)
+            throw error
+        }
     }
 }
 
@@ -93,7 +132,141 @@ private enum InstallationIDStore {
     }
 }
 
+private extension SoloRemoteSnapshot {
+    var hasRows: Bool {
+        tasks.isEmpty == false ||
+        taskLists.isEmpty == false ||
+        projects.isEmpty == false ||
+        projectSubtasks.isEmpty == false ||
+        periodicTasks.isEmpty == false ||
+        importantDates.isEmpty == false
+    }
+}
+
 private extension SupabaseSoloSyncService {
+    static func supportsSoloPush(entityKindRawValue: String) -> Bool {
+        switch SyncEntityKind(rawValue: entityKindRawValue) {
+        case .task, .taskList, .project, .projectSubtask, .periodicTask, .importantDate:
+            return true
+        case .space, .memberProfile, .avatarAsset, .taskMessage, nil:
+            return false
+        }
+    }
+
+    func makePendingSnapshot(
+        from changes: [PersistentSyncChange],
+        spaceID: UUID,
+        userID: UUID,
+        context: ModelContext
+    ) throws -> SoloRemoteSnapshot {
+        var snapshot = SoloRemoteSnapshot()
+
+        for change in changes {
+            guard let entityKind = SyncEntityKind(rawValue: change.entityKindRawValue) else {
+                continue
+            }
+
+            switch entityKind {
+            case .task:
+                guard let task = try fetchTask(id: change.recordID, context: context),
+                      task.spaceID == spaceID else {
+                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                }
+                snapshot.tasks.append(TaskDTO(from: task, spaceID: spaceID, supabaseUserID: userID))
+
+            case .taskList:
+                guard let taskList = try fetchTaskList(id: change.recordID, context: context),
+                      taskList.spaceID == spaceID else {
+                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                }
+                snapshot.taskLists.append(TaskListDTO(from: taskList, spaceID: spaceID))
+
+            case .project:
+                guard let project = try fetchProject(id: change.recordID, context: context),
+                      project.spaceID == spaceID else {
+                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                }
+                snapshot.projects.append(ProjectDTO(from: project, spaceID: spaceID))
+
+            case .projectSubtask:
+                guard let subtask = try fetchProjectSubtask(id: change.recordID, context: context) else {
+                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                }
+                snapshot.projectSubtasks.append(ProjectSubtaskDTO(from: subtask, spaceID: spaceID))
+
+            case .periodicTask:
+                guard let periodicTask = try fetchPeriodicTask(id: change.recordID, context: context),
+                      periodicTask.spaceID == spaceID else {
+                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                }
+                snapshot.periodicTasks.append(PeriodicTaskDTO(from: periodicTask, spaceID: spaceID))
+
+            case .importantDate:
+                guard let importantDate = try fetchImportantDate(id: change.recordID, context: context),
+                      importantDate.spaceID == spaceID else {
+                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                }
+                snapshot.importantDates.append(ImportantDateDTO(from: importantDate))
+
+            case .space, .memberProfile, .avatarAsset, .taskMessage:
+                continue
+            }
+        }
+
+        return snapshot
+    }
+
+    func fetchTask(id: UUID, context: ModelContext) throws -> PersistentItem? {
+        let recordID = id
+        let descriptor = FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == recordID })
+        return try context.fetch(descriptor).first
+    }
+
+    func fetchTaskList(id: UUID, context: ModelContext) throws -> PersistentTaskList? {
+        let recordID = id
+        let descriptor = FetchDescriptor<PersistentTaskList>(predicate: #Predicate { $0.id == recordID })
+        return try context.fetch(descriptor).first
+    }
+
+    func fetchProject(id: UUID, context: ModelContext) throws -> PersistentProject? {
+        let recordID = id
+        let descriptor = FetchDescriptor<PersistentProject>(predicate: #Predicate { $0.id == recordID })
+        return try context.fetch(descriptor).first
+    }
+
+    func fetchProjectSubtask(id: UUID, context: ModelContext) throws -> PersistentProjectSubtask? {
+        let recordID = id
+        let descriptor = FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate { $0.id == recordID })
+        return try context.fetch(descriptor).first
+    }
+
+    func fetchPeriodicTask(id: UUID, context: ModelContext) throws -> PersistentPeriodicTask? {
+        let recordID = id
+        let descriptor = FetchDescriptor<PersistentPeriodicTask>(predicate: #Predicate { $0.id == recordID })
+        return try context.fetch(descriptor).first
+    }
+
+    func fetchImportantDate(id: UUID, context: ModelContext) throws -> PersistentImportantDate? {
+        let recordID = id
+        let descriptor = FetchDescriptor<PersistentImportantDate>(predicate: #Predicate { $0.id == recordID })
+        return try context.fetch(descriptor).first
+    }
+
+    func markFailed(
+        _ changes: [PersistentSyncChange],
+        error: Error,
+        context: ModelContext
+    ) throws {
+        let message = String(describing: error)
+        let attemptedAt = Date()
+        for change in changes {
+            change.lifecycleState = .failed
+            change.lastAttemptedAt = change.lastAttemptedAt ?? attemptedAt
+            change.lastError = message
+        }
+        try context.save()
+    }
+
     func reconcileLocalSingleSpace(remoteSpaceID: UUID, userID: UUID, displayName: String) throws {
         let context = ModelContext(modelContainer)
         let activeSingles = try context.fetch(FetchDescriptor<PersistentSpace>()).filter {
