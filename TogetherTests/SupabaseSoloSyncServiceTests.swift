@@ -232,6 +232,7 @@ struct SupabaseSoloSyncServiceTests {
         context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "stuck sending task"))
         let change = PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: taskID, spaceID: spaceID))
         change.lifecycleState = .sending
+        change.lastAttemptedAt = Date(timeIntervalSinceNow: -(SupabaseSoloSyncService.sendingRecoveryStaleInterval + 1))
         context.insert(change)
         try context.save()
 
@@ -249,6 +250,33 @@ struct SupabaseSoloSyncServiceTests {
         #expect(upserted.tasks.map(\.title) == ["stuck sending task"])
         #expect(harness.remote.upsertCallCount() == 1)
         #expect(changes.isEmpty)
+    }
+
+    @Test("fresh sending changes are not revived or pushed again")
+    func freshSendingChangesAreNotRevivedOrPushedAgain() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "active send task"))
+        let change = PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: taskID, spaceID: spaceID))
+        change.lifecycleState = .sending
+        let attemptedAt = Date()
+        change.lastAttemptedAt = attemptedAt
+        context.insert(change)
+        try context.save()
+
+        try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+        let remainingChange = try #require(changes.first)
+
+        #expect(harness.remote.upsertCallCount() == 0)
+        #expect(changes.count == 1)
+        #expect(remainingChange.lifecycleState == .sending)
+        #expect(remainingChange.lastAttemptedAt == attemptedAt)
+        #expect(harness.metadata.lastPushedAt(spaceID: spaceID) == nil)
     }
 
     @Test("pending important date is pushed and cleared")

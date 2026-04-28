@@ -9,6 +9,8 @@ enum SoloSyncServiceError: Error, Equatable {
 }
 
 actor SupabaseSoloSyncService {
+    static let sendingRecoveryStaleInterval: TimeInterval = 5 * 60
+
     private let modelContainer: ModelContainer
     private let remote: SupabaseSoloRemoteGatewayProtocol
     private let metadata: SoloSyncMetadataStore
@@ -274,12 +276,16 @@ private extension SupabaseSoloSyncService {
 
     func resurrectSendingChanges(spaceID: UUID, context: ModelContext) throws {
         let sendingRaw = SyncMutationLifecycleState.sending.rawValue
+        let staleCutoff = Date().addingTimeInterval(-Self.sendingRecoveryStaleInterval)
         let descriptor = FetchDescriptor<PersistentSyncChange>(
             predicate: #Predicate<PersistentSyncChange> {
                 $0.spaceID == spaceID && $0.lifecycleStateRawValue == sendingRaw
             }
         )
-        let stuck = try context.fetch(descriptor)
+        let stuck = try context.fetch(descriptor).filter { change in
+            guard let lastAttemptedAt = change.lastAttemptedAt else { return true }
+            return lastAttemptedAt < staleCutoff
+        }
         guard stuck.isEmpty == false else { return }
         for change in stuck {
             change.lifecycleState = .pending
