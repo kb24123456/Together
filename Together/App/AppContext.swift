@@ -278,14 +278,19 @@ final class AppContext {
                 platform: .current,
                 isPro: container.premiumGate.isPremium
             )
-            let updatedSpaceContext = await container.spaceService.currentSpaceContext(for: localUserID)
-            sessionStore.refresh(spaceContext: updatedSpaceContext, pairingContext: sessionStore.pairingContext)
             appContextLogger.info("[SupabaseSolo] recovery completed")
         } catch SoloSyncServiceError.requiresPro {
             appContextLogger.info("[SupabaseSolo] recovery skipped: requires Pro")
         } catch {
             appContextLogger.error("[SupabaseSolo] recovery failed: \(error.localizedDescription, privacy: .public)")
         }
+
+        await refreshSessionSpaceContext(for: localUserID)
+    }
+
+    private func refreshSessionSpaceContext(for userID: UUID) async {
+        let updatedSpaceContext = await container.spaceService.currentSpaceContext(for: userID)
+        sessionStore.refresh(spaceContext: updatedSpaceContext, pairingContext: sessionStore.pairingContext)
     }
 
     // MARK: - CKSyncEngine Setup
