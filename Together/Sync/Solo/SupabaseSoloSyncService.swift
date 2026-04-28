@@ -62,7 +62,7 @@ actor SupabaseSoloSyncService {
             pendingMutationCount = mutationCounts.pending
             failedMutationCount = mutationCounts.failed
         } catch {
-            lastError = String(describing: error)
+            appendDiagnosticError(.localDiagnosticsFailed, to: &lastError)
         }
 
         if let spaceID {
@@ -73,12 +73,9 @@ actor SupabaseSoloSyncService {
 
         if let spaceID, gateDecision == .allowed {
             do {
-                let snapshot = try await remote.fetchSnapshot(spaceID: spaceID, since: nil)
-                remoteTaskCount = snapshot.tasks.count
+                remoteTaskCount = try await remote.countTasks(spaceID: spaceID)
             } catch {
-                lastError = [lastError, String(describing: error)]
-                    .compactMap { $0 }
-                    .joined(separator: "; ")
+                appendDiagnosticError(.remoteTaskCountFailed, to: &lastError)
             }
         }
 
@@ -191,6 +188,11 @@ private enum SoloLocalState {
     case freshInstall
     case needsBootstrap
     case hasBaseline
+}
+
+private enum SoloSyncDiagnosticErrorCategory: String {
+    case localDiagnosticsFailed = "local_diagnostics_failed"
+    case remoteTaskCountFailed = "remote_task_count_failed"
 }
 
 private enum InstallationIDStore {
@@ -428,6 +430,14 @@ private extension SupabaseSoloSyncService {
             case .sending, .confirmed:
                 break
             }
+        }
+    }
+
+    func appendDiagnosticError(_ category: SoloSyncDiagnosticErrorCategory, to lastError: inout String?) {
+        if let existing = lastError, existing.isEmpty == false {
+            lastError = "\(existing); \(category.rawValue)"
+        } else {
+            lastError = category.rawValue
         }
     }
 

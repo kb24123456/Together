@@ -95,6 +95,7 @@ struct SoloRemoteSnapshot: Sendable {
 protocol SupabaseSoloRemoteGatewayProtocol: Sendable {
     func ensureSingleSpace(userID: UUID, displayName: String) async throws -> UUID
     func registerDevice(_ dto: DeviceInstallationUpsertDTO) async throws
+    func countTasks(spaceID: UUID) async throws -> Int
     func fetchSnapshot(spaceID: UUID, since: Date?) async throws -> SoloRemoteSnapshot
     func upsert(snapshot: SoloRemoteSnapshot) async throws
 }
@@ -125,6 +126,16 @@ actor SupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
         try await client.from("device_installations")
             .upsert(dto, onConflict: "user_id,installation_id")
             .execute()
+    }
+
+    func countTasks(spaceID: UUID) async throws -> Int {
+        let response: PostgrestResponse<Void> = try await client
+            .from("tasks")
+            .select("id", head: true, count: .exact)
+            .eq("space_id", value: spaceID.uuidString)
+            .execute()
+
+        return response.count ?? 0
     }
 
     func fetchSnapshot(spaceID: UUID, since: Date?) async throws -> SoloRemoteSnapshot {

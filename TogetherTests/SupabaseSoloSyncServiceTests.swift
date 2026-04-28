@@ -455,7 +455,9 @@ struct SupabaseSoloSyncServiceTests {
         #expect(snapshot.failedMutationCount == 0)
         #expect(snapshot.lastError == nil)
         #expect(harness.remote.ensureSingleSpaceCallCount() == 0)
-        #expect(harness.remote.fetchSnapshotCallCount() == 1)
+        #expect(harness.remote.countTasksCallCount() == 1)
+        #expect(harness.remote.countTasksSpaceIDs() == [spaceID])
+        #expect(harness.remote.fetchSnapshotCallCount() == 0)
     }
 
     @Test("diagnostics is observational when gate is blocked or space is nil")
@@ -489,6 +491,7 @@ struct SupabaseSoloSyncServiceTests {
         #expect(missingSpace.localTaskCount == 1)
         #expect(missingSpace.remoteTaskCount == 0)
         #expect(harness.remote.ensureSingleSpaceCallCount() == 0)
+        #expect(harness.remote.countTasksCallCount() == 0)
         #expect(harness.remote.fetchSnapshotCallCount() == 0)
         #expect(harness.remote.registerDeviceCallCount() == 0)
         #expect(harness.remote.upsertCallCount() == 0)
@@ -560,14 +563,15 @@ struct SupabaseSoloSyncServiceTests {
         #expect(snapshot.spaceID == nil)
         #expect(snapshot.pendingMutationCount == 2)
         #expect(snapshot.failedMutationCount == 2)
+        #expect(harness.remote.countTasksCallCount() == 0)
         #expect(harness.remote.fetchSnapshotCallCount() == 0)
     }
 
-    @Test("diagnostics captures remote fetch error without throwing")
-    func diagnosticsCapturesRemoteFetchError() async throws {
+    @Test("diagnostics captures remote task count error without leaking raw error")
+    func diagnosticsCapturesRemoteTaskCountError() async throws {
         let harness = try SoloSyncHarness()
         let spaceID = UUID()
-        harness.remote.setFetchError(FakeSoloRemoteError.fetchFailed)
+        harness.remote.setCountTasksError(FakeSoloRemoteError.countFailed)
 
         let snapshot = await harness.service.diagnostics(
             userID: harness.userID,
@@ -577,13 +581,16 @@ struct SupabaseSoloSyncServiceTests {
         )
 
         #expect(snapshot.remoteTaskCount == 0)
-        #expect(snapshot.lastError?.contains("fetchFailed") == true)
+        #expect(snapshot.lastError == "remote_task_count_failed")
         #expect(harness.remote.ensureSingleSpaceCallCount() == 0)
-        #expect(harness.remote.fetchSnapshotCallCount() == 1)
+        #expect(harness.remote.countTasksCallCount() == 1)
+        #expect(harness.remote.countTasksSpaceIDs() == [spaceID])
+        #expect(harness.remote.fetchSnapshotCallCount() == 0)
     }
 }
 
 private enum FakeSoloRemoteError: Error {
+    case countFailed
     case fetchFailed
     case upsertFailed
 }
@@ -591,13 +598,18 @@ private enum FakeSoloRemoteError: Error {
 private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var _spaceID = UUID()
+    private var _taskCount = 0
     private var _snapshot = SoloRemoteSnapshot()
     private var _upserted = SoloRemoteSnapshot()
+    private var _countTasksError: Error?
     private var _fetchError: Error?
     private var _upsertError: Error?
     private var _ensureSingleSpaceCallCount = 0
     private var _registerDeviceCallCount = 0
+    private var _countTasksCallCount = 0
+    private var _countTasksSpaceIDs: [UUID] = []
     private var _fetchSnapshotCallCount = 0
+    private var _fetchSnapshotSpaceIDs: [UUID] = []
     private var _upsertCallCount = 0
 
     func setSpaceID(_ id: UUID) {
@@ -605,7 +617,18 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
     }
 
     func setSnapshot(_ snapshot: SoloRemoteSnapshot) {
-        lock.withLock { _snapshot = snapshot }
+        lock.withLock {
+            _snapshot = snapshot
+            _taskCount = snapshot.tasks.count
+        }
+    }
+
+    func setTaskCount(_ count: Int) {
+        lock.withLock { _taskCount = count }
+    }
+
+    func setCountTasksError(_ error: Error?) {
+        lock.withLock { _countTasksError = error }
     }
 
     func setFetchError(_ error: Error?) {
@@ -628,8 +651,20 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
         lock.withLock { _registerDeviceCallCount }
     }
 
+    func countTasksCallCount() -> Int {
+        lock.withLock { _countTasksCallCount }
+    }
+
+    func countTasksSpaceIDs() -> [UUID] {
+        lock.withLock { _countTasksSpaceIDs }
+    }
+
     func fetchSnapshotCallCount() -> Int {
         lock.withLock { _fetchSnapshotCallCount }
+    }
+
+    func fetchSnapshotSpaceIDs() -> [UUID] {
+        lock.withLock { _fetchSnapshotSpaceIDs }
     }
 
     func upsertCallCount() -> Int {
@@ -647,9 +682,22 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
         lock.withLock { _registerDeviceCallCount += 1 }
     }
 
+    func countTasks(spaceID: UUID) async throws -> Int {
+        let result = lock.withLock { () -> Result<Int, Error> in
+            _countTasksCallCount += 1
+            _countTasksSpaceIDs.append(spaceID)
+            if let error = _countTasksError {
+                return .failure(error)
+            }
+            return .success(_taskCount)
+        }
+        return try result.get()
+    }
+
     func fetchSnapshot(spaceID: UUID, since: Date?) async throws -> SoloRemoteSnapshot {
         let result = lock.withLock { () -> Result<SoloRemoteSnapshot, Error> in
             _fetchSnapshotCallCount += 1
+            _fetchSnapshotSpaceIDs.append(spaceID)
             if let error = _fetchError {
                 return .failure(error)
             }

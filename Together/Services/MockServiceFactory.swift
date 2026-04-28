@@ -21,6 +21,10 @@ private actor MockSupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
 
     func registerDevice(_ dto: DeviceInstallationUpsertDTO) async throws {}
 
+    func countTasks(spaceID: UUID) async throws -> Int {
+        emptySnapshot.tasks.count
+    }
+
     func fetchSnapshot(spaceID: UUID, since: Date?) async throws -> SoloRemoteSnapshot {
         emptySnapshot
     }
