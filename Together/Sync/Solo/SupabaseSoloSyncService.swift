@@ -72,6 +72,8 @@ actor SupabaseSoloSyncService {
 
     func pushPending(spaceID: UUID, userID: UUID) async throws {
         let context = ModelContext(modelContainer)
+        try resurrectSendingChanges(spaceID: spaceID, context: context)
+
         let pendingRaw = SyncMutationLifecycleState.pending.rawValue
         let failedRaw = SyncMutationLifecycleState.failed.rawValue
         let descriptor = FetchDescriptor<PersistentSyncChange>(
@@ -83,15 +85,27 @@ actor SupabaseSoloSyncService {
         )
 
         let changes = try context.fetch(descriptor)
-        let handledChanges = changes.filter { Self.supportsSoloPush(entityKindRawValue: $0.entityKindRawValue) }
-        guard handledChanges.isEmpty == false else { return }
+        guard changes.isEmpty == false else { return }
 
+        var outboundChanges: [PersistentSyncChange] = []
         do {
-            let snapshot = try makePendingSnapshot(from: handledChanges, spaceID: spaceID, userID: userID, context: context)
+            let buildResult = try makePendingSnapshot(from: changes, spaceID: spaceID, userID: userID, context: context)
+            outboundChanges = buildResult.outboundChanges
+            let failedAt = Date()
+            for failedChange in buildResult.failedChanges {
+                failedChange.change.lifecycleState = .failed
+                failedChange.change.lastAttemptedAt = failedChange.change.lastAttemptedAt ?? failedAt
+                failedChange.change.lastError = failedChange.message
+            }
+            if buildResult.failedChanges.isEmpty == false {
+                try context.save()
+            }
+
+            let snapshot = buildResult.snapshot
             guard snapshot.hasRows else { return }
 
             let attemptedAt = Date()
-            for change in handledChanges {
+            for change in outboundChanges {
                 change.lifecycleState = .sending
                 change.lastAttemptedAt = attemptedAt
                 change.lastError = nil
@@ -100,13 +114,13 @@ actor SupabaseSoloSyncService {
 
             try await remote.upsert(snapshot: snapshot)
 
-            for change in handledChanges {
+            for change in outboundChanges {
                 context.delete(change)
             }
             try context.save()
             metadata.setLastPushedAt(Date(), spaceID: spaceID)
         } catch {
-            try markFailed(handledChanges, error: error, context: context)
+            try markFailed(outboundChanges.isEmpty ? changes : outboundChanges, error: error, context: context)
             throw error
         }
     }
@@ -144,6 +158,27 @@ private extension SoloRemoteSnapshot {
 }
 
 private extension SupabaseSoloSyncService {
+    struct PendingSnapshotBuildResult {
+        struct FailedChange {
+            let change: PersistentSyncChange
+            let message: String
+        }
+
+        var snapshot = SoloRemoteSnapshot()
+        var outboundChanges: [PersistentSyncChange] = []
+        var failedChanges: [FailedChange] = []
+
+        mutating func markMissing(_ change: PersistentSyncChange) {
+            failedChanges.append(.init(
+                change: change,
+                message: String(describing: SoloSyncServiceError.missingLocalRow(
+                    entityKind: change.entityKindRawValue,
+                    recordID: change.recordID
+                ))
+            ))
+        }
+    }
+
     static func supportsSoloPush(entityKindRawValue: String) -> Bool {
         switch SyncEntityKind(rawValue: entityKindRawValue) {
         case .task, .taskList, .project, .projectSubtask, .periodicTask, .importantDate:
@@ -158,11 +193,15 @@ private extension SupabaseSoloSyncService {
         spaceID: UUID,
         userID: UUID,
         context: ModelContext
-    ) throws -> SoloRemoteSnapshot {
-        var snapshot = SoloRemoteSnapshot()
+    ) throws -> PendingSnapshotBuildResult {
+        var result = PendingSnapshotBuildResult()
 
         for change in changes {
             guard let entityKind = SyncEntityKind(rawValue: change.entityKindRawValue) else {
+                result.failedChanges.append(.init(
+                    change: change,
+                    message: "unsupported solo sync entity kind: \(change.entityKindRawValue)"
+                ))
                 continue
             }
 
@@ -170,50 +209,83 @@ private extension SupabaseSoloSyncService {
             case .task:
                 guard let task = try fetchTask(id: change.recordID, context: context),
                       task.spaceID == spaceID else {
-                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                    result.markMissing(change)
+                    continue
                 }
-                snapshot.tasks.append(TaskDTO(from: task, spaceID: spaceID, supabaseUserID: userID))
+                result.snapshot.tasks.append(TaskDTO(from: task, spaceID: spaceID, supabaseUserID: userID))
+                result.outboundChanges.append(change)
 
             case .taskList:
                 guard let taskList = try fetchTaskList(id: change.recordID, context: context),
                       taskList.spaceID == spaceID else {
-                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                    result.markMissing(change)
+                    continue
                 }
-                snapshot.taskLists.append(TaskListDTO(from: taskList, spaceID: spaceID))
+                result.snapshot.taskLists.append(TaskListDTO(from: taskList, spaceID: spaceID))
+                result.outboundChanges.append(change)
 
             case .project:
                 guard let project = try fetchProject(id: change.recordID, context: context),
                       project.spaceID == spaceID else {
-                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                    result.markMissing(change)
+                    continue
                 }
-                snapshot.projects.append(ProjectDTO(from: project, spaceID: spaceID))
+                result.snapshot.projects.append(ProjectDTO(from: project, spaceID: spaceID))
+                result.outboundChanges.append(change)
 
             case .projectSubtask:
-                guard let subtask = try fetchProjectSubtask(id: change.recordID, context: context) else {
-                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                guard let subtask = try fetchProjectSubtask(id: change.recordID, context: context),
+                      let project = try fetchProject(id: subtask.projectID, context: context),
+                      project.spaceID == spaceID else {
+                    result.markMissing(change)
+                    continue
                 }
-                snapshot.projectSubtasks.append(ProjectSubtaskDTO(from: subtask, spaceID: spaceID))
+                result.snapshot.projectSubtasks.append(ProjectSubtaskDTO(from: subtask, spaceID: spaceID))
+                result.outboundChanges.append(change)
 
             case .periodicTask:
                 guard let periodicTask = try fetchPeriodicTask(id: change.recordID, context: context),
                       periodicTask.spaceID == spaceID else {
-                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                    result.markMissing(change)
+                    continue
                 }
-                snapshot.periodicTasks.append(PeriodicTaskDTO(from: periodicTask, spaceID: spaceID))
+                result.snapshot.periodicTasks.append(PeriodicTaskDTO(from: periodicTask, spaceID: spaceID))
+                result.outboundChanges.append(change)
 
             case .importantDate:
                 guard let importantDate = try fetchImportantDate(id: change.recordID, context: context),
                       importantDate.spaceID == spaceID else {
-                    throw SoloSyncServiceError.missingLocalRow(entityKind: change.entityKindRawValue, recordID: change.recordID)
+                    result.markMissing(change)
+                    continue
                 }
-                snapshot.importantDates.append(ImportantDateDTO(from: importantDate))
+                result.snapshot.importantDates.append(ImportantDateDTO(from: importantDate))
+                result.outboundChanges.append(change)
 
             case .space, .memberProfile, .avatarAsset, .taskMessage:
-                continue
+                result.failedChanges.append(.init(
+                    change: change,
+                    message: "unsupported solo sync entity kind: \(change.entityKindRawValue)"
+                ))
             }
         }
 
-        return snapshot
+        return result
+    }
+
+    func resurrectSendingChanges(spaceID: UUID, context: ModelContext) throws {
+        let sendingRaw = SyncMutationLifecycleState.sending.rawValue
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> {
+                $0.spaceID == spaceID && $0.lifecycleStateRawValue == sendingRaw
+            }
+        )
+        let stuck = try context.fetch(descriptor)
+        guard stuck.isEmpty == false else { return }
+        for change in stuck {
+            change.lifecycleState = .pending
+        }
+        try context.save()
+        logger.info("[Recovery] Revived \(stuck.count) stuck solo sending changes")
     }
 
     func fetchTask(id: UUID, context: ModelContext) throws -> PersistentItem? {

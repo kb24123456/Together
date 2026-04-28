@@ -209,6 +209,48 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.metadata.lastPushedAt(spaceID: spaceID) != nil)
     }
 
+    @Test("baseline startup revives sending changes before pushing")
+    func baselineStartupRevivesSendingChangesBeforePush() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+        harness.remote.setSpaceID(spaceID)
+        harness.metadata.markMigrationCompleted(spaceID: spaceID, at: .now, build: "13")
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: spaceID,
+                type: .single,
+                displayName: "我的空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: .now,
+                updatedAt: .now
+            )
+        ))
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "stuck sending task"))
+        let change = PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: taskID, spaceID: spaceID))
+        change.lifecycleState = .sending
+        context.insert(change)
+        try context.save()
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        let upserted = harness.remote.upsertedSnapshot()
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+
+        #expect(upserted.tasks.map(\.title) == ["stuck sending task"])
+        #expect(harness.remote.upsertCallCount() == 1)
+        #expect(changes.isEmpty)
+    }
+
     @Test("pending important date is pushed and cleared")
     func pendingImportantDatePushesAndClearsOutbox() async throws {
         let harness = try SoloSyncHarness()
@@ -231,6 +273,91 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.remote.upsertCallCount() == 1)
         #expect(changes.isEmpty)
         #expect(harness.metadata.lastPushedAt(spaceID: spaceID) != nil)
+    }
+
+    @Test("project subtask with parent project outside solo space is failed without pushing")
+    func projectSubtaskOutsideSoloSpaceFailsWithoutPushing() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let otherSpaceID = UUID()
+        let projectID = UUID()
+        let subtaskID = UUID()
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentProject.sample(id: projectID, spaceID: otherSpaceID, creatorID: harness.userID, name: "other project"))
+        context.insert(PersistentProjectSubtask.sample(id: subtaskID, projectID: projectID, creatorID: harness.userID, title: "wrong space subtask"))
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: subtaskID, spaceID: spaceID)))
+        try context.save()
+
+        try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+        let change = try #require(changes.first)
+
+        #expect(harness.remote.upsertCallCount() == 0)
+        #expect(changes.count == 1)
+        #expect(change.lifecycleState == .failed)
+        #expect(change.lastError?.contains("missingLocalRow") == true)
+    }
+
+    @Test("missing local row does not block valid pending task")
+    func missingLocalRowDoesNotBlockValidPendingTask() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let missingTaskID = UUID()
+        let validTaskID = UUID()
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentItem.sample(id: validTaskID, spaceID: spaceID, creatorID: harness.userID, title: "valid task"))
+        context.insert(PersistentSyncChange(change: SyncChange(
+            entityKind: .task,
+            operation: .upsert,
+            recordID: missingTaskID,
+            spaceID: spaceID,
+            changedAt: Date(timeIntervalSince1970: 1)
+        )))
+        context.insert(PersistentSyncChange(change: SyncChange(
+            entityKind: .task,
+            operation: .upsert,
+            recordID: validTaskID,
+            spaceID: spaceID,
+            changedAt: Date(timeIntervalSince1970: 2)
+        )))
+        try context.save()
+
+        try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+
+        let upserted = harness.remote.upsertedSnapshot()
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+        let failedChange = try #require(changes.first)
+
+        #expect(harness.remote.upsertCallCount() == 1)
+        #expect(upserted.tasks.map(\.title) == ["valid task"])
+        #expect(changes.count == 1)
+        #expect(failedChange.recordID == missingTaskID)
+        #expect(failedChange.lifecycleState == .failed)
+        #expect(failedChange.lastError?.contains("missingLocalRow") == true)
+    }
+
+    @Test("unsupported solo changes are marked failed without remote upsert")
+    func unsupportedSoloChangesAreMarkedFailedWithoutRemoteUpsert() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let recordID = UUID()
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .space, operation: .upsert, recordID: recordID, spaceID: spaceID)))
+        try context.save()
+
+        try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+        let change = try #require(changes.first)
+
+        #expect(harness.remote.upsertCallCount() == 0)
+        #expect(changes.count == 1)
+        #expect(change.lifecycleState == .failed)
+        #expect(change.lastError == "unsupported solo sync entity kind: space")
     }
 
     @Test("remote upsert failure leaves changes failed with last error")
@@ -431,6 +558,38 @@ private extension PersistentItem {
             repeatRuleData: nil,
             reminderRequestedAt: nil,
             isLocallyDeleted: false
+        )
+    }
+}
+
+private extension PersistentProject {
+    static func sample(id: UUID, spaceID: UUID, creatorID: UUID, name: String) -> PersistentProject {
+        PersistentProject(
+            id: id,
+            spaceID: spaceID,
+            creatorID: creatorID,
+            name: name,
+            notes: nil,
+            colorToken: nil,
+            statusRawValue: ProjectStatus.active.rawValue,
+            targetDate: nil,
+            remindAt: nil,
+            createdAt: .now,
+            updatedAt: .now,
+            completedAt: nil
+        )
+    }
+}
+
+private extension PersistentProjectSubtask {
+    static func sample(id: UUID, projectID: UUID, creatorID: UUID, title: String) -> PersistentProjectSubtask {
+        PersistentProjectSubtask(
+            id: id,
+            projectID: projectID,
+            creatorID: creatorID,
+            title: title,
+            isCompleted: false,
+            sortOrder: 0
         )
     }
 }
