@@ -274,9 +274,7 @@ final class AppContext {
         await container.syncEngineCoordinator.setSoloRemoteChangesCallback { [weak self] count in
             guard let self, count > 0 else { return }
             Task { @MainActor in
-                await self.homeViewModel.reload()
-                await self.listsViewModel.load()
-                await self.projectsViewModel.load()
+                await self.reloadAfterSync()
             }
         }
 
@@ -498,10 +496,23 @@ final class AppContext {
             }
         }
 
+        var existingAvatarURLString: String?
+        if avatarURLString == nil, user.avatarAssetID != nil {
+            do {
+                existingAvatarURLString = try await container.userProfileRemote.fetchOwn()?.avatarURL
+            } catch {
+                appContextLogger.error("[OwnProfile] existing avatar URL fetch failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
         let dto = Self.makeCloudUserProfileDTO(
             from: user,
             supabaseUserID: supabaseUserID,
-            avatarURLString: avatarURLString
+            avatarURLString: Self.resolvedCloudAvatarURLString(
+                for: user,
+                uploadedAvatarURLString: avatarURLString,
+                existingAvatarURLString: existingAvatarURLString
+            )
         )
         do {
             try await container.userProfileRemote.upsertOwn(dto)
@@ -513,6 +524,20 @@ final class AppContext {
 
     nonisolated static func userProfileCloudWatermarkKey(supabaseUserID: UUID) -> String {
         "together.userProfile.lastSyncedAvatarVersion.\(supabaseUserID.uuidString.lowercased())"
+    }
+
+    nonisolated static func resolvedCloudAvatarURLString(
+        for user: User,
+        uploadedAvatarURLString: String?,
+        existingAvatarURLString: String?
+    ) -> String? {
+        if let uploadedAvatarURLString {
+            return uploadedAvatarURLString
+        }
+        if user.avatarAssetID != nil {
+            return existingAvatarURLString
+        }
+        return nil
     }
 
     nonisolated static func makeCloudUserProfileDTO(
@@ -628,7 +653,7 @@ final class AppContext {
             sessionStore.currentUser = hydrated
             hasHydratedOwnProfile = true
             // 同步成功后,把 watermark 也更新,避免下次 syncOwnProfileToCloud 误判要重传 bytes
-            let watermarkKey = "together.userProfile.lastSyncedAvatarVersion.\(hydrated.id.uuidString.lowercased())"
+            let watermarkKey = Self.userProfileCloudWatermarkKey(supabaseUserID: dto.userID)
             UserDefaults.standard.set(dto.avatarVersion, forKey: watermarkKey)
             appContextLogger.info("[OwnProfile] hydrated displayName=\(hydrated.displayName, privacy: .private) version=\(dto.avatarVersion)")
         } catch {

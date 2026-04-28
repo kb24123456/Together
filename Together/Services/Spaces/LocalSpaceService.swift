@@ -18,44 +18,21 @@ actor LocalSpaceService: SpaceServiceProtocol {
         let pairSpaceRecords = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
         let membershipRecords = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
 
-        var singleSpace = spaceRecords
-            .map(\.domainModel)
-            .first { space in
-                guard space.type == .single, space.status != .archived else { return false }
-                guard let userID else { return true }
-                return space.ownerUserID == userID
-            }
-
-        // If no matching single space found but an orphaned single space exists,
-        // claim it for the current user (fixes seed-data ownerUserID mismatch).
-        if singleSpace == nil, let userID {
-            if let orphanedRecord = spaceRecords.first(where: {
-                $0.domainModel.type == .single && $0.domainModel.status != .archived
-            }) {
-                let oldOwnerID = orphanedRecord.ownerUserID
-                orphanedRecord.ownerUserID = userID
-                orphanedRecord.updatedAt = .now
-
-                // Re-assign all items seeded under the old owner so the real user
-                // passes canActorComplete() and can toggle completion normally.
-                // Use Optional(spaceID) to match PersistentItem.spaceID: UUID?
-                // exactly — SwiftData #Predicate requires type-aligned comparisons.
-                let spaceIDOptional: UUID? = orphanedRecord.id
-                let itemDescriptor = FetchDescriptor<PersistentItem>(
-                    predicate: #Predicate<PersistentItem> {
-                        $0.spaceID == spaceIDOptional && $0.creatorID == oldOwnerID
-                    }
-                )
-                if let orphanedItems = try? context.fetch(itemDescriptor) {
-                    for item in orphanedItems {
-                        item.creatorID = userID
-                    }
-                }
-
-                try? context.save()
-                singleSpace = orphanedRecord.domainModel
-            }
+        let activeSingleSpaceRecords = spaceRecords.filter {
+            $0.typeRawValue == SpaceType.single.rawValue && $0.statusRawValue != SpaceStatus.archived.rawValue
         }
+        let dataBearingSpaceIDs = Self.dataBearingSingleSpaceIDs(in: context)
+        let selectedSingleSpaceRecord = activeSingleSpaceRecords.first { dataBearingSpaceIDs.contains($0.id) }
+            ?? userID.flatMap { currentUserID in
+                activeSingleSpaceRecords.first { $0.ownerUserID == currentUserID }
+            }
+            ?? activeSingleSpaceRecords.first
+
+        if let selectedSingleSpaceRecord, let userID {
+            Self.claimSingleSpaceIfNeeded(selectedSingleSpaceRecord, for: userID, context: context)
+        }
+
+        let singleSpace = selectedSingleSpaceRecord?.domainModel
 
         let pairSummary = userID.flatMap {
             PairSpaceSummaryResolver.resolve(
@@ -90,5 +67,78 @@ actor LocalSpaceService: SpaceServiceProtocol {
         context.insert(PersistentSpace(space: space))
         try context.save()
         return space
+    }
+
+    private static func dataBearingSingleSpaceIDs(in context: ModelContext) -> Set<UUID> {
+        var spaceIDs = Set<UUID>()
+
+        let items = (try? context.fetch(FetchDescriptor<PersistentItem>())) ?? []
+        for item in items where item.isLocallyDeleted == false && item.isArchived == false {
+            if let spaceID = item.spaceID {
+                spaceIDs.insert(spaceID)
+            }
+        }
+
+        let lists = (try? context.fetch(FetchDescriptor<PersistentTaskList>())) ?? []
+        for list in lists where list.isLocallyDeleted == false && list.isArchived == false {
+            spaceIDs.insert(list.spaceID)
+        }
+
+        let projects = (try? context.fetch(FetchDescriptor<PersistentProject>())) ?? []
+        for project in projects where project.isLocallyDeleted == false {
+            spaceIDs.insert(project.spaceID)
+        }
+
+        let periodicTasks = (try? context.fetch(FetchDescriptor<PersistentPeriodicTask>())) ?? []
+        for task in periodicTasks where task.isLocallyDeleted == false && task.isActive {
+            if let spaceID = task.spaceID {
+                spaceIDs.insert(spaceID)
+            }
+        }
+
+        return spaceIDs
+    }
+
+    private static func claimSingleSpaceIfNeeded(
+        _ space: PersistentSpace,
+        for userID: UUID,
+        context: ModelContext
+    ) {
+        let oldOwnerID = space.ownerUserID
+        guard oldOwnerID != userID else { return }
+
+        space.ownerUserID = userID
+        space.updatedAt = .now
+
+        let items = (try? context.fetch(FetchDescriptor<PersistentItem>())) ?? []
+        for item in items where item.spaceID == space.id && item.creatorID == oldOwnerID {
+            item.creatorID = userID
+        }
+
+        let lists = (try? context.fetch(FetchDescriptor<PersistentTaskList>())) ?? []
+        for list in lists where list.spaceID == space.id && list.creatorID == oldOwnerID {
+            list.creatorID = userID
+        }
+
+        let projects = (try? context.fetch(FetchDescriptor<PersistentProject>())) ?? []
+        var projectIDs = Set<UUID>()
+        for project in projects where project.spaceID == space.id {
+            projectIDs.insert(project.id)
+            if project.creatorID == oldOwnerID {
+                project.creatorID = userID
+            }
+        }
+
+        let subtasks = (try? context.fetch(FetchDescriptor<PersistentProjectSubtask>())) ?? []
+        for subtask in subtasks where projectIDs.contains(subtask.projectID) && subtask.creatorID == oldOwnerID {
+            subtask.creatorID = userID
+        }
+
+        let periodicTasks = (try? context.fetch(FetchDescriptor<PersistentPeriodicTask>())) ?? []
+        for task in periodicTasks where task.spaceID == space.id && task.creatorID == oldOwnerID {
+            task.creatorID = userID
+        }
+
+        try? context.save()
     }
 }

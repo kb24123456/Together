@@ -48,4 +48,33 @@ struct UserProfileCloudIdentityTests {
 
         #expect(key == "together.userProfile.lastSyncedAvatarVersion.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
     }
+
+    @Test("Cloud profile upsert preserves existing avatar URL when photo metadata is still present")
+    func preservesExistingAvatarURLWhenPhotoMetadataIsPresent() {
+        let user = User(
+            id: UUID(),
+            appleUserID: "apple-user",
+            displayName: "Alice",
+            avatarSystemName: nil,
+            avatarPhotoFileName: nil,
+            avatarAssetID: "asset-1",
+            avatarVersion: 1,
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 1),
+            preferences: NotificationSettings(
+                taskReminderEnabled: true,
+                dailySummaryEnabled: false,
+                calendarReminderEnabled: false,
+                futureCollaborationInviteEnabled: true
+            )
+        )
+
+        let avatarURL = AppContext.resolvedCloudAvatarURLString(
+            for: user,
+            uploadedAvatarURLString: nil,
+            existingAvatarURLString: "https://example.test/existing.jpg"
+        )
+
+        #expect(avatarURL == "https://example.test/existing.jpg")
+    }
 }
