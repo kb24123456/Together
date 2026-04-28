@@ -24,6 +24,24 @@ struct SoloSyncMetadataStoreTests {
         #expect(store.migrationBuild(spaceID: otherSpaceID) == nil)
     }
 
+    @Test("clears migration build when nil build is stored")
+    func clearsMigrationBuildWhenNilBuildIsStored() {
+        let suiteName = "SoloSyncMetadataStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = SoloSyncMetadataStore(defaults: defaults)
+        let spaceID = UUID()
+        let firstDate = Date(timeIntervalSince1970: 100)
+        let secondDate = Date(timeIntervalSince1970: 200)
+
+        store.markMigrationCompleted(spaceID: spaceID, at: firstDate, build: "13")
+        store.markMigrationCompleted(spaceID: spaceID, at: secondDate, build: nil)
+
+        #expect(store.migrationCompletedAt(spaceID: spaceID) == secondDate)
+        #expect(store.migrationBuild(spaceID: spaceID) == nil)
+    }
+
     @Test("stores pull and push cursors separately")
     func storesPullAndPushCursors() {
         let suiteName = "SoloSyncMetadataStoreTests.\(UUID().uuidString)"

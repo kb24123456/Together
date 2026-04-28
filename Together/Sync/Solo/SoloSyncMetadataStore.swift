@@ -19,6 +19,8 @@ final class SoloSyncMetadataStore: @unchecked Sendable {
         defaults.set(date, forKey: key("migrationCompletedAt", spaceID))
         if let build {
             defaults.set(build, forKey: key("migrationBuild", spaceID))
+        } else {
+            defaults.removeObject(forKey: key("migrationBuild", spaceID))
         }
     }
 
