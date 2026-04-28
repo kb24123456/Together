@@ -12,6 +12,7 @@ struct SoloSyncMetadataStoreTests {
 
         let store = SoloSyncMetadataStore(defaults: defaults)
         let spaceID = UUID()
+        let otherSpaceID = UUID()
         let date = Date(timeIntervalSince1970: 100)
 
         #expect(store.migrationCompletedAt(spaceID: spaceID) == nil)
@@ -19,6 +20,8 @@ struct SoloSyncMetadataStoreTests {
 
         #expect(store.migrationCompletedAt(spaceID: spaceID) == date)
         #expect(store.migrationBuild(spaceID: spaceID) == "13")
+        #expect(store.migrationCompletedAt(spaceID: otherSpaceID) == nil)
+        #expect(store.migrationBuild(spaceID: otherSpaceID) == nil)
     }
 
     @Test("stores pull and push cursors separately")
