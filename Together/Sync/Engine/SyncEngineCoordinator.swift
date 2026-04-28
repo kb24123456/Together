@@ -106,6 +106,16 @@ actor SyncEngineCoordinator {
         engine.state.add(pendingDatabaseChanges: [
             .saveZone(CKRecordZone(zoneID: zoneID))
         ])
+        let replayedChanges = Self.makePendingRecordZoneChanges(
+            from: loadReplayablePendingChanges(),
+            soloSpaceID: soloSpaceID,
+            zoneID: zoneID
+        )
+        if replayedChanges.isEmpty == false {
+            engine.state.add(pendingRecordZoneChanges: replayedChanges)
+            healthMonitor.updateZone(zoneID.zoneName) { $0.pendingChangeCount += replayedChanges.count }
+            logger.info("[Coordinator] Replayed \(replayedChanges.count) pending solo changes into CKSyncEngine")
+        }
 
         self.soloEngine = engine
         self.soloDelegate = delegate
@@ -131,6 +141,16 @@ actor SyncEngineCoordinator {
     /// Records a local mutation that needs to be pushed to CloudKit.
     func recordChange(_ change: SyncChange) async {
         let zoneID = Self.soloZoneID
+
+        guard Self.isCloudKitSupported(change.entityKind) else {
+            logger.info("[Coordinator] Ignored unsupported CK entity \(change.entityKind.rawValue, privacy: .public)")
+            return
+        }
+
+        if let soloSpaceID, change.spaceID != soloSpaceID {
+            logger.info("[Coordinator] Ignored non-solo change for CK zone \(zoneID.zoneName, privacy: .public)")
+            return
+        }
 
         guard let engine = soloEngine else {
             logger.warning("[Coordinator] No engine for zone \(zoneID.zoneName), change dropped")
@@ -202,6 +222,67 @@ actor SyncEngineCoordinator {
                 logger.error("[Coordinator] Failed to decode state for \(zoneName): \(error)")
                 return nil
             }
+        }
+    }
+
+    private func loadReplayablePendingChanges() -> [SyncChange] {
+        let context = ModelContext(modelContainer)
+        let pendingRawValue = SyncMutationLifecycleState.pending.rawValue
+        let sendingRawValue = SyncMutationLifecycleState.sending.rawValue
+        let failedRawValue = SyncMutationLifecycleState.failed.rawValue
+        let descriptor = FetchDescriptor<PersistentSyncChange>(
+            predicate: #Predicate<PersistentSyncChange> {
+                $0.lifecycleStateRawValue == pendingRawValue
+                || $0.lifecycleStateRawValue == sendingRawValue
+                || $0.lifecycleStateRawValue == failedRawValue
+            },
+            sortBy: [SortDescriptor(\PersistentSyncChange.changedAt, order: .forward)]
+        )
+
+        return (try? context.fetch(descriptor).map(\.domainModel)) ?? []
+    }
+
+    nonisolated static func makePendingRecordZoneChangesForTesting(
+        from changes: [SyncChange],
+        soloSpaceID: UUID?,
+        zoneID: CKRecordZone.ID
+    ) -> [CKSyncEngine.PendingRecordZoneChange] {
+        makePendingRecordZoneChanges(from: changes, soloSpaceID: soloSpaceID, zoneID: zoneID)
+    }
+
+    private nonisolated static func makePendingRecordZoneChanges(
+        from changes: [SyncChange],
+        soloSpaceID: UUID?,
+        zoneID: CKRecordZone.ID
+    ) -> [CKSyncEngine.PendingRecordZoneChange] {
+        changes.compactMap { change in
+            guard isCloudKitSupported(change.entityKind) else { return nil }
+            if let soloSpaceID, change.spaceID != soloSpaceID { return nil }
+
+            let recordID = CKRecord.ID(recordName: change.recordID.uuidString, zoneID: zoneID)
+            switch change.operation {
+            case .delete:
+                return .deleteRecord(recordID)
+            case .upsert, .complete, .archive:
+                return .saveRecord(recordID)
+            }
+        }
+    }
+
+    private nonisolated static func isCloudKitSupported(_ entityKind: SyncEntityKind) -> Bool {
+        switch entityKind {
+        case .task,
+             .taskList,
+             .project,
+             .projectSubtask,
+             .periodicTask,
+             .space,
+             .memberProfile,
+             .avatarAsset:
+            return true
+        case .taskMessage,
+             .importantDate:
+            return false
         }
     }
 

@@ -260,6 +260,7 @@ final class AppContext {
 
     /// Starts the CKSyncEngine-based solo zone sync for single-mode data.
     private func startSoloSyncEngineIfNeeded() async {
+        let soloSpaceID = sessionStore.singleSpace?.id
         if let soloSpaceID = sessionStore.singleSpace?.id {
             await container.syncEngineCoordinator.configureSoloSpaceID(soloSpaceID)
         }
@@ -278,6 +279,78 @@ final class AppContext {
                 await self.projectsViewModel.load()
             }
         }
+
+        if let soloSpaceID {
+            await enqueueExistingSoloDataForCloudBackup(spaceID: soloSpaceID)
+        }
+    }
+
+    private func enqueueExistingSoloDataForCloudBackup(spaceID: UUID) async {
+        guard await container.syncEngineCoordinator.isRunningSolo else { return }
+
+        let context = ModelContext(PersistenceController.shared.container)
+        let archivedSpaceStatus = SpaceStatus.archived.rawValue
+        if let space = try? context.fetch(
+            FetchDescriptor<PersistentSpace>(
+                predicate: #Predicate<PersistentSpace> { $0.id == spaceID && $0.statusRawValue != archivedSpaceStatus }
+            )
+        ).first {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .space, operation: .upsert, recordID: space.id, spaceID: spaceID)
+            )
+        }
+
+        let optionalSpaceID: UUID? = spaceID
+        let items = (try? context.fetch(
+            FetchDescriptor<PersistentItem>(
+                predicate: #Predicate<PersistentItem> {
+                    $0.spaceID == optionalSpaceID && $0.isLocallyDeleted == false
+                }
+            )
+        )) ?? []
+        for item in items {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(
+                    entityKind: .task,
+                    operation: item.isArchived ? .archive : .upsert,
+                    recordID: item.id,
+                    spaceID: spaceID
+                )
+            )
+        }
+
+        let lists = (try? await container.taskListRepository.fetchTaskLists(spaceID: spaceID)) ?? []
+        for list in lists {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .taskList, operation: list.isArchived ? .archive : .upsert, recordID: list.id, spaceID: spaceID)
+            )
+        }
+
+        let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        for project in projects {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(
+                    entityKind: .project,
+                    operation: project.status == .archived ? .archive : .upsert,
+                    recordID: project.id,
+                    spaceID: spaceID
+                )
+            )
+            for subtask in project.subtasks {
+                await container.syncCoordinator.recordLocalChange(
+                    SyncChange(entityKind: .projectSubtask, operation: .upsert, recordID: subtask.id, spaceID: spaceID)
+                )
+            }
+        }
+
+        let periodicTasks = (try? await container.periodicTaskRepository.fetchActiveTasks(spaceID: spaceID)) ?? []
+        for periodicTask in periodicTasks {
+            await container.syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: periodicTask.id, spaceID: spaceID)
+            )
+        }
+
+        await container.syncEngineCoordinator.sendChanges(for: spaceID)
     }
 
     /// 启动 Supabase 双人同步（替代旧的 PairSyncService）
@@ -1464,6 +1537,12 @@ extension AppContext {
     /// Pro→Free 运行时：数据面停同步 + UI 面通过 rootPaywallPresentation 弹 lapse sheet。
     /// spec § 2.5。
     func handlePremiumStatusChange(wasPremium: Bool, isPremium: Bool) async {
+        if !wasPremium, isPremium {
+            premiumLogger.info("Premium activated at runtime — starting solo sync")
+            await startSoloSyncEngineIfNeeded()
+            return
+        }
+
         guard wasPremium, !isPremium else { return }
         premiumLogger.info("Premium lapsed at runtime — stopping solo sync")
         await container.syncEngineCoordinator.stopSoloSync()
