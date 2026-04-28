@@ -278,6 +278,8 @@ final class AppContext {
                 platform: .current,
                 isPro: container.premiumGate.isPremium
             )
+            let updatedSpaceContext = await container.spaceService.currentSpaceContext(for: localUserID)
+            sessionStore.refresh(spaceContext: updatedSpaceContext, pairingContext: sessionStore.pairingContext)
             appContextLogger.info("[SupabaseSolo] recovery completed")
         } catch SoloSyncServiceError.requiresPro {
             appContextLogger.info("[SupabaseSolo] recovery skipped: requires Pro")

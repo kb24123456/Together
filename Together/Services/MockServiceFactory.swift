@@ -6,6 +6,28 @@ private struct NoopAnniversaryScheduler: AnniversaryNotificationSchedulerProtoco
     func refresh(spaceID: UUID, partnerName: String?, myName: String?, myUserID: UUID?) async {}
 }
 
+private actor MockSupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
+    private let remoteSpaceID: UUID
+    private let emptySnapshot: SoloRemoteSnapshot
+
+    init(remoteSpaceID: UUID, emptySnapshot: SoloRemoteSnapshot) {
+        self.remoteSpaceID = remoteSpaceID
+        self.emptySnapshot = emptySnapshot
+    }
+
+    func ensureSingleSpace(userID: UUID, displayName: String) async throws -> UUID {
+        remoteSpaceID
+    }
+
+    func registerDevice(_ dto: DeviceInstallationUpsertDTO) async throws {}
+
+    func fetchSnapshot(spaceID: UUID, since: Date?) async throws -> SoloRemoteSnapshot {
+        emptySnapshot
+    }
+
+    func upsert(snapshot: SoloRemoteSnapshot) async throws {}
+}
+
 enum MockServiceFactory {
     @MainActor
     static func makeContainer() -> AppContainer {
@@ -15,8 +37,24 @@ enum MockServiceFactory {
         let notificationService = MockNotificationService()
         let reminderScheduler = MockReminderScheduler()
         let mockModelContainer = try! ModelContainer(
-            for: PersistentPairMembership.self, PersistentPairSpace.self, PersistentUserProfile.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            for: PersistentUserProfile.self,
+            PersistentSpace.self,
+            PersistentPairSpace.self,
+            PersistentPairMembership.self,
+            PersistentInvite.self,
+            PersistentTaskList.self,
+            PersistentProject.self,
+            PersistentProjectSubtask.self,
+            PersistentItem.self,
+            PersistentItemOccurrenceCompletion.self,
+            PersistentTaskTemplate.self,
+            PersistentSyncChange.self,
+            PersistentSyncState.self,
+            PersistentPeriodicTask.self,
+            PersistentPairingHistory.self,
+            PersistentTaskMessage.self,
+            PersistentImportantDate.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let userProfileRepository = MockUserProfileRepository()
         let taskApplicationService = DefaultTaskApplicationService(
@@ -72,8 +110,28 @@ enum MockServiceFactory {
                 modelContainer: mockModelContainer,
                 healthMonitor: SyncHealthMonitor()
             ),
-            supabaseSoloSyncService: SupabaseSoloSyncService(modelContainer: mockModelContainer),
+            supabaseSoloSyncService: makeSupabaseSoloSyncService(modelContainer: mockModelContainer),
             premiumGate: premiumGate
+        )
+    }
+
+    @MainActor
+    private static func makeSupabaseSoloSyncService(modelContainer: ModelContainer) -> SupabaseSoloSyncService {
+        let suiteName = "com.pigdog.Together.mock.soloSync.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            preconditionFailure("Failed to create isolated mock solo sync defaults")
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        let remoteSpaceID = MockDataFactory.singleSpaceID
+        let installationID = MockDataFactory.currentUserID
+        let emptySnapshot = SoloRemoteSnapshot()
+        return SupabaseSoloSyncService(
+            modelContainer: modelContainer,
+            remote: MockSupabaseSoloRemoteGateway(remoteSpaceID: remoteSpaceID, emptySnapshot: emptySnapshot),
+            metadata: SoloSyncMetadataStore(defaults: defaults),
+            installationIDProvider: { installationID },
+            appVersionProvider: { nil },
+            buildNumberProvider: { nil }
         )
     }
 }
