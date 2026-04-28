@@ -1,7 +1,7 @@
 # Solo Recovery + Pro Multi-Device Sync Design
 
 - **Date**: 2026-04-29
-- **Status**: Draft for user review
+- **Status**: Self-reviewed draft for user review
 - **Scope**: 单人模式稳定换机恢复、Pro 多端同步边界、Supabase 权威源改造
 - **Upstream context**:
   - `PRODUCT_SPEC.md`: V1 以单人 Todo 为核心
@@ -35,7 +35,7 @@
 | 本地数据库定位 | SwiftData 离线缓存 |
 | 同一 Apple ID 的第二台 iPhone | 换机恢复，允许拉回数据 |
 | iPad / Mac 同账号同步 | Pro 功能 |
-| 同时多台 iPhone 活跃同步 | 后续通过设备活跃状态判定，可纳入 Pro 策略；第一阶段先保证恢复 |
+| 同时多台 iPhone 活跃同步 | 第一阶段不拦截，避免误伤换机恢复；后续再基于活跃设备策略决定是否纳入 Pro |
 | CloudKit | 可选兜底/迁移层，不作为唯一数据安全承诺 |
 | 登录身份锚点 | Supabase `auth.uid()` |
 | 用户可见 Space 概念 | V1 不暴露，内部仍使用 `single` space |
@@ -71,12 +71,13 @@
 │ spaces / space_members                        │
 │ tasks / task_lists / projects / ...           │
 │ device_installations                          │
-│ sync_state / optional sync_events             │
 │ RLS by auth.uid() and space membership         │
 └───────────────────────────────────────────────┘
 ```
 
 Core rule: local writes may appear immediately, but the product only treats data as safely recoverable after the mutation is confirmed by Supabase.
+
+Sync cursors are local client state, not a required Supabase table for MVP. If later server-side diagnostics need global auditability, add a separate `sync_events` table as a follow-up.
 
 ## Data Model
 
@@ -115,6 +116,8 @@ ON spaces(owner_user_id)
 WHERE type = 'single' AND status = 'active';
 ```
 
+Before adding this index, the migration must run a preflight query for duplicate active single spaces per owner and merge or archive duplicates. Otherwise the index creation can fail on historical test data.
+
 ### Tasks and Related Entities
 
 For solo records:
@@ -125,19 +128,21 @@ For solo records:
 - Deletes remain soft deletes with `is_deleted` / `deleted_at`.
 - `updated_at` is the primary high-water mark for incremental pull.
 
-The first implementation should cover:
+The first implementation should cover the data needed to make the current solo Todo product safe:
 
 1. `tasks`
 2. `task_lists`
 3. `projects`
 4. `project_subtasks`
+5. `periodic_tasks` if the UI already allows users to create recurring tasks
+6. `important_dates` if the UI treats them as user-owned solo data outside pair mode
 
-Follow-up entities:
+Follow-up entities that are not required for the current solo task recovery promise:
 
-1. `periodic_tasks`
-2. `important_dates`
-3. `task_templates`
-4. task messages if kept for solo mode
+1. `task_templates`
+2. task messages if kept for solo mode
+
+The implementation plan must inspect which solo-facing repositories are currently reachable from production UI before deciding the exact milestone split. The product promise is not "tasks table only"; it is user-owned solo productivity data that the current app exposes.
 
 ### Device Installations
 
@@ -191,6 +196,8 @@ Premium:
 
 ### Startup
 
+Startup must branch before normal delta sync:
+
 1. Resolve Supabase session.
 2. Ensure local user profile is anchored to `auth.uid()`.
 3. Ensure single space exists in Supabase.
@@ -198,11 +205,16 @@ Premium:
 5. Determine sync capability:
    - iPhone: allow restore pull.
    - iPad/Mac: require Pro before pulling data.
-6. Start local SwiftData container.
-7. Show local cache immediately.
-8. Pull Supabase deltas since local `lastPulledAt`.
-9. Apply remote rows into SwiftData.
-10. Push unsynced local outbox rows.
+6. Classify local store state:
+   - empty fresh install;
+   - existing local data with no Supabase baseline;
+   - existing local data with an established Supabase baseline.
+7. Execute the correct branch:
+   - fresh install: full pull from Supabase, then render restored cache;
+   - existing local data with no baseline: fetch remote snapshot, merge local and remote records, push local winners, then write baseline;
+   - established baseline: show local cache, push pending outbox, then pull deltas.
+
+This ordering prevents a pre-migration local store from being treated as stale just because the Supabase baseline does not exist yet.
 
 ### Fresh Install / New iPhone Restore
 
@@ -216,6 +228,24 @@ For an empty local store on iPhone:
 6. Show sync status as complete.
 
 This path is not Pro-gated.
+
+### Existing Local Store Bootstrap
+
+For a non-empty local store that has never been confirmed against Supabase:
+
+1. Login with Apple and Supabase.
+2. Ensure active single space.
+3. Fetch the remote snapshot for the active single space without treating missing remote rows as deletions.
+4. Merge local and remote rows by stable UUID:
+   - if only local exists, push local;
+   - if only remote exists, apply remote locally;
+   - if both exist, compare `updated_at` / `deleted_at` and keep the newer winner;
+   - if local has pending edits, do not overwrite it with older remote data.
+5. Push local winners using idempotent upsert.
+6. Only after remote confirmation, write local Supabase baseline metadata.
+7. Mark local records as synced when remote confirmation is available.
+
+This is the critical path for existing TestFlight users who still have data on-device.
 
 ### Local Mutation
 
@@ -259,7 +289,7 @@ Allowed:
 - use the app on iPhone;
 - delete/reinstall and recover data on iPhone;
 - move to another iPhone with same account;
-- manual pull on iPhone restore.
+- normal iPhone push/pull needed to make the recovery promise real.
 
 Not allowed:
 
@@ -293,6 +323,8 @@ Second milestone:
 
 The user-approved product rule for now: second iPhone is treated as restore, not Pro-only multi-device sync.
 
+Implementation consequence: the first milestone intentionally allows more than one iPhone to sync. This is acceptable because blocking a second iPhone would make reliable restore impossible and would be hard to distinguish from a legitimate device replacement.
+
 ## Migration Strategy
 
 ### Existing Users with Local Data
@@ -302,9 +334,11 @@ On first launch after migration:
 1. Resolve Supabase auth.
 2. Create/ensure single space.
 3. Scan local SwiftData solo records.
-4. Upload local records to Supabase using their existing UUIDs.
-5. Mark local sync baseline only after successful upload.
-6. Keep CloudKit records untouched.
+4. Fetch remote snapshot for that single space.
+5. Merge by stable UUID and timestamp rules.
+6. Upload local winners to Supabase using their existing UUIDs.
+7. Mark local sync baseline only after successful remote confirmation.
+8. Keep CloudKit records untouched.
 
 ### Existing CloudKit Records
 
@@ -316,6 +350,17 @@ If CloudKit has records and SwiftData is empty:
 4. After Supabase confirms, Supabase becomes the source of truth.
 
 If neither local SwiftData nor CloudKit contains a record, it cannot be recovered.
+
+### Migration Baseline
+
+Add local metadata to distinguish "never synced to Supabase" from "synced and currently empty":
+
+- `soloSupabaseMigrationCompletedAt`
+- `soloSupabaseLastPulledAt` per entity or per space
+- `soloSupabaseLastPushedAt`
+- local app build that performed the migration
+
+Without this baseline, an empty remote result can be misread as authoritative deletion.
 
 ## Observability
 
@@ -375,15 +420,16 @@ Manual TestFlight tests:
 
 ## Rollout Plan
 
-1. Add Supabase schema extensions and RLS.
-2. Add DTOs and Supabase solo sync service behind feature flag.
-3. Add one-time local-to-Supabase migration for solo data.
-4. Add fresh install full pull.
-5. Add sync diagnostics.
-6. Enable iPhone restore path in TestFlight.
-7. Add iPad/Mac Pro gate when those targets are introduced.
-8. Keep CloudKit import path temporarily.
-9. Retire CloudKit as single-source recovery after confidence window.
+1. Add Supabase schema extensions and RLS for solo spaces and device installations.
+2. Add DTOs and Supabase solo sync service behind a local feature flag.
+3. Add sync diagnostics before enabling destructive reinstall tests.
+4. Add one-time local-to-Supabase bootstrap migration for existing local data.
+5. Add fresh install full pull.
+6. Add normal iPhone push/pull and retry handling.
+7. Enable iPhone restore path in TestFlight only after diagnostics show confirmed remote writes.
+8. Add iPad/Mac Pro gate when those targets are introduced.
+9. Keep CloudKit import path temporarily.
+10. Retire CloudKit as single-source recovery after confidence window.
 
 ## Risks
 
@@ -391,13 +437,14 @@ Manual TestFlight tests:
 - Existing rows may contain older local UUID identity fields; migration must consistently anchor new writes to Supabase `auth.uid()`.
 - If users delete the app before first Supabase upload completes, data can still be lost. The UI must expose sync safety state.
 - iPad/Mac product gating needs platform-specific implementation after those targets exist.
+- If diagnostics are added after sync rollout instead of before, future TestFlight failures will remain hard to distinguish from data loss.
 
 ## Acceptance Criteria
 
 - A solo task created on iPhone appears in Supabase `tasks` under the user's active single space.
+- Existing on-device solo records are uploaded to Supabase before the app marks migration complete.
 - Deleting and reinstalling the iPhone app restores the task from Supabase.
 - A second iPhone with the same account restores the same data without Pro.
 - Free iPad/Mac sync is blocked by `PremiumGate`.
 - Pro iPad/Mac sync is allowed.
 - Sync diagnostics can prove whether a task is local-only, pending, synced, or failed.
-
