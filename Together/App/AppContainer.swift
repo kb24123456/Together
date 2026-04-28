@@ -31,7 +31,7 @@ struct AppContainer {
     let syncEngineCoordinator: SyncEngineCoordinator
 
     // Supabase-backed solo recovery sync.
-    let supabaseSoloSyncService: SupabaseSoloSyncService
+    let supabaseSoloSyncService: any SupabaseSoloSyncServicing
 
     // Premium (Together Pro) 门禁。bootstrap / teardown 由 AppContext 驱动，
     // 这里只负责装配。

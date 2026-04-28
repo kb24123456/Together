@@ -8,7 +8,26 @@ enum SoloSyncServiceError: Error, Equatable {
     case missingLocalRow(entityKind: String, recordID: UUID)
 }
 
-actor SupabaseSoloSyncService {
+protocol SupabaseSoloSyncServicing: Sendable {
+    func start(
+        userID: UUID,
+        localUserID: UUID,
+        displayName: String,
+        platform: SoloDevicePlatform,
+        isPro: Bool
+    ) async throws
+
+    func pushPending(spaceID: UUID, userID: UUID) async throws
+
+    func diagnostics(
+        userID: UUID,
+        spaceID: UUID?,
+        platform: SoloDevicePlatform,
+        isPro: Bool
+    ) async -> SoloSyncDiagnosticSnapshot
+}
+
+actor SupabaseSoloSyncService: SupabaseSoloSyncServicing {
     static let sendingRecoveryStaleInterval: TimeInterval = 5 * 60
 
     private let modelContainer: ModelContainer
@@ -603,7 +622,7 @@ private extension SupabaseSoloSyncService {
 
     func fullPull(spaceID: UUID) async throws {
         let snapshot = try await remote.fetchSnapshot(spaceID: spaceID, since: nil)
-        try apply(snapshot: snapshot)
+        try apply(snapshot: snapshot, spaceID: spaceID)
         let now = Date()
         metadata.setLastPulledAt(now, spaceID: spaceID)
         metadata.markMigrationCompleted(spaceID: spaceID, at: now, build: buildNumberProvider())
@@ -611,7 +630,7 @@ private extension SupabaseSoloSyncService {
 
     func bootstrapLocalData(spaceID: UUID, userID: UUID) async throws {
         let remoteSnapshot = try await remote.fetchSnapshot(spaceID: spaceID, since: nil)
-        try apply(snapshot: remoteSnapshot)
+        try apply(snapshot: remoteSnapshot, spaceID: spaceID)
 
         let localSnapshot = try makeLocalSnapshot(spaceID: spaceID, supabaseUserID: userID)
         try await remote.upsert(snapshot: localSnapshot)
@@ -660,25 +679,25 @@ private extension SupabaseSoloSyncService {
         return snapshot
     }
 
-    func apply(snapshot: SoloRemoteSnapshot) throws {
+    func apply(snapshot: SoloRemoteSnapshot, spaceID: UUID) throws {
         let context = ModelContext(modelContainer)
         for row in snapshot.taskLists {
-            row.applyToLocal(context: context)
+            row.applyToSoloLocal(context: context, expectedSpaceID: spaceID)
         }
         for row in snapshot.projects {
-            row.applyToLocal(context: context)
+            row.applyToSoloLocal(context: context, expectedSpaceID: spaceID)
         }
         for row in snapshot.projectSubtasks {
-            row.applyToLocal(context: context)
+            row.applyToSoloLocal(context: context, expectedSpaceID: spaceID)
         }
         for row in snapshot.periodicTasks {
-            row.applyToLocal(context: context)
+            row.applyToSoloLocal(context: context, expectedSpaceID: spaceID)
         }
         for row in snapshot.importantDates {
-            row.applyToLocal(context: context)
+            row.applyToSoloLocal(context: context, expectedSpaceID: spaceID)
         }
         for row in snapshot.tasks {
-            row.applyToLocal(context: context)
+            row.applyToSoloLocal(context: context, expectedSpaceID: spaceID)
         }
         try context.save()
     }
@@ -688,7 +707,130 @@ private extension SupabaseSoloSyncService {
             spaceID: spaceID,
             since: metadata.lastPulledAt(spaceID: spaceID)
         )
-        try apply(snapshot: snapshot)
+        try apply(snapshot: snapshot, spaceID: spaceID)
         metadata.setLastPulledAt(Date(), spaceID: spaceID)
+    }
+}
+
+private extension TaskDTO {
+    nonisolated func applyToSoloLocal(context: ModelContext, expectedSpaceID: UUID) {
+        guard spaceId == expectedSpaceID else { return }
+
+        let rowID = id
+        let existing = try? context.fetch(
+            FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == rowID })
+        ).first
+        guard existing?.spaceID == nil || existing?.spaceID == expectedSpaceID else { return }
+        guard soloTaskReferencesAreIsolated(context: context, expectedSpaceID: expectedSpaceID) else { return }
+
+        applyToLocal(context: context)
+    }
+
+    nonisolated func soloTaskReferencesAreIsolated(context: ModelContext, expectedSpaceID: UUID) -> Bool {
+        if let listId {
+            let parentID = listId
+            if let list = try? context.fetch(
+                FetchDescriptor<PersistentTaskList>(predicate: #Predicate { $0.id == parentID })
+            ).first, list.spaceID != expectedSpaceID {
+                return false
+            }
+        }
+        if let projectId {
+            let parentID = projectId
+            if let project = try? context.fetch(
+                FetchDescriptor<PersistentProject>(predicate: #Predicate { $0.id == parentID })
+            ).first, project.spaceID != expectedSpaceID {
+                return false
+            }
+        }
+        return true
+    }
+}
+
+private extension TaskListDTO {
+    nonisolated func applyToSoloLocal(context: ModelContext, expectedSpaceID: UUID) {
+        guard spaceId == expectedSpaceID else { return }
+
+        let rowID = id
+        let existing = try? context.fetch(
+            FetchDescriptor<PersistentTaskList>(predicate: #Predicate { $0.id == rowID })
+        ).first
+        guard existing?.spaceID == nil || existing?.spaceID == expectedSpaceID else { return }
+
+        applyToLocal(context: context)
+    }
+}
+
+private extension ProjectDTO {
+    nonisolated func applyToSoloLocal(context: ModelContext, expectedSpaceID: UUID) {
+        guard spaceId == expectedSpaceID else { return }
+
+        let rowID = id
+        let existing = try? context.fetch(
+            FetchDescriptor<PersistentProject>(predicate: #Predicate { $0.id == rowID })
+        ).first
+        guard existing?.spaceID == nil || existing?.spaceID == expectedSpaceID else { return }
+
+        applyToLocal(context: context)
+    }
+}
+
+private extension ProjectSubtaskDTO {
+    nonisolated func applyToSoloLocal(context: ModelContext, expectedSpaceID: UUID) {
+        guard spaceId == expectedSpaceID else { return }
+        guard parentProjectBelongsToSoloSpace(context: context, expectedSpaceID: expectedSpaceID) else { return }
+
+        let rowID = id
+        let existing = try? context.fetch(
+            FetchDescriptor<PersistentProjectSubtask>(predicate: #Predicate { $0.id == rowID })
+        ).first
+        if let existing {
+            let existingProjectID = existing.projectID
+            guard let project = try? context.fetch(
+                FetchDescriptor<PersistentProject>(predicate: #Predicate { $0.id == existingProjectID })
+            ).first, project.spaceID == expectedSpaceID else {
+                return
+            }
+        }
+
+        applyToLocal(context: context)
+    }
+
+    nonisolated func parentProjectBelongsToSoloSpace(context: ModelContext, expectedSpaceID: UUID) -> Bool {
+        let parentID = projectId
+        guard let project = try? context.fetch(
+            FetchDescriptor<PersistentProject>(predicate: #Predicate { $0.id == parentID })
+        ).first else {
+            return false
+        }
+        return project.spaceID == expectedSpaceID
+    }
+}
+
+private extension PeriodicTaskDTO {
+    nonisolated func applyToSoloLocal(context: ModelContext, expectedSpaceID: UUID) {
+        guard spaceId == expectedSpaceID else { return }
+
+        let rowID = id
+        let existing = try? context.fetch(
+            FetchDescriptor<PersistentPeriodicTask>(predicate: #Predicate { $0.id == rowID })
+        ).first
+        guard existing?.spaceID == nil || existing?.spaceID == expectedSpaceID else { return }
+
+        applyToLocal(context: context)
+    }
+}
+
+private extension ImportantDateDTO {
+    nonisolated func applyToSoloLocal(context: ModelContext, expectedSpaceID: UUID) {
+        guard spaceId == expectedSpaceID else { return }
+
+        let rowID = id
+        let existing = try? context.fetch(
+            FetchDescriptor<PersistentImportantDate>(predicate: #Predicate { $0.id == rowID })
+        ).first
+        guard existing?.spaceID == nil || existing?.spaceID == expectedSpaceID else { return }
+
+        applyToLocal(context: context)
     }
 }

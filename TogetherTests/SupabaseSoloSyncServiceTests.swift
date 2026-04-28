@@ -143,6 +143,65 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.metadata.migrationCompletedAt(spaceID: remoteSpaceID) != nil)
     }
 
+    @Test("solo pull skips local pair rows with colliding record ids")
+    func soloPullSkipsPairRowsWithCollidingRecordIDs() async throws {
+        let harness = try SoloSyncHarness()
+        let pairSpaceID = UUID()
+        let remoteSpaceID = UUID()
+        let taskID = UUID()
+        let importantDateID = UUID()
+        let oldDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let newerDate = Date(timeIntervalSince1970: 1_700_001_000)
+        harness.remote.setSpaceID(remoteSpaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: pairSpaceID,
+                type: .pair,
+                displayName: "共享空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: oldDate,
+                updatedAt: oldDate
+            )
+        ))
+        let pairTask = PersistentItem.sample(id: taskID, spaceID: pairSpaceID, creatorID: harness.userID, title: "pair task")
+        pairTask.updatedAt = oldDate
+        context.insert(pairTask)
+        let pairDate = PersistentImportantDate.sample(id: importantDateID, spaceID: pairSpaceID, creatorID: harness.userID, title: "pair date")
+        pairDate.updatedAt = oldDate
+        context.insert(pairDate)
+        try context.save()
+
+        let remoteTask = PersistentItem.sample(id: taskID, spaceID: remoteSpaceID, creatorID: harness.userID, title: "remote single task")
+        remoteTask.updatedAt = newerDate
+        let remoteDate = PersistentImportantDate.sample(id: importantDateID, spaceID: remoteSpaceID, creatorID: harness.userID, title: "remote single date")
+        remoteDate.updatedAt = newerDate
+        harness.remote.setSnapshot(SoloRemoteSnapshot(
+            tasks: [TaskDTO(from: remoteTask, spaceID: remoteSpaceID, supabaseUserID: harness.userID)],
+            importantDates: [ImportantDateDTO(from: remoteDate)]
+        ))
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        let items = try context.fetch(FetchDescriptor<PersistentItem>())
+        let dates = try context.fetch(FetchDescriptor<PersistentImportantDate>())
+        let task = try #require(items.first(where: { $0.id == taskID }))
+        let date = try #require(dates.first(where: { $0.id == importantDateID }))
+
+        #expect(task.spaceID == pairSpaceID)
+        #expect(task.title == "pair task")
+        #expect(date.spaceID == pairSpaceID)
+        #expect(date.title == "pair date")
+    }
+
     @Test("iPad without Pro throws requiresPro and does not fetch or push")
     func ipadWithoutProBlocked() async throws {
         let harness = try SoloSyncHarness()

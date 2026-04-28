@@ -34,7 +34,9 @@ private actor MockSupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
 
 enum MockServiceFactory {
     @MainActor
-    static func makeContainer() -> AppContainer {
+    static func makeContainer(
+        supabaseSoloSyncService injectedSupabaseSoloSyncService: (any SupabaseSoloSyncServicing)? = nil
+    ) -> AppContainer {
         let syncCoordinator = NoOpSyncCoordinator()
         let itemRepository = MockItemRepository()
         let taskTemplateRepository = MockTaskTemplateRepository()
@@ -114,7 +116,7 @@ enum MockServiceFactory {
                 modelContainer: mockModelContainer,
                 healthMonitor: SyncHealthMonitor()
             ),
-            supabaseSoloSyncService: makeSupabaseSoloSyncService(modelContainer: mockModelContainer),
+            supabaseSoloSyncService: injectedSupabaseSoloSyncService ?? makeSupabaseSoloSyncService(modelContainer: mockModelContainer),
             premiumGate: premiumGate
         )
     }

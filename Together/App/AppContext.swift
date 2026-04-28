@@ -920,8 +920,17 @@ final class AppContext {
     }
 
     /// 本地数据变更后触发同步。
-    /// Solo 变更走 CKSyncEngine；pair 变更走 Supabase push。
+    /// Solo 变更走 Supabase recovery outbox + CKSyncEngine；pair 变更走 Supabase push。
     func syncAfterMutation(spaceID: UUID) {
+        Task { [weak self] in
+            guard let self else { return }
+            let supabaseUserID = await self.supabaseAuth.currentUserID
+            await self.pushSoloSupabaseMutationIfEligible(
+                spaceID: spaceID,
+                supabaseUserID: supabaseUserID
+            )
+        }
+
         // Solo sync path (CKSyncEngine)
         Task { [weak self] in
             await self?.container.syncEngineCoordinator.sendChanges(for: spaceID)
@@ -939,9 +948,46 @@ final class AppContext {
         }
     }
 
+    func pushSoloSupabaseMutationIfEligible(
+        spaceID: UUID,
+        supabaseUserID: UUID?,
+        platform: SoloDevicePlatform = .current
+    ) async {
+        guard let supabaseUserID else { return }
+        guard sessionStore.singleSpace?.id == spaceID else { return }
+        guard SoloSyncGate.decision(platform: platform, isPro: container.premiumGate.isPremium) == .allowed else {
+            return
+        }
+
+        do {
+            try await container.supabaseSoloSyncService.pushPending(
+                spaceID: spaceID,
+                userID: supabaseUserID
+            )
+        } catch {
+            appContextLogger.error("[SupabaseSolo] mutation push failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     func flushRecordedSharedMutation(_ change: SyncChange) async {
-        // Repository 已经 recordLocalChange，这里只需触发 push。
-        // 若再 record 一次会出现重复条目，空耗带宽。
+        let supabaseUserID = await supabaseAuth.currentUserID
+        await flushRecordedMutation(change, supabaseUserID: supabaseUserID)
+    }
+
+    func flushRecordedMutation(
+        _ change: SyncChange,
+        supabaseUserID: UUID?,
+        platform: SoloDevicePlatform = .current
+    ) async {
+        if sessionStore.singleSpace?.id == change.spaceID {
+            await pushSoloSupabaseMutationIfEligible(
+                spaceID: change.spaceID,
+                supabaseUserID: supabaseUserID,
+                platform: platform
+            )
+            return
+        }
+
         await supabaseSyncService?.push()
         await refreshSharedSyncStatusAsync()
     }
@@ -950,8 +996,7 @@ final class AppContext {
         let serviceDescription = supabaseSyncService == nil ? "nil" : "active"
         appContextLogger.info("[SharedMutation] submit kind=\(change.entityKind.rawValue, privacy: .public) op=\(change.operation.rawValue, privacy: .public) recordID=\(change.recordID.uuidString, privacy: .public) spaceID=\(change.spaceID.uuidString, privacy: .public) supabaseService=\(serviceDescription, privacy: .public)")
         await container.syncCoordinator.recordLocalChange(change)
-        await supabaseSyncService?.push()
-        await refreshSharedSyncStatusAsync()
+        await flushRecordedSharedMutation(change)
     }
 
     /// 同步后刷新所有相关 ViewModel 的数据。
