@@ -39,6 +39,65 @@ actor SupabaseSoloSyncService {
         self.buildNumberProvider = buildNumberProvider
     }
 
+    func diagnostics(
+        userID: UUID,
+        spaceID: UUID?,
+        platform: SoloDevicePlatform,
+        isPro: Bool
+    ) async -> SoloSyncDiagnosticSnapshot {
+        let gateDecision = SoloSyncGate.decision(platform: platform, isPro: isPro)
+        let context = ModelContext(modelContainer)
+        var localTaskCount = 0
+        var remoteTaskCount = 0
+        var pendingMutationCount = 0
+        var failedMutationCount = 0
+        var lastPulledAt: Date?
+        var lastPushedAt: Date?
+        var migrationCompletedAt: Date?
+        var lastError: String?
+
+        do {
+            localTaskCount = try diagnosticLocalTaskCount(spaceID: spaceID, context: context)
+            let mutationCounts = try diagnosticMutationCounts(spaceID: spaceID, context: context)
+            pendingMutationCount = mutationCounts.pending
+            failedMutationCount = mutationCounts.failed
+        } catch {
+            lastError = String(describing: error)
+        }
+
+        if let spaceID {
+            lastPulledAt = metadata.lastPulledAt(spaceID: spaceID)
+            lastPushedAt = metadata.lastPushedAt(spaceID: spaceID)
+            migrationCompletedAt = metadata.migrationCompletedAt(spaceID: spaceID)
+        }
+
+        if let spaceID, gateDecision == .allowed {
+            do {
+                let snapshot = try await remote.fetchSnapshot(spaceID: spaceID, since: nil)
+                remoteTaskCount = snapshot.tasks.count
+            } catch {
+                lastError = [lastError, String(describing: error)]
+                    .compactMap { $0 }
+                    .joined(separator: "; ")
+            }
+        }
+
+        return SoloSyncDiagnosticSnapshot(
+            userID: userID,
+            spaceID: spaceID,
+            platform: platform,
+            gateDecision: gateDecision,
+            localTaskCount: localTaskCount,
+            remoteTaskCount: remoteTaskCount,
+            pendingMutationCount: pendingMutationCount,
+            failedMutationCount: failedMutationCount,
+            lastPulledAt: lastPulledAt,
+            lastPushedAt: lastPushedAt,
+            migrationCompletedAt: migrationCompletedAt,
+            lastError: lastError
+        )
+    }
+
     func start(
         userID: UUID,
         localUserID: UUID,
@@ -343,6 +402,33 @@ private extension SupabaseSoloSyncService {
             change.lastError = message
         }
         try context.save()
+    }
+
+    func diagnosticLocalTaskCount(spaceID: UUID?, context: ModelContext) throws -> Int {
+        let tasks = try context.fetch(FetchDescriptor<PersistentItem>())
+        return tasks.filter { task in
+            guard task.isLocallyDeleted == false else { return false }
+            guard let spaceID else { return true }
+            return task.spaceID == spaceID
+        }.count
+    }
+
+    func diagnosticMutationCounts(spaceID: UUID?, context: ModelContext) throws -> (pending: Int, failed: Int) {
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+        return changes.reduce(into: (pending: 0, failed: 0)) { result, change in
+            if let spaceID, change.spaceID != spaceID {
+                return
+            }
+
+            switch change.lifecycleState {
+            case .pending:
+                result.pending += 1
+            case .failed:
+                result.failed += 1
+            case .sending, .confirmed:
+                break
+            }
+        }
     }
 
     func reconcileLocalSingleSpace(remoteSpaceID: UUID, userID: UUID, displayName: String) throws {

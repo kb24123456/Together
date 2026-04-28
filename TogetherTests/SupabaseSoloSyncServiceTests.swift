@@ -418,9 +418,141 @@ struct SupabaseSoloSyncServiceTests {
         #expect(change.lastError?.contains("upsertFailed") == true)
         #expect(harness.metadata.lastPushedAt(spaceID: spaceID) == nil)
     }
+
+    @Test("diagnostics reports local and remote counts for allowed iPhone space")
+    func diagnosticsReportsLocalAndRemoteCounts() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let otherSpaceID = UUID()
+        let localTaskID = UUID()
+        let otherTaskID = UUID()
+        let remoteTaskID = UUID()
+        harness.remote.setSnapshot(SoloRemoteSnapshot(
+            tasks: [
+                TaskDTO(from: PersistentItem.sample(id: remoteTaskID, spaceID: spaceID, creatorID: harness.userID, title: "remote task"), spaceID: spaceID, supabaseUserID: harness.userID)
+            ]
+        ))
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentItem.sample(id: localTaskID, spaceID: spaceID, creatorID: harness.userID, title: "local task"))
+        context.insert(PersistentItem.sample(id: otherTaskID, spaceID: otherSpaceID, creatorID: harness.userID, title: "other task"))
+        try context.save()
+
+        let snapshot = await harness.service.diagnostics(
+            userID: harness.userID,
+            spaceID: spaceID,
+            platform: .iphone,
+            isPro: false
+        )
+
+        #expect(snapshot.userID == harness.userID)
+        #expect(snapshot.spaceID == spaceID)
+        #expect(snapshot.platform == .iphone)
+        #expect(snapshot.gateDecision == .allowed)
+        #expect(snapshot.localTaskCount == 1)
+        #expect(snapshot.remoteTaskCount == 1)
+        #expect(snapshot.pendingMutationCount == 0)
+        #expect(snapshot.failedMutationCount == 0)
+        #expect(snapshot.lastError == nil)
+        #expect(harness.remote.ensureSingleSpaceCallCount() == 0)
+        #expect(harness.remote.fetchSnapshotCallCount() == 1)
+    }
+
+    @Test("diagnostics is observational when gate is blocked or space is nil")
+    func diagnosticsDoesNotMutateOrFetchWhenBlockedOrSpaceNil() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "local task"))
+        try context.save()
+
+        let blocked = await harness.service.diagnostics(
+            userID: harness.userID,
+            spaceID: spaceID,
+            platform: .ipad,
+            isPro: false
+        )
+        let missingSpace = await harness.service.diagnostics(
+            userID: harness.userID,
+            spaceID: nil,
+            platform: .iphone,
+            isPro: false
+        )
+
+        #expect(blocked.gateDecision == .blockedRequiresPro)
+        #expect(blocked.localTaskCount == 1)
+        #expect(blocked.remoteTaskCount == 0)
+        #expect(missingSpace.gateDecision == .allowed)
+        #expect(missingSpace.spaceID == nil)
+        #expect(missingSpace.localTaskCount == 1)
+        #expect(missingSpace.remoteTaskCount == 0)
+        #expect(harness.remote.ensureSingleSpaceCallCount() == 0)
+        #expect(harness.remote.fetchSnapshotCallCount() == 0)
+        #expect(harness.remote.registerDeviceCallCount() == 0)
+        #expect(harness.remote.upsertCallCount() == 0)
+    }
+
+    @Test("diagnostics reports mutation counts and metadata")
+    func diagnosticsReportsMutationCountsAndMetadata() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let otherSpaceID = UUID()
+        let pendingTaskID = UUID()
+        let failedTaskID = UUID()
+        let otherTaskID = UUID()
+        let migrationDate = Date(timeIntervalSince1970: 1_700_000_001)
+        let pulledAt = Date(timeIntervalSince1970: 1_700_000_002)
+        let pushedAt = Date(timeIntervalSince1970: 1_700_000_003)
+        harness.metadata.markMigrationCompleted(spaceID: spaceID, at: migrationDate, build: "13")
+        harness.metadata.setLastPulledAt(pulledAt, spaceID: spaceID)
+        harness.metadata.setLastPushedAt(pushedAt, spaceID: spaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: pendingTaskID, spaceID: spaceID)))
+        let failed = PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: failedTaskID, spaceID: spaceID))
+        failed.lifecycleState = .failed
+        context.insert(failed)
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: otherTaskID, spaceID: otherSpaceID)))
+        try context.save()
+
+        let snapshot = await harness.service.diagnostics(
+            userID: harness.userID,
+            spaceID: spaceID,
+            platform: .iphone,
+            isPro: false
+        )
+
+        #expect(snapshot.pendingMutationCount == 1)
+        #expect(snapshot.failedMutationCount == 1)
+        #expect(snapshot.migrationCompletedAt == migrationDate)
+        #expect(snapshot.lastPulledAt == pulledAt)
+        #expect(snapshot.lastPushedAt == pushedAt)
+    }
+
+    @Test("diagnostics captures remote fetch error without throwing")
+    func diagnosticsCapturesRemoteFetchError() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        harness.remote.setFetchError(FakeSoloRemoteError.fetchFailed)
+
+        let snapshot = await harness.service.diagnostics(
+            userID: harness.userID,
+            spaceID: spaceID,
+            platform: .iphone,
+            isPro: false
+        )
+
+        #expect(snapshot.remoteTaskCount == 0)
+        #expect(snapshot.lastError?.contains("fetchFailed") == true)
+        #expect(harness.remote.ensureSingleSpaceCallCount() == 0)
+        #expect(harness.remote.fetchSnapshotCallCount() == 1)
+    }
 }
 
 private enum FakeSoloRemoteError: Error {
+    case fetchFailed
     case upsertFailed
 }
 
@@ -429,6 +561,7 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
     private var _spaceID = UUID()
     private var _snapshot = SoloRemoteSnapshot()
     private var _upserted = SoloRemoteSnapshot()
+    private var _fetchError: Error?
     private var _upsertError: Error?
     private var _ensureSingleSpaceCallCount = 0
     private var _registerDeviceCallCount = 0
@@ -441,6 +574,10 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
 
     func setSnapshot(_ snapshot: SoloRemoteSnapshot) {
         lock.withLock { _snapshot = snapshot }
+    }
+
+    func setFetchError(_ error: Error?) {
+        lock.withLock { _fetchError = error }
     }
 
     func setUpsertError(_ error: Error?) {
@@ -479,10 +616,14 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
     }
 
     func fetchSnapshot(spaceID: UUID, since: Date?) async throws -> SoloRemoteSnapshot {
-        lock.withLock {
+        let result = lock.withLock { () -> Result<SoloRemoteSnapshot, Error> in
             _fetchSnapshotCallCount += 1
-            return _snapshot
+            if let error = _fetchError {
+                return .failure(error)
+            }
+            return .success(_snapshot)
         }
+        return try result.get()
     }
 
     func upsert(snapshot: SoloRemoteSnapshot) async throws {
