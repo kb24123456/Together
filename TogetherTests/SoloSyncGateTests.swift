@@ -9,6 +9,12 @@ struct SoloSyncGateTests {
         #expect(decision == .allowed)
     }
 
+    @Test("iPhone is allowed with Pro")
+    func iPhoneAllowedWithPro() {
+        let decision = SoloSyncGate.decision(platform: .iphone, isPro: true)
+        #expect(decision == .allowed)
+    }
+
     @Test("iPad is blocked without Pro")
     func iPadBlockedWithoutPro() {
         let decision = SoloSyncGate.decision(platform: .ipad, isPro: false)
@@ -25,5 +31,12 @@ struct SoloSyncGateTests {
     func proAllowsNonPhonePlatforms() {
         #expect(SoloSyncGate.decision(platform: .ipad, isPro: true) == .allowed)
         #expect(SoloSyncGate.decision(platform: .mac, isPro: true) == .allowed)
+    }
+
+    @Test("platform raw values are stable")
+    func platformRawValuesAreStable() {
+        #expect(SoloDevicePlatform.iphone.rawValue == "iphone")
+        #expect(SoloDevicePlatform.ipad.rawValue == "ipad")
+        #expect(SoloDevicePlatform.mac.rawValue == "mac")
     }
 }
