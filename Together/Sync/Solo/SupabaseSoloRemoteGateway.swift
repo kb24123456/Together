@@ -85,6 +85,7 @@ struct SoloRemoteSnapshot: Sendable {
     var projects: [ProjectDTO] = []
     var projectSubtasks: [ProjectSubtaskDTO] = []
     var periodicTasks: [PeriodicTaskDTO] = []
+    var importantDates: [ImportantDateDTO] = []
 }
 
 protocol SupabaseSoloRemoteGatewayProtocol: Sendable {
@@ -127,11 +128,12 @@ actor SupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
         let sinceDate = since ?? .distantPast
         let sinceISO = ISO8601DateFormatter().string(from: sinceDate)
 
-        snapshot.tasks = try await client.from("tasks").select().eq("space_id", value: spaceID.uuidString).gte("updated_at", value: sinceISO).execute().value
         snapshot.taskLists = try await client.from("task_lists").select().eq("space_id", value: spaceID.uuidString).gte("updated_at", value: sinceISO).execute().value
         snapshot.projects = try await client.from("projects").select().eq("space_id", value: spaceID.uuidString).gte("updated_at", value: sinceISO).execute().value
         snapshot.projectSubtasks = try await client.from("project_subtasks").select().eq("space_id", value: spaceID.uuidString).gte("updated_at", value: sinceISO).execute().value
         snapshot.periodicTasks = try await client.from("periodic_tasks").select().eq("space_id", value: spaceID.uuidString).gte("updated_at", value: sinceISO).execute().value
+        snapshot.importantDates = try await client.from("important_dates").select().eq("space_id", value: spaceID.uuidString).gte("updated_at", value: sinceISO).execute().value
+        snapshot.tasks = try await client.from("tasks").select().eq("space_id", value: spaceID.uuidString).gte("updated_at", value: sinceISO).execute().value
         return snapshot
     }
 
@@ -147,6 +149,9 @@ actor SupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
         }
         if snapshot.periodicTasks.isEmpty == false {
             try await client.from("periodic_tasks").upsert(snapshot.periodicTasks, onConflict: "id").execute()
+        }
+        if snapshot.importantDates.isEmpty == false {
+            try await client.from("important_dates").upsert(snapshot.importantDates, onConflict: "id").execute()
         }
         if snapshot.tasks.isEmpty == false {
             try await client.from("tasks").upsert(snapshot.tasks, onConflict: "id").execute()

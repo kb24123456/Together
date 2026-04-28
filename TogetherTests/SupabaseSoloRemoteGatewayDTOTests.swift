@@ -92,6 +92,13 @@ struct SupabaseSoloRemoteGatewayDTOTests {
         #expect(payload["displayName"] == nil)
     }
 
+    @Test("solo remote snapshot initializes important dates")
+    func soloRemoteSnapshotInitializesImportantDates() {
+        let snapshot = SoloRemoteSnapshot()
+
+        #expect(snapshot.importantDates.isEmpty)
+    }
+
     private func encodedJSONObject<T: Encodable>(_ value: T) throws -> [String: Any] {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

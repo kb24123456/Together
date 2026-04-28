@@ -49,4 +49,5 @@ begin
 end;
 $$;
 
+revoke execute on function public.ensure_single_space(uuid, text) from public;
 grant execute on function public.ensure_single_space(uuid, text) to authenticated;
