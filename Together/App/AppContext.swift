@@ -277,6 +277,7 @@ final class AppContext {
                 await self.reloadAfterSync()
             }
         }
+        await container.syncEngineCoordinator.performStartupSync()
 
         if let soloSpaceID {
             await enqueueExistingSoloDataForCloudBackup(spaceID: soloSpaceID)
@@ -1226,8 +1227,7 @@ final class AppContext {
     /// Handle CloudKit push notification (solo sync only).
     /// Pair sync now uses Supabase Realtime + APNs, not CloudKit subscriptions.
     func handleCloudKitNotification(_ userInfo: [AnyHashable: Any]) async {
-        // CloudKit 通知现在只用于 Solo CKSyncEngine
-        // Pair 同步通过 Supabase Realtime WebSocket 处理
+        await container.syncEngineCoordinator.fetchChangesForSolo()
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {

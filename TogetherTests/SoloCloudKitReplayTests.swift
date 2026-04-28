@@ -4,6 +4,11 @@ import Testing
 @testable import Together
 
 struct SoloCloudKitReplayTests {
+    @Test("solo startup sync sends pending changes before fetching remote changes")
+    func soloStartupSyncSendsThenFetches() {
+        #expect(SyncEngineCoordinator.startupSyncActionsForTesting == [.sendChanges, .fetchChanges])
+    }
+
     @Test("solo replay only enqueues CloudKit-supported pending changes for the solo space")
     func soloReplayFiltersPendingChangesToSoloCloudKitEntities() {
         let soloSpaceID = UUID()

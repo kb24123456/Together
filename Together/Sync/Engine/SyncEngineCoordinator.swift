@@ -35,6 +35,18 @@ actor SyncEngineCoordinator {
 
     // MARK: - Test Affordance
 
+    enum StartupSyncAction: Equatable {
+        case sendChanges
+        case fetchChanges
+    }
+
+    private nonisolated static let startupSyncActions: [StartupSyncAction] = [
+        .sendChanges,
+        .fetchChanges
+    ]
+
+    nonisolated static var startupSyncActionsForTesting: [StartupSyncAction] { startupSyncActions }
+
     /// 外部可读的"solo engine 是否在跑"快照。仅供测试和 UI 观察，actor 内部
     /// 依旧直接读 `soloEngine`。
     var isRunningSolo: Bool { soloEngine != nil }
@@ -192,6 +204,28 @@ actor SyncEngineCoordinator {
         await sendChanges(for: Self.soloZoneID)
     }
 
+    /// Runs the initial foreground sync after AppContext has installed its
+    /// remote-change callback. This makes cold installs actively pull CloudKit
+    /// data instead of waiting for a silent push.
+    func performStartupSync() async {
+        guard let engine = soloEngine else { return }
+
+        for action in Self.startupSyncActions {
+            switch action {
+            case .sendChanges:
+                await sendChanges(for: Self.soloZoneID, engine: engine)
+            case .fetchChanges:
+                await fetchChanges(for: Self.soloZoneID, engine: engine)
+            }
+        }
+    }
+
+    /// Fetches remote solo changes immediately, used by CloudKit push handling.
+    func fetchChangesForSolo() async {
+        guard let engine = soloEngine else { return }
+        await fetchChanges(for: Self.soloZoneID, engine: engine)
+    }
+
     // MARK: - State Persistence
 
     /// Loads persisted CKSyncEngine state for resuming across app launches.
@@ -313,6 +347,19 @@ actor SyncEngineCoordinator {
                 $0.lastError = error.localizedDescription
             }
             logger.error("[Coordinator] Immediate send failed for \(zoneID.zoneName): \(error.localizedDescription)")
+        }
+    }
+
+    private func fetchChanges(for zoneID: CKRecordZone.ID, engine: CKSyncEngine) async {
+        do {
+            try await engine.fetchChanges()
+        } catch {
+            healthMonitor.updateZone(zoneID.zoneName) {
+                $0.consecutiveFailures += 1
+                $0.lastFetchError = error.localizedDescription
+                $0.lastError = error.localizedDescription
+            }
+            logger.error("[Coordinator] Fetch failed for \(zoneID.zoneName): \(error.localizedDescription)")
         }
     }
 }
