@@ -69,6 +69,16 @@ struct DeviceInstallationUpsertDTO: Codable, Sendable {
     }
 }
 
+struct EnsureSingleSpaceRPCParams: Encodable, Sendable {
+    let userID: UUID
+    let displayName: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "p_user_id"
+        case displayName = "p_display_name"
+    }
+}
+
 struct SoloRemoteSnapshot: Sendable {
     var tasks: [TaskDTO] = []
     var taskLists: [TaskListDTO] = []
@@ -94,31 +104,16 @@ actor SupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
     func ensureSingleSpace(userID: UUID, displayName: String) async throws -> UUID {
         struct SpaceRow: Decodable { let id: UUID }
 
-        let existing: [SpaceRow] = try await client.from("spaces")
-            .select("id")
-            .eq("owner_user_id", value: userID.uuidString)
-            .eq("type", value: "single")
-            .eq("status", value: "active")
-            .limit(1)
+        let row: SpaceRow = try await client
+            .rpc(
+                "ensure_single_space",
+                params: EnsureSingleSpaceRPCParams(userID: userID, displayName: displayName)
+            )
+            .single()
             .execute()
             .value
 
-        if let id = existing.first?.id {
-            try await ensureMembership(spaceID: id, userID: userID)
-            return id
-        }
-
-        let inserted: [SpaceRow] = try await client.from("spaces")
-            .insert(SoloSpaceUpsertDTO.newSingle(ownerUserID: userID, displayName: displayName))
-            .select("id")
-            .execute()
-            .value
-
-        guard let id = inserted.first?.id else {
-            throw SoloRemoteGatewayError.missingInsertedSpaceID
-        }
-        try await ensureMembership(spaceID: id, userID: userID)
-        return id
+        return row.id
     }
 
     func registerDevice(_ dto: DeviceInstallationUpsertDTO) async throws {
@@ -158,23 +153,4 @@ actor SupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
         }
     }
 
-    private func ensureMembership(spaceID: UUID, userID: UUID) async throws {
-        struct MemberDTO: Encodable {
-            let space_id: UUID
-            let user_id: UUID
-            let display_name: String
-            let role: String
-        }
-
-        try await client.from("space_members")
-            .upsert(
-                MemberDTO(space_id: spaceID, user_id: userID, display_name: "我", role: "owner"),
-                onConflict: "space_id,user_id"
-            )
-            .execute()
-    }
-}
-
-enum SoloRemoteGatewayError: Error {
-    case missingInsertedSpaceID
 }
