@@ -391,7 +391,12 @@ final class AppContext {
     /// Default skips redundant byte uploads via UserDefaults watermark
     /// `together.userProfile.lastSyncedAvatarVersion.{userID}`.
     func syncOwnProfileToCloud(user: User, force: Bool = false) async {
-        let watermarkKey = "together.userProfile.lastSyncedAvatarVersion.\(user.id.uuidString.lowercased())"
+        guard let supabaseUserID = await supabaseAuth.currentUserID else {
+            appContextLogger.debug("[OwnProfile] sync skipped: no active Supabase session")
+            return
+        }
+
+        let watermarkKey = Self.userProfileCloudWatermarkKey(supabaseUserID: supabaseUserID)
         let lastSyncedVersion = UserDefaults.standard.integer(forKey: watermarkKey)
         var avatarURLString: String?
 
@@ -406,7 +411,7 @@ final class AppContext {
                     let bytes = try avatarStore.avatarData(named: fileName)
                     let signed = try await container.avatarUploader.uploadAvatarUserScoped(
                         bytes: bytes,
-                        userID: user.id,
+                        userID: supabaseUserID,
                         version: user.avatarVersion
                     )
                     avatarURLString = signed.absoluteString
@@ -420,14 +425,10 @@ final class AppContext {
             }
         }
 
-        let dto = UserProfileDTO(
-            userID: user.id,
-            displayName: user.displayName,
-            avatarURL: avatarURLString,
-            avatarAssetID: user.avatarAssetID,
-            avatarSystemName: user.avatarSystemName,
-            avatarVersion: user.avatarVersion,
-            updatedAt: nil
+        let dto = Self.makeCloudUserProfileDTO(
+            from: user,
+            supabaseUserID: supabaseUserID,
+            avatarURLString: avatarURLString
         )
         do {
             try await container.userProfileRemote.upsertOwn(dto)
@@ -435,6 +436,26 @@ final class AppContext {
         } catch {
             appContextLogger.error("[OwnProfile] upsertOwn failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    nonisolated static func userProfileCloudWatermarkKey(supabaseUserID: UUID) -> String {
+        "together.userProfile.lastSyncedAvatarVersion.\(supabaseUserID.uuidString.lowercased())"
+    }
+
+    nonisolated static func makeCloudUserProfileDTO(
+        from user: User,
+        supabaseUserID: UUID,
+        avatarURLString: String?
+    ) -> UserProfileDTO {
+        UserProfileDTO(
+            userID: supabaseUserID,
+            displayName: user.displayName,
+            avatarURL: avatarURLString,
+            avatarAssetID: user.avatarAssetID,
+            avatarSystemName: user.avatarSystemName,
+            avatarVersion: user.avatarVersion,
+            updatedAt: nil
+        )
     }
 
     /// Queues the current user's shared member profile into the shared authority sync path.
