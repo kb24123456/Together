@@ -132,6 +132,120 @@ struct HomeView: View {
         GradientGridBackground()
     }
 
+    private var showsStartupRestoreStatus: Bool {
+        appContext.startupRestorePresentationState.isVisible
+            && appContext.sessionStore.activeMode == .single
+            && !isOverlayModeActive
+    }
+
+    private var showsStartupRestorePlaceholder: Bool {
+        guard showsStartupRestoreStatus else { return false }
+        if case .restoring = appContext.startupRestorePresentationState {
+            return true
+        }
+        return false
+    }
+
+    private var startupRestoreStatusPill: some View {
+        HStack(spacing: AppTheme.spacing.xs) {
+            restoreStatusGlyph
+
+            Text(startupRestoreStatusText)
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.xs)
+        .background(
+            Capsule(style: .continuous)
+                .fill(AppTheme.colors.surfaceElevated.opacity(0.92))
+        )
+        .overlay {
+            Capsule(style: .continuous)
+                .stroke(AppTheme.colors.outline.opacity(0.62), lineWidth: 1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var restoreStatusGlyph: some View {
+        switch appContext.startupRestorePresentationState {
+        case .failed:
+            Image(systemName: "wifi.exclamationmark")
+                .font(AppTheme.typography.sized(12, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.warning)
+        case .restoring:
+            ProgressView()
+                .controlSize(.small)
+                .tint(AppTheme.colors.body.opacity(0.62))
+        case .idle:
+            EmptyView()
+        }
+    }
+
+    private var startupRestoreStatusText: String {
+        switch appContext.startupRestorePresentationState {
+        case .idle:
+            return ""
+        case .restoring(let isSlow):
+            return isSlow ? "仍在同步，请稍候" : "正在恢复你的任务"
+        case .failed:
+            return "网络暂时不可用，稍后会自动重试"
+        }
+    }
+
+    private var startupRestorePlaceholder: some View {
+        VStack(spacing: AppTheme.spacing.md) {
+            Image("CloudRestorePlaceholder")
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 132, height: 132)
+                .accessibilityHidden(true)
+
+            VStack(spacing: AppTheme.spacing.xs) {
+                Text(startupRestorePlaceholderTitle)
+                    .font(AppTheme.typography.sized(17, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.66))
+                    .multilineTextAlignment(.center)
+
+                Text(startupRestorePlaceholderMessage)
+                    .font(AppTheme.typography.sized(14, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var startupRestorePlaceholderTitle: String {
+        switch appContext.startupRestorePresentationState {
+        case .failed:
+            return "网络暂时不可用"
+        case .idle, .restoring:
+            return "正在恢复你的数据"
+        }
+    }
+
+    private var startupRestorePlaceholderMessage: String {
+        switch appContext.startupRestorePresentationState {
+        case .failed:
+            return "稍后会自动重试"
+        case .restoring(let isSlow):
+            return isSlow ? "仍在同步，请稍候" : "通常只需要几秒钟"
+        case .idle:
+            return ""
+        }
+    }
+
+    private var restoreTransitionAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.18) : AppTheme.motion.smooth
+    }
+
     private func topChrome(safeAreaTop: CGFloat) -> some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
@@ -143,9 +257,17 @@ struct HomeView: View {
                 weekCalendarContainer
                     .padding(.horizontal, horizontalContentPadding)
                     .padding(.top, calendarTopSpacing)
+
+                if showsStartupRestoreStatus {
+                    startupRestoreStatusPill
+                        .padding(.horizontal, horizontalContentPadding)
+                        .padding(.top, AppTheme.spacing.sm)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
             .padding(.bottom, isOverlayModeActive ? 4 : 0)
             .background(homeCanvasColor)
+            .animation(restoreTransitionAnimation, value: appContext.startupRestorePresentationState)
 
             LinearGradient(
                 stops: [
@@ -329,6 +451,7 @@ struct HomeView: View {
             foregroundColor: headerPrimaryColor,
             secondaryForegroundColor: headerSecondaryColor,
             compact: compact,
+            showsRestorePlaceholder: showsStartupRestorePlaceholder,
             action: {
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
                     viewModel.toggleAvatarPreview()
@@ -366,7 +489,19 @@ struct HomeView: View {
 
     private var tasksContent: some View {
         ZStack {
-            if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
+            if showsStartupRestorePlaceholder {
+                ScrollView {
+                    startupRestorePlaceholder
+                        .padding(.horizontal, AppTheme.spacing.xl)
+                        .padding(.top, 52)
+                        .padding(.bottom, AppTheme.spacing.lg)
+                }
+                .id("startup-restore-\(viewModel.selectedDateKey)")
+                .scrollIndicators(.hidden)
+                .scrollDisabled(isOverlayModeActive)
+                .applyScrollEdgeProtection()
+                .transition(timelineTransition)
+            } else if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
                         if appContext.sessionStore.activeMode == .single,
@@ -424,6 +559,7 @@ struct HomeView: View {
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.selectedDateKey)
+        .animation(restoreTransitionAnimation, value: appContext.startupRestorePresentationState)
     }
 
     /// Scroll to and briefly highlight a task row. Called from both the hot path
@@ -1506,7 +1642,7 @@ struct HomeView: View {
     }
 
     private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + topChromeReservedHeight + visibleCalendarContainerHeight
+        safeAreaTop + topChromeReservedHeight + visibleCalendarContainerHeight + startupRestoreStatusReservedHeight
     }
 
     private var topChromeReservedHeight: CGFloat {
@@ -1519,6 +1655,10 @@ struct HomeView: View {
 
     private var visibleCalendarContainerHeight: CGFloat {
         isOverlayModeActive ? 0 : calendarContainerHeight
+    }
+
+    private var startupRestoreStatusReservedHeight: CGFloat {
+        showsStartupRestoreStatus ? 40 : 0
     }
 
     private var calendarContainerHeight: CGFloat {
@@ -3087,6 +3227,7 @@ private struct HomeAvatarToggleButton: View {
     let foregroundColor: Color
     let secondaryForegroundColor: Color
     let compact: Bool
+    let showsRestorePlaceholder: Bool
     let action: () -> Void
 
     var body: some View {
@@ -3132,15 +3273,27 @@ private struct HomeAvatarToggleButton: View {
 
     @ViewBuilder
     private func avatarBadge(_ avatar: HomeAvatar, zIndex: Double) -> some View {
-        UserAvatarView(
-            avatarAsset: avatar.avatarAsset,
-            displayName: avatar.displayName,
-            size: avatarSize,
-            fillColor: AppTheme.colors.surfaceElevated,
-            symbolColor: foregroundColor,
-            symbolFont: AppTheme.typography.sized(16, weight: .semibold),
-            overrideImage: avatar.overrideImage
-        )
+        Group {
+            if showsRestorePlaceholder {
+                Circle()
+                    .fill(AppTheme.colors.surfaceElevated)
+                    .overlay {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(AppTheme.typography.sized(16, weight: .semibold))
+                            .foregroundStyle(secondaryForegroundColor.opacity(0.58))
+                    }
+            } else {
+                UserAvatarView(
+                    avatarAsset: avatar.avatarAsset,
+                    displayName: avatar.displayName,
+                    size: avatarSize,
+                    fillColor: AppTheme.colors.surfaceElevated,
+                    symbolColor: foregroundColor,
+                    symbolFont: AppTheme.typography.sized(16, weight: .semibold),
+                    overrideImage: avatar.overrideImage
+                )
+            }
+        }
             .frame(width: avatarSize, height: avatarSize)
             .overlay {
                 Circle()

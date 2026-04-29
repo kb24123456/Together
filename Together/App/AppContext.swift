@@ -11,6 +11,16 @@ import UserNotifications
 private let appContextLogger = Logger(subsystem: "com.pigdog.Together", category: "AppContext")
 // premiumLogger 定义在 Together/Services/Premium/PremiumLogger.swift 作为 module-internal
 
+enum StartupRestorePresentationState: Equatable {
+    case idle
+    case restoring(isSlow: Bool)
+    case failed
+
+    var isVisible: Bool {
+        self != .idle
+    }
+}
+
 @MainActor
 @Observable
 final class AppContext {
@@ -51,6 +61,7 @@ final class AppContext {
     let pendingApprovalObserver: PendingApprovalObserver
 
     private(set) var hasBootstrapped = false
+    private(set) var startupRestorePresentationState: StartupRestorePresentationState = .idle
     private var hasCompletedPostLaunchWork = false
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
@@ -78,6 +89,8 @@ final class AppContext {
     // 避免快速登入-登出-再登入导致的 RC configure vs logIn 竞争。
     private var premiumGateTask: Task<Void, Never>?
     private var lastPremiumRefreshAt: Date?
+    private var startupRestoreSlowTask: Task<Void, Never>?
+    private var startupRestoreRetryTask: Task<Void, Never>?
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
@@ -185,6 +198,9 @@ final class AppContext {
                 await setupSpacesForCurrentUserIfNeeded()
             }
             await restorePersistedUserProfileIfNeeded()
+            if await shouldPresentStartupRestoreUI(requiresPremium: false) {
+                beginStartupRestorePresentation()
+            }
         }
         hasBootstrapped = true
     }
@@ -244,7 +260,19 @@ final class AppContext {
         if sessionStore.authState == .signedIn {
             _ = await supabaseAuth.restoreSession()
             await configurePremiumGate()
-            await startSupabaseSoloSyncRecoveryIfNeeded()
+            let presentsStartupRestore = await shouldPresentStartupRestoreUI()
+            if presentsStartupRestore {
+                if startupRestorePresentationState.isVisible == false {
+                    beginStartupRestorePresentation()
+                }
+            } else if startupRestorePresentationState.isVisible {
+                finishStartupRestorePresentation()
+            }
+            let didCompleteSoloRecovery = await startSupabaseSoloSyncRecoveryIfNeeded()
+            if presentsStartupRestore, didCompleteSoloRecovery {
+                await reloadAfterSync()
+                finishStartupRestorePresentation()
+            }
             await startSoloSyncEngineIfNeeded()
             // user_profiles hydrate 必须在 startSupabaseSyncIfNeeded 之前 await 完成，
             // 否则 pair sync 启动后 push 路径可能用旧的 local 覆盖云端最新值。
@@ -258,16 +286,22 @@ final class AppContext {
         StartupTrace.mark("AppContext.postLaunch.end")
     }
 
-    private func startSupabaseSoloSyncRecoveryIfNeeded() async {
+    private func startSupabaseSoloSyncRecoveryIfNeeded() async -> Bool {
         guard let supabaseUserID = await supabaseAuth.currentUserID else {
             appContextLogger.debug("[SupabaseSolo] recovery skipped: no active Supabase session")
-            return
+            if startupRestorePresentationState.isVisible {
+                failStartupRestorePresentation()
+            }
+            return false
         }
 
         let displayName = sessionStore.currentUser?.displayName ?? "我"
         guard let localUserID = sessionStore.currentUser?.id else {
             appContextLogger.debug("[SupabaseSolo] recovery skipped: no local user")
-            return
+            if startupRestorePresentationState.isVisible {
+                failStartupRestorePresentation()
+            }
+            return false
         }
 
         do {
@@ -281,16 +315,86 @@ final class AppContext {
             appContextLogger.info("[SupabaseSolo] recovery completed")
         } catch SoloSyncServiceError.requiresPro {
             appContextLogger.info("[SupabaseSolo] recovery skipped: requires Pro")
+            finishStartupRestorePresentation()
+            return false
         } catch {
             appContextLogger.error("[SupabaseSolo] recovery failed: \(error.localizedDescription, privacy: .public)")
+            failStartupRestorePresentation()
+            return false
         }
 
         await refreshSessionSpaceContext(for: localUserID)
+        return true
     }
 
     private func refreshSessionSpaceContext(for userID: UUID) async {
         let updatedSpaceContext = await container.spaceService.currentSpaceContext(for: userID)
         sessionStore.refresh(spaceContext: updatedSpaceContext, pairingContext: sessionStore.pairingContext)
+    }
+
+    private func shouldPresentStartupRestoreUI(requiresPremium: Bool = true) async -> Bool {
+        guard sessionStore.authState == .signedIn else { return false }
+        guard sessionStore.selectedWorkspace == .single else { return false }
+        guard requiresPremium == false || container.premiumGate.isPremium else { return false }
+        guard let spaceID = sessionStore.singleSpace?.id else { return false }
+
+        do {
+            let localItems = try await container.itemRepository.fetchActiveItems(spaceID: spaceID)
+            return localItems.isEmpty
+        } catch {
+            appContextLogger.error("[StartupRestoreUI] local preflight failed: \(error.localizedDescription, privacy: .public)")
+            return true
+        }
+    }
+
+    private func beginStartupRestorePresentation(cancelsRetry: Bool = true) {
+        startupRestoreSlowTask?.cancel()
+        if cancelsRetry {
+            startupRestoreRetryTask?.cancel()
+        }
+        startupRestorePresentationState = .restoring(isSlow: false)
+        startupRestoreSlowTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, Task.isCancelled == false else { return }
+            if case .restoring = self.startupRestorePresentationState {
+                self.startupRestorePresentationState = .restoring(isSlow: true)
+            }
+        }
+    }
+
+    private func finishStartupRestorePresentation() {
+        startupRestoreSlowTask?.cancel()
+        startupRestoreRetryTask?.cancel()
+        startupRestoreSlowTask = nil
+        startupRestoreRetryTask = nil
+        startupRestorePresentationState = .idle
+    }
+
+    private func failStartupRestorePresentation() {
+        startupRestoreSlowTask?.cancel()
+        startupRestoreSlowTask = nil
+        startupRestorePresentationState = .failed
+        scheduleStartupRestoreRetry()
+    }
+
+    private func scheduleStartupRestoreRetry() {
+        startupRestoreRetryTask?.cancel()
+        startupRestoreRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(15))
+            guard let self, Task.isCancelled == false else { return }
+            guard self.startupRestorePresentationState == .failed else { return }
+            guard self.sessionStore.authState == .signedIn, self.container.premiumGate.isPremium else {
+                self.finishStartupRestorePresentation()
+                return
+            }
+
+            self.beginStartupRestorePresentation(cancelsRetry: false)
+            let didCompleteSoloRecovery = await self.startSupabaseSoloSyncRecoveryIfNeeded()
+            if didCompleteSoloRecovery {
+                await self.reloadAfterSync()
+                self.finishStartupRestorePresentation()
+            }
+        }
     }
 
     // MARK: - CKSyncEngine Setup
