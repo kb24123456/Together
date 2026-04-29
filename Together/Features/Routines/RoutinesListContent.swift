@@ -205,10 +205,12 @@ struct RoutinesListContent: View {
     private var routinesEmptyState: some View {
         VStack(spacing: AppTheme.spacing.xl) {
             VStack(spacing: AppTheme.spacing.md) {
-                Image(systemName: "arrow.clockwise")
-                    .font(AppTheme.typography.sized(36, weight: .light))
-                    .foregroundStyle(AppTheme.colors.accent.opacity(0.45))
-                    .symbolEffect(.breathe.plain, options: .repeating)
+                Image("EmptyRoutines")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 120, height: 120)
+                    .accessibilityHidden(true)
 
                 Text("还没有例行事务")
                     .font(AppTheme.typography.sized(17, weight: .semibold))
@@ -247,10 +249,12 @@ struct RoutinesListContent: View {
     private var emptyTabState: some View {
         VStack(spacing: AppTheme.spacing.xl) {
             VStack(spacing: AppTheme.spacing.md) {
-                Image(systemName: "tray")
-                    .font(AppTheme.typography.sized(36, weight: .light))
-                    .foregroundStyle(AppTheme.colors.sky.opacity(0.45))
-                    .symbolEffect(.breathe.plain, options: .repeating)
+                Image("EmptyRoutines")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 120, height: 120)
+                    .accessibilityHidden(true)
 
                 Text("暂无\(selectedCycle.title)事务")
                     .font(AppTheme.typography.sized(17, weight: .semibold))
