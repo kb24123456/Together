@@ -27,8 +27,11 @@ actor LocalPairingService: PairingServiceProtocol {
             pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? pairSpaces
         }
 
-        let pairSpaceIDs = Set(memberships.filter { $0.userID == userID }.map(\.pairSpaceID))
-        let relatedPairSpace = pairSpaces.first { pairSpaceIDs.contains($0.id) && $0.endedAt == nil }
+        let relatedPairSpace = PairSpaceSummaryResolver.bestPairSpace(
+            for: userID,
+            pairSpaces: pairSpaces,
+            memberships: memberships
+        )
         // 清理过期的 pending 邀请 → 标记为 expired
         let now = Date.now
         var didExpire = false
