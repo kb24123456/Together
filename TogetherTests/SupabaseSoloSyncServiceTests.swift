@@ -93,6 +93,100 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.metadata.lastPushedAt(spaceID: remoteSpaceID) != nil)
     }
 
+    @Test("remote single space adopts local tasks created in stale install space during startup")
+    func remoteSingleSpaceAdoptsLocalTasksCreatedInStaleInstallSpaceDuringStartup() async throws {
+        let harness = try SoloSyncHarness()
+        let staleLocalSpaceID = UUID()
+        let remoteSpaceID = UUID()
+        let taskID = UUID()
+        harness.remote.setSpaceID(remoteSpaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: staleLocalSpaceID,
+                type: .single,
+                displayName: "启动期本地空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: .now,
+                updatedAt: .now
+            )
+        ))
+        context.insert(PersistentSpace(
+            space: Space(
+                id: remoteSpaceID,
+                type: .single,
+                displayName: "远端空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: .now,
+                updatedAt: .now
+            )
+        ))
+        context.insert(PersistentItem.sample(id: taskID, spaceID: staleLocalSpaceID, creatorID: harness.userID, title: "startup task"))
+        context.insert(PersistentSyncChange(change: SyncChange(entityKind: .task, operation: .upsert, recordID: taskID, spaceID: staleLocalSpaceID)))
+        try context.save()
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        let upserted = harness.remote.upsertedSnapshot()
+        #expect(upserted.tasks.map(\.title) == ["startup task"])
+        #expect(upserted.tasks.first?.spaceId == remoteSpaceID)
+
+        let spaces = try context.fetch(FetchDescriptor<PersistentSpace>())
+        let items = try context.fetch(FetchDescriptor<PersistentItem>())
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+
+        #expect(spaces.contains { $0.id == staleLocalSpaceID } == false)
+        #expect(spaces.contains { $0.id == remoteSpaceID } == true)
+        #expect(items.first?.spaceID == remoteSpaceID)
+        #expect(changes.first?.spaceID == remoteSpaceID)
+        #expect(harness.metadata.lastPushedAt(spaceID: remoteSpaceID) != nil)
+    }
+
+    @Test("empty stale install single space is removed before users can create solo tasks")
+    func emptyStaleInstallSingleSpaceIsRemovedBeforeUsersCanCreateSoloTasks() async throws {
+        let harness = try SoloSyncHarness()
+        let staleLocalSpaceID = UUID()
+        let remoteSpaceID = UUID()
+        harness.remote.setSpaceID(remoteSpaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: staleLocalSpaceID,
+                type: .single,
+                displayName: "启动期本地空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: .now,
+                updatedAt: .now
+            )
+        ))
+        try context.save()
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        let spaces = try context.fetch(FetchDescriptor<PersistentSpace>())
+
+        #expect(spaces.map(\.id) == [remoteSpaceID])
+        #expect(harness.remote.upsertCallCount() == 0)
+        #expect(harness.metadata.migrationCompletedAt(spaceID: remoteSpaceID) != nil)
+    }
+
     @Test("pair data is not adopted as solo bootstrap data")
     func pairDataIsNotRewrittenToRemoteSoloSpace() async throws {
         let harness = try SoloSyncHarness()
@@ -360,6 +454,72 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.remote.upsertCallCount() == 1)
         #expect(changes.isEmpty)
         #expect(harness.metadata.lastPushedAt(spaceID: spaceID) != nil)
+    }
+
+    @Test("CloudKit-confirmed solo task after last Supabase push still pushes")
+    func cloudKitConfirmedSoloTaskAfterLastSupabasePushStillPushes() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+        let lastSupabasePush = Date(timeIntervalSince1970: 1_700_000_000)
+        let changedAt = lastSupabasePush.addingTimeInterval(60)
+        harness.metadata.setLastPushedAt(lastSupabasePush, spaceID: spaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "ck confirmed task"))
+
+        let confirmedChange = PersistentSyncChange(change: SyncChange(
+            entityKind: .task,
+            operation: .upsert,
+            recordID: taskID,
+            spaceID: spaceID,
+            changedAt: changedAt
+        ))
+        confirmedChange.lifecycleState = .confirmed
+        confirmedChange.confirmedAt = changedAt.addingTimeInterval(1)
+        context.insert(confirmedChange)
+        try context.save()
+
+        try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+
+        let pushedTitles = harness.remote.upsertedSnapshot().tasks.map(\.title)
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+
+        #expect(pushedTitles == ["ck confirmed task"])
+        #expect(changes.isEmpty)
+    }
+
+    @Test("CloudKit-confirmed solo task before last Supabase push still pushes")
+    func cloudKitConfirmedSoloTaskBeforeLastSupabasePushStillPushes() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+        let lastSupabasePush = Date(timeIntervalSince1970: 1_700_000_000)
+        let changedAt = lastSupabasePush.addingTimeInterval(-60)
+        harness.metadata.setLastPushedAt(lastSupabasePush, spaceID: spaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "older ck confirmed task"))
+
+        let confirmedChange = PersistentSyncChange(change: SyncChange(
+            entityKind: .task,
+            operation: .upsert,
+            recordID: taskID,
+            spaceID: spaceID,
+            changedAt: changedAt
+        ))
+        confirmedChange.lifecycleState = .confirmed
+        confirmedChange.confirmedAt = changedAt.addingTimeInterval(1)
+        context.insert(confirmedChange)
+        try context.save()
+
+        try await harness.service.pushPending(spaceID: spaceID, userID: harness.userID)
+
+        let pushedTitles = harness.remote.upsertedSnapshot().tasks.map(\.title)
+        let changes = try context.fetch(FetchDescriptor<PersistentSyncChange>())
+
+        #expect(pushedTitles == ["older ck confirmed task"])
+        #expect(changes.isEmpty)
     }
 
     @Test("project subtask with parent project outside solo space is failed without pushing")

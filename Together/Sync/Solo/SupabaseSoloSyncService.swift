@@ -153,15 +153,20 @@ actor SupabaseSoloSyncService: SupabaseSoloSyncServicing {
 
         let pendingRaw = SyncMutationLifecycleState.pending.rawValue
         let failedRaw = SyncMutationLifecycleState.failed.rawValue
+        let confirmedRaw = SyncMutationLifecycleState.confirmed.rawValue
         let descriptor = FetchDescriptor<PersistentSyncChange>(
             predicate: #Predicate<PersistentSyncChange> {
                 $0.spaceID == spaceID &&
-                ($0.lifecycleStateRawValue == pendingRaw || $0.lifecycleStateRawValue == failedRaw)
+                (
+                    $0.lifecycleStateRawValue == pendingRaw ||
+                    $0.lifecycleStateRawValue == failedRaw ||
+                    $0.lifecycleStateRawValue == confirmedRaw
+                )
             },
             sortBy: [SortDescriptor(\PersistentSyncChange.changedAt, order: .forward)]
         )
 
-        let changes = try context.fetch(descriptor)
+        let changes = try context.fetch(descriptor).filter(shouldPushToSupabase)
         guard changes.isEmpty == false else { return }
 
         var outboundChanges: [PersistentSyncChange] = []
@@ -374,6 +379,17 @@ private extension SupabaseSoloSyncService {
         logger.info("[Recovery] Revived \(stuck.count) stuck solo sending changes")
     }
 
+    func shouldPushToSupabase(_ change: PersistentSyncChange) -> Bool {
+        switch change.lifecycleState {
+        case .confirmed:
+            return Self.supportsSoloPush(entityKindRawValue: change.entityKindRawValue)
+        case .pending, .failed:
+            return true
+        case .sending:
+            return false
+        }
+    }
+
     func fetchTask(id: UUID, context: ModelContext) throws -> PersistentItem? {
         let recordID = id
         let descriptor = FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == recordID })
@@ -472,9 +488,6 @@ private extension SupabaseSoloSyncService {
         if let oldID = dataBearingSpaceID, oldID != remoteSpaceID {
             if let exact = activeSingles.first(where: { $0.id == remoteSpaceID }) {
                 updateSingleSpace(exact, userID: userID, displayName: displayName)
-                if let old = activeSingles.first(where: { $0.id == oldID }) {
-                    context.delete(old)
-                }
             } else if let old = activeSingles.first(where: { $0.id == oldID }) {
                 old.id = remoteSpaceID
                 updateSingleSpace(old, userID: userID, displayName: displayName)
@@ -482,17 +495,20 @@ private extension SupabaseSoloSyncService {
                 insertSingleSpace(remoteSpaceID: remoteSpaceID, userID: userID, displayName: displayName, context: context)
             }
             try reassignSoloData(from: oldID, to: remoteSpaceID, context: context)
+            try deleteStaleSingleSpaces(activeSingles, remoteSpaceID: remoteSpaceID, context: context)
             try context.save()
             return
         }
 
         if let exact = activeSingles.first(where: { $0.id == remoteSpaceID }) {
             updateSingleSpace(exact, userID: userID, displayName: displayName)
+            try deleteStaleSingleSpaces(activeSingles, remoteSpaceID: remoteSpaceID, context: context)
             try context.save()
             return
         }
 
         insertSingleSpace(remoteSpaceID: remoteSpaceID, userID: userID, displayName: displayName, context: context)
+        try deleteStaleSingleSpaces(activeSingles, remoteSpaceID: remoteSpaceID, context: context)
         try context.save()
     }
 
@@ -526,6 +542,17 @@ private extension SupabaseSoloSyncService {
                 updatedAt: now
             )
         ))
+    }
+
+    func deleteStaleSingleSpaces(
+        _ spaces: [PersistentSpace],
+        remoteSpaceID: UUID,
+        context: ModelContext
+    ) throws {
+        for space in spaces where space.id != remoteSpaceID {
+            try reassignSoloData(from: space.id, to: remoteSpaceID, context: context)
+            context.delete(space)
+        }
     }
 
     func dataBearingSingleSpaceID(context: ModelContext, activeSingleIDs: Set<UUID>) throws -> UUID? {
