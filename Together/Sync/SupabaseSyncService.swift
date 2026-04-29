@@ -418,14 +418,22 @@ actor SupabaseSyncService {
             guard let myUserID else { return }
             let descriptor = FetchDescriptor<PersistentUserProfile>(predicate: #Predicate { $0.userID == recordID })
             guard let profile = try? context.fetch(descriptor).first else { return }
+            let displayName = profile.displayName
+            let avatarAssetID = profile.avatarAssetID
+            let avatarSystemName = profile.avatarSystemName
+            let avatarVersion = profile.avatarVersion
             // Consume the signed URL cached by the preceding .avatarAsset push (if any).
             let signedURL = pendingAvatarURL.removeValue(forKey: recordID)
+            let avatarURLString = await resolvedMemberAvatarURLString(
+                signedURL: signedURL,
+                avatarAssetID: avatarAssetID
+            )
             let dto = SpaceMemberUpdateDTO(
-                displayName: profile.displayName,
-                avatarUrl: signedURL?.absoluteString,
-                avatarAssetID: profile.avatarAssetID,
-                avatarSystemName: profile.avatarSystemName,
-                avatarVersion: profile.avatarVersion
+                displayName: displayName,
+                avatarUrl: avatarURLString,
+                avatarAssetID: avatarAssetID,
+                avatarSystemName: avatarSystemName,
+                avatarVersion: avatarVersion
             )
             try await spaceMemberWriter.updateMember(spaceID: spaceID, userID: myUserID, dto: dto)
 
@@ -501,6 +509,27 @@ actor SupabaseSyncService {
             recentlyPushedIDs[recordID] = Date()
             logger.info("[Push] ✅ importantDate upsert id=\(recordID.uuidString)")
         }
+    }
+
+    private func resolvedMemberAvatarURLString(
+        signedURL: URL?,
+        avatarAssetID: String?
+    ) async -> String? {
+        if let signedURL {
+            return signedURL.absoluteString
+        }
+
+        guard let avatarAssetID, !avatarAssetID.isEmpty else {
+            return nil
+        }
+
+        guard let existing = try? await userProfileRemote.fetchOwn(),
+              existing.avatarAssetID == avatarAssetID
+        else {
+            return nil
+        }
+
+        return existing.avatarURL
     }
 
     private func pushDelete(entityKind: SyncEntityKind, recordID: UUID) async throws {

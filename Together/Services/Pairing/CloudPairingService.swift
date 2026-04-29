@@ -104,6 +104,13 @@ actor CloudPairingService: PairingServiceProtocol {
         pairJoinObserver = observer
     }
 
+    private func notifyPairJoinObserverAsync() {
+        let observer = pairJoinObserver
+        Task {
+            await observer?.onSuccessfulPairJoin()
+        }
+    }
+
     private var onPairSyncTeardown: (@Sendable (UUID) async -> Void)?
 
     func setOnPairSyncTeardown(_ callback: @escaping @Sendable (UUID) async -> Void) {
@@ -274,7 +281,7 @@ actor CloudPairingService: PairingServiceProtocol {
         )
 
         let context = await localPairing.currentPairingContext(for: responderID)
-        await pairJoinObserver?.onSuccessfulPairJoin()
+        notifyPairJoinObserverAsync()
         return context
     }
 
@@ -325,7 +332,7 @@ actor CloudPairingService: PairingServiceProtocol {
             responderDisplayName: responderName
         )
 
-        await pairJoinObserver?.onSuccessfulPairJoin()
+        notifyPairJoinObserverAsync()
         return context
     }
 

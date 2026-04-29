@@ -58,6 +58,9 @@
 - 最终修复策略：`SupabaseSoloSyncService.pushPending` 对同一 solo space 扫描 `pending / failed / confirmed` 的 outbox；`confirmed` 只按是否支持 solo Supabase push 过滤，不再按 `lastPushedAt` 截断；Supabase upsert 成功后删除对应 outbox。
 - 回归测试必须覆盖两类 CloudKit confirmed：晚于 `lastPushedAt` 的任务、早于 `lastPushedAt` 的任务；两者都应补推并清空 outbox。
 - 真机验收标准：安装当前 build 后打开 60 秒，Supabase `tasks` 能查到测试任务；删除 App 后从 TestFlight 重装，同一账号打开 60 秒，首页能恢复任务。
+- 双人邀请码链路的云端真相优先看 Supabase：`pair_invites.status=accepted`、`spaces.status=active`、`space_members` 是否有两行；如果这些成立，问题通常在本地 session 切换、catch-up 或 profile/avatar 回填。
+- 已验证双人配对事故模式：`CloudPairingService` 在返回 `PairingContext` 前同步 await `PairJoinObserver.onSuccessfulPairJoin()`，通知权限弹窗和 Supabase sync 启动会阻塞 `ProfileViewModel.apply(pairingContext:)`，导致接受方云端已配对但 UI 仍显示单人模式。修复策略：先返回 context 让 UI 切到 pair，再异步触发通知权限、catch-up、profile push。
+- 双人头像恢复不要只依赖新 pair space 的 `space_members.avatar_url`。用户重装或换机后本地头像原始文件可能缺失，但 `user_profiles` 仍有可复用的 user-scoped signed URL；`.memberProfile` push 在没有本地头像 bytes / 没有刚上传的 signed URL 时，应在 `avatar_asset_id` 匹配时回退使用 `user_profiles.avatar_url`。
 
 ## 设计与动效记忆
 

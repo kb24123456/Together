@@ -102,7 +102,8 @@ private func makeSyncServiceForPushTests(
     writer: CapturingSpaceMemberWriter,
     userID: UUID,
     spaceID: UUID,
-    mySupabaseUserID: UUID? = nil
+    mySupabaseUserID: UUID? = nil,
+    userProfileRemote: UserProfileRemoteRepositoryProtocol? = nil
 ) async throws -> (sut: SupabaseSyncService, mediaStore: InMemoryAvatarMediaStore) {
     let container = try makeInMemoryContainer()
     let mediaStore = InMemoryAvatarMediaStore()
@@ -110,7 +111,8 @@ private func makeSyncServiceForPushTests(
         modelContainer: container,
         avatarUploader: uploader,
         avatarMediaStore: mediaStore,
-        spaceMemberWriter: writer
+        spaceMemberWriter: writer,
+        userProfileRemote: userProfileRemote
     )
     // Configure synchronously on the actor so .memberProfile push can resolve myUserID.
     let supabaseUserID = mySupabaseUserID ?? userID
@@ -244,5 +246,59 @@ struct AvatarAssetPushTests {
         #expect(dto?.avatarUrl == nil)
         #expect(dto?.avatarSystemName == "person.circle.fill")
         #expect(dto?.avatarVersion == 2)
+    }
+
+    @Test("memberProfile reuses user_profiles avatar_url when local avatar bytes are unavailable")
+    func memberProfileReusesUserProfileAvatarURL() async throws {
+        let uploader = MockAvatarStorageUploader()
+        let writer = CapturingSpaceMemberWriter()
+
+        let userID = UUID()
+        let spaceID = UUID()
+        let assetIDString = UUID().uuidString.lowercased()
+        let existingURL = "https://example.test/avatars/existing.jpg?sig=abc"
+        let userProfileRemote = MockUserProfileRemoteRepository(
+            seed: [
+                UserProfileDTO(
+                    userID: userID,
+                    displayName: "Test User",
+                    avatarURL: existingURL,
+                    avatarAssetID: assetIDString,
+                    avatarSystemName: nil,
+                    avatarVersion: 4,
+                    updatedAt: nil
+                )
+            ],
+            ownUserID: userID
+        )
+
+        let (sut, mediaStore) = try await makeSyncServiceForPushTests(
+            uploader: uploader,
+            writer: writer,
+            userID: userID,
+            spaceID: spaceID,
+            userProfileRemote: userProfileRemote
+        )
+        try await seedProfile(
+            in: sut.modelContainer,
+            mediaStore: mediaStore,
+            userID: userID,
+            avatarAssetID: assetIDString,
+            avatarPhotoFileName: nil,
+            avatarSystemName: nil,
+            avatarVersion: 4,
+            avatarBytes: nil
+        )
+
+        try await sut.pushUpsert(
+            SyncChange(entityKind: .memberProfile, operation: .upsert, recordID: userID, spaceID: spaceID)
+        )
+
+        #expect(writer.capturedDTOs.count == 1)
+        let dto = writer.capturedDTOs.first
+        #expect(dto?.avatarUrl == existingURL)
+        #expect(dto?.avatarAssetID == assetIDString)
+        #expect(dto?.avatarVersion == 4)
+        #expect(uploader.uploads.isEmpty)
     }
 }
