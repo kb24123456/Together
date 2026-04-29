@@ -144,3 +144,12 @@
 - 不要同时拉起多个职责高度重叠的 skill 造成规则冲突。
 - 不要把 `long-horizon-codex` 用于一次性小修。
 - 不要在未完成根因分析前跳过 `systematic-debugging` 直接修 bug。
+
+## 13. 项目记忆与阶段性收尾
+- `docs/PROJECT_MEMORY.md` 是 Codex 在本仓库内的统一项目记忆入口。
+- 开始复杂任务前，先阅读 `PRODUCT_SPEC.md`、`DEVELOPMENT_GUIDELINES.md`、`DESIGN_GUIDELINES.md`、当前 `AGENTS.md` 和 `docs/PROJECT_MEMORY.md`。
+- 完成大功能、长时间 bug 修复、架构调整、迁移、性能优化或复杂调研后，必须更新 `docs/PROJECT_MEMORY.md`。
+- 更新项目记忆时只记录长期有效事实：当前进度、已完成事项、关键决策、重要文件、验证命令、遗留问题和下一步。
+- 不要把密钥、token、私人数据、临时日志全文或未经验证的推测写入项目记忆。
+- Claude 旧 worktree 与历史计划只作为参考，不自动视为当前事实；若与当前根目录文档或代码冲突，以当前根目录文档和代码为准。
+- 如果同一类流程重复出现 2-3 次，优先沉淀为 `.agents/skills/` 下的项目 Skill。
