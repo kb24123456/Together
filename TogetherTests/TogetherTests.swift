@@ -613,6 +613,38 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func profileViewModelReauthenticatesAndRetriesInviteWhenSupabaseSessionIsMissing() async throws {
+        let currentUser = MockDataFactory.makeCurrentUser()
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = currentUser
+
+        let authService = ReauthAuthServiceSpy(user: currentUser)
+        let pairingService = ReauthPairingServiceSpy(
+            invite: MockDataFactory.makeInvite(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        let viewModel = ProfileViewModel(
+            sessionStore: sessionStore,
+            authService: authService,
+            pairingService: pairingService,
+            userProfileRepository: MockUserProfileRepository(),
+            notificationService: MockNotificationService(),
+            itemRepository: MockItemRepository(),
+            taskApplicationService: TestHomeTaskApplicationService(),
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+            reminderScheduler: MockReminderScheduler(),
+            premiumGate: makeTestPremiumGate()
+        )
+
+        await viewModel.createInvite()
+
+        #expect(await authService.signInCount == 1)
+        #expect(await pairingService.createAttempts == 2)
+        #expect(viewModel.createInviteError == nil)
+    }
+
+    @Test @MainActor
     func profileViewModelSpaceSummaryIncludesPendingSharedSpaceMutationState() async throws {
         let sessionStore = SessionStore()
         sessionStore.seedMock(
@@ -4333,6 +4365,79 @@ actor EventRecorder {
 
     func snapshot() -> [String] {
         events
+    }
+}
+
+actor ReauthAuthServiceSpy: AuthServiceProtocol {
+    private let user: User
+    private(set) var signInCount = 0
+
+    init(user: User) {
+        self.user = user
+    }
+
+    func currentSession() async -> AuthSession {
+        AuthSession(state: .signedIn, user: user)
+    }
+
+    func signInWithApple() async throws -> AuthSession {
+        signInCount += 1
+        return AuthSession(state: .signedIn, user: user)
+    }
+
+    func signOut() async {}
+}
+
+actor ReauthPairingServiceSpy: PairingServiceProtocol {
+    private let invite: Invite
+    private let pairSummary: PairSpaceSummary
+    private(set) var createAttempts = 0
+
+    init(invite: Invite, pairSummary: PairSpaceSummary) {
+        self.invite = invite
+        self.pairSummary = pairSummary
+    }
+
+    func currentPairingContext(for userID: UUID?) async -> PairingContext {
+        PairingContext(state: .invitePending, pairSpaceSummary: nil, activeInvite: invite)
+    }
+
+    func createInvite(from inviterID: UUID, displayName: String) async throws -> Invite {
+        createAttempts += 1
+        if createAttempts == 1 {
+            throw PairingError.supabaseAuthUnavailable
+        }
+        return invite
+    }
+
+    func acceptInvite(inviteID: UUID, responderID: UUID) async throws -> PairingContext {
+        PairingContext(state: .paired, pairSpaceSummary: pairSummary, activeInvite: nil)
+    }
+
+    func acceptInviteByCode(_ code: String, responderID: UUID, responderDisplayName: String) async throws -> PairingContext {
+        PairingContext(state: .paired, pairSpaceSummary: pairSummary, activeInvite: nil)
+    }
+
+    func declineInvite(inviteID: UUID, responderID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func cancelInvite(inviteID: UUID, actorID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func cancelAllPendingInvites(for userID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async {}
+
+    func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
+        PairingContext(state: .unbound, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func checkAndFinalizeIfAccepted(pairSpaceID: UUID, inviterID: UUID) async throws -> PairingContext? {
+        nil
     }
 }
 

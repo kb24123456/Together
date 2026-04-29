@@ -2,6 +2,7 @@ import CloudKit
 import Foundation
 
 struct AppContainer {
+    let supabaseAuthService: SupabaseAuthService
     let authService: AuthServiceProtocol
     let spaceService: SpaceServiceProtocol
     let taskApplicationService: TaskApplicationServiceProtocol

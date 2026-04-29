@@ -19,12 +19,12 @@ enum LocalServiceFactory {
         let syncCoordinator = LocalSyncCoordinator(container: modelContainer)
         let userProfileRepository = LocalUserProfileRepository(container: modelContainer)
         let localPairingService = LocalPairingService(container: modelContainer)
+        let supabaseAuth = SupabaseAuthService()
 
         // CloudKit container
         let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
 
         let inviteGateway = SupabaseInviteGateway()
-        let supabaseAuth = SupabaseAuthService()
         let pairingService = CloudPairingService(
             localPairing: localPairingService,
             inviteGateway: inviteGateway,
@@ -72,7 +72,8 @@ enum LocalServiceFactory {
         let supabaseSoloSyncService = SupabaseSoloSyncService(modelContainer: modelContainer)
 
         let container = AppContainer(
-            authService: AppleAuthService(container: modelContainer),
+            supabaseAuthService: supabaseAuth,
+            authService: AppleAuthService(container: modelContainer, supabaseAuth: supabaseAuth),
             spaceService: LocalSpaceService(container: modelContainer),
             taskApplicationService: taskApplicationService,
             syncCoordinator: syncCoordinator,

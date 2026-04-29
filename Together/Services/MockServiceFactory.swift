@@ -89,6 +89,7 @@ enum MockServiceFactory {
         )
 
         return AppContainer(
+            supabaseAuthService: SupabaseAuthService(),
             authService: MockAuthService(),
             spaceService: MockSpaceService(),
             taskApplicationService: taskApplicationService,

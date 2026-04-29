@@ -69,7 +69,7 @@ final class AppContext {
     private var seededPairMetadataSpaceIDs: Set<UUID> = []
     private var supabaseSyncService: SupabaseSyncService?
     private var isStartingSupabaseSync = false  // 防止 startSupabaseSyncIfNeeded 多 Task 并发穿 guard
-    private nonisolated(unsafe) let supabaseAuth = SupabaseAuthService()
+    private let supabaseAuth: SupabaseAuthService
     private var activeSharedSpaceID: UUID?
 
     /// Supabase auth.uid of the current device's signed-in user. Cached on
@@ -94,6 +94,7 @@ final class AppContext {
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
+        self.supabaseAuth = container.supabaseAuthService
         self.sessionStore = sessionStore
         self.router = router
         self.appearanceManager = appearanceManager

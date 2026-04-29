@@ -475,18 +475,31 @@ final class ProfileViewModel {
         let displayName = currentUser?.displayName ?? ""
         createInviteError = nil
         do {
-            _ = try await pairingService.createInvite(from: inviterID, displayName: displayName)
-            let freshContext = await pairingService.currentPairingContext(for: inviterID)
-            apply(pairingContext: freshContext)
-        } catch {
-            let message: String
-            if let pairingError = error as? PairingError {
-                message = pairingError.errorDescription ?? error.localizedDescription
-            } else {
-                message = "发布邀请失败：\(error.localizedDescription)"
+            try await createInviteAndRefresh(inviterID: inviterID, displayName: displayName)
+        } catch PairingError.supabaseAuthUnavailable {
+            do {
+                let session = try await authService.signInWithApple()
+                sessionStore.handleSignIn(session: session)
+                try await createInviteAndRefresh(inviterID: inviterID, displayName: displayName)
+            } catch {
+                createInviteError = createInviteErrorMessage(for: error)
             }
-            createInviteError = message
+        } catch {
+            createInviteError = createInviteErrorMessage(for: error)
         }
+    }
+
+    private func createInviteAndRefresh(inviterID: UUID, displayName: String) async throws {
+        _ = try await pairingService.createInvite(from: inviterID, displayName: displayName)
+        let freshContext = await pairingService.currentPairingContext(for: inviterID)
+        apply(pairingContext: freshContext)
+    }
+
+    private func createInviteErrorMessage(for error: Error) -> String {
+        if let pairingError = error as? PairingError {
+            return pairingError.errorDescription ?? error.localizedDescription
+        }
+        return "发布邀请失败：\(error.localizedDescription)"
     }
 
     /// Device B: accept a cross-device invite by entering the invite code.

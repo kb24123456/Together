@@ -110,13 +110,22 @@ actor CloudPairingService: PairingServiceProtocol {
         onPairSyncTeardown = callback
     }
 
+    private func requireSupabaseUserID(operation: StaticString) async throws -> UUID {
+        if let userID = await supabaseAuth.currentUserID {
+            return userID
+        }
+        if let restoredUserID = await supabaseAuth.restoreSession() {
+            return restoredUserID
+        }
+        cloudPairingLogger.error("Supabase auth unavailable for \(String(describing: operation), privacy: .public)")
+        throw PairingError.supabaseAuthUnavailable
+    }
+
     // MARK: - Supabase 邀请创建（Device A / Owner）
 
     func createInvite(from inviterID: UUID, displayName: String) async throws -> Invite {
         // 1. 确保 Supabase 已登录
-        guard let supabaseUserID = await supabaseAuth.currentUserID else {
-            throw PairingError.cloudKitUnavailable // 复用已有错误类型
-        }
+        let supabaseUserID = try await requireSupabaseUserID(operation: "createInvite")
 
         // 1.5 best-effort 清理本人历史 zombie：取消 pending invites + 归档 1-member 孤儿
         //     space。why: 用户重复点击「重新邀请」会在 Supabase 堆 active 1-member
@@ -202,9 +211,7 @@ actor CloudPairingService: PairingServiceProtocol {
         responderDisplayName: String
     ) async throws -> PairingContext {
         // 1. 确保 Supabase 已登录
-        guard let supabaseUserID = await supabaseAuth.currentUserID else {
-            throw PairingError.cloudKitUnavailable
-        }
+        let supabaseUserID = try await requireSupabaseUserID(operation: "acceptInviteByCode")
 
         // 2. 从 Supabase 查找邀请
         guard let supabaseInvite = try await inviteGateway.lookupInvite(code: code) else {

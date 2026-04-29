@@ -11,6 +11,8 @@ enum PairingError: Error, LocalizedError {
     case inviteAlreadyAccepted
     /// iCloud / CloudKit is not available (user not signed in).
     case cloudKitUnavailable
+    /// Supabase auth session is missing or expired.
+    case supabaseAuthUnavailable
     /// CloudKit record type fields not marked as Queryable in Dashboard.
     case cloudKitNotConfigured
     /// Generic CloudKit operation failure.
@@ -28,6 +30,8 @@ enum PairingError: Error, LocalizedError {
             return "该邀请已被接受"
         case .cloudKitUnavailable:
             return "iCloud 不可用，请在设置中检查 iCloud 登录状态"
+        case .supabaseAuthUnavailable:
+            return "账号连接未完成，请重新登录后再试"
         case .cloudKitNotConfigured:
             return "服务尚未就绪，请稍后重试（CloudKit 索引配置中）"
         case .cloudOperationFailed(let error):
