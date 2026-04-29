@@ -32,17 +32,21 @@ async function sendAPNs(
   notification: { title: string; body: string },
   taskId: string | undefined,
   senderId: string | undefined,
+  eventType: string | undefined,
 ): Promise<{ ok: boolean; status: number; deleteToken: boolean }> {
   const jwt = await getApnsJWT();
+  const category = eventType === "pair_unbound" ? "PAIR_STATUS" : "TASK_NUDGE";
   const payload = {
     aps: {
       alert: { title: notification.title, body: notification.body },
       sound: "default",
       badge: 1,
-      category: "TASK_NUDGE",
+      category,
+      "content-available": 1,
     },
     task_id: taskId,
     sender_id: senderId,
+    event_type: eventType,
   };
   const url = `https://api.sandbox.push.apple.com/3/device/${deviceToken}`;
   const res = await fetch(url, {
@@ -62,7 +66,14 @@ function buildNotification(
   table: string,
   type: string,
   record: Record<string, unknown>,
-): { title: string; body: string } | null {
+): { title: string; body: string; eventType?: string } | null {
+  if (table === "space_members" && type === "DELETE") {
+    return {
+      title: "双人空间已解除",
+      body: "对方已解除绑定，当前设备将回到单人模式",
+      eventType: "pair_unbound",
+    };
+  }
   if (table === "tasks" && type === "INSERT") {
     if (record.assignee_mode === "partner") {
       return { title: "新任务", body: `伴侣给你分配了「${record.title}」` };
@@ -94,7 +105,7 @@ Deno.serve(async (req: Request) => {
     const payload = await req.json();
     const { type, table, record } = payload;
 
-    const actorId: string | undefined = record?.creator_id || record?.sender_id;
+    const actorId: string | undefined = record?.creator_id || record?.sender_id || record?.user_id;
 
     // Resolve space_id — either on record directly, or via tasks join for task_messages.
     let spaceId: string | undefined = record?.space_id;
@@ -118,7 +129,8 @@ Deno.serve(async (req: Request) => {
     // pre-migration clients leave the column null; in that case we fall back
     // to fanning out to every member and rely on client-side filtering.
     const senderSupabaseUserId: string | undefined =
-      record?.creator_supabase_user_id || record?.sender_supabase_user_id || undefined;
+      record?.creator_supabase_user_id || record?.sender_supabase_user_id ||
+      (table === "space_members" && type === "DELETE" ? record?.user_id : undefined);
 
     const { data: members } = await supabase
       .from("space_members")
@@ -143,13 +155,16 @@ Deno.serve(async (req: Request) => {
     const notification = buildNotification(table, type, record);
     if (!notification) return new Response("Skip", { status: 200 });
 
-    const taskId: string | undefined =
-      table === "task_messages" ? (record.task_id as string | undefined) : (record.id as string | undefined);
+    const taskId: string | undefined = table === "task_messages"
+      ? (record.task_id as string | undefined)
+      : table === "tasks"
+        ? (record.id as string | undefined)
+        : undefined;
 
     let sentCount = 0;
     for (const { token } of tokens) {
       try {
-        const result = await sendAPNs(token, notification, taskId, actorId);
+        const result = await sendAPNs(token, notification, taskId, actorId, notification.eventType);
         if (result.ok) {
           sentCount++;
         } else if (result.deleteToken) {

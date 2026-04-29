@@ -57,6 +57,7 @@ final class ProfileViewModel {
     var customDurationSheet: ProfileCustomDurationKind?
     var inviteCodeEntryPresented: Bool = false
     var isCheckingInvite: Bool = false
+    var isCreatingInvite: Bool = false
     var acceptInviteError: String?
     var createInviteError: String?
     var iCloudStatus: ICloudStatus = .couldNotDetermine
@@ -472,8 +473,11 @@ final class ProfileViewModel {
 
     func createInvite() async {
         guard let inviterID = currentUser?.id else { return }
+        guard isCreatingInvite == false else { return }
         let displayName = currentUser?.displayName ?? ""
         createInviteError = nil
+        isCreatingInvite = true
+        defer { isCreatingInvite = false }
         do {
             try await createInviteAndRefresh(inviterID: inviterID, displayName: displayName)
         } catch PairingError.supabaseAuthUnavailable {

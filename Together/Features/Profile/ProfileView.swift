@@ -286,13 +286,10 @@ struct ProfileView: View {
                 HomeInteractionFeedback.selection()
                 Task { await viewModel.createInvite() }
             } label: {
-                ProfileSettingsRow(
-                    title: "发起双人邀请",
-                    value: "",
-                    showsChevron: true
-                )
+                inviteCreationRow
             }
             .buttonStyle(.plain)
+            .disabled(viewModel.isCreatingInvite)
 
             if let err = viewModel.createInviteError {
                 Text(err)
@@ -382,6 +379,40 @@ struct ProfileView: View {
                 Text("解除后双方都将退出共享，已同步的任务、列表、纪念日不会被删除，但不再继续同步。对方设备会自动跟随退出共享。")
             }
         }
+    }
+
+    private var inviteCreationRow: some View {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                Text("发起双人邀请")
+                    .font(AppTheme.typography.textStyle(.body, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.title.opacity(viewModel.isCreatingInvite ? 0.68 : 1))
+
+                if viewModel.isCreatingInvite {
+                    Text("正在生成邀请码…")
+                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.56))
+                        .transition(.opacity)
+                }
+            }
+
+            Spacer(minLength: AppTheme.spacing.md)
+
+            if viewModel.isCreatingInvite {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(AppTheme.colors.body.opacity(0.5))
+                    .transition(.opacity)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.36))
+            }
+        }
+        .padding(.vertical, AppTheme.spacing.sm)
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .contentShape(Rectangle())
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isCreatingInvite)
     }
 
     // MARK: - 执行偏好

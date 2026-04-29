@@ -233,26 +233,21 @@ actor CloudPairingService: PairingServiceProtocol {
             throw PairingError.inviteExpired
         }
 
-        // 3. 接受邀请
-        _ = try await inviteGateway.acceptInvite(
+        // 3. 接受邀请。RPC 会在同一个数据库事务里写 accepted 状态并插入
+        // space_members，避免“邀请已接受但成员未加入”的半成功状态。
+        let acceptedInvite = try await inviteGateway.acceptInvite(
             inviteID: supabaseInvite.id,
-            acceptedBy: supabaseUserID
-        )
-
-        // 4. 加入 space 作为 member
-        try await inviteGateway.joinSpace(
-            spaceID: supabaseInvite.spaceId,
-            userID: supabaseUserID,
+            acceptedBy: supabaseUserID,
             displayName: responderDisplayName
         )
 
         // 5. 获取 inviter 身份信息（从邀请记录 + space_members fallback）
-        let inviterLocalUserID = supabaseInvite.inviterLocalUserId ?? UUID()
-        var inviterName = supabaseInvite.inviterDisplayName ?? ""
+        let inviterLocalUserID = acceptedInvite.inviterLocalUserId ?? supabaseInvite.inviterLocalUserId ?? UUID()
+        var inviterName = acceptedInvite.inviterDisplayName ?? supabaseInvite.inviterDisplayName ?? ""
         if inviterName.isEmpty {
             // fallback: 从 space_members 查 inviter 的显示名
             if let member = try? await inviteGateway.getPartnerMember(
-                spaceID: supabaseInvite.spaceId,
+                spaceID: acceptedInvite.spaceId,
                 excludeUserID: supabaseUserID
             ) {
                 inviterName = member.displayName
@@ -261,22 +256,22 @@ actor CloudPairingService: PairingServiceProtocol {
 
         // 6. 设置本地 SwiftData 状态
         _ = try await localPairing.setupPairingFromRemote(
-            pairSpaceID: supabaseInvite.spaceId,
-            sharedSpaceID: supabaseInvite.spaceId,
+            pairSpaceID: acceptedInvite.spaceId,
+            sharedSpaceID: acceptedInvite.spaceId,
             inviterUserID: inviterLocalUserID,
             inviterDisplayName: inviterName,
             responderID: responderID,
             responderDisplayName: responderDisplayName,
             // 用邀请创建时间作为 space 的 createdAt——和 inviter 侧 `createPairInvite`
             // 里存的 `now` 几乎同时，两台设备的"配对 N 天"显示一致。
-            spaceCreatedAt: supabaseInvite.createdAt
+            spaceCreatedAt: acceptedInvite.createdAt
         )
 
         // 7. 更新本地元数据
         await localPairing.updateCloudKitMetadata(
-            pairSpaceID: supabaseInvite.spaceId,
-            zoneName: supabaseInvite.spaceId.uuidString,
-            ownerRecordID: supabaseInvite.inviterId.uuidString,
+            pairSpaceID: acceptedInvite.spaceId,
+            zoneName: acceptedInvite.spaceId.uuidString,
+            ownerRecordID: acceptedInvite.inviterId.uuidString,
             isZoneOwner: false
         )
 

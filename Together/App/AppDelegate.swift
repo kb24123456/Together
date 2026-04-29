@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             return
         }
         Task {
-            await appContext.handleCloudKitNotification(userInfo)
+            await appContext.handleRemoteNotification(userInfo)
             completionHandler(.newData)
         }
     }

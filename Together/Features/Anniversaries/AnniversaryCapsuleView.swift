@@ -1,5 +1,10 @@
 import SwiftUI
 
+private enum AnniversaryCapsuleCountMode: String {
+    case next
+    case elapsed
+}
+
 struct AnniversaryCapsuleView: View {
     let nextEvent: ImportantDate?
     /// Supabase auth.uid of the viewer (cross-device unique). Birthday events
@@ -11,6 +16,7 @@ struct AnniversaryCapsuleView: View {
     /// back to "伴侣生日".
     var partnerDisplayName: String? = nil
     let onTap: () -> Void
+    @AppStorage("together.anniversaryCapsule.countMode") private var countModeRawValue = AnniversaryCapsuleCountMode.next.rawValue
 
     var body: some View {
         // Mirrors HomeView.overdueReminderCapsule sizing — sm spacing,
@@ -33,6 +39,7 @@ struct AnniversaryCapsuleView: View {
                 Text(detail)
                     .font(AppTheme.typography.sized(12, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
+                    .contentTransition(.numericText())
             }
             .foregroundStyle(AppTheme.colors.rose)
             .padding(.horizontal, AppTheme.spacing.md)
@@ -43,7 +50,15 @@ struct AnniversaryCapsuleView: View {
             )
         }
         .buttonStyle(.plain)
+        .onLongPressGesture(minimumDuration: 0.45) {
+            guard canToggleCountMode else { return }
+            HomeInteractionFeedback.selection()
+            withAnimation(.snappy(duration: 0.22)) {
+                toggleCountMode()
+            }
+        }
         .accessibilityLabel(Text(title))
+        .accessibilityHint(canToggleCountMode ? Text("长按切换纪念日计数方式") : Text(""))
     }
 
     private var icon: String {
@@ -59,8 +74,31 @@ struct AnniversaryCapsuleView: View {
     private var detail: String {
         guard let event = nextEvent,
               let days = event.daysUntilNext() else { return "点击添加" }
+        if countMode == .elapsed, isAnniversary(event) {
+            return "已 \(max(0, event.daysSinceStart)) 天"
+        }
         if days == 0 { return "今天" }
         return "还有 \(days) 天"
+    }
+
+    private var countMode: AnniversaryCapsuleCountMode {
+        AnniversaryCapsuleCountMode(rawValue: countModeRawValue) ?? .next
+    }
+
+    private var canToggleCountMode: Bool {
+        guard let nextEvent else { return false }
+        return isAnniversary(nextEvent)
+    }
+
+    private func toggleCountMode() {
+        countModeRawValue = countMode == .next
+            ? AnniversaryCapsuleCountMode.elapsed.rawValue
+            : AnniversaryCapsuleCountMode.next.rawValue
+    }
+
+    private func isAnniversary(_ event: ImportantDate) -> Bool {
+        if case .anniversary = event.kind { return true }
+        return false
     }
 
     private func defaultIcon(for kind: ImportantDateKind) -> String {

@@ -473,11 +473,15 @@ actor SupabaseSyncService {
                 logger.error("[Push] avatarAsset bytes read failed: \(error.localizedDescription)")
                 return
             }
+            guard let myUserID else {
+                logger.warning("[Push] avatarAsset skipped — missing Supabase user id for storage path")
+                return
+            }
             do {
                 let signedURL = try await avatarUploader.uploadAvatar(
                     bytes: bytes,
                     spaceID: spaceID,
-                    userID: profile.userID,
+                    userID: myUserID,
                     version: profile.avatarVersion
                 )
                 pendingAvatarURL[profile.userID] = signedURL

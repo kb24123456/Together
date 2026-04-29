@@ -1021,7 +1021,82 @@ final class AppContext {
     /// Ensures pair sync is running whenever an active pair relationship exists.
     func syncPairSpaceIfNeeded() async {
         guard sessionStore.hasActivePairSpace else { return }
-        await startSupabaseSyncIfNeeded()
+        if let supabaseSyncService {
+            await supabaseSyncService.catchUp()
+            let stillPaired = await validateRemotePairMembershipStillActive()
+            if stillPaired {
+                await reloadAfterSync()
+            }
+        } else {
+            await startSupabaseSyncIfNeeded()
+        }
+    }
+
+    /// Handles remote notifications routed through UIApplicationDelegate.
+    /// CloudKit still owns solo restoration; pair APNs is an explicit trigger
+    /// to catch up Supabase state because Realtime delivery can be missed while
+    /// the app is foregrounded, suspended, or reconnecting.
+    func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
+        if Self.isPairRemoteNotification(userInfo) {
+            await handlePairRemoteNotification(userInfo)
+        } else {
+            await handleCloudKitNotification(userInfo)
+        }
+    }
+
+    func handlePairRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
+        await bootstrapIfNeeded()
+
+        if Self.remoteNotificationEventType(userInfo) == "pair_unbound" {
+            await handlePartnerLeftPairSpace()
+            return
+        }
+
+        await syncPairSpaceIfNeeded()
+    }
+
+    private static func isPairRemoteNotification(_ userInfo: [AnyHashable: Any]) -> Bool {
+        if remoteNotificationEventType(userInfo) != nil { return true }
+        if userInfo["task_id"] != nil { return true }
+        return false
+    }
+
+    private static func remoteNotificationEventType(_ userInfo: [AnyHashable: Any]) -> String? {
+        userInfo["event_type"] as? String
+    }
+
+    private func validateRemotePairMembershipStillActive() async -> Bool {
+        guard
+            sessionStore.hasActivePairSpace,
+            let sharedSpaceID = activeSharedSpaceID,
+            let mySupabaseUserID = currentSupabaseUserID
+        else {
+            return true
+        }
+
+        struct Row: Decodable {
+            let userId: UUID
+            enum CodingKeys: String, CodingKey { case userId = "user_id" }
+        }
+
+        do {
+            let rows: [Row] = try await SupabaseClientProvider.shared
+                .from("space_members")
+                .select("user_id")
+                .eq("space_id", value: sharedSpaceID.uuidString)
+                .neq("user_id", value: mySupabaseUserID.uuidString)
+                .execute()
+                .value
+
+            if rows.isEmpty {
+                await handlePartnerLeftPairSpace()
+                return false
+            }
+        } catch {
+            appContextLogger.error("[PairMembership] remote validation failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        return true
     }
 
     /// 本地数据变更后触发同步。
@@ -1308,10 +1383,17 @@ final class AppContext {
             if let localCoordinator = container.syncCoordinator as? LocalSyncCoordinator {
                 await localCoordinator.setOnChangeRecorded { [weak self] change in
                     // 只有 solo 变更才转发给 CKSyncEngine；pair 变更只走 Supabase
-                    let activeShared: UUID? = await MainActor.run { [weak self] in
-                        self?.activeSharedSpaceID
+                    let pairSpaceIDs: Set<UUID> = await MainActor.run { [weak self] in
+                        var ids = Set<UUID>()
+                        if let activeSharedSpaceID = self?.activeSharedSpaceID {
+                            ids.insert(activeSharedSpaceID)
+                        }
+                        if let summarySharedSpaceID = self?.sessionStore.pairSpaceSummary?.sharedSpace.id {
+                            ids.insert(summarySharedSpaceID)
+                        }
+                        return ids
                     }
-                    if let activeShared, change.spaceID == activeShared {
+                    if pairSpaceIDs.contains(change.spaceID) {
                         // pair 共享空间的变更，跳过 CKSync
                         return
                     }
@@ -1418,6 +1500,12 @@ final class AppContext {
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {
+        if response.notification.request.content.userInfo["event_type"] as? String == "pair_unbound" {
+            await bootstrapIfNeeded()
+            await handlePartnerLeftPairSpace()
+            return
+        }
+
         // APNs-originated TASK_NUDGE: userInfo carries task_id directly;
         // identifier is server-generated and does not follow AppNotification format.
         if let taskIDString = response.notification.request.content.userInfo["task_id"] as? String,

@@ -26,8 +26,13 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        let userInfo = notification.request.content.userInfo
+        if userInfo["event_type"] != nil || userInfo["task_id"] != nil {
+            await appContext?.handlePairRemoteNotification(userInfo)
+        }
+
         // Drop self-notifications: if the push was sent by the current user, suppress the banner.
-        if let senderIDString = notification.request.content.userInfo["sender_id"] as? String {
+        if let senderIDString = userInfo["sender_id"] as? String {
             let currentUserID = appContext?.sessionStore.currentUser?.id.uuidString
             if let currentUserID, senderIDString.lowercased() == currentUserID.lowercased() {
                 notificationDelegateLogger.info("[Nudge] willPresent suppressed self-notification senderID=\(senderIDString, privacy: .private)")

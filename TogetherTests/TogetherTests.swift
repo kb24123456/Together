@@ -645,6 +645,39 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func profileViewModelExposesInviteCreationLoadingState() async throws {
+        let currentUser = MockDataFactory.makeCurrentUser()
+        let sessionStore = SessionStore()
+        sessionStore.currentUser = currentUser
+
+        let pairingService = InviteCreationLoadingPairingSpy(invite: MockDataFactory.makeInvite())
+        let viewModel = ProfileViewModel(
+            sessionStore: sessionStore,
+            authService: MockAuthService(),
+            pairingService: pairingService,
+            userProfileRepository: MockUserProfileRepository(),
+            notificationService: MockNotificationService(),
+            itemRepository: MockItemRepository(),
+            taskApplicationService: TestHomeTaskApplicationService(),
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+            reminderScheduler: MockReminderScheduler(),
+            premiumGate: makeTestPremiumGate()
+        )
+
+        let createTask = Task { await viewModel.createInvite() }
+        await pairingService.waitUntilCreateStarted()
+
+        #expect(viewModel.isCreatingInvite == true)
+
+        await pairingService.finishCreate()
+        await createTask.value
+
+        #expect(viewModel.isCreatingInvite == false)
+        #expect(viewModel.bindingState == .invitePending)
+    }
+
+    @Test @MainActor
     func profileViewModelSpaceSummaryIncludesPendingSharedSpaceMutationState() async throws {
         let sessionStore = SessionStore()
         sessionStore.seedMock(
@@ -4416,6 +4449,69 @@ actor ReauthPairingServiceSpy: PairingServiceProtocol {
 
     func acceptInviteByCode(_ code: String, responderID: UUID, responderDisplayName: String) async throws -> PairingContext {
         PairingContext(state: .paired, pairSpaceSummary: pairSummary, activeInvite: nil)
+    }
+
+    func declineInvite(inviteID: UUID, responderID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func cancelInvite(inviteID: UUID, actorID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func cancelAllPendingInvites(for userID: UUID) async throws -> PairingContext {
+        PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func updatePairSpaceDisplayName(pairSpaceID: UUID, displayName: String?, actorID: UUID) async {}
+
+    func unbind(pairSpaceID: UUID, actorID: UUID) async throws -> PairingContext {
+        PairingContext(state: .unbound, pairSpaceSummary: nil, activeInvite: nil)
+    }
+
+    func checkAndFinalizeIfAccepted(pairSpaceID: UUID, inviterID: UUID) async throws -> PairingContext? {
+        nil
+    }
+}
+
+actor InviteCreationLoadingPairingSpy: PairingServiceProtocol {
+    private let invite: Invite
+    private var createStarted = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(invite: Invite) {
+        self.invite = invite
+    }
+
+    func waitUntilCreateStarted() async {
+        while createStarted == false {
+            await Task.yield()
+        }
+    }
+
+    func finishCreate() {
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func currentPairingContext(for userID: UUID?) async -> PairingContext {
+        PairingContext(state: .invitePending, pairSpaceSummary: nil, activeInvite: invite)
+    }
+
+    func createInvite(from inviterID: UUID, displayName: String) async throws -> Invite {
+        createStarted = true
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+        return invite
+    }
+
+    func acceptInvite(inviteID: UUID, responderID: UUID) async throws -> PairingContext {
+        PairingContext(state: .paired, pairSpaceSummary: MockDataFactory.makePairSpaceSummary(), activeInvite: nil)
+    }
+
+    func acceptInviteByCode(_ code: String, responderID: UUID, responderDisplayName: String) async throws -> PairingContext {
+        PairingContext(state: .paired, pairSpaceSummary: MockDataFactory.makePairSpaceSummary(), activeInvite: nil)
     }
 
     func declineInvite(inviteID: UUID, responderID: UUID) async throws -> PairingContext {

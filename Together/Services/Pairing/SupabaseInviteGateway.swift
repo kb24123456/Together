@@ -56,8 +56,6 @@ actor SupabaseInviteGateway {
         inviterLocalUserID: UUID,
         inviterDisplayName: String
     ) async throws -> InviteRecord {
-        let code = generateNumericCode(digits: 6)
-
         struct InsertPayload: Encodable {
             let space_id: String
             let inviter_id: String
@@ -67,21 +65,34 @@ actor SupabaseInviteGateway {
             let inviter_display_name: String
         }
 
-        let invite: InviteRecord = try await client.from("pair_invites")
-            .insert(InsertPayload(
-                space_id: spaceID.uuidString,
-                inviter_id: inviterID.uuidString,
-                invite_code: code,
-                status: "pending",
-                inviter_local_user_id: inviterLocalUserID.uuidString,
-                inviter_display_name: inviterDisplayName
-            ))
-            .select()
-            .single()
-            .execute()
-            .value
+        var lastError: Error?
+        for _ in 0..<6 {
+            let code = generateNumericCode(digits: 6)
+            do {
+                let invite: InviteRecord = try await client.from("pair_invites")
+                    .insert(InsertPayload(
+                        space_id: spaceID.uuidString,
+                        inviter_id: inviterID.uuidString,
+                        invite_code: code,
+                        status: "pending",
+                        inviter_local_user_id: inviterLocalUserID.uuidString,
+                        inviter_display_name: inviterDisplayName
+                    ))
+                    .select()
+                    .single()
+                    .execute()
+                    .value
 
-        return invite
+                return invite
+            } catch {
+                lastError = error
+            }
+        }
+
+        if let lastError {
+            throw lastError
+        }
+        throw PairingError.inviteNotFound
     }
 
     /// 通过邀请码查询待处理的邀请（Device B）
@@ -98,19 +109,29 @@ actor SupabaseInviteGateway {
     }
 
     /// 接受邀请（Device B）
-    func acceptInvite(inviteID: UUID, acceptedBy: UUID) async throws -> InviteRecord {
-        let invite: InviteRecord = try await client.from("pair_invites")
-            .update([
-                "status": "accepted",
-                "accepted_by": acceptedBy.uuidString,
-                "responded_at": ISO8601DateFormatter().string(from: Date())
-            ])
-            .eq("id", value: inviteID.uuidString)
-            .select()
+    func acceptInvite(inviteID: UUID, acceptedBy: UUID, displayName: String) async throws -> InviteRecord {
+        struct AcceptParams: Encodable {
+            let inviteID: UUID
+            let displayName: String
+
+            enum CodingKeys: String, CodingKey {
+                case inviteID = "p_invite_id"
+                case displayName = "p_display_name"
+            }
+        }
+
+        let invite: InviteRecord = try await client
+            .rpc(
+                "accept_pair_invite",
+                params: AcceptParams(inviteID: inviteID, displayName: displayName)
+            )
             .single()
             .execute()
             .value
 
+        guard invite.acceptedBy == acceptedBy else {
+            throw PairingError.inviteAlreadyAccepted
+        }
         return invite
     }
 
