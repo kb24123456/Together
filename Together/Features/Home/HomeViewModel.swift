@@ -142,6 +142,7 @@ final class HomeViewModel {
     var selectedDate: Date = Date()
     var displayedMonth: Date = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     var items: [Item] = []
+    private(set) var reloadRevision = 0
     var showsPairAvatarPreview = false
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
@@ -601,6 +602,7 @@ final class HomeViewModel {
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
             insertedItemIDs = []
+            reloadRevision += 1
             return
         }
 
@@ -623,12 +625,14 @@ final class HomeViewModel {
                 items = fetchedItems
             }
             insertedItemIDs = persistedInsertedIDs.union(nextInsertedIDs).union(arrivedIDs)
+            reloadRevision += 1
             if overdueEntryCount == 0 {
                 isOverdueSheetPresented = false
             }
         } catch {
             items = []
             insertedItemIDs = []
+            reloadRevision += 1
         }
     }
 

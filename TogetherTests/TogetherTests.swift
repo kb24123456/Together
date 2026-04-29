@@ -771,6 +771,54 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func homeViewModelReloadAdvancesRevisionForRecoveredTasks() async throws {
+        let referenceDate = Date.now
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: nil
+        )
+        sessionStore.switchMode(to: .single)
+
+        let recoveredTask = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "恢复后的任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .initiator,
+            dueAt: referenceDate.addingTimeInterval(3_600),
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: referenceDate,
+            updatedAt: referenceDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(items: [recoveredTask]),
+            itemRepository: TestItemRepository(),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        viewModel.selectedDate = referenceDate
+
+        let previousRevision = viewModel.reloadRevision
+        await viewModel.reload()
+
+        #expect(viewModel.reloadRevision == previousRevision + 1)
+        #expect(viewModel.timelineEntries.map(\.title) == ["恢复后的任务"])
+    }
+
+    @Test @MainActor
     func homeViewModelTimelinePrefersPendingSharedTaskMutationText() async throws {
         let referenceDate = Date.now.addingTimeInterval(60)
         let sessionStore = SessionStore()
@@ -4087,8 +4135,15 @@ actor TestItemRepository: ItemRepositoryProtocol {
 
 actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
     private var completed: [UUID] = []
+    private let items: [Item]
 
-    func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] { [] }
+    init(items: [Item] = []) {
+        self.items = items
+    }
+
+    func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] {
+        items.filter { $0.spaceID == spaceID }
+    }
     func todaySummary(in spaceID: UUID, referenceDate: Date) async throws -> TaskTodaySummary {
         TaskTodaySummary(
             referenceDate: referenceDate,

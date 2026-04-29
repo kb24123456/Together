@@ -116,6 +116,13 @@ struct HomeView: View {
                 await appContext.importantDatesViewModel.load()
             }
         }
+        .onChange(of: appContext.startupRestorePresentationState) { oldValue, newValue in
+            guard oldValue.isVisible, newValue == .idle else { return }
+            Task {
+                await viewModel.reload()
+                updateTodayJumpButtonVisibility()
+            }
+        }
     }
 
     private func nextAnniversaryEvent() -> ImportantDate? {
@@ -199,7 +206,7 @@ struct HomeView: View {
 
     private var startupRestorePlaceholder: some View {
         VStack(spacing: AppTheme.spacing.md) {
-            Image("CloudRestorePlaceholder")
+            Image("EmptyCalendar")
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
@@ -496,7 +503,7 @@ struct HomeView: View {
                         .padding(.top, 52)
                         .padding(.bottom, AppTheme.spacing.lg)
                 }
-                .id("startup-restore-\(viewModel.selectedDateKey)")
+                .id("startup-restore-\(viewModel.selectedDateKey)-\(viewModel.reloadRevision)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
@@ -533,7 +540,7 @@ struct HomeView: View {
                     .padding(.top, AppTheme.spacing.md) // normalized 14→16
                     .padding(.bottom, AppTheme.spacing.lg)
                 }
-                .id("empty-\(viewModel.selectedDateKey)")
+                .id("empty-\(viewModel.selectedDateKey)-\(viewModel.reloadRevision)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
@@ -541,7 +548,7 @@ struct HomeView: View {
             } else {
                 ScrollViewReader { scrollProxy in
                     timelineList
-                        .id("timeline-\(viewModel.selectedDateKey)")
+                        .id("timeline-\(viewModel.selectedDateKey)-\(viewModel.reloadRevision)")
                         .transition(timelineTransition)
                         .onReceive(NotificationCenter.default.publisher(for: .openTaskFromNudge)) { notif in
                             guard let id = notif.userInfo?["task_id"] as? UUID else { return }
@@ -559,6 +566,7 @@ struct HomeView: View {
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.selectedDateKey)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.reloadRevision)
         .animation(restoreTransitionAnimation, value: appContext.startupRestorePresentationState)
     }
 
