@@ -1666,22 +1666,28 @@ struct SpaceUpdateDTO: Encodable, Sendable {
 struct SpaceDTO: Decodable, Sendable {
     let id: UUID
     let displayName: String
+    let status: String?
     let updatedAt: Date?
+    let archivedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
         case displayName = "display_name"
+        case status
         case updatedAt = "updated_at"
+        case archivedAt = "archived_at"
     }
 
-    /// 将空间名称更新应用到本地 PersistentSpace
+    /// 将空间名称 / 状态更新应用到本地 PersistentSpace
     nonisolated func applyToLocal(context: ModelContext) {
         let descriptor = FetchDescriptor<PersistentSpace>(predicate: #Predicate { $0.id == id })
         if let existing = try? context.fetch(descriptor).first {
             // 冲突保护：远端 updatedAt 显式更早时跳过
             if let incoming = updatedAt, incoming < existing.updatedAt { return }
             existing.displayName = displayName
+            if let status { existing.statusRawValue = status }
             if let updatedAt { existing.updatedAt = updatedAt }
+            existing.archivedAt = archivedAt
         }
     }
 }

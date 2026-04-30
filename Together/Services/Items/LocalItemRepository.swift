@@ -25,7 +25,9 @@ actor LocalItemRepository: ItemRepositoryProtocol {
     ) async throws -> [Item] {
         let context = ModelContext(container)
         let normalizedLimit = max(limit, 1)
-        let records = try archivedCompletedRecords(spaceID: spaceID, context: context)
+        let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceLimit = normalizedSearch?.isEmpty == false || before != nil ? nil : normalizedLimit
+        let records = try archivedCompletedRecords(spaceID: spaceID, context: context, fetchLimit: sourceLimit)
 
         let filtered = records.filter { record in
             guard record.completedAt != nil else { return false }
@@ -33,11 +35,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             if let before, archivedAt >= before {
                 return false
             }
-            guard let searchText = searchText?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !searchText.isEmpty else {
+            guard let normalizedSearch,
+                  !normalizedSearch.isEmpty else {
                 return true
             }
-            return record.title.localizedStandardContains(searchText)
+            return record.title.localizedStandardContains(normalizedSearch)
         }
 
         return Array(filtered.prefix(normalizedLimit)).map { $0.domainModel() }
@@ -52,7 +54,9 @@ actor LocalItemRepository: ItemRepositoryProtocol {
     ) async throws -> [Item] {
         let context = ModelContext(container)
         let normalizedLimit = max(limit, 1)
-        let records = try completedRecords(spaceID: spaceID, context: context)
+        let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceLimit = normalizedSearch?.isEmpty == false || before != nil ? nil : normalizedLimit * 2
+        let records = try completedRecords(spaceID: spaceID, context: context, fetchLimit: sourceLimit)
 
         let filtered = records.filter { record in
             guard let completedAt = record.completedAt else { return false }
@@ -63,11 +67,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             if let since, cursorDate < since {
                 return false
             }
-            guard let searchText = searchText?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !searchText.isEmpty else {
+            guard let normalizedSearch,
+                  !normalizedSearch.isEmpty else {
                 return true
             }
-            return record.title.localizedStandardContains(searchText)
+            return record.title.localizedStandardContains(normalizedSearch)
         }
 
         return Array(filtered.prefix(normalizedLimit)).map { $0.domainModel() }
@@ -413,21 +417,31 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
     }
 
-    private func archivedCompletedRecords(spaceID: UUID?, context: ModelContext) throws -> [PersistentItem] {
-        let descriptor: FetchDescriptor<PersistentItem>
+    private func archivedCompletedRecords(
+        spaceID: UUID?,
+        context: ModelContext,
+        fetchLimit: Int? = nil
+    ) throws -> [PersistentItem] {
+        var descriptor: FetchDescriptor<PersistentItem>
 
         if let spaceID {
             descriptor = FetchDescriptor(
-                predicate: #Predicate<PersistentItem> {
-                    $0.spaceID == spaceID && $0.isArchived == true && $0.completedAt != nil
+                predicate: #Predicate<PersistentItem> { item in
+                    item.spaceID == spaceID && item.isArchived == true && item.completedAt != nil
                 },
                 sortBy: [SortDescriptor(\PersistentItem.archivedAt, order: .reverse)]
             )
         } else {
             descriptor = FetchDescriptor(
-                predicate: #Predicate<PersistentItem> { $0.isArchived == true && $0.completedAt != nil },
+                predicate: #Predicate<PersistentItem> { item in
+                    item.isArchived == true && item.completedAt != nil
+                },
                 sortBy: [SortDescriptor(\PersistentItem.archivedAt, order: .reverse)]
             )
+        }
+
+        if let fetchLimit {
+            descriptor.fetchLimit = fetchLimit
         }
 
         return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
@@ -435,67 +449,152 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
     func completedItemStats(spaceID: UUID?, referenceDate: Date) async throws -> CompletedItemStats {
         let context = ModelContext(container)
-        let records = try completedRecords(spaceID: spaceID, context: context)
-            .filter { !$0.isLocallyDeleted && $0.completedAt != nil }
-
-        guard records.isEmpty == false else {
+        let totalCount = try completedItemCount(spaceID: spaceID, context: context)
+        guard totalCount > 0 else {
             return .empty
         }
 
-        let monthComponents = calendar.dateComponents([.year, .month], from: referenceDate)
-
-        var thisMonthCount = 0
-        var earliestDate: Date = .distantFuture
-        var earliestTitle: String? = nil
-        var latestDate: Date = .distantPast
-
-        for record in records {
-            guard let completedAt = record.completedAt else { continue }
-
-            if completedAt < earliestDate {
-                earliestDate = completedAt
-                earliestTitle = record.title
-            }
-            if completedAt > latestDate {
-                latestDate = completedAt
-            }
-
-            let comps = calendar.dateComponents([.year, .month], from: completedAt)
-            if comps.year == monthComponents.year && comps.month == monthComponents.month {
-                thisMonthCount += 1
-            }
-        }
+        let monthInterval = calendar.dateInterval(of: .month, for: referenceDate)
+        let thisMonthCount = try completedItemCount(
+            spaceID: spaceID,
+            context: context,
+            from: monthInterval?.start,
+            to: monthInterval?.end
+        )
+        let firstRecord = try firstCompletedRecord(spaceID: spaceID, context: context)
+        let latestRecord = try latestCompletedRecord(spaceID: spaceID, context: context)
 
         return CompletedItemStats(
-            totalCount: records.count,
+            totalCount: totalCount,
             thisMonthCount: thisMonthCount,
-            firstItemTitle: earliestTitle,
-            lastCompletedAt: latestDate == .distantPast ? nil : latestDate
+            firstItemTitle: firstRecord?.title,
+            lastCompletedAt: latestRecord?.completedAt
         )
     }
 
-    private func completedRecords(spaceID: UUID?, context: ModelContext) throws -> [PersistentItem] {
-        let records: [PersistentItem]
+    private func completedRecords(
+        spaceID: UUID?,
+        context: ModelContext,
+        fetchLimit: Int? = nil
+    ) throws -> [PersistentItem] {
+        let activeRecords = try unarchivedCompletedRecords(
+            spaceID: spaceID,
+            context: context,
+            fetchLimit: fetchLimit
+        )
+        let archivedRecords = try archivedCompletedRecords(
+            spaceID: spaceID,
+            context: context,
+            fetchLimit: fetchLimit
+        )
 
-        if let spaceID {
-            let descriptor = FetchDescriptor<PersistentItem>(
-                predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID && $0.completedAt != nil },
-                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
-            )
-            records = try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
-        } else {
-            let descriptor = FetchDescriptor<PersistentItem>(
-                predicate: #Predicate<PersistentItem> { $0.completedAt != nil },
-                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
-            )
-            records = try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
-        }
-
-        return records.sorted { lhs, rhs in
+        return (activeRecords + archivedRecords).sorted { lhs, rhs in
             let lhsDate = lhs.archivedAt ?? lhs.completedAt ?? .distantPast
             let rhsDate = rhs.archivedAt ?? rhs.completedAt ?? .distantPast
             return lhsDate > rhsDate
         }
+    }
+
+    private func unarchivedCompletedRecords(
+        spaceID: UUID?,
+        context: ModelContext,
+        fetchLimit: Int?
+    ) throws -> [PersistentItem] {
+        var descriptor: FetchDescriptor<PersistentItem>
+
+        if let spaceID {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    item.spaceID == spaceID && item.isArchived == false && item.completedAt != nil
+                },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
+            )
+        } else {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    item.isArchived == false && item.completedAt != nil
+                },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
+            )
+        }
+
+        if let fetchLimit {
+            descriptor.fetchLimit = fetchLimit
+        }
+
+        return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
+    }
+
+    private func completedItemCount(
+        spaceID: UUID?,
+        context: ModelContext,
+        from: Date? = nil,
+        to: Date? = nil
+    ) throws -> Int {
+        let lowerBound = from ?? .distantPast
+        let upperBound = to ?? .distantFuture
+        let descriptor: FetchDescriptor<PersistentItem>
+
+        if let spaceID {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    item.spaceID == spaceID
+                    && item.isLocallyDeleted == false
+                    && item.completedAt != nil
+                    && item.completedAt! >= lowerBound
+                    && item.completedAt! < upperBound
+                }
+            )
+        } else {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    item.isLocallyDeleted == false
+                    && item.completedAt != nil
+                    && item.completedAt! >= lowerBound
+                    && item.completedAt! < upperBound
+                }
+            )
+        }
+
+        return try context.fetchCount(descriptor)
+    }
+
+    private func firstCompletedRecord(spaceID: UUID?, context: ModelContext) throws -> PersistentItem? {
+        try boundaryCompletedRecord(spaceID: spaceID, context: context, order: .forward)
+    }
+
+    private func latestCompletedRecord(spaceID: UUID?, context: ModelContext) throws -> PersistentItem? {
+        try boundaryCompletedRecord(spaceID: spaceID, context: context, order: .reverse)
+    }
+
+    private func boundaryCompletedRecord(
+        spaceID: UUID?,
+        context: ModelContext,
+        order: SortOrder
+    ) throws -> PersistentItem? {
+        var descriptor: FetchDescriptor<PersistentItem>
+
+        if let spaceID {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    item.spaceID == spaceID
+                    && item.isLocallyDeleted == false
+                    && item.completedAt != nil
+                },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: order)]
+            )
+        } else {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    item.isLocallyDeleted == false
+                    && item.completedAt != nil
+                },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: order)]
+            )
+        }
+
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 
     private func hydrateItems(

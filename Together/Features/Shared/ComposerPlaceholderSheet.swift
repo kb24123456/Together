@@ -1406,17 +1406,19 @@ private struct ComposerPage: View {
     }
 
     private var composerAssignmentSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // 12→16
-            Text("归属给")
-                .font(AppTheme.typography.sized(14, weight: .bold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                    assignmentLabel
+                    assignmentPicker
+                        .frame(width: 236)
+                }
 
-            Picker("归属给", selection: $draftState.assigneeMode) {
-                Text("自己").tag(TaskAssigneeMode.`self`)
-                Text("对方").tag(TaskAssigneeMode.partner)
-                Text("一起").tag(TaskAssigneeMode.both)
+                VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
+                    assignmentLabel
+                    assignmentPicker
+                }
             }
-            .pickerStyle(.segmented)
 
             if draftState.assigneeMode == .partner {
                 TextField("补一句说明或留言", text: $draftState.assignmentNote, axis: .vertical)
@@ -1435,6 +1437,22 @@ private struct ComposerPage: View {
                     }
             }
         }
+    }
+
+    private var assignmentLabel: some View {
+        Text("归属给")
+            .font(AppTheme.typography.sized(14, weight: .bold))
+            .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+            .frame(minWidth: 50, alignment: .leading)
+    }
+
+    private var assignmentPicker: some View {
+        Picker("归属给", selection: $draftState.assigneeMode) {
+            Text("自己").tag(TaskAssigneeMode.`self`)
+            Text("对方").tag(TaskAssigneeMode.partner)
+            Text("一起").tag(TaskAssigneeMode.both)
+        }
+        .pickerStyle(.segmented)
     }
 }
 

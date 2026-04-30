@@ -3,14 +3,39 @@ import SwiftUI
 /// Profile → Together Pro 已激活时的详情区。
 /// 设计 DNA（Wave 4）：和 paywall (UpsellContent) 完全一致的 Doit!Pro 风格 — Together 色板。
 /// - BrandIcon hero + 大字「Together Pro」 + 状态副标题
-/// - 当前套餐卡：**黑底白字 + 顶部 neon 渐变光晕**（标记"激活中"，复用 paywall plan 卡选中态视觉）
+/// - 当前套餐卡：自适应深浅色底 + 顶部 neon 渐变光晕（标记"激活中"，复用 paywall plan 卡选中态视觉）
 /// - 中央 leaf · "你已解锁 N 个 Pro 功能" · leaf 装饰章节
-/// - 白色 surface 大卡片包 benefits 列表（icon 黑色 + 右 pairAccent ✓）
-/// - Grace 模式：reassurance 列表（橙/红 urgency）+ 黑色 capsule 续订 CTA
-/// - 管理：白色 CardSection 包 ManageSubscriptionLink
+/// - surface 大卡片包 benefits 列表（icon 自适应 + 右 pairAccent ✓）
+/// - Grace 模式：reassurance 列表（warning/danger urgency）+ 自适应 capsule 续订 CTA
+/// - 管理：surface CardSection 包 ManageSubscriptionLink
 struct ProfileSubscriptionDetailSection: View {
     let status: PremiumStatus
     let onRequestRenewal: (Int) -> Void
+
+    private let premiumCardFill = Color(
+        light: .init(red: 0.16, green: 0.18, blue: 0.19),
+        dark: .init(red: 0.20, green: 0.20, blue: 0.22)
+    )
+    private let premiumCardLabelText = Color(
+        light: .white.opacity(0.82),
+        dark: .init(red: 0.72, green: 0.72, blue: 0.74)
+    )
+    private let premiumCardPrimaryText = Color(
+        light: .white,
+        dark: .init(red: 0.95, green: 0.95, blue: 0.96)
+    )
+    private let premiumCardSecondaryText = Color(
+        light: .white.opacity(0.70),
+        dark: .init(red: 0.72, green: 0.72, blue: 0.74)
+    )
+    private let primaryButtonFill = Color(
+        light: .init(red: 0.16, green: 0.18, blue: 0.19),
+        dark: .init(red: 0.90, green: 0.90, blue: 0.92)
+    )
+    private let primaryButtonText = Color(
+        light: .white,
+        dark: .init(red: 0.16, green: 0.18, blue: 0.19)
+    )
 
     private var benefits: [UpsellCopy.Benefit] {
         UpsellCopy.benefits(highlightedBy: .generic)
@@ -100,13 +125,13 @@ struct ProfileSubscriptionDetailSection: View {
         switch status {
         case .gracePeriod:
             let days = graceDaysRemaining ?? 1
-            return days <= 1 ? .red : .orange
+            return days <= 1 ? AppTheme.colors.danger : AppTheme.colors.warning
         default:
             return AppTheme.colors.body
         }
     }
 
-    // MARK: - 当前套餐卡（Doit Pro plan 卡风：黑底白字 + neon strip）
+    // MARK: - 当前套餐卡（Doit Pro plan 卡风：自适应底色 + neon strip）
 
     private var planStatusCard: some View {
         ZStack(alignment: .top) {
@@ -114,22 +139,22 @@ struct ProfileSubscriptionDetailSection: View {
                 Spacer(minLength: AppTheme.spacing.sm)
                 Text(planLabel)
                     .font(AppTheme.typography.cardLabel)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(premiumCardLabelText)
                 Text(planTitle)
                     .font(AppTheme.typography.priceXLarge)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(premiumCardPrimaryText)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                 Text(planSubtitle)
                     .font(AppTheme.typography.cardCaption)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(premiumCardSecondaryText)
                     .multilineTextAlignment(.center)
                 Spacer(minLength: AppTheme.spacing.sm)
             }
             .frame(maxWidth: .infinity, minHeight: 116)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.radius.card, style: .continuous)
-                    .fill(AppTheme.colors.title)
+                    .fill(premiumCardFill)
             )
 
             neonStrip
@@ -210,7 +235,7 @@ struct ProfileSubscriptionDetailSection: View {
         .padding(.top, AppTheme.spacing.lg)
     }
 
-    // MARK: - Benefits (white surface card)
+    // MARK: - Benefits (surface card)
 
     private var benefitsSection: some View {
         VStack(spacing: 0) {
@@ -225,10 +250,6 @@ struct ProfileSubscriptionDetailSection: View {
         }
         .padding(AppTheme.spacing.md)
         .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(AppTheme.colors.outline)
-        )
     }
 
     private func benefitRow(_ benefit: UpsellCopy.Benefit) -> some View {
@@ -253,7 +274,7 @@ struct ProfileSubscriptionDetailSection: View {
         .padding(.vertical, AppTheme.spacing.sm)
     }
 
-    // MARK: - Grace reassurance (white surface card)
+    // MARK: - Grace reassurance (surface card)
 
     private var graceReassuranceSection: some View {
         VStack(spacing: 0) {
@@ -274,15 +295,11 @@ struct ProfileSubscriptionDetailSection: View {
         }
         .padding(AppTheme.spacing.md)
         .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(AppTheme.colors.outline)
-        )
     }
 
     private func graceRow(icon: String, title: String, subtitle: String,
                           isUrgent: Bool, isCritical: Bool) -> some View {
-        let tint: Color = isCritical ? .red : (isUrgent ? .orange : AppTheme.colors.title)
+        let tint: Color = isCritical ? AppTheme.colors.danger : (isUrgent ? AppTheme.colors.warning : AppTheme.colors.title)
         return HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .regular))
@@ -304,7 +321,7 @@ struct ProfileSubscriptionDetailSection: View {
         .padding(.vertical, AppTheme.spacing.sm)
     }
 
-    // MARK: - 续订 CTA（黑色 capsule，与 paywall 一致）
+    // MARK: - 续订 CTA（自适应 capsule，与 paywall 一致）
 
     @ViewBuilder
     private var renewalCTA: some View {
@@ -317,9 +334,9 @@ struct ProfileSubscriptionDetailSection: View {
                     .font(AppTheme.typography.sized(16, weight: .semibold))
                     .frame(maxWidth: .infinity, minHeight: 54)
                     .background(
-                        Capsule().fill(AppTheme.colors.title)
+                        Capsule().fill(primaryButtonFill)
                     )
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryButtonText)
             }
             .buttonStyle(.plain)
         }
@@ -338,10 +355,6 @@ struct ProfileSubscriptionDetailSection: View {
         .padding(.horizontal, AppTheme.spacing.md)
         .padding(.vertical, AppTheme.spacing.xs)
         .background(AppTheme.colors.surface, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.radius.card)
-                .stroke(AppTheme.colors.outline)
-        )
     }
 
     // MARK: - Static helpers (testable)

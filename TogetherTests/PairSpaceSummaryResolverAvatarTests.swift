@@ -171,4 +171,62 @@ struct PairSpaceSummaryResolverAvatarTests {
         #expect(summary.pairSpace.status == .active)
         #expect(summary.partner?.displayName == "Partner")
     }
+
+    @Test("Resolver prefers latest active pair over stale active residue")
+    func resolverPrefersLatestActivePairOverOldActivePair() throws {
+        let oldSharedSpaceID = UUID()
+        let oldPairSpaceID = UUID()
+        let oldDate = Self.now.addingTimeInterval(-7200)
+
+        let oldSharedSpace = PersistentSpace(
+            id: oldSharedSpaceID,
+            typeRawValue: "pair",
+            displayName: "Old Active",
+            ownerUserID: Self.partnerUserID,
+            statusRawValue: "active",
+            createdAt: oldDate,
+            updatedAt: oldDate,
+            archivedAt: nil
+        )
+        let oldActivePair = PersistentPairSpace(
+            id: oldPairSpaceID,
+            sharedSpaceID: oldSharedSpaceID,
+            statusRawValue: PairSpaceStatus.active.rawValue,
+            createdAt: oldDate,
+            activatedAt: oldDate,
+            endedAt: nil
+        )
+        let oldMemberships = [
+            PersistentPairMembership(
+                pairSpaceID: oldPairSpaceID,
+                userID: Self.myUserID,
+                nickname: "Me",
+                joinedAt: oldDate
+            ),
+            PersistentPairMembership(
+                pairSpaceID: oldPairSpaceID,
+                userID: Self.partnerUserID,
+                nickname: "Old Active Partner",
+                joinedAt: oldDate
+            )
+        ]
+
+        let summary = try #require(
+            PairSpaceSummaryResolver.resolve(
+                for: Self.myUserID,
+                spaces: [oldSharedSpace, makeSharedSpace()],
+                pairSpaces: [oldActivePair, makePairSpace()],
+                memberships: oldMemberships + makeMemberships(
+                    avatarAssetID: nil,
+                    avatarSystemName: nil,
+                    avatarPhotoFileName: nil,
+                    avatarVersion: 0
+                )
+            )
+        )
+
+        #expect(summary.sharedSpace.id == Self.sharedSpaceID)
+        #expect(summary.pairSpace.id == Self.pairSpaceID)
+        #expect(summary.partner?.displayName == "Partner")
+    }
 }

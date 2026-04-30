@@ -2631,7 +2631,9 @@ private struct PairTimelineCard: View {
                 style: effectivePairCardStyle
             )
 
-            messageTextView
+            if hasVisibleMessageText {
+                messageTextView
+            }
         }
     }
 
@@ -2674,7 +2676,7 @@ private struct PairTimelineCard: View {
     private var messageTextView: some View {
         Group {
             if shouldShowMessageBubble {
-                Text(displayedMessageText)
+                Text(visibleMessageText)
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.84))
                     .lineLimit(1)
@@ -2687,9 +2689,9 @@ private struct PairTimelineCard: View {
                     .scaleEffect(bubbleScale)
                     .opacity(bubbleOpacity)
             } else {
-                Text(displayedMessageText)
+                Text(visibleMessageText)
                     .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(messagePreview == nil ? AppTheme.colors.body.opacity(0.5) : AppTheme.colors.body.opacity(0.74))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.74))
                     .lineLimit(1)
                     .minimumScaleFactor(0.84)
             }
@@ -2711,6 +2713,10 @@ private struct PairTimelineCard: View {
         return message
     }
 
+    private var hasVisibleMessageText: Bool {
+        messagePreview != nil
+    }
+
     private var subtitleText: String {
         if let syncStateText = entry.syncStateText, syncStateText.isEmpty == false {
             return syncStateText
@@ -2724,15 +2730,8 @@ private struct PairTimelineCard: View {
         return "轻点展开详情"
     }
 
-    private var fallbackMessageText: String {
-        if let responseStateText = entry.responseStateText, responseStateText.isEmpty == false {
-            return responseStateText
-        }
-        return "暂时还没有留言"
-    }
-
-    private var displayedMessageText: String {
-        messagePreview ?? fallbackMessageText
+    private var visibleMessageText: String {
+        messagePreview ?? ""
     }
 
     private var shouldShowMessageBubble: Bool {

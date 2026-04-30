@@ -62,8 +62,10 @@
 - 已验证双人配对事故模式：`CloudPairingService` 在返回 `PairingContext` 前同步 await `PairJoinObserver.onSuccessfulPairJoin()`，通知权限弹窗和 Supabase sync 启动会阻塞 `ProfileViewModel.apply(pairingContext:)`，导致接受方云端已配对但 UI 仍显示单人模式。修复策略：先返回 context 让 UI 切到 pair，再异步触发通知权限、catch-up、profile push。
 - 双人头像恢复不要只依赖新 pair space 的 `space_members.avatar_url`。用户重装或换机后本地头像原始文件可能缺失，但 `user_profiles` 仍有可复用的 user-scoped signed URL；`.memberProfile` push 在没有本地头像 bytes / 没有刚上传的 signed URL 时，应在 `avatar_asset_id` 匹配时回退使用 `user_profiles.avatar_url`。
 - 已验证双人配对本地状态事故模式：Supabase `pair_invites=accepted`、`spaces=active`、`space_members` 两行都正确时，接受方仍可能停留单人 UI；根因是本地 SwiftData 里存在旧的未结束 pending pair residue，`currentPairingContext` / resolver 用无序 fetch 的 first 选中旧 pair，导致 available modes 没有 pair。修复策略：本地 pair 解析统一优先选择未结束、active、最新 activated/created 的 pair space，并用服务层测试覆盖“旧 pending + 新 active”。
+- 已验证双人同步事故模式：同一对用户如果在 Supabase 中残留多个 `spaces.type='pair' and status='active'` 的双人成员空间，A 端写入最新空间成功，B 端仍可能停在旧本地 active pair，导致任务/纪念日看不到。修复策略：客户端启动恢复不能因“本地已有 active pair”直接跳过云端校验，必须查询当前用户所属的最新 active pair，补齐本地 `PersistentSpace / PersistentPairSpace / PersistentPairMembership`，并把旧本地 active pair 标记 ended/archived；Supabase `accept_pair_invite` RPC 在接受新邀请的同一事务中归档参与者旧 active pair spaces，生产库也要一次性归档历史旧 active pair spaces。
 - 双人任务接收不要只依赖 Realtime。真机测试发现任务已进入 Supabase、Edge Function 也返回 `sent=1` 时，接收方仍可能不刷新；修复方向是让 pair APNs、回前台、下拉刷新都触发 Supabase `catchUp()`，并在 catch-up 后刷新首页/清单/项目/日历等 ViewModel。
 - 双人解绑不能只靠在线 Realtime `space_members DELETE`。一方解绑后，另一方需要 APNs `pair_unbound` 事件和前台成员校验兜底：如果当前 pair space 在 Supabase 里已没有对方 `space_members` 行，本地应自动解除配对。
+- 双人日志页的红色默认头像通常代表历史记录的 `completedByUserID` / `lastActionByUserID` 已无法解析到当前用户或伴侣；这类旧 pair/profile 迁移残留还可能因为 `creatorID` 漂移被 active-task 删除权限挡住。Logbook swipe 删除应允许对已完成历史行走 tombstone fallback，但不要启动即批量删除未知头像日志，避免误删合法历史。
 
 ## 设计与动效记忆
 
@@ -72,6 +74,7 @@
 - 产品表达应是“效率优先、带一点温度”，不是“情侣感优先”。
 - 自定义动画必须状态驱动，拆成 2 到 3 个连续阶段，避免主线程重计算、同步 IO、动画中重排序。
 - 自定义动画需验证 Reduce Motion 降级、连续触发和性能。
+- 日志页偏信息浏览场景，不应把完成记录列表包在白色圆角分组卡片里；默认使用直接列表、保留 swipe actions，不再额外弹详情 sheet。随着历史任务变多，打开页应避免全量 hydration，优先 repository 层分页、轻量 aggregate 和 SwiftUI `List` 虚拟化。
 
 ## 近期优先级
 
@@ -101,6 +104,8 @@
 - 2026-04-29：build 22 修复接受方 786 云端已配对但本地仍单人 UI 的问题；验证 `PairSpaceSummaryResolverAvatarTests` 与 `LocalPairingServiceUnbindIsolationTests` 通过。
 - 2026-04-29：新增发起邀请 loading 状态、纪念日 sheet 内联新增区与纪念日胶囊长按计数切换；双人 APNs/前台 catch-up 与解绑成员校验完成本地实现。验证 `git diff --check`、iOS Simulator build、`profileViewModelExposesInviteCreationLoadingState` 通过；Supabase trigger 已应用，Edge Function 部署需要 `SUPABASE_ACCESS_TOKEN`。
 - 2026-04-29：生产后端硬化完成第一轮：Supabase 已加固 `space_members` / `pair_invites` / avatar storage RLS，新增 `accept_pair_invite` 原子接受 RPC、主动过期旧邀请码、关键同步索引、邀请码唯一约束，撤销 trigger function 的客户端可执行权限，将业务表 RLS 从 `public` 收窄到 `authenticated`，补齐缺失外键索引，为核心 enum/status 字段加 DB check constraints，并归档只有过期邀请的旧单人成员 pair shell；客户端接受邀请改走 RPC，双人 avatar 上传路径改用 Supabase `auth.uid()`，并补强 pair 变更不进入 CloudKit 的过滤。验证 `git diff --check`、iOS Simulator build；Edge Function 部署仍需本机 `SUPABASE_ACCESS_TOKEN`。
+- 2026-04-29：日志页改为直接 plain list，取消点击行弹详情 sheet，仅保留 swipe 删除/恢复；`CompletedHistoryViewModel.delete` 对 creatorID 漂移的旧完成历史行增加 repository tombstone fallback；`LocalItemRepository.fetchCompletedItems` 初始页改为 active/archived 分路限量候选并合并排序，Logbook hero stats 改用 `fetchCount` 与边界记录查询，避免打开页全量 Item hydration。验证 `git diff --check`、`CompletedHistoryViewModelPairTests`、iOS Simulator build 通过。
+- 2026-04-30：修复双人最新空间恢复与生产库多 active pair 残留：`hydratePairSpaceFromCloudIfNeeded` 改为以 Supabase 最新 active pair 为准并补齐本地 shared space；`SpaceDTO` 拉取远端 status/archivedAt；前台 pair 校验会识别远端 space 已 archived；新增 `038_archive_previous_pair_spaces_on_accept.sql`，`accept_pair_invite` 会归档参与者旧 active pair spaces。生产库已归档同一对用户的 11 个旧 active pair spaces，只保留最新双人成员空间 active；最新空间内任务和纪念日均保留。验证 `git diff --check`、`PairSpaceSummaryResolverAvatarTests`、`LocalPairingServiceUnbindIsolationTests`、iOS Simulator build 通过。
 
 ## Open Questions
 

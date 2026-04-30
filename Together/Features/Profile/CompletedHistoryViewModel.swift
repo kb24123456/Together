@@ -31,7 +31,7 @@ final class CompletedHistoryViewModel {
     var canLoadMore = true
 
     /// Aggregated stats for the Logbook pair-mode hero. Nil when solo.
-    /// Populated during `reload()` via a separate full-count fetch.
+    /// Populated during `reload()` via a lightweight aggregate fetch.
     private(set) var pairSummary: LogbookPairSummary?
 
     var isPairMode: Bool { sessionStore.hasActivePairSpace }
@@ -144,12 +144,10 @@ final class CompletedHistoryViewModel {
     }
 
     func delete(_ item: Item) async {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else {
+        guard let actorID = sessionStore.currentUser?.id else {
             return
         }
+        guard let spaceID = item.spaceID ?? sessionStore.currentSpace?.id else { return }
 
         do {
             try await taskApplicationService.deleteTask(
@@ -157,12 +155,23 @@ final class CompletedHistoryViewModel {
                 taskID: item.id,
                 actorID: actorID
             )
-            items.removeAll { $0.id == item.id }
-            canLoadMore = true
-            emitSharedTaskMutation(.delete, taskID: item.id, spaceID: spaceID)
         } catch {
-            return
+            do {
+                // Logbook rows can outlive legacy pair/profile migrations. In
+                // that case creatorID may no longer match the current user, so
+                // the active-task permission path rejects the swipe delete even
+                // though the row is already historical. Tombstone the current
+                // history row directly so users can clean stale entries.
+                try await itemRepository.deleteItem(itemID: item.id)
+            } catch {
+                return
+            }
         }
+
+        items.removeAll { $0.id == item.id }
+        canLoadMore = true
+        emitSharedTaskMutation(.delete, taskID: item.id, spaceID: spaceID)
+        await refreshPairSummaryIfNeeded(spaceID: spaceID)
     }
 
     private func emitSharedTaskMutation(
@@ -274,9 +283,8 @@ final class CompletedHistoryViewModel {
     }
 
     /// Aggregates Logbook pair hero stats via the dedicated
-    /// `completedItemStats` repository method. Single fetch, no full
-    /// domain-model hydration per row — scales cleanly to thousands of
-    /// completed items.
+    /// `completedItemStats` repository method. It avoids full Item hydration,
+    /// keeping the Logbook opener responsive as history grows.
     private func refreshPairSummaryIfNeeded(spaceID: UUID) async {
         guard isPairMode else {
             pairSummary = nil

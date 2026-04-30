@@ -1304,6 +1304,33 @@ struct TogetherTests {
     }
 
     @Test
+    func partnerTaskNotesDoNotBecomeAssignmentMessages() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "给对方的任务",
+                notes: "这是一条普通备注",
+                assigneeMode: .partner
+            )
+        )
+
+        #expect(created.notes == "这是一条普通备注")
+        #expect(created.assignmentMessages.isEmpty)
+        #expect(created.assignmentState == .pendingResponse)
+    }
+
+    @Test
     func taskApplicationServiceRejectsPendingTaskWhenQuickReplyIsSent() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)

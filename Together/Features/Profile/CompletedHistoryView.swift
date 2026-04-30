@@ -3,7 +3,6 @@ import SwiftUI
 struct CompletedHistoryView: View {
     @Bindable var viewModel: CompletedHistoryViewModel
     @Environment(AppContext.self) private var appContext
-    @State private var selectedItem: Item?
 
     var body: some View {
         List {
@@ -25,7 +24,7 @@ struct CompletedHistoryView: View {
 
             if viewModel.isPairMode, let summary = viewModel.pairSummary {
                 LogbookPairSummaryHero(summary: summary)
-                    .listRowBackground(AppTheme.colors.background)
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets())
             }
@@ -36,15 +35,19 @@ struct CompletedHistoryView: View {
                 }
             } else {
                 ForEach(viewModel.sections) { section in
-                    Section(section.title) {
-                        ForEach(section.items) { item in
-                            Button {
-                                selectedItem = item
-                            } label: {
-                                historyRow(for: item)
-                            }
-                            .buttonStyle(.plain)
-                            .listRowBackground(AppTheme.colors.surface)
+                    sectionHeader(section.title)
+
+                    ForEach(section.items) { item in
+                        historyRow(for: item)
+                            .listRowInsets(
+                                EdgeInsets(
+                                    top: AppTheme.spacing.sm,
+                                    leading: AppTheme.spacing.xl,
+                                    bottom: AppTheme.spacing.md,
+                                    trailing: AppTheme.spacing.xl
+                                )
+                            )
+                            .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .task {
                                 await viewModel.loadMoreIfNeeded(currentItem: item)
@@ -66,7 +69,6 @@ struct CompletedHistoryView: View {
                                 }
                                 .tint(AppTheme.colors.danger)
                             }
-                        }
                     }
                 }
 
@@ -75,25 +77,37 @@ struct CompletedHistoryView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .applyScrollEdgeProtection()
         .scrollContentBackground(.hidden)
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("日志")
         .searchable(text: $viewModel.searchText, prompt: "搜索已完成任务")
-        .sheet(item: $selectedItem) { item in
-            NavigationStack {
-                detailView(for: item)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
         .task {
             await viewModel.loadIfNeeded()
         }
         .task(id: viewModel.searchText) {
             await viewModel.reload()
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(AppTheme.typography.textStyle(.title3, weight: .regular))
+            .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, AppTheme.spacing.lg)
+            .padding(.bottom, AppTheme.spacing.xs)
+            .listRowInsets(
+                EdgeInsets(
+                    top: 0,
+                    leading: AppTheme.spacing.xl,
+                    bottom: 0,
+                    trailing: AppTheme.spacing.xl
+                )
+            )
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
     }
 
     private var emptySection: some View {
@@ -148,6 +162,8 @@ struct CompletedHistoryView: View {
             }
         }
         .padding(.vertical, AppTheme.spacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(pairModeAccessibilityLabel(for: item))
     }
@@ -182,60 +198,6 @@ struct CompletedHistoryView: View {
         return "\(item.title) · \(completedDate)"
     }
 
-    private func detailView(for item: Item) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                CardSection(title: item.title, subtitle: viewModel.subtitle(for: item)) {
-                    VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-                        Text(viewModel.completedDateText(for: item))
-                            .foregroundStyle(AppTheme.colors.body)
-                        if viewModel.isArchived(item) {
-                            Text(viewModel.archivedDateText(for: item))
-                                .foregroundStyle(AppTheme.colors.body)
-                        }
-
-                        if let notes = item.notes, notes.isEmpty == false {
-                            Divider()
-                            Text(notes)
-                                .foregroundStyle(AppTheme.colors.body)
-                        }
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
-                    if viewModel.isArchived(item) {
-                        Button("移回当前列表", systemImage: "arrow.uturn.backward.circle") {
-                            Task {
-                                await viewModel.restore(item)
-                                selectedItem = nil
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.colors.accent)
-                    }
-
-                    Button("删除任务", systemImage: "trash") {
-                        Task {
-                            await viewModel.delete(item)
-                            selectedItem = nil
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.colors.danger)
-                }
-            }
-            .padding(AppTheme.spacing.xl)
-        }
-        .background(AppTheme.colors.background.ignoresSafeArea())
-        .navigationTitle("任务详情")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("关闭") {
-                    selectedItem = nil
-                }
-            }
-        }
-    }
 }
 
 #if DEBUG

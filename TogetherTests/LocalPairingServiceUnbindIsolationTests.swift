@@ -98,6 +98,93 @@ struct LocalPairingServiceUnbindIsolationTests {
         #expect(pairingContext.pairSpaceSummary?.partner?.id == currentPartnerID)
     }
 
+    @Test("current context prefers newest active pair over old active residue")
+    @MainActor
+    func currentContextPrefersNewestActivePairOverOldActivePair() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let pairingService = LocalPairingService(container: persistence.container)
+        let currentUserID = UUID()
+        let oldPartnerID = UUID()
+        let currentPartnerID = UUID()
+        let oldPairSpaceID = UUID()
+        let oldSharedSpaceID = UUID()
+        let currentPairSpaceID = UUID()
+        let currentSharedSpaceID = UUID()
+        let oldDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let currentDate = oldDate.addingTimeInterval(3600)
+
+        let context = ModelContext(persistence.container)
+        context.insert(PersistentSpace(
+            id: oldSharedSpaceID,
+            typeRawValue: SpaceType.pair.rawValue,
+            displayName: "旧 active 双人空间",
+            ownerUserID: oldPartnerID,
+            statusRawValue: SpaceStatus.active.rawValue,
+            createdAt: oldDate,
+            updatedAt: oldDate,
+            archivedAt: nil
+        ))
+        context.insert(PersistentPairSpace(
+            id: oldPairSpaceID,
+            sharedSpaceID: oldSharedSpaceID,
+            statusRawValue: PairSpaceStatus.active.rawValue,
+            createdAt: oldDate,
+            activatedAt: oldDate,
+            endedAt: nil
+        ))
+        context.insert(PersistentPairMembership(
+            pairSpaceID: oldPairSpaceID,
+            userID: currentUserID,
+            nickname: "Me",
+            joinedAt: oldDate
+        ))
+        context.insert(PersistentPairMembership(
+            pairSpaceID: oldPairSpaceID,
+            userID: oldPartnerID,
+            nickname: "Old Active Partner",
+            joinedAt: oldDate
+        ))
+
+        context.insert(PersistentSpace(
+            id: currentSharedSpaceID,
+            typeRawValue: SpaceType.pair.rawValue,
+            displayName: "当前 active 双人空间",
+            ownerUserID: currentUserID,
+            statusRawValue: SpaceStatus.active.rawValue,
+            createdAt: currentDate,
+            updatedAt: currentDate,
+            archivedAt: nil
+        ))
+        context.insert(PersistentPairSpace(
+            id: currentPairSpaceID,
+            sharedSpaceID: currentSharedSpaceID,
+            statusRawValue: PairSpaceStatus.active.rawValue,
+            createdAt: currentDate,
+            activatedAt: currentDate,
+            endedAt: nil
+        ))
+        context.insert(PersistentPairMembership(
+            pairSpaceID: currentPairSpaceID,
+            userID: currentUserID,
+            nickname: "Me",
+            joinedAt: currentDate
+        ))
+        context.insert(PersistentPairMembership(
+            pairSpaceID: currentPairSpaceID,
+            userID: currentPartnerID,
+            nickname: "Current Partner",
+            joinedAt: currentDate
+        ))
+        try context.save()
+
+        let pairingContext = await pairingService.currentPairingContext(for: currentUserID)
+
+        #expect(pairingContext.state == .paired)
+        #expect(pairingContext.pairSpaceSummary?.pairSpace.id == currentPairSpaceID)
+        #expect(pairingContext.pairSpaceSummary?.sharedSpace.id == currentSharedSpaceID)
+        #expect(pairingContext.pairSpaceSummary?.partner?.id == currentPartnerID)
+    }
+
     @Test("unbind purges all pair-scoped entities for the leaving space only")
     @MainActor
     func unbindPurgesOnlyTargetSpace() async throws {

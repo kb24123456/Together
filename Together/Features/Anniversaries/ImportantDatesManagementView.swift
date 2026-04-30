@@ -6,7 +6,6 @@ struct ImportantDatesManagementView: View {
 
     @State private var showEdit: ImportantDate?
     @State private var showPresetPicker = false
-    @State private var isAddOptionsExpanded = false
     /// PresetHolidayPickerSheet 内批量保存时如果因配额停止，标记下来；
     /// sheet 关闭动画完成 (.sheet onDismiss) 后再 requestQuotaUpsell，避免多 sheet 冲突
     @State private var presetPickerHitQuota = false
@@ -18,31 +17,19 @@ struct ImportantDatesManagementView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                header
-
-                Divider()
-                    .padding(.horizontal, AppTheme.spacing.lg)
-
                 if viewModel.events.isEmpty {
-                    ScrollView {
-                        addOptionsSection
-                            .padding(.horizontal, AppTheme.spacing.lg)
-                            .padding(.top, AppTheme.spacing.lg)
-                    }
-                    .scrollIndicators(.hidden)
+                    emptyState
                 } else {
-                    if isAddOptionsExpanded {
-                        addOptionsSection
-                            .padding(.horizontal, AppTheme.spacing.lg)
-                            .padding(.vertical, AppTheme.spacing.md)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
                     list
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("纪念日")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    addMenu
+                }
+            }
             .sheet(item: $showEdit) { event in
                 ImportantDateEditSheet(event: event)
             }
@@ -78,118 +65,59 @@ struct ImportantDatesManagementView: View {
 
     // MARK: - Header & Add Actions
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            Text("纪念日")
-                .font(AppTheme.typography.sized(34, weight: .bold))
-                .foregroundStyle(AppTheme.colors.title)
-
-            Spacer()
-
-            if viewModel.events.isEmpty == false {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
-                        isAddOptionsExpanded.toggle()
-                    }
-                } label: {
-                    Image(systemName: isAddOptionsExpanded ? "xmark" : "plus")
-                        .font(AppTheme.typography.sized(18, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(AppTheme.colors.surfaceElevated)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isAddOptionsExpanded ? "收起新增选项" : "添加纪念日")
-            }
-        }
-        .padding(.horizontal, AppTheme.spacing.lg)
-        .padding(.top, AppTheme.spacing.lg)
-        .padding(.bottom, AppTheme.spacing.md)
-    }
-
-    private var addOptionsSection: some View {
-        VStack(spacing: 0) {
-            addOptionRow(title: "自定义", detail: "记录任何重要日期") {
+    private var addMenu: some View {
+        Menu {
+            Button {
+                HomeInteractionFeedback.selection()
                 createCustom()
+            } label: {
+                Label("自定义", systemImage: "star")
             }
 
-            Divider().padding(.leading, AppTheme.spacing.md)
-
-            addOptionRow(title: "添加常见节日", detail: "情人节、七夕、春节") {
+            Button {
+                HomeInteractionFeedback.selection()
                 guard quotaCheckPasses() else { return }
                 showPresetPicker = true
+            } label: {
+                Label("添加常见节日", systemImage: "calendar.badge.plus")
             }
 
-            Divider().padding(.leading, AppTheme.spacing.md)
-
-            addOptionRow(
-                title: "在一起纪念日",
-                detail: hasAnniversary() ? "已添加" : "记录关系开始的那一天",
-                isEnabled: hasAnniversary() == false
-            ) {
+            Button {
+                HomeInteractionFeedback.selection()
                 createAnniversary()
+            } label: {
+                Label("在一起纪念日", systemImage: "heart.fill")
             }
+            .disabled(hasAnniversary())
 
-            Divider().padding(.leading, AppTheme.spacing.md)
-
-            addOptionRow(
-                title: "我的生日",
-                detail: existingBirthday(myself: true) == nil ? "添加你的生日提醒" : "已添加",
-                isEnabled: existingBirthday(myself: true) == nil
-            ) {
+            Button {
+                HomeInteractionFeedback.selection()
                 createBirthday(myself: true)
+            } label: {
+                Label("我的生日", systemImage: "gift.fill")
             }
+            .disabled(existingBirthday(myself: true) != nil)
 
-            Divider().padding(.leading, AppTheme.spacing.md)
-
-            addOptionRow(
-                title: "伴侣生日",
-                detail: existingBirthday(myself: false) == nil ? "添加对方的生日提醒" : "已添加",
-                isEnabled: existingBirthday(myself: false) == nil
-            ) {
+            Button {
+                HomeInteractionFeedback.selection()
                 createBirthday(myself: false)
+            } label: {
+                Label("伴侣生日", systemImage: "person.crop.circle.badge.plus")
             }
+            .disabled(existingBirthday(myself: false) != nil)
+        } label: {
+            Image(systemName: "plus")
+                .font(AppTheme.typography.textStyle(.body, weight: .semibold))
         }
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.radius.lg)
-                .fill(AppTheme.colors.surfaceElevated)
-        )
+        .accessibilityLabel("添加纪念日")
     }
 
-    private func addOptionRow(
-        title: String,
-        detail: String,
-        isEnabled: Bool = true,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            guard isEnabled else { return }
-            HomeInteractionFeedback.selection()
-            action()
-        } label: {
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                    Text(title)
-                        .font(AppTheme.typography.textStyle(.body, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title.opacity(isEnabled ? 1 : 0.42))
-
-                    Text(detail)
-                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(isEnabled ? 0.56 : 0.36))
-                }
-
-                Spacer(minLength: AppTheme.spacing.md)
-            }
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.md)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isEnabled == false)
+    private var emptyState: some View {
+        ContentUnavailableView(
+            "还没有纪念日",
+            systemImage: "heart.text.square",
+            description: Text("点击右上角加号添加重要日期")
+        )
     }
 
     // MARK: - List

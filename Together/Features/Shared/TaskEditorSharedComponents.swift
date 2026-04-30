@@ -279,17 +279,10 @@ struct TaskEditorChipRow: View {
                         .buttonStyle(TaskEditorChipButtonStyle())
 
                         if chip.showsTrailingClear {
-                            Button {
-                                onClearTap(chip)
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(AppTheme.typography.sized(11, weight: .bold))
-                                    .frame(width: 16, height: 16)
-                                    .frame(minWidth: 44, minHeight: 44) // touch target ≥ 44pt per HIG
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("清除")
+                            Image(systemName: "xmark")
+                                .font(AppTheme.typography.sized(11, weight: .bold))
+                                .frame(width: 16, height: 16)
+                                .accessibilityHidden(true)
                         }
                     }
                     .foregroundStyle(AppTheme.colors.body.opacity(0.84))
@@ -301,6 +294,20 @@ struct TaskEditorChipRow: View {
                             namespace: namespace
                         )
                     )
+                    .overlay(alignment: .trailing) {
+                        if chip.showsTrailingClear {
+                            Button {
+                                onClearTap(chip)
+                            } label: {
+                                Color.clear
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .offset(x: 14)
+                            .accessibilityLabel("清除")
+                        }
+                    }
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .offset(x: 10)),

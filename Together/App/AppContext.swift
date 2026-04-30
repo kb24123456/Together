@@ -811,21 +811,19 @@ final class AppContext {
     /// requiring the user to re-pair manually.
     ///
     /// Triggered after `hydrateOwnProfileFromCloudIfNeeded()` in the
-    /// post-launch sequence; idempotent — bails out when local PairSpace is
-    /// already active.
+    /// post-launch sequence. Idempotent, but intentionally still checks the
+    /// cloud even when local has an active pair space: older builds could leave
+    /// stale active pair spaces behind, and those must not block the latest
+    /// accepted cloud pair from becoming the current context.
     func hydratePairSpaceFromCloudIfNeeded() async {
         guard let myAuthUID = await supabaseAuth.currentUserID else { return }
         guard let localUser = sessionStore.currentUser else { return }
 
         let modelContainer = PersistenceController.shared.container
         let context = ModelContext(modelContainer)
-
-        // Bail if local already has an active pair space — no recovery needed.
-        let existingSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
-        if existingSpaces.contains(where: { $0.statusRawValue == "active" }) {
-            appContextLogger.info("[PairRestore] skip — local pair space already active")
-            return
-        }
+        let existingPairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+        let existingSharedSpaces = (try? context.fetch(FetchDescriptor<PersistentSpace>())) ?? []
+        let existingMemberships = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
 
         // Find an active space I belong to via PostgREST inner join.
         struct SpaceRow: Decodable {
@@ -847,6 +845,7 @@ final class AppContext {
                 .from("spaces")
                 .select("id, display_name, created_at, owner_user_id, space_members!inner(user_id)")
                 .eq("status", value: "active")
+                .eq("type", value: "pair")
                 .eq("space_members.user_id", value: myAuthUID.uuidString)
                 .order("created_at", ascending: false)
                 .limit(1)
@@ -899,55 +898,132 @@ final class AppContext {
             return
         }
 
-        // Build local SwiftData rows using exact PersistentPairSpace.init signature.
-        // activatedAt: an "active" space was definitely activated — use createdAt as
-        // a safe floor value since the cloud spaces table doesn't expose activated_at.
-        let pairSpace = PersistentPairSpace(
-            id: space.id,
-            sharedSpaceID: space.id,
-            statusRawValue: "active",
-            displayName: nil,
-            createdAt: space.createdAt,
-            activatedAt: space.createdAt,
-            endedAt: nil,
-            cloudKitZoneName: space.id.uuidString,
-            ownerRecordID: space.ownerUserId.uuidString,
-            isZoneOwner: space.ownerUserId == myAuthUID
-        )
-        context.insert(pairSpace)
+        let now = Date.now
+        let activeRawValue = PairSpaceStatus.active.rawValue
+        let latestCloudSpaceID = space.id
+        let staleActivePairSpaces = existingPairSpaces.filter {
+            $0.statusRawValue == activeRawValue && $0.sharedSpaceID != latestCloudSpaceID
+        }
+        let staleSharedSpaceIDs = Set(staleActivePairSpaces.map(\.sharedSpaceID))
+        for stalePairSpace in staleActivePairSpaces {
+            stalePairSpace.statusRawValue = PairSpaceStatus.ended.rawValue
+            stalePairSpace.endedAt = stalePairSpace.endedAt ?? now
+        }
+        for staleSharedSpace in existingSharedSpaces where staleSharedSpaceIDs.contains(staleSharedSpace.id) {
+            staleSharedSpace.statusRawValue = SpaceStatus.archived.rawValue
+            staleSharedSpace.archivedAt = staleSharedSpace.archivedAt ?? now
+            staleSharedSpace.updatedAt = now
+        }
 
-        let selfMembership = PersistentPairMembership(
-            id: UUID(),
-            pairSpaceID: pairSpace.id,
-            userID: localUser.id,
-            nickname: mine.displayName,
-            joinedAt: mine.joinedAt,
-            avatarSystemName: mine.avatarSystemName,
-            avatarPhotoFileName: nil,
-            avatarAssetID: mine.avatarAssetId,
-            avatarVersion: mine.avatarVersion ?? 0
-        )
-        context.insert(selfMembership)
+        let existingPairSpace = existingPairSpaces.first {
+            $0.id == latestCloudSpaceID || $0.sharedSpaceID == latestCloudSpaceID
+        }
+        let pairSpace: PersistentPairSpace
+        if let existingPairSpace {
+            existingPairSpace.sharedSpaceID = latestCloudSpaceID
+            existingPairSpace.statusRawValue = activeRawValue
+            existingPairSpace.displayName = nil
+            existingPairSpace.createdAt = space.createdAt
+            existingPairSpace.activatedAt = existingPairSpace.activatedAt ?? space.createdAt
+            existingPairSpace.endedAt = nil
+            existingPairSpace.cloudKitZoneName = latestCloudSpaceID.uuidString
+            existingPairSpace.ownerRecordID = space.ownerUserId.uuidString
+            existingPairSpace.isZoneOwner = space.ownerUserId == myAuthUID
+            pairSpace = existingPairSpace
+        } else {
+            pairSpace = PersistentPairSpace(
+                id: latestCloudSpaceID,
+                sharedSpaceID: latestCloudSpaceID,
+                statusRawValue: activeRawValue,
+                displayName: nil,
+                createdAt: space.createdAt,
+                activatedAt: space.createdAt,
+                endedAt: nil,
+                cloudKitZoneName: latestCloudSpaceID.uuidString,
+                ownerRecordID: space.ownerUserId.uuidString,
+                isZoneOwner: space.ownerUserId == myAuthUID
+            )
+            context.insert(pairSpace)
+        }
 
-        // Partner gets a fresh local UUID — we don't have their device-local id
-        // and never will (it's device-private). Existing partner-side code on
-        // this device only knows them by this UUID anyway.
-        let partnerMembership = PersistentPairMembership(
-            id: UUID(),
-            pairSpaceID: pairSpace.id,
-            userID: UUID(),
-            nickname: partner.displayName,
-            joinedAt: partner.joinedAt,
-            avatarSystemName: partner.avatarSystemName,
-            avatarPhotoFileName: nil,
-            avatarAssetID: partner.avatarAssetId,
-            avatarVersion: partner.avatarVersion ?? 0
-        )
-        context.insert(partnerMembership)
+        let existingPartnerMembership = existingMemberships.first {
+            $0.pairSpaceID == pairSpace.id && $0.userID != localUser.id
+        }
+        let partnerLocalUserID = existingPartnerMembership?.userID ?? UUID()
+        let localOwnerUserID = space.ownerUserId == myAuthUID ? localUser.id : partnerLocalUserID
+
+        if let sharedSpace = existingSharedSpaces.first(where: { $0.id == latestCloudSpaceID }) {
+            sharedSpace.typeRawValue = SpaceType.pair.rawValue
+            sharedSpace.displayName = space.displayName
+            sharedSpace.ownerUserID = localOwnerUserID
+            sharedSpace.statusRawValue = SpaceStatus.active.rawValue
+            sharedSpace.updatedAt = now
+            sharedSpace.archivedAt = nil
+        } else {
+            context.insert(PersistentSpace(
+                id: latestCloudSpaceID,
+                typeRawValue: SpaceType.pair.rawValue,
+                displayName: space.displayName,
+                ownerUserID: localOwnerUserID,
+                statusRawValue: SpaceStatus.active.rawValue,
+                createdAt: space.createdAt,
+                updatedAt: now,
+                archivedAt: nil
+            ))
+        }
+
+        if let selfMembership = existingMemberships.first(where: {
+            $0.pairSpaceID == pairSpace.id && $0.userID == localUser.id
+        }) {
+            selfMembership.nickname = mine.displayName
+            selfMembership.avatarSystemName = mine.avatarSystemName
+            selfMembership.avatarPhotoFileName = nil
+            selfMembership.avatarAssetID = mine.avatarAssetId
+            selfMembership.avatarVersion = mine.avatarVersion ?? 0
+        } else {
+            context.insert(PersistentPairMembership(
+                id: UUID(),
+                pairSpaceID: pairSpace.id,
+                userID: localUser.id,
+                nickname: mine.displayName,
+                joinedAt: mine.joinedAt,
+                avatarSystemName: mine.avatarSystemName,
+                avatarPhotoFileName: nil,
+                avatarAssetID: mine.avatarAssetId,
+                avatarVersion: mine.avatarVersion ?? 0
+            ))
+        }
+
+        if let partnerMembership = existingPartnerMembership {
+            partnerMembership.nickname = partner.displayName
+            partnerMembership.avatarSystemName = partner.avatarSystemName
+            partnerMembership.avatarPhotoFileName = nil
+            partnerMembership.avatarAssetID = partner.avatarAssetId
+            partnerMembership.avatarVersion = partner.avatarVersion ?? 0
+        } else {
+            // Partner gets a fresh local UUID — we don't have their device-local id
+            // and never will (it's device-private). Existing partner-side code on
+            // this device only knows them by this UUID anyway.
+            context.insert(PersistentPairMembership(
+                id: UUID(),
+                pairSpaceID: pairSpace.id,
+                userID: partnerLocalUserID,
+                nickname: partner.displayName,
+                joinedAt: partner.joinedAt,
+                avatarSystemName: partner.avatarSystemName,
+                avatarPhotoFileName: nil,
+                avatarAssetID: partner.avatarAssetId,
+                avatarVersion: partner.avatarVersion ?? 0
+            ))
+        }
 
         do {
             try context.save()
-            appContextLogger.info("[PairRestore] rebuilt PairSpace \(space.id, privacy: .public)")
+            if staleActivePairSpaces.isEmpty {
+                appContextLogger.info("[PairRestore] refreshed latest PairSpace \(space.id, privacy: .public)")
+            } else {
+                appContextLogger.info("[PairRestore] switched to latest PairSpace \(space.id, privacy: .public), ended stale local pairs=\(staleActivePairSpaces.count, privacy: .public)")
+            }
         } catch {
             appContextLogger.error("[PairRestore] save failed: \(error.localizedDescription, privacy: .public)")
             return
@@ -1078,8 +1154,24 @@ final class AppContext {
             let userId: UUID
             enum CodingKeys: String, CodingKey { case userId = "user_id" }
         }
+        struct SpaceStatusRow: Decodable {
+            let status: String
+        }
 
         do {
+            let spaces: [SpaceStatusRow] = try await SupabaseClientProvider.shared
+                .from("spaces")
+                .select("status")
+                .eq("id", value: sharedSpaceID.uuidString)
+                .limit(1)
+                .execute()
+                .value
+
+            if spaces.first?.status != SpaceStatus.active.rawValue {
+                await handlePartnerLeftPairSpace()
+                return false
+            }
+
             let rows: [Row] = try await SupabaseClientProvider.shared
                 .from("space_members")
                 .select("user_id")
