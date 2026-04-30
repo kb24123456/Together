@@ -24,7 +24,7 @@ struct ImportantDatesManagementView: View {
                 }
             }
             .navigationTitle("纪念日")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     addMenu

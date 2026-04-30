@@ -26,37 +26,9 @@ struct AnniversaryCapsuleView: View {
         // periodic capsules elsewhere in the home feed; rose accent
         // distinguishes the romantic context from the alert-coral overdue
         // pill.
-        Button(action: onTap) {
-            HStack(spacing: AppTheme.spacing.sm) {
-                Image(systemName: icon)
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-
-                Text(title)
-                    .font(AppTheme.typography.sized(14, weight: .semibold))
-
-                Spacer(minLength: 0)
-
-                Text(detail)
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
-                    .contentTransition(.numericText())
-            }
-            .foregroundStyle(AppTheme.colors.rose)
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.md)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(AppTheme.colors.rose.opacity(0.12))
-            )
-        }
-        .buttonStyle(.plain)
-        .onLongPressGesture(minimumDuration: 0.45) {
-            guard canToggleCountMode else { return }
-            HomeInteractionFeedback.selection()
-            withAnimation(.snappy(duration: 0.22)) {
-                toggleCountMode()
-            }
-        }
+        content
+            .contentShape(Capsule(style: .continuous))
+            .gesture(countModeGesture)
         .onChange(of: nextEvent?.id) { _, _ in
             normalizeCountModeIfNeeded()
         }
@@ -67,7 +39,52 @@ struct AnniversaryCapsuleView: View {
             normalizeCountModeIfNeeded()
         }
         .accessibilityLabel(Text(title))
+        .accessibilityAddTraits(.isButton)
         .accessibilityHint(canToggleCountMode ? Text("长按切换纪念日计数方式") : Text(""))
+        .accessibilityAction {
+            onTap()
+        }
+        .accessibilityAction(named: Text("切换计数方式")) {
+            guard canToggleCountMode else { return }
+            switchCountMode()
+        }
+    }
+
+    private var content: some View {
+        HStack(spacing: AppTheme.spacing.sm) {
+            Image(systemName: icon)
+                .font(AppTheme.typography.sized(16, weight: .semibold))
+
+            Text(title)
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+
+            Spacer(minLength: 0)
+
+            Text(detail)
+                .font(AppTheme.typography.sized(12, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
+                .contentTransition(.numericText())
+        }
+        .foregroundStyle(AppTheme.colors.rose)
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.md)
+        .background(
+            Capsule(style: .continuous)
+                .fill(AppTheme.colors.rose.opacity(0.12))
+        )
+    }
+
+    private var countModeGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.45)
+            .exclusively(before: TapGesture())
+            .onEnded { value in
+                switch value {
+                case .first:
+                    switchCountMode()
+                case .second:
+                    onTap()
+                }
+            }
     }
 
     private var icon: String {
@@ -103,6 +120,14 @@ struct AnniversaryCapsuleView: View {
         countModeRawValue = countMode == .next
             ? AnniversaryCapsuleCountMode.elapsed.rawValue
             : AnniversaryCapsuleCountMode.next.rawValue
+    }
+
+    private func switchCountMode() {
+        guard canToggleCountMode else { return }
+        HomeInteractionFeedback.selection()
+        withAnimation(.snappy(duration: 0.22)) {
+            toggleCountMode()
+        }
     }
 
     private func normalizeCountModeIfNeeded() {
