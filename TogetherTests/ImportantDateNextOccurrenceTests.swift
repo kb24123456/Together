@@ -162,4 +162,41 @@ struct ImportantDateNextOccurrenceTests {
         #expect(cal.component(.month, from: next!) == 2)
         #expect(cal.component(.day, from: next!) == 28)
     }
+
+    @Test("elapsed days support is limited to anniversary and custom")
+    func elapsedDaysSupportByKind() {
+        let anniversary = makeEvent(
+            dateValue: date("2025-04-16T00:00:00Z"),
+            recurrence: .solarAnnual,
+            kind: .anniversary
+        )
+        let custom = makeEvent(
+            dateValue: date("2025-04-16T00:00:00Z"),
+            recurrence: .solarAnnual,
+            kind: .custom
+        )
+        let birthday = makeEvent(
+            dateValue: date("2025-04-16T00:00:00Z"),
+            recurrence: .solarAnnual,
+            kind: .birthday(memberUserID: UUID())
+        )
+        let holiday = makeEvent(
+            dateValue: date("2025-04-16T00:00:00Z"),
+            recurrence: .solarAnnual,
+            kind: .holiday
+        )
+
+        #expect(anniversary.supportsElapsedDaysDisplay == true)
+        #expect(custom.supportsElapsedDaysDisplay == true)
+        #expect(birthday.supportsElapsedDaysDisplay == false)
+        #expect(holiday.supportsElapsedDaysDisplay == false)
+    }
+
+    @Test("legacy elapsed days default is true only for anniversary raw kind")
+    func legacyElapsedDaysDefaultByRawKind() {
+        #expect(ImportantDate.defaultShowsElapsedDays(kindRawValue: "anniversary") == true)
+        #expect(ImportantDate.defaultShowsElapsedDays(kindRawValue: "custom") == false)
+        #expect(ImportantDate.defaultShowsElapsedDays(kindRawValue: "birthday") == false)
+        #expect(ImportantDate.defaultShowsElapsedDays(kindRawValue: "holiday") == false)
+    }
 }
