@@ -57,6 +57,15 @@ struct AnniversaryCapsuleView: View {
                 toggleCountMode()
             }
         }
+        .onChange(of: nextEvent?.id) { _, _ in
+            normalizeCountModeIfNeeded()
+        }
+        .onChange(of: nextEvent?.showsElapsedDays) { _, _ in
+            normalizeCountModeIfNeeded()
+        }
+        .task {
+            normalizeCountModeIfNeeded()
+        }
         .accessibilityLabel(Text(title))
         .accessibilityHint(canToggleCountMode ? Text("长按切换纪念日计数方式") : Text(""))
     }
@@ -74,8 +83,8 @@ struct AnniversaryCapsuleView: View {
     private var detail: String {
         guard let event = nextEvent,
               let days = event.daysUntilNext() else { return "点击添加" }
-        if countMode == .elapsed, isAnniversary(event) {
-            return "已 \(max(0, event.daysSinceStart)) 天"
+        if countMode == .elapsed, canShowElapsedDays(for: event) {
+            return "已经 \(max(0, event.daysSinceStart)) 天"
         }
         if days == 0 { return "今天" }
         return "还有 \(days) 天"
@@ -87,7 +96,7 @@ struct AnniversaryCapsuleView: View {
 
     private var canToggleCountMode: Bool {
         guard let nextEvent else { return false }
-        return isAnniversary(nextEvent)
+        return canShowElapsedDays(for: nextEvent)
     }
 
     private func toggleCountMode() {
@@ -96,9 +105,13 @@ struct AnniversaryCapsuleView: View {
             : AnniversaryCapsuleCountMode.next.rawValue
     }
 
-    private func isAnniversary(_ event: ImportantDate) -> Bool {
-        if case .anniversary = event.kind { return true }
-        return false
+    private func normalizeCountModeIfNeeded() {
+        guard countMode == .elapsed, canToggleCountMode == false else { return }
+        countModeRawValue = AnniversaryCapsuleCountMode.next.rawValue
+    }
+
+    private func canShowElapsedDays(for event: ImportantDate) -> Bool {
+        event.supportsElapsedDaysDisplay && event.showsElapsedDays
     }
 
     private func defaultIcon(for kind: ImportantDateKind) -> String {
