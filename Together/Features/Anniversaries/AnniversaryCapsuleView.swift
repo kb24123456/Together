@@ -63,7 +63,8 @@ struct AnniversaryCapsuleView: View {
             Text(detail)
                 .font(AppTheme.typography.sized(12, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
-                .contentTransition(.numericText())
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(detailNumericValue)))
         }
         .foregroundStyle(AppTheme.colors.rose)
         .padding(.horizontal, AppTheme.spacing.md)
@@ -105,6 +106,15 @@ struct AnniversaryCapsuleView: View {
         }
         if days == 0 { return "今天" }
         return "还有 \(days) 天"
+    }
+
+    private var detailNumericValue: Int {
+        guard let event = nextEvent,
+              let days = event.daysUntilNext() else { return 0 }
+        if countMode == .elapsed, canShowElapsedDays(for: event) {
+            return max(0, event.daysSinceStart)
+        }
+        return max(0, days)
     }
 
     private var countMode: AnniversaryCapsuleCountMode {
