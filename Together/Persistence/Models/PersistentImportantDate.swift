@@ -16,6 +16,7 @@ final class PersistentImportantDate {
     var icon: String?
     var isPresetHoliday: Bool
     var presetHolidayIDRawValue: String?
+    var showsElapsedDays: Bool?
     var createdAt: Date
     var updatedAt: Date
     var isLocallyDeleted: Bool
@@ -35,6 +36,7 @@ final class PersistentImportantDate {
         icon: String? = nil,
         isPresetHoliday: Bool = false,
         presetHolidayIDRawValue: String? = nil,
+        showsElapsedDays: Bool? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now,
         isLocallyDeleted: Bool = false,
@@ -53,6 +55,7 @@ final class PersistentImportantDate {
         self.icon = icon
         self.isPresetHoliday = isPresetHoliday
         self.presetHolidayIDRawValue = presetHolidayIDRawValue
+        self.showsElapsedDays = showsElapsedDays
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isLocallyDeleted = isLocallyDeleted
@@ -83,6 +86,7 @@ final class PersistentImportantDate {
             notifyOnDay: notifyOnDay,
             icon: icon,
             presetHolidayID: presetHolidayIDRawValue.flatMap(PresetHolidayID.init(rawValue:)),
+            showsElapsedDays: showsElapsedDays ?? ImportantDate.defaultShowsElapsedDays(kindRawValue: kindRawValue),
             updatedAt: updatedAt
         )
     }
@@ -110,6 +114,7 @@ final class PersistentImportantDate {
             icon: event.icon,
             isPresetHoliday: event.presetHolidayID != nil,
             presetHolidayIDRawValue: event.presetHolidayID?.rawValue,
+            showsElapsedDays: event.showsElapsedDays,
             updatedAt: event.updatedAt
         )
     }
@@ -135,6 +140,7 @@ final class PersistentImportantDate {
         self.icon = event.icon
         self.isPresetHoliday = event.presetHolidayID != nil
         self.presetHolidayIDRawValue = event.presetHolidayID?.rawValue
+        self.showsElapsedDays = event.showsElapsedDays
         self.updatedAt = event.updatedAt
     }
 }

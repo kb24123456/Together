@@ -88,12 +88,26 @@ struct ImportantDate: Identifiable, Hashable, Sendable {
     var notifyOnDay: Bool
     var icon: String?
     var presetHolidayID: PresetHolidayID?
+    var showsElapsedDays: Bool = false
     var updatedAt: Date
 
     static let validNotifyDaysBefore: [Int] = [1, 3, 7, 15, 30]
 }
 
 extension ImportantDate {
+    var supportsElapsedDaysDisplay: Bool {
+        switch kind {
+        case .anniversary, .custom:
+            return true
+        case .birthday, .holiday:
+            return false
+        }
+    }
+
+    static func defaultShowsElapsedDays(kindRawValue: String) -> Bool {
+        kindRawValue == "anniversary"
+    }
+
     /// Returns the next occurrence strictly after `reference`, or nil if this is
     /// a non-recurring event that has already passed.
     func nextOccurrence(after reference: Date, calendar: Calendar = .current) -> Date? {
