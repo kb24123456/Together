@@ -196,7 +196,7 @@ struct ProfileView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $isImportantDatesManagementPresented) {
-            ImportantDatesManagementView()
+            ImportantDatesManagementSheet()
         }
         .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
             let progress = min(max(-offset / 56, 0), 1)

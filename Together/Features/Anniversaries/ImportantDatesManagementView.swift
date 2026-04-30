@@ -1,5 +1,13 @@
 import SwiftUI
 
+struct ImportantDatesManagementSheet: View {
+    var body: some View {
+        ImportantDatesManagementView()
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+    }
+}
+
 struct ImportantDatesManagementView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.dismiss) private var dismiss

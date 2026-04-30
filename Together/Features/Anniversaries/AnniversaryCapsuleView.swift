@@ -60,11 +60,9 @@ struct AnniversaryCapsuleView: View {
 
             Spacer(minLength: 0)
 
-            Text(detail)
+            AnniversaryCapsuleDetailText(display: detailDisplay)
                 .font(AppTheme.typography.sized(12, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
-                .monospacedDigit()
-                .contentTransition(.numericText(value: Double(detailNumericValue)))
         }
         .foregroundStyle(AppTheme.colors.rose)
         .padding(.horizontal, AppTheme.spacing.md)
@@ -98,23 +96,14 @@ struct AnniversaryCapsuleView: View {
         return event.displayTitle(viewerSupabaseUserID: viewerSupabaseUserID, partnerDisplayName: partnerDisplayName)
     }
 
-    private var detail: String {
+    private var detailDisplay: AnniversaryCapsuleDetailDisplay {
         guard let event = nextEvent,
-              let days = event.daysUntilNext() else { return "点击添加" }
+              let days = event.daysUntilNext() else { return .staticText("点击添加") }
         if countMode == .elapsed, canShowElapsedDays(for: event) {
-            return "已经 \(max(0, event.daysSinceStart)) 天"
+            return .numeric(prefix: "已经", value: max(0, event.daysSinceStart))
         }
-        if days == 0 { return "今天" }
-        return "还有 \(days) 天"
-    }
-
-    private var detailNumericValue: Int {
-        guard let event = nextEvent,
-              let days = event.daysUntilNext() else { return 0 }
-        if countMode == .elapsed, canShowElapsedDays(for: event) {
-            return max(0, event.daysSinceStart)
-        }
-        return max(0, days)
+        if days == 0 { return .staticText("今天") }
+        return .numeric(prefix: "还有", value: max(0, days))
     }
 
     private var countMode: AnniversaryCapsuleCountMode {
@@ -155,6 +144,32 @@ struct AnniversaryCapsuleView: View {
         case .anniversary: return "heart.fill"
         case .holiday: return "sparkles"
         case .custom: return "star.fill"
+        }
+    }
+}
+
+private enum AnniversaryCapsuleDetailDisplay: Equatable {
+    case numeric(prefix: String, value: Int)
+    case staticText(String)
+}
+
+private struct AnniversaryCapsuleDetailText: View {
+    let display: AnniversaryCapsuleDetailDisplay
+
+    var body: some View {
+        switch display {
+        case let .numeric(prefix, value):
+            Text("\(prefix) \(value) 天")
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(value)))
+                .environment(\.contentTransitionAddsDrawingGroup, true)
+                .animation(.snappy(duration: 0.34), value: display)
+        case let .staticText(text):
+            Text(text)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .environment(\.contentTransitionAddsDrawingGroup, true)
+                .animation(.snappy(duration: 0.34), value: text)
         }
     }
 }

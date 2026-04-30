@@ -98,9 +98,7 @@ struct HomeView: View {
             HomeOverdueSummarySheet(viewModel: viewModel)
         }
         .sheet(isPresented: $isImportantDatesManagementPresented) {
-            ImportantDatesManagementView()
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+            ImportantDatesManagementSheet()
         }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems

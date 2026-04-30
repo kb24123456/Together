@@ -29,13 +29,30 @@ async function getApnsJWT(): Promise<string> {
 
 async function sendAPNs(
   deviceToken: string,
-  notification: { title: string; body: string },
+  notification: { title: string; body: string; eventType?: string },
   taskId: string | undefined,
   senderId: string | undefined,
-  eventType: string | undefined,
-): Promise<{ ok: boolean; status: number; deleteToken: boolean }> {
+): Promise<{ ok: boolean; status: number; deleteToken: boolean; reason?: string; environment: "production" | "development" }> {
+  const productionResult = await sendAPNsToEnvironment("production", deviceToken, notification, taskId, senderId);
+  if (productionResult.ok || productionResult.status !== 400 || productionResult.reason !== "BadDeviceToken") {
+    return productionResult;
+  }
+
+  // Debug/development builds generate sandbox APNs tokens. TestFlight and
+  // App Store builds generate production tokens. Production-first keeps the
+  // user-facing TestFlight path fast while preserving local debug delivery.
+  return sendAPNsToEnvironment("development", deviceToken, notification, taskId, senderId);
+}
+
+async function sendAPNsToEnvironment(
+  environment: "production" | "development",
+  deviceToken: string,
+  notification: { title: string; body: string; eventType?: string },
+  taskId: string | undefined,
+  senderId: string | undefined,
+): Promise<{ ok: boolean; status: number; deleteToken: boolean; reason?: string; environment: "production" | "development" }> {
   const jwt = await getApnsJWT();
-  const category = eventType === "pair_unbound" ? "PAIR_STATUS" : "TASK_NUDGE";
+  const category = categoryForEventType(notification.eventType);
   const payload = {
     aps: {
       alert: { title: notification.title, body: notification.body },
@@ -46,9 +63,10 @@ async function sendAPNs(
     },
     task_id: taskId,
     sender_id: senderId,
-    event_type: eventType,
+    event_type: notification.eventType,
   };
-  const url = `https://api.sandbox.push.apple.com/3/device/${deviceToken}`;
+  const host = environment === "production" ? "api.push.apple.com" : "api.sandbox.push.apple.com";
+  const url = `https://${host}/3/device/${deviceToken}`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -59,13 +77,29 @@ async function sendAPNs(
     },
     body: JSON.stringify(payload),
   });
-  return { ok: res.ok, status: res.status, deleteToken: res.status === 410 };
+  let reason: string | undefined;
+  if (!res.ok) {
+    try {
+      const body = await res.json();
+      reason = typeof body?.reason === "string" ? body.reason : undefined;
+    } catch {
+      reason = undefined;
+    }
+  }
+  return { ok: res.ok, status: res.status, deleteToken: res.status === 410, reason, environment };
+}
+
+function categoryForEventType(eventType: string | undefined): string {
+  if (eventType === "pair_unbound") return "PAIR_STATUS";
+  if (eventType === "task_created" || eventType === "task_nudge") return "TASK_NUDGE";
+  return "together.notification.generic";
 }
 
 function buildNotification(
   table: string,
   type: string,
   record: Record<string, unknown>,
+  oldRecord?: Record<string, unknown>,
 ): { title: string; body: string; eventType?: string } | null {
   if (table === "space_members" && type === "DELETE") {
     return {
@@ -76,25 +110,32 @@ function buildNotification(
   }
   if (table === "tasks" && type === "INSERT") {
     if (record.assignee_mode === "partner") {
-      return { title: "新任务", body: `伴侣给你分配了「${record.title}」` };
+      return { title: "新任务", body: `伴侣给你分配了「${record.title}」`, eventType: "task_created" };
     }
     return null;
   }
   if (table === "tasks" && type === "UPDATE") {
-    if (record.status === "completed") {
-      return { title: "任务完成", body: `伴侣完成了「${record.title}」` };
+    const hasOldRecord = oldRecord && Object.keys(oldRecord).length > 0;
+    if (record.status === "completed" && (!hasOldRecord || oldRecord?.status !== "completed")) {
+      return { title: "任务完成", body: `伴侣完成了「${record.title}」`, eventType: "task_completed" };
+    }
+    if (hasOldRecord && record.assignment_state === "accepted" && oldRecord?.assignment_state !== "accepted") {
+      return { title: "任务已接受", body: `伴侣接受了「${record.title}」`, eventType: "task_accepted" };
+    }
+    if (hasOldRecord && record.assignment_state === "declined" && oldRecord?.assignment_state !== "declined") {
+      return { title: "任务被婉拒", body: `伴侣觉得「${record.title}」不太合适`, eventType: "task_declined" };
     }
     return null;
   }
   if (table === "task_messages" && type === "INSERT") {
     if (record.type === "nudge") {
-      return { title: "提醒", body: "伴侣提醒你完成任务" };
+      return { title: "提醒", body: "伴侣提醒你完成任务", eventType: "task_nudge" };
     }
     if (record.type === "comment") {
-      return { title: "留言", body: "伴侣给你留了言" };
+      return { title: "留言", body: "伴侣给你留了言", eventType: "task_comment" };
     }
     if (record.type === "rps_result") {
-      return { title: "✊✌️✋", body: "伴侣发起了石头剪刀布！" };
+      return { title: "✊✌️✋", body: "伴侣发起了石头剪刀布！", eventType: "task_rps" };
     }
   }
   return null;
@@ -103,7 +144,7 @@ function buildNotification(
 Deno.serve(async (req: Request) => {
   try {
     const payload = await req.json();
-    const { type, table, record } = payload;
+    const { type, table, record, old_record } = payload;
 
     const actorId: string | undefined = record?.creator_id || record?.sender_id || record?.user_id;
 
@@ -152,7 +193,7 @@ Deno.serve(async (req: Request) => {
 
     if (!tokens || tokens.length === 0) return new Response("No tokens", { status: 200 });
 
-    const notification = buildNotification(table, type, record);
+    const notification = buildNotification(table, type, record, old_record);
     if (!notification) return new Response("Skip", { status: 200 });
 
     const taskId: string | undefined = table === "task_messages"
@@ -164,14 +205,14 @@ Deno.serve(async (req: Request) => {
     let sentCount = 0;
     for (const { token } of tokens) {
       try {
-        const result = await sendAPNs(token, notification, taskId, actorId, notification.eventType);
+        const result = await sendAPNs(token, notification, taskId, actorId);
         if (result.ok) {
           sentCount++;
         } else if (result.deleteToken) {
           await supabase.from("device_tokens").delete().eq("token", token);
           console.warn(`[APNs] 410 Unregistered — deleted token ${token.substring(0, 8)}...`);
         } else {
-          console.error(`[APNs] ${result.status} for ${token.substring(0, 8)}...`);
+          console.error(`[APNs] ${result.status} ${result.reason ?? "Unknown"} env=${result.environment} for ${token.substring(0, 8)}...`);
         }
       } catch (e) {
         console.error(`[APNs] exception: ${e}`);

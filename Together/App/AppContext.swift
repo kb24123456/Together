@@ -1598,13 +1598,11 @@ final class AppContext {
             return
         }
 
-        // APNs-originated TASK_NUDGE: userInfo carries task_id directly;
+        // APNs-originated pair task notification: userInfo carries task_id directly;
         // identifier is server-generated and does not follow AppNotification format.
         if let taskIDString = response.notification.request.content.userInfo["task_id"] as? String,
-           let taskID = UUID(uuidString: taskIDString),
-           response.notification.request.content.categoryIdentifier == NotificationActionCatalog.taskNudgeCategoryIdentifier {
-            // Drop self-notifications: the Edge Function fans out to every device in the space,
-            // including the sender's own device. Ignore the push if sender_id matches current user.
+           let taskID = UUID(uuidString: taskIDString) {
+            // Drop legacy self-notifications when old rows cannot be excluded server-side.
             if let senderIDString = response.notification.request.content.userInfo["sender_id"] as? String,
                let currentUserID = sessionStore.currentUser?.id.uuidString,
                senderIDString.lowercased() == currentUserID.lowercased() {
