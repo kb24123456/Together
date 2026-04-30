@@ -95,7 +95,9 @@ struct PresetHolidayPickerSheet: View {
             id: UUID(), spaceID: UUID(), creatorID: UUID(),
             kind: .holiday, title: preset.defaultTitle, dateValue: seedDate,
             recurrence: preset.recurrence, notifyDaysBefore: 7, notifyOnDay: true,
-            icon: nil, presetHolidayID: preset, updatedAt: .now
+            icon: nil, presetHolidayID: preset,
+            showsElapsedDays: false,
+            updatedAt: .now
         )
         guard let next = event.nextOccurrence(after: .now) else { return "" }
         let fmt = DateFormatter()
@@ -145,6 +147,7 @@ struct PresetHolidayPickerSheet: View {
                     recurrence: preset.recurrence,
                     notifyDaysBefore: 7, notifyOnDay: true,
                     icon: preset.defaultIcon, presetHolidayID: preset,
+                    showsElapsedDays: false,
                     updatedAt: .now
                 )
                 await viewModel.save(event)

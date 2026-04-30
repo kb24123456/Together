@@ -141,26 +141,62 @@ struct ImportantDatesManagementView: View {
                         }
                         .tint(.red)
                     }
-                    .onTapGesture { showEdit = event }
             }
         }
         .listStyle(.plain)
     }
 
     private func row(event: ImportantDate) -> some View {
-        HStack(spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text(displayTitle(for: event)).font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                Text(dateLabel(for: event)).font(AppTheme.typography.textStyle(.caption1)).foregroundStyle(.secondary)
+        Button {
+            showEdit = event
+        } label: {
+            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                    Text(displayTitle(for: event))
+                        .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title)
+                    Text(dateLabel(for: event))
+                        .font(AppTheme.typography.textStyle(.caption1))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: AppTheme.spacing.sm)
+
+                HStack(spacing: AppTheme.spacing.sm) {
+                    VStack(alignment: .trailing, spacing: AppTheme.spacing.xxs) {
+                        Text(nextDaysLabel(for: event))
+                            .font(AppTheme.typography.textStyle(.subheadline, weight: .semibold))
+                            .foregroundStyle(.secondary)
+
+                        if event.supportsElapsedDaysDisplay && event.showsElapsedDays {
+                            Text(elapsedDaysLabel(for: event))
+                                .font(AppTheme.typography.textStyle(.caption1, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.rose.opacity(0.82))
+                                .contentTransition(.numericText())
+                        }
+                    }
+                    .multilineTextAlignment(.trailing)
+
+                    if event.supportsElapsedDaysDisplay {
+                        Toggle(
+                            "同时展示累计天数",
+                            isOn: elapsedDaysBinding(for: event)
+                        )
+                        .labelsHidden()
+                        .tint(AppTheme.colors.rose)
+                        .fixedSize()
+                        .accessibilityLabel("同时展示累计天数")
+                        .accessibilityValue(event.showsElapsedDays ? "已开启" : "已关闭")
+                    }
+                }
             }
-            Spacer()
-            Text(daysLabel(for: event)).font(AppTheme.typography.textStyle(.subheadline)).foregroundStyle(.secondary)
+            .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(displayTitle(for: event)))
-        .accessibilityValue(Text("\(dateLabel(for: event))，\(daysLabel(for: event))"))
-        .accessibilityHint(Text("轻点编辑这个纪念日"))
+        .accessibilityValue(Text(accessibilityValue(for: event)))
+        .accessibilityHint(Text(event.supportsElapsedDaysDisplay ? "轻点编辑，使用开关控制是否显示累计天数" : "轻点编辑这个纪念日"))
     }
 
     private func nextKey(_ event: ImportantDate) -> Date {
@@ -181,9 +217,13 @@ struct ImportantDatesManagementView: View {
         }
     }
 
-    private func daysLabel(for event: ImportantDate) -> String {
+    private func nextDaysLabel(for event: ImportantDate) -> String {
         guard let days = event.daysUntilNext() else { return "-" }
         return days == 0 ? "今天" : "还有 \(days) 天"
+    }
+
+    private func elapsedDaysLabel(for event: ImportantDate) -> String {
+        "已经 \(max(0, event.daysSinceStart)) 天"
     }
 
     /// Birthday rows are viewer-relative — partner A's "伴侣生日" must read as
@@ -196,6 +236,33 @@ struct ImportantDatesManagementView: View {
             viewerSupabaseUserID: appContext.currentSupabaseUserID,
             partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName
         )
+    }
+
+    private func elapsedDaysBinding(for event: ImportantDate) -> Binding<Bool> {
+        Binding(
+            get: { event.showsElapsedDays },
+            set: { newValue in
+                updateElapsedDaysPreference(for: event, showsElapsedDays: newValue)
+            }
+        )
+    }
+
+    private func updateElapsedDaysPreference(for event: ImportantDate, showsElapsedDays: Bool) {
+        guard event.supportsElapsedDaysDisplay else { return }
+        var updated = event
+        updated.showsElapsedDays = showsElapsedDays
+        updated.updatedAt = .now
+        HomeInteractionFeedback.selection()
+        Task {
+            await viewModel.save(updated)
+        }
+    }
+
+    private func accessibilityValue(for event: ImportantDate) -> String {
+        if event.supportsElapsedDaysDisplay && event.showsElapsedDays {
+            return "\(dateLabel(for: event))，\(nextDaysLabel(for: event))，\(elapsedDaysLabel(for: event))"
+        }
+        return "\(dateLabel(for: event))，\(nextDaysLabel(for: event))"
     }
 
     // MARK: - Existing checks
@@ -240,7 +307,9 @@ struct ImportantDatesManagementView: View {
             dateValue: .now,
             recurrence: .solarAnnual,
             notifyDaysBefore: 7, notifyOnDay: true,
-            icon: "gift.fill", presetHolidayID: nil, updatedAt: .now
+            icon: "gift.fill", presetHolidayID: nil,
+            showsElapsedDays: false,
+            updatedAt: .now
         )
         showEdit = seed
     }
@@ -254,7 +323,9 @@ struct ImportantDatesManagementView: View {
             kind: .anniversary, title: "我们的纪念日",
             dateValue: .now, recurrence: .solarAnnual,
             notifyDaysBefore: 7, notifyOnDay: true,
-            icon: "heart.fill", presetHolidayID: nil, updatedAt: .now
+            icon: "heart.fill", presetHolidayID: nil,
+            showsElapsedDays: false,
+            updatedAt: .now
         )
         showEdit = seed
     }
@@ -268,7 +339,9 @@ struct ImportantDatesManagementView: View {
             kind: .custom, title: "",
             dateValue: .now, recurrence: .solarAnnual,
             notifyDaysBefore: 7, notifyOnDay: true,
-            icon: "star.fill", presetHolidayID: nil, updatedAt: .now
+            icon: "star.fill", presetHolidayID: nil,
+            showsElapsedDays: false,
+            updatedAt: .now
         )
         showEdit = seed
     }
