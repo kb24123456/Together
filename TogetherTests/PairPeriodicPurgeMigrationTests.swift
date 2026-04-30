@@ -3,7 +3,7 @@ import SwiftData
 import Foundation
 @testable import Together
 
-@Suite("PairPeriodicPurgeMigration")
+@Suite("PairPeriodicPurgeMigration", .serialized)
 struct PairPeriodicPurgeMigrationTests {
 
     private func makeContainer() throws -> ModelContainer {
