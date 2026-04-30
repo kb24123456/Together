@@ -72,6 +72,7 @@ private func makeDTO(
     spaceID: UUID,
     title: String = "Test",
     updatedAt: Date = .now,
+    showsElapsedDays: Bool = false,
     isDeleted: Bool = false
 ) -> ImportantDateDTO {
     ImportantDateDTO(
@@ -89,6 +90,7 @@ private func makeDTO(
         memberUserId: nil,
         isPresetHoliday: false,
         presetHolidayId: nil,
+        showsElapsedDays: showsElapsedDays,
         createdAt: .now,
         updatedAt: updatedAt,
         isDeleted: isDeleted,
@@ -207,5 +209,23 @@ struct ImportantDatePullTests {
         let rows = try h.localRows()
         #expect(rows.count == 1)
         #expect(rows.first?.isLocallyDeleted == true)
+    }
+
+    @Test("pull persists elapsed days display preference")
+    func pullPersistsElapsedDaysPreference() async throws {
+        let h = try await ImportantDatePullHarness()
+        let id = UUID()
+        h.reader.setRows([makeDTO(
+            id: id,
+            spaceID: h.spaceID,
+            title: "第一次旅行",
+            showsElapsedDays: true
+        )])
+
+        try await h.sut.pullImportantDatesForTesting(spaceID: h.spaceID)
+
+        let rows = try h.localRows()
+        #expect(rows.count == 1)
+        #expect(rows.first?.showsElapsedDays == true)
     }
 }

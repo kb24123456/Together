@@ -43,7 +43,8 @@ private func seedImportantDate(
     id: UUID,
     spaceID: UUID,
     title: String = "Test Birthday",
-    kind: String = "birthday"
+    kind: String = "birthday",
+    showsElapsedDays: Bool = false
 ) throws {
     let context = ModelContext(container)
     context.insert(PersistentImportantDate(
@@ -60,6 +61,7 @@ private func seedImportantDate(
         icon: "gift.fill",
         isPresetHoliday: false,
         presetHolidayIDRawValue: nil,
+        showsElapsedDays: showsElapsedDays,
         createdAt: .now,
         updatedAt: .now
     ))
@@ -83,7 +85,13 @@ struct ImportantDatePushTests {
         let spaceID = UUID()
         let recordID = UUID()
         await sut.configure(spaceID: spaceID, myUserID: UUID(), myLocalUserID: UUID())
-        try seedImportantDate(in: container, id: recordID, spaceID: spaceID, title: "妈生日")
+        try seedImportantDate(
+            in: container,
+            id: recordID,
+            spaceID: spaceID,
+            title: "妈生日",
+            showsElapsedDays: true
+        )
 
         try await sut.pushUpsert(
             SyncChange(entityKind: .importantDate, operation: .upsert, recordID: recordID, spaceID: spaceID)
@@ -96,6 +104,7 @@ struct ImportantDatePushTests {
         #expect(dto?.kind == "birthday")
         #expect(dto?.isRecurring == true)
         #expect(dto?.recurrenceRule == "solar_annual")
+        #expect(dto?.showsElapsedDays == true)
     }
 
     @Test("pushUpsert with no local row is a no-op (logs warning)")

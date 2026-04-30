@@ -1707,6 +1707,7 @@ struct ImportantDateDTO: Codable, Sendable {
     var memberUserId: UUID?
     var isPresetHoliday: Bool
     var presetHolidayId: String?
+    var showsElapsedDays: Bool
     var createdAt: Date
     var updatedAt: Date
     var isDeleted: Bool
@@ -1726,10 +1727,100 @@ struct ImportantDateDTO: Codable, Sendable {
         case memberUserId = "member_user_id"
         case isPresetHoliday = "is_preset_holiday"
         case presetHolidayId = "preset_holiday_id"
+        case showsElapsedDays = "shows_elapsed_days"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case isDeleted = "is_deleted"
         case deletedAt = "deleted_at"
+    }
+
+    init(
+        id: UUID,
+        spaceId: UUID,
+        creatorId: UUID,
+        kind: String,
+        title: String,
+        dateValue: Date,
+        isRecurring: Bool,
+        recurrenceRule: String?,
+        notifyDaysBefore: Int,
+        notifyOnDay: Bool,
+        icon: String?,
+        memberUserId: UUID?,
+        isPresetHoliday: Bool,
+        presetHolidayId: String?,
+        showsElapsedDays: Bool,
+        createdAt: Date,
+        updatedAt: Date,
+        isDeleted: Bool,
+        deletedAt: Date?
+    ) {
+        self.id = id
+        self.spaceId = spaceId
+        self.creatorId = creatorId
+        self.kind = kind
+        self.title = title
+        self.dateValue = dateValue
+        self.isRecurring = isRecurring
+        self.recurrenceRule = recurrenceRule
+        self.notifyDaysBefore = notifyDaysBefore
+        self.notifyOnDay = notifyOnDay
+        self.icon = icon
+        self.memberUserId = memberUserId
+        self.isPresetHoliday = isPresetHoliday
+        self.presetHolidayId = presetHolidayId
+        self.showsElapsedDays = showsElapsedDays
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isDeleted = isDeleted
+        self.deletedAt = deletedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        spaceId = try container.decode(UUID.self, forKey: .spaceId)
+        creatorId = try container.decode(UUID.self, forKey: .creatorId)
+        kind = try container.decode(String.self, forKey: .kind)
+        title = try container.decode(String.self, forKey: .title)
+        dateValue = try container.decode(Date.self, forKey: .dateValue)
+        isRecurring = try container.decode(Bool.self, forKey: .isRecurring)
+        recurrenceRule = try container.decodeIfPresent(String.self, forKey: .recurrenceRule)
+        notifyDaysBefore = try container.decode(Int.self, forKey: .notifyDaysBefore)
+        notifyOnDay = try container.decode(Bool.self, forKey: .notifyOnDay)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon)
+        memberUserId = try container.decodeIfPresent(UUID.self, forKey: .memberUserId)
+        isPresetHoliday = try container.decode(Bool.self, forKey: .isPresetHoliday)
+        presetHolidayId = try container.decodeIfPresent(String.self, forKey: .presetHolidayId)
+        showsElapsedDays = try container.decodeIfPresent(Bool.self, forKey: .showsElapsedDays)
+            ?? ImportantDate.defaultShowsElapsedDays(kindRawValue: kind)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        isDeleted = try container.decode(Bool.self, forKey: .isDeleted)
+        deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(spaceId, forKey: .spaceId)
+        try container.encode(creatorId, forKey: .creatorId)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(title, forKey: .title)
+        try container.encode(dateValue, forKey: .dateValue)
+        try container.encode(isRecurring, forKey: .isRecurring)
+        try container.encodeIfPresent(recurrenceRule, forKey: .recurrenceRule)
+        try container.encode(notifyDaysBefore, forKey: .notifyDaysBefore)
+        try container.encode(notifyOnDay, forKey: .notifyOnDay)
+        try container.encodeIfPresent(icon, forKey: .icon)
+        try container.encodeIfPresent(memberUserId, forKey: .memberUserId)
+        try container.encode(isPresetHoliday, forKey: .isPresetHoliday)
+        try container.encodeIfPresent(presetHolidayId, forKey: .presetHolidayId)
+        try container.encode(showsElapsedDays, forKey: .showsElapsedDays)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encode(isDeleted, forKey: .isDeleted)
+        try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
     }
 
     nonisolated func applyToLocal(context: ModelContext) {
@@ -1751,6 +1842,7 @@ struct ImportantDateDTO: Codable, Sendable {
             existing.memberUserID = memberUserId
             existing.isPresetHoliday = isPresetHoliday
             existing.presetHolidayIDRawValue = presetHolidayId
+            existing.showsElapsedDays = showsElapsedDays
             existing.updatedAt = updatedAt
             if isDeleted { existing.isLocallyDeleted = true }
         } else if !isDeleted {
@@ -1768,6 +1860,7 @@ struct ImportantDateDTO: Codable, Sendable {
                 icon: icon,
                 isPresetHoliday: isPresetHoliday,
                 presetHolidayIDRawValue: presetHolidayId,
+                showsElapsedDays: showsElapsedDays,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 isLocallyDeleted: false
@@ -1793,6 +1886,8 @@ extension ImportantDateDTO {
         self.memberUserId = persistent.memberUserID
         self.isPresetHoliday = persistent.isPresetHoliday
         self.presetHolidayId = persistent.presetHolidayIDRawValue
+        self.showsElapsedDays = persistent.showsElapsedDays
+            ?? ImportantDate.defaultShowsElapsedDays(kindRawValue: persistent.kindRawValue)
         self.createdAt = persistent.createdAt
         self.updatedAt = persistent.updatedAt
         self.isDeleted = persistent.isLocallyDeleted
