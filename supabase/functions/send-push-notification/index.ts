@@ -7,6 +7,7 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const apnsKeyId = Deno.env.get("APNS_KEY_ID") || "";
 const apnsTeamId = Deno.env.get("APNS_TEAM_ID") || "";
 const apnsPrivateKeyPEM = Deno.env.get("APNS_PRIVATE_KEY") || "";
+const webhookSecret = Deno.env.get("TOGETHER_PUSH_WEBHOOK_SECRET") || "";
 const appBundleId = "com.pigdog.Together";
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
@@ -143,6 +144,16 @@ function buildNotification(
 
 Deno.serve(async (req: Request) => {
   try {
+    if (req.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
+
+    const providedSecret = req.headers.get("x-together-webhook-secret") || "";
+    if (!webhookSecret || providedSecret !== webhookSecret) {
+      console.warn("[Push] Unauthorized webhook request");
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const payload = await req.json();
     const { type, table, record, old_record } = payload;
 
