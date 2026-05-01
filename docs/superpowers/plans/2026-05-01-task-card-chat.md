@@ -640,7 +640,7 @@ Expected: commit succeeds.
 - Test: `TogetherTests/TogetherTests.swift`
 - Test: `TogetherTests/SendReminderToPartnerTests.swift`
 
-- [ ] **Step 0: Keep Task 4 comment writes local-only**
+- [x] **Step 0: Keep Task 4 comment writes local-only**
 
 Task 4 must not enqueue `.taskMessage` sync changes yet. `TaskMessagePushDTO` does
 not include `content` until Task 5, while migration `041` rejects comment rows
@@ -648,7 +648,7 @@ without content. This keeps the intermediate Task 4 commit production-safe:
 comments are written locally, and Task 5 enables remote sync after content
 push/pull is implemented.
 
-- [ ] **Step 1: Add failing application service tests**
+- [x] **Step 1: Add failing application service tests**
 
 Add tests near existing assignment message tests in `TogetherTests/TogetherTests.swift`:
 
@@ -709,7 +709,7 @@ Add tests near existing assignment message tests in `TogetherTests/TogetherTests
 }
 ```
 
-- [ ] **Step 2: Extend protocol**
+- [x] **Step 2: Extend protocol**
 
 Add to `TaskApplicationServiceProtocol`:
 
@@ -722,7 +722,7 @@ func sendTaskComment(
 ) async throws -> TaskMessage?
 ```
 
-- [ ] **Step 3: Implement comment write helper**
+- [x] **Step 3: Implement comment write helper**
 
 Add to `DefaultTaskApplicationService`:
 
@@ -760,50 +760,69 @@ func sendTaskComment(
 
 Use a domain-specific error later if the app already has a better validation error; keep this first implementation aligned with existing repository error style.
 
-- [ ] **Step 4: Move create-task assignment note into task_messages**
+- [x] **Step 4: Move create-task assignment note into task_messages**
 
-In `createTask`, set `assignmentMessages: []` when building `Item`. After `saveItem`, insert the note:
+In `createTask`, validate attached `assignmentNote` content before task persistence, then set `assignmentMessages: []` when building `Item`. After `saveItem`, insert the associated comment best-effort until the app has a shared transaction/unit-of-work across task and task message persistence:
 
 ```swift
+let assignmentCommentContent = draft.assigneeMode == .partner
+    ? try validatedCommentContent(draft.assignmentNote)
+    : nil
+
 let saved = try await itemRepository.saveItem(item)
 await syncCoordinator.recordLocalChange(SyncChange(entityKind: .task, operation: .upsert, recordID: saved.id, spaceID: spaceID))
 
-if draft.assigneeMode == .partner,
-   let note = draft.assignmentNote?.trimmingCharacters(in: .whitespacesAndNewlines),
-   note.isEmpty == false {
-    _ = try await sendTaskComment(in: spaceID, taskID: saved.id, actorID: actorID, content: note)
+if let assignmentCommentContent {
+    await insertAssociatedTaskCommentIfPossible(in: spaceID, taskID: saved.id, actorID: actorID, content: assignmentCommentContent)
 }
 
 await reminderScheduler.syncTaskReminder(for: saved)
 return saved
 ```
 
-- [ ] **Step 5: Move update-task assignment note into task_messages**
+- [x] **Step 5: Move update-task assignment note into task_messages**
 
-In `updateTask`, remove the append to `item.assignmentMessages`. After saving and recording task upsert:
+In `updateTask`, validate attached `assignmentNote` content before mutating/saving the task, and remove the append to `item.assignmentMessages`. After saving and recording task upsert, insert the associated comment best-effort:
 
 ```swift
-if draft.assigneeMode == .partner,
-   let note = draft.assignmentNote?.trimmingCharacters(in: .whitespacesAndNewlines),
-   note.isEmpty == false {
-    _ = try await sendTaskComment(in: spaceID, taskID: saved.id, actorID: actorID, content: note)
+let assignmentCommentContent = draft.assigneeMode == .partner
+    ? try validatedCommentContent(draft.assignmentNote)
+    : nil
+
+// mutate and save task...
+
+if let assignmentCommentContent {
+    await insertAssociatedTaskCommentIfPossible(in: spaceID, taskID: saved.id, actorID: actorID, content: assignmentCommentContent)
 }
 ```
 
-- [ ] **Step 6: Move response messages into task_messages**
+- [x] **Step 6: Move response messages into task_messages**
 
 In `LocalItemRepository.updateItemStatus` and `MockItemRepository.updateItemStatus`, stop appending `TaskAssignmentMessage` when response message is present. Keep `ItemResponse.message` in `responseHistory`.
 
-In `DefaultTaskApplicationService.respondToTask`, after the task upsert:
+In `DefaultTaskApplicationService.respondToTask`, validate attached response message content before task persistence. After the task upsert, insert the associated comment best-effort:
 
 ```swift
-if let message = message?.trimmingCharacters(in: .whitespacesAndNewlines),
-   message.isEmpty == false {
-    _ = try await sendTaskComment(in: spaceID, taskID: item.id, actorID: actorID, content: message)
+let responseCommentContent = try validatedCommentContent(message)
+let item = try await itemRepository.updateItemStatus(...)
+await syncCoordinator.recordLocalChange(...)
+
+if let responseCommentContent {
+    await insertAssociatedTaskCommentIfPossible(in: spaceID, taskID: item.id, actorID: actorID, content: responseCommentContent)
 }
 ```
 
-- [ ] **Step 7: Keep quick-message compatibility**
+- [x] **Step 7: Keep quick-message compatibility**
+
+Add the best-effort helper only for associated create/update/respond comments. Direct `sendTaskComment` still throws if `taskMessageRepository.insertComment` fails, and `appendAssignmentMessage` keeps that explicit-send behavior by calling `sendTaskComment` directly:
+
+```swift
+private func insertAssociatedTaskCommentIfPossible(in spaceID: UUID, taskID: UUID, actorID: UUID, content: String) async {
+    do {
+        _ = try await sendTaskComment(in: spaceID, taskID: taskID, actorID: actorID, content: content)
+    } catch {}
+}
+```
 
 Change `appendAssignmentMessage` implementation to call `sendTaskComment` and return the current task:
 
@@ -814,7 +833,9 @@ func appendAssignmentMessage(in spaceID: UUID, taskID: UUID, actorID: UUID, mess
 }
 ```
 
-- [ ] **Step 8: Run application tests**
+`requeueDeclinedTask` no longer mutates legacy `assignmentMessages`; it only resets response state and task state. Existing `task_messages` comments survive requeue unchanged.
+
+- [x] **Step 8: Run application tests**
 
 Run:
 
@@ -824,7 +845,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS or only unrelated tests fail. Any assignment-message expectation that assumes new writes go to `assignmentMessages` must be updated to expect `task_messages`.
 
-- [ ] **Step 9: Commit application service changes**
+- [x] **Step 9: Commit application service changes**
 
 Run:
 
@@ -1773,7 +1794,7 @@ Expected: status is clean.
 
 Spec coverage:
 - UI card preview: Task 7 and Task 8 cover single-line preview, separate chat entry, 44pt hit area, Material overlay, Reduce Motion, keyboard composer.
-- Data source: Tasks 2-5 move comments to `task_messages`, add content, add local read state, and keep `assignmentMessages` as fallback.
+- Data source: Tasks 2-5 move comments to `task_messages`, add content, add local read state, and keep `assignmentMessages` as fallback/read-only legacy data. Requeue does not mutate legacy `assignmentMessages`.
 - Sync/backend: Tasks 1 and 5 cover SQL constraints, push DTO content, pull/catch-up, Realtime, and FK retry.
 - Permissions: Tasks 1 and 4 enforce completed/deleted task comment guard on both backend and app service.
 - Tests: Tasks 2-9 include repository, application service, DTO, sync, ViewModel, build, and final regression.
@@ -1784,4 +1805,4 @@ Placeholder scan:
 Type consistency:
 - `TaskMessageType.comment.rawValue` maps to Supabase `type='comment'`.
 - `PersistentTaskChatReadState.lastReadMessageCreatedAt` matches the spec.
-- `sendTaskComment(in:taskID:actorID:content:)` is used consistently by service, Home, and ViewModel tasks.
+- `sendTaskComment(in:taskID:actorID:content:)` is used consistently by service, Home, and ViewModel tasks. Direct sends throw on insert failure; create/update/respond associated comments are preflighted before task persistence and inserted best-effort after task persistence until a shared unit-of-work exists.

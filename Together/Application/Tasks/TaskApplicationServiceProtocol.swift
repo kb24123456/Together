@@ -46,6 +46,12 @@ protocol TaskApplicationServiceProtocol: Sendable {
         response: ItemResponseKind,
         message: String?
     ) async throws -> Item
+    func sendTaskComment(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        content: String
+    ) async throws -> TaskMessage?
     func requeueDeclinedTask(
         in spaceID: UUID,
         taskID: UUID,

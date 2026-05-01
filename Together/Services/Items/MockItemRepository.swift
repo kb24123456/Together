@@ -173,11 +173,6 @@ final class MockItemRepository: ItemRepositoryProtocol {
             )
             item.latestResponse = record
             item.responseHistory.append(record)
-            if let trimmedMessage, trimmedMessage.isEmpty == false {
-                item.assignmentMessages.append(
-                    TaskAssignmentMessage(authorID: actorID, body: trimmedMessage, createdAt: MockDataFactory.now)
-                )
-            }
             item.assignmentState = ItemStateMachine.nextAssignmentState(
                 from: item.assignmentState,
                 response: response
