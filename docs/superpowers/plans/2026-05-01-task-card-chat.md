@@ -214,6 +214,7 @@ enum TaskMessageType: String, Codable, Hashable, Sendable {
     case comment
     case nudge
     case rpsResult = "rps_result"
+    case unknown
 }
 
 struct TaskMessage: Identifiable, Hashable, Sendable {
@@ -223,6 +224,20 @@ struct TaskMessage: Identifiable, Hashable, Sendable {
     let type: TaskMessageType
     let content: String?
     let createdAt: Date
+}
+
+struct TaskMessageCursor: Hashable, Sendable {
+    let createdAt: Date
+    let id: UUID
+
+    init(createdAt: Date, id: UUID) {
+        self.createdAt = createdAt
+        self.id = id
+    }
+
+    init(message: TaskMessage) {
+        self.init(createdAt: message.createdAt, id: message.id)
+    }
 }
 
 struct TaskChatReadState: Hashable, Sendable {
@@ -284,7 +299,7 @@ extension PersistentTaskMessage {
             id: id,
             taskID: taskID,
             senderID: senderID,
-            type: TaskMessageType(rawValue: type) ?? .comment,
+            type: TaskMessageType(rawValue: type) ?? .unknown,
             content: content,
             createdAt: createdAt
         )
@@ -359,7 +374,7 @@ Do not commit yet if protocol compile errors remain. Commit together with Task 3
 - Modify: `Together/Services/TaskMessages/MockTaskMessageRepository.swift`
 - Test: `TogetherTests/TaskMessageRepositoryTests.swift`
 
-- [ ] **Step 1: Extend repository protocol**
+- [x] **Step 1: Extend repository protocol**
 
 Replace `TaskMessageRepositoryProtocol` with:
 
@@ -382,7 +397,7 @@ protocol TaskMessageRepositoryProtocol: Sendable {
         createdAt: Date
     ) async throws
 
-    func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [TaskMessage]
+    func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage]
     func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage]
     func fetchMessage(messageID: UUID) async throws -> TaskMessage?
     func markRead(taskID: UUID, through createdAt: Date) async throws
@@ -390,7 +405,7 @@ protocol TaskMessageRepositoryProtocol: Sendable {
 }
 ```
 
-- [ ] **Step 2: Implement local repository**
+- [x] **Step 2: Implement local repository**
 
 Add methods to `LocalTaskMessageRepository`:
 
@@ -418,23 +433,32 @@ func insertComment(
     try context.save()
 }
 
-func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [TaskMessage] {
+func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage] {
     let context = ModelContext(container)
     let effectiveLimit = max(1, min(limit, 100))
     let descriptor: FetchDescriptor<PersistentTaskMessage>
-    if let before {
+    if let cursor {
+        let cursorCreatedAt = cursor.createdAt
+        let cursorID = cursor.id
         descriptor = FetchDescriptor<PersistentTaskMessage>(
             predicate: #Predicate<PersistentTaskMessage> { message in
-                message.taskID == taskID && message.createdAt < before
+                message.taskID == taskID
+                    && (message.createdAt < cursorCreatedAt || (message.createdAt == cursorCreatedAt && message.id < cursorID))
             },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
         )
     } else {
         descriptor = FetchDescriptor<PersistentTaskMessage>(
             predicate: #Predicate<PersistentTaskMessage> { message in
                 message.taskID == taskID
             },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
         )
     }
     var limited = descriptor
@@ -442,24 +466,30 @@ func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [Tas
     return try context.fetch(limited)
         .map { $0.domainModel() }
         .sorted { lhs, rhs in
-            if lhs.createdAt == rhs.createdAt { return lhs.id.uuidString < rhs.id.uuidString }
+            if lhs.createdAt == rhs.createdAt { return lhs.id < rhs.id }
             return lhs.createdAt < rhs.createdAt
         }
 }
 
 func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage] {
     guard taskIDs.isEmpty == false else { return [:] }
-    let taskIDSet = Set(taskIDs)
+    let commentType = TaskMessageType.comment.rawValue
     let context = ModelContext(container)
-    let descriptor = FetchDescriptor<PersistentTaskMessage>(
-        predicate: #Predicate<PersistentTaskMessage> { message in
-            taskIDSet.contains(message.taskID) && message.type == TaskMessageType.comment.rawValue
-        },
-        sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-    )
     var result: [UUID: TaskMessage] = [:]
-    for message in try context.fetch(descriptor) where result[message.taskID] == nil {
-        result[message.taskID] = message.domainModel()
+    for taskID in Set(taskIDs) {
+        var descriptor = FetchDescriptor<PersistentTaskMessage>(
+            predicate: #Predicate<PersistentTaskMessage> { message in
+                message.taskID == taskID && message.type == commentType
+            },
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
+        )
+        descriptor.fetchLimit = 1
+        if let message = try context.fetch(descriptor).first {
+            result[taskID] = message.domainModel()
+        }
     }
     return result
 }
@@ -493,7 +523,7 @@ func fetchReadState(taskID: UUID) async throws -> TaskChatReadState? {
 }
 ```
 
-- [ ] **Step 3: Update nudge insertion to use enum**
+- [x] **Step 3: Update nudge insertion to use enum**
 
 Change existing nudge insertion:
 
@@ -503,7 +533,7 @@ content: nil,
 createdAt: createdAt
 ```
 
-- [ ] **Step 4: Update mock repository**
+- [x] **Step 4: Update mock repository**
 
 Replace `MockTaskMessageRepository` with a minimal in-memory actor:
 
@@ -513,28 +543,44 @@ actor MockTaskMessageRepository: TaskMessageRepositoryProtocol {
     private var readStates: [UUID: TaskChatReadState] = [:]
 
     func insertComment(messageID: UUID, taskID: UUID, senderID: UUID, content: String, createdAt: Date) async throws {
-        messages.append(TaskMessage(id: messageID, taskID: taskID, senderID: senderID, type: .comment, content: content, createdAt: createdAt))
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        messages.append(TaskMessage(id: messageID, taskID: taskID, senderID: senderID, type: .comment, content: trimmed, createdAt: createdAt))
     }
 
     func insertNudge(messageID: UUID, taskID: UUID, senderID: UUID, createdAt: Date) async throws {
         messages.append(TaskMessage(id: messageID, taskID: taskID, senderID: senderID, type: .nudge, content: nil, createdAt: createdAt))
     }
 
-    func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [TaskMessage] {
-        messages
+    func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage] {
+        let effectiveLimit = max(1, min(limit, 100))
+        return Array(messages
             .filter { message in
-                message.taskID == taskID && (before.map { cutoff in message.createdAt < cutoff } ?? true)
+                message.taskID == taskID && (cursor.map { Self.isOlder(message, than: $0) } ?? true)
             }
-            .sorted { $0.createdAt < $1.createdAt }
-            .suffix(limit)
+            .sorted {
+                if $0.createdAt == $1.createdAt { return $0.id > $1.id }
+                return $0.createdAt > $1.createdAt
+            }
+            .prefix(effectiveLimit)
+            .sorted {
+                if $0.createdAt == $1.createdAt { return $0.id < $1.id }
+                return $0.createdAt < $1.createdAt
+            })
     }
 
     func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage] {
         let taskIDSet = Set(taskIDs)
-        return Dictionary(
-            grouping: messages.filter { taskIDSet.contains($0.taskID) && $0.type == .comment },
-            by: \.taskID
-        ).compactMapValues { $0.sorted { $0.createdAt < $1.createdAt }.last }
+        var result: [UUID: TaskMessage] = [:]
+        for message in messages
+            .filter({ taskIDSet.contains($0.taskID) && $0.type == .comment })
+            .sorted(by: { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt { return lhs.id > rhs.id }
+                return lhs.createdAt > rhs.createdAt
+            }) where result.keys.contains(message.taskID) == false {
+            result[message.taskID] = message
+        }
+        return result
     }
 
     func fetchMessage(messageID: UUID) async throws -> TaskMessage? {
@@ -542,16 +588,25 @@ actor MockTaskMessageRepository: TaskMessageRepositoryProtocol {
     }
 
     func markRead(taskID: UUID, through createdAt: Date) async throws {
-        readStates[taskID] = TaskChatReadState(taskID: taskID, lastReadMessageCreatedAt: createdAt, updatedAt: Date())
+        if let existing = readStates[taskID] {
+            readStates[taskID] = TaskChatReadState(taskID: taskID, lastReadMessageCreatedAt: max(existing.lastReadMessageCreatedAt, createdAt), updatedAt: Date())
+        } else {
+            readStates[taskID] = TaskChatReadState(taskID: taskID, lastReadMessageCreatedAt: createdAt, updatedAt: Date())
+        }
     }
 
     func fetchReadState(taskID: UUID) async throws -> TaskChatReadState? {
         readStates[taskID]
     }
+
+    nonisolated private static func isOlder(_ message: TaskMessage, than cursor: TaskMessageCursor) -> Bool {
+        message.createdAt < cursor.createdAt
+            || (message.createdAt == cursor.createdAt && message.id < cursor.id)
+    }
 }
 ```
 
-- [ ] **Step 5: Run repository tests**
+- [x] **Step 5: Run repository tests**
 
 Run:
 
@@ -561,7 +616,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit models and repository**
+- [x] **Step 6: Commit models and repository**
 
 Run:
 
@@ -584,6 +639,14 @@ Expected: commit succeeds.
 - Modify: `Together/Services/Items/MockItemRepository.swift`
 - Test: `TogetherTests/TogetherTests.swift`
 - Test: `TogetherTests/SendReminderToPartnerTests.swift`
+
+- [ ] **Step 0: Keep Task 4 comment writes local-only**
+
+Task 4 must not enqueue `.taskMessage` sync changes yet. `TaskMessagePushDTO` does
+not include `content` until Task 5, while migration `041` rejects comment rows
+without content. This keeps the intermediate Task 4 commit production-safe:
+comments are written locally, and Task 5 enables remote sync after content
+push/pull is implemented.
 
 - [ ] **Step 1: Add failing application service tests**
 
@@ -689,9 +752,8 @@ func sendTaskComment(
         content: trimmed,
         createdAt: createdAt
     )
-    await syncCoordinator.recordLocalChange(
-        SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
-    )
+    // Task 5 records the .taskMessage sync change after TaskMessagePushDTO
+    // includes comment content.
     return TaskMessage(id: messageID, taskID: taskID, senderID: actorID, type: .comment, content: trimmed, createdAt: createdAt)
 }
 ```
@@ -779,6 +841,7 @@ Expected: commit succeeds.
 ## Task 5: Supabase TaskMessage Push/Pull
 
 **Files:**
+- Modify: `Together/Application/Tasks/DefaultTaskApplicationService.swift`
 - Modify: `Together/Sync/SyncCoordinatorProtocol.swift`
 - Modify: `Together/Sync/SupabaseSyncService.swift`
 - Modify: `TogetherTests/TaskMessagePushDTOTests.swift`
@@ -846,7 +909,23 @@ struct TaskMessagePushDTO: Encodable, Sendable {
 
 Update the manual initializer to include `content: String? = nil`.
 
-- [ ] **Step 3: Rename push-only comments**
+- [ ] **Step 3: Enable task message outbox enqueue**
+
+After `TaskMessagePushDTO` includes `content`, update `sendTaskComment` in
+`DefaultTaskApplicationService` to record the task message sync change after
+local insertion:
+
+```swift
+await syncCoordinator.recordLocalChange(
+    SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
+)
+```
+
+Add or update an application-service test to assert one `.taskMessage` local
+change is recorded for a non-empty comment. This test belongs in Task 5 because
+the outbox entry is only safe after content encoding is supported.
+
+- [ ] **Step 4: Rename push-only comments**
 
 In `SyncCoordinatorProtocol`, change the task message comment:
 
@@ -856,7 +935,7 @@ case taskMessage   // Supabase task_messages event stream: comments, nudges, fut
 
 In `SupabaseSyncService`, update the DTO comment to remove “write-only”.
 
-- [ ] **Step 4: Add pull DTO**
+- [ ] **Step 5: Add pull DTO**
 
 Add below `TaskMessagePushDTO`:
 
@@ -900,7 +979,7 @@ struct TaskMessagePullDTO: Decodable, Sendable {
 }
 ```
 
-- [ ] **Step 5: Add pullTaskMessages method**
+- [ ] **Step 6: Add pullTaskMessages method**
 
 In `SupabaseSyncService`, add:
 
@@ -926,7 +1005,7 @@ private func pullTaskMessages(spaceID: UUID, since: String) async throws {
 }
 ```
 
-- [ ] **Step 6: Wire catch-up and realtime**
+- [ ] **Step 7: Wire catch-up and realtime**
 
 In `catchUp`, call after `pullTasks`:
 
@@ -954,7 +1033,7 @@ listeningTasks.append(Task { [weak self] in
 })
 ```
 
-- [ ] **Step 7: Preserve FK retry**
+- [ ] **Step 8: Preserve FK retry**
 
 In `push()` or outbox drain logic, verify failed `.taskMessage` push is not deleted when Supabase rejects due to missing parent `task_id`. If current code deletes on any thrown error, change it so thrown errors keep the sync change for retry.
 
@@ -969,7 +1048,7 @@ do {
 }
 ```
 
-- [ ] **Step 8: Run sync tests**
+- [ ] **Step 9: Run sync tests**
 
 Run:
 
@@ -979,13 +1058,13 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit sync work**
+- [ ] **Step 10: Commit sync work**
 
 Run:
 
 ```bash
 git diff --check
-git add Together/Sync TogetherTests/TaskMessagePushDTOTests.swift TogetherTests/TaskMessageSyncTests.swift
+git add Together/Application/Tasks/DefaultTaskApplicationService.swift Together/Sync TogetherTests/TaskMessagePushDTOTests.swift TogetherTests/TaskMessageSyncTests.swift TogetherTests/TogetherTests.swift
 git commit -m "feat: sync task message comments"
 ```
 

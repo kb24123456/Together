@@ -361,7 +361,8 @@ struct LocalPairingServiceUnbindIsolationTests {
             id: UUID(),
             taskID: itemID,
             senderID: actorID,
-            type: "nudge",
+            type: .nudge,
+            content: nil,
             createdAt: .now
         )))
         try modelContext.save()

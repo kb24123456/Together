@@ -24,6 +24,7 @@ struct SingleSpaceCloudAdoptionTests {
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
             PersistentTaskMessage.self,
+            PersistentTaskChatReadState.self,
             PersistentImportantDate.self,
             configurations: config
         )

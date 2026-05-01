@@ -25,6 +25,7 @@ struct PairSpaceOrphanPurgeMigrationTests {
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
             PersistentTaskMessage.self,
+            PersistentTaskChatReadState.self,
             PersistentImportantDate.self,
             configurations: config
         )
@@ -96,7 +97,8 @@ struct PairSpaceOrphanPurgeMigrationTests {
             id: UUID(),
             taskID: livingItemID,
             senderID: UUID(),
-            type: "nudge",
+            type: .nudge,
+            content: nil,
             createdAt: .now
         )))
 
@@ -147,7 +149,8 @@ struct PairSpaceOrphanPurgeMigrationTests {
             id: UUID(),
             taskID: orphanItemID,
             senderID: UUID(),
-            type: "nudge",
+            type: .nudge,
+            content: nil,
             createdAt: .now
         )))
         try ctx.save()
