@@ -23,6 +23,11 @@ struct HomeView: View {
     @State private var isImportantDatesManagementPresented = false
     @State private var selectedChatItemID: UUID?
     @State private var selectedChatViewModel: TaskChatViewModel?
+    @State private var selectedChatSourceFrame: CGRect?
+    @State private var isTaskChatShellExpanded = false
+    @State private var isTaskChatContentVisible = false
+    @State private var taskChatContentRevealTask: Task<Void, Never>?
+    @State private var pairTimelineCardFrames: [UUID: CGRect] = [:]
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -105,11 +110,15 @@ struct HomeView: View {
         .overlay {
             taskChatOverlay
         }
+        .onPreferenceChange(PairTimelineCardFramePreferenceKey.self) { frames in
+            pairTimelineCardFrames = frames
+        }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
         }
         .onDisappear {
             todayJumpRevealTask?.cancel()
+            taskChatContentRevealTask?.cancel()
         }
         .onReceive(NotificationCenter.default.publisher(for: .importantDatesChanged)) { _ in
             Task {
@@ -150,41 +159,27 @@ struct HomeView: View {
     @ViewBuilder
     private var taskChatOverlay: some View {
         if selectedChatItemID != nil, let selectedChatViewModel {
-            ZStack {
-                Button(action: dismissChat) {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .ignoresSafeArea()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭任务聊天")
-
-                TaskChatPanelView(
-                    viewModel: selectedChatViewModel,
-                    currentUserID: appContext.sessionStore.currentUser?.id,
-                    partnerAvatar: viewModel.pairPreviewAvatar,
-                    currentUserAvatar: viewModel.currentUserAvatar,
-                    onDismiss: dismissChat
-                )
-                .padding(.horizontal, AppTheme.spacing.md)
-                .safeAreaPadding(.top, AppTheme.spacing.lg)
-                .safeAreaPadding(.bottom, AppTheme.spacing.md)
-                .transition(taskChatPanelTransition)
-            }
-            .transition(.opacity)
+            TaskChatMorphOverlay(
+                sourceFrame: selectedChatSourceFrame,
+                isExpanded: isTaskChatShellExpanded,
+                isContentVisible: isTaskChatContentVisible,
+                reduceMotion: reduceMotion,
+                viewModel: selectedChatViewModel,
+                currentUserID: appContext.sessionStore.currentUser?.id,
+                partnerAvatar: viewModel.pairPreviewAvatar,
+                currentUserAvatar: viewModel.currentUserAvatar,
+                onDismiss: dismissChat
+            )
             .zIndex(20)
         }
     }
 
-    private var taskChatPanelTransition: AnyTransition {
-        if reduceMotion {
-            return .opacity
-        }
-        return .scale(scale: 0.94, anchor: .center).combined(with: .opacity)
+    private var taskChatShellAnimation: Animation? {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.48, dampingFraction: 0.78, blendDuration: 0.08)
     }
 
-    private var taskChatOverlayAnimation: Animation? {
-        reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.86)
+    private var taskChatContentAnimation: Animation? {
+        reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.18)
     }
 
     private func openChat(for itemID: UUID) {
@@ -192,22 +187,52 @@ struct HomeView: View {
         guard let item = viewModel.item(for: itemID) else { return }
 
         HomeInteractionFeedback.selection()
+        taskChatContentRevealTask?.cancel()
         let chatViewModel = viewModel.makeTaskChatViewModel(for: item)
-        withAnimation(taskChatOverlayAnimation) {
-            selectedChatItemID = itemID
-            selectedChatViewModel = chatViewModel
+        selectedChatItemID = itemID
+        selectedChatViewModel = chatViewModel
+        selectedChatSourceFrame = pairTimelineCardFrames[itemID]
+        isTaskChatContentVisible = false
+        isTaskChatShellExpanded = false
+
+        withAnimation(taskChatShellAnimation) {
+            isTaskChatShellExpanded = true
         }
+
+        taskChatContentRevealTask = Task { @MainActor in
+            let delay: UInt64 = reduceMotion ? 20_000_000 : 150_000_000
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            withAnimation(taskChatContentAnimation) {
+                isTaskChatContentVisible = true
+            }
+        }
+    }
+
+    private func clearChatOverlay() {
+        selectedChatItemID = nil
+        selectedChatViewModel = nil
+        selectedChatSourceFrame = nil
+        isTaskChatContentVisible = false
+        isTaskChatShellExpanded = false
     }
 
     private func dismissChat() {
         let shouldRefresh = selectedChatItemID != nil
-        withAnimation(taskChatOverlayAnimation) {
-            selectedChatItemID = nil
-            selectedChatViewModel = nil
+        taskChatContentRevealTask?.cancel()
+        withAnimation(taskChatContentAnimation) {
+            isTaskChatContentVisible = false
+        }
+        withAnimation(taskChatShellAnimation) {
+            isTaskChatShellExpanded = false
         }
 
-        if shouldRefresh {
-            Task {
+        Task { @MainActor in
+            let delay: UInt64 = reduceMotion ? 120_000_000 : 320_000_000
+            try? await Task.sleep(nanoseconds: delay)
+            clearChatOverlay()
+
+            if shouldRefresh {
                 await viewModel.reload()
             }
         }
@@ -1237,6 +1262,14 @@ struct HomeView: View {
                 viewModel.completeInsertionAnimation(for: entry.id)
             }
         )
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: PairTimelineCardFramePreferenceKey.self,
+                    value: [entry.id: proxy.frame(in: .global)]
+                )
+            }
+        }
     }
 
     private var calendarSection: some View {
@@ -3565,6 +3598,100 @@ private struct VerticalMotionModifier: ViewModifier {
             .offset(y: offsetY)
             .scaleEffect(scale, anchor: .center)
             .opacity(opacity)
+    }
+}
+
+private struct TaskChatMorphOverlay: View {
+    let sourceFrame: CGRect?
+    let isExpanded: Bool
+    let isContentVisible: Bool
+    let reduceMotion: Bool
+    @Bindable var viewModel: TaskChatViewModel
+    let currentUserID: UUID?
+    let partnerAvatar: HomeAvatar?
+    let currentUserAvatar: HomeAvatar?
+    let onDismiss: () -> Void
+
+    private let horizontalInset: CGFloat = AppTheme.spacing.md
+    private let topInset: CGFloat = AppTheme.spacing.lg
+    private let bottomInset: CGFloat = AppTheme.spacing.md
+
+    var body: some View {
+        GeometryReader { proxy in
+            let finalFrame = finalPanelFrame(in: proxy)
+            let collapsedFrame = collapsedPanelFrame(fallback: finalFrame)
+            let activeFrame = reduceMotion || isExpanded ? finalFrame : collapsedFrame
+
+            ZStack {
+                Color.clear
+                    .background(.ultraThinMaterial)
+                    .opacity(isExpanded ? 1 : 0)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onDismiss)
+
+                panelShell(frame: activeFrame)
+
+                TaskChatPanelView(
+                    viewModel: viewModel,
+                    currentUserID: currentUserID,
+                    partnerAvatar: partnerAvatar,
+                    currentUserAvatar: currentUserAvatar,
+                    onDismiss: onDismiss,
+                    showsContainerChrome: false
+                )
+                .frame(width: activeFrame.width, height: activeFrame.height)
+                .clipShape(.rect(cornerRadius: AppTheme.radius.xxl, style: .continuous))
+                .opacity(isContentVisible ? 1 : 0)
+                .scaleEffect(isContentVisible ? 1 : 0.985)
+                .position(x: activeFrame.midX, y: activeFrame.midY)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .ignoresSafeArea()
+        }
+    }
+
+    private func finalPanelFrame(in proxy: GeometryProxy) -> CGRect {
+        let top = proxy.safeAreaInsets.top + topInset
+        let bottom = proxy.safeAreaInsets.bottom + bottomInset
+        let width = max(proxy.size.width - horizontalInset * 2, 1)
+        let height = max(proxy.size.height - top - bottom, 1)
+        return CGRect(x: horizontalInset, y: top, width: width, height: height)
+    }
+
+    private func collapsedPanelFrame(fallback finalFrame: CGRect) -> CGRect {
+        guard let sourceFrame,
+              sourceFrame.width > 1,
+              sourceFrame.height > 1 else {
+            return finalFrame.insetBy(dx: finalFrame.width * 0.08, dy: finalFrame.height * 0.32)
+        }
+
+        return sourceFrame.insetBy(dx: -2, dy: -2)
+    }
+
+    private func panelShell(frame: CGRect) -> some View {
+        RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
+            .fill(.regularMaterial)
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
+                    .stroke(AppTheme.colors.pillOutline.opacity(isExpanded ? 1 : 0.72), lineWidth: 1)
+            }
+            .frame(width: frame.width, height: frame.height)
+            .shadow(
+                color: AppTheme.colors.shadow.opacity(isExpanded ? 0.18 : 0.08),
+                radius: isExpanded ? 34 : 14,
+                y: isExpanded ? 18 : 8
+            )
+            .scaleEffect(isExpanded ? 1 : 0.965)
+            .position(x: frame.midX, y: frame.midY)
+    }
+}
+
+private struct PairTimelineCardFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
 

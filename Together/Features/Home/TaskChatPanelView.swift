@@ -7,29 +7,30 @@ struct TaskChatPanelView: View {
     let partnerAvatar: HomeAvatar?
     let currentUserAvatar: HomeAvatar?
     let onDismiss: () -> Void
+    var showsContainerChrome = true
 
+    @State private var isSubtitleHidden = false
     private let bottomAnchorID = "task-chat-bottom-anchor"
+    private let messageListCoordinateSpace = "task-chat-message-list"
 
     var body: some View {
+        panelContent
+            .task { await viewModel.load() }
+            .onReceive(NotificationCenter.default.publisher(for: .supabaseRealtimeChanged)) { _ in
+                Task {
+                    await viewModel.load()
+                }
+            }
+            .modifier(TaskChatPanelChromeModifier(isEnabled: showsContainerChrome))
+    }
+
+    private var panelContent: some View {
         VStack(spacing: 0) {
             header
             messageList
             composer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
-        .clipShape(.rect(cornerRadius: AppTheme.radius.xxl, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
-                .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
-        }
-        .shadow(color: AppTheme.colors.shadow.opacity(0.16), radius: 28, y: 16)
-        .task { await viewModel.load() }
-        .onReceive(NotificationCenter.default.publisher(for: .supabaseRealtimeChanged)) { _ in
-            Task {
-                await viewModel.load()
-            }
-        }
     }
 
     private var header: some View {
@@ -41,10 +42,7 @@ struct TaskChatPanelView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
 
-                Text(viewModel.canSend ? "任务聊天" : "任务已完成，留言已关闭")
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
-                    .lineLimit(1)
+                headerSubtitle
             }
 
             Spacer(minLength: 0)
@@ -64,32 +62,69 @@ struct TaskChatPanelView: View {
         }
         .padding(.horizontal, AppTheme.spacing.md)
         .padding(.top, AppTheme.spacing.md)
-        .padding(.bottom, AppTheme.spacing.sm)
+        .padding(.bottom, AppTheme.spacing.xs)
+    }
+
+    @ViewBuilder
+    private var headerSubtitle: some View {
+        let subtitle = Text(viewModel.canSend ? "任务留言板" : "任务已完成，留言板已关闭")
+            .font(AppTheme.typography.sized(12, weight: .semibold))
+            .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+            .lineLimit(1)
+
+        if isSubtitleHidden {
+            subtitle.hidden()
+        } else {
+            subtitle
+        }
     }
 
     private var messageList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: AppTheme.spacing.sm) {
-                    ForEach(viewModel.entries) { entry in
-                        row(for: entry)
-                    }
+        GeometryReader { listProxy in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: AppTheme.spacing.sm) {
+                        Color.clear
+                            .frame(height: 0)
+                            .background {
+                                GeometryReader { offsetProxy in
+                                    Color.clear.preference(
+                                        key: TaskChatScrollOffsetPreferenceKey.self,
+                                        value: offsetProxy.frame(in: .named(messageListCoordinateSpace)).minY
+                                    )
+                                }
+                            }
 
-                    Color.clear
-                        .frame(height: 1)
-                        .id(bottomAnchorID)
+                        ForEach(viewModel.entries) { entry in
+                            row(for: entry)
+                        }
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id(bottomAnchorID)
+                    }
+                    .frame(minHeight: listProxy.size.height, alignment: .bottom)
+                    .padding(.horizontal, AppTheme.spacing.md)
+                    .padding(.top, AppTheme.spacing.sm)
+                    .padding(.bottom, AppTheme.spacing.xxs)
                 }
-                .padding(.horizontal, AppTheme.spacing.md)
-                .padding(.vertical, AppTheme.spacing.md)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .task(id: viewModel.entries.count) {
-                await Task.yield()
-                if reduceMotion {
-                    proxy.scrollTo(bottomAnchorID, anchor: .bottom)
-                } else {
-                    withAnimation(AppTheme.motion.micro) {
+                .coordinateSpace(name: messageListCoordinateSpace)
+                .scrollDismissesKeyboard(.interactively)
+                .onPreferenceChange(TaskChatScrollOffsetPreferenceKey.self) { offset in
+                    let shouldHideSubtitle = offset < -18
+                    guard shouldHideSubtitle != isSubtitleHidden else { return }
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.12) : AppTheme.motion.micro) {
+                        isSubtitleHidden = shouldHideSubtitle
+                    }
+                }
+                .task(id: viewModel.entries.count) {
+                    await Task.yield()
+                    if reduceMotion {
                         proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+                    } else {
+                        withAnimation(AppTheme.motion.micro) {
+                            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+                        }
                     }
                 }
             }
@@ -248,8 +283,10 @@ struct TaskChatPanelView: View {
                 .accessibilityLabel("发送留言")
             }
         }
-        .padding(AppTheme.spacing.md)
-        .background(.bar)
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.top, AppTheme.spacing.xs)
+        .padding(.bottom, AppTheme.spacing.sm)
+        .background(.ultraThinMaterial)
     }
 
     private var isSendDisabled: Bool {
@@ -260,5 +297,33 @@ struct TaskChatPanelView: View {
 
     private var sendButtonColor: Color {
         isSendDisabled ? AppTheme.colors.textTertiary.opacity(0.56) : AppTheme.colors.coral
+    }
+}
+
+private struct TaskChatPanelChromeModifier: ViewModifier {
+    let isEnabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .background(.regularMaterial)
+                .clipShape(.rect(cornerRadius: AppTheme.radius.xxl, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
+                        .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+                }
+                .shadow(color: AppTheme.colors.shadow.opacity(0.16), radius: 28, y: 16)
+        } else {
+            content
+        }
+    }
+}
+
+private struct TaskChatScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
