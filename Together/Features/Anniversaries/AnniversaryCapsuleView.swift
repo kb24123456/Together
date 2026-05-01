@@ -1,12 +1,10 @@
 import SwiftUI
 
-private enum AnniversaryCapsuleCountMode: String {
-    case next
-    case elapsed
-}
-
 struct AnniversaryCapsuleView: View {
-    let nextEvent: ImportantDate?
+    let event: ImportantDate?
+    let countMode: ImportantDateCapsuleCountMode
+    let daysUntilOrToday: Int?
+    let isToday: Bool
     /// Supabase auth.uid of the viewer (cross-device unique). Birthday events
     /// whose memberUserID matches this render as "我的生日"; otherwise as
     /// "{partnerName}的生日". Pass nil before sync starts (rare; falls back to
@@ -15,8 +13,8 @@ struct AnniversaryCapsuleView: View {
     /// Partner's display name shown in "{name}的生日". When nil/empty falls
     /// back to "伴侣生日".
     var partnerDisplayName: String? = nil
-    let onTap: () -> Void
-    @AppStorage("together.anniversaryCapsule.countMode") private var countModeRawValue = AnniversaryCapsuleCountMode.next.rawValue
+    let onPrimaryTap: () -> Void
+    let onCountTap: () -> Void
 
     var body: some View {
         // Mirrors HomeView.overdueReminderCapsule sizing — sm spacing,
@@ -28,114 +26,85 @@ struct AnniversaryCapsuleView: View {
         // pill.
         content
             .contentShape(Capsule(style: .continuous))
-            .gesture(countModeGesture)
-        .onChange(of: nextEvent?.id) { _, _ in
-            normalizeCountModeIfNeeded()
-        }
-        .onChange(of: nextEvent?.showsElapsedDays) { _, _ in
-            normalizeCountModeIfNeeded()
-        }
-        .task {
-            normalizeCountModeIfNeeded()
-        }
-        .accessibilityLabel(Text(title))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint(canToggleCountMode ? Text("长按切换纪念日计数方式") : Text(""))
-        .accessibilityAction {
-            onTap()
-        }
-        .accessibilityAction(named: Text("切换计数方式")) {
-            guard canToggleCountMode else { return }
-            switchCountMode()
-        }
     }
 
     private var content: some View {
         HStack(spacing: AppTheme.spacing.sm) {
-            Image(systemName: icon)
-                .font(AppTheme.typography.sized(16, weight: .semibold))
+            Button(action: onPrimaryTap) {
+                HStack(spacing: AppTheme.spacing.sm) {
+                    Image(systemName: icon)
+                        .font(AppTheme.typography.sized(16, weight: .semibold))
 
-            Text(title)
-                .font(AppTheme.typography.sized(14, weight: .semibold))
+                    Text(title)
+                        .font(AppTheme.typography.sized(14, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(title))
 
             Spacer(minLength: 0)
 
-            AnniversaryCapsuleDetailText(display: detailDisplay)
-                .font(AppTheme.typography.sized(12, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
+            Button(action: onCountTap) {
+                AnniversaryCapsuleDetailText(display: detailDisplay)
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(detailAccessibilityLabel))
+            .accessibilityHint(canToggleCountMode ? Text("切换纪念日计数方式") : Text(""))
         }
         .foregroundStyle(AppTheme.colors.rose)
         .padding(.horizontal, AppTheme.spacing.md)
-        .padding(.vertical, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.xs)
         .background(
             Capsule(style: .continuous)
                 .fill(AppTheme.colors.rose.opacity(0.12))
         )
     }
 
-    private var countModeGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.45)
-            .exclusively(before: TapGesture())
-            .onEnded { value in
-                switch value {
-                case .first:
-                    switchCountMode()
-                case .second:
-                    onTap()
-                }
-            }
-    }
-
     private var icon: String {
-        guard let event = nextEvent else { return "sparkles" }
+        guard let event else { return "sparkles" }
         return event.icon ?? defaultIcon(for: event.kind)
     }
 
     private var title: String {
-        guard let event = nextEvent else { return "添加第一个纪念日" }
+        guard let event else { return "添加第一个纪念日" }
         return event.displayTitle(viewerSupabaseUserID: viewerSupabaseUserID, partnerDisplayName: partnerDisplayName)
     }
 
     private var detailDisplay: AnniversaryCapsuleDetailDisplay {
-        guard let event = nextEvent,
-              let days = event.daysUntilNext() else { return .staticText("点击添加") }
+        guard let event, let daysUntilOrToday else { return .staticText("点击添加") }
         if countMode == .elapsed, canShowElapsedDays(for: event) {
             return .numeric(prefix: "已经", value: max(0, event.daysSinceStart))
         }
-        if days == 0 { return .staticText("今天") }
-        return .numeric(prefix: "还有", value: max(0, days))
-    }
-
-    private var countMode: AnniversaryCapsuleCountMode {
-        AnniversaryCapsuleCountMode(rawValue: countModeRawValue) ?? .next
+        if isToday { return .staticText("今天") }
+        return .numeric(prefix: "还有", value: max(0, daysUntilOrToday))
     }
 
     private var canToggleCountMode: Bool {
-        guard let nextEvent else { return false }
-        return canShowElapsedDays(for: nextEvent)
-    }
-
-    private func toggleCountMode() {
-        countModeRawValue = countMode == .next
-            ? AnniversaryCapsuleCountMode.elapsed.rawValue
-            : AnniversaryCapsuleCountMode.next.rawValue
-    }
-
-    private func switchCountMode() {
-        guard canToggleCountMode else { return }
-        HomeInteractionFeedback.selection()
-        withAnimation(.snappy(duration: 0.22)) {
-            toggleCountMode()
-        }
-    }
-
-    private func normalizeCountModeIfNeeded() {
-        guard countMode == .elapsed, canToggleCountMode == false else { return }
-        countModeRawValue = AnniversaryCapsuleCountMode.next.rawValue
+        guard let event else { return false }
+        return canShowElapsedDays(for: event)
     }
 
     private func canShowElapsedDays(for event: ImportantDate) -> Bool {
         event.supportsElapsedDaysDisplay && event.showsElapsedDays
+    }
+
+    private var detailAccessibilityLabel: String {
+        switch detailDisplay {
+        case let .numeric(prefix, value):
+            return "\(prefix) \(value) 天"
+        case let .staticText(text):
+            return text
+        }
     }
 
     private func defaultIcon(for kind: ImportantDateKind) -> String {

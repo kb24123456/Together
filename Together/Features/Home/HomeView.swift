@@ -123,14 +123,21 @@ struct HomeView: View {
         }
     }
 
-    private func nextAnniversaryEvent() -> ImportantDate? {
-        appContext.importantDatesViewModel.events
-            .compactMap { event -> (ImportantDate, Int)? in
-                guard let days = event.daysUntilNext() else { return nil }
-                return (event, days)
-            }
-            .sorted { $0.1 < $1.1 }
-            .first?.0
+    private var importantDateRecords: [ImportantDateStoredRecord] {
+        appContext.importantDatesViewModel.storedRecords
+    }
+
+    private var importantDateCapsuleCandidates: [ImportantDateCapsuleCandidate] {
+        ImportantDateCapsulePlanner.candidates(from: importantDateRecords)
+    }
+
+    private var importantDateCapsulePager: some View {
+        ImportantDateCapsulePagerView(
+            candidates: importantDateCapsuleCandidates,
+            viewerSupabaseUserID: appContext.currentSupabaseUserID,
+            partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
+            onPrimaryTap: { isImportantDatesManagementPresented = true }
+        )
     }
 
     private var backgroundView: some View {
@@ -524,12 +531,7 @@ struct HomeView: View {
                         }
 
                         if appContext.sessionStore.activeMode == .pair {
-                            AnniversaryCapsuleView(
-                                nextEvent: nextAnniversaryEvent(),
-                                viewerSupabaseUserID: appContext.currentSupabaseUserID,
-                                partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
-                                onTap: { isImportantDatesManagementPresented = true }
-                            )
+                            importantDateCapsulePager
                         }
 
                         timelineSection
@@ -646,12 +648,7 @@ struct HomeView: View {
             }
 
             if appContext.sessionStore.activeMode == .pair {
-                AnniversaryCapsuleView(
-                    nextEvent: nextAnniversaryEvent(),
-                    viewerSupabaseUserID: appContext.currentSupabaseUserID,
-                    partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
-                    onTap: { isImportantDatesManagementPresented = true }
-                )
+                importantDateCapsulePager
                 .listRowInsets(
                     EdgeInsets(
                         top: 10,
@@ -753,12 +750,7 @@ struct HomeView: View {
             }
 
             if appContext.sessionStore.activeMode == .pair {
-                AnniversaryCapsuleView(
-                    nextEvent: nextAnniversaryEvent(),
-                    viewerSupabaseUserID: appContext.currentSupabaseUserID,
-                    partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
-                    onTap: { isImportantDatesManagementPresented = true }
-                )
+                importantDateCapsulePager
                 .listRowInsets(
                     EdgeInsets(
                         top: 10,
