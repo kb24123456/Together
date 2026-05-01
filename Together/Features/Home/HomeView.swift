@@ -1,4 +1,3 @@
-import Observation
 import SwiftUI
 import UIKit
 
@@ -25,12 +24,9 @@ struct HomeView: View {
     @State private var isImportantDatesManagementPresented = false
     @State private var selectedChatItemID: UUID?
     @State private var selectedChatViewModel: TaskChatViewModel?
-    @State private var selectedChatSourceFrame: CGRect?
-    @State private var isTaskChatShellExpanded = false
-    @State private var isTaskChatContentVisible = false
-    @State private var taskChatContentRevealTask: Task<Void, Never>?
-    @State private var taskChatKeyboardMetrics = TaskChatKeyboardMetrics()
-    @State private var pairTimelineCardFrames: [UUID: CGRect] = [:]
+    @State private var isTaskChatNavigationPresented = false
+    @State private var taskChatCleanupTask: Task<Void, Never>?
+    @Namespace private var taskChatZoomNamespace
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -110,18 +106,20 @@ struct HomeView: View {
         .sheet(isPresented: $isImportantDatesManagementPresented) {
             ImportantDatesManagementSheet()
         }
-        .overlay {
-            taskChatOverlay
+        .navigationDestination(isPresented: $isTaskChatNavigationPresented) {
+            taskChatDestination
         }
-        .onPreferenceChange(PairTimelineCardFramePreferenceKey.self) { frames in
-            pairTimelineCardFrames = frames
+        .onChange(of: isTaskChatNavigationPresented) { _, isPresented in
+            if isPresented == false {
+                scheduleTaskChatCleanup(shouldRefresh: true)
+            }
         }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
         }
         .onDisappear {
             todayJumpRevealTask?.cancel()
-            taskChatContentRevealTask?.cancel()
+            taskChatCleanupTask?.cancel()
         }
         .onReceive(NotificationCenter.default.publisher(for: .importantDatesChanged)) { _ in
             Task {
@@ -160,87 +158,50 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private var taskChatOverlay: some View {
-        if selectedChatItemID != nil, let selectedChatViewModel {
-            TaskChatMorphOverlay(
-                sourceFrame: selectedChatSourceFrame,
-                isExpanded: isTaskChatShellExpanded,
-                isContentVisible: isTaskChatContentVisible,
-                keyboardOverlap: taskChatKeyboardMetrics.overlap,
-                reduceMotion: reduceMotion,
+    private var taskChatDestination: some View {
+        if let selectedChatItemID, let selectedChatViewModel {
+            TaskChatZoomDestination(
                 viewModel: selectedChatViewModel,
                 currentUserID: appContext.sessionStore.currentUser?.id,
                 partnerAvatar: viewModel.pairPreviewAvatar,
                 currentUserAvatar: viewModel.currentUserAvatar,
                 onDismiss: dismissChat
             )
-            .zIndex(20)
-            .onAppear {
-                taskChatKeyboardMetrics.start()
-            }
-            .onDisappear {
-                taskChatKeyboardMetrics.stop()
-            }
+            .toolbar(.hidden, for: .navigationBar)
+            .toolbar(.hidden, for: .bottomBar)
+            .navigationBarBackButtonHidden()
+            .navigationTransition(.zoom(sourceID: selectedChatItemID, in: taskChatZoomNamespace))
+        } else {
+            EmptyView()
         }
-    }
-
-    private var taskChatShellAnimation: Animation? {
-        reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.48, dampingFraction: 0.78, blendDuration: 0.08)
-    }
-
-    private var taskChatContentAnimation: Animation? {
-        reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.18)
     }
 
     private func openChat(for itemID: UUID) {
-        guard selectedChatItemID != itemID else { return }
+        guard selectedChatItemID != itemID || isTaskChatNavigationPresented == false else { return }
         guard let item = viewModel.item(for: itemID) else { return }
 
         HomeInteractionFeedback.selection()
-        taskChatContentRevealTask?.cancel()
+        taskChatCleanupTask?.cancel()
         let chatViewModel = viewModel.makeTaskChatViewModel(for: item)
         selectedChatItemID = itemID
         selectedChatViewModel = chatViewModel
-        selectedChatSourceFrame = pairTimelineCardFrames[itemID]
-        isTaskChatContentVisible = false
-        isTaskChatShellExpanded = false
-
-        withAnimation(taskChatShellAnimation) {
-            isTaskChatShellExpanded = true
-        }
-
-        taskChatContentRevealTask = Task { @MainActor in
-            let delay: Duration = reduceMotion ? .milliseconds(20) : .milliseconds(150)
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled else { return }
-            withAnimation(taskChatContentAnimation) {
-                isTaskChatContentVisible = true
-            }
-        }
-    }
-
-    private func clearChatOverlay() {
-        selectedChatItemID = nil
-        selectedChatViewModel = nil
-        selectedChatSourceFrame = nil
-        isTaskChatContentVisible = false
-        isTaskChatShellExpanded = false
+        isTaskChatNavigationPresented = true
     }
 
     private func dismissChat() {
-        let shouldRefresh = selectedChatItemID != nil
-        taskChatContentRevealTask?.cancel()
-        withAnimation(taskChatContentAnimation) {
-            isTaskChatContentVisible = false
-        }
-        withAnimation(taskChatShellAnimation) {
-            isTaskChatShellExpanded = false
-        }
+        guard isTaskChatNavigationPresented else { return }
+        isTaskChatNavigationPresented = false
+    }
 
-        Task { @MainActor in
-            let delay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(320)
+    private func scheduleTaskChatCleanup(shouldRefresh: Bool) {
+        guard selectedChatItemID != nil || selectedChatViewModel != nil else { return }
+        taskChatCleanupTask?.cancel()
+        taskChatCleanupTask = Task { @MainActor in
+            let delay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(360)
             try? await Task.sleep(for: delay)
-            clearChatOverlay()
+            guard !Task.isCancelled else { return }
+            selectedChatItemID = nil
+            selectedChatViewModel = nil
 
             if shouldRefresh {
                 await viewModel.reload()
@@ -1255,6 +1216,7 @@ struct HomeView: View {
                 openChat(for: entry.id)
             }
         )
+        .matchedTransitionSource(id: entry.id, in: taskChatZoomNamespace)
         .id(entry.id)
         .listRowInsets(
             EdgeInsets(
@@ -1272,14 +1234,6 @@ struct HomeView: View {
                 viewModel.completeInsertionAnimation(for: entry.id)
             }
         )
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: PairTimelineCardFramePreferenceKey.self,
-                    value: [entry.id: proxy.frame(in: .global)]
-                )
-            }
-        }
     }
 
     private var calendarSection: some View {
@@ -3611,180 +3565,30 @@ private struct VerticalMotionModifier: ViewModifier {
     }
 }
 
-private struct TaskChatMorphOverlay: View {
-    let sourceFrame: CGRect?
-    let isExpanded: Bool
-    let isContentVisible: Bool
-    let keyboardOverlap: CGFloat
-    let reduceMotion: Bool
+private struct TaskChatZoomDestination: View {
     @Bindable var viewModel: TaskChatViewModel
     let currentUserID: UUID?
     let partnerAvatar: HomeAvatar?
     let currentUserAvatar: HomeAvatar?
     let onDismiss: () -> Void
 
-    private let horizontalInset: CGFloat = AppTheme.spacing.md
-    private let topInset: CGFloat = AppTheme.spacing.lg
-    private let bottomInset: CGFloat = AppTheme.spacing.md
-    private let keyboardGap: CGFloat = AppTheme.spacing.sm
-
     var body: some View {
-        GeometryReader { proxy in
-            let finalFrame = finalPanelFrame(in: proxy)
-            let collapsedFrame = collapsedPanelFrame(fallback: finalFrame)
-            let activeFrame = reduceMotion || isExpanded ? finalFrame : collapsedFrame
+        ZStack {
+            GradientGridBackground()
+                .ignoresSafeArea()
 
-            ZStack {
-                backgroundScrim
-
-                panelShell(frame: activeFrame)
-
-                TaskChatPanelView(
-                    viewModel: viewModel,
-                    currentUserID: currentUserID,
-                    partnerAvatar: partnerAvatar,
-                    currentUserAvatar: currentUserAvatar,
-                    onDismiss: onDismiss,
-                    showsContainerChrome: false
-                )
-                .frame(width: activeFrame.width, height: activeFrame.height)
-                .clipShape(.rect(cornerRadius: AppTheme.radius.xxl, style: .continuous))
-                .opacity(isContentVisible ? 1 : 0)
-                .scaleEffect(isContentVisible ? 1 : 0.985)
-                .position(x: activeFrame.midX, y: activeFrame.midY)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .animation(panelAnimation, value: keyboardOverlap)
-        }
-    }
-
-    private func finalPanelFrame(in proxy: GeometryProxy) -> CGRect {
-        let top = proxy.safeAreaInsets.top + topInset
-        let bottom = panelBottomInset(safeAreaBottom: proxy.safeAreaInsets.bottom)
-        let width = max(proxy.size.width - horizontalInset * 2, 1)
-        let height = max(proxy.size.height - top - bottom, 1)
-        return CGRect(x: horizontalInset, y: top, width: width, height: height)
-    }
-
-    private var backgroundScrim: some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
-            .opacity(isExpanded ? 1 : 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(.all)
-            .ignoresSafeArea(.keyboard, edges: .bottom)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onDismiss)
-    }
-
-    private var panelAnimation: Animation? {
-        reduceMotion ? .easeOut(duration: 0.16) : AppTheme.motion.smooth
-    }
-
-    private func panelBottomInset(safeAreaBottom: CGFloat) -> CGFloat {
-        if keyboardOverlap > 0 {
-            return keyboardOverlap + keyboardGap
-        }
-        return safeAreaBottom + bottomInset
-    }
-
-    private func collapsedPanelFrame(fallback finalFrame: CGRect) -> CGRect {
-        guard let sourceFrame,
-              sourceFrame.width > 1,
-              sourceFrame.height > 1 else {
-            return finalFrame.insetBy(dx: finalFrame.width * 0.08, dy: finalFrame.height * 0.32)
-        }
-
-        return sourceFrame.insetBy(dx: -2, dy: -2)
-    }
-
-    private func panelShell(frame: CGRect) -> some View {
-        RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
-            .fill(.regularMaterial)
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)
-                    .stroke(AppTheme.colors.pillOutline.opacity(isExpanded ? 1 : 0.72), lineWidth: 1)
-            }
-            .frame(width: frame.width, height: frame.height)
-            .shadow(
-                color: AppTheme.colors.shadow.opacity(isExpanded ? 0.18 : 0.08),
-                radius: isExpanded ? 34 : 14,
-                y: isExpanded ? 18 : 8
+            TaskChatPanelView(
+                viewModel: viewModel,
+                currentUserID: currentUserID,
+                partnerAvatar: partnerAvatar,
+                currentUserAvatar: currentUserAvatar,
+                onDismiss: onDismiss,
+                showsContainerChrome: false
             )
-            .scaleEffect(isExpanded ? 1 : 0.965)
-            .position(x: frame.midX, y: frame.midY)
-    }
-}
-
-@MainActor
-@Observable
-private final class TaskChatKeyboardMetrics {
-    private(set) var overlap: CGFloat = 0
-
-    @ObservationIgnored private var willChangeFrameObserver: NSObjectProtocol?
-    @ObservationIgnored private var willHideObserver: NSObjectProtocol?
-
-    func start() {
-        guard willChangeFrameObserver == nil, willHideObserver == nil else { return }
-
-        let center = NotificationCenter.default
-        willChangeFrameObserver = center.addObserver(
-            forName: UIResponder.keyboardWillChangeFrameNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
-            Task { @MainActor [weak self] in
-                self?.updateOverlap(for: frame)
-            }
-        }
-
-        willHideObserver = center.addObserver(
-            forName: UIResponder.keyboardWillHideNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.overlap = 0
-            }
+            .background(.regularMaterial)
         }
     }
 
-    func stop() {
-        let center = NotificationCenter.default
-        if let willChangeFrameObserver {
-            center.removeObserver(willChangeFrameObserver)
-        }
-        if let willHideObserver {
-            center.removeObserver(willHideObserver)
-        }
-        willChangeFrameObserver = nil
-        willHideObserver = nil
-        overlap = 0
-    }
-
-    private func updateOverlap(for frame: CGRect?) {
-        guard
-            let frame,
-            let windowScene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first,
-            let window = windowScene.windows.first(where: \.isKeyWindow)
-        else {
-            overlap = 0
-            return
-        }
-
-        overlap = max(0, window.bounds.maxY - frame.minY - window.safeAreaInsets.bottom)
-    }
-}
-
-private struct PairTimelineCardFramePreferenceKey: PreferenceKey {
-    static var defaultValue: [UUID: CGRect] = [:]
-
-    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
 }
 
 private struct CompletedSectionVisibility {

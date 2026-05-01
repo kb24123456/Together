@@ -15,7 +15,7 @@
 
 - 分支：`main`
 - 当前任务：双人任务卡片聊天功能与聊天面板 UI 稳定性收敛，原始执行计划见 `docs/superpowers/plans/2026-05-01-task-card-chat.md`。
-- 最新功能进度：Task 9 `Full Regression and Project Memory` 已完成；双人任务卡片聊天主链路已完成本地回归；聊天面板 overlay 已改为背景模糊、面板外壳、键盘 metrics 分层架构。
+- 最新功能进度：Task 9 `Full Regression and Project Memory` 已完成；双人任务卡片聊天主链路已完成本地回归；自定义 morph overlay 已废弃，聊天面板改用 SwiftUI 原生 `.navigationTransition(.zoom)`。
 - 已完成并提交：
   - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。
   - Task 2 + Task 3：`TaskMessageType`、`TaskMessageCursor`、`PersistentTaskMessage.content`、`PersistentTaskChatReadState`、`TaskMessageRepositoryProtocol`、local/mock repository 和 repository 测试，提交 `7292bbd`。
@@ -33,7 +33,7 @@
 - Task 7：`xcodebuild test-without-building -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests` 通过，新增 `homeViewModelPairPreviewUsesLatestTaskMessageComment`；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`git diff --check` 通过。
 - Task 8：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`git diff --check` 通过。
 - Task 9：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessageRepositoryTests -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/SendReminderToPartnerTests -only-testing:TogetherTests/TaskChatViewModelTests` 通过；完整 `xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过。
-- 立即续接点：进行真机 UI/交互验收，重点看聊天 overlay 动效、键盘避让、发送后卡片预览/未读刷新、双端 Supabase catch-up/realtime。
+- 立即续接点：进行真机 UI/交互验收，重点看原生 zoom 转场、聊天页键盘表现、发送后卡片预览/未读刷新、双端 Supabase catch-up/realtime。
 - Task 5 后续真机/后端验收：当前只做本地编译与单测，未对生产 Supabase 实际执行 `task_messages` pull/realtime 联调；上线前需要用双端真机验证 comment 离线重试、catch-up 拉回、Realtime 刷新。
 - 已知后续风险：
   - `PersistentTaskChatReadState` 当前只存 `lastReadMessageCreatedAt`，未来做 unread 精确计算时可能需要升级为 `(createdAt, messageID)` 游标。
@@ -106,7 +106,7 @@
 - 自定义动画需验证 Reduce Motion 降级、连续触发和性能。
 - 日志页偏信息浏览场景，不应把完成记录列表包在白色圆角分组卡片里；默认使用直接列表、保留 swipe actions，不再额外弹详情 sheet。随着历史任务变多，打开页应避免全量 hydration，优先 repository 层分页、轻量 aggregate 和 SwiftUI `List` 虚拟化。
 - Today 重要日期胶囊采用单层胶囊分页，不在静止态露出叠放层；只有多个候选日期时显示 4pt 轻量分页点；横向切换优先使用 SwiftUI 原生横向 ScrollView 分页、scrollTargetBehavior 和 scrollTransition，不在核心文字内容上使用 blur，也不对分页内容叠加横向 offset，避免相邻胶囊互相压住。计数方式切换改为点按视觉上的计数区域，只有支持累计天数的纪念日才暴露为 Button，命中区域至少 44x44pt，生日/节日等不可切换日期显示为静态文本。Today 顶部内容区不再用渐变遮罩压住列表，列表初始内容不保留额外 10pt 空白首行。
-- 双人任务聊天面板 overlay 必须保持三层职责：全屏背景模糊层只负责覆盖 Today；面板外壳层按安全区和键盘 overlap 计算 frame；聊天内容层保持稳定实例，内容淡入只在打开面板时发生一次。由于 `AppRootView` 当前忽略 keyboard safe area，聊天面板键盘收缩不能依赖 SwiftUI 自然避让，需要使用轻量 keyboard metrics 驱动外壳底部收缩；键盘出现时顶部保持稳定、底部上移到键盘上方。
+- 双人任务聊天面板已放弃自定义 morph overlay 和手写 keyboard metrics。当前长期方向是用 SwiftUI 原生 `.matchedTransitionSource` + `.navigationTransition(.zoom)`：任务卡片作为 zoom source，聊天页作为 `NavigationStack` destination；键盘、安全区和返回转场优先交给系统处理，避免再叠加自定义全屏 overlay / GeometryReader / keyboard observer。
 
 ## 近期优先级
 
@@ -132,7 +132,7 @@
 
 ## 验证记录
 
-- 2026-05-02：重构双人任务聊天面板 overlay / 键盘链路，移除加在整个 `taskChatOverlay` 上的全屏 `ignoresSafeArea`，改为背景模糊层单独全屏覆盖、面板 frame 由安全区和键盘 overlap 统一计算；新增轻量 `TaskChatKeyboardMetrics`，键盘出现时外壳随键盘收缩，聊天内容实例保持稳定。验证：`build_sim -quiet` 通过；`build_run_sim -quiet` 启动成功；模拟器停在登录页，未覆盖真实双人任务聊天键盘路径，仍需 TestFlight/真机用真实 pair 数据复测中文键盘、九宫格和表情键盘。
+- 2026-05-02：废弃双人任务聊天自定义 morph overlay / keyboard metrics，改为原生 SwiftUI zoom 导航。`PairTimelineCard` 挂 `.matchedTransitionSource(id:entry.id, in: taskChatZoomNamespace)`，聊天页走 `.navigationDestination(isPresented:)` 和 `.navigationTransition(.zoom(sourceID:in:))`；删除 `TaskChatMorphOverlay`、`TaskChatKeyboardMetrics`、卡片 frame preference 链路。验证：`build_sim -quiet` 通过；`build_run_sim -quiet` 启动成功；模拟器停在登录页，未覆盖真实双人任务聊天键盘路径，仍需 TestFlight/真机用真实 pair 数据复测中文键盘、九宫格和表情键盘。
 - 2026-05-02：双人任务卡片聊天方案落地：`task_messages` 成为任务聊天主数据源，`assignmentMessages` 仅保留旧数据兼容；新增任务内 comment、nudge/system timeline 聚合、latest comment 卡片预览、本地未读游标和 morph 聊天面板。验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessageRepositoryTests -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/SendReminderToPartnerTests -only-testing:TogetherTests/TaskChatViewModelTests`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过。
 - 2026-04-29：初始化 Codex 项目记忆、阶段性收尾 Skill、Chronicle 风险评估；未修改业务代码，未运行 Xcode 构建。
 - 2026-04-29：build 22 修复接受方 786 云端已配对但本地仍单人 UI 的问题；验证 `PairSpaceSummaryResolverAvatarTests` 与 `LocalPairingServiceUnbindIsolationTests` 通过。
