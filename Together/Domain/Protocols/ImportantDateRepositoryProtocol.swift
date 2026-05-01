@@ -2,6 +2,7 @@ import Foundation
 
 protocol ImportantDateRepositoryProtocol: Sendable {
     func fetchAll(spaceID: UUID) async throws -> [ImportantDate]
+    func fetchAllStoredRecords(spaceID: UUID) async throws -> [ImportantDateStoredRecord]
     func fetch(id: UUID) async throws -> ImportantDate?
     func save(_ event: ImportantDate) async throws
     func delete(id: UUID) async throws
