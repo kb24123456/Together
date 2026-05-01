@@ -4,12 +4,31 @@
 
 ## 当前状态
 
-- 日期：2026-04-29
+- 日期：2026-05-01
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的单人 Todo 效率工具。
 - 当前策略：V1 优先跑通单人 Todo 主链路；V2 再扩展双人协作；V3 多人 Space 仅做底层预留。
 - Chronicle：暂不开启；先使用项目文档、AGENTS 和 Skill 机制承接记忆。
+
+## 当前进行中交接
+
+- 分支：`codex/task-card-chat`
+- 当前任务：双人任务卡片聊天功能，执行计划见 `docs/superpowers/plans/2026-05-01-task-card-chat.md`。
+- 最新提交：`0796700 feat: write pair task comments to task messages`。
+- 已完成并提交：
+  - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。
+  - Task 2 + Task 3：`TaskMessageType`、`TaskMessageCursor`、`PersistentTaskMessage.content`、`PersistentTaskChatReadState`、`TaskMessageRepositoryProtocol`、local/mock repository 和 repository 测试，提交 `7292bbd`。
+  - Task 4：应用服务将用户留言写入 `task_messages`，`assignmentMessages` 作为 legacy fallback；Task 4 comment 写入保持 local-only，不记录 `.taskMessage` sync；`sendReminderToPartner` 的 nudge sync 未改，提交 `0796700`。
+- 最近验证：
+  - Task 2/3：`TogetherTests/TaskMessageRepositoryTests` 通过；一次 review 代理额外跑过完整 `Together` 测试 483/483 通过。
+  - Task 4：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -only-testing:TogetherTests/SendReminderToPartnerTests` 通过；`git diff --check` 通过。
+- 立即续接点：先对最新 Task 4 提交 `0796700` 做 spec/code quality 复审；如果通过，进入 Task 5 `Supabase TaskMessage Push/Pull`。
+- Task 5 必须注意：只有在 `TaskMessagePushDTO` 支持 `content`、pull/catch-up/realtime 支持 `task_messages` 后，才能在 `sendTaskComment` 中恢复 `.taskMessage` outbox enqueue。否则 migration `041` 会拒绝缺少 content 的 comment 行。
+- 已知后续风险：
+  - `PersistentTaskChatReadState` 当前只存 `lastReadMessageCreatedAt`，未来做 unread 精确计算时可能需要升级为 `(createdAt, messageID)` 游标。
+  - Home/Calendar 预览仍读 legacy `assignmentMessages`；Task 7 需切到 `fetchLatestComments`。
+  - SwiftData CloudKit 当前未启用；新 read-state model 的非 optional 字段未来启用 CloudKit 前需统一评估默认值/optional 策略。
 
 ## 可信上下文来源
 
