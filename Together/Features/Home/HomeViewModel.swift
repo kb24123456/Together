@@ -657,7 +657,10 @@ final class HomeViewModel {
             task: item,
             taskApplicationService: taskApplicationService,
             taskMessageRepository: taskMessageRepository,
-            sessionStore: sessionStore
+            sessionStore: sessionStore,
+            onTaskMessageMutationReady: { [weak self] change in
+                self?.onSharedMutationRecorded?(change)
+            }
         )
     }
 

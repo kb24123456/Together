@@ -25,6 +25,11 @@ struct TaskChatPanelView: View {
         }
         .shadow(color: AppTheme.colors.shadow.opacity(0.16), radius: 28, y: 16)
         .task { await viewModel.load() }
+        .onReceive(NotificationCenter.default.publisher(for: .supabaseRealtimeChanged)) { _ in
+            Task {
+                await viewModel.load()
+            }
+        }
     }
 
     private var header: some View {

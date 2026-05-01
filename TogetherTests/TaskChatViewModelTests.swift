@@ -121,6 +121,37 @@ struct TaskChatViewModelTests {
         #expect(viewModel.errorText == nil)
     }
 
+    @Test func send_emitsTaskMessageMutationForImmediateSyncFlush() async throws {
+        let taskID = UUID()
+        let actorID = MockDataFactory.currentUserID
+        let task = Self.makeTask(id: taskID, creatorID: actorID)
+        let repository = MockTaskMessageRepository()
+        let service = CapturingTaskChatApplicationService()
+        let sessionStore = Self.makeSessionStore(userID: actorID)
+        var emittedChanges: [SyncChange] = []
+        let viewModel = TaskChatViewModel(
+            task: task,
+            taskApplicationService: service,
+            taskMessageRepository: repository,
+            sessionStore: sessionStore,
+            onTaskMessageMutationReady: { change in
+                emittedChanges.append(change)
+            }
+        )
+        viewModel.draftText = "收到"
+
+        await viewModel.send()
+
+        let sent = await service.sentComments()
+        let message = try #require(sent.first?.message)
+        let change = try #require(emittedChanges.first)
+        #expect(emittedChanges.count == 1)
+        #expect(change.entityKind == .taskMessage)
+        #expect(change.operation == .upsert)
+        #expect(change.recordID == message.id)
+        #expect(change.spaceID == sessionStore.currentSpace?.id)
+    }
+
     @Test func send_rejectsOversizedContentBeforeCallingService() async {
         let task = Self.makeTask(id: UUID(), creatorID: MockDataFactory.currentUserID)
         let service = CapturingTaskChatApplicationService()

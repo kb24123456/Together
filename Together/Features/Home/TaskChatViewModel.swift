@@ -7,6 +7,7 @@ final class TaskChatViewModel {
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let taskMessageRepository: TaskMessageRepositoryProtocol
     private let sessionStore: SessionStore
+    private let onTaskMessageMutationReady: ((SyncChange) -> Void)?
 
     private(set) var task: Item
     private(set) var entries: [TaskChatTimelineEntry] = []
@@ -24,12 +25,14 @@ final class TaskChatViewModel {
         task: Item,
         taskApplicationService: TaskApplicationServiceProtocol,
         taskMessageRepository: TaskMessageRepositoryProtocol,
-        sessionStore: SessionStore
+        sessionStore: SessionStore,
+        onTaskMessageMutationReady: ((SyncChange) -> Void)? = nil
     ) {
         self.task = task
         self.taskApplicationService = taskApplicationService
         self.taskMessageRepository = taskMessageRepository
         self.sessionStore = sessionStore
+        self.onTaskMessageMutationReady = onTaskMessageMutationReady
     }
 
     func load() async {
@@ -72,6 +75,14 @@ final class TaskChatViewModel {
             ) {
                 entries.append(.comment(message))
                 draftText = ""
+                onTaskMessageMutationReady?(
+                    SyncChange(
+                        entityKind: .taskMessage,
+                        operation: .upsert,
+                        recordID: message.id,
+                        spaceID: spaceID
+                    )
+                )
                 try await taskMessageRepository.markRead(taskID: task.id, through: message.createdAt)
             }
         } catch {
