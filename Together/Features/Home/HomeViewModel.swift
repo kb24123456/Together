@@ -664,6 +664,28 @@ final class HomeViewModel {
         )
     }
 
+    func refreshTaskChatMetadata(for taskID: UUID) async {
+        guard isPairModeActive else { return }
+
+        do {
+            let latestComments = try await taskMessageRepository.fetchLatestComments(taskIDs: [taskID])
+            if let latestComment = latestComments[taskID] {
+                latestCommentsByTaskID[taskID] = latestComment
+            } else {
+                latestCommentsByTaskID.removeValue(forKey: taskID)
+            }
+
+            if let readState = try await taskMessageRepository.fetchReadState(taskID: taskID) {
+                chatReadStatesByTaskID[taskID] = readState
+            } else {
+                chatReadStatesByTaskID.removeValue(forKey: taskID)
+            }
+        } catch {
+            latestCommentsByTaskID.removeValue(forKey: taskID)
+            chatReadStatesByTaskID.removeValue(forKey: taskID)
+        }
+    }
+
     private func refreshLatestComments(for items: [Item]) async {
         let taskIDs = items
             .filter { item in

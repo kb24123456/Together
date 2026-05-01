@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskChatPanelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var isComposerFocused: Bool
     @Bindable var viewModel: TaskChatViewModel
     let currentUserID: UUID?
     let partnerAvatar: HomeAvatar?
@@ -25,44 +26,22 @@ struct TaskChatPanelView: View {
     }
 
     private var panelContent: some View {
-        VStack(spacing: 0) {
-            header
-            messageList
-            composer
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text(viewModel.task.title)
-                    .font(AppTheme.typography.sized(19, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.76)
-
-                headerSubtitle
+        messageList
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                composer
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    toolbarTitle
+                }
 
-            Spacer(minLength: 0)
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(AppTheme.typography.sized(14, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(AppTheme.colors.surfaceElevated.opacity(0.82))
-                    )
+                ToolbarItem(placement: .topBarTrailing) {
+                    closeButton
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("关闭任务聊天")
-        }
-        .padding(.horizontal, AppTheme.spacing.md)
-        .padding(.top, AppTheme.spacing.md)
-        .padding(.bottom, AppTheme.spacing.xs)
     }
 
     @ViewBuilder
@@ -77,6 +56,28 @@ struct TaskChatPanelView: View {
         } else {
             subtitle
         }
+    }
+
+    private var toolbarTitle: some View {
+        VStack(spacing: AppTheme.spacing.xxs) {
+            Text(viewModel.task.title)
+                .font(AppTheme.typography.sized(18, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+                .lineLimit(1)
+                .minimumScaleFactor(0.74)
+
+            headerSubtitle
+        }
+        .multilineTextAlignment(.center)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var closeButton: some View {
+        Button(action: onDismiss) {
+            Image(systemName: "xmark")
+                .font(AppTheme.typography.textStyle(.body, weight: .semibold))
+        }
+        .accessibilityLabel("关闭任务留言板")
     }
 
     private var messageList: some View {
@@ -103,7 +104,7 @@ struct TaskChatPanelView: View {
                             .frame(height: 1)
                             .id(bottomAnchorID)
                     }
-                    .frame(minHeight: listProxy.size.height, alignment: .bottom)
+                    .frame(minHeight: listProxy.size.height, alignment: .top)
                     .padding(.horizontal, AppTheme.spacing.md)
                     .padding(.top, AppTheme.spacing.sm)
                     .padding(.bottom, AppTheme.spacing.xxs)
@@ -119,14 +120,25 @@ struct TaskChatPanelView: View {
                 }
                 .task(id: viewModel.entries.count) {
                     await Task.yield()
-                    if reduceMotion {
-                        proxy.scrollTo(bottomAnchorID, anchor: .bottom)
-                    } else {
-                        withAnimation(AppTheme.motion.micro) {
-                            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
-                        }
+                    scrollToBottom(proxy)
+                }
+                .onChange(of: isComposerFocused) { _, isFocused in
+                    guard isFocused else { return }
+                    Task { @MainActor in
+                        await Task.yield()
+                        scrollToBottom(proxy)
                     }
                 }
+            }
+        }
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        if reduceMotion {
+            proxy.scrollTo(bottomAnchorID, anchor: .bottom)
+        } else {
+            withAnimation(AppTheme.motion.micro) {
+                proxy.scrollTo(bottomAnchorID, anchor: .bottom)
             }
         }
     }
@@ -262,6 +274,7 @@ struct TaskChatPanelView: View {
                 .foregroundStyle(AppTheme.colors.title)
                 .lineLimit(1...4)
                 .textFieldStyle(.plain)
+                .focused($isComposerFocused)
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, AppTheme.spacing.sm)
                 .background(

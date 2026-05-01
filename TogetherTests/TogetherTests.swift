@@ -974,6 +974,86 @@ struct TogetherTests {
     }
 
     @Test @MainActor
+    func homeViewModelRefreshTaskChatMetadataDoesNotAdvanceReloadRevision() async throws {
+        let referenceDate = Date.now.addingTimeInterval(60)
+        let taskID = UUID()
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchMode(to: .pair)
+
+        let task = Item(
+            id: taskID,
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "确认电影",
+            notes: nil,
+            locationText: nil,
+            executionRole: .both,
+            assigneeMode: .both,
+            dueAt: referenceDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            assignmentState: .active,
+            latestResponse: nil,
+            responseHistory: [],
+            assignmentMessages: [],
+            lastActionByUserID: MockDataFactory.currentUserID,
+            lastActionAt: referenceDate,
+            createdAt: referenceDate.addingTimeInterval(-300),
+            updatedAt: referenceDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+        let taskMessageRepository = MockTaskMessageRepository()
+        let initialCommentDate = referenceDate.addingTimeInterval(-60)
+        try await taskMessageRepository.insertComment(
+            messageID: UUID(),
+            taskID: taskID,
+            senderID: MockDataFactory.currentUserID,
+            content: "先看 A 厅",
+            createdAt: initialCommentDate
+        )
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(items: [task]),
+            itemRepository: TestItemRepository(),
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: taskMessageRepository
+        )
+        viewModel.selectedDate = referenceDate
+
+        await viewModel.reload()
+        let revisionAfterReload = viewModel.reloadRevision
+
+        let latestCommentDate = referenceDate.addingTimeInterval(-30)
+        try await taskMessageRepository.insertComment(
+            messageID: UUID(),
+            taskID: taskID,
+            senderID: MockDataFactory.partnerUserID,
+            content: "换成 B 厅吧",
+            createdAt: latestCommentDate
+        )
+        try await taskMessageRepository.markRead(taskID: taskID, through: latestCommentDate)
+
+        await viewModel.refreshTaskChatMetadata(for: taskID)
+
+        #expect(viewModel.reloadRevision == revisionAfterReload)
+        let entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.messagePreview == "换成 B 厅吧")
+        #expect(entry.latestComment?.content == "换成 B 厅吧")
+        #expect(entry.hasUnreadComment == false)
+    }
+
+    @Test @MainActor
     func homeViewModelTimelinePrefersPendingSharedTaskMutationText() async throws {
         let referenceDate = Date.now.addingTimeInterval(60)
         let sessionStore = SessionStore()

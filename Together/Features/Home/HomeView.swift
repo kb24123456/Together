@@ -111,7 +111,7 @@ struct HomeView: View {
         }
         .onChange(of: isTaskChatNavigationPresented) { _, isPresented in
             if isPresented == false {
-                scheduleTaskChatCleanup(shouldRefresh: true)
+                scheduleTaskChatCleanup()
             }
         }
         .onAppear {
@@ -167,7 +167,8 @@ struct HomeView: View {
                 currentUserAvatar: viewModel.currentUserAvatar,
                 onDismiss: dismissChat
             )
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbar(.visible, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar(.hidden, for: .bottomBar)
             .navigationBarBackButtonHidden()
             .navigationTransition(.zoom(sourceID: selectedChatItemID, in: taskChatZoomNamespace))
@@ -193,18 +194,24 @@ struct HomeView: View {
         isTaskChatNavigationPresented = false
     }
 
-    private func scheduleTaskChatCleanup(shouldRefresh: Bool) {
+    private func scheduleTaskChatCleanup() {
         guard selectedChatItemID != nil || selectedChatViewModel != nil else { return }
+        let chatItemID = selectedChatItemID
         taskChatCleanupTask?.cancel()
         taskChatCleanupTask = Task { @MainActor in
             let delay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(360)
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
-            selectedChatItemID = nil
-            selectedChatViewModel = nil
 
-            if shouldRefresh {
-                await viewModel.reload()
+            if let chatItemID {
+                await viewModel.refreshTaskChatMetadata(for: chatItemID)
+            }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                selectedChatItemID = nil
+                selectedChatViewModel = nil
             }
         }
     }
