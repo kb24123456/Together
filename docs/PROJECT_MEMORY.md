@@ -4,12 +4,41 @@
 
 ## 当前状态
 
-- 日期：2026-04-29
+- 日期：2026-05-02
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的单人 Todo 效率工具。
 - 当前策略：V1 优先跑通单人 Todo 主链路；V2 再扩展双人协作；V3 多人 Space 仅做底层预留。
 - Chronicle：暂不开启；先使用项目文档、AGENTS 和 Skill 机制承接记忆。
+
+## 当前进行中交接
+
+- 分支：`codex/task-card-chat`
+- 当前任务：双人任务卡片聊天功能，执行计划见 `docs/superpowers/plans/2026-05-01-task-card-chat.md`。
+- 最新功能进度：Task 9 `Full Regression and Project Memory` 已完成；双人任务卡片聊天主链路已完成本地回归。
+- 已完成并提交：
+  - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。
+  - Task 2 + Task 3：`TaskMessageType`、`TaskMessageCursor`、`PersistentTaskMessage.content`、`PersistentTaskChatReadState`、`TaskMessageRepositoryProtocol`、local/mock repository 和 repository 测试，提交 `7292bbd`。
+  - Task 4：应用服务将用户留言写入 `task_messages`，`assignmentMessages` 作为 legacy fallback；Task 4 comment 写入保持 local-only，不记录 `.taskMessage` sync；`sendReminderToPartner` 的 nudge sync 未改，提交 `0796700`。
+  - Task 5：`TaskMessagePushDTO` 支持 `content` 和 `sender_supabase_user_id`；新增 `TaskMessagePullDTO`；Supabase catch-up 在 `pullTasks` 后拉取 `task_messages`；Realtime 监听 `task_messages`；`sendTaskComment` 在本地 comment 写入成功后恢复 `.taskMessage` outbox enqueue。
+  - Task 6：新增 `TaskChatTimelineEntry` / `TaskChatTimelineBuilder` / `TaskChatViewModel`，聊天面板状态与 Home 卡片保持解耦；ViewModel 支持加载最近消息、发送 comment、500 字上限、本地已读游标。
+  - Task 7：Home 卡片预览切到 `task_messages` 最新 comment，`assignmentMessages` 只保留 legacy fallback；`HomeTimelineEntry` 增加 latest comment / unread 状态，留言区域建立 44pt 以上触控入口。
+  - Task 8：新增 `TaskChatPanelView`，实现任务聊天面板、头像消息气泡、nudge/system 居中状态、`TextField(axis: .vertical)` composer、Material 背景模糊和 Reduce Motion 降级；Home 使用稳定的 selected chat ViewModel，避免 body 重建导致输入态丢失。
+  - Task 9：完成 focused tests、完整单元测试和 simulator build 回归，并记录阶段性项目记忆。
+- 最近验证：
+  - Task 2/3：`TogetherTests/TaskMessageRepositoryTests` 通过；一次 review 代理额外跑过完整 `Together` 测试 483/483 通过。
+  - Task 4：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -only-testing:TogetherTests/SendReminderToPartnerTests` 通过；`git diff --check` 通过。
+- Task 5：`git diff --check` 通过；`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/TaskMessageSyncTests ...` 通过 DTO / pull DTO 测试；`xcodebuild test-without-building -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests` 通过应用层 outbox 相关测试。
+- Task 6：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskChatViewModelTests` 通过；覆盖 timeline 排序、忽略未知消息、load 标记已读、send trim/append/markRead、超长拦截。
+- Task 7：`xcodebuild test-without-building -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests` 通过，新增 `homeViewModelPairPreviewUsesLatestTaskMessageComment`；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`git diff --check` 通过。
+- Task 8：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`git diff --check` 通过。
+- Task 9：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessageRepositoryTests -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/SendReminderToPartnerTests -only-testing:TogetherTests/TaskChatViewModelTests` 通过；完整 `xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过。
+- 立即续接点：进行真机 UI/交互验收，重点看聊天 overlay 动效、键盘避让、发送后卡片预览/未读刷新、双端 Supabase catch-up/realtime。
+- Task 5 后续真机/后端验收：当前只做本地编译与单测，未对生产 Supabase 实际执行 `task_messages` pull/realtime 联调；上线前需要用双端真机验证 comment 离线重试、catch-up 拉回、Realtime 刷新。
+- 已知后续风险：
+  - `PersistentTaskChatReadState` 当前只存 `lastReadMessageCreatedAt`，未来做 unread 精确计算时可能需要升级为 `(createdAt, messageID)` 游标。
+  - Calendar 预览仍读 legacy `assignmentMessages`；后续如要保持跨页面一致，需要单独把 Calendar 侧预览接到 `task_messages`。
+  - SwiftData CloudKit 当前未启用；新 read-state model 的非 optional 字段未来启用 CloudKit 前需统一评估默认值/optional 策略。
 
 ## 可信上下文来源
 
@@ -102,6 +131,7 @@
 
 ## 验证记录
 
+- 2026-05-02：双人任务卡片聊天方案落地：`task_messages` 成为任务聊天主数据源，`assignmentMessages` 仅保留旧数据兼容；新增任务内 comment、nudge/system timeline 聚合、latest comment 卡片预览、本地未读游标和 morph 聊天面板。验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessageRepositoryTests -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/SendReminderToPartnerTests -only-testing:TogetherTests/TaskChatViewModelTests`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过。
 - 2026-04-29：初始化 Codex 项目记忆、阶段性收尾 Skill、Chronicle 风险评估；未修改业务代码，未运行 Xcode 构建。
 - 2026-04-29：build 22 修复接受方 786 云端已配对但本地仍单人 UI 的问题；验证 `PairSpaceSummaryResolverAvatarTests` 与 `LocalPairingServiceUnbindIsolationTests` 通过。
 - 2026-04-29：新增发起邀请 loading 状态、纪念日 sheet 内联新增区与纪念日胶囊长按计数切换；双人 APNs/前台 catch-up 与解绑成员校验完成本地实现。验证 `git diff --check`、iOS Simulator build、`profileViewModelExposesInviteCreationLoadingState` 通过；Supabase trigger 已应用，Edge Function 部署需要 `SUPABASE_ACCESS_TOKEN`。

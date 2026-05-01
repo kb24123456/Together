@@ -13,7 +13,7 @@
 ## File Structure
 
 **Backend / Supabase**
-- Create: `supabase/migrations/040_task_message_comments_constraints.sql`
+- Create: `supabase/migrations/041_task_message_comments_constraints.sql`
 - Modify: `supabase/functions/send-push-notification/index.ts` only if tests show `comment` payload needs extra fields; default push text stays privacy-preserving.
 
 **Domain and persistence**
@@ -57,16 +57,16 @@
 ## Task 1: Supabase Comment Constraints
 
 **Files:**
-- Create: `supabase/migrations/040_task_message_comments_constraints.sql`
+- Create: `supabase/migrations/041_task_message_comments_constraints.sql`
 - Verify: `supabase/migrations/036_add_core_check_constraints.sql`
 - Verify: `supabase/functions/send-push-notification/index.ts`
 
 - [ ] **Step 1: Add migration for comment content and completed-task guard**
 
-Create `supabase/migrations/040_task_message_comments_constraints.sql`:
+Create `supabase/migrations/041_task_message_comments_constraints.sql`:
 
 ```sql
--- Migration 040: task message comment constraints
+-- Migration 041: task message comment constraints
 --
 -- Chat comments now use task_messages(type='comment', content=...).
 -- The app enforces these checks client-side too, but the database remains
@@ -81,7 +81,7 @@ ALTER TABLE public.task_messages
     type <> 'comment'
     OR (
       content IS NOT NULL
-      AND length(btrim(content)) BETWEEN 1 AND 500
+      AND length(regexp_replace(content, '^[[:space:]]+|[[:space:]]+$', '', 'g')) BETWEEN 1 AND 500
     )
   ) NOT VALID;
 
@@ -92,6 +92,7 @@ DROP POLICY IF EXISTS "space members can insert task messages" ON public.task_me
 
 CREATE POLICY "space members can insert task messages" ON public.task_messages
   FOR INSERT
+  TO authenticated
   WITH CHECK (
     EXISTS (
       SELECT 1
@@ -101,7 +102,7 @@ CREATE POLICY "space members can insert task messages" ON public.task_messages
         AND (
           task_messages.type <> 'comment'
           OR (
-            tasks.status <> 'completed'
+            tasks.status IS DISTINCT FROM 'completed'
             AND coalesce(tasks.is_deleted, false) = false
           )
         )
@@ -127,7 +128,7 @@ Run:
 
 ```bash
 git diff --check
-git add supabase/migrations/040_task_message_comments_constraints.sql
+git add supabase/migrations/041_task_message_comments_constraints.sql
 git commit -m "chore: constrain task message comments"
 ```
 
@@ -213,6 +214,7 @@ enum TaskMessageType: String, Codable, Hashable, Sendable {
     case comment
     case nudge
     case rpsResult = "rps_result"
+    case unknown
 }
 
 struct TaskMessage: Identifiable, Hashable, Sendable {
@@ -222,6 +224,20 @@ struct TaskMessage: Identifiable, Hashable, Sendable {
     let type: TaskMessageType
     let content: String?
     let createdAt: Date
+}
+
+struct TaskMessageCursor: Hashable, Sendable {
+    let createdAt: Date
+    let id: UUID
+
+    init(createdAt: Date, id: UUID) {
+        self.createdAt = createdAt
+        self.id = id
+    }
+
+    init(message: TaskMessage) {
+        self.init(createdAt: message.createdAt, id: message.id)
+    }
 }
 
 struct TaskChatReadState: Hashable, Sendable {
@@ -283,7 +299,7 @@ extension PersistentTaskMessage {
             id: id,
             taskID: taskID,
             senderID: senderID,
-            type: TaskMessageType(rawValue: type) ?? .comment,
+            type: TaskMessageType(rawValue: type) ?? .unknown,
             content: content,
             createdAt: createdAt
         )
@@ -358,7 +374,7 @@ Do not commit yet if protocol compile errors remain. Commit together with Task 3
 - Modify: `Together/Services/TaskMessages/MockTaskMessageRepository.swift`
 - Test: `TogetherTests/TaskMessageRepositoryTests.swift`
 
-- [ ] **Step 1: Extend repository protocol**
+- [x] **Step 1: Extend repository protocol**
 
 Replace `TaskMessageRepositoryProtocol` with:
 
@@ -381,7 +397,7 @@ protocol TaskMessageRepositoryProtocol: Sendable {
         createdAt: Date
     ) async throws
 
-    func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [TaskMessage]
+    func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage]
     func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage]
     func fetchMessage(messageID: UUID) async throws -> TaskMessage?
     func markRead(taskID: UUID, through createdAt: Date) async throws
@@ -389,7 +405,7 @@ protocol TaskMessageRepositoryProtocol: Sendable {
 }
 ```
 
-- [ ] **Step 2: Implement local repository**
+- [x] **Step 2: Implement local repository**
 
 Add methods to `LocalTaskMessageRepository`:
 
@@ -417,23 +433,32 @@ func insertComment(
     try context.save()
 }
 
-func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [TaskMessage] {
+func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage] {
     let context = ModelContext(container)
     let effectiveLimit = max(1, min(limit, 100))
     let descriptor: FetchDescriptor<PersistentTaskMessage>
-    if let before {
+    if let cursor {
+        let cursorCreatedAt = cursor.createdAt
+        let cursorID = cursor.id
         descriptor = FetchDescriptor<PersistentTaskMessage>(
             predicate: #Predicate<PersistentTaskMessage> { message in
-                message.taskID == taskID && message.createdAt < before
+                message.taskID == taskID
+                    && (message.createdAt < cursorCreatedAt || (message.createdAt == cursorCreatedAt && message.id < cursorID))
             },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
         )
     } else {
         descriptor = FetchDescriptor<PersistentTaskMessage>(
             predicate: #Predicate<PersistentTaskMessage> { message in
                 message.taskID == taskID
             },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
         )
     }
     var limited = descriptor
@@ -441,24 +466,30 @@ func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [Tas
     return try context.fetch(limited)
         .map { $0.domainModel() }
         .sorted { lhs, rhs in
-            if lhs.createdAt == rhs.createdAt { return lhs.id.uuidString < rhs.id.uuidString }
+            if lhs.createdAt == rhs.createdAt { return lhs.id < rhs.id }
             return lhs.createdAt < rhs.createdAt
         }
 }
 
 func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage] {
     guard taskIDs.isEmpty == false else { return [:] }
-    let taskIDSet = Set(taskIDs)
+    let commentType = TaskMessageType.comment.rawValue
     let context = ModelContext(container)
-    let descriptor = FetchDescriptor<PersistentTaskMessage>(
-        predicate: #Predicate<PersistentTaskMessage> { message in
-            taskIDSet.contains(message.taskID) && message.type == TaskMessageType.comment.rawValue
-        },
-        sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-    )
     var result: [UUID: TaskMessage] = [:]
-    for message in try context.fetch(descriptor) where result[message.taskID] == nil {
-        result[message.taskID] = message.domainModel()
+    for taskID in Set(taskIDs) {
+        var descriptor = FetchDescriptor<PersistentTaskMessage>(
+            predicate: #Predicate<PersistentTaskMessage> { message in
+                message.taskID == taskID && message.type == commentType
+            },
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
+        )
+        descriptor.fetchLimit = 1
+        if let message = try context.fetch(descriptor).first {
+            result[taskID] = message.domainModel()
+        }
     }
     return result
 }
@@ -492,7 +523,7 @@ func fetchReadState(taskID: UUID) async throws -> TaskChatReadState? {
 }
 ```
 
-- [ ] **Step 3: Update nudge insertion to use enum**
+- [x] **Step 3: Update nudge insertion to use enum**
 
 Change existing nudge insertion:
 
@@ -502,7 +533,7 @@ content: nil,
 createdAt: createdAt
 ```
 
-- [ ] **Step 4: Update mock repository**
+- [x] **Step 4: Update mock repository**
 
 Replace `MockTaskMessageRepository` with a minimal in-memory actor:
 
@@ -512,28 +543,44 @@ actor MockTaskMessageRepository: TaskMessageRepositoryProtocol {
     private var readStates: [UUID: TaskChatReadState] = [:]
 
     func insertComment(messageID: UUID, taskID: UUID, senderID: UUID, content: String, createdAt: Date) async throws {
-        messages.append(TaskMessage(id: messageID, taskID: taskID, senderID: senderID, type: .comment, content: content, createdAt: createdAt))
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        messages.append(TaskMessage(id: messageID, taskID: taskID, senderID: senderID, type: .comment, content: trimmed, createdAt: createdAt))
     }
 
     func insertNudge(messageID: UUID, taskID: UUID, senderID: UUID, createdAt: Date) async throws {
         messages.append(TaskMessage(id: messageID, taskID: taskID, senderID: senderID, type: .nudge, content: nil, createdAt: createdAt))
     }
 
-    func fetchMessages(taskID: UUID, limit: Int, before: Date?) async throws -> [TaskMessage] {
-        messages
+    func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage] {
+        let effectiveLimit = max(1, min(limit, 100))
+        return Array(messages
             .filter { message in
-                message.taskID == taskID && (before.map { cutoff in message.createdAt < cutoff } ?? true)
+                message.taskID == taskID && (cursor.map { Self.isOlder(message, than: $0) } ?? true)
             }
-            .sorted { $0.createdAt < $1.createdAt }
-            .suffix(limit)
+            .sorted {
+                if $0.createdAt == $1.createdAt { return $0.id > $1.id }
+                return $0.createdAt > $1.createdAt
+            }
+            .prefix(effectiveLimit)
+            .sorted {
+                if $0.createdAt == $1.createdAt { return $0.id < $1.id }
+                return $0.createdAt < $1.createdAt
+            })
     }
 
     func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage] {
         let taskIDSet = Set(taskIDs)
-        return Dictionary(
-            grouping: messages.filter { taskIDSet.contains($0.taskID) && $0.type == .comment },
-            by: \.taskID
-        ).compactMapValues { $0.sorted { $0.createdAt < $1.createdAt }.last }
+        var result: [UUID: TaskMessage] = [:]
+        for message in messages
+            .filter({ taskIDSet.contains($0.taskID) && $0.type == .comment })
+            .sorted(by: { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt { return lhs.id > rhs.id }
+                return lhs.createdAt > rhs.createdAt
+            }) where result.keys.contains(message.taskID) == false {
+            result[message.taskID] = message
+        }
+        return result
     }
 
     func fetchMessage(messageID: UUID) async throws -> TaskMessage? {
@@ -541,16 +588,25 @@ actor MockTaskMessageRepository: TaskMessageRepositoryProtocol {
     }
 
     func markRead(taskID: UUID, through createdAt: Date) async throws {
-        readStates[taskID] = TaskChatReadState(taskID: taskID, lastReadMessageCreatedAt: createdAt, updatedAt: Date())
+        if let existing = readStates[taskID] {
+            readStates[taskID] = TaskChatReadState(taskID: taskID, lastReadMessageCreatedAt: max(existing.lastReadMessageCreatedAt, createdAt), updatedAt: Date())
+        } else {
+            readStates[taskID] = TaskChatReadState(taskID: taskID, lastReadMessageCreatedAt: createdAt, updatedAt: Date())
+        }
     }
 
     func fetchReadState(taskID: UUID) async throws -> TaskChatReadState? {
         readStates[taskID]
     }
+
+    nonisolated private static func isOlder(_ message: TaskMessage, than cursor: TaskMessageCursor) -> Bool {
+        message.createdAt < cursor.createdAt
+            || (message.createdAt == cursor.createdAt && message.id < cursor.id)
+    }
 }
 ```
 
-- [ ] **Step 5: Run repository tests**
+- [x] **Step 5: Run repository tests**
 
 Run:
 
@@ -560,7 +616,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit models and repository**
+- [x] **Step 6: Commit models and repository**
 
 Run:
 
@@ -584,7 +640,15 @@ Expected: commit succeeds.
 - Test: `TogetherTests/TogetherTests.swift`
 - Test: `TogetherTests/SendReminderToPartnerTests.swift`
 
-- [ ] **Step 1: Add failing application service tests**
+- [x] **Step 0: Keep Task 4 comment writes local-only**
+
+Task 4 must not enqueue `.taskMessage` sync changes yet. `TaskMessagePushDTO` does
+not include `content` until Task 5, while migration `041` rejects comment rows
+without content. This keeps the intermediate Task 4 commit production-safe:
+comments are written locally, and Task 5 enables remote sync after content
+push/pull is implemented.
+
+- [x] **Step 1: Add failing application service tests**
 
 Add tests near existing assignment message tests in `TogetherTests/TogetherTests.swift`:
 
@@ -645,7 +709,7 @@ Add tests near existing assignment message tests in `TogetherTests/TogetherTests
 }
 ```
 
-- [ ] **Step 2: Extend protocol**
+- [x] **Step 2: Extend protocol**
 
 Add to `TaskApplicationServiceProtocol`:
 
@@ -658,7 +722,7 @@ func sendTaskComment(
 ) async throws -> TaskMessage?
 ```
 
-- [ ] **Step 3: Implement comment write helper**
+- [x] **Step 3: Implement comment write helper**
 
 Add to `DefaultTaskApplicationService`:
 
@@ -688,59 +752,77 @@ func sendTaskComment(
         content: trimmed,
         createdAt: createdAt
     )
-    await syncCoordinator.recordLocalChange(
-        SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
-    )
+    // Task 5 records the .taskMessage sync change after TaskMessagePushDTO
+    // includes comment content.
     return TaskMessage(id: messageID, taskID: taskID, senderID: actorID, type: .comment, content: trimmed, createdAt: createdAt)
 }
 ```
 
 Use a domain-specific error later if the app already has a better validation error; keep this first implementation aligned with existing repository error style.
 
-- [ ] **Step 4: Move create-task assignment note into task_messages**
+- [x] **Step 4: Move create-task assignment note into task_messages**
 
-In `createTask`, set `assignmentMessages: []` when building `Item`. After `saveItem`, insert the note:
+In `createTask`, validate attached `assignmentNote` content before task persistence, then set `assignmentMessages: []` when building `Item`. After `saveItem`, insert the associated comment best-effort until the app has a shared transaction/unit-of-work across task and task message persistence:
 
 ```swift
+let assignmentCommentContent = draft.assigneeMode == .partner
+    ? try validatedCommentContent(draft.assignmentNote)
+    : nil
+
 let saved = try await itemRepository.saveItem(item)
 await syncCoordinator.recordLocalChange(SyncChange(entityKind: .task, operation: .upsert, recordID: saved.id, spaceID: spaceID))
 
-if draft.assigneeMode == .partner,
-   let note = draft.assignmentNote?.trimmingCharacters(in: .whitespacesAndNewlines),
-   note.isEmpty == false {
-    _ = try await sendTaskComment(in: spaceID, taskID: saved.id, actorID: actorID, content: note)
+if let assignmentCommentContent {
+    await insertAssociatedTaskCommentIfPossible(in: spaceID, taskID: saved.id, actorID: actorID, content: assignmentCommentContent)
 }
 
 await reminderScheduler.syncTaskReminder(for: saved)
 return saved
 ```
 
-- [ ] **Step 5: Move update-task assignment note into task_messages**
+- [x] **Step 5: Move update-task assignment note into task_messages**
 
-In `updateTask`, remove the append to `item.assignmentMessages`. After saving and recording task upsert:
+In `updateTask`, validate attached `assignmentNote` content before mutating/saving the task, and remove the append to `item.assignmentMessages`. After saving and recording task upsert, insert the associated comment best-effort:
 
 ```swift
-if draft.assigneeMode == .partner,
-   let note = draft.assignmentNote?.trimmingCharacters(in: .whitespacesAndNewlines),
-   note.isEmpty == false {
-    _ = try await sendTaskComment(in: spaceID, taskID: saved.id, actorID: actorID, content: note)
+let assignmentCommentContent = draft.assigneeMode == .partner
+    ? try validatedCommentContent(draft.assignmentNote)
+    : nil
+
+// mutate and save task...
+
+if let assignmentCommentContent {
+    await insertAssociatedTaskCommentIfPossible(in: spaceID, taskID: saved.id, actorID: actorID, content: assignmentCommentContent)
 }
 ```
 
-- [ ] **Step 6: Move response messages into task_messages**
+- [x] **Step 6: Move response messages into task_messages**
 
 In `LocalItemRepository.updateItemStatus` and `MockItemRepository.updateItemStatus`, stop appending `TaskAssignmentMessage` when response message is present. Keep `ItemResponse.message` in `responseHistory`.
 
-In `DefaultTaskApplicationService.respondToTask`, after the task upsert:
+In `DefaultTaskApplicationService.respondToTask`, validate attached response message content before task persistence. After the task upsert, insert the associated comment best-effort:
 
 ```swift
-if let message = message?.trimmingCharacters(in: .whitespacesAndNewlines),
-   message.isEmpty == false {
-    _ = try await sendTaskComment(in: spaceID, taskID: item.id, actorID: actorID, content: message)
+let responseCommentContent = try validatedCommentContent(message)
+let item = try await itemRepository.updateItemStatus(...)
+await syncCoordinator.recordLocalChange(...)
+
+if let responseCommentContent {
+    await insertAssociatedTaskCommentIfPossible(in: spaceID, taskID: item.id, actorID: actorID, content: responseCommentContent)
 }
 ```
 
-- [ ] **Step 7: Keep quick-message compatibility**
+- [x] **Step 7: Keep quick-message compatibility**
+
+Add the best-effort helper only for associated create/update/respond comments. Direct `sendTaskComment` still throws if `taskMessageRepository.insertComment` fails, and `appendAssignmentMessage` keeps that explicit-send behavior by calling `sendTaskComment` directly:
+
+```swift
+private func insertAssociatedTaskCommentIfPossible(in spaceID: UUID, taskID: UUID, actorID: UUID, content: String) async {
+    do {
+        _ = try await sendTaskComment(in: spaceID, taskID: taskID, actorID: actorID, content: content)
+    } catch {}
+}
+```
 
 Change `appendAssignmentMessage` implementation to call `sendTaskComment` and return the current task:
 
@@ -751,7 +833,9 @@ func appendAssignmentMessage(in spaceID: UUID, taskID: UUID, actorID: UUID, mess
 }
 ```
 
-- [ ] **Step 8: Run application tests**
+`requeueDeclinedTask` no longer mutates legacy `assignmentMessages`; it only resets response state and task state. Existing `task_messages` comments survive requeue unchanged.
+
+- [x] **Step 8: Run application tests**
 
 Run:
 
@@ -761,7 +845,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS or only unrelated tests fail. Any assignment-message expectation that assumes new writes go to `assignmentMessages` must be updated to expect `task_messages`.
 
-- [ ] **Step 9: Commit application service changes**
+- [x] **Step 9: Commit application service changes**
 
 Run:
 
@@ -778,12 +862,13 @@ Expected: commit succeeds.
 ## Task 5: Supabase TaskMessage Push/Pull
 
 **Files:**
+- Modify: `Together/Application/Tasks/DefaultTaskApplicationService.swift`
 - Modify: `Together/Sync/SyncCoordinatorProtocol.swift`
 - Modify: `Together/Sync/SupabaseSyncService.swift`
 - Modify: `TogetherTests/TaskMessagePushDTOTests.swift`
 - Create: `TogetherTests/TaskMessageSyncTests.swift`
 
-- [ ] **Step 1: Write DTO encoding test for content**
+- [x] **Step 1: Write DTO encoding test for content**
 
 Extend `TaskMessagePushDTOTests`:
 
@@ -809,7 +894,7 @@ Extend `TaskMessagePushDTOTests`:
 }
 ```
 
-- [ ] **Step 2: Extend push DTO**
+- [x] **Step 2: Extend push DTO**
 
 Modify `TaskMessagePushDTO`:
 
@@ -845,7 +930,23 @@ struct TaskMessagePushDTO: Encodable, Sendable {
 
 Update the manual initializer to include `content: String? = nil`.
 
-- [ ] **Step 3: Rename push-only comments**
+- [x] **Step 3: Enable task message outbox enqueue**
+
+After `TaskMessagePushDTO` includes `content`, update `sendTaskComment` in
+`DefaultTaskApplicationService` to record the task message sync change after
+local insertion:
+
+```swift
+await syncCoordinator.recordLocalChange(
+    SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
+)
+```
+
+Add or update an application-service test to assert one `.taskMessage` local
+change is recorded for a non-empty comment. This test belongs in Task 5 because
+the outbox entry is only safe after content encoding is supported.
+
+- [x] **Step 4: Rename push-only comments**
 
 In `SyncCoordinatorProtocol`, change the task message comment:
 
@@ -855,7 +956,7 @@ case taskMessage   // Supabase task_messages event stream: comments, nudges, fut
 
 In `SupabaseSyncService`, update the DTO comment to remove “write-only”.
 
-- [ ] **Step 4: Add pull DTO**
+- [x] **Step 5: Add pull DTO**
 
 Add below `TaskMessagePushDTO`:
 
@@ -899,7 +1000,7 @@ struct TaskMessagePullDTO: Decodable, Sendable {
 }
 ```
 
-- [ ] **Step 5: Add pullTaskMessages method**
+- [x] **Step 6: Add pullTaskMessages method**
 
 In `SupabaseSyncService`, add:
 
@@ -925,7 +1026,7 @@ private func pullTaskMessages(spaceID: UUID, since: String) async throws {
 }
 ```
 
-- [ ] **Step 6: Wire catch-up and realtime**
+- [x] **Step 7: Wire catch-up and realtime**
 
 In `catchUp`, call after `pullTasks`:
 
@@ -953,7 +1054,7 @@ listeningTasks.append(Task { [weak self] in
 })
 ```
 
-- [ ] **Step 7: Preserve FK retry**
+- [x] **Step 8: Preserve FK retry**
 
 In `push()` or outbox drain logic, verify failed `.taskMessage` push is not deleted when Supabase rejects due to missing parent `task_id`. If current code deletes on any thrown error, change it so thrown errors keep the sync change for retry.
 
@@ -968,7 +1069,7 @@ do {
 }
 ```
 
-- [ ] **Step 8: Run sync tests**
+- [x] **Step 9: Run sync tests**
 
 Run:
 
@@ -978,13 +1079,13 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit sync work**
+- [x] **Step 10: Commit sync work**
 
 Run:
 
 ```bash
 git diff --check
-git add Together/Sync TogetherTests/TaskMessagePushDTOTests.swift TogetherTests/TaskMessageSyncTests.swift
+git add Together/Application/Tasks/DefaultTaskApplicationService.swift Together/Sync TogetherTests/TaskMessagePushDTOTests.swift TogetherTests/TaskMessageSyncTests.swift TogetherTests/TogetherTests.swift
 git commit -m "feat: sync task message comments"
 ```
 
@@ -997,10 +1098,9 @@ Expected: commit succeeds.
 **Files:**
 - Create: `Together/Features/Home/TaskChatTimelineEntry.swift`
 - Create: `Together/Features/Home/TaskChatViewModel.swift`
-- Modify: `Together/Features/Home/HomeViewModel.swift`
 - Test: `TogetherTests/TaskChatViewModelTests.swift`
 
-- [ ] **Step 1: Add timeline entry model**
+- [x] **Step 1: Add timeline entry model**
 
 Create `Together/Features/Home/TaskChatTimelineEntry.swift`:
 
@@ -1073,7 +1173,7 @@ enum TaskChatTimelineBuilder {
 }
 ```
 
-- [ ] **Step 2: Add ViewModel skeleton**
+- [x] **Step 2: Add ViewModel skeleton**
 
 Create `Together/Features/Home/TaskChatViewModel.swift`:
 
@@ -1112,7 +1212,7 @@ final class TaskChatViewModel {
 }
 ```
 
-- [ ] **Step 3: Implement load and send**
+- [x] **Step 3: Implement load and send**
 
 Add:
 
@@ -1153,7 +1253,7 @@ func send() async {
 }
 ```
 
-- [ ] **Step 4: Add ViewModel tests**
+- [x] **Step 4: Add ViewModel tests**
 
 Create `TogetherTests/TaskChatViewModelTests.swift` with tests:
 
@@ -1222,7 +1322,7 @@ struct TaskChatViewModelTests {
 }
 ```
 
-- [ ] **Step 5: Run ViewModel tests**
+- [x] **Step 5: Run ViewModel tests**
 
 Run:
 
@@ -1232,7 +1332,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit ViewModel**
+- [x] **Step 6: Commit ViewModel**
 
 Run:
 
@@ -1253,7 +1353,7 @@ Expected: commit succeeds.
 - Modify: `Together/Features/Home/HomeView.swift`
 - Modify: `Together/PreviewContent/MockDataFactory.swift`
 
-- [ ] **Step 0: Inject task message repository into HomeViewModel**
+- [x] **Step 0: Inject task message repository into HomeViewModel**
 
 Update `HomeViewModel` initializer:
 
@@ -1277,7 +1377,7 @@ init(
 
 Update all `HomeViewModel(...)` call sites to pass the same `taskMessageRepository` already present in `AppContainer` / `LocalServiceFactory`.
 
-- [ ] **Step 1: Extend `HomeTimelineEntry`**
+- [x] **Step 1: Extend `HomeTimelineEntry`**
 
 Add fields:
 
@@ -1288,7 +1388,7 @@ let hasUnreadComment: Bool
 
 Keep `messagePreview` temporarily for legacy fallback.
 
-- [ ] **Step 2: Add latest comment cache to HomeViewModel**
+- [x] **Step 2: Add latest comment cache to HomeViewModel**
 
 Add:
 
@@ -1314,7 +1414,7 @@ private func refreshLatestComments(for items: [Item]) async {
 
 If `HomeViewModel` does not currently hold `taskMessageRepository`, inject it through its initializer from `AppContext` / service factory.
 
-- [ ] **Step 3: Update entry creation**
+- [x] **Step 3: Update entry creation**
 
 In `makeTimelineEntry`, derive:
 
@@ -1362,7 +1462,7 @@ func makeTaskChatViewModel(for item: Item) -> TaskChatViewModel {
 }
 ```
 
-- [ ] **Step 4: Make message zone tappable**
+- [x] **Step 4: Make message zone tappable**
 
 Add a closure to `PairTimelineCard`:
 
@@ -1395,7 +1495,7 @@ private var chatAccessibilityLabel: String {
 }
 ```
 
-- [ ] **Step 5: Run build**
+- [x] **Step 5: Run build**
 
 Run:
 
@@ -1405,7 +1505,7 @@ xcodebuild build -project Together.xcodeproj -scheme Together -destination 'plat
 
 Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 6: Commit preview integration**
+- [x] **Step 6: Commit preview integration**
 
 Run:
 
@@ -1425,7 +1525,7 @@ Expected: commit succeeds.
 - Create: `Together/Features/Home/TaskChatPanelView.swift`
 - Modify: `Together/Features/Home/HomeView.swift`
 
-- [ ] **Step 1: Create chat panel view**
+- [x] **Step 1: Create chat panel view**
 
 Create `TaskChatPanelView.swift`:
 
@@ -1462,7 +1562,7 @@ struct TaskChatPanelView: View {
 
 Add `header`, `row(for:)`, and `composer` in the same file. Use existing `UserAvatarView` or `PairTimelineAvatarStrip` components for avatars; do not create a separate image loading system.
 
-- [ ] **Step 2: Implement message rows**
+- [x] **Step 2: Implement message rows**
 
 Use this structure for comments:
 
@@ -1515,7 +1615,7 @@ private func avatar(for userID: UUID) -> some View {
 }
 ```
 
-- [ ] **Step 3: Implement composer**
+- [x] **Step 3: Implement composer**
 
 Use `TextField(axis: .vertical)`:
 
@@ -1538,7 +1638,7 @@ private var composer: some View {
 }
 ```
 
-- [ ] **Step 4: Add overlay state to HomeView**
+- [x] **Step 4: Add overlay state to HomeView**
 
 In `HomeView`, add state:
 
@@ -1598,7 +1698,7 @@ Add overlay:
 
 If `matchedGeometryEffect` causes blur or unreadable text on device, keep the same state model but use scale/opacity transition; the spec allows native-feeling overlay morph without sacrificing readability.
 
-- [ ] **Step 5: Add Reduce Motion fallback**
+- [x] **Step 5: Add Reduce Motion fallback**
 
 Check `@Environment(\.accessibilityReduceMotion)` and use:
 
@@ -1607,7 +1707,7 @@ let animation: Animation? = reduceMotion ? .easeOut(duration: 0.16) : .spring(re
 withAnimation(animation) { selectedChatItemID = nil }
 ```
 
-- [ ] **Step 6: Build**
+- [x] **Step 6: Build**
 
 Run:
 
@@ -1617,7 +1717,7 @@ xcodebuild build -project Together.xcodeproj -scheme Together -destination 'plat
 
 Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 7: Commit UI panel**
+- [x] **Step 7: Commit UI panel**
 
 Run:
 
@@ -1636,7 +1736,7 @@ Expected: commit succeeds.
 **Files:**
 - Modify: `docs/PROJECT_MEMORY.md`
 
-- [ ] **Step 1: Run focused tests**
+- [x] **Step 1: Run focused tests**
 
 Run:
 
@@ -1646,7 +1746,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 2: Run full unit test suite if focused tests pass**
+- [x] **Step 2: Run full unit test suite if focused tests pass**
 
 Run:
 
@@ -1656,7 +1756,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS. If unrelated failures appear, capture exact failing test names and do not claim full suite success.
 
-- [ ] **Step 3: Build for simulator**
+- [x] **Step 3: Build for simulator**
 
 Run:
 
@@ -1666,7 +1766,7 @@ xcodebuild build -project Together.xcodeproj -scheme Together -destination 'plat
 
 Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 4: Update project memory**
+- [x] **Step 4: Update project memory**
 
 Append one concise entry to `docs/PROJECT_MEMORY.md` under verification records:
 
@@ -1674,7 +1774,7 @@ Append one concise entry to `docs/PROJECT_MEMORY.md` under verification records:
 - 2026-05-01：双人任务卡片聊天方案落地：`task_messages` 成为任务聊天主数据源，`assignmentMessages` 仅保留旧数据兼容；新增任务内 comment、nudge/system timeline 聚合、latest comment 卡片预览、本地未读游标和 morph 聊天面板。验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessageRepositoryTests -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/SendReminderToPartnerTests -only-testing:TogetherTests/TaskChatViewModelTests`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过。
 ```
 
-- [ ] **Step 5: Commit memory and final verification**
+- [x] **Step 5: Commit memory and final verification**
 
 Run:
 
@@ -1693,7 +1793,7 @@ Expected: status is clean.
 
 Spec coverage:
 - UI card preview: Task 7 and Task 8 cover single-line preview, separate chat entry, 44pt hit area, Material overlay, Reduce Motion, keyboard composer.
-- Data source: Tasks 2-5 move comments to `task_messages`, add content, add local read state, and keep `assignmentMessages` as fallback.
+- Data source: Tasks 2-5 move comments to `task_messages`, add content, add local read state, and keep `assignmentMessages` as fallback/read-only legacy data. Requeue does not mutate legacy `assignmentMessages`.
 - Sync/backend: Tasks 1 and 5 cover SQL constraints, push DTO content, pull/catch-up, Realtime, and FK retry.
 - Permissions: Tasks 1 and 4 enforce completed/deleted task comment guard on both backend and app service.
 - Tests: Tasks 2-9 include repository, application service, DTO, sync, ViewModel, build, and final regression.
@@ -1704,4 +1804,4 @@ Placeholder scan:
 Type consistency:
 - `TaskMessageType.comment.rawValue` maps to Supabase `type='comment'`.
 - `PersistentTaskChatReadState.lastReadMessageCreatedAt` matches the spec.
-- `sendTaskComment(in:taskID:actorID:content:)` is used consistently by service, Home, and ViewModel tasks.
+- `sendTaskComment(in:taskID:actorID:content:)` is used consistently by service, Home, and ViewModel tasks. Direct sends throw on insert failure; create/update/respond associated comments are preflighted before task persistence and inserted best-effort after task persistence until a shared unit-of-work exists.

@@ -7,6 +7,7 @@ final class PersistentTaskMessage {
     var taskID: UUID
     var senderID: UUID
     var type: String
+    var content: String?
     var createdAt: Date
 
     init(
@@ -14,12 +15,14 @@ final class PersistentTaskMessage {
         taskID: UUID,
         senderID: UUID,
         type: String,
+        content: String? = nil,
         createdAt: Date
     ) {
         self.id = id
         self.taskID = taskID
         self.senderID = senderID
         self.type = type
+        self.content = content
         self.createdAt = createdAt
     }
 }
@@ -30,7 +33,8 @@ extension PersistentTaskMessage {
             id: message.id,
             taskID: message.taskID,
             senderID: message.senderID,
-            type: message.type,
+            type: message.type.rawValue,
+            content: message.content,
             createdAt: message.createdAt
         )
     }
@@ -40,7 +44,8 @@ extension PersistentTaskMessage {
             id: id,
             taskID: taskID,
             senderID: senderID,
-            type: type,
+            type: TaskMessageType(rawValue: type) ?? .unknown,
+            content: content,
             createdAt: createdAt
         )
     }

@@ -801,7 +801,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         viewModel.items = [
@@ -872,7 +873,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(items: [recoveredTask]),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         viewModel.selectedDate = referenceDate
 
@@ -881,6 +883,94 @@ struct TogetherTests {
 
         #expect(viewModel.reloadRevision == previousRevision + 1)
         #expect(viewModel.timelineEntries.map(\.title) == ["恢复后的任务"])
+    }
+
+    @Test @MainActor
+    func homeViewModelPairPreviewUsesLatestTaskMessageComment() async throws {
+        let referenceDate = Date.now.addingTimeInterval(60)
+        let taskID = UUID()
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchMode(to: .pair)
+
+        let task = Item(
+            id: taskID,
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "确认晚餐",
+            notes: nil,
+            locationText: nil,
+            executionRole: .both,
+            assigneeMode: .both,
+            dueAt: referenceDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            assignmentState: .active,
+            latestResponse: nil,
+            responseHistory: [],
+            assignmentMessages: [
+                TaskAssignmentMessage(
+                    authorID: MockDataFactory.currentUserID,
+                    body: "旧留言",
+                    createdAt: referenceDate.addingTimeInterval(-120)
+                )
+            ],
+            lastActionByUserID: MockDataFactory.currentUserID,
+            lastActionAt: referenceDate,
+            createdAt: referenceDate.addingTimeInterval(-300),
+            updatedAt: referenceDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+        let taskMessageRepository = MockTaskMessageRepository()
+        let olderCommentDate = referenceDate.addingTimeInterval(-60)
+        let latestCommentDate = referenceDate.addingTimeInterval(-30)
+        try await taskMessageRepository.insertComment(
+            messageID: UUID(),
+            taskID: taskID,
+            senderID: MockDataFactory.currentUserID,
+            content: "我先到",
+            createdAt: olderCommentDate
+        )
+        try await taskMessageRepository.insertComment(
+            messageID: UUID(),
+            taskID: taskID,
+            senderID: MockDataFactory.partnerUserID,
+            content: "记得选靠窗",
+            createdAt: latestCommentDate
+        )
+        try await taskMessageRepository.markRead(taskID: taskID, through: olderCommentDate)
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(items: [task]),
+            itemRepository: TestItemRepository(),
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: taskMessageRepository
+        )
+        viewModel.selectedDate = referenceDate
+
+        await viewModel.reload()
+
+        var entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.messagePreview == "记得选靠窗")
+        #expect(entry.latestComment?.content == "记得选靠窗")
+        #expect(entry.latestMessageAuthorName == MockDataFactory.makePartnerUser().displayName)
+        #expect(entry.hasUnreadComment)
+
+        try await taskMessageRepository.markRead(taskID: taskID, through: latestCommentDate)
+        await viewModel.reload()
+
+        entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.hasUnreadComment == false)
     }
 
     @Test @MainActor
@@ -939,7 +1029,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         viewModel.items = [item]
         viewModel.selectedDate = referenceDate
@@ -1004,7 +1095,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         viewModel.items = [item]
         viewModel.selectedDate = referenceDate
@@ -1331,13 +1423,343 @@ struct TogetherTests {
     }
 
     @Test
-    func taskApplicationServiceRejectsPendingTaskWhenQuickReplyIsSent() async throws {
+    func createPartnerTaskAssignmentNoteWritesCommentNotAssignmentMessages() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = LocalTaskMessageRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "给对方的任务",
+                assigneeMode: .partner,
+                assignmentNote: " 买低脂的 "
+            )
+        )
+
+        let messages = try await messageRepository.fetchMessages(taskID: created.id, limit: 20, before: nil)
+        let recordedChanges = await syncCoordinator.pendingChanges()
+
+        #expect(created.assignmentMessages.isEmpty)
+        #expect(messages.count == 1)
+        let message = try #require(messages.first)
+        #expect(message.type == .comment)
+        #expect(message.content == "买低脂的")
+        #expect(recordedChanges.contains { $0.entityKind == .task && $0.operation == .upsert && $0.recordID == created.id })
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == message.id })
+    }
+
+    @Test
+    func createPartnerTaskAssignmentNoteInsertFailureStillCreatesTask() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = ThrowingTaskMessageRepository()
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "留言失败也要创建",
+                assigneeMode: .partner,
+                assignmentNote: "请先看备注"
+            )
+        )
+        let fetched = try #require(try await itemRepository.fetchItem(itemID: created.id))
+        let recordedChanges = await syncCoordinator.pendingChanges()
+
+        #expect(fetched.title == "留言失败也要创建")
+        #expect(created.assignmentMessages.isEmpty)
+        #expect(fetched.assignmentMessages.isEmpty)
+        #expect(recordedChanges.contains { $0.entityKind == .task && $0.operation == .upsert && $0.recordID == created.id })
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage } == false)
+    }
+
+    @Test
+    func createPartnerTaskOversizedAssignmentNoteThrowsWithoutCreatingTask() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
             taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let title = "超长留言不应创建-\(UUID().uuidString)"
+        let beforeCount = try await itemRepository.fetchActiveItems(spaceID: MockDataFactory.pairSharedSpaceID).count
+
+        do {
+            _ = try await service.createTask(
+                in: MockDataFactory.pairSharedSpaceID,
+                actorID: MockDataFactory.currentUserID,
+                draft: TaskDraft(
+                    title: title,
+                    assigneeMode: .partner,
+                    assignmentNote: String(repeating: "a", count: 501)
+                )
+            )
+            Issue.record("Expected oversized assignment note to fail.")
+        } catch RepositoryError.notFound {
+            #expect(Bool(true))
+        } catch {
+            Issue.record("Expected RepositoryError.notFound, got: \(error)")
+        }
+
+        let activeItems = try await itemRepository.fetchActiveItems(spaceID: MockDataFactory.pairSharedSpaceID)
+        #expect(activeItems.count == beforeCount)
+        #expect(activeItems.contains { $0.title == title } == false)
+    }
+
+    @Test
+    func updatePartnerTaskOversizedAssignmentNoteThrowsWithoutChangingTask() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "原始任务",
+                notes: "原始备注",
+                assigneeMode: .partner
+            )
+        )
+
+        do {
+            _ = try await service.updateTask(
+                in: MockDataFactory.pairSharedSpaceID,
+                taskID: created.id,
+                actorID: MockDataFactory.currentUserID,
+                draft: TaskDraft(
+                    title: "不应保存的新标题",
+                    notes: "不应保存的新备注",
+                    assigneeMode: .partner,
+                    assignmentNote: String(repeating: "b", count: 501)
+                )
+            )
+            Issue.record("Expected oversized assignment note to fail.")
+        } catch RepositoryError.notFound {
+            #expect(Bool(true))
+        } catch {
+            Issue.record("Expected RepositoryError.notFound, got: \(error)")
+        }
+
+        let fetched = try #require(try await itemRepository.fetchItem(itemID: created.id))
+        #expect(fetched.title == created.title)
+        #expect(fetched.notes == created.notes)
+        #expect(fetched.assigneeMode == created.assigneeMode)
+        #expect(fetched.assignmentState == created.assignmentState)
+        #expect(fetched.status == created.status)
+        #expect(fetched.assignmentMessages == created.assignmentMessages)
+    }
+
+    @Test
+    func updatePartnerTaskAssignmentNoteInsertFailureStillSavesTaskChanges() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = ThrowingTaskMessageRepository()
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "原始任务",
+                notes: "原始备注",
+                assigneeMode: .partner
+            )
+        )
+
+        let updated = try await service.updateTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "已保存的新标题",
+                notes: "已保存的新备注",
+                assigneeMode: .partner,
+                assignmentNote: "请看更新"
+            )
+        )
+        let fetched = try #require(try await itemRepository.fetchItem(itemID: created.id))
+        let recordedChanges = await syncCoordinator.pendingChanges()
+
+        #expect(updated.title == "已保存的新标题")
+        #expect(updated.notes == "已保存的新备注")
+        #expect(updated.assignmentMessages.isEmpty)
+        #expect(fetched.title == "已保存的新标题")
+        #expect(fetched.notes == "已保存的新备注")
+        #expect(fetched.assignmentMessages.isEmpty)
+        #expect(recordedChanges.contains { $0.entityKind == .task && $0.operation == .upsert && $0.recordID == created.id })
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage } == false)
+    }
+
+    @Test
+    func respondToTaskOversizedMessageThrowsWithoutChangingResponseState() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "等你确认超长回复",
+                assigneeMode: .partner
+            )
+        )
+
+        do {
+            _ = try await service.respondToTask(
+                in: MockDataFactory.pairSharedSpaceID,
+                taskID: created.id,
+                actorID: MockDataFactory.partnerUserID,
+                response: .notSuitable,
+                message: String(repeating: "c", count: 501)
+            )
+            Issue.record("Expected oversized response message to fail.")
+        } catch RepositoryError.notFound {
+            #expect(Bool(true))
+        } catch {
+            Issue.record("Expected RepositoryError.notFound, got: \(error)")
+        }
+
+        let fetched = try #require(try await itemRepository.fetchItem(itemID: created.id))
+        #expect(fetched.latestResponse == nil)
+        #expect(fetched.responseHistory.isEmpty)
+        #expect(fetched.status == created.status)
+        #expect(fetched.assignmentState == created.assignmentState)
+        #expect(fetched.assignmentMessages == created.assignmentMessages)
+    }
+
+    @Test
+    func sendTaskCommentRejectsCompletedTask() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let completed = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "完成的任务",
+            notes: nil,
+            executionRole: .both,
+            assigneeMode: .both,
+            dueAt: nil,
+            hasExplicitTime: false,
+            remindAt: nil,
+            status: .completed,
+            assignmentState: .completed,
+            latestResponse: nil,
+            responseHistory: [],
+            assignmentMessages: [],
+            lastActionByUserID: MockDataFactory.currentUserID,
+            lastActionAt: MockDataFactory.now,
+            createdAt: MockDataFactory.now,
+            updatedAt: MockDataFactory.now,
+            completedAt: MockDataFactory.now,
+            isPinned: false,
+            isDraft: false
+        )
+        _ = try await itemRepository.saveItem(completed)
+
+        do {
+            _ = try await service.sendTaskComment(
+                in: MockDataFactory.pairSharedSpaceID,
+                taskID: completed.id,
+                actorID: MockDataFactory.currentUserID,
+                content: "还要聊"
+            )
+            Issue.record("Expected completed task comment to fail.")
+        } catch RepositoryError.notFound {
+            #expect(Bool(true))
+        } catch {
+            Issue.record("Expected RepositoryError.notFound, got: \(error)")
+        }
+    }
+
+    @Test
+    func sendTaskCommentRecordsTaskMessageSyncChange() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = LocalTaskMessageRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "显式留言同步",
+                assigneeMode: .partner
+            )
+        )
+
+        let comment = try #require(try await service.sendTaskComment(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.partnerUserID,
+            content: " 请确认 "
+        ))
+        let stored = try #require(try await messageRepository.fetchMessage(messageID: comment.id))
+        let recordedChanges = await syncCoordinator.pendingChanges()
+
+        #expect(stored.content == "请确认")
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == comment.id })
+    }
+
+    @Test
+    func respondToTaskMessageWritesCommentNotAssignmentMessages() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = LocalTaskMessageRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1358,22 +1780,179 @@ struct TogetherTests {
             response: .notSuitable,
             message: "有点忙"
         )
+        let messages = try await messageRepository.fetchMessages(taskID: created.id, limit: 20, before: nil)
+        let recordedChanges = await syncCoordinator.pendingChanges()
 
         #expect(updated.assignmentState == .declined)
         #expect(updated.status == .declinedOrBlocked)
         #expect(updated.responseHistory.count == 1)
         #expect(updated.latestResponse?.kind == .notSuitable)
-        #expect(updated.assignmentMessages.last?.body == "有点忙")
+        #expect(updated.latestResponse?.message == "有点忙")
+        #expect(updated.responseHistory.first?.message == "有点忙")
+        #expect(updated.assignmentMessages.isEmpty)
+        #expect(messages.count == 1)
+        let message = try #require(messages.first)
+        #expect(message.type == .comment)
+        #expect(message.content == "有点忙")
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == message.id })
+    }
+
+    @Test
+    func respondToTaskMessageInsertFailureStillSavesResponseState() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = ThrowingTaskMessageRepository()
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "等你确认失败留言",
+                assigneeMode: .partner
+            )
+        )
+
+        let updated = try await service.respondToTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.partnerUserID,
+            response: .notSuitable,
+            message: "现在不方便"
+        )
+        let fetched = try #require(try await itemRepository.fetchItem(itemID: created.id))
+        let recordedChanges = await syncCoordinator.pendingChanges()
+
+        #expect(updated.assignmentState == .declined)
+        #expect(updated.status == .declinedOrBlocked)
+        #expect(updated.latestResponse?.kind == .notSuitable)
+        #expect(updated.latestResponse?.message == "现在不方便")
+        #expect(updated.responseHistory.count == 1)
+        #expect(updated.responseHistory.first?.message == "现在不方便")
+        #expect(updated.assignmentMessages.isEmpty)
+        #expect(fetched.assignmentState == .declined)
+        #expect(fetched.status == .declinedOrBlocked)
+        #expect(fetched.latestResponse?.kind == .notSuitable)
+        #expect(fetched.latestResponse?.message == "现在不方便")
+        #expect(fetched.responseHistory.count == 1)
+        #expect(fetched.assignmentMessages.isEmpty)
+        #expect(recordedChanges.contains { $0.entityKind == .task && $0.operation == .upsert && $0.recordID == created.id })
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage } == false)
+    }
+
+    @Test
+    func appendAssignmentMessageWritesCommentNotAssignmentMessages() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = LocalTaskMessageRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "聊一下",
+                assigneeMode: .partner
+            )
+        )
+
+        let updated = try await service.appendAssignmentMessage(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.partnerUserID,
+            message: " 我来处理 "
+        )
+        let messages = try await messageRepository.fetchMessages(taskID: created.id, limit: 20, before: nil)
+        let recordedChanges = await syncCoordinator.pendingChanges()
+
+        #expect(updated.assignmentMessages.isEmpty)
+        #expect(messages.count == 1)
+        let message = try #require(messages.first)
+        #expect(message.type == .comment)
+        #expect(message.content == "我来处理")
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == message.id })
+    }
+
+    @Test
+    func sendTaskCommentInsertFailureThrowsForExplicitSend() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = ThrowingTaskMessageRepository()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: TestSyncCoordinator(),
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "显式留言失败",
+                assigneeMode: .partner
+            )
+        )
+
+        await #expect(throws: RepositoryError.self) {
+            _ = try await service.sendTaskComment(
+                in: MockDataFactory.pairSharedSpaceID,
+                taskID: created.id,
+                actorID: MockDataFactory.partnerUserID,
+                content: "请确认"
+            )
+        }
+    }
+
+    @Test
+    func appendAssignmentMessageInsertFailureThrowsForExplicitSend() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = ThrowingTaskMessageRepository()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: TestSyncCoordinator(),
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "兼容入口留言失败",
+                assigneeMode: .partner
+            )
+        )
+
+        await #expect(throws: RepositoryError.self) {
+            _ = try await service.appendAssignmentMessage(
+                in: MockDataFactory.pairSharedSpaceID,
+                taskID: created.id,
+                actorID: MockDataFactory.partnerUserID,
+                message: "我来处理"
+            )
+        }
     }
 
     @Test
     func taskApplicationServiceCanRequeueDeclinedPartnerTask() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = LocalTaskMessageRepository(container: persistence.container)
         let syncCoordinator = TestSyncCoordinator()
         let service = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            taskMessageRepository: LocalTaskMessageRepository(container: persistence.container),
+            taskMessageRepository: messageRepository,
             syncCoordinator: syncCoordinator,
             reminderScheduler: MockReminderScheduler()
         )
@@ -1406,9 +1985,10 @@ struct TogetherTests {
         #expect(requeued.status == .pendingConfirmation)
         #expect(requeued.latestResponse == nil)
         #expect(requeued.responseHistory.isEmpty)
-        #expect(requeued.assignmentMessages.map(\.authorID) == [MockDataFactory.currentUserID, MockDataFactory.currentUserID])
-        #expect(requeued.assignmentMessages.first?.body == "麻烦你确认")
-        #expect(requeued.assignmentMessages.last?.body == "再次发送了这个任务")
+        #expect(requeued.assignmentMessages.isEmpty)
+
+        let messages = try await messageRepository.fetchMessages(taskID: created.id, limit: 20, before: nil)
+        #expect(messages.map(\.content) == ["麻烦你确认", "有点忙"])
     }
 
     @Test
@@ -1672,7 +2252,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         viewModel.detailDraft = TaskDraft(
@@ -2137,7 +2718,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: itemRepository,
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         let baseDate = Date.now
@@ -2215,7 +2797,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         let taskID = UUID()
@@ -2360,7 +2943,8 @@ struct TogetherTests {
             sessionStore: receiverSession,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         receiverViewModel.items = [declinedTask]
 
@@ -2368,7 +2952,8 @@ struct TogetherTests {
             sessionStore: senderSession,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         senderViewModel.items = [declinedTask]
 
@@ -2390,7 +2975,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: itemRepository,
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         let baseDate = Date.now
@@ -3492,7 +4078,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let now = Date.now
         let item = Item(
@@ -3535,7 +4122,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let calendar = Calendar.current
         let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? .now
@@ -3629,7 +4217,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
@@ -3702,7 +4291,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let calendar = Calendar.current
         let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? .now
@@ -4309,6 +4899,12 @@ actor TestHomeTaskApplicationService: TaskApplicationServiceProtocol {
         response: ItemResponseKind,
         message: String?
     ) async throws -> Item { throw RepositoryError.notFound }
+    func sendTaskComment(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        content: String
+    ) async throws -> TaskMessage? { throw RepositoryError.notFound }
     func requeueDeclinedTask(
         in spaceID: UUID,
         taskID: UUID,
@@ -4398,6 +4994,12 @@ actor TestHistoricalOneOffCompletionTaskService: TaskApplicationServiceProtocol 
         response: ItemResponseKind,
         message: String?
     ) async throws -> Item { throw RepositoryError.notFound }
+    func sendTaskComment(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        content: String
+    ) async throws -> TaskMessage? { throw RepositoryError.notFound }
     func requeueDeclinedTask(
         in spaceID: UUID,
         taskID: UUID,
@@ -4706,6 +5308,37 @@ private func makeUserProfileContainer(storeURL: URL) throws -> ModelContainer {
 // MARK: - NoopTaskMessageRepository
 
 actor NoopTaskMessageRepository: TaskMessageRepositoryProtocol {
+    func insertComment(
+        messageID: UUID,
+        taskID: UUID,
+        senderID: UUID,
+        content: String,
+        createdAt: Date
+    ) async throws {}
+
     func insertNudge(messageID: UUID, taskID: UUID, senderID: UUID, createdAt: Date) async throws {}
+    func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage] { [] }
+    func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage] { [:] }
     func fetchMessage(messageID: UUID) async throws -> TaskMessage? { nil }
+    func markRead(taskID: UUID, through createdAt: Date) async throws {}
+    func fetchReadState(taskID: UUID) async throws -> TaskChatReadState? { nil }
+}
+
+actor ThrowingTaskMessageRepository: TaskMessageRepositoryProtocol {
+    func insertComment(
+        messageID: UUID,
+        taskID: UUID,
+        senderID: UUID,
+        content: String,
+        createdAt: Date
+    ) async throws {
+        throw RepositoryError.invalidInput("simulated comment insert failure")
+    }
+
+    func insertNudge(messageID: UUID, taskID: UUID, senderID: UUID, createdAt: Date) async throws {}
+    func fetchMessages(taskID: UUID, limit: Int, before cursor: TaskMessageCursor?) async throws -> [TaskMessage] { [] }
+    func fetchLatestComments(taskIDs: [UUID]) async throws -> [UUID: TaskMessage] { [:] }
+    func fetchMessage(messageID: UUID) async throws -> TaskMessage? { nil }
+    func markRead(taskID: UUID, through createdAt: Date) async throws {}
+    func fetchReadState(taskID: UUID) async throws -> TaskChatReadState? { nil }
 }

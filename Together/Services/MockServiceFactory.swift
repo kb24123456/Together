@@ -59,13 +59,15 @@ enum MockServiceFactory {
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
             PersistentTaskMessage.self,
+            PersistentTaskChatReadState.self,
             PersistentImportantDate.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let userProfileRepository = MockUserProfileRepository()
+        let taskMessageRepository = LocalTaskMessageRepository(container: mockModelContainer)
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            taskMessageRepository: MockTaskMessageRepository(),
+            taskMessageRepository: taskMessageRepository,
             syncCoordinator: syncCoordinator,
             reminderScheduler: reminderScheduler
         )
@@ -98,7 +100,7 @@ enum MockServiceFactory {
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
             taskTemplateRepository: taskTemplateRepository,
-            taskMessageRepository: LocalTaskMessageRepository(container: mockModelContainer),
+            taskMessageRepository: taskMessageRepository,
             importantDateRepository: MockImportantDateRepository(),
             anniversaryScheduler: NoopAnniversaryScheduler(),
             taskListRepository: MockTaskListRepository(),

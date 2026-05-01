@@ -971,6 +971,7 @@ private struct SoloSyncHarness {
             PersistentPeriodicTask.self,
             PersistentPairingHistory.self,
             PersistentTaskMessage.self,
+            PersistentTaskChatReadState.self,
             PersistentImportantDate.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )

@@ -98,6 +98,10 @@ actor SupabaseSyncService {
         try await pullImportantDates(spaceID: spaceID, since: since)
     }
 
+    internal func pullTaskMessagesForTesting(spaceID: UUID, since: String) async throws {
+        try await pullTaskMessages(spaceID: spaceID, since: since)
+    }
+
     /// 清理资源
     func teardown() async {
         for task in listeningTasks {
@@ -232,6 +236,7 @@ actor SupabaseSyncService {
         do {
             // 拉取各业务表
             try await pullTasks(spaceID: spaceID, since: sinceISO)
+            try await pullTaskMessages(spaceID: spaceID, since: sinceISO)
             try await pullTaskLists(spaceID: spaceID, since: sinceISO)
             try await pullProjects(spaceID: spaceID, since: sinceISO)
             try await pullProjectSubtasks(spaceID: spaceID, since: sinceISO)
@@ -292,6 +297,7 @@ actor SupabaseSyncService {
         let membersStream = channel.postgresChange(AnyAction.self, schema: "public", table: "space_members", filter: spaceFilter)
         let spacesStream = channel.postgresChange(AnyAction.self, schema: "public", table: "spaces", filter: spacesFilter)
         let importantDatesStream = channel.postgresChange(AnyAction.self, schema: "public", table: "important_dates", filter: spaceFilter)
+        let messagesStream = channel.postgresChange(AnyAction.self, schema: "public", table: "task_messages")
 
         try? await channel.subscribe()
         self.realtimeChannel = channel
@@ -335,6 +341,11 @@ actor SupabaseSyncService {
         listeningTasks.append(Task { [weak self] in
             for await change in importantDatesStream {
                 await self?.handleImportantDateChange(change)
+            }
+        })
+        listeningTasks.append(Task { [weak self] in
+            for await change in messagesStream {
+                await self?.handleRealtimeChange(change, table: "task_messages")
             }
         })
 
@@ -568,6 +579,28 @@ actor SupabaseSyncService {
             }
             try context.save()
         }
+    }
+
+    private func pullTaskMessages(spaceID: UUID, since: String) async throws {
+        let formatter = ISO8601DateFormatter()
+        let overlapSince = formatter.date(from: since)
+            .flatMap { Calendar.current.date(byAdding: .minute, value: -10, to: $0) }
+            .map { formatter.string(from: $0) } ?? since
+
+        let rows: [TaskMessagePullDTO] = try await client.from("task_messages")
+            .select("id, task_id, sender_id, sender_supabase_user_id, type, content, created_at, tasks!inner(space_id)")
+            .eq("tasks.space_id", value: spaceID.uuidString)
+            .gte("created_at", value: overlapSince)
+            .order("created_at", ascending: true)
+            .execute()
+            .value
+
+        guard rows.isEmpty == false else { return }
+        let context = ModelContext(modelContainer)
+        for row in rows {
+            row.applyToLocal(context: context)
+        }
+        try context.save()
     }
 
     private func pullTaskLists(spaceID: UUID, since: String) async throws {
@@ -918,11 +951,9 @@ extension Notification.Name {
     static let importantDatesChanged = Notification.Name("importantDatesChanged")
 }
 
-// MARK: - TaskMessage DTO (write-only)
+// MARK: - TaskMessage DTO
 
 /// Nudge / comment event pushed to the task_messages table.
-/// Write-only for MVP — partner device does not pull this table; APNs is
-/// the delivery channel. Keep Encodable-only to make that intent explicit.
 struct TaskMessagePushDTO: Encodable, Sendable {
     let id: UUID
     let taskId: UUID
@@ -932,10 +963,11 @@ struct TaskMessagePushDTO: Encodable, Sendable {
     /// tokens server-side without relying on willPresent client filter.
     let senderSupabaseUserID: UUID?
     let type: String
+    let content: String?
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case id, type
+        case id, type, content
         case taskId = "task_id"
         case senderId = "sender_id"
         case senderSupabaseUserID = "sender_supabase_user_id"
@@ -948,15 +980,25 @@ struct TaskMessagePushDTO: Encodable, Sendable {
         self.senderId = persistent.senderID
         self.senderSupabaseUserID = supabaseUserID
         self.type = persistent.type
+        self.content = persistent.content
         self.createdAt = persistent.createdAt
     }
 
-    nonisolated init(id: UUID, taskId: UUID, senderId: UUID, senderSupabaseUserID: UUID? = nil, type: String, createdAt: Date) {
+    nonisolated init(
+        id: UUID,
+        taskId: UUID,
+        senderId: UUID,
+        senderSupabaseUserID: UUID? = nil,
+        type: String,
+        content: String? = nil,
+        createdAt: Date
+    ) {
         self.id = id
         self.taskId = taskId
         self.senderId = senderId
         self.senderSupabaseUserID = senderSupabaseUserID
         self.type = type
+        self.content = content
         self.createdAt = createdAt
     }
 
@@ -967,7 +1009,51 @@ struct TaskMessagePushDTO: Encodable, Sendable {
         try c.encode(senderId, forKey: .senderId)
         try c.encodeIfPresent(senderSupabaseUserID, forKey: .senderSupabaseUserID)
         try c.encode(type, forKey: .type)
+        try c.encodeIfPresent(content, forKey: .content)
         try c.encode(createdAt, forKey: .createdAt)
+    }
+}
+
+struct TaskMessagePullDTO: Decodable, Sendable {
+    let id: UUID
+    let taskId: UUID
+    let senderId: UUID
+    let senderSupabaseUserID: UUID?
+    let type: String
+    let content: String?
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, content
+        case taskId = "task_id"
+        case senderId = "sender_id"
+        case senderSupabaseUserID = "sender_supabase_user_id"
+        case createdAt = "created_at"
+    }
+
+    nonisolated func applyToLocal(context: ModelContext) {
+        let id = self.id
+        let descriptor = FetchDescriptor<PersistentTaskMessage>(
+            predicate: #Predicate { $0.id == id }
+        )
+        if let existing = try? context.fetch(descriptor).first {
+            existing.taskID = taskId
+            existing.senderID = senderId
+            existing.type = type
+            existing.content = content
+            existing.createdAt = createdAt
+        } else {
+            context.insert(
+                PersistentTaskMessage(
+                    id: id,
+                    taskID: taskId,
+                    senderID: senderId,
+                    type: type,
+                    content: content,
+                    createdAt: createdAt
+                )
+            )
+        }
     }
 }
 

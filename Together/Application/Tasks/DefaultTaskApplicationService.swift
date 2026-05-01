@@ -52,15 +52,13 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     }
 
     func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
+        let assignmentCommentContent = draft.assigneeMode == .partner
+            ? try validatedCommentContent(draft.assignmentNote)
+            : nil
         let now = Date.now
         let assignmentState = draft.assigneeMode == .partner
             ? .pendingResponse
             : ItemStateMachine.initialAssignmentState(for: draft.assigneeMode)
-        let assignmentMessages: [TaskAssignmentMessage] = draft.assignmentNote
-            .flatMap { note in
-                let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : [TaskAssignmentMessage(authorID: actorID, body: trimmed, createdAt: now)]
-            } ?? []
         let item = Item(
             id: UUID(),
             spaceID: spaceID,
@@ -79,7 +77,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             assignmentState: assignmentState,
             latestResponse: nil,
             responseHistory: [],
-            assignmentMessages: assignmentMessages,
+            assignmentMessages: [],
             lastActionByUserID: actorID,
             lastActionAt: now,
             createdAt: now,
@@ -100,6 +98,14 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        if let assignmentCommentContent {
+            await insertAssociatedTaskCommentIfPossible(
+                in: spaceID,
+                taskID: saved.id,
+                actorID: actorID,
+                content: assignmentCommentContent
+            )
+        }
         await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
@@ -109,6 +115,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         guard PairPermissionService.canEditTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
+        let assignmentCommentContent = draft.assigneeMode == .partner
+            ? try validatedCommentContent(draft.assignmentNote)
+            : nil
         item.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         item.notes = draft.notes
         item.listID = draft.listID
@@ -125,9 +134,6 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.isPinned = draft.isPinned
         item.isDraft = draft.isDraft
         item.repeatRule = draft.repeatRule
-        if let note = draft.assignmentNote?.trimmingCharacters(in: .whitespacesAndNewlines), note.isEmpty == false {
-            item.assignmentMessages.append(TaskAssignmentMessage(authorID: actorID, body: note, createdAt: .now))
-        }
         item.lastActionByUserID = actorID
         item.lastActionAt = .now
         item.updatedAt = .now
@@ -141,6 +147,14 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        if let assignmentCommentContent {
+            await insertAssociatedTaskCommentIfPossible(
+                in: spaceID,
+                taskID: saved.id,
+                actorID: actorID,
+                content: assignmentCommentContent
+            )
+        }
         await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
@@ -346,6 +360,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         response: ItemResponseKind,
         message: String?
     ) async throws -> Item {
+        let responseCommentContent = try validatedCommentContent(message)
         let item = try await itemRepository.updateItemStatus(
             itemID: taskID,
             response: response,
@@ -360,7 +375,74 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
+        if let responseCommentContent {
+            await insertAssociatedTaskCommentIfPossible(
+                in: spaceID,
+                taskID: item.id,
+                actorID: actorID,
+                content: responseCommentContent
+            )
+        }
         return item
+    }
+
+    @discardableResult
+    func sendTaskComment(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        content: String
+    ) async throws -> TaskMessage? {
+        let item = try await existingTask(in: spaceID, taskID: taskID)
+        guard item.assigneeMode == .partner || item.assigneeMode == .both else {
+            throw RepositoryError.notFound
+        }
+        guard item.status != .completed,
+              item.assignmentState != .completed,
+              item.isArchived == false else {
+            throw RepositoryError.notFound
+        }
+
+        guard let trimmed = try validatedCommentContent(content) else { return nil }
+
+        let messageID = UUID()
+        let createdAt = Date.now
+        try await taskMessageRepository.insertComment(
+            messageID: messageID,
+            taskID: taskID,
+            senderID: actorID,
+            content: trimmed,
+            createdAt: createdAt
+        )
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
+        )
+        return TaskMessage(
+            id: messageID,
+            taskID: taskID,
+            senderID: actorID,
+            type: .comment,
+            content: trimmed,
+            createdAt: createdAt
+        )
+    }
+
+    private func validatedCommentContent(_ content: String?) throws -> String? {
+        let trimmed = content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard trimmed.isEmpty == false else { return nil }
+        guard trimmed.count <= 500 else { throw RepositoryError.notFound }
+        return trimmed
+    }
+
+    private func insertAssociatedTaskCommentIfPossible(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        content: String
+    ) async {
+        do {
+            _ = try await sendTaskComment(in: spaceID, taskID: taskID, actorID: actorID, content: content)
+        } catch {}
     }
 
     func requeueDeclinedTask(
@@ -377,11 +459,6 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.status = .pendingConfirmation
         item.latestResponse = nil
         item.responseHistory = []
-        item.assignmentMessages.removeAll { $0.authorID != actorID }
-        // 添加"再次发送"系统消息，让对方看到有意义的上下文
-        item.assignmentMessages.append(
-            TaskAssignmentMessage(authorID: actorID, body: "再次发送了这个任务", createdAt: .now)
-        )
         item.lastActionByUserID = actorID
         item.lastActionAt = .now
         item.updatedAt = .now
@@ -405,27 +482,8 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         actorID: UUID,
         message: String
     ) async throws -> Item {
-        var item = try await existingTask(in: spaceID, taskID: taskID)
-        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedMessage.isEmpty == false else { return item }
-
-        item.assignmentMessages.append(
-            TaskAssignmentMessage(authorID: actorID, body: trimmedMessage, createdAt: .now)
-        )
-        item.lastActionByUserID = actorID
-        item.lastActionAt = .now
-        item.updatedAt = .now
-
-        let saved = try await itemRepository.saveItem(item)
-        await syncCoordinator.recordLocalChange(
-            SyncChange(
-                entityKind: .task,
-                operation: .upsert,
-                recordID: saved.id,
-                spaceID: spaceID
-            )
-        )
-        return saved
+        _ = try await sendTaskComment(in: spaceID, taskID: taskID, actorID: actorID, content: message)
+        return try await existingTask(in: spaceID, taskID: taskID)
     }
 
     /// Task creator sends reminders to the assignee (partner). No creator

@@ -21,6 +21,8 @@ struct HomeView: View {
     @State private var isMonthPagerSettling = false
     @State private var highlightedTaskID: UUID?
     @State private var isImportantDatesManagementPresented = false
+    @State private var selectedChatItemID: UUID?
+    @State private var selectedChatViewModel: TaskChatViewModel?
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -100,6 +102,9 @@ struct HomeView: View {
         .sheet(isPresented: $isImportantDatesManagementPresented) {
             ImportantDatesManagementSheet()
         }
+        .overlay {
+            taskChatOverlay
+        }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
         }
@@ -138,6 +143,72 @@ struct HomeView: View {
             partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
             onPrimaryTap: { isImportantDatesManagementPresented = true }
         )
+    }
+
+    @ViewBuilder
+    private var taskChatOverlay: some View {
+        if selectedChatItemID != nil, let selectedChatViewModel {
+            ZStack {
+                Button(action: dismissChat) {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .ignoresSafeArea()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭任务聊天")
+
+                TaskChatPanelView(
+                    viewModel: selectedChatViewModel,
+                    currentUserID: appContext.sessionStore.currentUser?.id,
+                    partnerAvatar: viewModel.pairPreviewAvatar,
+                    currentUserAvatar: viewModel.currentUserAvatar,
+                    onDismiss: dismissChat
+                )
+                .padding(.horizontal, AppTheme.spacing.md)
+                .safeAreaPadding(.top, AppTheme.spacing.lg)
+                .safeAreaPadding(.bottom, AppTheme.spacing.md)
+                .transition(taskChatPanelTransition)
+            }
+            .transition(.opacity)
+            .zIndex(20)
+        }
+    }
+
+    private var taskChatPanelTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .scale(scale: 0.94, anchor: .center).combined(with: .opacity)
+    }
+
+    private var taskChatOverlayAnimation: Animation? {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.86)
+    }
+
+    private func openChat(for itemID: UUID) {
+        guard selectedChatItemID != itemID else { return }
+        guard let item = viewModel.item(for: itemID) else { return }
+
+        HomeInteractionFeedback.selection()
+        let chatViewModel = viewModel.makeTaskChatViewModel(for: item)
+        withAnimation(taskChatOverlayAnimation) {
+            selectedChatItemID = itemID
+            selectedChatViewModel = chatViewModel
+        }
+    }
+
+    private func dismissChat() {
+        let shouldRefresh = selectedChatItemID != nil
+        withAnimation(taskChatOverlayAnimation) {
+            selectedChatItemID = nil
+            selectedChatViewModel = nil
+        }
+
+        if shouldRefresh {
+            Task {
+                await viewModel.reload()
+            }
+        }
     }
 
     private var backgroundView: some View {
@@ -1101,7 +1172,8 @@ struct HomeView: View {
             onQuickMessage: { _ in },
             onResend: {},
             onDelete: {},
-            onSendReminder: {}
+            onSendReminder: {},
+            onOpenChat: {}
         )
         .allowsHitTesting(false)
     }
@@ -1165,6 +1237,9 @@ struct HomeView: View {
                 Task {
                     await viewModel.sendReminderToPartner(entry.id)
                 }
+            },
+            onOpenChat: {
+                openChat(for: entry.id)
             }
         )
         .id(entry.id)
@@ -2376,6 +2451,7 @@ private struct PairTimelineCard: View {
     let onResend: () -> Void
     let onDelete: () -> Void
     let onSendReminder: () -> Void
+    let onOpenChat: () -> Void
     @State private var isMorphingToAssigned = false
     @State private var completionAnimationCount = 0
     @State private var completionBadgeScale: CGFloat = 1
@@ -2519,13 +2595,13 @@ private struct PairTimelineCard: View {
     private var bottomRow: some View {
         if entry.syncState == .syncing {
             HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                messageIdentityRow
+                chatMessageZone
                 Spacer(minLength: 0)
                 syncStateBadge(text: "同步中", state: .syncing)
             }
         } else if entry.syncState == .confirmed {
             HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                messageIdentityRow
+                chatMessageZone
                 Spacer(minLength: 0)
                 syncStateBadge(text: "已同步", state: .confirmed)
             }
@@ -2533,7 +2609,7 @@ private struct PairTimelineCard: View {
         switch entry.pairCardStyle {
         case .request:
             HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                messageIdentityRow
+                chatMessageZone
 
                 Spacer(minLength: 0)
 
@@ -2558,7 +2634,7 @@ private struct PairTimelineCard: View {
             }
         case .sent:
             HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                messageIdentityRow
+                chatMessageZone
                 Spacer(minLength: 0)
 
                 if entry.responseStateText == "已拒绝" {
@@ -2574,7 +2650,7 @@ private struct PairTimelineCard: View {
             }
         case .assigned, .shared, .standard:
             HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                messageIdentityRow
+                chatMessageZone
 
                 Spacer(minLength: 0)
 
@@ -2612,6 +2688,16 @@ private struct PairTimelineCard: View {
                             : AppTheme.colors.surfaceElevated
                     )
             )
+    }
+
+    private var chatMessageZone: some View {
+        Button(action: onOpenChat) {
+            messageIdentityRow
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(chatAccessibilityLabel)
     }
 
     private var messageIdentityRow: some View {
@@ -2723,6 +2809,13 @@ private struct PairTimelineCard: View {
 
     private var visibleMessageText: String {
         messagePreview ?? ""
+    }
+
+    private var chatAccessibilityLabel: String {
+        if let messagePreview {
+            return "任务留言，最后一条 \(messagePreview)，点按打开聊天"
+        }
+        return "任务留言，点按打开聊天"
     }
 
     private var shouldShowMessageBubble: Bool {
@@ -3408,6 +3501,7 @@ private struct HomeOverdueSummarySheet: View {
                     syncState: nil,
                     assigneeText: nil,
                     messagePreview: nil,
+                    latestComment: nil,
                     responseStateText: nil,
                     needsResponse: false,
                     accentColorName: "coral",
@@ -3419,6 +3513,7 @@ private struct HomeOverdueSummarySheet: View {
                     primaryAvatar: nil,
                     secondaryAvatar: nil,
                     latestMessageAuthorName: nil,
+                    hasUnreadComment: false,
                     reminderRequestedAt: nil,
                     lastActionAt: nil
                 ),

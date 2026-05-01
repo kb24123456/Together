@@ -104,7 +104,8 @@ final class AppContext {
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
             itemRepository: container.itemRepository,
-            taskTemplateRepository: container.taskTemplateRepository
+            taskTemplateRepository: container.taskTemplateRepository,
+            taskMessageRepository: container.taskMessageRepository
         )
         self.listsViewModel = ListsViewModel(
             sessionStore: sessionStore,

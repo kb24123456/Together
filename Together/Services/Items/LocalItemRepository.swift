@@ -181,11 +181,6 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             )
             item.latestResponse = responseRecord
             item.responseHistory.append(responseRecord)
-            if let trimmedMessage, trimmedMessage.isEmpty == false {
-                item.assignmentMessages.append(
-                    TaskAssignmentMessage(authorID: actorID, body: trimmedMessage, createdAt: .now)
-                )
-            }
             item.assignmentState = ItemStateMachine.nextAssignmentState(
                 from: item.assignmentState,
                 response: response

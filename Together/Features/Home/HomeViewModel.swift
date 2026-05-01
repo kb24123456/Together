@@ -30,6 +30,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let syncState: SharedMutationDisplayState?
     let assigneeText: String?
     let messagePreview: String?
+    let latestComment: TaskMessage?
     let responseStateText: String?
     let needsResponse: Bool
     let accentColorName: String
@@ -41,6 +42,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let primaryAvatar: HomeAvatar?
     let secondaryAvatar: HomeAvatar?
     let latestMessageAuthorName: String?
+    let hasUnreadComment: Bool
     let reminderRequestedAt: Date?
     let lastActionAt: Date?
 
@@ -121,6 +123,7 @@ final class HomeViewModel {
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
     private let taskTemplateRepository: TaskTemplateRepositoryProtocol
+    private let taskMessageRepository: TaskMessageRepositoryProtocol
 
     /// 任务操作完成后的回调，参数为 spaceID，用于触发同步
     var onTaskMutated: ((UUID) -> Void)?
@@ -150,6 +153,8 @@ final class HomeViewModel {
     private var completingOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingReopeningOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
+    private var latestCommentsByTaskID: [UUID: TaskMessage] = [:]
+    private var chatReadStatesByTaskID: [UUID: TaskChatReadState] = [:]
     var showsCompletedItems = true
     var isPerformingSnooze = false
     var isOverdueSheetPresented = false
@@ -159,12 +164,14 @@ final class HomeViewModel {
         sessionStore: SessionStore,
         taskApplicationService: TaskApplicationServiceProtocol,
         itemRepository: ItemRepositoryProtocol,
-        taskTemplateRepository: TaskTemplateRepositoryProtocol
+        taskTemplateRepository: TaskTemplateRepositoryProtocol,
+        taskMessageRepository: TaskMessageRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
         self.itemRepository = itemRepository
         self.taskTemplateRepository = taskTemplateRepository
+        self.taskMessageRepository = taskMessageRepository
     }
 
     var currentUserRevision: UUID {
@@ -601,6 +608,8 @@ final class HomeViewModel {
     func reload(insertedItemIDs expectedInsertedItemIDs: Set<UUID> = []) async {
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
+            latestCommentsByTaskID = [:]
+            chatReadStatesByTaskID = [:]
             insertedItemIDs = []
             reloadRevision += 1
             return
@@ -614,6 +623,7 @@ final class HomeViewModel {
                 in: spaceID,
                 scope: scope(for: selectedDate)
             )
+            await refreshLatestComments(for: fetchedItems)
             let visibleItemIDs = Set(fetchedItems.map(\.id))
             let persistedInsertedIDs = insertedItemIDs.intersection(visibleItemIDs)
             let nextInsertedIDs = expectedInsertedItemIDs.intersection(visibleItemIDs)
@@ -631,8 +641,54 @@ final class HomeViewModel {
             }
         } catch {
             items = []
+            latestCommentsByTaskID = [:]
+            chatReadStatesByTaskID = [:]
             insertedItemIDs = []
             reloadRevision += 1
+        }
+    }
+
+    func item(for itemID: UUID) -> Item? {
+        items.first { $0.id == itemID }
+    }
+
+    func makeTaskChatViewModel(for item: Item) -> TaskChatViewModel {
+        TaskChatViewModel(
+            task: item,
+            taskApplicationService: taskApplicationService,
+            taskMessageRepository: taskMessageRepository,
+            sessionStore: sessionStore,
+            onTaskMessageMutationReady: { [weak self] change in
+                self?.onSharedMutationRecorded?(change)
+            }
+        )
+    }
+
+    private func refreshLatestComments(for items: [Item]) async {
+        let taskIDs = items
+            .filter { item in
+                isPairModeActive && (item.assigneeMode == .partner || item.assigneeMode == .both)
+            }
+            .map(\.id)
+
+        guard taskIDs.isEmpty == false else {
+            latestCommentsByTaskID = [:]
+            chatReadStatesByTaskID = [:]
+            return
+        }
+
+        do {
+            latestCommentsByTaskID = try await taskMessageRepository.fetchLatestComments(taskIDs: taskIDs)
+            var readStates: [UUID: TaskChatReadState] = [:]
+            for taskID in taskIDs {
+                if let state = try await taskMessageRepository.fetchReadState(taskID: taskID) {
+                    readStates[taskID] = state
+                }
+            }
+            chatReadStatesByTaskID = readStates
+        } catch {
+            latestCommentsByTaskID = [:]
+            chatReadStatesByTaskID = [:]
         }
     }
 
@@ -1394,6 +1450,12 @@ final class HomeViewModel {
         let pairCardStyle = pairCardStyle(for: item, viewerID: viewerID, isCompleted: isCompleted)
         let relationship = pairRelationship(for: item, viewerID: viewerID)
         let syncState = taskMutationDisplayState(for: item)
+        let latestComment = isPairMode ? latestCommentsByTaskID[item.id] : nil
+        let fallbackPreview = isPairMode ? item.assignmentMessages.last?.body : nil
+        let latestPreview = latestComment?.content ?? fallbackPreview
+        let latestAuthorName = isPairMode
+            ? (latestComment.map { latestCommentAuthorName(for: $0) } ?? latestMessageAuthorName(for: item))
+            : nil
 
         return HomeTimelineEntry(
             id: item.id,
@@ -1405,7 +1467,8 @@ final class HomeViewModel {
             assigneeText: isPairMode
                 ? item.executionRole.label(for: viewerID, creatorID: item.creatorID)
                 : nil,
-            messagePreview: isPairMode ? item.assignmentMessages.last?.body : nil,
+            messagePreview: latestPreview,
+            latestComment: latestComment,
             responseStateText: responseStateText(for: item),
             needsResponse: isPairMode && item.requiresResponse && item.canActorRespond(viewerID),
             accentColorName: accentColorName(for: item),
@@ -1416,7 +1479,8 @@ final class HomeViewModel {
             relationText: relationship.relationText,
             primaryAvatar: relationship.primaryAvatar,
             secondaryAvatar: relationship.secondaryAvatar,
-            latestMessageAuthorName: latestMessageAuthorName(for: item),
+            latestMessageAuthorName: latestAuthorName,
+            hasUnreadComment: hasUnread(latestComment, taskID: item.id),
             reminderRequestedAt: item.reminderRequestedAt,
             lastActionAt: item.lastActionAt
         )
@@ -1552,6 +1616,26 @@ final class HomeViewModel {
             return partner.displayName
         }
         return nil
+    }
+
+    private func latestCommentAuthorName(for message: TaskMessage) -> String? {
+        let currentUserID = sessionStore.currentUser?.id
+        if message.senderID == currentUserID {
+            return "你"
+        }
+        if let partner = sessionStore.pairSpaceSummary?.partner, message.senderID == partner.id {
+            return partner.displayName
+        }
+        return nil
+    }
+
+    private func hasUnread(_ message: TaskMessage?, taskID: UUID) -> Bool {
+        guard let message else { return false }
+        guard message.senderID != sessionStore.currentUser?.id else { return false }
+        guard let readAt = chatReadStatesByTaskID[taskID]?.lastReadMessageCreatedAt else {
+            return true
+        }
+        return message.createdAt > readAt
     }
 
     private func avatarMetadata(id: UUID, displayName: String, user: User?) -> HomeAvatar {
