@@ -27,18 +27,16 @@ enum ImportantDateCapsulePlanner {
             .compactMap { candidate(from: $0, referenceDate: referenceDate, calendar: calendar) }
             .filter { $0.daysUntilOrToday <= visibilityWindowDays }
 
-        let latestEligibleID = nonAnchorCandidates
+        let latest = nonAnchorCandidates
             .max { lhs, rhs in
                 if lhs.createdAt == rhs.createdAt {
                     return lhs.event.updatedAt < rhs.event.updatedAt
                 }
                 return lhs.createdAt < rhs.createdAt
-            }?
-            .id
+            }
 
-        let latest = nonAnchorCandidates.filter { $0.id == latestEligibleID }
         let remaining = nonAnchorCandidates
-            .filter { $0.id != latestEligibleID }
+            .filter { $0.id != latest?.id }
             .sorted { lhs, rhs in
                 if lhs.daysUntilOrToday == rhs.daysUntilOrToday {
                     if lhs.createdAt == rhs.createdAt {
@@ -53,7 +51,9 @@ enum ImportantDateCapsulePlanner {
         if let anchor {
             result.append(anchorCandidate(from: anchor, referenceDate: referenceDate, calendar: calendar))
         }
-        result.append(contentsOf: latest)
+        if let latest {
+            result.append(latest)
+        }
         result.append(contentsOf: remaining)
         return result
     }
@@ -68,11 +68,11 @@ enum ImportantDateCapsulePlanner {
         referenceDate: Date,
         calendar: Calendar
     ) -> ImportantDateCapsuleCandidate {
-        let days = daysUntilOrToday(for: record.event, referenceDate: referenceDate, calendar: calendar) ?? 0
+        let days = daysUntilOrToday(for: record.event, referenceDate: referenceDate, calendar: calendar)
         return ImportantDateCapsuleCandidate(
             event: record.event,
             createdAt: record.createdAt,
-            daysUntilOrToday: max(0, days),
+            daysUntilOrToday: max(0, days ?? 0),
             isToday: days == 0,
             isAnchor: true
         )
@@ -106,7 +106,9 @@ enum ImportantDateCapsulePlanner {
         switch event.recurrence {
         case .none:
             target = calendar.startOfDay(for: event.dateValue)
-        case .solarAnnual, .lunarAnnual:
+        case .solarAnnual:
+            target = nextSolarAnnualStartOfDay(for: event, referenceDate: today, calendar: calendar)
+        case .lunarAnnual:
             let previousDay = calendar.date(byAdding: .day, value: -1, to: today) ?? today
             target = event.nextOccurrence(after: previousDay, calendar: calendar).map {
                 calendar.startOfDay(for: $0)
@@ -116,5 +118,38 @@ enum ImportantDateCapsulePlanner {
         guard let target else { return nil }
         let delta = calendar.dateComponents([.day], from: today, to: target).day ?? 0
         return delta >= 0 ? delta : nil
+    }
+
+    private static func nextSolarAnnualStartOfDay(
+        for event: ImportantDate,
+        referenceDate today: Date,
+        calendar: Calendar
+    ) -> Date? {
+        let month = calendar.component(.month, from: event.dateValue)
+        let day = calendar.component(.day, from: event.dateValue)
+        var year = calendar.component(.year, from: today)
+
+        for _ in 0..<5 {
+            if let candidate = calendar.date(from: DateComponents(year: year, month: month, day: day)),
+               calendar.component(.month, from: candidate) == month,
+               calendar.component(.day, from: candidate) == day {
+                let startOfDay = calendar.startOfDay(for: candidate)
+                if startOfDay >= today {
+                    return startOfDay
+                }
+            }
+
+            if month == 2, day == 29,
+               let fallback = calendar.date(from: DateComponents(year: year, month: 2, day: 28)) {
+                let startOfDay = calendar.startOfDay(for: fallback)
+                if startOfDay >= today {
+                    return startOfDay
+                }
+            }
+
+            year += 1
+        }
+
+        return nil
     }
 }
