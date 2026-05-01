@@ -1098,10 +1098,9 @@ Expected: commit succeeds.
 **Files:**
 - Create: `Together/Features/Home/TaskChatTimelineEntry.swift`
 - Create: `Together/Features/Home/TaskChatViewModel.swift`
-- Modify: `Together/Features/Home/HomeViewModel.swift`
 - Test: `TogetherTests/TaskChatViewModelTests.swift`
 
-- [ ] **Step 1: Add timeline entry model**
+- [x] **Step 1: Add timeline entry model**
 
 Create `Together/Features/Home/TaskChatTimelineEntry.swift`:
 
@@ -1174,7 +1173,7 @@ enum TaskChatTimelineBuilder {
 }
 ```
 
-- [ ] **Step 2: Add ViewModel skeleton**
+- [x] **Step 2: Add ViewModel skeleton**
 
 Create `Together/Features/Home/TaskChatViewModel.swift`:
 
@@ -1213,7 +1212,7 @@ final class TaskChatViewModel {
 }
 ```
 
-- [ ] **Step 3: Implement load and send**
+- [x] **Step 3: Implement load and send**
 
 Add:
 
@@ -1254,7 +1253,7 @@ func send() async {
 }
 ```
 
-- [ ] **Step 4: Add ViewModel tests**
+- [x] **Step 4: Add ViewModel tests**
 
 Create `TogetherTests/TaskChatViewModelTests.swift` with tests:
 
@@ -1323,7 +1322,7 @@ struct TaskChatViewModelTests {
 }
 ```
 
-- [ ] **Step 5: Run ViewModel tests**
+- [x] **Step 5: Run ViewModel tests**
 
 Run:
 
@@ -1333,7 +1332,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit ViewModel**
+- [x] **Step 6: Commit ViewModel**
 
 Run:
 
