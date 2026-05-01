@@ -975,7 +975,6 @@ struct HomeView: View {
         sectionVisibility: CompletedSectionVisibility? = nil
     ) -> some View {
         ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-            let isCompletedRow = sectionVisibility != nil || entry.isCompleted
             Group {
                 if entry.isCompleted {
                     HomeTimelineRow(
