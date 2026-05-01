@@ -48,18 +48,7 @@ struct AnniversaryCapsuleView: View {
 
             Spacer(minLength: 0)
 
-            Button(action: onCountTap) {
-                AnniversaryCapsuleDetailText(display: detailDisplay)
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(detailAccessibilityLabel))
-            .accessibilityHint(canToggleCountMode ? Text("切换纪念日计数方式") : Text(""))
+            countContent
         }
         .foregroundStyle(AppTheme.colors.rose)
         .padding(.horizontal, AppTheme.spacing.md)
@@ -68,6 +57,32 @@ struct AnniversaryCapsuleView: View {
             Capsule(style: .continuous)
                 .fill(AppTheme.colors.rose.opacity(0.12))
         )
+    }
+
+    @ViewBuilder
+    private var countContent: some View {
+        if canToggleCountMode {
+            Button(action: onCountTap) {
+                countLabel
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(detailAccessibilityLabel))
+            .accessibilityHint(Text("切换纪念日计数方式"))
+        } else {
+            countLabel
+                .accessibilityLabel(Text(detailAccessibilityLabel))
+        }
+    }
+
+    private var countLabel: some View {
+        AnniversaryCapsuleDetailText(display: detailDisplay)
+            .font(AppTheme.typography.sized(12, weight: .semibold))
+            .foregroundStyle(AppTheme.colors.rose.opacity(0.8))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .frame(minHeight: 44)
     }
 
     private var icon: String {
