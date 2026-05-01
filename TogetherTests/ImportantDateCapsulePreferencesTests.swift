@@ -46,4 +46,49 @@ struct ImportantDateCapsulePreferencesTests {
     func invalidJSONReturnsEmpty() {
         #expect(ImportantDateCapsulePreferences.decodeCountModes("{") == [:])
     }
+
+    @Test("auto highlight temporarily overrides manual selection")
+    func autoHighlightTemporarilyOverridesManualSelection() {
+        let anchorID = UUID()
+        let birthdayID = UUID()
+
+        let displayedID = ImportantDateCapsuleSelection.displayedID(
+            candidateIDs: [anchorID, birthdayID],
+            userSelectedID: anchorID,
+            autoHighlightID: birthdayID,
+            suppressedAutoHighlightID: nil
+        )
+
+        #expect(displayedID == birthdayID)
+    }
+
+    @Test("suppressed auto highlight returns to manual selection")
+    func suppressedAutoHighlightReturnsToManualSelection() {
+        let anchorID = UUID()
+        let birthdayID = UUID()
+
+        let displayedID = ImportantDateCapsuleSelection.displayedID(
+            candidateIDs: [anchorID, birthdayID],
+            userSelectedID: anchorID,
+            autoHighlightID: birthdayID,
+            suppressedAutoHighlightID: birthdayID
+        )
+
+        #expect(displayedID == anchorID)
+    }
+
+    @Test("expired auto highlight returns to manual selection")
+    func expiredAutoHighlightReturnsToManualSelection() {
+        let anchorID = UUID()
+        let birthdayID = UUID()
+
+        let displayedID = ImportantDateCapsuleSelection.displayedID(
+            candidateIDs: [anchorID, birthdayID],
+            userSelectedID: birthdayID,
+            autoHighlightID: nil,
+            suppressedAutoHighlightID: nil
+        )
+
+        #expect(displayedID == birthdayID)
+    }
 }

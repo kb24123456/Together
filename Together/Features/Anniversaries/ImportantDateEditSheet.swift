@@ -72,10 +72,10 @@ struct ImportantDateEditSheet: View {
             }
             inlineDivider
             rowShell(label: "重复") {
-                Picker("", selection: $event.recurrence) {
-                    Text("一次性").tag(Recurrence.none)
-                    Text("公历").tag(Recurrence.solarAnnual)
-                    Text("农历").tag(Recurrence.lunarAnnual)
+                Picker("", selection: recurrenceSelection) {
+                    ForEach(recurrenceOptions, id: \.self) { recurrence in
+                        Text(recurrenceTitle(for: recurrence)).tag(recurrence)
+                    }
                 }
                 .pickerStyle(.menu)
                 .tint(AppTheme.colors.title)
@@ -146,10 +146,34 @@ struct ImportantDateEditSheet: View {
 
     private func save() {
         var updated = event
+        updated.recurrence = ImportantDate.normalizedRecurrence(updated.recurrence, for: updated.kind)
         updated.updatedAt = .now
         Task {
             await appContext.importantDatesViewModel.save(updated)
             dismiss()
+        }
+    }
+
+    private var recurrenceOptions: [Recurrence] {
+        ImportantDate.editableRecurrences(for: event.kind)
+    }
+
+    private var recurrenceSelection: Binding<Recurrence> {
+        Binding(
+            get: {
+                ImportantDate.normalizedRecurrence(event.recurrence, for: event.kind)
+            },
+            set: { newValue in
+                event.recurrence = ImportantDate.normalizedRecurrence(newValue, for: event.kind)
+            }
+        )
+    }
+
+    private func recurrenceTitle(for recurrence: Recurrence) -> String {
+        switch recurrence {
+        case .none: return "一次性"
+        case .solarAnnual: return "公历"
+        case .lunarAnnual: return "农历"
         }
     }
 }

@@ -95,6 +95,22 @@ struct ImportantDate: Identifiable, Hashable, Sendable {
 }
 
 extension ImportantDate {
+    static func editableRecurrences(for kind: ImportantDateKind) -> [Recurrence] {
+        switch kind {
+        case .birthday:
+            return [.solarAnnual, .lunarAnnual]
+        case .anniversary, .holiday, .custom:
+            return [.none, .solarAnnual, .lunarAnnual]
+        }
+    }
+
+    static func normalizedRecurrence(_ recurrence: Recurrence, for kind: ImportantDateKind) -> Recurrence {
+        if case .birthday = kind, recurrence == .none {
+            return .solarAnnual
+        }
+        return recurrence
+    }
+
     var supportsElapsedDaysDisplay: Bool {
         switch kind {
         case .anniversary, .custom:

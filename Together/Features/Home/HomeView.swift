@@ -132,13 +132,15 @@ struct HomeView: View {
         appContext.importantDatesViewModel.storedRecords
     }
 
-    private var importantDateCapsuleCandidates: [ImportantDateCapsuleCandidate] {
-        ImportantDateCapsulePlanner.candidates(from: importantDateRecords)
+    private var importantDateCapsulePlan: ImportantDateCapsulePlan {
+        ImportantDateCapsulePlanner.plan(from: importantDateRecords)
     }
 
     private var importantDateCapsulePager: some View {
-        ImportantDateCapsulePagerView(
-            candidates: importantDateCapsuleCandidates,
+        let plan = importantDateCapsulePlan
+        return ImportantDateCapsulePagerView(
+            candidates: plan.pages,
+            autoHighlightCandidateID: plan.autoHighlightCandidateID,
             viewerSupabaseUserID: appContext.currentSupabaseUserID,
             partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
             onPrimaryTap: { isImportantDatesManagementPresented = true }
@@ -351,17 +353,6 @@ struct HomeView: View {
             .padding(.bottom, isOverlayModeActive ? 4 : 0)
             .background(homeCanvasColor)
             .animation(restoreTransitionAnimation, value: appContext.startupRestorePresentationState)
-
-            LinearGradient(
-                stops: [
-                    .init(color: homeCanvasColor, location: 0),
-                    .init(color: homeCanvasColor.opacity(0), location: 1)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 20)
-            .allowsHitTesting(false)
 
             Spacer(minLength: 0)
         }
@@ -697,12 +688,6 @@ struct HomeView: View {
 
     private var standardTimelineList: some View {
         List {
-            Color.clear
-                .frame(height: 10)
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-
             if viewModel.showsOverdueCapsule {
                 overdueReminderCapsule
                     .listRowInsets(
@@ -800,12 +785,6 @@ struct HomeView: View {
 
     private var pairTimelineList: some View {
         List {
-            Color.clear
-                .frame(height: 10)
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-
             if viewModel.showsOverdueCapsule {
                 overdueReminderCapsule
                     .listRowInsets(

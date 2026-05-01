@@ -40,3 +40,34 @@ enum ImportantDateCapsulePreferences {
         return String(decoding: data, as: UTF8.self)
     }
 }
+
+enum ImportantDateCapsuleSelection {
+    static func displayedID(
+        candidateIDs: [UUID],
+        userSelectedID: UUID?,
+        autoHighlightID: UUID?,
+        suppressedAutoHighlightID: UUID?
+    ) -> UUID? {
+        guard candidateIDs.isEmpty == false else { return nil }
+        let validIDs = Set(candidateIDs)
+        let userSelectedID = userSelectedID.flatMap { validIDs.contains($0) ? $0 : nil }
+        let autoHighlightID = autoHighlightID.flatMap { validIDs.contains($0) ? $0 : nil }
+        let suppressedAutoHighlightID = suppressedAutoHighlightID.flatMap { validIDs.contains($0) ? $0 : nil }
+
+        if let autoHighlightID, suppressedAutoHighlightID != autoHighlightID {
+            return autoHighlightID
+        }
+        if let userSelectedID {
+            return userSelectedID
+        }
+        return candidateIDs.first
+    }
+
+    static func shouldClearSuppressedAutoHighlightID(
+        _ suppressedAutoHighlightID: UUID?,
+        currentAutoHighlightID: UUID?
+    ) -> Bool {
+        guard let suppressedAutoHighlightID else { return false }
+        return suppressedAutoHighlightID != currentAutoHighlightID
+    }
+}
