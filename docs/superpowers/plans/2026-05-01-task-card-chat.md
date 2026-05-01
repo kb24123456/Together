@@ -13,7 +13,7 @@
 ## File Structure
 
 **Backend / Supabase**
-- Create: `supabase/migrations/040_task_message_comments_constraints.sql`
+- Create: `supabase/migrations/041_task_message_comments_constraints.sql`
 - Modify: `supabase/functions/send-push-notification/index.ts` only if tests show `comment` payload needs extra fields; default push text stays privacy-preserving.
 
 **Domain and persistence**
@@ -57,16 +57,16 @@
 ## Task 1: Supabase Comment Constraints
 
 **Files:**
-- Create: `supabase/migrations/040_task_message_comments_constraints.sql`
+- Create: `supabase/migrations/041_task_message_comments_constraints.sql`
 - Verify: `supabase/migrations/036_add_core_check_constraints.sql`
 - Verify: `supabase/functions/send-push-notification/index.ts`
 
 - [ ] **Step 1: Add migration for comment content and completed-task guard**
 
-Create `supabase/migrations/040_task_message_comments_constraints.sql`:
+Create `supabase/migrations/041_task_message_comments_constraints.sql`:
 
 ```sql
--- Migration 040: task message comment constraints
+-- Migration 041: task message comment constraints
 --
 -- Chat comments now use task_messages(type='comment', content=...).
 -- The app enforces these checks client-side too, but the database remains
@@ -81,7 +81,7 @@ ALTER TABLE public.task_messages
     type <> 'comment'
     OR (
       content IS NOT NULL
-      AND length(btrim(content)) BETWEEN 1 AND 500
+      AND length(regexp_replace(content, '^[[:space:]]+|[[:space:]]+$', '', 'g')) BETWEEN 1 AND 500
     )
   ) NOT VALID;
 
@@ -92,6 +92,7 @@ DROP POLICY IF EXISTS "space members can insert task messages" ON public.task_me
 
 CREATE POLICY "space members can insert task messages" ON public.task_messages
   FOR INSERT
+  TO authenticated
   WITH CHECK (
     EXISTS (
       SELECT 1
@@ -101,7 +102,7 @@ CREATE POLICY "space members can insert task messages" ON public.task_messages
         AND (
           task_messages.type <> 'comment'
           OR (
-            tasks.status <> 'completed'
+            tasks.status IS DISTINCT FROM 'completed'
             AND coalesce(tasks.is_deleted, false) = false
           )
         )
@@ -127,7 +128,7 @@ Run:
 
 ```bash
 git diff --check
-git add supabase/migrations/040_task_message_comments_constraints.sql
+git add supabase/migrations/041_task_message_comments_constraints.sql
 git commit -m "chore: constrain task message comments"
 ```
 
