@@ -1,4 +1,6 @@
+import Observation
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @Environment(AppContext.self) private var appContext
@@ -27,6 +29,7 @@ struct HomeView: View {
     @State private var isTaskChatShellExpanded = false
     @State private var isTaskChatContentVisible = false
     @State private var taskChatContentRevealTask: Task<Void, Never>?
+    @State private var taskChatKeyboardMetrics = TaskChatKeyboardMetrics()
     @State private var pairTimelineCardFrames: [UUID: CGRect] = [:]
 
     private let weekPageBreathingGap: CGFloat = 0
@@ -109,8 +112,6 @@ struct HomeView: View {
         }
         .overlay {
             taskChatOverlay
-                .ignoresSafeArea(.all)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .onPreferenceChange(PairTimelineCardFramePreferenceKey.self) { frames in
             pairTimelineCardFrames = frames
@@ -165,6 +166,7 @@ struct HomeView: View {
                 sourceFrame: selectedChatSourceFrame,
                 isExpanded: isTaskChatShellExpanded,
                 isContentVisible: isTaskChatContentVisible,
+                keyboardOverlap: taskChatKeyboardMetrics.overlap,
                 reduceMotion: reduceMotion,
                 viewModel: selectedChatViewModel,
                 currentUserID: appContext.sessionStore.currentUser?.id,
@@ -173,6 +175,12 @@ struct HomeView: View {
                 onDismiss: dismissChat
             )
             .zIndex(20)
+            .onAppear {
+                taskChatKeyboardMetrics.start()
+            }
+            .onDisappear {
+                taskChatKeyboardMetrics.stop()
+            }
         }
     }
 
@@ -202,8 +210,8 @@ struct HomeView: View {
         }
 
         taskChatContentRevealTask = Task { @MainActor in
-            let delay: UInt64 = reduceMotion ? 20_000_000 : 150_000_000
-            try? await Task.sleep(nanoseconds: delay)
+            let delay: Duration = reduceMotion ? .milliseconds(20) : .milliseconds(150)
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
             withAnimation(taskChatContentAnimation) {
                 isTaskChatContentVisible = true
@@ -230,8 +238,8 @@ struct HomeView: View {
         }
 
         Task { @MainActor in
-            let delay: UInt64 = reduceMotion ? 120_000_000 : 320_000_000
-            try? await Task.sleep(nanoseconds: delay)
+            let delay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(320)
+            try? await Task.sleep(for: delay)
             clearChatOverlay()
 
             if shouldRefresh {
@@ -3607,6 +3615,7 @@ private struct TaskChatMorphOverlay: View {
     let sourceFrame: CGRect?
     let isExpanded: Bool
     let isContentVisible: Bool
+    let keyboardOverlap: CGFloat
     let reduceMotion: Bool
     @Bindable var viewModel: TaskChatViewModel
     let currentUserID: UUID?
@@ -3617,6 +3626,7 @@ private struct TaskChatMorphOverlay: View {
     private let horizontalInset: CGFloat = AppTheme.spacing.md
     private let topInset: CGFloat = AppTheme.spacing.lg
     private let bottomInset: CGFloat = AppTheme.spacing.md
+    private let keyboardGap: CGFloat = AppTheme.spacing.sm
 
     var body: some View {
         GeometryReader { proxy in
@@ -3625,14 +3635,7 @@ private struct TaskChatMorphOverlay: View {
             let activeFrame = reduceMotion || isExpanded ? finalFrame : collapsedFrame
 
             ZStack {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(isExpanded ? 1 : 0)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .ignoresSafeArea(.all)
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: onDismiss)
+                backgroundScrim
 
                 panelShell(frame: activeFrame)
 
@@ -3651,17 +3654,38 @@ private struct TaskChatMorphOverlay: View {
                 .position(x: activeFrame.midX, y: activeFrame.midY)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-            .ignoresSafeArea()
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .animation(panelAnimation, value: keyboardOverlap)
         }
     }
 
     private func finalPanelFrame(in proxy: GeometryProxy) -> CGRect {
         let top = proxy.safeAreaInsets.top + topInset
-        let bottom = min(proxy.safeAreaInsets.bottom, 44) + bottomInset
+        let bottom = panelBottomInset(safeAreaBottom: proxy.safeAreaInsets.bottom)
         let width = max(proxy.size.width - horizontalInset * 2, 1)
         let height = max(proxy.size.height - top - bottom, 1)
         return CGRect(x: horizontalInset, y: top, width: width, height: height)
+    }
+
+    private var backgroundScrim: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .opacity(isExpanded ? 1 : 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.all)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onDismiss)
+    }
+
+    private var panelAnimation: Animation? {
+        reduceMotion ? .easeOut(duration: 0.16) : AppTheme.motion.smooth
+    }
+
+    private func panelBottomInset(safeAreaBottom: CGFloat) -> CGFloat {
+        if keyboardOverlap > 0 {
+            return keyboardOverlap + keyboardGap
+        }
+        return safeAreaBottom + bottomInset
     }
 
     private func collapsedPanelFrame(fallback finalFrame: CGRect) -> CGRect {
@@ -3689,6 +3713,69 @@ private struct TaskChatMorphOverlay: View {
             )
             .scaleEffect(isExpanded ? 1 : 0.965)
             .position(x: frame.midX, y: frame.midY)
+    }
+}
+
+@MainActor
+@Observable
+private final class TaskChatKeyboardMetrics {
+    private(set) var overlap: CGFloat = 0
+
+    @ObservationIgnored private var willChangeFrameObserver: NSObjectProtocol?
+    @ObservationIgnored private var willHideObserver: NSObjectProtocol?
+
+    func start() {
+        guard willChangeFrameObserver == nil, willHideObserver == nil else { return }
+
+        let center = NotificationCenter.default
+        willChangeFrameObserver = center.addObserver(
+            forName: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+            Task { @MainActor [weak self] in
+                self?.updateOverlap(for: frame)
+            }
+        }
+
+        willHideObserver = center.addObserver(
+            forName: UIResponder.keyboardWillHideNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.overlap = 0
+            }
+        }
+    }
+
+    func stop() {
+        let center = NotificationCenter.default
+        if let willChangeFrameObserver {
+            center.removeObserver(willChangeFrameObserver)
+        }
+        if let willHideObserver {
+            center.removeObserver(willHideObserver)
+        }
+        willChangeFrameObserver = nil
+        willHideObserver = nil
+        overlap = 0
+    }
+
+    private func updateOverlap(for frame: CGRect?) {
+        guard
+            let frame,
+            let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first,
+            let window = windowScene.windows.first(where: \.isKeyWindow)
+        else {
+            overlap = 0
+            return
+        }
+
+        overlap = max(0, window.bounds.maxY - frame.minY - window.safeAreaInsets.bottom)
     }
 }
 
