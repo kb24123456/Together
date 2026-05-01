@@ -868,7 +868,7 @@ Expected: commit succeeds.
 - Modify: `TogetherTests/TaskMessagePushDTOTests.swift`
 - Create: `TogetherTests/TaskMessageSyncTests.swift`
 
-- [ ] **Step 1: Write DTO encoding test for content**
+- [x] **Step 1: Write DTO encoding test for content**
 
 Extend `TaskMessagePushDTOTests`:
 
@@ -894,7 +894,7 @@ Extend `TaskMessagePushDTOTests`:
 }
 ```
 
-- [ ] **Step 2: Extend push DTO**
+- [x] **Step 2: Extend push DTO**
 
 Modify `TaskMessagePushDTO`:
 
@@ -930,7 +930,7 @@ struct TaskMessagePushDTO: Encodable, Sendable {
 
 Update the manual initializer to include `content: String? = nil`.
 
-- [ ] **Step 3: Enable task message outbox enqueue**
+- [x] **Step 3: Enable task message outbox enqueue**
 
 After `TaskMessagePushDTO` includes `content`, update `sendTaskComment` in
 `DefaultTaskApplicationService` to record the task message sync change after
@@ -946,7 +946,7 @@ Add or update an application-service test to assert one `.taskMessage` local
 change is recorded for a non-empty comment. This test belongs in Task 5 because
 the outbox entry is only safe after content encoding is supported.
 
-- [ ] **Step 4: Rename push-only comments**
+- [x] **Step 4: Rename push-only comments**
 
 In `SyncCoordinatorProtocol`, change the task message comment:
 
@@ -956,7 +956,7 @@ case taskMessage   // Supabase task_messages event stream: comments, nudges, fut
 
 In `SupabaseSyncService`, update the DTO comment to remove “write-only”.
 
-- [ ] **Step 5: Add pull DTO**
+- [x] **Step 5: Add pull DTO**
 
 Add below `TaskMessagePushDTO`:
 
@@ -1000,7 +1000,7 @@ struct TaskMessagePullDTO: Decodable, Sendable {
 }
 ```
 
-- [ ] **Step 6: Add pullTaskMessages method**
+- [x] **Step 6: Add pullTaskMessages method**
 
 In `SupabaseSyncService`, add:
 
@@ -1026,7 +1026,7 @@ private func pullTaskMessages(spaceID: UUID, since: String) async throws {
 }
 ```
 
-- [ ] **Step 7: Wire catch-up and realtime**
+- [x] **Step 7: Wire catch-up and realtime**
 
 In `catchUp`, call after `pullTasks`:
 
@@ -1054,7 +1054,7 @@ listeningTasks.append(Task { [weak self] in
 })
 ```
 
-- [ ] **Step 8: Preserve FK retry**
+- [x] **Step 8: Preserve FK retry**
 
 In `push()` or outbox drain logic, verify failed `.taskMessage` push is not deleted when Supabase rejects due to missing parent `task_id`. If current code deletes on any thrown error, change it so thrown errors keep the sync change for retry.
 
@@ -1069,7 +1069,7 @@ do {
 }
 ```
 
-- [ ] **Step 9: Run sync tests**
+- [x] **Step 9: Run sync tests**
 
 Run:
 
@@ -1079,7 +1079,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 10: Commit sync work**
+- [x] **Step 10: Commit sync work**
 
 Run:
 

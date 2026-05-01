@@ -15,16 +15,18 @@
 
 - 分支：`codex/task-card-chat`
 - 当前任务：双人任务卡片聊天功能，执行计划见 `docs/superpowers/plans/2026-05-01-task-card-chat.md`。
-- 最新提交：`0796700 feat: write pair task comments to task messages`。
+- 最新功能进度：Task 5 `Supabase TaskMessage Push/Pull` 已完成，等待继续 Task 6。
 - 已完成并提交：
   - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。
   - Task 2 + Task 3：`TaskMessageType`、`TaskMessageCursor`、`PersistentTaskMessage.content`、`PersistentTaskChatReadState`、`TaskMessageRepositoryProtocol`、local/mock repository 和 repository 测试，提交 `7292bbd`。
   - Task 4：应用服务将用户留言写入 `task_messages`，`assignmentMessages` 作为 legacy fallback；Task 4 comment 写入保持 local-only，不记录 `.taskMessage` sync；`sendReminderToPartner` 的 nudge sync 未改，提交 `0796700`。
+  - Task 5：`TaskMessagePushDTO` 支持 `content` 和 `sender_supabase_user_id`；新增 `TaskMessagePullDTO`；Supabase catch-up 在 `pullTasks` 后拉取 `task_messages`；Realtime 监听 `task_messages`；`sendTaskComment` 在本地 comment 写入成功后恢复 `.taskMessage` outbox enqueue。
 - 最近验证：
   - Task 2/3：`TogetherTests/TaskMessageRepositoryTests` 通过；一次 review 代理额外跑过完整 `Together` 测试 483/483 通过。
   - Task 4：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -only-testing:TogetherTests/SendReminderToPartnerTests` 通过；`git diff --check` 通过。
-- 立即续接点：先对最新 Task 4 提交 `0796700` 做 spec/code quality 复审；如果通过，进入 Task 5 `Supabase TaskMessage Push/Pull`。
-- Task 5 必须注意：只有在 `TaskMessagePushDTO` 支持 `content`、pull/catch-up/realtime 支持 `task_messages` 后，才能在 `sendTaskComment` 中恢复 `.taskMessage` outbox enqueue。否则 migration `041` 会拒绝缺少 content 的 comment 行。
+- Task 5：`git diff --check` 通过；`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/TaskMessageSyncTests ...` 通过 DTO / pull DTO 测试；`xcodebuild test-without-building -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests` 通过应用层 outbox 相关测试。
+- 立即续接点：进入 Task 6 `Chat Timeline ViewModel`，先实现 `TaskChatTimelineEntry` 与 `TaskChatViewModel`，再把 Home 侧聊天入口接到 repository/service。
+- Task 5 后续真机/后端验收：当前只做本地编译与单测，未对生产 Supabase 实际执行 `task_messages` pull/realtime 联调；上线前需要用双端真机验证 comment 离线重试、catch-up 拉回、Realtime 刷新。
 - 已知后续风险：
   - `PersistentTaskChatReadState` 当前只存 `lastReadMessageCreatedAt`，未来做 unread 精确计算时可能需要升级为 `(createdAt, messageID)` 游标。
   - Home/Calendar 预览仍读 legacy `assignmentMessages`；Task 7 需切到 `fetchLatestComments`。

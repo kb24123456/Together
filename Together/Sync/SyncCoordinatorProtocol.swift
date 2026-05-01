@@ -9,7 +9,7 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
     case space
     case memberProfile
     case avatarAsset
-    case taskMessage   // Push-only event log entity (Supabase task_messages table)
+    case taskMessage   // Supabase task_messages event stream: comments, nudges, future task-scoped events
     case importantDate
 
     /// Maps entity kind to the CKRecord type used by the codec registry.

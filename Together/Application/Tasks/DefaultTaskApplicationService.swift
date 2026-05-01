@@ -414,7 +414,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             content: trimmed,
             createdAt: createdAt
         )
-        // Task 5 records the .taskMessage sync change after TaskMessagePushDTO includes comment content.
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
+        )
         return TaskMessage(
             id: messageID,
             taskID: taskID,

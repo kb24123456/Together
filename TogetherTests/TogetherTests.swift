@@ -1358,10 +1358,11 @@ struct TogetherTests {
 
         #expect(created.assignmentMessages.isEmpty)
         #expect(messages.count == 1)
-        #expect(messages.first?.type == .comment)
-        #expect(messages.first?.content == "买低脂的")
+        let message = try #require(messages.first)
+        #expect(message.type == .comment)
+        #expect(message.content == "买低脂的")
         #expect(recordedChanges.contains { $0.entityKind == .task && $0.operation == .upsert && $0.recordID == created.id })
-        #expect(recordedChanges.contains { $0.entityKind == .taskMessage } == false)
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == message.id })
     }
 
     @Test
@@ -1625,6 +1626,40 @@ struct TogetherTests {
     }
 
     @Test
+    func sendTaskCommentRecordsTaskMessageSyncChange() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let itemRepository = LocalItemRepository(container: persistence.container)
+        let messageRepository = LocalTaskMessageRepository(container: persistence.container)
+        let syncCoordinator = TestSyncCoordinator()
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            taskMessageRepository: messageRepository,
+            syncCoordinator: syncCoordinator,
+            reminderScheduler: MockReminderScheduler()
+        )
+        let created = try await service.createTask(
+            in: MockDataFactory.pairSharedSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "显式留言同步",
+                assigneeMode: .partner
+            )
+        )
+
+        let comment = try #require(try await service.sendTaskComment(
+            in: MockDataFactory.pairSharedSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.partnerUserID,
+            content: " 请确认 "
+        ))
+        let stored = try #require(try await messageRepository.fetchMessage(messageID: comment.id))
+        let recordedChanges = await syncCoordinator.pendingChanges()
+
+        #expect(stored.content == "请确认")
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == comment.id })
+    }
+
+    @Test
     func respondToTaskMessageWritesCommentNotAssignmentMessages() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
@@ -1654,6 +1689,7 @@ struct TogetherTests {
             message: "有点忙"
         )
         let messages = try await messageRepository.fetchMessages(taskID: created.id, limit: 20, before: nil)
+        let recordedChanges = await syncCoordinator.pendingChanges()
 
         #expect(updated.assignmentState == .declined)
         #expect(updated.status == .declinedOrBlocked)
@@ -1663,8 +1699,10 @@ struct TogetherTests {
         #expect(updated.responseHistory.first?.message == "有点忙")
         #expect(updated.assignmentMessages.isEmpty)
         #expect(messages.count == 1)
-        #expect(messages.first?.type == .comment)
-        #expect(messages.first?.content == "有点忙")
+        let message = try #require(messages.first)
+        #expect(message.type == .comment)
+        #expect(message.content == "有点忙")
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == message.id })
     }
 
     @Test
@@ -1744,11 +1782,14 @@ struct TogetherTests {
             message: " 我来处理 "
         )
         let messages = try await messageRepository.fetchMessages(taskID: created.id, limit: 20, before: nil)
+        let recordedChanges = await syncCoordinator.pendingChanges()
 
         #expect(updated.assignmentMessages.isEmpty)
         #expect(messages.count == 1)
-        #expect(messages.first?.type == .comment)
-        #expect(messages.first?.content == "我来处理")
+        let message = try #require(messages.first)
+        #expect(message.type == .comment)
+        #expect(message.content == "我来处理")
+        #expect(recordedChanges.contains { $0.entityKind == .taskMessage && $0.operation == .upsert && $0.recordID == message.id })
     }
 
     @Test
