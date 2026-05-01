@@ -332,7 +332,7 @@ struct ImportantDatesManagementView: View {
             dateValue: .now, recurrence: .solarAnnual,
             notifyDaysBefore: 7, notifyOnDay: true,
             icon: "heart.fill", presetHolidayID: nil,
-            showsElapsedDays: false,
+            showsElapsedDays: true,
             updatedAt: .now
         )
         showEdit = seed

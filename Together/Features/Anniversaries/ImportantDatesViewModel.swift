@@ -9,6 +9,7 @@ final class ImportantDatesViewModel {
     static let freeAnniversaryQuota = 3
 
     var events: [ImportantDate] = []
+    private(set) var storedRecords: [ImportantDateStoredRecord] = []
     var isLoading = false
     var onChange: (@MainActor @Sendable () async -> Void)?
 
@@ -41,7 +42,9 @@ final class ImportantDatesViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            events = try await repository.fetchAll(spaceID: spaceID)
+            let records = try await repository.fetchAllStoredRecords(spaceID: spaceID)
+            storedRecords = records
+            events = records.map(\.event)
         } catch {
             logger.error("load failed: \(error.localizedDescription)")
         }

@@ -11,15 +11,25 @@ actor LocalImportantDateRepository: ImportantDateRepositoryProtocol {
     }
 
     func fetchAll(spaceID: UUID) async throws -> [ImportantDate] {
+        let records = try await fetchAllStoredRecords(spaceID: spaceID)
+        return records.map(\.event)
+    }
+
+    func fetchAllStoredRecords(spaceID: UUID) async throws -> [ImportantDateStoredRecord] {
         let context = ModelContext(modelContainer)
         let descriptor = FetchDescriptor<PersistentImportantDate>(
             predicate: #Predicate {
                 $0.spaceID == spaceID && $0.isLocallyDeleted == false
             },
-            sortBy: [SortDescriptor(\.dateValue)]
+            sortBy: [
+                SortDescriptor(\.dateValue),
+                SortDescriptor(\.createdAt, order: .reverse)
+            ]
         )
         let rows = try context.fetch(descriptor)
-        return rows.map { $0.domainModel() }
+        return rows.map {
+            ImportantDateStoredRecord(event: $0.domainModel(), createdAt: $0.createdAt)
+        }
     }
 
     func fetch(id: UUID) async throws -> ImportantDate? {

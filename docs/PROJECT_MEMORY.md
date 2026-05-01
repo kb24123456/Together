@@ -36,6 +36,7 @@
 - 当前首页 UI 保留，语义上作为单人模式 Today 首页继续深化。
 - 决策、纪念日、邀请、绑定、关系页属于后续附加模块或旧逻辑遗留，不作为 V1 主链路。
 - 当前不做多人模式、社区、内容流、开放社交，也不做只为视觉好看的复杂交互。
+- 双人 Today 的重要日期胶囊规则：默认 anchor 为 `.anniversary`（在一起的日子）；非 anchor 日期只有在当天或未来 7 天内进入 Today；最新添加日期只能在进入 7 天窗口后排在 anchor 之后，不能突破窗口；用户滑动选择会持久化，若所选日期离开候选池则回到当前 planner 第一项。
 
 ## 工程记忆
 
@@ -75,6 +76,7 @@
 - 自定义动画必须状态驱动，拆成 2 到 3 个连续阶段，避免主线程重计算、同步 IO、动画中重排序。
 - 自定义动画需验证 Reduce Motion 降级、连续触发和性能。
 - 日志页偏信息浏览场景，不应把完成记录列表包在白色圆角分组卡片里；默认使用直接列表、保留 swipe actions，不再额外弹详情 sheet。随着历史任务变多，打开页应避免全量 hydration，优先 repository 层分页、轻量 aggregate 和 SwiftUI `List` 虚拟化。
+- Today 重要日期胶囊采用单层胶囊分页，不露出叠放层；只有多个候选日期时显示 4pt 轻量分页点；计数方式切换改为点按视觉上的计数区域，只有支持累计天数的纪念日才暴露为 Button，命中区域至少 44x44pt，生日/节日等不可切换日期显示为静态文本。
 
 ## 近期优先级
 
@@ -109,6 +111,7 @@
 - 2026-04-30：修复 build 25 真机反馈的纪念日累计天数体验：生产 Supabase 已应用 `shows_elapsed_days` 字段迁移并回填现有 anniversary；`AnniversaryCapsuleView` 长按改为与点按互斥的手势，避免长按切换被 Button 吞掉或触发打开 sheet；`ImportantDatesManagementView` 标题改回 inline 原生 toolbar 居中。验证 `git diff --check`、iOS Simulator build、完整 `xcodebuild test` 通过；仍需 TestFlight 真机确认长按手感。
 - 2026-05-01：修复 build 27 真机反馈的纪念日胶囊 `.numericText` 生硬跳变、Profile 纪念日管理 sheet 与 Today 不一致、双人 APNs 后台推送不稳定。`AnniversaryCapsuleView` 右侧整段“还有/已经 N 天”改为稳定 Text + 显式 `.animation(..., value:)` + `.numericText(value:)`；`ImportantDatesManagementSheet` 成为 Today/Profile 共用入口；`send-push-notification` Edge Function 已部署到 Supabase，APNs 改为 production endpoint 优先，`BadDeviceToken` 时回退 sandbox，并补齐 task created / accepted / declined / completed / nudge 的事件类型和通用通知 tap 打开任务。验证 iOS Simulator build、Deno check 通过；生产 DB 迁移未执行，当前修复不依赖新 DB 列。
 - 2026-05-01：定位并修复 TestFlight 真机 APNs 全部无通知的后端根因。生产库 `tasks INSERT/UPDATE`、`task_messages INSERT`、`space_members DELETE` trigger 存在，`device_tokens` 也有两端 64 位 token；失败点是 `notify_push_on_change()` 通过 `net.http_post` 调 Edge Function 时没有有效 Authorization，`net._http_response` 全部为 `401 UNAUTHORIZED_NO_AUTH_HEADER`。长期修复：`send-push-notification` 改为 `--no-verify-jwt` 部署，但函数内部强制校验 `X-Together-Webhook-Secret`；生产 DB 新增私有 `private.app_secrets` 存储 webhook secret，trigger 函数从私有表读取并带自定义 header。验证：无 header 直调函数返回 401；DB `net.http_post` 带私有 secret 调函数返回 200 `No members`；函数版本 11、`verify_jwt=false`；私有 secret 表对 `anon/authenticated` 无 select 权限；`git diff --check` 通过。下一步可进行 TestFlight 真机 APNs 验收。
+- 2026-05-01：实现 Today 重要日期胶囊改版，分支 `codex/today-important-date-capsule`。新增 `ImportantDateStoredRecord` 保留 `createdAt`，`ImportantDateCapsulePlanner` 负责 anchor/7 天窗口/排序/solar+lunar 时区稳定计算，`ImportantDateCapsulePreferences` 负责 per-date 选择与计数模式 JSON，`ImportantDateCapsulePagerView` 接入 HomeView。`AnniversaryCapsuleView` 不再用长按或旧全局 count key，倒计时显示使用 planner 传入的 `daysUntilOrToday`，避免回到 `ImportantDate.nextOccurrence` 的 `.current` 时区路径。验证：`git diff --check main..HEAD`、iOS Simulator build、`ImportantDateCapsulePlannerTests`、`ImportantDateCapsulePreferencesTests`、`ImportantDatesViewModelCapsuleTests` 通过；`build_run_sim` 在 iPhone 17 Pro simulator 启动成功并截图。仍需带真实 pair 数据做手动滑动、VoiceOver 与大字体视觉验收。
 
 ## Open Questions
 
