@@ -1525,7 +1525,7 @@ Expected: commit succeeds.
 - Create: `Together/Features/Home/TaskChatPanelView.swift`
 - Modify: `Together/Features/Home/HomeView.swift`
 
-- [ ] **Step 1: Create chat panel view**
+- [x] **Step 1: Create chat panel view**
 
 Create `TaskChatPanelView.swift`:
 
@@ -1562,7 +1562,7 @@ struct TaskChatPanelView: View {
 
 Add `header`, `row(for:)`, and `composer` in the same file. Use existing `UserAvatarView` or `PairTimelineAvatarStrip` components for avatars; do not create a separate image loading system.
 
-- [ ] **Step 2: Implement message rows**
+- [x] **Step 2: Implement message rows**
 
 Use this structure for comments:
 
@@ -1615,7 +1615,7 @@ private func avatar(for userID: UUID) -> some View {
 }
 ```
 
-- [ ] **Step 3: Implement composer**
+- [x] **Step 3: Implement composer**
 
 Use `TextField(axis: .vertical)`:
 
@@ -1638,7 +1638,7 @@ private var composer: some View {
 }
 ```
 
-- [ ] **Step 4: Add overlay state to HomeView**
+- [x] **Step 4: Add overlay state to HomeView**
 
 In `HomeView`, add state:
 
@@ -1698,7 +1698,7 @@ Add overlay:
 
 If `matchedGeometryEffect` causes blur or unreadable text on device, keep the same state model but use scale/opacity transition; the spec allows native-feeling overlay morph without sacrificing readability.
 
-- [ ] **Step 5: Add Reduce Motion fallback**
+- [x] **Step 5: Add Reduce Motion fallback**
 
 Check `@Environment(\.accessibilityReduceMotion)` and use:
 
@@ -1707,7 +1707,7 @@ let animation: Animation? = reduceMotion ? .easeOut(duration: 0.16) : .spring(re
 withAnimation(animation) { selectedChatItemID = nil }
 ```
 
-- [ ] **Step 6: Build**
+- [x] **Step 6: Build**
 
 Run:
 
@@ -1717,7 +1717,7 @@ xcodebuild build -project Together.xcodeproj -scheme Together -destination 'plat
 
 Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 7: Commit UI panel**
+- [x] **Step 7: Commit UI panel**
 
 Run:
 

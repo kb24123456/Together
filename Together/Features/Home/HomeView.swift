@@ -21,6 +21,8 @@ struct HomeView: View {
     @State private var isMonthPagerSettling = false
     @State private var highlightedTaskID: UUID?
     @State private var isImportantDatesManagementPresented = false
+    @State private var selectedChatItemID: UUID?
+    @State private var selectedChatViewModel: TaskChatViewModel?
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -100,6 +102,9 @@ struct HomeView: View {
         .sheet(isPresented: $isImportantDatesManagementPresented) {
             ImportantDatesManagementSheet()
         }
+        .overlay {
+            taskChatOverlay
+        }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
         }
@@ -119,6 +124,72 @@ struct HomeView: View {
             Task {
                 await viewModel.reload()
                 updateTodayJumpButtonVisibility()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var taskChatOverlay: some View {
+        if selectedChatItemID != nil, let selectedChatViewModel {
+            ZStack {
+                Button(action: dismissChat) {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .ignoresSafeArea()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭任务聊天")
+
+                TaskChatPanelView(
+                    viewModel: selectedChatViewModel,
+                    currentUserID: appContext.sessionStore.currentUser?.id,
+                    partnerAvatar: viewModel.pairPreviewAvatar,
+                    currentUserAvatar: viewModel.currentUserAvatar,
+                    onDismiss: dismissChat
+                )
+                .padding(.horizontal, AppTheme.spacing.md)
+                .safeAreaPadding(.top, AppTheme.spacing.lg)
+                .safeAreaPadding(.bottom, AppTheme.spacing.md)
+                .transition(taskChatPanelTransition)
+            }
+            .transition(.opacity)
+            .zIndex(20)
+        }
+    }
+
+    private var taskChatPanelTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .scale(scale: 0.94, anchor: .center).combined(with: .opacity)
+    }
+
+    private var taskChatOverlayAnimation: Animation? {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.86)
+    }
+
+    private func openChat(for itemID: UUID) {
+        guard selectedChatItemID != itemID else { return }
+        guard let item = viewModel.item(for: itemID) else { return }
+
+        HomeInteractionFeedback.selection()
+        let chatViewModel = viewModel.makeTaskChatViewModel(for: item)
+        withAnimation(taskChatOverlayAnimation) {
+            selectedChatItemID = itemID
+            selectedChatViewModel = chatViewModel
+        }
+    }
+
+    private func dismissChat() {
+        let shouldRefresh = selectedChatItemID != nil
+        withAnimation(taskChatOverlayAnimation) {
+            selectedChatItemID = nil
+            selectedChatViewModel = nil
+        }
+
+        if shouldRefresh {
+            Task {
+                await viewModel.reload()
             }
         }
     }
@@ -1174,7 +1245,9 @@ struct HomeView: View {
                     await viewModel.sendReminderToPartner(entry.id)
                 }
             },
-            onOpenChat: {}
+            onOpenChat: {
+                openChat(for: entry.id)
+            }
         )
         .id(entry.id)
         .listRowInsets(

@@ -15,7 +15,7 @@
 
 - 分支：`codex/task-card-chat`
 - 当前任务：双人任务卡片聊天功能，执行计划见 `docs/superpowers/plans/2026-05-01-task-card-chat.md`。
-- 最新功能进度：Task 7 `Home Latest Comment Preview` 已完成，等待继续 Task 8。
+- 最新功能进度：Task 8 `TaskChatPanelView and Morph Overlay` 已完成，等待继续 Task 9。
 - 已完成并提交：
   - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。
   - Task 2 + Task 3：`TaskMessageType`、`TaskMessageCursor`、`PersistentTaskMessage.content`、`PersistentTaskChatReadState`、`TaskMessageRepositoryProtocol`、local/mock repository 和 repository 测试，提交 `7292bbd`。
@@ -23,13 +23,15 @@
   - Task 5：`TaskMessagePushDTO` 支持 `content` 和 `sender_supabase_user_id`；新增 `TaskMessagePullDTO`；Supabase catch-up 在 `pullTasks` 后拉取 `task_messages`；Realtime 监听 `task_messages`；`sendTaskComment` 在本地 comment 写入成功后恢复 `.taskMessage` outbox enqueue。
   - Task 6：新增 `TaskChatTimelineEntry` / `TaskChatTimelineBuilder` / `TaskChatViewModel`，聊天面板状态与 Home 卡片保持解耦；ViewModel 支持加载最近消息、发送 comment、500 字上限、本地已读游标。
   - Task 7：Home 卡片预览切到 `task_messages` 最新 comment，`assignmentMessages` 只保留 legacy fallback；`HomeTimelineEntry` 增加 latest comment / unread 状态，留言区域建立 44pt 以上触控入口。
+  - Task 8：新增 `TaskChatPanelView`，实现任务聊天面板、头像消息气泡、nudge/system 居中状态、`TextField(axis: .vertical)` composer、Material 背景模糊和 Reduce Motion 降级；Home 使用稳定的 selected chat ViewModel，避免 body 重建导致输入态丢失。
 - 最近验证：
   - Task 2/3：`TogetherTests/TaskMessageRepositoryTests` 通过；一次 review 代理额外跑过完整 `Together` 测试 483/483 通过。
   - Task 4：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -only-testing:TogetherTests/SendReminderToPartnerTests` 通过；`git diff --check` 通过。
 - Task 5：`git diff --check` 通过；`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/TaskMessageSyncTests ...` 通过 DTO / pull DTO 测试；`xcodebuild test-without-building -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests` 通过应用层 outbox 相关测试。
 - Task 6：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskChatViewModelTests` 通过；覆盖 timeline 排序、忽略未知消息、load 标记已读、send trim/append/markRead、超长拦截。
 - Task 7：`xcodebuild test-without-building -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests` 通过，新增 `homeViewModelPairPreviewUsesLatestTaskMessageComment`；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`git diff --check` 通过。
-- 立即续接点：进入 Task 8 `TaskChatPanelView and Morph Overlay`，实现聊天面板、头像消息气泡、composer，以及 HomeView 的 overlay 打开/关闭动效。
+- Task 8：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过；`git diff --check` 通过。
+- 立即续接点：进入 Task 9 `Full Regression and Project Memory`，先跑 focused tests，再决定是否跑完整单测和最终项目记忆提交。
 - Task 5 后续真机/后端验收：当前只做本地编译与单测，未对生产 Supabase 实际执行 `task_messages` pull/realtime 联调；上线前需要用双端真机验证 comment 离线重试、catch-up 拉回、Realtime 刷新。
 - 已知后续风险：
   - `PersistentTaskChatReadState` 当前只存 `lastReadMessageCreatedAt`，未来做 unread 精确计算时可能需要升级为 `(createdAt, messageID)` 游标。
