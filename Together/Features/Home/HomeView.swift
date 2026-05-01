@@ -3648,12 +3648,13 @@ private struct TaskChatMorphOverlay: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .ignoresSafeArea()
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
     }
 
     private func finalPanelFrame(in proxy: GeometryProxy) -> CGRect {
         let top = proxy.safeAreaInsets.top + topInset
-        let bottom = proxy.safeAreaInsets.bottom + bottomInset
+        let bottom = min(proxy.safeAreaInsets.bottom, 44) + bottomInset
         let width = max(proxy.size.width - horizontalInset * 2, 1)
         let height = max(proxy.size.height - top - bottom, 1)
         return CGRect(x: horizontalInset, y: top, width: width, height: height)

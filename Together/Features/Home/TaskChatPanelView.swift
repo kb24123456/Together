@@ -286,7 +286,7 @@ struct TaskChatPanelView: View {
         .padding(.horizontal, AppTheme.spacing.md)
         .padding(.top, AppTheme.spacing.xs)
         .padding(.bottom, AppTheme.spacing.sm)
-        .background(.ultraThinMaterial)
+        .background(AppTheme.colors.surfaceElevated.opacity(0.22))
     }
 
     private var isSendDisabled: Bool {
