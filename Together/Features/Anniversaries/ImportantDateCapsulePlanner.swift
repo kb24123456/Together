@@ -9,8 +9,23 @@ struct ImportantDateCapsuleCandidate: Identifiable, Hashable, Sendable {
     let isAnchor: Bool
 }
 
+struct ImportantDateCapsulePlan: Hashable, Sendable {
+    let pages: [ImportantDateCapsuleCandidate]
+    let autoHighlightCandidateID: UUID?
+}
+
 enum ImportantDateCapsulePlanner {
     static let visibilityWindowDays = 7
+
+    static func plan(
+        from records: [ImportantDateStoredRecord],
+        referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) -> ImportantDateCapsulePlan {
+        let pages = candidates(from: records, referenceDate: referenceDate, calendar: calendar)
+        let autoHighlight = autoHighlightCandidate(from: records, referenceDate: referenceDate, calendar: calendar)
+        return ImportantDateCapsulePlan(pages: pages, autoHighlightCandidateID: autoHighlight?.id)
+    }
 
     static func candidates(
         from records: [ImportantDateStoredRecord],
@@ -30,7 +45,6 @@ enum ImportantDateCapsulePlanner {
         let nonAnchorCandidates = records
             .filter { !isAnchor($0.event) }
             .compactMap { candidate(from: $0, referenceDate: referenceDate, calendar: calendar) }
-            .filter { $0.daysUntilOrToday <= visibilityWindowDays }
 
         let latest = nonAnchorCandidates
             .max { lhs, rhs in
@@ -67,6 +81,30 @@ enum ImportantDateCapsulePlanner {
         }
         result.append(contentsOf: remaining)
         return result
+    }
+
+    static func autoHighlightCandidate(
+        from records: [ImportantDateStoredRecord],
+        referenceDate: Date = .now,
+        calendar: Calendar = .current
+    ) -> ImportantDateCapsuleCandidate? {
+        records
+            .filter { !isAnchor($0.event) }
+            .compactMap { candidate(from: $0, referenceDate: referenceDate, calendar: calendar) }
+            .filter { $0.daysUntilOrToday <= visibilityWindowDays }
+            .sorted { lhs, rhs in
+                if lhs.daysUntilOrToday == rhs.daysUntilOrToday {
+                    if lhs.createdAt == rhs.createdAt {
+                        if lhs.event.updatedAt == rhs.event.updatedAt {
+                            return lhs.id.uuidString < rhs.id.uuidString
+                        }
+                        return lhs.event.updatedAt > rhs.event.updatedAt
+                    }
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.daysUntilOrToday < rhs.daysUntilOrToday
+            }
+            .first
     }
 
     static func isAnchor(_ event: ImportantDate) -> Bool {

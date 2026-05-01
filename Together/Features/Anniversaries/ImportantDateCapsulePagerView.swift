@@ -1,12 +1,18 @@
 import SwiftUI
 
 struct ImportantDateCapsulePagerView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let candidates: [ImportantDateCapsuleCandidate]
+    var autoHighlightCandidateID: UUID?
     var viewerSupabaseUserID: UUID? = nil
     var partnerDisplayName: String? = nil
     let onPrimaryTap: () -> Void
 
-    @AppStorage("together.importantDateCapsule.selectedID") private var selectedIDStorage = ""
+    @State private var scrollPositionID: UUID?
+    @State private var isSyncingScrollPosition = false
+    @AppStorage("together.importantDateCapsule.userSelectedID") private var selectedIDStorage = ""
+    @AppStorage("together.importantDateCapsule.suppressedAutoHighlightID") private var suppressedAutoHighlightIDStorage = ""
     @AppStorage("together.importantDateCapsule.countModesByDateID") private var countModesStorage = "{}"
 
     var body: some View {
@@ -21,9 +27,20 @@ struct ImportantDateCapsulePagerView: View {
         }
         .task {
             normalizeSelectedID()
+            normalizeSuppressedAutoHighlightID()
+            syncScrollPositionToDisplayedCandidate(animated: false)
         }
         .onChange(of: candidateIDs) { _, _ in
             normalizeSelectedID()
+            normalizeSuppressedAutoHighlightID()
+            syncScrollPositionToDisplayedCandidate(animated: false)
+        }
+        .onChange(of: autoHighlightCandidateID) { _, _ in
+            normalizeSuppressedAutoHighlightID()
+            syncScrollPositionToDisplayedCandidate(animated: true)
+        }
+        .onChange(of: displayedCandidateID) { _, _ in
+            syncScrollPositionToDisplayedCandidate(animated: true)
         }
     }
 
@@ -41,21 +58,39 @@ struct ImportantDateCapsulePagerView: View {
     }
 
     private var pager: some View {
-        VStack(spacing: AppTheme.spacing.xs) {
-            Group {
-                if let candidate = selectedCandidate {
-                    page(for: candidate)
-                        .id(candidate.id)
-                        .transition(pageTransition)
+        let shouldReduceMotion = reduceMotion
+
+        return VStack(spacing: AppTheme.spacing.xs) {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 0) {
+                    ForEach(candidates) { candidate in
+                        page(for: candidate)
+                            .containerRelativeFrame(.horizontal)
+                            .scrollTransition(.interactive, axis: .horizontal) { content, phase in
+                                content
+                                    .scaleEffect(
+                                        shouldReduceMotion ? 1 : 1 - (0.024 * min(abs(phase.value), 1)),
+                                        anchor: .center
+                                    )
+                                    .opacity(
+                                        shouldReduceMotion ? 1 : 1 - (0.12 * Double(min(abs(phase.value), 1)))
+                                    )
+                            }
+                    }
                 }
+                .scrollTargetLayout()
             }
             .frame(height: 56)
-            .animation(.snappy(duration: 0.24), value: selectedCandidate?.id)
+            .contentMargins(.horizontal, 0, for: .scrollContent)
+            .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $scrollPositionID)
+            .onChange(of: scrollPositionID) { _, newID in
+                handleScrollPositionChange(newID)
+            }
 
             pageIndicator
         }
-        .contentShape(Rectangle())
-        .simultaneousGesture(pageSwipeGesture, including: .all)
     }
 
     private var pageIndicator: some View {
@@ -83,23 +118,33 @@ struct ImportantDateCapsulePagerView: View {
         )
     }
 
-    private var selectedCandidate: ImportantDateCapsuleCandidate? {
-        guard let selectedID = normalizedSelectedID else { return candidates.first }
-        return candidates.first { $0.id == selectedID } ?? candidates.first
+    private var displayedCandidateID: UUID? {
+        ImportantDateCapsuleSelection.displayedID(
+            candidateIDs: candidateIDs,
+            userSelectedID: normalizedSelectedID,
+            autoHighlightID: autoHighlightCandidateID,
+            suppressedAutoHighlightID: suppressedAutoHighlightID
+        )
     }
 
-    private var selectedIndex: Int? {
-        guard let selectedID = selectedCandidate?.id else { return nil }
-        return candidates.firstIndex { $0.id == selectedID }
+    private var visibleCandidateID: UUID? {
+        guard let scrollPositionID,
+              candidates.contains(where: { $0.id == scrollPositionID }) else {
+            return displayedCandidateID
+        }
+        return scrollPositionID
     }
 
     private var normalizedSelectedID: UUID? {
-        guard let first = candidates.first else { return nil }
         guard let selectedID = ImportantDateCapsulePreferences.selectedID(from: selectedIDStorage),
               candidates.contains(where: { $0.id == selectedID }) else {
-            return first.id
+            return nil
         }
         return selectedID
+    }
+
+    private var suppressedAutoHighlightID: UUID? {
+        ImportantDateCapsulePreferences.selectedID(from: suppressedAutoHighlightIDStorage)
     }
 
     private var candidateIDs: [UUID] {
@@ -107,7 +152,7 @@ struct ImportantDateCapsulePagerView: View {
     }
 
     private func normalizeSelectedID() {
-        guard let first = candidates.first else {
+        guard candidates.isEmpty == false else {
             if selectedIDStorage.isEmpty == false {
                 selectedIDStorage = ""
             }
@@ -116,8 +161,20 @@ struct ImportantDateCapsulePagerView: View {
 
         guard let selectedID = ImportantDateCapsulePreferences.selectedID(from: selectedIDStorage),
               candidates.contains(where: { $0.id == selectedID }) else {
-            selectedIDStorage = ImportantDateCapsulePreferences.storageString(for: first.id)
+            if selectedIDStorage.isEmpty == false {
+                selectedIDStorage = ""
+            }
             return
+        }
+    }
+
+    private func normalizeSuppressedAutoHighlightID() {
+        let shouldClear = ImportantDateCapsuleSelection.shouldClearSuppressedAutoHighlightID(
+            suppressedAutoHighlightID,
+            currentAutoHighlightID: autoHighlightCandidateID
+        )
+        if shouldClear {
+            suppressedAutoHighlightIDStorage = ""
         }
     }
 
@@ -142,25 +199,47 @@ struct ImportantDateCapsulePagerView: View {
         ImportantDateCapsulePreferences.decodeCountModes(countModesStorage)
     }
 
-    private var pageSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 18)
-            .onEnded { value in
-                guard abs(value.translation.width) > abs(value.translation.height),
-                      abs(value.translation.width) >= 36,
-                      let selectedIndex else { return }
+    private func syncScrollPositionToDisplayedCandidate(animated: Bool) {
+        guard candidates.count > 1 else { return }
+        guard let displayedCandidateID else { return }
+        guard scrollPositionID != displayedCandidateID else { return }
 
-                let nextIndex = value.translation.width < 0
-                    ? min(selectedIndex + 1, candidates.count - 1)
-                    : max(selectedIndex - 1, 0)
-                guard nextIndex != selectedIndex else { return }
+        isSyncingScrollPosition = true
+        let update = {
+            scrollPositionID = displayedCandidateID
+        }
 
-                HomeInteractionFeedback.selection()
-                selectedIDStorage = ImportantDateCapsulePreferences.storageString(for: candidates[nextIndex].id)
+        if animated, reduceMotion == false {
+            withAnimation(.snappy(duration: 0.28)) {
+                update()
             }
+        } else {
+            update()
+        }
+
+        Task { @MainActor in
+            await Task.yield()
+            isSyncingScrollPosition = false
+        }
     }
 
-    private var pageTransition: AnyTransition {
-        .opacity.combined(with: .move(edge: .trailing))
+    private func handleScrollPositionChange(_ newID: UUID?) {
+        guard candidates.count > 1,
+              isSyncingScrollPosition == false,
+              let newID,
+              candidates.contains(where: { $0.id == newID }) else { return }
+
+        let newStorageString = ImportantDateCapsulePreferences.storageString(for: newID)
+        guard selectedIDStorage != newStorageString else { return }
+
+        HomeInteractionFeedback.selection()
+        selectedIDStorage = newStorageString
+
+        if let autoHighlightCandidateID {
+            suppressedAutoHighlightIDStorage = newID == autoHighlightCandidateID
+                ? ""
+                : ImportantDateCapsulePreferences.storageString(for: autoHighlightCandidateID)
+        }
     }
 
     private func canShowElapsedDays(for event: ImportantDate) -> Bool {
@@ -168,7 +247,7 @@ struct ImportantDateCapsulePagerView: View {
     }
 
     private func indicatorColor(for candidate: ImportantDateCapsuleCandidate) -> Color {
-        candidate.id == normalizedSelectedID
+        candidate.id == visibleCandidateID
             ? AppTheme.colors.rose.opacity(0.72)
             : AppTheme.colors.rose.opacity(0.24)
     }

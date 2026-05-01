@@ -74,8 +74,33 @@ struct ImportantDateCapsulePlannerTests {
         #expect(candidates.first?.isAnchor == true)
     }
 
-    @Test("dates outside seven days do not enter the pool")
-    func sevenDayWindowExcludesFarDates() {
+    @Test("dates outside seven days do not auto highlight")
+    func sevenDayWindowExcludesFarDatesFromAutoHighlight() {
+        let anniversary = record(
+            kind: .anniversary,
+            title: "我们的纪念日",
+            dateValue: date("2025-05-01T00:00:00Z"),
+            createdAt: date("2026-01-01T00:00:00Z"),
+            showsElapsedDays: true
+        )
+        let farBirthday = record(
+            kind: .birthday(memberUserID: UUID()),
+            title: "我的生日",
+            dateValue: date("1990-05-20T00:00:00Z"),
+            createdAt: date("2026-04-30T00:00:00Z")
+        )
+
+        let autoHighlight = ImportantDateCapsulePlanner.autoHighlightCandidate(
+            from: [anniversary, farBirthday],
+            referenceDate: date("2026-05-01T12:00:00Z"),
+            calendar: calendar()
+        )
+
+        #expect(autoHighlight == nil)
+    }
+
+    @Test("far annual birthdays remain available for manual paging")
+    func farAnnualBirthdaysRemainAvailableForManualPaging() {
         let anniversary = record(
             kind: .anniversary,
             title: "我们的纪念日",
@@ -96,7 +121,8 @@ struct ImportantDateCapsulePlannerTests {
             calendar: calendar()
         )
 
-        #expect(candidates.map(\.event.id) == [anniversary.event.id])
+        #expect(candidates.map(\.event.id) == [anniversary.event.id, farBirthday.event.id])
+        #expect(candidates.last?.daysUntilOrToday == 19)
     }
 
     @Test("latest eligible created date is second after anchor")
