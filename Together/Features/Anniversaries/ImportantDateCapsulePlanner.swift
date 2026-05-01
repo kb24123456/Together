@@ -19,7 +19,12 @@ enum ImportantDateCapsulePlanner {
     ) -> [ImportantDateCapsuleCandidate] {
         let anchor = records
             .filter { isAnchor($0.event) }
-            .sorted { $0.createdAt < $1.createdAt }
+            .sorted { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+                return lhs.createdAt < rhs.createdAt
+            }
             .first
 
         let nonAnchorCandidates = records
@@ -30,6 +35,9 @@ enum ImportantDateCapsulePlanner {
         let latest = nonAnchorCandidates
             .max { lhs, rhs in
                 if lhs.createdAt == rhs.createdAt {
+                    if lhs.event.updatedAt == rhs.event.updatedAt {
+                        return lhs.id.uuidString < rhs.id.uuidString
+                    }
                     return lhs.event.updatedAt < rhs.event.updatedAt
                 }
                 return lhs.createdAt < rhs.createdAt
@@ -40,6 +48,9 @@ enum ImportantDateCapsulePlanner {
             .sorted { lhs, rhs in
                 if lhs.daysUntilOrToday == rhs.daysUntilOrToday {
                     if lhs.createdAt == rhs.createdAt {
+                        if lhs.event.updatedAt == rhs.event.updatedAt {
+                            return lhs.id.uuidString < rhs.id.uuidString
+                        }
                         return lhs.event.updatedAt > rhs.event.updatedAt
                     }
                     return lhs.createdAt > rhs.createdAt
@@ -109,10 +120,7 @@ enum ImportantDateCapsulePlanner {
         case .solarAnnual:
             target = nextSolarAnnualStartOfDay(for: event, referenceDate: today, calendar: calendar)
         case .lunarAnnual:
-            let previousDay = calendar.date(byAdding: .day, value: -1, to: today) ?? today
-            target = event.nextOccurrence(after: previousDay, calendar: calendar).map {
-                calendar.startOfDay(for: $0)
-            }
+            target = nextLunarAnnualStartOfDay(for: event, referenceDate: today, calendar: calendar)
         }
 
         guard let target else { return nil }
@@ -142,6 +150,46 @@ enum ImportantDateCapsulePlanner {
             if month == 2, day == 29,
                let fallback = calendar.date(from: DateComponents(year: year, month: 2, day: 28)) {
                 let startOfDay = calendar.startOfDay(for: fallback)
+                if startOfDay >= today {
+                    return startOfDay
+                }
+            }
+
+            year += 1
+        }
+
+        return nil
+    }
+
+    private static func nextLunarAnnualStartOfDay(
+        for event: ImportantDate,
+        referenceDate today: Date,
+        calendar: Calendar
+    ) -> Date? {
+        var chineseCalendar = Calendar(identifier: .chinese)
+        chineseCalendar.timeZone = calendar.timeZone
+
+        let lunarMonth = chineseCalendar.component(.month, from: event.dateValue)
+        let lunarDay = chineseCalendar.component(.day, from: event.dateValue)
+        var year = chineseCalendar.component(.year, from: today)
+
+        for _ in 0..<5 {
+            var components = DateComponents()
+            components.calendar = chineseCalendar
+            components.timeZone = chineseCalendar.timeZone
+            components.year = year
+            components.month = lunarMonth
+            components.day = lunarDay
+
+            var candidate = chineseCalendar.date(from: components)
+
+            if candidate == nil {
+                components.isLeapMonth = false
+                candidate = chineseCalendar.date(from: components)
+            }
+
+            if let candidate {
+                let startOfDay = calendar.startOfDay(for: candidate)
                 if startOfDay >= today {
                     return startOfDay
                 }

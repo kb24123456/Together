@@ -192,6 +192,86 @@ struct ImportantDateCapsulePlannerTests {
         #expect(birthdayCandidate?.isToday == true)
     }
 
+    @Test("lunar annual calculation uses injected calendar time zone")
+    func lunarAnnualUsesInjectedCalendarTimeZone() {
+        let originalTimeZone = TimeZone.ReferenceType.default
+        TimeZone.ReferenceType.default = TimeZone(secondsFromGMT: -8 * 60 * 60)!
+        defer { TimeZone.ReferenceType.default = originalTimeZone }
+
+        let anniversary = record(
+            kind: .anniversary,
+            title: "我们的纪念日",
+            dateValue: date("2025-01-01T12:00:00Z"),
+            createdAt: date("2026-01-01T00:00:00Z"),
+            showsElapsedDays: true
+        )
+        let qixi = record(
+            kind: .holiday,
+            title: "七夕",
+            dateValue: date("2020-08-25T00:30:00Z"),
+            recurrence: .lunarAnnual,
+            createdAt: date("2026-04-30T00:00:00Z")
+        )
+
+        let candidates = ImportantDateCapsulePlanner.candidates(
+            from: [anniversary, qixi],
+            referenceDate: date("2026-08-19T12:00:00Z"),
+            calendar: calendar()
+        )
+
+        let qixiCandidate = candidates.first { $0.event.id == qixi.event.id }
+        #expect(qixiCandidate?.daysUntilOrToday == 0)
+        #expect(qixiCandidate?.isToday == true)
+    }
+
+    @Test("same timestamp candidates use deterministic id tie breaker")
+    func sameTimestampCandidatesUseDeterministicIDTieBreaker() {
+        let anniversary = record(
+            kind: .anniversary,
+            title: "我们的纪念日",
+            dateValue: date("2025-01-01T00:00:00Z"),
+            createdAt: date("2026-01-01T00:00:00Z"),
+            showsElapsedDays: true
+        )
+        let first = record(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            kind: .custom,
+            title: "一号",
+            dateValue: date("2026-05-03T00:00:00Z"),
+            recurrence: .none,
+            createdAt: date("2026-04-30T00:00:00Z")
+        )
+        let second = record(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            kind: .custom,
+            title: "二号",
+            dateValue: date("2026-05-03T00:00:00Z"),
+            recurrence: .none,
+            createdAt: date("2026-04-30T00:00:00Z")
+        )
+        let third = record(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
+            kind: .custom,
+            title: "三号",
+            dateValue: date("2026-05-03T00:00:00Z"),
+            recurrence: .none,
+            createdAt: date("2026-04-30T00:00:00Z")
+        )
+
+        let candidates = ImportantDateCapsulePlanner.candidates(
+            from: [second, third, anniversary, first],
+            referenceDate: date("2026-05-01T12:00:00Z"),
+            calendar: calendar()
+        )
+
+        #expect(candidates.map(\.event.id) == [
+            anniversary.event.id,
+            third.event.id,
+            first.event.id,
+            second.event.id
+        ])
+    }
+
     @Test("invalid anchor stays in pool but is not reported as today")
     func invalidAnchorIsNotReportedAsToday() {
         let anniversary = record(
