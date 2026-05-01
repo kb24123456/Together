@@ -109,6 +109,8 @@ struct HomeView: View {
         }
         .overlay {
             taskChatOverlay
+                .ignoresSafeArea(.all)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .onPreferenceChange(PairTimelineCardFramePreferenceKey.self) { frames in
             pairTimelineCardFrames = frames
@@ -3623,10 +3625,12 @@ private struct TaskChatMorphOverlay: View {
             let activeFrame = reduceMotion || isExpanded ? finalFrame : collapsedFrame
 
             ZStack {
-                Color.clear
-                    .background(.ultraThinMaterial)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
                     .opacity(isExpanded ? 1 : 0)
-                    .ignoresSafeArea()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(.all)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onDismiss)
 
