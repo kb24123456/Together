@@ -1736,7 +1736,7 @@ Expected: commit succeeds.
 **Files:**
 - Modify: `docs/PROJECT_MEMORY.md`
 
-- [ ] **Step 1: Run focused tests**
+- [x] **Step 1: Run focused tests**
 
 Run:
 
@@ -1746,7 +1746,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS.
 
-- [ ] **Step 2: Run full unit test suite if focused tests pass**
+- [x] **Step 2: Run full unit test suite if focused tests pass**
 
 Run:
 
@@ -1756,7 +1756,7 @@ xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platf
 
 Expected: PASS. If unrelated failures appear, capture exact failing test names and do not claim full suite success.
 
-- [ ] **Step 3: Build for simulator**
+- [x] **Step 3: Build for simulator**
 
 Run:
 
@@ -1766,7 +1766,7 @@ xcodebuild build -project Together.xcodeproj -scheme Together -destination 'plat
 
 Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 4: Update project memory**
+- [x] **Step 4: Update project memory**
 
 Append one concise entry to `docs/PROJECT_MEMORY.md` under verification records:
 
@@ -1774,7 +1774,7 @@ Append one concise entry to `docs/PROJECT_MEMORY.md` under verification records:
 - 2026-05-01：双人任务卡片聊天方案落地：`task_messages` 成为任务聊天主数据源，`assignmentMessages` 仅保留旧数据兼容；新增任务内 comment、nudge/system timeline 聚合、latest comment 卡片预览、本地未读游标和 morph 聊天面板。验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessageRepositoryTests -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/SendReminderToPartnerTests -only-testing:TogetherTests/TaskChatViewModelTests`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17'` 通过。
 ```
 
-- [ ] **Step 5: Commit memory and final verification**
+- [x] **Step 5: Commit memory and final verification**
 
 Run:
 
