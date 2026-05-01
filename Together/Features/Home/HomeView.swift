@@ -651,7 +651,7 @@ struct HomeView: View {
                 importantDateCapsulePager
                 .listRowInsets(
                     EdgeInsets(
-                        top: 10,
+                        top: AppTheme.spacing.xs,
                         leading: timelineRowHorizontalInset,
                         bottom: 8,
                         trailing: timelineRowHorizontalInset
@@ -753,7 +753,7 @@ struct HomeView: View {
                 importantDateCapsulePager
                 .listRowInsets(
                     EdgeInsets(
-                        top: 10,
+                        top: AppTheme.spacing.xs,
                         leading: timelineRowHorizontalInset,
                         bottom: 8,
                         trailing: timelineRowHorizontalInset
@@ -816,6 +816,7 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .scrollDisabled(isOverlayModeActive)
         .environment(\.defaultMinListRowHeight, 0)
+        .safeAreaPadding(.top, 0)
         .applyScrollEdgeProtection()
         .refreshable {
             if appContext.sessionStore.hasActivePairSpace {

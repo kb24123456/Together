@@ -42,17 +42,20 @@ struct ImportantDateCapsulePagerView: View {
 
     private var pager: some View {
         VStack(spacing: AppTheme.spacing.xs) {
-            TabView(selection: selectedIDBinding) {
-                ForEach(candidates) { candidate in
+            Group {
+                if let candidate = selectedCandidate {
                     page(for: candidate)
-                        .tag(candidate.id)
+                        .id(candidate.id)
+                        .transition(pageTransition)
                 }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 56)
+            .animation(.snappy(duration: 0.24), value: selectedCandidate?.id)
 
             pageIndicator
         }
+        .contentShape(Rectangle())
+        .simultaneousGesture(pageSwipeGesture, including: .all)
     }
 
     private var pageIndicator: some View {
@@ -80,11 +83,14 @@ struct ImportantDateCapsulePagerView: View {
         )
     }
 
-    private var selectedIDBinding: Binding<UUID> {
-        Binding(
-            get: { normalizedSelectedID ?? candidates[0].id },
-            set: { selectedIDStorage = ImportantDateCapsulePreferences.storageString(for: $0) }
-        )
+    private var selectedCandidate: ImportantDateCapsuleCandidate? {
+        guard let selectedID = normalizedSelectedID else { return candidates.first }
+        return candidates.first { $0.id == selectedID } ?? candidates.first
+    }
+
+    private var selectedIndex: Int? {
+        guard let selectedID = selectedCandidate?.id else { return nil }
+        return candidates.firstIndex { $0.id == selectedID }
     }
 
     private var normalizedSelectedID: UUID? {
@@ -134,6 +140,27 @@ struct ImportantDateCapsulePagerView: View {
 
     private func decodedCountModes() -> [UUID: ImportantDateCapsuleCountMode] {
         ImportantDateCapsulePreferences.decodeCountModes(countModesStorage)
+    }
+
+    private var pageSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 18)
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height),
+                      abs(value.translation.width) >= 36,
+                      let selectedIndex else { return }
+
+                let nextIndex = value.translation.width < 0
+                    ? min(selectedIndex + 1, candidates.count - 1)
+                    : max(selectedIndex - 1, 0)
+                guard nextIndex != selectedIndex else { return }
+
+                HomeInteractionFeedback.selection()
+                selectedIDStorage = ImportantDateCapsulePreferences.storageString(for: candidates[nextIndex].id)
+            }
+    }
+
+    private var pageTransition: AnyTransition {
+        .opacity.combined(with: .move(edge: .trailing))
     }
 
     private func canShowElapsedDays(for event: ImportantDate) -> Bool {
