@@ -1353,7 +1353,7 @@ Expected: commit succeeds.
 - Modify: `Together/Features/Home/HomeView.swift`
 - Modify: `Together/PreviewContent/MockDataFactory.swift`
 
-- [ ] **Step 0: Inject task message repository into HomeViewModel**
+- [x] **Step 0: Inject task message repository into HomeViewModel**
 
 Update `HomeViewModel` initializer:
 
@@ -1377,7 +1377,7 @@ init(
 
 Update all `HomeViewModel(...)` call sites to pass the same `taskMessageRepository` already present in `AppContainer` / `LocalServiceFactory`.
 
-- [ ] **Step 1: Extend `HomeTimelineEntry`**
+- [x] **Step 1: Extend `HomeTimelineEntry`**
 
 Add fields:
 
@@ -1388,7 +1388,7 @@ let hasUnreadComment: Bool
 
 Keep `messagePreview` temporarily for legacy fallback.
 
-- [ ] **Step 2: Add latest comment cache to HomeViewModel**
+- [x] **Step 2: Add latest comment cache to HomeViewModel**
 
 Add:
 
@@ -1414,7 +1414,7 @@ private func refreshLatestComments(for items: [Item]) async {
 
 If `HomeViewModel` does not currently hold `taskMessageRepository`, inject it through its initializer from `AppContext` / service factory.
 
-- [ ] **Step 3: Update entry creation**
+- [x] **Step 3: Update entry creation**
 
 In `makeTimelineEntry`, derive:
 
@@ -1462,7 +1462,7 @@ func makeTaskChatViewModel(for item: Item) -> TaskChatViewModel {
 }
 ```
 
-- [ ] **Step 4: Make message zone tappable**
+- [x] **Step 4: Make message zone tappable**
 
 Add a closure to `PairTimelineCard`:
 
@@ -1495,7 +1495,7 @@ private var chatAccessibilityLabel: String {
 }
 ```
 
-- [ ] **Step 5: Run build**
+- [x] **Step 5: Run build**
 
 Run:
 
@@ -1505,7 +1505,7 @@ xcodebuild build -project Together.xcodeproj -scheme Together -destination 'plat
 
 Expected: BUILD SUCCEEDED.
 
-- [ ] **Step 6: Commit preview integration**
+- [x] **Step 6: Commit preview integration**
 
 Run:
 

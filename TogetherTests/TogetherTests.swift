@@ -801,7 +801,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         viewModel.items = [
@@ -872,7 +873,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(items: [recoveredTask]),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         viewModel.selectedDate = referenceDate
 
@@ -881,6 +883,94 @@ struct TogetherTests {
 
         #expect(viewModel.reloadRevision == previousRevision + 1)
         #expect(viewModel.timelineEntries.map(\.title) == ["恢复后的任务"])
+    }
+
+    @Test @MainActor
+    func homeViewModelPairPreviewUsesLatestTaskMessageComment() async throws {
+        let referenceDate = Date.now.addingTimeInterval(60)
+        let taskID = UUID()
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchMode(to: .pair)
+
+        let task = Item(
+            id: taskID,
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "确认晚餐",
+            notes: nil,
+            locationText: nil,
+            executionRole: .both,
+            assigneeMode: .both,
+            dueAt: referenceDate,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .inProgress,
+            assignmentState: .active,
+            latestResponse: nil,
+            responseHistory: [],
+            assignmentMessages: [
+                TaskAssignmentMessage(
+                    authorID: MockDataFactory.currentUserID,
+                    body: "旧留言",
+                    createdAt: referenceDate.addingTimeInterval(-120)
+                )
+            ],
+            lastActionByUserID: MockDataFactory.currentUserID,
+            lastActionAt: referenceDate,
+            createdAt: referenceDate.addingTimeInterval(-300),
+            updatedAt: referenceDate,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+        let taskMessageRepository = MockTaskMessageRepository()
+        let olderCommentDate = referenceDate.addingTimeInterval(-60)
+        let latestCommentDate = referenceDate.addingTimeInterval(-30)
+        try await taskMessageRepository.insertComment(
+            messageID: UUID(),
+            taskID: taskID,
+            senderID: MockDataFactory.currentUserID,
+            content: "我先到",
+            createdAt: olderCommentDate
+        )
+        try await taskMessageRepository.insertComment(
+            messageID: UUID(),
+            taskID: taskID,
+            senderID: MockDataFactory.partnerUserID,
+            content: "记得选靠窗",
+            createdAt: latestCommentDate
+        )
+        try await taskMessageRepository.markRead(taskID: taskID, through: olderCommentDate)
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(items: [task]),
+            itemRepository: TestItemRepository(),
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: taskMessageRepository
+        )
+        viewModel.selectedDate = referenceDate
+
+        await viewModel.reload()
+
+        var entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.messagePreview == "记得选靠窗")
+        #expect(entry.latestComment?.content == "记得选靠窗")
+        #expect(entry.latestMessageAuthorName == MockDataFactory.makePartnerUser().displayName)
+        #expect(entry.hasUnreadComment)
+
+        try await taskMessageRepository.markRead(taskID: taskID, through: latestCommentDate)
+        await viewModel.reload()
+
+        entry = try #require(viewModel.timelineEntries.first)
+        #expect(entry.hasUnreadComment == false)
     }
 
     @Test @MainActor
@@ -939,7 +1029,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         viewModel.items = [item]
         viewModel.selectedDate = referenceDate
@@ -1004,7 +1095,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         viewModel.items = [item]
         viewModel.selectedDate = referenceDate
@@ -2160,7 +2252,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         viewModel.detailDraft = TaskDraft(
@@ -2625,7 +2718,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: itemRepository,
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         let baseDate = Date.now
@@ -2703,7 +2797,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         let taskID = UUID()
@@ -2848,7 +2943,8 @@ struct TogetherTests {
             sessionStore: receiverSession,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         receiverViewModel.items = [declinedTask]
 
@@ -2856,7 +2952,8 @@ struct TogetherTests {
             sessionStore: senderSession,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         senderViewModel.items = [declinedTask]
 
@@ -2878,7 +2975,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: itemRepository,
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
 
         let baseDate = Date.now
@@ -3980,7 +4078,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let now = Date.now
         let item = Item(
@@ -4023,7 +4122,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let calendar = Calendar.current
         let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? .now
@@ -4117,7 +4217,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: TestHomeTaskApplicationService(),
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
@@ -4190,7 +4291,8 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskService,
             itemRepository: TestItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
         )
         let calendar = Calendar.current
         let selectedDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? .now
