@@ -73,6 +73,38 @@ struct TaskMessageSyncTests {
         #expect(rows.first?.createdAt == updatedDate)
     }
 
+    @Test func pullDTOMapsSenderFromSupabaseIdentity() throws {
+        let container = try makeInMemoryContainer()
+        let context = ModelContext(container)
+        let messageID = UUID()
+        let taskID = UUID()
+        let staleSenderID = UUID()
+        let mySupabaseUserID = UUID()
+        let myLocalUserID = UUID()
+
+        TaskMessagePullDTO(
+            id: messageID,
+            taskId: taskID,
+            senderId: staleSenderID,
+            senderSupabaseUserID: mySupabaseUserID,
+            type: TaskMessageType.comment.rawValue,
+            content: "人呢？？？",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        ).applyToLocal(
+            context: context,
+            identityMap: SupabaseIdentityMap(
+                mySupabaseUserID: mySupabaseUserID,
+                myLocalUserID: myLocalUserID,
+                partnerSupabaseUserID: nil,
+                partnerLocalUserID: nil
+            )
+        )
+        try context.save()
+
+        let row = try #require(context.fetch(FetchDescriptor<PersistentTaskMessage>()).first)
+        #expect(row.senderID == myLocalUserID)
+    }
+
     private func makeInMemoryContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(

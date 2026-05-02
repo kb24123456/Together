@@ -3,6 +3,57 @@ import Supabase
 import SwiftData
 import os
 
+struct SupabaseIdentityMap: Sendable {
+    let mySupabaseUserID: UUID?
+    let myLocalUserID: UUID?
+    let partnerSupabaseUserID: UUID?
+    let partnerLocalUserID: UUID?
+
+    nonisolated static let empty = SupabaseIdentityMap(
+        mySupabaseUserID: nil,
+        myLocalUserID: nil,
+        partnerSupabaseUserID: nil,
+        partnerLocalUserID: nil
+    )
+
+    nonisolated func localUserID(forSupabaseUserID supabaseUserID: UUID?, fallback: UUID) -> UUID {
+        if let supabaseUserID,
+           let mySupabaseUserID,
+           supabaseUserID == mySupabaseUserID,
+           let myLocalUserID {
+            return myLocalUserID
+        }
+
+        if let supabaseUserID,
+           let partnerSupabaseUserID,
+           supabaseUserID == partnerSupabaseUserID,
+           let partnerLocalUserID {
+            return partnerLocalUserID
+        }
+
+        return fallback
+    }
+
+    nonisolated func localUserID(
+        forRemoteActorID actorID: UUID,
+        remoteCreatorID: UUID,
+        creatorSupabaseUserID: UUID?
+    ) -> UUID {
+        if actorID == remoteCreatorID {
+            return localUserID(forSupabaseUserID: creatorSupabaseUserID, fallback: actorID)
+        }
+
+        guard let creatorSupabaseUserID else { return actorID }
+        if creatorSupabaseUserID == mySupabaseUserID {
+            return partnerLocalUserID ?? actorID
+        }
+        if creatorSupabaseUserID == partnerSupabaseUserID {
+            return myLocalUserID ?? actorID
+        }
+        return actorID
+    }
+}
+
 /// Supabase 双人同步服务
 /// 三大职责：Push（本地→Supabase）、Pull（catch-up 补拉）、Listen（Realtime 订阅）
 actor SupabaseSyncService {
@@ -41,6 +92,12 @@ actor SupabaseSyncService {
     private static func lastSyncedKey(_ spaceID: UUID) -> String {
         "together.supabase.lastSyncedAt.\(spaceID.uuidString)"
     }
+
+    private static func identityBackfillKey(spaceID: UUID, localUserID: UUID?) -> String {
+        let localID = localUserID?.uuidString ?? "unknown"
+        return "together.supabase.identityBackfill.\(spaceID.uuidString).\(localID)"
+    }
+
     // push() 并发序列化：actor 本身不够，因为 await 网络时释放执行权，另一 Task 可进入
     private var isPushing = false
     private var pushRequestedDuringFlight = false
@@ -234,17 +291,31 @@ actor SupabaseSyncService {
         let sinceISO = ISO8601DateFormatter().string(from: since)
 
         do {
+            // 成员表只有两行，始终做全量轻量校准：用于修复头像文件缺失，
+            // 也给任务/留言 pull 提供稳定的 Supabase auth.uid -> 本地 UUID 映射。
+            let memberSinceISO = ISO8601DateFormatter().string(from: .distantPast)
+            try await pullSpaceMembers(spaceID: spaceID, since: memberSinceISO)
+            let identityMap = await makeIdentityMap(spaceID: spaceID)
+            let identityBackfillKey = Self.identityBackfillKey(
+                spaceID: spaceID,
+                localUserID: myLocalUserID
+            )
+            let shouldBackfillIdentity = !UserDefaults.standard.bool(forKey: identityBackfillKey)
+            let identitySensitiveSinceISO = shouldBackfillIdentity ? memberSinceISO : sinceISO
+
             // 拉取各业务表
-            try await pullTasks(spaceID: spaceID, since: sinceISO)
-            try await pullTaskMessages(spaceID: spaceID, since: sinceISO)
+            try await pullTasks(spaceID: spaceID, since: identitySensitiveSinceISO, identityMap: identityMap)
+            try await pullTaskMessages(spaceID: spaceID, since: identitySensitiveSinceISO, identityMap: identityMap)
             try await pullTaskLists(spaceID: spaceID, since: sinceISO)
             try await pullProjects(spaceID: spaceID, since: sinceISO)
             try await pullProjectSubtasks(spaceID: spaceID, since: sinceISO)
             try await pullPeriodicTasks(spaceID: spaceID, since: sinceISO)
-            try await pullSpaceMembers(spaceID: spaceID, since: sinceISO)
             try await pullSpaces(spaceID: spaceID, since: sinceISO)
             try await pullImportantDates(spaceID: spaceID, since: sinceISO)
 
+            if shouldBackfillIdentity {
+                UserDefaults.standard.set(true, forKey: identityBackfillKey)
+            }
             lastSyncedAt = Date()
             logger.info("[CatchUp] ✅ 完成补拉")
 
@@ -564,7 +635,45 @@ actor SupabaseSyncService {
 
     // MARK: - Private Pull Helpers
 
-    private func pullTasks(spaceID: UUID, since: String) async throws {
+    private func makeIdentityMap(spaceID: UUID) async -> SupabaseIdentityMap {
+        let context = ModelContext(modelContainer)
+
+        var partnerLocalUserID: UUID?
+        let pairSpaces = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
+        if let pairSpace = pairSpaces.first(where: { $0.sharedSpaceID == spaceID }) {
+            let pairSpaceID = pairSpace.id
+            let memberships = (try? context.fetch(
+                FetchDescriptor<PersistentPairMembership>(
+                    predicate: #Predicate { $0.pairSpaceID == pairSpaceID }
+                )
+            )) ?? []
+
+            if let myLocalUserID {
+                partnerLocalUserID = memberships.first(where: { $0.userID != myLocalUserID })?.userID
+            } else {
+                partnerLocalUserID = memberships.count == 2 ? memberships.last?.userID : memberships.first?.userID
+            }
+        }
+
+        let rows = (try? await spaceMemberReader.fetchMembers(
+            spaceID: spaceID,
+            since: ISO8601DateFormatter().string(from: .distantPast)
+        )) ?? []
+        let partnerSupabaseUserID = rows.first(where: { $0.userId != myUserID })?.userId
+
+        return SupabaseIdentityMap(
+            mySupabaseUserID: myUserID,
+            myLocalUserID: myLocalUserID,
+            partnerSupabaseUserID: partnerSupabaseUserID,
+            partnerLocalUserID: partnerLocalUserID
+        )
+    }
+
+    private func pullTasks(
+        spaceID: UUID,
+        since: String,
+        identityMap: SupabaseIdentityMap = .empty
+    ) async throws {
         let rows: [TaskDTO] = try await client.from("tasks")
             .select()
             .eq("space_id", value: spaceID.uuidString)
@@ -575,13 +684,17 @@ actor SupabaseSyncService {
         if !rows.isEmpty {
             let context = ModelContext(modelContainer)
             for dto in rows {
-                dto.applyToLocal(context: context)
+                dto.applyToLocal(context: context, identityMap: identityMap)
             }
             try context.save()
         }
     }
 
-    private func pullTaskMessages(spaceID: UUID, since: String) async throws {
+    private func pullTaskMessages(
+        spaceID: UUID,
+        since: String,
+        identityMap: SupabaseIdentityMap = .empty
+    ) async throws {
         let formatter = ISO8601DateFormatter()
         let overlapSince = formatter.date(from: since)
             .flatMap { Calendar.current.date(byAdding: .minute, value: -10, to: $0) }
@@ -598,7 +711,7 @@ actor SupabaseSyncService {
         guard rows.isEmpty == false else { return }
         let context = ModelContext(modelContainer)
         for row in rows {
-            row.applyToLocal(context: context)
+            row.applyToLocal(context: context, identityMap: identityMap)
         }
         try context.save()
     }
@@ -758,19 +871,28 @@ actor SupabaseSyncService {
         // underlying bytes are actually new; a strict `>` gate would miss those.
         let versionDiffers = remoteVersion != partner.avatarVersion
         let assetChanged = partner.avatarAssetID != avatarAssetID
-        let shouldRefresh = versionDiffers || assetChanged
+        let targetAvatarFileName: String?
+        if let assetID = avatarAssetID, !assetID.isEmpty {
+            targetAvatarFileName = avatarMediaStore.partnerCacheFileName(for: assetID, version: remoteVersion)
+        } else {
+            targetAvatarFileName = nil
+        }
+        let avatarFileMissing = targetAvatarFileName.map { !avatarMediaStore.fileExists(named: $0) } ?? false
+        let fileNameChanged = partner.avatarPhotoFileName != targetAvatarFileName
+        let systemNameChanged = partner.avatarSystemName != avatarSystemName
+        let shouldRefreshMetadata = versionDiffers || assetChanged || fileNameChanged || systemNameChanged
+        let shouldDownloadAvatar = targetAvatarFileName != nil && (
+            versionDiffers || assetChanged || avatarFileMissing
+        )
 
-        if shouldRefresh {
-            if let assetID = avatarAssetID, !assetID.isEmpty {
-                partner.avatarPhotoFileName = avatarMediaStore.partnerCacheFileName(for: assetID, version: remoteVersion)
-            } else {
-                partner.avatarPhotoFileName = nil
-            }
+        if shouldRefreshMetadata || shouldDownloadAvatar {
+            partner.avatarPhotoFileName = targetAvatarFileName
             partner.avatarAssetID = avatarAssetID
             partner.avatarSystemName = avatarSystemName
             partner.avatarVersion = remoteVersion
 
-            if let urlString = avatarURLString,
+            if shouldDownloadAvatar,
+               let urlString = avatarURLString,
                let url = URL(string: urlString),
                let assetID = avatarAssetID {
                 let uploaderRef = avatarUploader
@@ -1031,14 +1153,21 @@ struct TaskMessagePullDTO: Decodable, Sendable {
         case createdAt = "created_at"
     }
 
-    nonisolated func applyToLocal(context: ModelContext) {
+    nonisolated func applyToLocal(
+        context: ModelContext,
+        identityMap: SupabaseIdentityMap = .empty
+    ) {
+        let localSenderID = identityMap.localUserID(
+            forSupabaseUserID: senderSupabaseUserID,
+            fallback: senderId
+        )
         let id = self.id
         let descriptor = FetchDescriptor<PersistentTaskMessage>(
             predicate: #Predicate { $0.id == id }
         )
         if let existing = try? context.fetch(descriptor).first {
             existing.taskID = taskId
-            existing.senderID = senderId
+            existing.senderID = localSenderID
             existing.type = type
             existing.content = content
             existing.createdAt = createdAt
@@ -1047,7 +1176,7 @@ struct TaskMessagePullDTO: Decodable, Sendable {
                 PersistentTaskMessage(
                     id: id,
                     taskID: taskId,
-                    senderID: senderId,
+                    senderID: localSenderID,
                     type: type,
                     content: content,
                     createdAt: createdAt
@@ -1235,7 +1364,65 @@ struct TaskDTO: Codable, Sendable {
         try c.encodeIfPresent(locationText, forKey: .locationText)
     }
 
-    nonisolated func applyToLocal(context: ModelContext) {
+    private nonisolated func mappedResponseHistoryData(identityMap: SupabaseIdentityMap) -> Data? {
+        guard let responseHistory, let data = responseHistory.data(using: .utf8) else { return nil }
+        guard var records = try? JSONDecoder().decode([ItemResponse].self, from: data) else {
+            return data
+        }
+
+        records = records.map { record in
+            ItemResponse(
+                responderID: identityMap.localUserID(
+                    forRemoteActorID: record.responderID,
+                    remoteCreatorID: creatorId,
+                    creatorSupabaseUserID: creatorSupabaseUserID
+                ),
+                kind: record.kind,
+                message: record.message,
+                respondedAt: record.respondedAt
+            )
+        }
+        return try? JSONEncoder().encode(records)
+    }
+
+    private nonisolated func mappedAssignmentMessagesData(identityMap: SupabaseIdentityMap) -> Data? {
+        guard let assignmentMessages, let data = assignmentMessages.data(using: .utf8) else { return nil }
+        guard var records = try? JSONDecoder().decode([TaskAssignmentMessage].self, from: data) else {
+            return data
+        }
+
+        records = records.map { record in
+            TaskAssignmentMessage(
+                authorID: identityMap.localUserID(
+                    forRemoteActorID: record.authorID,
+                    remoteCreatorID: creatorId,
+                    creatorSupabaseUserID: creatorSupabaseUserID
+                ),
+                body: record.body,
+                createdAt: record.createdAt
+            )
+        }
+        return try? JSONEncoder().encode(records)
+    }
+
+    nonisolated func applyToLocal(
+        context: ModelContext,
+        identityMap: SupabaseIdentityMap = .empty
+    ) {
+        let localCreatorID = identityMap.localUserID(
+            forSupabaseUserID: creatorSupabaseUserID,
+            fallback: creatorId
+        )
+        let localCompletedByUserID = completedByUserID.map {
+            identityMap.localUserID(
+                forRemoteActorID: $0,
+                remoteCreatorID: creatorId,
+                creatorSupabaseUserID: creatorSupabaseUserID
+            )
+        }
+        let localResponseHistoryData = mappedResponseHistoryData(identityMap: identityMap)
+        let localAssignmentMessagesData = mappedAssignmentMessagesData(identityMap: identityMap)
+
         let descriptor = FetchDescriptor<PersistentItem>(predicate: #Predicate { $0.id == id })
         let existing = try? context.fetch(descriptor).first
 
@@ -1256,6 +1443,7 @@ struct TaskDTO: Codable, Sendable {
                 return
             }
             // UPDATE: 同步远端字段
+            existing.creatorID = localCreatorID
             existing.title = title
             existing.notes = notes
             existing.listID = listId
@@ -1268,14 +1456,14 @@ struct TaskDTO: Codable, Sendable {
             existing.isPinned = isPinned
             existing.isDraft = isDraft
             existing.completedAt = completedAt
-            existing.completedByUserID = completedByUserID
+            existing.completedByUserID = localCompletedByUserID
             existing.isArchived = isArchived
             existing.archivedAt = archivedAt
             existing.updatedAt = updatedAt
             existing.executionRoleRawValue = executionRole
             existing.assignmentStateRawValue = assignmentState
-            if let h = responseHistory, let d = h.data(using: .utf8) { existing.responseHistoryData = d }
-            if let m = assignmentMessages, let d = m.data(using: .utf8) { existing.assignmentMessagesData = d }
+            if let d = localResponseHistoryData { existing.responseHistoryData = d }
+            if let d = localAssignmentMessagesData { existing.assignmentMessagesData = d }
             existing.reminderRequestedAt = reminderRequestedAt
             existing.locationText = locationText
             // 软删除：用 tombstone 标记，不硬删，避免下次 pull 被 INSERT 复活
@@ -1291,7 +1479,7 @@ struct TaskDTO: Codable, Sendable {
                 spaceID: spaceId,
                 listID: listId,
                 projectID: projectId,
-                creatorID: creatorId,
+                creatorID: localCreatorID,
                 title: title,
                 notes: notes,
                 locationText: locationText,
@@ -1303,14 +1491,14 @@ struct TaskDTO: Codable, Sendable {
                 statusRawValue: status,
                 assignmentStateRawValue: assignmentState,
                 latestResponseData: nil,
-                responseHistoryData: responseHistory?.data(using: .utf8) ?? Data(),
-                assignmentMessagesData: assignmentMessages?.data(using: .utf8) ?? Data(),
+                responseHistoryData: localResponseHistoryData ?? Data(),
+                assignmentMessagesData: localAssignmentMessagesData ?? Data(),
                 lastActionByUserID: nil,
                 lastActionAt: nil,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 completedAt: completedAt,
-                completedByUserID: completedByUserID,
+                completedByUserID: localCompletedByUserID,
                 isPinned: isPinned,
                 isDraft: isDraft,
                 isArchived: isArchived,

@@ -127,6 +127,52 @@ struct SyncInsertTests {
         #expect(fetched.count == 1)
         #expect(fetched.first?.isLocallyDeleted == true, "tombstone 必须保留")
     }
+
+    @Test func taskDTO_maps_creator_from_supabase_identity_before_response_checks() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let taskID = UUID()
+        let spaceID = UUID()
+        let staleCreatorID = UUID()
+        let mySupabaseUserID = UUID()
+        let myLocalUserID = UUID()
+        let partnerLocalUserID = UUID()
+        let assignmentMessage = TaskAssignmentMessage(
+            authorID: staleCreatorID,
+            body: "人呢？？？",
+            createdAt: Date()
+        )
+        let dto = TaskDTO.fixture(
+            id: taskID,
+            spaceID: spaceID,
+            title: "我在5点之前要吃大餐",
+            creatorID: staleCreatorID,
+            creatorSupabaseUserID: mySupabaseUserID,
+            assigneeMode: .partner,
+            status: .pendingConfirmation,
+            assignmentState: .pendingResponse,
+            assignmentMessages: [assignmentMessage]
+        )
+
+        dto.applyToLocal(
+            context: context,
+            identityMap: SupabaseIdentityMap(
+                mySupabaseUserID: mySupabaseUserID,
+                myLocalUserID: myLocalUserID,
+                partnerSupabaseUserID: nil,
+                partnerLocalUserID: partnerLocalUserID
+            )
+        )
+        try context.save()
+
+        let fetched = try #require(context.fetch(FetchDescriptor<PersistentItem>()).first)
+        let item = fetched.domainModel()
+        #expect(item.creatorID == myLocalUserID)
+        #expect(item.canActorRespond(myLocalUserID) == false)
+        #expect(item.canActorRespond(partnerLocalUserID) == true)
+        #expect(item.assignmentMessages.first?.authorID == myLocalUserID)
+    }
 }
 
 // MARK: - Test fixtures
@@ -139,27 +185,35 @@ extension TaskDTO {
         spaceID: UUID,
         title: String,
         updatedAt: Date = Date(),
-        isDeleted: Bool = false
+        isDeleted: Bool = false,
+        creatorID: UUID = UUID(),
+        creatorSupabaseUserID: UUID? = nil,
+        assigneeMode: TaskAssigneeMode = .self,
+        status: ItemStatus = .inProgress,
+        assignmentState: TaskAssignmentState = .active,
+        responseHistory: [ItemResponse] = [],
+        assignmentMessages: [TaskAssignmentMessage] = []
     ) -> TaskDTO {
+        let encoder = JSONEncoder()
         let item = PersistentItem(
             id: id,
             spaceID: spaceID,
             listID: nil,
             projectID: nil,
-            creatorID: UUID(),
+            creatorID: creatorID,
             title: title,
             notes: nil,
             locationText: nil,
             executionRoleRawValue: ItemExecutionRole.initiator.rawValue,
-            assigneeModeRawValue: TaskAssigneeMode.`self`.rawValue,
+            assigneeModeRawValue: assigneeMode.rawValue,
             dueAt: nil,
             hasExplicitTime: false,
             remindAt: nil,
-            statusRawValue: ItemStatus.inProgress.rawValue,
-            assignmentStateRawValue: TaskAssignmentState.active.rawValue,
+            statusRawValue: status.rawValue,
+            assignmentStateRawValue: assignmentState.rawValue,
             latestResponseData: nil,
-            responseHistoryData: Data(),
-            assignmentMessagesData: Data(),
+            responseHistoryData: (try? encoder.encode(responseHistory)) ?? Data(),
+            assignmentMessagesData: (try? encoder.encode(assignmentMessages)) ?? Data(),
             lastActionByUserID: nil,
             lastActionAt: nil,
             createdAt: updatedAt,
@@ -173,6 +227,6 @@ extension TaskDTO {
             reminderRequestedAt: nil,
             isLocallyDeleted: isDeleted
         )
-        return TaskDTO(from: item, spaceID: spaceID)
+        return TaskDTO(from: item, spaceID: spaceID, supabaseUserID: creatorSupabaseUserID)
     }
 }

@@ -195,6 +195,26 @@ private final class PullTestHarness {
         try ctx.save()
     }
 
+    func seedPartnerMembership(
+        avatarVersion: Int,
+        avatarAssetID: String?,
+        avatarPhotoFileName: String?
+    ) throws {
+        let ctx = ModelContext(container)
+        let membership = PersistentPairMembership(
+            id: UUID(),
+            pairSpaceID: pairSpaceLocalID,
+            userID: partnerLocalUserID,
+            nickname: "Partner",
+            joinedAt: .now,
+            avatarPhotoFileName: avatarPhotoFileName,
+            avatarAssetID: avatarAssetID,
+            avatarVersion: avatarVersion
+        )
+        ctx.insert(membership)
+        try ctx.save()
+    }
+
     func setRemoteRow(
         avatarVersion: Int,
         avatarURL: String?,
@@ -273,7 +293,13 @@ struct SpaceMemberPullAvatarTests {
         let uploader = MockAvatarStorageUploader()
         let store = InMemoryAvatarMediaStore()
         let harness = try await PullTestHarness(uploader: uploader, store: store)
-        try harness.seedPartnerMembership(avatarVersion: 5, avatarAssetID: "asset-same")
+        let expectedFileName = store.partnerCacheFileName(for: "asset-same", version: 5)
+        try store.persistAvatarData(Data([0x01]), fileName: expectedFileName)
+        try harness.seedPartnerMembership(
+            avatarVersion: 5,
+            avatarAssetID: "asset-same",
+            avatarPhotoFileName: expectedFileName
+        )
         harness.setRemoteRow(
             avatarVersion: 5,
             avatarURL: "https://example.test/any.jpg",
@@ -284,10 +310,42 @@ struct SpaceMemberPullAvatarTests {
         try await harness.runPullSpaceMembers()
 
         try await Task.sleep(for: .milliseconds(300))
-        #expect(store.savedFiles.isEmpty)
+        #expect(store.savedFiles.map(\.fileName) == [expectedFileName])
         let partner = try harness.loadPartnerMembership()
         #expect(partner.avatarAssetID == "asset-same")
         #expect(partner.avatarVersion == 5)
+        #expect(partner.avatarPhotoFileName == expectedFileName)
+    }
+
+    @Test("Pull repairs missing partner avatar file even when metadata is unchanged")
+    func pullDownloadsWhenAvatarFileMissingDespiteMatchingMetadata() async throws {
+        let uploader = MockAvatarStorageUploader()
+        uploader.stubbedDownloadBytes = Data([0x10, 0x20])
+        let store = InMemoryAvatarMediaStore()
+        let harness = try await PullTestHarness(uploader: uploader, store: store)
+        try harness.seedPartnerMembership(
+            avatarVersion: 5,
+            avatarAssetID: "asset-same",
+            avatarPhotoFileName: nil
+        )
+        harness.setRemoteRow(
+            avatarVersion: 5,
+            avatarURL: "https://example.test/repair.jpg",
+            avatarAssetID: "asset-same",
+            avatarSystemName: nil
+        )
+
+        try await harness.runPullSpaceMembers()
+
+        let expected = store.partnerCacheFileName(for: "asset-same", version: 5)
+        let partner = try harness.loadPartnerMembership()
+        #expect(partner.avatarAssetID == "asset-same")
+        #expect(partner.avatarVersion == 5)
+        #expect(partner.avatarPhotoFileName == expected)
+
+        var persisted: String?
+        for await name in store.persistedStream.prefix(1) { persisted = name }
+        #expect(persisted == expected)
     }
 
     @Test("Pull refreshes when remote version regresses (reinstall scenario)")
