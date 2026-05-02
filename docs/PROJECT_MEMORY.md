@@ -37,6 +37,7 @@
   - Supabase SQL 权限检查确认新增函数 `anon_exec=false`。
   - Supabase MCP `_list_edge_functions` 确认 `revenuecat-webhook` active；`curl` 无授权请求确认返回 `401 UNAUTHORIZED`。
   - RevenueCat MCP 确认 webhook integration 已存在；Supabase secrets list 确认 `REVENUECAT_WEBHOOK_AUTHORIZATION` 与 `REVENUECAT_PRO_ENTITLEMENT_ID` 已配置；带授权但缺少 `app_user_id` 的 webhook 请求返回 `400 INVALID_APP_USER_ID`，说明 Authorization 已通过。
+  - Build 30 已从当前 `main` archive 并上传到 App Store Connect / TestFlight；`xcodebuild -exportArchive` 返回 `Upload succeeded`。
 - 最新功能进度：Task 9 `Full Regression and Project Memory` 已完成；双人任务卡片聊天主链路已完成本地回归；自定义 morph overlay 已废弃，聊天面板改用 SwiftUI 原生 `.navigationTransition(.zoom)`。
 - 已完成并提交：
   - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。
