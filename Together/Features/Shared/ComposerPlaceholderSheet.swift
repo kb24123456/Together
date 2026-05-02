@@ -13,6 +13,7 @@ struct ComposerPlaceholderSheet: View {
     @State private var draftState: ComposerDraftState
     @State private var activeMenu: TaskEditorMenu?
     @State private var isSaving = false
+    @State private var validationMessage: String?
     @State private var lastFocusedFieldBeforeMenu: ComposerField?
     @State private var focusedField: ComposerField?
     @State private var hasScheduledInitialTitleFocus = false
@@ -124,6 +125,23 @@ struct ComposerPlaceholderSheet: View {
                 .interactiveDismissDisabled(false)
                 .modifier(TaskEditorMenuPresentationSizingModifier())
             }
+        }
+        .alert(
+            "无法创建任务",
+            isPresented: Binding(
+                get: { validationMessage != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        validationMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("知道了", role: .cancel) {
+                validationMessage = nil
+            }
+        } message: {
+            Text(validationMessage ?? "")
         }
         .onAppear {
             guard !hasScheduledInitialTitleFocus else { return }
@@ -632,6 +650,11 @@ struct ComposerPlaceholderSheet: View {
             let actorID = appContext.sessionStore.currentUser?.id
         else { return }
 
+        if let message = draftState.creationValidationMessage(now: .now) {
+            validationMessage = message
+            return
+        }
+
         isSaving = true
         defer { isSaving = false }
 
@@ -747,223 +770,6 @@ private struct ProjectSubtaskDraft: Identifiable, Hashable {
     }
 }
 
-private struct ComposerSmartSuggestionBar: View {
-    let title: String
-    let currentTime: Date?
-    let currentRepeatRule: ItemRepeatRule?
-    let currentDate: Date
-    let onSetTime: (Date) -> Void
-    let onSetRepeatRule: (ItemRepeatRule) -> Void
-    let onSetDate: (Date) -> Void
-
-    @State private var appliedIDs: Set<String> = []
-
-    private var suggestions: [SmartSuggestion] {
-        guard !title.isEmpty else { return [] }
-        var result: [SmartSuggestion] = []
-        let text = title
-
-        // Time detection
-        if currentTime == nil {
-            if let time = detectTime(in: text) {
-                let formatted = time.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-                result.append(.setTime(time, display: "设为 \(formatted)"))
-            }
-        }
-
-        // Repeat detection
-        // "每月" 不带具体日期时属于例行事务语义，不推荐月重复任务
-        if currentRepeatRule == nil {
-            if text.contains("每天") || text.contains("每日") {
-                result.append(.setRepeat(.daily, display: "每天重复"))
-            } else if text.contains("每周") {
-                result.append(.setRepeat(.weekly, display: "每周重复"))
-            } else if text.contains("每月"),
-                      text.range(of: #"每月\s*(?:\d+|[一二三四五六七八九十]+)\s*[号日]"#,
-                                 options: .regularExpression) != nil {
-                result.append(.setRepeat(.monthly, display: "每月重复"))
-            } else if text.contains("工作日") {
-                result.append(.setRepeat(.weekdays, display: "工作日重复"))
-            }
-        }
-
-        // Date detection — "周X" weekday references
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let isAlreadyToday = calendar.isDate(currentDate, inSameDayAs: today)
-
-        let weekdayMap: [(String, Int)] = [
-            ("周一", 2), ("周二", 3), ("周三", 4), ("周四", 5),
-            ("周五", 6), ("周六", 7), ("周日", 1), ("周天", 1),
-        ]
-        for (keyword, targetWeekday) in weekdayMap {
-            if text.contains(keyword) {
-                if let date = nextDateForWeekday(targetWeekday) {
-                    let label = Self.relativeLabel(for: date)
-                    result.append(.setDate(date, display: "设为\(label)"))
-                }
-                break
-            }
-        }
-
-        // "周末" → next Saturday
-        if text.contains("周末") && !text.contains("周一") {
-            if let date = nextDateForWeekday(7) { // Saturday
-                let label = Self.relativeLabel(for: date)
-                result.append(.setDate(date, display: "设为\(label)"))
-            }
-        }
-
-        // Explicit relative dates
-        if text.contains("明天") {
-            if let d = calendar.date(byAdding: .day, value: 1, to: today), isAlreadyToday {
-                result.append(.setDate(d, display: "设为明天"))
-            }
-        } else if text.contains("后天") {
-            if let d = calendar.date(byAdding: .day, value: 2, to: today) {
-                result.append(.setDate(d, display: "设为后天"))
-            }
-        } else if text.contains("下周") && !weekdayMap.contains(where: { text.contains($0.0) }) {
-            if let d = calendar.date(byAdding: .weekOfYear, value: 1, to: today) {
-                result.append(.setDate(d, display: "设为下周"))
-            }
-        }
-
-        return result.filter { !appliedIDs.contains($0.id) }
-    }
-
-    var body: some View {
-        if !suggestions.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppTheme.spacing.xs) { // 8→6
-                    ForEach(suggestions) { suggestion in
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
-                                appliedIDs.insert(suggestion.id)
-                            }
-                            applySuggestion(suggestion)
-                        } label: {
-                            HStack(spacing: AppTheme.spacing.xxs) { // 5→4
-                                Image(systemName: suggestion.icon)
-                                    .font(AppTheme.typography.sized(11, weight: .semibold))
-                                Text(suggestion.display)
-                                    .font(AppTheme.typography.sized(13, weight: .medium))
-                            }
-                            .foregroundStyle(AppTheme.colors.coral)
-                            .padding(.horizontal, AppTheme.spacing.md) // 12→16
-                            .padding(.vertical, AppTheme.spacing.xs) // 7→6
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(AppTheme.colors.coral.opacity(0.1))
-                            )
-                        }
-                        .buttonStyle(TaskEditorChipButtonStyle())
-                        .transition(
-                            .asymmetric(
-                                insertion: .scale(scale: 0.8).combined(with: .opacity),
-                                removal: .scale(scale: 0.85).combined(with: .opacity)
-                            )
-                        )
-                    }
-                }
-            }
-            .transition(.opacity.combined(with: .offset(y: 4)))
-            .animation(.spring(response: 0.32, dampingFraction: 0.84), value: suggestions.map(\.id))
-        }
-    }
-
-    private func applySuggestion(_ suggestion: SmartSuggestion) {
-        switch suggestion {
-        case .setTime(let time, _):
-            onSetTime(time)
-        case .setRepeat(let preset, _):
-            onSetRepeatRule(preset.makeRule(anchorDate: currentDate))
-        case .setDate(let date, _):
-            onSetDate(date)
-        }
-    }
-
-    private func nextDateForWeekday(_ weekday: Int) -> Date? {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let todayWeekday = calendar.component(.weekday, from: today)
-        var daysAhead = weekday - todayWeekday
-        if daysAhead <= 0 { daysAhead += 7 }
-        return calendar.date(byAdding: .day, value: daysAhead, to: today)
-    }
-
-    private static func relativeLabel(for date: Date) -> String {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: date)).day ?? 0
-        switch days {
-        case 1: return "明天"
-        case 2: return "后天"
-        default:
-            let weekday = calendar.component(.weekday, from: date)
-            let names = ["日", "一", "二", "三", "四", "五", "六"]
-            return "周\(names[weekday - 1])"
-        }
-    }
-
-    private func detectTime(in text: String) -> Date? {
-        let patterns: [(String, Int, Int)] = [
-            ("上午(\\d{1,2})点", 0, 0),
-            ("下午(\\d{1,2})点", 12, 0),
-            ("晚上(\\d{1,2})点", 12, 0),
-            ("早上(\\d{1,2})点", 0, 0),
-            ("(\\d{1,2})点半", 0, 30),
-            ("(\\d{1,2})点", 0, 0),
-        ]
-
-        for (pattern, hourOffset, minuteDefault) in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern),
-               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-               let hourRange = Range(match.range(at: 1), in: text) {
-                var hour = Int(text[hourRange]) ?? 0
-                hour += hourOffset
-                if hour > 23 { hour -= 12 }
-
-                var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-                components.hour = hour
-                components.minute = minuteDefault
-                return Calendar.current.date(from: components)
-            }
-        }
-
-        return nil
-    }
-
-    enum SmartSuggestion: Identifiable {
-        case setTime(Date, display: String)
-        case setRepeat(TaskEditorRepeatPreset, display: String)
-        case setDate(Date, display: String)
-
-        var id: String {
-            switch self {
-            case .setTime(_, let d): return "time-\(d)"
-            case .setRepeat(_, let d): return "repeat-\(d)"
-            case .setDate(_, let d): return "date-\(d)"
-            }
-        }
-
-        var display: String {
-            switch self {
-            case .setTime(_, let d), .setRepeat(_, let d), .setDate(_, let d): return d
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .setTime: return "clock"
-            case .setRepeat: return "arrow.triangle.2.circlepath"
-            case .setDate: return "calendar"
-            }
-        }
-    }
-}
-
 private struct ComposerDraftState: Hashable {
     var category: ComposerCategory
     var title = ""
@@ -1070,6 +876,18 @@ private struct ComposerDraftState: Hashable {
         case .project:
             return TaskDraft(title: title, notes: trimmedNotes.isEmpty ? nil : trimmedNotes)
         }
+    }
+
+    func creationValidationMessage(now: Date, calendar: Calendar = .current) -> String? {
+        guard category == .task else { return nil }
+        let dueAt = taskTime.map { Self.merge(date: taskDate, timeSource: $0) }
+            ?? calendar.startOfDay(for: taskDate)
+        return TaskCreationDateValidator.validationMessage(
+            dueAt: dueAt,
+            hasExplicitTime: taskTime != nil,
+            now: now,
+            calendar: calendar
+        )
     }
 
     func projectDraft(spaceID: UUID, creatorID: UUID) -> Project {
@@ -1319,6 +1137,23 @@ struct ComposerTemplateRow: View {
     }
 }
 
+enum TaskCreationDateValidator {
+    static func validationMessage(
+        dueAt: Date,
+        hasExplicitTime: Bool,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String? {
+        let isOverdue = hasExplicitTime
+            ? dueAt < now
+            : dueAt < calendar.startOfDay(for: now)
+        guard isOverdue else { return nil }
+        return hasExplicitTime
+            ? "选择的时间已经过去，请改为未来时间。"
+            : "选择的日期已经过去，请改为今天或未来日期。"
+    }
+}
+
 private struct ComposerPage: View {
     let category: ComposerCategory
     @Binding var draftState: ComposerDraftState
@@ -1359,24 +1194,6 @@ private struct ComposerPage: View {
                 placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.62)),
                 maximumNumberOfLines: 3
             )
-
-            if category == .task {
-                ComposerSmartSuggestionBar(
-                    title: draftState.title,
-                    currentTime: draftState.taskTime,
-                    currentRepeatRule: draftState.repeatRule,
-                    currentDate: draftState.taskDate,
-                    onSetTime: { time in
-                        draftState.taskTime = time
-                    },
-                    onSetRepeatRule: { rule in
-                        draftState.repeatRule = rule
-                    },
-                    onSetDate: { date in
-                        draftState.taskDate = date
-                    }
-                )
-            }
 
             ComposerFocusableTextView(
                 text: $draftState.notes,

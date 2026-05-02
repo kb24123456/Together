@@ -1357,7 +1357,7 @@ final class HomeViewModel {
     }
 
     private var primaryIncompleteTimelineItems: [Item] {
-        guard isViewingToday else { return incompleteTimelineItems }
+        guard showsOverdueCapsule else { return incompleteTimelineItems }
         return incompleteTimelineItems.filter { $0.isOverdue(on: selectedDate, calendar: calendar) == false }
     }
 

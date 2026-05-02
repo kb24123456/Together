@@ -1476,6 +1476,42 @@ struct TogetherTests {
     }
 
     @Test
+    func taskCreationDateValidatorBlocksAlreadyOverdueSelections() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 5, day: 2, hour: 10)))
+        let todayStart = calendar.startOfDay(for: now)
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
+        let pastTime = try #require(calendar.date(from: DateComponents(year: 2026, month: 5, day: 2, hour: 9)))
+        let futureTime = try #require(calendar.date(from: DateComponents(year: 2026, month: 5, day: 2, hour: 11)))
+
+        #expect(TaskCreationDateValidator.validationMessage(
+            dueAt: yesterday,
+            hasExplicitTime: false,
+            now: now,
+            calendar: calendar
+        ) == "选择的日期已经过去，请改为今天或未来日期。")
+        #expect(TaskCreationDateValidator.validationMessage(
+            dueAt: pastTime,
+            hasExplicitTime: true,
+            now: now,
+            calendar: calendar
+        ) == "选择的时间已经过去，请改为未来时间。")
+        #expect(TaskCreationDateValidator.validationMessage(
+            dueAt: todayStart,
+            hasExplicitTime: false,
+            now: now,
+            calendar: calendar
+        ) == nil)
+        #expect(TaskCreationDateValidator.validationMessage(
+            dueAt: futureTime,
+            hasExplicitTime: true,
+            now: now,
+            calendar: calendar
+        ) == nil)
+    }
+
+    @Test
     func partnerTaskNotesDoNotBecomeAssignmentMessages() async throws {
         let persistence = PersistenceController(inMemory: true)
         let itemRepository = LocalItemRepository(container: persistence.container)
@@ -4357,6 +4393,59 @@ struct TogetherTests {
         #expect(viewModel.overdueSummaryEntries.count == 1)
         #expect(viewModel.activeTimelineEntries.count == 1)
         #expect(viewModel.activeTimelineEntries.first?.title == "今天要做")
+    }
+
+    @Test @MainActor
+    func homeViewModelKeepsPairOverdueTasksVisibleWhenNoOverdueCapsuleIsShown() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace(),
+            pairSummary: MockDataFactory.makePairSpaceSummary()
+        )
+        sessionStore.switchWorkspace(to: .pair)
+
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: TestHomeTaskApplicationService(),
+            itemRepository: TestItemRepository(),
+            taskTemplateRepository: MockTaskTemplateRepository(),
+            taskMessageRepository: NoopTaskMessageRepository()
+        )
+        let dueAt = Date.now.addingTimeInterval(-3600)
+        let item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.pairSharedSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "指派给对方的超时任务",
+            notes: nil,
+            locationText: nil,
+            executionRole: .recipient,
+            assigneeMode: .partner,
+            dueAt: dueAt,
+            hasExplicitTime: true,
+            remindAt: nil,
+            status: .pendingConfirmation,
+            assignmentState: .pendingResponse,
+            latestResponse: nil,
+            responseHistory: [],
+            createdAt: dueAt,
+            updatedAt: dueAt,
+            completedAt: nil,
+            isPinned: false,
+            isDraft: false
+        )
+
+        viewModel.selectedDate = .now
+        viewModel.items = [item]
+
+        #expect(viewModel.showsOverdueCapsule == false)
+        #expect(viewModel.overdueEntryCount == 1)
+        #expect(viewModel.activeTimelineEntries.count == 1)
+        #expect(viewModel.activeTimelineEntries.first?.title == "指派给对方的超时任务")
+        #expect(viewModel.activeTimelineEntries.first?.pairCardStyle == .sent)
     }
 
     @Test @MainActor
