@@ -34,6 +34,19 @@ struct ImportantDatesViewModelQuotaTests {
         #expect(vm.events.filter { $0.creatorID == me }.count == 11)
     }
 
+    @Test func gracePeriodDoesNotBypassQuota() async {
+        let (vm, gate, me, _) = await makeViewModel(existingCountByMe: 3)
+        gate.overrideStatus = .gracePeriod(
+            originalExpiry: Date(timeIntervalSinceNow: -3600),
+            logbookFullUntil: Date(timeIntervalSinceNow: 7 * 86400)
+        )
+
+        await vm.createNew(makeDraft(creatorID: me))
+
+        #expect(vm.pendingUpsellTrigger == .anniversaryQuota)
+        #expect(vm.events.filter { $0.creatorID == me }.count == 3)
+    }
+
     @Test func partnerEventsDoNotCountAgainstMyQuota() async {
         let (vm, _, me, _) = await makeViewModel(
             existingCountByMe: 2,

@@ -117,18 +117,18 @@ struct PremiumGateEffectiveStatusTests {
         }
     }
 
-    @Test func isPremiumAndAllowsFullLogbookFollowEffectiveStatus() {
+    @Test func proAndLogbookCapabilitiesFollowEffectiveStatusSeparately() {
         let (gate, _, _) = makeGate()
         // raw .unknown → 默认 not premium
         #expect(gate.isPremium == false)
         #expect(gate.allowsFullLogbook == false)
 
-        // override → grace 视为 premium
+        // override → grace 只保留 Logbook 全历史，不视为完整 Pro
         gate.overrideStatus = .gracePeriod(
             originalExpiry: Date(timeIntervalSinceNow: -1 * 86400),
             logbookFullUntil: Date(timeIntervalSinceNow: 7 * 86400)
         )
-        #expect(gate.isPremium == true)
+        #expect(gate.isPremium == false)
         #expect(gate.allowsFullLogbook == true)
 
         // override → free 关掉

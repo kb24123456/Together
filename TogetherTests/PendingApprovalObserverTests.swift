@@ -58,8 +58,8 @@ struct PendingApprovalObserverTests {
         #expect(count == 1)
     }
 
-    @Test func gracePeriodToProDoesNotTrigger() {
-        // gracePeriod.isPremium == true，所以"非 premium → pro"边沿不成立
+    @Test func gracePeriodToProTriggersActivation() {
+        // grace 只保留 Logbook，不再等同完整 Pro；续订回 Pro 应触发激活边沿。
         let observer = makeObserver()
         var count = 0
         observer.onActivation = { _, _ in count += 1 }
@@ -67,7 +67,7 @@ struct PendingApprovalObserverTests {
         observer.recordStatus(Self.grace)
         observer.recordStatus(Self.proSubscription)
 
-        #expect(count == 0)
+        #expect(count == 1)
     }
 
     @Test func proToFreeDoesNotTrigger() {

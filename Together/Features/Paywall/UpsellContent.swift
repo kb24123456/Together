@@ -53,11 +53,10 @@ struct UpsellContent: View {
                         errorInline(err)
                     }
 
-                    primaryCTA
-                        .padding(.top, AppTheme.spacing.md)
-                    restoreButton
                     PaywallLegalFooter(selectedPackage: viewModel.selectedPackage)
-                        .padding(.top, AppTheme.spacing.xs)
+                        .padding(.top, AppTheme.spacing.md)
+                    primaryCTA
+                    restoreButton
                 }
                 .padding(.horizontal, AppTheme.spacing.xl)
                 .padding(.top, AppTheme.spacing.xl)
@@ -350,6 +349,8 @@ struct UpsellContent: View {
         switch e {
         case .noOfferings: "付费墙暂时不可用"
         case .network: "网络连接异常"
+        case .purchaseCancelled: "购买已取消"
+        case .paymentPending: "等待批准"
         case .unknown: "出错了"
         case .entitlementNotReady: "购买已提交"
         case .nothingToRestore: "未检测到可恢复的购买记录"
@@ -363,6 +364,8 @@ struct UpsellContent: View {
         switch e {
         case .noOfferings: "请稍后再试"
         case .network: "请检查网络后重试"
+        case .purchaseCancelled: "你可以随时重新选择套餐"
+        case .paymentPending: "购买正在等待 Apple ID 批准"
         case .unknown: "请稍后重试；多次失败请联系我们"
         case .entitlementNotReady: "正在同步，请稍后回 Profile 确认"
         case .nothingToRestore: "请确认登录的 Apple ID 是否曾购买过 Together Pro"
@@ -375,7 +378,7 @@ struct UpsellContent: View {
     private func canRetry(_ e: PaywallError) -> Bool {
         switch e {
         case .noOfferings, .network, .unknown: true
-        case .entitlementNotReady, .nothingToRestore: false
+        case .purchaseCancelled, .paymentPending, .entitlementNotReady, .nothingToRestore: false
         #if DEBUG
         case .debugOverrideMasksPro: false
         #endif

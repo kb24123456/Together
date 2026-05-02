@@ -104,7 +104,7 @@ final class PaywallViewModel {
         } catch {
             let mapped = mapError(error)
             logger.error("paywall.purchase.failed packageID=\(id, privacy: .public) error=\(String(describing: mapped), privacy: .public)")
-            state = .failed(mapped)
+            handlePurchaseError(mapped, fallbackOffering: offering)
         }
     }
 
@@ -176,6 +176,20 @@ final class PaywallViewModel {
             // 购买路径不应出现；防御性处理
             logger.error("paywall.purchase unexpected nothingToRestore packageID=\(packageID, privacy: .public)")
             state = .failed(.unknown)
+        }
+    }
+
+    private func handlePurchaseError(_ error: PaywallError, fallbackOffering: PaywallOffering) {
+        switch error {
+        case .purchaseCancelled:
+            logger.info("paywall.purchase.cancelledFromError")
+            state = .ready(fallbackOffering)
+        case .paymentPending:
+            logger.info("paywall.purchase.pendingFromError")
+            state = .pendingApproval
+            finishOnce(.pendingApproval)
+        default:
+            state = .failed(error)
         }
     }
 

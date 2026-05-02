@@ -76,10 +76,12 @@ struct DeviceInstallationUpsertDTO: Codable, Sendable {
 struct EnsureSingleSpaceRPCParams: Encodable, Sendable {
     let userID: UUID
     let displayName: String
+    let platform: String
 
     enum CodingKeys: String, CodingKey {
         case userID = "p_user_id"
         case displayName = "p_display_name"
+        case platform = "p_platform"
     }
 }
 
@@ -93,7 +95,7 @@ struct SoloRemoteSnapshot: Sendable {
 }
 
 protocol SupabaseSoloRemoteGatewayProtocol: Sendable {
-    func ensureSingleSpace(userID: UUID, displayName: String) async throws -> UUID
+    func ensureSingleSpace(userID: UUID, displayName: String, platform: SoloDevicePlatform) async throws -> UUID
     func registerDevice(_ dto: DeviceInstallationUpsertDTO) async throws
     func countTasks(spaceID: UUID) async throws -> Int
     func fetchSnapshot(spaceID: UUID, since: Date?) async throws -> SoloRemoteSnapshot
@@ -107,13 +109,17 @@ actor SupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
         self.client = client
     }
 
-    func ensureSingleSpace(userID: UUID, displayName: String) async throws -> UUID {
+    func ensureSingleSpace(userID: UUID, displayName: String, platform: SoloDevicePlatform) async throws -> UUID {
         struct SpaceRow: Decodable { let id: UUID }
 
         let row: SpaceRow = try await client
             .rpc(
                 "ensure_single_space",
-                params: EnsureSingleSpaceRPCParams(userID: userID, displayName: displayName)
+                params: EnsureSingleSpaceRPCParams(
+                    userID: userID,
+                    displayName: displayName,
+                    platform: platform.rawValue
+                )
             )
             .single()
             .execute()

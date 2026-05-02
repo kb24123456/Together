@@ -18,8 +18,8 @@ struct ProfileSubscriptionView: View {
                 .ignoresSafeArea()
 
             Group {
-                // 用 isPremium 而非 status：让 DEBUG override 生效，并把 grace period 视作 Pro。
-                if appContext.container.premiumGate.isPremium {
+                // Pro 与 grace 都展示订阅详情；grace 只保留 Logbook 权益，不再等同完整 Pro。
+                if appContext.container.premiumGate.effectiveStatus.isProOrGracePeriod {
                     ScrollView {
                         ProfileSubscriptionDetailSection(
                             status: appContext.container.premiumGate.effectiveStatus,

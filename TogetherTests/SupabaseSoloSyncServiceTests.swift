@@ -890,7 +890,7 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
         lock.withLock { _upsertCallCount }
     }
 
-    func ensureSingleSpace(userID: UUID, displayName: String) async throws -> UUID {
+    func ensureSingleSpace(userID: UUID, displayName: String, platform: SoloDevicePlatform) async throws -> UUID {
         lock.withLock {
             _ensureSingleSpaceCallCount += 1
             return _spaceID

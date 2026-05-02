@@ -262,7 +262,9 @@ final class AppContext {
         if sessionStore.authState == .signedIn {
             _ = await supabaseAuth.restoreSession()
             await configurePremiumGate()
-            let presentsStartupRestore = await shouldPresentStartupRestoreUI()
+            let presentsStartupRestore = await shouldPresentStartupRestoreUI(
+                requiresPremium: SoloDevicePlatform.current != .iphone
+            )
             if presentsStartupRestore {
                 if startupRestorePresentationState.isVisible == false {
                     beginStartupRestorePresentation()

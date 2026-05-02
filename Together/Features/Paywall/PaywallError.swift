@@ -9,6 +9,10 @@ enum PaywallError: Error, Equatable, Sendable {
     case noOfferings
     /// 网络 / 离线。
     case network
+    /// SDK 边缘路径抛出了用户取消购买。正常路径应返回 `.cancelled` outcome。
+    case purchaseCancelled
+    /// SDK 边缘路径抛出了等待批准。正常路径应返回 `.pending` outcome。
+    case paymentPending
     /// 未归类的 RC / SDK 错误。
     case unknown
     /// 购买真成功但 `PremiumGate.refresh()` 后 `isPremium` 仍 false（RC 最终一致延迟）。
@@ -25,16 +29,17 @@ enum PaywallError: Error, Equatable, Sendable {
     ///
     /// 正常路径下，cancel / Ask-to-Buy 通过 `PaywallPurchaseOutcome.cancelled` / `.pending` 返回
     /// 而不是抛错；但 RC SDK 某些旧桥接路径仍可能抛 `.purchaseCancelledError` /
-    /// `.paymentPendingError`，本 init 显式 fallthrough 到 `.unknown`，由 VM 层观察 OSLog 定位。
+    /// `.paymentPendingError`，本 init 仍显式区分，交由 VM 映射回非错误状态。
     init(from error: Error) {
         let nsError = error as NSError
         if let code = ErrorCode(rawValue: nsError.code) {
             switch code {
             case .networkError, .offlineConnectionError:
                 self = .network
-            case .purchaseCancelledError, .paymentPendingError:
-                // 见上方注释：正常路径不会走这；fallthrough 以防 SDK 边缘抛出
-                self = .unknown
+            case .purchaseCancelledError:
+                self = .purchaseCancelled
+            case .paymentPendingError:
+                self = .paymentPending
             default:
                 self = .unknown
             }

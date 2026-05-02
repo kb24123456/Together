@@ -87,12 +87,13 @@ struct SupabaseSoloRemoteGatewayDTOTests {
     @Test("ensure single space rpc params encode snake case argument names")
     func ensureSingleSpaceRPCParamsEncodeSnakeCaseArgumentNames() throws {
         let userID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
-        let dto = EnsureSingleSpaceRPCParams(userID: userID, displayName: "我的空间")
+        let dto = EnsureSingleSpaceRPCParams(userID: userID, displayName: "我的空间", platform: "iphone")
 
         let payload = try encodedJSONObject(dto)
 
         #expect(payload["p_user_id"] as? String == userID.uuidString)
         #expect(payload["p_display_name"] as? String == "我的空间")
+        #expect(payload["p_platform"] as? String == "iphone")
         #expect(payload["userID"] == nil)
         #expect(payload["displayName"] == nil)
     }

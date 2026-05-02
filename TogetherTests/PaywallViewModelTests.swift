@@ -199,6 +199,36 @@ struct PaywallViewModelPurchaseTests {
         #expect(vm.state == .failed(.network))
     }
 
+    @Test func cancelledErrorReturnsToReadyWithoutFinish() async {
+        let (gate, _, _) = makeGate()
+        let stub = StubPaywallPurchasing()
+        await stub.setNextPurchaseOutcomes([.failure(PaywallError.purchaseCancelled)])
+        let rec = FinishRecorder()
+        let vm = makeVM(gate: gate, stub: stub, recorder: rec)
+
+        await vm.load()
+        await vm.purchaseSelected()
+
+        if case .ready = vm.state {} else {
+            Issue.record("expected .ready, got \(vm.state)")
+        }
+        #expect(rec.reasons.isEmpty)
+    }
+
+    @Test func pendingErrorMovesToPendingApproval() async {
+        let (gate, _, _) = makeGate()
+        let stub = StubPaywallPurchasing()
+        await stub.setNextPurchaseOutcomes([.failure(PaywallError.paymentPending)])
+        let rec = FinishRecorder()
+        let vm = makeVM(gate: gate, stub: stub, recorder: rec)
+
+        await vm.load()
+        await vm.purchaseSelected()
+
+        #expect(vm.state == .pendingApproval)
+        #expect(rec.reasons == [.pendingApproval])
+    }
+
     @Test func purchaseSelectedFromNonReadyIsNoOp() async {
         let (gate, _, _) = makeGate()
         let stub = StubPaywallPurchasing()

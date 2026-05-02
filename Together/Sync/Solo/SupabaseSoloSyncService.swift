@@ -125,7 +125,11 @@ actor SupabaseSoloSyncService: SupabaseSoloSyncServicing {
             throw SoloSyncServiceError.requiresPro
         }
 
-        let spaceID = try await remote.ensureSingleSpace(userID: userID, displayName: displayName)
+        let spaceID = try await remote.ensureSingleSpace(
+            userID: userID,
+            displayName: displayName,
+            platform: platform
+        )
         try reconcileLocalSingleSpace(remoteSpaceID: spaceID, userID: localUserID, displayName: displayName)
         try await remote.registerDevice(DeviceInstallationUpsertDTO(
             userID: userID,

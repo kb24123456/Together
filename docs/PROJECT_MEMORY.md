@@ -14,7 +14,29 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：双人任务卡片聊天功能与聊天面板 UI 稳定性收敛，原始执行计划见 `docs/superpowers/plans/2026-05-01-task-card-chat.md`。
+- 当前任务：会员支付前后端深度审查修复；本地代码、Supabase DB 迁移、RevenueCat webhook Edge Function 部署与 RevenueCat Dashboard webhook 绑定已完成。Supabase MCP 与 RevenueCat MCP 均已在当前会话可用。
+- 当前验证策略：用户已要求后续不做模拟器测试；本阶段只做 `generic/platform=iOS` 编译与 build-for-testing，不启动模拟器。
+- 立即续接点：做真机购买 / 恢复购买 / entitlement webhook 端到端验证。Webhook URL：`https://nxielmwdoiwiwhzczrmt.supabase.co/functions/v1/revenuecat-webhook`。
+- 会员修复进度：
+  - Grace 期不再视为完整 Pro：`PremiumStatus.isPremium` 只对 `.pro` 为 true，`.gracePeriod` 仅允许 `allowsFullLogbook`。
+  - Pro quota / 个人同步等 gate 继续读 `isPremium`；Profile 订阅说明等需要展示 grace 的 UI 改读 `isProOrGracePeriod`。
+  - `PremiumGate.computeStatus` 在任一权威来源临时失败且无明确 active / grace 结果时优先使用有效缓存，避免 RevenueCat 短暂失败把真实订阅用户降级为 free。
+  - 免费 iPhone 恢复是产品认可例外；iPad / Mac 个人同步必须 active Pro。客户端继续用 `SoloSyncGate`，后端新增 `premium_entitlements` 与 `solo_sync_gate_allows` 做服务端兜底。
+  - Paywall 已把订阅条款与选中套餐价格说明移动到购买 CTA 附近，并显式处理取消购买 / 等待批准错误状态。
+  - RevenueCat webhook Edge Function 已部署为 `revenuecat-webhook` version 1，`verify_jwt=false`，函数内部用 `REVENUECAT_WEBHOOK_AUTHORIZATION` 做自定义 Authorization 校验；未带 Authorization 的请求已验证返回 `401 UNAUTHORIZED`。
+  - RevenueCat project `Together` 的 project id 为 `proj9691e26b`；active entitlement `lookup_key=pro` 已存在并绑定当前 App Store / Test Store 产品，与 `RevenueCatConfig.entitlementIdentifier = "pro"` 对齐。
+  - RevenueCat webhook integration `Together Supabase Entitlements` 已创建，id 为 `whintgr6c8d5e0e8d`，指向 Supabase `revenuecat-webhook`，覆盖所有 app / environment / event types。
+  - 生产 Supabase 已应用 `20260502055454 premium_entitlements_and_solo_sync_gate` 和 `20260502055831 restrict_premium_gate_function_execute`。`anon` 对新增 `SECURITY DEFINER` 函数的执行权已撤销；authenticated 仍可执行必要 RPC/helper，但 entitlement helper 已强制 `auth.uid() = p_user_id`。
+- 当前未完成：
+  - 未做真机购买 / 恢复购买 / RevenueCat entitlement webhook 端到端验证。
+- 最近验证：
+  - `git diff --check` 通过。
+  - `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
+  - `xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
+  - Supabase MCP `_list_migrations` 确认 `premium_entitlements_and_solo_sync_gate` 与 `restrict_premium_gate_function_execute` 均已在远端。
+  - Supabase SQL 权限检查确认新增函数 `anon_exec=false`。
+  - Supabase MCP `_list_edge_functions` 确认 `revenuecat-webhook` active；`curl` 无授权请求确认返回 `401 UNAUTHORIZED`。
+  - RevenueCat MCP 确认 webhook integration 已存在；Supabase secrets list 确认 `REVENUECAT_WEBHOOK_AUTHORIZATION` 与 `REVENUECAT_PRO_ENTITLEMENT_ID` 已配置；带授权但缺少 `app_user_id` 的 webhook 请求返回 `400 INVALID_APP_USER_ID`，说明 Authorization 已通过。
 - 最新功能进度：Task 9 `Full Regression and Project Memory` 已完成；双人任务卡片聊天主链路已完成本地回归；自定义 morph overlay 已废弃，聊天面板改用 SwiftUI 原生 `.navigationTransition(.zoom)`。
 - 已完成并提交：
   - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。

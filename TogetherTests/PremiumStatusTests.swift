@@ -20,12 +20,13 @@ struct PremiumStatusTests {
         #expect(status.allowsFullLogbook)
     }
 
-    @Test func gracePeriodAllowsFullLogbook() {
+    @Test func gracePeriodOnlyAllowsFullLogbook() {
         let status = PremiumStatus.gracePeriod(
             originalExpiry: Date(timeIntervalSince1970: 1000),
             logbookFullUntil: Date(timeIntervalSince1970: 1000 + 14 * 86400)
         )
-        #expect(status.isPremium)
+        #expect(status.isPremium == false)
+        #expect(status.isProOrGracePeriod)
         #expect(status.allowsFullLogbook)
     }
 

@@ -70,6 +70,20 @@ struct ProjectsViewModelQuotaTests {
         #expect(vm.projects.filter { $0.creatorID == me }.count == 6)
     }
 
+    @Test func gracePeriodDoesNotBypassQuota() async {
+        let (vm, gate, me, _) = await makeViewModel(meCount: 3)
+        gate.overrideStatus = .gracePeriod(
+            originalExpiry: Date(timeIntervalSinceNow: -3600),
+            logbookFullUntil: Date(timeIntervalSinceNow: 7 * 86400)
+        )
+
+        let result = await vm.createNew(makeDraft(creatorID: me))
+
+        #expect(result == nil)
+        #expect(vm.pendingUpsellTrigger == .projectQuota)
+        #expect(vm.projects.filter { $0.creatorID == me }.count == 3)
+    }
+
     @Test func partnerProjectsDoNotCountAgainstMyQuota() async {
         let (vm, _, me, _) = await makeViewModel(meCount: 2, partnerCount: 50)
         let result = await vm.createNew(makeDraft(creatorID: me))

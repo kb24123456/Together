@@ -26,15 +26,15 @@ struct PaywallErrorFromErrorTests {
         #expect(PaywallError(from: err) == .network)
     }
 
-    @Test func purchaseCancelledFallsThroughToUnknown() {
-        // SDK 现代 API 通过 outcome 区分 cancel；如果抛到这里视为边缘路径
+    @Test func purchaseCancelledMapsToDedicatedCase() {
+        // SDK 现代 API 通常通过 outcome 区分 cancel；如果抛到这里也不能展示泛化错误。
         let err = NSError(domain: "RevenueCat.ErrorCode", code: 1)
-        #expect(PaywallError(from: err) == .unknown)
+        #expect(PaywallError(from: err) == .purchaseCancelled)
     }
 
-    @Test func paymentPendingFallsThroughToUnknown() {
+    @Test func paymentPendingMapsToDedicatedCase() {
         let err = NSError(domain: "RevenueCat.ErrorCode", code: 20)
-        #expect(PaywallError(from: err) == .unknown)
+        #expect(PaywallError(from: err) == .paymentPending)
     }
 
     @Test func unknownErrorCodeIsMappedToUnknown() {

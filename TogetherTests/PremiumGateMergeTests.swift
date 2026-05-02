@@ -154,9 +154,8 @@ struct PremiumGateMergeTests {
         #expect(status == .free)
     }
 
-    /// 真实离线场景：RC SDK 离线会返回 stale `.success(isProActive: false)` 而不抛错，
-    /// 只有 Supabase 查询才会真实失败。原"双失败"要求在实测里从不触发，会
-    /// 错把离线 Pro 用户算成 Free。放宽为 grants 单失败即回退缓存。
+    /// 真实离线场景：任一权威来源失败时，不能用另一边的空结果直接降级。
+    /// 缓存有 TTL，短期保守保留上次状态，避免 RC 或 Supabase 瞬时异常关闭付费权益。
     @Test func grantsFailureAloneUsesCacheEvenWhenRCStaleInactive() {
         let cached = PremiumStatus.pro(source: .grant, expiresAt: nil)
         let status = PremiumGate.computeStatus(
@@ -178,7 +177,7 @@ struct PremiumGateMergeTests {
         #expect(status == .free)
     }
 
-    @Test func oneFailureOneSuccessIgnoresCacheUsesSuccess() {
+    @Test func rcFailureWithActiveGrantUsesActiveGrant() {
         let cached = PremiumStatus.pro(source: .grant, expiresAt: nil)
         let grant = PremiumGrant(
             id: UUID(), userID: UUID(), category: .friend,
@@ -190,8 +189,34 @@ struct PremiumGateMergeTests {
             cachedStatus: cached,
             now: now
         )
-        // 成功的 grants 应主导，不使用缓存
         #expect(status == .pro(source: .grant, expiresAt: nil))
+    }
+
+    @Test func rcFailureWithEmptyGrantsUsesCache() {
+        let cached = PremiumStatus.pro(source: .subscription, expiresAt: dateOffset(10))
+        let status = PremiumGate.computeStatus(
+            rcResult: .failure(NSError(domain: "rc", code: -1)),
+            grantsResult: .success([]),
+            cachedStatus: cached,
+            now: now
+        )
+        #expect(status == cached)
+    }
+
+    @Test func knownRecentExpiryBeatsCacheEvenWhenOtherSourceFails() {
+        let expired3DaysAgo = dateOffset(-3)
+        let cached = PremiumStatus.pro(source: .subscription, expiresAt: dateOffset(10))
+        let status = PremiumGate.computeStatus(
+            rcResult: .success(RCEntitlementSnapshot(isProActive: false, proExpirationDate: expired3DaysAgo)),
+            grantsResult: .failure(NSError(domain: "network", code: -1009)),
+            cachedStatus: cached,
+            now: now
+        )
+
+        #expect(status == .gracePeriod(
+            originalExpiry: expired3DaysAgo,
+            logbookFullUntil: expired3DaysAgo.addingTimeInterval(14 * 86400)
+        ))
     }
 
     // MARK: - Step 5: 双源无效 + 非 Grace

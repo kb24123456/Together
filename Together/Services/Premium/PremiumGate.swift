@@ -116,7 +116,7 @@ final class PremiumGate {
     // MARK: - 合并逻辑（纯函数，便于测试）
 
     /// Grace Period 时长：14 天（秒）。
-    private static let gracePeriodInterval: TimeInterval = 14 * 86400
+    private nonisolated static let gracePeriodInterval: TimeInterval = 14 * 86400
 
     /// 源无关的 14 天 Grace Period 合并算法（spec § 2.3）。
     /// RC 订阅和白名单 grant 任一来源近期过期都进入 Grace Period。
@@ -161,17 +161,15 @@ final class PremiumGate {
             )
         }
 
-        // Step 4: Supabase grants 查询失败 + 有缓存 → 回退缓存。
+        // Step 4: 任一权威来源失败 + 有缓存 → 回退缓存。
         //
-        // 原设计要求"双方都失败"才回退。实测发现 RevenueCat SDK 离线时
-        // 不抛错——返回上次缓存的 CustomerInfo（isActive = false），所以
-        // 「双失败」几乎永远不成立。真正的离线信号只有 Supabase query 失败。
+        // RC 与 Supabase grants 是并列来源。任一来源暂时不可用时，不能用另一个
+        // "没有看到 Pro" 的结果直接关闭付费能力；否则 RC transient failure +
+        // grants 空数组会把真实订阅用户临时降级为 free。缓存自带 TTL，作为短期保守值。
         //
-        // 放宽为单失败即回退：
-        //   - 若 grants 成功（即便空数组） + RC 没激活 → 真的无 Pro → .free
-        //   - 若 grants 失败（网络真坏）→ 无法确认 grant 状态 → 信任缓存
-        // 缓存自带 7 天 TTL，即使用户在 Pro 过期前后长期离线，最终也会老化掉。
-        if case .failure = grantsResult, let cached = cachedStatus {
+        // 注意：明确 active / grace 的成功来源优先于缓存，避免已知过期状态被旧 Pro 缓存覆盖。
+        if hasSourceFailure(rcResult: rcResult, grantsResult: grantsResult),
+           let cached = cachedStatus {
             return cached
         }
 
@@ -203,6 +201,15 @@ final class PremiumGate {
                 return l < r
             }
         }
+    }
+
+    private nonisolated static func hasSourceFailure(
+        rcResult: Result<RCEntitlementSnapshot, Error>,
+        grantsResult: Result<[PremiumGrant], Error>
+    ) -> Bool {
+        if case .failure = rcResult { return true }
+        if case .failure = grantsResult { return true }
+        return false
     }
 
     private nonisolated static func collectRecentlyExpired(

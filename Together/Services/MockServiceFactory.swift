@@ -15,7 +15,7 @@ private actor MockSupabaseSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol {
         self.emptySnapshot = emptySnapshot
     }
 
-    func ensureSingleSpace(userID: UUID, displayName: String) async throws -> UUID {
+    func ensureSingleSpace(userID: UUID, displayName: String, platform: SoloDevicePlatform) async throws -> UUID {
         remoteSpaceID
     }
 
