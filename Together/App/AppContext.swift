@@ -103,6 +103,8 @@ final class AppContext {
     private var startupRestoreRetryTask: Task<Void, Never>?
     private var reloadAfterSyncTask: Task<Void, Never>?
     private var pendingReloadAfterSyncCauses: ReloadAfterSyncCause = []
+    private let todayWidgetContextStore: TodayWidgetSharedContextStore
+    private let todayWidgetSnapshotWriter: TodayWidgetSnapshotWriter
 
     private static let reloadAfterSyncCoalescingDelay: Duration = .milliseconds(180)
 
@@ -114,6 +116,12 @@ final class AppContext {
         self.appearanceManager = appearanceManager
         self.syncHealthMonitor = container.syncEngineCoordinator.healthMonitor
         self.pendingApprovalObserver = PendingApprovalObserver(premiumGate: container.premiumGate)
+        let todayWidgetContextStore = TodayWidgetSharedContextStore()
+        self.todayWidgetContextStore = todayWidgetContextStore
+        self.todayWidgetSnapshotWriter = TodayWidgetSnapshotWriter(
+            itemRepository: container.itemRepository,
+            contextStore: todayWidgetContextStore
+        )
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
@@ -301,7 +309,22 @@ final class AppContext {
             await autoCheckInviteAcceptedIfPending()
         }
 
+        await refreshTodayWidgetSnapshot()
         StartupTrace.mark("AppContext.postLaunch.end")
+    }
+
+    func refreshTodayWidgetSnapshot() async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else {
+            todayWidgetContextStore.clear()
+            try? TodayWidgetSnapshotStore().write(.empty)
+            return
+        }
+
+        todayWidgetContextStore.write(TodayWidgetSharedContext(spaceID: spaceID, actorID: actorID))
+        try? await todayWidgetSnapshotWriter.refreshTodayWidgetSnapshot()
     }
 
     private func startSupabaseSoloSyncRecoveryIfNeeded() async -> Bool {
@@ -1356,6 +1379,7 @@ final class AppContext {
         await projectsViewModel.load()
         await calendarViewModel.load()
         await routinesViewModel.reload()
+        await refreshTodayWidgetSnapshot()
     }
 
     /// 推送本地已有数据到 Supabase（配对成功后调用）
@@ -1404,6 +1428,9 @@ final class AppContext {
     func configureSyncCallbacks() {
         homeViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
+        }
+        homeViewModel.onTodayDataChanged = { [weak self] in
+            Task { await self?.refreshTodayWidgetSnapshot() }
         }
         homeViewModel.onSharedMutationRecorded = { [weak self] change in
             guard let self else { return }
@@ -1794,6 +1821,7 @@ final class AppContext {
                 SyncChange(entityKind: .task, operation: .complete, recordID: taskID, spaceID: spaceID)
             )
             await homeViewModel.reload()
+            await refreshTodayWidgetSnapshot()
         } catch {
             appContextLogger.error("[Nudge] complete failed: \(error.localizedDescription)")
         }

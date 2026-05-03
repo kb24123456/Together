@@ -3,7 +3,7 @@ import Foundation
 struct TodayWidgetSnapshotStore: Sendable {
     private let containerURL: URL?
 
-    init(
+    nonisolated init(
         containerURL: URL? = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: TodayWidgetConstants.appGroupIdentifier
         )
@@ -11,7 +11,7 @@ struct TodayWidgetSnapshotStore: Sendable {
         self.containerURL = containerURL
     }
 
-    func read() throws -> TodayWidgetSnapshot {
+    nonisolated func read() throws -> TodayWidgetSnapshot {
         guard let fileURL else { return .empty }
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return .empty }
 
@@ -19,7 +19,7 @@ struct TodayWidgetSnapshotStore: Sendable {
         return try JSONDecoder.todayWidget.decode(TodayWidgetSnapshot.self, from: data)
     }
 
-    func write(_ snapshot: TodayWidgetSnapshot) throws {
+    nonisolated func write(_ snapshot: TodayWidgetSnapshot) throws {
         guard let fileURL else { return }
 
         try FileManager.default.createDirectory(
@@ -31,7 +31,7 @@ struct TodayWidgetSnapshotStore: Sendable {
         try data.write(to: fileURL, options: [.atomic])
     }
 
-    private var fileURL: URL? {
+    private nonisolated var fileURL: URL? {
         containerURL?.appending(path: TodayWidgetConstants.snapshotFileName)
     }
 }

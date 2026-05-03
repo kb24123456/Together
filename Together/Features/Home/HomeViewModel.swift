@@ -146,6 +146,7 @@ final class HomeViewModel {
 
     /// 任务操作完成后的回调，参数为 spaceID，用于触发同步
     var onTaskMutated: ((UUID) -> Void)?
+    var onTodayDataChanged: (@MainActor @Sendable () -> Void)?
     /// 共享任务 mutation 已记录后的精确回调，供 AppContext 走一等 shared mutation 发送路径。
     var onSharedMutationRecorded: ((SyncChange) -> Void)?
     /// 将当前任务转为例行事务时的回调（传递任务标题）
@@ -1243,6 +1244,7 @@ final class HomeViewModel {
             for item in updatedItems {
                 replaceItemPreservingOrder(item)
             }
+            onTodayDataChanged?()
         } catch {
             await reload()
         }
@@ -1832,6 +1834,7 @@ final class HomeViewModel {
         } else {
             onTaskMutated?(spaceID)
         }
+        onTodayDataChanged?()
     }
 }
 

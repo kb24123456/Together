@@ -3,6 +3,7 @@ import Testing
 @testable import Together
 
 @Suite("Today Widget Snapshot Store")
+@MainActor
 struct TodayWidgetSnapshotStoreTests {
     @Test("writes and reads a snapshot")
     func writesAndReadsSnapshot() throws {

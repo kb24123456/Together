@@ -3,11 +3,11 @@ import Foundation
 struct TodayWidgetSnapshotBuilder: Sendable {
     private let calendar: Calendar
 
-    init(calendar: Calendar = .current) {
+    nonisolated init(calendar: Calendar = .current) {
         self.calendar = calendar
     }
 
-    func build(
+    nonisolated func build(
         items: [Item],
         referenceDate: Date,
         limit: Int = 3
@@ -47,15 +47,15 @@ struct TodayWidgetSnapshotBuilder: Sendable {
         )
     }
 
-    private func isIncomplete(_ item: Item, on referenceDate: Date) -> Bool {
+    private nonisolated func isIncomplete(_ item: Item, on referenceDate: Date) -> Bool {
         item.isCompleted(on: referenceDate, calendar: calendar) == false && item.status != .completed
     }
 
-    private func timelineSortDate(for item: Item, referenceDate: Date) -> Date {
+    private nonisolated func timelineSortDate(for item: Item, referenceDate: Date) -> Date {
         item.occurrenceDueDate(on: referenceDate, calendar: calendar) ?? item.dueAt ?? .distantFuture
     }
 
-    private func dueTimeText(for item: Item, referenceDate: Date) -> String? {
+    private nonisolated func dueTimeText(for item: Item, referenceDate: Date) -> String? {
         let dueAt = item.occurrenceDueDate(on: referenceDate, calendar: calendar) ?? item.dueAt
         guard let dueAt, item.hasExplicitTime else { return nil }
         return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))

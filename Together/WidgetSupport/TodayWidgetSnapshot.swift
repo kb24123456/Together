@@ -6,7 +6,7 @@ struct TodayWidgetSnapshot: Codable, Equatable, Sendable {
     var remainingCount: Int
     var tasks: [TodayWidgetTaskSnapshot]
 
-    static var empty: TodayWidgetSnapshot {
+    nonisolated static var empty: TodayWidgetSnapshot {
         TodayWidgetSnapshot(
             generatedAt: .now,
             referenceDate: .now,
