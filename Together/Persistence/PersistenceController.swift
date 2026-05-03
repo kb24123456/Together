@@ -10,6 +10,9 @@ struct PersistenceController {
 
     init(inMemory: Bool = false) {
         StartupTrace.mark("PersistenceController.init.begin inMemory=\(inMemory)")
+        if inMemory == false {
+            Self.migrateToAppGroupStoreIfNeeded()
+        }
 
         var firstError = ""
 
@@ -298,8 +301,53 @@ struct PersistenceController {
         return directory.appendingPathComponent("Together.store")
     }
 
+    private static func legacyApplicationSupportStoreURL() -> URL {
+        let applicationSupportDirectory = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? URL.documentsDirectory
+
+        let directory = applicationSupportDirectory.appendingPathComponent("Together", isDirectory: true)
+        return directory.appendingPathComponent("Together.store")
+    }
+
+    private static func migrateToAppGroupStoreIfNeeded() {
+        guard let appGroupURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: TodayWidgetConstants.appGroupIdentifier
+        ) else { return }
+
+        let legacyURL = legacyApplicationSupportStoreURL()
+        let groupURL = appGroupURL.appending(path: "Together.store")
+        try? migrateStoreArtifactsIfNeeded(legacyStoreURL: legacyURL, appGroupStoreURL: groupURL)
+    }
+
+    static func migrateStoreArtifactsIfNeeded(
+        legacyStoreURL: URL,
+        appGroupStoreURL: URL
+    ) throws {
+        guard legacyStoreURL != appGroupStoreURL else { return }
+        guard FileManager.default.fileExists(atPath: legacyStoreURL.path) else { return }
+        guard FileManager.default.fileExists(atPath: appGroupStoreURL.path) == false else { return }
+
+        try FileManager.default.createDirectory(
+            at: appGroupStoreURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        for source in storeArtifactURLs(for: legacyStoreURL) where FileManager.default.fileExists(atPath: source.path) {
+            let destination = appGroupStoreURL.deletingLastPathComponent().appending(path: source.lastPathComponent)
+            if FileManager.default.fileExists(atPath: destination.path) == false {
+                try FileManager.default.copyItem(at: source, to: destination)
+            }
+        }
+    }
+
     static var persistentStoreSupportURL: URL {
-        URL(fileURLWithPath: persistentStoreURL.path + "_SUPPORT")
+        persistentStoreSupportURL(for: persistentStoreURL)
+    }
+
+    static func persistentStoreSupportURL(for storeURL: URL) -> URL {
+        URL(fileURLWithPath: storeURL.path + "_SUPPORT")
     }
 
     private static func backupStoreFiles() throws -> URL {
@@ -328,11 +376,14 @@ struct PersistenceController {
     }
 
     static func storeArtifactURLs() -> [URL] {
-        let storeURL = persistentStoreURL
+        storeArtifactURLs(for: persistentStoreURL)
+    }
+
+    static func storeArtifactURLs(for storeURL: URL) -> [URL] {
         let base = storeURL.deletingLastPathComponent()
             .appendingPathComponent(storeURL.deletingPathExtension().lastPathComponent)
-        let sqliteURLs = ["store", "store-shm", "store-wal"].map { base.appendingPathExtension($0) }
-        return sqliteURLs + [persistentStoreSupportURL]
+        return ["store", "store-shm", "store-wal"].map { base.appendingPathExtension($0) }
+            + [persistentStoreSupportURL(for: storeURL)]
     }
 
     private struct UserProfileSnapshot {
