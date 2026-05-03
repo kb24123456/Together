@@ -12,6 +12,13 @@
 - 小号 List：显示最多 3 条当前未完成任务。
 - 中号 List：显示最多 3 条当前未完成任务，阅读与点击空间更舒展。
 
+首阶段以两个 widget kind 暴露给系统：
+
+- `Today Focus`：只支持 `.systemSmall`，对应小号 Focus。
+- `Today List`：支持 `.systemSmall` 和 `.systemMedium`，分别对应小号 List 和中号 List。
+
+不使用首版可配置 widget 来切换 Focus/List，避免为了一个尺寸选择引入 Widget 专属配置面板。
+
 第二阶段再落地双人模式纪念日小组件，核心方向为头像 + 纪念日计数。第二阶段不和首阶段任务小组件混在同一个实施计划中。
 
 ## 2. 目标
@@ -119,6 +126,13 @@
 
 这些区域统一 deep link 到 App 的 Today。
 
+实现约束：
+
+- 虚线框使用 widget interactive `Button(intent:)`。
+- 非完成区域使用 `Link` 或 `widgetURL(_:)` 打开 App。
+- 不把整行包进同一个 `Button`，避免标题或时间误触发完成。
+- 不让 `Link` 覆盖虚线框按钮，避免完成操作被 deep link 吞掉。
+
 ### 6.2 动画反馈
 
 完成任务走乐观反馈：
@@ -165,9 +179,21 @@ Reduce Motion：
 - 空状态渲染。
 - Widget Preview。
 
+Widget Extension 包含两个 widget kind：
+
+- `TodayFocusWidget`：`.systemSmall`。
+- `TodayListWidget`：`.systemSmall`、`.systemMedium`。
+
 ### 8.2 App Group Shared Store
 
 App 主进程负责把 Today 当前排序结果写入 widget 专用快照。Widget 只读快照，不直接读取完整 App 运行态。
+
+实现前提：
+
+- 当前 `Together/Together.entitlements` 尚未配置 App Groups。
+- 首阶段必须为 App target 和 Widget Extension target 同时增加 App Group capability。
+- 建议 App Group id：`group.com.pigdog.Together`。
+- Widget 快照、完成后的临时 optimistic 状态和需要跨进程读取的最小数据都放在 App Group 容器内。
 
 快照字段：
 
@@ -186,20 +212,46 @@ App 主进程负责把 Today 当前排序结果写入 widget 专用快照。Widg
 
 新增 `CompleteTodayWidgetTaskIntent(taskID:)`。
 
+关键约束：
+
+- Widget 中普通 `AppIntent` 默认可能在 widget extension 进程执行，不能假设能访问主 App 的 `AppContext`、`AppBootstrapper` 或运行中的依赖容器。
+- 不能在 `perform()` 里临时拼出一套绕开业务状态机的完成逻辑。
+- 不能依赖“打开 App 后再完成”来冒充 widget 内完成；用户点虚线框时，动作本身必须能在系统交互里完成或明确失败。
+
 职责：
 
 - 根据 `taskID` 完成任务。
-- 复用现有任务完成服务或共享完成入口。
+- 通过 extension-safe 的 `TodayWidgetTaskCompletionGateway` 完成任务。
 - 成功后写入最新 widget 快照。
 - 请求 WidgetKit reload。
 
 App Intent 只处理完成任务，不承载创建、编辑、排序或筛选。
+
+`TodayWidgetTaskCompletionGateway` 要求：
+
+- 复用 `TaskApplicationServiceProtocol.completeTask(...)` 的同一套业务语义，尤其是单次任务、周期任务 occurrence、同步 outbox、提醒重排和当前 space 校验。
+- 如果实现需要 Widget Extension 访问本地 SwiftData 源数据，必须先把持久化 store 迁移到 App Group 容器，并提供从当前 Application Support store 到 App Group store 的一次性安全迁移。
+- 如果 SwiftData 多进程共享在实现验证中不可接受，则不能悄悄降级；必须回到 spec 重新确认首版是否改为只读 widget 或点击打开 App 完成。
+- App Intent `perform()` 必须等待本地完成写入和快照刷新完成后再返回。
 
 ### 8.4 Deep Link
 
 小组件非完成区域进入 App 的 Today。
 
 首阶段不要求直接进入任务详情，避免路由复杂度和状态恢复成本。后续如果需要，可在第二轮扩展为点任务标题进入任务详情。
+
+当前代码事实：
+
+- `TogetherApp.onOpenURL` 已把 URL 交给 `AppContext.handleDeepLink(url:)`。
+- 当前 `handleDeepLink` 只解析邀请链接。
+- `Info.plist` 当前没有自定义 URL scheme。
+
+首阶段需要新增 Today deeplink：
+
+- URL 方向：`together://today`。
+- `Info.plist` 增加对应 URL type。
+- `AppContext.handleDeepLink(url:)` 支持把 `together://today` 路由到 `router.currentSurface = .today`，并关闭会遮挡 Today 的非必要 sheet/overlay。
+- Widget 非完成区域统一使用这个 Today deeplink。
 
 ## 9. 刷新策略
 
@@ -304,13 +356,17 @@ Prompt：
 首阶段完成后必须验证：
 
 - `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
+- `xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
 - Widget extension 编译通过。
+- App target 与 Widget Extension target 都包含 `group.com.pigdog.Together` App Group entitlement。
+- 既有本地 SwiftData store 迁移到 App Group store 时不丢任务；如果实现选择不迁移 SwiftData，必须有等价的 extension-safe 完成路径。
 - 小号 Focus、小号 List、中号 List Preview 能展示正常态。
 - Preview 覆盖空状态。
 - Preview 覆盖长中文标题。
 - Preview 覆盖有截止时间和无截止时间。
 - 虚线框完成任务后，widget reload 后任务消失。
 - 点击非完成区域能进入 App Today。
+- VoiceOver 能区分“完成任务”按钮和“打开 Today”区域。
 - Reduce Motion 下不依赖复杂动画表达完成。
 
 当前项目记忆要求后续不做模拟器测试；本阶段默认只做 `generic/platform=iOS` 编译与 build-for-testing，除非用户重新要求模拟器验证。
@@ -319,8 +375,11 @@ Prompt：
 
 - 小号 List 三行中文任务存在可读性和点击密度风险；真实 Preview 如果挤压，需要降级到两行。
 - Widget App Intent 的完成逻辑需要复用应用层服务，不能另写一套绕过同步和状态机的完成逻辑。
+- App Intent 默认执行进程与主 App 运行态不同；如果没有 extension-safe 完成网关，交互完成会成为伪完成。
+- App Group store 迁移存在数据安全风险，必须作为实现计划的前置任务处理，而不是在 UI 完成后补。
 - App Group 快照必须和 Today 当前排序一致，否则用户会看到 App 与 widget 优先级不一致。
 - 旧快照可能过期；过期状态只能弱提示，不应阻塞 widget 展示。
+- 当前 deeplink 只支持邀请链接，Today deeplink 是首阶段必须补齐的基础设施。
 - 第二阶段双人纪念日 widget 不进入首阶段实现计划，避免任务小组件交付被双人数据边界拖慢。
 
 ## 15. 参考资料
@@ -328,3 +387,16 @@ Prompt：
 - Apple Developer：WidgetKit。
 - Apple Developer：Adding interactivity to widgets and Live Activities。
 - Apple Developer：Developing a WidgetKit strategy。
+
+## 16. Review 收敛记录
+
+2026-05-04 自审打掉的问题：
+
+- P1：原 spec 假设 App Intent 能直接复用主 App 运行态服务。已改为必须实现 extension-safe completion gateway，并明确不能绕过业务状态机。
+- P1：原 spec 假设 App Group 已可用。已补充当前 entitlements 未配置 App Groups，并指定首阶段需要新增 `group.com.pigdog.Together`。
+- P1：原 spec 没有说明两个小号形态如何同时暴露。已收敛为两个 widget kind：`Today Focus` 和 `Today List`。
+- P1：原 spec 假设已有 Today deep link。已补充当前代码只支持邀请链接，并要求新增 `together://today`。
+- P2：原 spec 没有明确 checkbox 与打开 App 的触发区域实现边界。已补充 `Button(intent:)` 和 `Link/widgetURL` 的分区要求。
+- P2：原 spec 没有写 VoiceOver 验证。已补充完成按钮与打开 Today 区域的可访问性验证。
+
+最终判定：当前 spec 已收敛到可进入 implementation plan；实现计划必须把 App Group / completion gateway / Today deeplink 作为前置任务，而不是先做 UI。
