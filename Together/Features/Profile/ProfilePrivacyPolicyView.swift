@@ -13,7 +13,8 @@ struct ProfilePrivacyPolicyView: View {
                     2. 昵称、头像、用户 ID：用于个人资料展示、双人协作识别和数据归属。
                     3. 应用内创建的内容：任务、纪念日、清单、项目、备注、留言等，用于核心功能、同步与恢复。
                     4. 订阅与会员状态：用于 Together Pro 权益判定。
-                    5. 必要的设备与系统信息：用于兼容性适配、故障诊断和安全防护。
+
+                    当前版本不集成第三方广告、行为分析或崩溃分析 SDK；必要技术日志仅用于服务运行与安全，不用于广告追踪。
                     """
                 )
 
@@ -51,7 +52,7 @@ struct ProfilePrivacyPolicyView: View {
 
                 legalLinks
 
-                Text("更新日期：2026 年 5 月 3 日")
+                Text("更新日期：2026 年 5 月 4 日")
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.textTertiary)
                     .padding(.top, AppTheme.spacing.sm)

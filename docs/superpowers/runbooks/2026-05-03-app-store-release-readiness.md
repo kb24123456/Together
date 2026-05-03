@@ -8,11 +8,12 @@
 - [ ] `git diff --check` 通过。
 - [ ] `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
 - [ ] `xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
-- [ ] TestFlight 安装的是本轮上传的新 build；Profile 不显示 `开发者 (DEBUG)` 区域。
+- [ ] TestFlight 安装的是本轮上传的新 build `1.0 (36)`；Profile 不显示 `开发者 (DEBUG)` 区域。
 
 ## App Store Connect
 
-- [ ] 将 `docs/legal/privacy-policy.md` 与 `docs/legal/terms-of-service.md` 同步 push 到 `together-app-legal` GitHub Pages 仓库，并确认线上 URL 已显示 2026-05-03 版本。
+- [ ] 将 `docs/legal/privacy-policy.md` 与 `docs/legal/terms-of-service.md` 同步 push 到 `together-app-legal` GitHub Pages 仓库，并确认线上 URL 已显示 2026-05-04 版本。
+- [ ] 使用 `docs/superpowers/runbooks/2026-05-04-app-store-connect-submission-materials.md` 更新 App 描述、关键词、宣传文本、IAP 元数据和审核备注。
 - [ ] App 隐私标签与 `Together/PrivacyInfo.xcprivacy` 一致：姓名、邮箱、用户 ID、头像照片、用户内容、购买历史均用于 App 功能，不用于追踪。
 - [ ] 隐私政策 URL 指向 `https://kb24123456.github.io/together-app-legal/privacy-policy/`。
 - [ ] 使用条款 URL 指向 `https://kb24123456.github.io/together-app-legal/terms-of-service/`。

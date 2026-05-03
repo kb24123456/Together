@@ -9,7 +9,7 @@ struct ProfileTermsOfServiceView: View {
                 termSection(
                     title: "一、服务说明",
                     content: """
-                    Together 是一款双人协作任务管理应用，提供个人与共享任务、纪念日、清单、项目、提醒、留言和同步恢复等功能。
+                    Together 是一款以个人待办、清单、项目和日历管理为核心的效率应用，并提供可自愿启用的双人协作能力。
 
                     使用本应用需要遵守适用法律、Apple 平台规则和本服务条款。
                     """
@@ -60,7 +60,7 @@ struct ProfileTermsOfServiceView: View {
 
                 legalLinks
 
-                Text("更新日期：2026 年 5 月 3 日")
+                Text("更新日期：2026 年 5 月 4 日")
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.textTertiary)
                     .padding(.top, AppTheme.spacing.sm)

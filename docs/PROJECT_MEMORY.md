@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-05-03
+- 日期：2026-05-04
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的单人 Todo 效率工具。
@@ -14,7 +14,7 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：会员支付主链路已通过真机验收；上架前合规收敛已完成仓库内可控部分，包括法律文案、权限声明、Privacy Manifest、开发者赠权 runbook 与 App Store Connect 人工核对清单。
+- 当前任务：会员支付主链路已通过真机验收；上架前合规收敛已完成仓库内可控部分，包括法律文案、权限声明、Privacy Manifest、开发者赠权 runbook、App Store Connect 人工核对清单与 ASC 可粘贴送审材料。
 - 当前验证策略：用户已要求后续不做模拟器测试；本阶段只做 `generic/platform=iOS` 编译与 build-for-testing，不启动模拟器。
 - 立即续接点：做真机购买 / 恢复购买 / entitlement webhook 端到端验证。Webhook URL：`https://nxielmwdoiwiwhzczrmt.supabase.co/functions/v1/revenuecat-webhook`。
 - 会员修复进度：
@@ -32,6 +32,8 @@
   - 已发现并修复购买成功后 Paywall 仍显示购买选项的最终一致性缺口：购买返回 `.success` / `.pending` / `paymentPending` 后，`PaywallViewModel` 会短时间轮询 `PremiumGate.refresh()`，等待 RevenueCat SDK 或 Supabase `premium_entitlements` 任一权威来源转 Pro；Profile 会员页进入 Free 分支前会先 `configurePremiumGate()`，若后端已有 active entitlement 不再显示普通 Paywall。
 - 当前未完成：
   - 需要按 `docs/superpowers/runbooks/2026-05-03-app-store-release-readiness.md` 人工核对 App Store Connect、RevenueCat、Supabase 和 TestFlight 真机验收项。
+  - 需要在 App Store Connect 后台替换 App 描述、关键词、IAP 元数据、审核备注和隐私标签，并绑定 build 36。
+  - `docs/legal/*.md` 已同步 push 到独立 `together-app-legal` 仓库 commit `6385a3c`；GitHub Pages 线上 Privacy Policy / Terms 已验证显示 2026-05-04 版本。
 - 最近验证：
   - 2026-05-03 上架合规收敛：`git diff --check` 通过；`plutil -lint Together/Info.plist Together/PrivacyInfo.xcprivacy` 通过；旧麦克风/语音识别权限键与旧 Grace 全 Pro 文案无残留；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过；`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过；未做模拟器测试。
   - `git diff --check` 通过。
@@ -162,6 +164,7 @@
 
 ## 验证记录
 
+- 2026-05-04：执行送审阻塞清单中仓库内可控项。修复 Profile Pro 入口旧“自定义主题”承诺；App 内隐私政策 / 服务条款摘要改为个人 Todo 为主、双人协作为可选扩展；`docs/legal/privacy-policy.md` 与 `docs/legal/terms-of-service.md` 更新为 2026-05-04 版本，隐私政策与本地 `PrivacyInfo.xcprivacy` 对齐，不额外声明广告、行为分析、崩溃分析或诊断数据采集；新增 `docs/superpowers/runbooks/2026-05-04-app-store-connect-submission-materials.md`，提供 ASC 描述、关键词、IAP 元数据、审核备注和隐私标签填写口径；更新送审阻塞清单到 build 36，并新增 Universal App / iPad 截图风险。法律文档已 push 到独立 `together-app-legal` commit `6385a3c`，线上 Privacy Policy / Terms 均已验证显示 2026-05-04 版本。验证：`plutil -lint Together/Info.plist Together/PrivacyInfo.xcprivacy` 通过；安全/隐私快扫未发现硬编码密钥、敏感 token 写 UserDefaults/日志、业务明文 HTTP 或 ATT 调用；`PrivacyInfo.xcprivacy` 已声明 UserDefaults 和 SystemBootTime required reason API；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。未做真机验收。
 - 2026-05-04：基于当前双人任务提醒、底部 toolbar 系统蓝、双人模式 reload 频闪修复、例行任务 per-space 缓存与单人蓝色例行任务胶囊延迟闪出修复，打包上传 TestFlight build 36。构建号从 35 提升到 36；归档路径 `build/TestFlight-20260504-0306-build36/Together.xcarchive`，导出上传使用 `build/exportOptions-TestFlight-upload.plist`；App Store Connect 返回 `Upload succeeded` / `Uploaded package is processing`。验证链路：`git diff --check`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、Release archive、`xcodebuild -exportArchive` 上传通过；未做模拟器或真机 UI 验收。
 - 2026-05-04：修复切换双人模式时短时间连续频闪。根因不是数据库刷新本身，而是 Supabase `catchUp` / Realtime 通知会短时间触发多轮 `reloadAfterSync`，首页 `reloadRevision` 又参与 `ScrollView/List` 容器 `.id` 与动画，导致普通同步刷新被放大成整块内容反复销毁重建。处理：`AppContext` 新增 cause-aware single-flight reload 合并器，180ms 内合并 Supabase / pair member / partner avatar / important dates / startup restore 刷新请求，并保留 important dates scheduler 副作用；`HomeViewModel.reload` 新增 `HomeReloadReason`，双人模式切换、同步和启动恢复不再做整页 items spring；`HomeView.tasksContent` 的 startup/empty/timeline identity 移除 `reloadRevision`，只保留日期维度；`SupabaseSyncService.catchUp(notify:)` 允许 Realtime handler 内部补拉不重复广播。验证：`git diff --check`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过；未做模拟器测试，仍需 TestFlight/真机切换双人模式确认无连续空态/列表闪烁。
 - 2026-05-04：按同一频闪根因排查单人 Today 列表、例行任务列表和头像区域。单人 Today 列表当前没有 `reloadRevision + .id` 的整块重建问题；头像区域保留 `.id(userProfileRevision)` 以支持同名头像文件重读，但 `SessionStore.currentUser` 和 `restorePersistedUserProfileIfNeeded(force:)` 改为用户资料真实变化时才推进 revision，避免同步无变化也重建头像按钮；例行任务列表移除首现 `.task` 与空间 `.task(id:)` 双加载，改为 `RoutinesViewModel.loadIfNeeded()` 和同步 `reload()` 静默刷新，避免普通同步反复进入 loading/empty。验证：`git diff --check`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过；未做模拟器测试。

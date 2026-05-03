@@ -65,7 +65,9 @@ struct ProfileView: View {
                     signOutFooter
 
                     #if DEBUG
-                    ProfileDebugSection()
+                    if ProfileDebugVisibility.isEnabled() {
+                        ProfileDebugSection()
+                    }
                     #endif
                 }
                 .padding(.horizontal, AppTheme.spacing.md)

@@ -1,6 +1,37 @@
 #if DEBUG
 import SwiftUI
 
+enum ProfileDebugVisibility {
+    static let launchArgument = "-TogetherProfileDebug"
+    static let environmentKey = "TOGETHER_PROFILE_DEBUG"
+    static let userDefaultsKey = "ProfileDebugSection.isEnabled"
+
+    static func isEnabled(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaults: UserDefaults = .standard
+    ) -> Bool {
+        if arguments.contains(launchArgument) {
+            return true
+        }
+
+        if let value = environment[environmentKey], Self.isTruthy(value) {
+            return true
+        }
+
+        return defaults.bool(forKey: userDefaultsKey)
+    }
+
+    private static func isTruthy(_ value: String) -> Bool {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 /// Dev-only "开发者" section 显示在 Profile 页底部。
 /// 提供两档清盘、以及 Premium 状态 override picker（本机调试用）。
 struct ProfileDebugSection: View {

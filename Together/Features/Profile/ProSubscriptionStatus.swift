@@ -18,7 +18,7 @@ enum ProSubscriptionStatus: Equatable {
     var subtitleText: String {
         switch self {
         case .free:
-            return "共享仪式、更长历史、自定义主题"
+            return "跨设备同步、更多项目、全量历史"
         case let .trial(daysLeft, renewalDate):
             return "试用剩余 \(daysLeft) 天 · \(Self.shortDateFormatter.string(from: renewalDate)) 续费"
         case let .active(renewalDate):
