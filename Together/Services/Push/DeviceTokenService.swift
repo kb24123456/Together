@@ -1,11 +1,13 @@
 import Foundation
+import os
 import Supabase
 
 /// APNs Device Token 注册服务
 /// 负责将设备推送令牌注册到 Supabase device_tokens 表
 actor DeviceTokenService {
 
-    private nonisolated(unsafe) let client = SupabaseClientProvider.shared
+    private let client = SupabaseClientProvider.shared
+    private let logger = Logger(subsystem: "com.pigdog.Together", category: "DeviceToken")
 
     /// 注册 APNs device token 到 Supabase
     func registerToken(_ tokenData: Data) async {
@@ -22,7 +24,7 @@ actor DeviceTokenService {
                 ], onConflict: "user_id,token")
                 .execute()
         } catch {
-            print("[DeviceToken] 注册失败: \(error)")
+            logger.error("register token failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -36,7 +38,7 @@ actor DeviceTokenService {
                 .eq("token", value: tokenString)
                 .execute()
         } catch {
-            print("[DeviceToken] 注销失败: \(error)")
+            logger.error("unregister token failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

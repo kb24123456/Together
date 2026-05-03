@@ -8,8 +8,8 @@
 
 | 文件 | 用途 | 状态 |
 |---|---|---|
-| `terms-of-service.md` | 服务条款 | ✅ 正式版（含 grace period § 3.4；2026-04-25 部署）|
-| `privacy-policy.md` | 隐私政策 | ✅ 正式版（2026-04-25 部署）|
+| `terms-of-service.md` | 服务条款 | ✅ 正式版（含 grace period § 3.4；2026-05-03 待同步到 Pages）|
+| `privacy-policy.md` | 隐私政策 | ✅ 正式版（2026-05-03 待同步到 Pages）|
 
 ## 正式 URL
 

@@ -4,86 +4,54 @@ struct ProfilePrivacyPolicyView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                policySection(
-                    title: "一、个人信息处理者",
-                    content: "Together（以下简称「我们」）是本应用的开发者和个人信息处理者。如您对本隐私政策有任何疑问，请通过应用内「意见反馈」功能与我们联系。"
-                )
+                legalHeader
 
                 policySection(
-                    title: "二、我们收集的信息",
+                    title: "一、我们收集的信息",
                     content: """
-                    我们在提供服务过程中，可能会收集以下个人信息：
-
-                    1. Apple ID 标识符：用于账号创建和登录验证
-                    2. 昵称和头像：用于个人资料展示和双人协作识别
-                    3. 任务数据：包括您创建的任务标题、备注、截止时间等内容
-                    4. 设备信息：用于应用适配和问题排查
-
-                    我们不会收集您的位置信息、通讯录、短信或通话记录等敏感个人信息。
+                    1. Apple Sign In 身份信息：用于账号识别和登录。
+                    2. 昵称、头像、用户 ID：用于个人资料展示、双人协作识别和数据归属。
+                    3. 应用内创建的内容：任务、纪念日、清单、项目、备注、留言等，用于核心功能、同步与恢复。
+                    4. 订阅与会员状态：用于 Together Pro 权益判定。
+                    5. 必要的设备与系统信息：用于兼容性适配、故障诊断和安全防护。
                     """
                 )
 
                 policySection(
-                    title: "三、信息使用目的",
+                    title: "二、权限使用",
                     content: """
-                    我们收集的个人信息仅用于以下目的：
+                    Together 仅在您主动拍摄头像时请求相机权限；仅在您主动选择头像图片时访问所选照片。
 
-                    1. 提供核心任务管理功能
-                    2. 实现双人协作数据同步（通过 Apple iCloud）
-                    3. 发送任务提醒通知（需您授权）
-                    4. 改善应用体验和修复问题
+                    当前版本不提供语音输入功能，不请求麦克风或语音识别权限；也不使用定位、通讯录、短信或通话记录。
                     """
                 )
 
                 policySection(
-                    title: "四、信息存储与安全",
+                    title: "三、数据存储与处理方",
                     content: """
-                    1. 您的数据存储在本设备及 Apple iCloud 云端（如启用同步功能）
-                    2. 双人协作数据通过 Apple CloudKit 技术进行端到端同步
-                    3. 我们不运营独立服务器，不会将您的数据存储在第三方服务器上
-                    4. 我们采取合理的技术措施保护您的个人信息安全
+                    本应用会在设备本地保存核心数据，并使用 Supabase 处理身份认证、账号资料、配对关系、双人协作、跨设备恢复、会员状态和必要业务数据。
+
+                    订阅购买由 Apple App Store 处理；订阅状态同步由 RevenueCat 协助完成。Apple、Supabase、RevenueCat 会分别按照其隐私政策处理必要数据。
                     """
                 )
 
                 policySection(
-                    title: "五、信息共享与披露",
+                    title: "四、数据共享",
                     content: """
-                    1. 双人模式下，您的昵称、头像和共享任务数据将对协作伙伴可见
-                    2. 除上述情况外，我们不会向任何第三方出售、出租或共享您的个人信息
-                    3. 法律法规要求或政府部门依法要求时，我们可能会依法披露相关信息
+                    双人模式下，您的昵称、头像和共享空间内容会对协作伙伴可见。除提供服务所必需的 Apple、Supabase、RevenueCat 处理外，我们不会出售、出租或用于广告追踪。
                     """
                 )
 
                 policySection(
-                    title: "六、您的权利",
+                    title: "五、您的权利",
                     content: """
-                    根据《中华人民共和国个人信息保护法》，您享有以下权利：
-
-                    1. 查阅权：您可以在应用内查看您的个人资料和任务数据
-                    2. 更正权：您可以随时修改您的昵称和头像
-                    3. 删除权：您可以通过「账号注销」功能删除所有个人信息
-                    4. 撤回同意权：您可以在系统设置中关闭通知权限
-
-                    行使上述权利，请通过应用内「意见反馈」功能联系我们。
+                    您可以在应用内查看、修改个人资料，解除配对，或通过账号注销删除账号与我们控制下的个人数据。注销后，我们将在 30 天内删除 Supabase、RevenueCat 等我们控制下的数据；Apple 平台数据按 Apple 政策处理。
                     """
                 )
 
-                policySection(
-                    title: "七、信息保存期限",
-                    content: "我们在您使用本应用期间保存您的个人信息。当您注销账号后，我们将在 14 天内删除您的所有个人信息和相关数据。"
-                )
+                legalLinks
 
-                policySection(
-                    title: "八、未成年人保护",
-                    content: "本应用不面向 14 岁以下的未成年人。如果我们发现在未获得家长或监护人同意的情况下收集了未成年人的个人信息，我们将尽快删除相关数据。"
-                )
-
-                policySection(
-                    title: "九、隐私政策更新",
-                    content: "我们可能会不时更新本隐私政策。更新后的政策将在应用内发布，重大变更时我们会通过应用内通知告知您。"
-                )
-
-                Text("更新日期：2025 年 1 月 1 日")
+                Text("更新日期：2026 年 5 月 3 日")
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.textTertiary)
                     .padding(.top, AppTheme.spacing.sm)
@@ -95,6 +63,31 @@ struct ProfilePrivacyPolicyView: View {
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("隐私政策")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var legalHeader: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+            Text("Together 隐私政策")
+                .font(AppTheme.typography.textStyle(.title3, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+
+            Text("本页与正式法律文档保持同一口径；完整版本以线上文档为准。")
+                .font(AppTheme.typography.textStyle(.subheadline))
+                .foregroundStyle(AppTheme.colors.body)
+        }
+    }
+
+    private var legalLinks: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
+            Link("打开完整隐私政策", destination: LegalURLs.privacy)
+                .font(AppTheme.typography.textStyle(.body, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+
+            Text("联系邮箱：billy357831193+together@gmail.com")
+                .font(AppTheme.typography.textStyle(.footnote))
+                .foregroundStyle(AppTheme.colors.textTertiary)
+        }
+        .padding(.top, AppTheme.spacing.sm)
     }
 
     private func policySection(title: String, content: String) -> some View {
