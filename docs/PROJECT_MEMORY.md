@@ -47,7 +47,11 @@
   - RevenueCat MCP 确认 webhook integration 已存在；Supabase secrets list 确认 `REVENUECAT_WEBHOOK_AUTHORIZATION` 与 `REVENUECAT_PRO_ENTITLEMENT_ID` 已配置；带授权但缺少 `app_user_id` 的 webhook 请求返回 `400 INVALID_APP_USER_ID`，说明 Authorization 已通过。
   - Build 30 已从当前 `main` archive 并上传到 App Store Connect / TestFlight；`xcodebuild -exportArchive` 返回 `Upload succeeded`。
 - 最新功能进度：Task 9 `Full Regression and Project Memory` 已完成；双人任务卡片聊天主链路已完成本地回归；自定义 morph overlay 已废弃，聊天面板改用 SwiftUI 原生 `.navigationTransition(.zoom)`。
+- 2026-05-04 Today 任务 Widget 第一阶段已落地到 `main`：小号 Focus、小号/中号 List 均读 App Group snapshot；显示“还剩 N 项”、任务右侧截止时间、左侧虚线圆角方形完成框；点击完成框运行 `TodayTaskCompletionIntent`，写共享 SwiftData store、记录 `.task/.complete` outbox、更新 snapshot 并 reload widget；其他区域通过 `together://today` 进入 App Today。
+- Today Widget 关键文件：`Together/WidgetSupport/*` 负责 App 侧 snapshot/context/write/gateway；`TogetherWidget/TodayWidgets.swift` 负责 Widget UI；`TogetherWidget/TodayTaskCompletionIntent.swift` 负责 extension 内完成动作；`TogetherWidget/TodayWidgetShared.swift` 是 extension-safe DTO/store；`Together.xcodeproj` 已新增 `TogetherWidget` extension target；App 与 extension entitlements 均使用 `group.com.pigdog.Together`。
+- Today Widget 已知边界：带签名的真机/TestFlight 构建前，Apple Developer App ID / provisioning profile 必须开启 App Groups 并包含 `group.com.pigdog.Together`；本地 `CODE_SIGNING_ALLOWED=NO` 构建已通过但不等价于签名配置完成。`xcodebuild` 会反复删除 `Together.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`，提交前需用 git 恢复，不能提交该删除。
 - 已完成并提交：
+  - Today Widget：App Group store 迁移、snapshot 生成/刷新、deep link、completion gateway、extension target、真实 Widget UI 与 AppIntent 已分步提交。
   - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。
   - Task 2 + Task 3：`TaskMessageType`、`TaskMessageCursor`、`PersistentTaskMessage.content`、`PersistentTaskChatReadState`、`TaskMessageRepositoryProtocol`、local/mock repository 和 repository 测试，提交 `7292bbd`。
   - Task 4：应用服务将用户留言写入 `task_messages`，`assignmentMessages` 作为 legacy fallback；Task 4 comment 写入保持 local-only，不记录 `.taskMessage` sync；`sendReminderToPartner` 的 nudge sync 未改，提交 `0796700`。
@@ -57,6 +61,7 @@
   - Task 8：新增 `TaskChatPanelView`，实现任务聊天面板、头像消息气泡、nudge/system 居中状态、`TextField(axis: .vertical)` composer、Material 背景模糊和 Reduce Motion 降级；Home 使用稳定的 selected chat ViewModel，避免 body 重建导致输入态丢失。
   - Task 9：完成 focused tests、完整单元测试和 simulator build 回归，并记录阶段性项目记忆。
 - 最近验证：
+  - Today Widget：`git diff --check` 通过；`plutil -lint Together/Info.plist Together/Together.entitlements TogetherWidget/Info.plist TogetherWidget/TogetherWidget.entitlements` 通过；`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；focused widget/persistence test build-for-testing 通过；未做真机 widget 交互验证。
   - Task 2/3：`TogetherTests/TaskMessageRepositoryTests` 通过；一次 review 代理额外跑过完整 `Together` 测试 483/483 通过。
   - Task 4：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -only-testing:TogetherTests/SendReminderToPartnerTests` 通过；`git diff --check` 通过。
 - Task 5：`git diff --check` 通过；`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TaskMessagePushDTOTests -only-testing:TogetherTests/TaskMessageSyncTests ...` 通过 DTO / pull DTO 测试；`xcodebuild test-without-building -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests` 通过应用层 outbox 相关测试。
