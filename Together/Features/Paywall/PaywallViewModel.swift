@@ -49,6 +49,7 @@ final class PaywallViewModel {
     private let premiumGate: PremiumGate
     private let onFinished: @MainActor (PaywallFinishReason) -> Void
     private let successHoldDuration: Duration
+    private let activationPollDelays: [Duration]
     private let logger: Logger
 
     /// 一次性闸门。close / success / pending 任一先到都会关闭后续 finish 回调。§ 2.3 R59。
@@ -59,12 +60,19 @@ final class PaywallViewModel {
         premiumGate: PremiumGate,
         onFinished: @escaping @MainActor (PaywallFinishReason) -> Void,
         successHoldDuration: Duration = UpsellCopy.paywallSuccessHoldDuration,
+        activationPollDelays: [Duration] = [
+            .milliseconds(700),
+            .seconds(1),
+            .seconds(2),
+            .seconds(3)
+        ],
         logger: Logger = premiumLogger
     ) {
         self.purchasing = purchasing
         self.premiumGate = premiumGate
         self.onFinished = onFinished
         self.successHoldDuration = successHoldDuration
+        self.activationPollDelays = activationPollDelays
         self.logger = logger
     }
 
@@ -104,7 +112,7 @@ final class PaywallViewModel {
         } catch {
             let mapped = mapError(error)
             logger.error("paywall.purchase.failed packageID=\(id, privacy: .public) error=\(String(describing: mapped), privacy: .public)")
-            handlePurchaseError(mapped, fallbackOffering: offering)
+            await handlePurchaseError(mapped, fallbackOffering: offering)
         }
     }
 
@@ -148,15 +156,14 @@ final class PaywallViewModel {
         switch outcome {
         case .success:
             logger.info("paywall.purchase.succeeded packageID=\(packageID, privacy: .public)")
-            await premiumGate.refresh()
-            logger.info("paywall.refresh.postPurchase isPremium=\(self.premiumGate.isPremium, privacy: .public)")
+            let activated = await waitForPremiumActivation(context: "postPurchase")
             #if DEBUG
             if premiumGate.overrideStatus != nil {
                 state = .failed(.debugOverrideMasksPro)
                 return
             }
             #endif
-            if premiumGate.isPremium {
+            if activated {
                 state = .succeeded
                 await holdThenFinish()
             } else {
@@ -169,8 +176,20 @@ final class PaywallViewModel {
 
         case .pending:
             logger.info("paywall.purchase.pending packageID=\(packageID, privacy: .public)")
-            state = .pendingApproval
-            finishOnce(.pendingApproval)
+            let activated = await waitForPremiumActivation(context: "postPurchasePending")
+            #if DEBUG
+            if premiumGate.overrideStatus != nil {
+                state = .failed(.debugOverrideMasksPro)
+                return
+            }
+            #endif
+            if activated {
+                state = .succeeded
+                await holdThenFinish()
+            } else {
+                state = .pendingApproval
+                finishOnce(.pendingApproval)
+            }
 
         case .nothingToRestore:
             // 购买路径不应出现；防御性处理
@@ -179,15 +198,27 @@ final class PaywallViewModel {
         }
     }
 
-    private func handlePurchaseError(_ error: PaywallError, fallbackOffering: PaywallOffering) {
+    private func handlePurchaseError(_ error: PaywallError, fallbackOffering: PaywallOffering) async {
         switch error {
         case .purchaseCancelled:
             logger.info("paywall.purchase.cancelledFromError")
             state = .ready(fallbackOffering)
         case .paymentPending:
             logger.info("paywall.purchase.pendingFromError")
-            state = .pendingApproval
-            finishOnce(.pendingApproval)
+            let activated = await waitForPremiumActivation(context: "postPurchasePendingError")
+            #if DEBUG
+            if premiumGate.overrideStatus != nil {
+                state = .failed(.debugOverrideMasksPro)
+                return
+            }
+            #endif
+            if activated {
+                state = .succeeded
+                await holdThenFinish()
+            } else {
+                state = .pendingApproval
+                finishOnce(.pendingApproval)
+            }
         default:
             state = .failed(error)
         }
@@ -232,6 +263,27 @@ final class PaywallViewModel {
     private func holdThenFinish() async {
         try? await Task.sleep(for: successHoldDuration)
         finishOnce(.purchasedOrRestored)
+    }
+
+    private func waitForPremiumActivation(context: String) async -> Bool {
+        await premiumGate.refresh()
+        logger.info(
+            "paywall.refresh.\(context, privacy: .public) attempt=0 isPremium=\(self.premiumGate.isPremium, privacy: .public)"
+        )
+        if premiumGate.isPremium { return true }
+
+        for (index, delay) in activationPollDelays.enumerated() {
+            try? await Task.sleep(for: delay)
+            if Task.isCancelled { return premiumGate.isPremium }
+
+            await premiumGate.refresh()
+            logger.info(
+                "paywall.refresh.\(context, privacy: .public) attempt=\(index + 1, privacy: .public) isPremium=\(self.premiumGate.isPremium, privacy: .public)"
+            )
+            if premiumGate.isPremium { return true }
+        }
+
+        return false
     }
 
     private func autoSelectPackageID(in offering: PaywallOffering) -> String? {

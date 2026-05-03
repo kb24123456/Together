@@ -11,6 +11,13 @@ protocol GrantsLoaderProtocol: Sendable {
     func fetchActiveGrants(userID: UUID) async throws -> [PremiumGrant]
 }
 
+/// `premium_entitlements` 是 RevenueCat webhook 写入的服务端订阅事实。
+/// 客户端不能只依赖 RevenueCat SDK 的本机缓存，否则退出重登、SDK cache 或
+/// Customer merge 延迟都可能让已付费用户短暂变 Free。
+protocol PremiumEntitlementsLoaderProtocol: Sendable {
+    func fetchActiveEntitlements(userID: UUID) async throws -> [PremiumServerEntitlement]
+}
+
 /// 与数据库 premium_grants 行对应的领域模型。
 /// 对应 spec §3 的表结构（投射关心的字段到 Swift 层）。
 struct PremiumGrant: Equatable, Sendable, Identifiable {
@@ -27,6 +34,15 @@ struct PremiumGrant: Equatable, Sendable, Identifiable {
         case grandfather
         case testflight
     }
+}
+
+struct PremiumServerEntitlement: Equatable, Sendable, Identifiable {
+    let id: UUID
+    let userID: UUID
+    let entitlementID: String
+    let productID: String?
+    let purchasedAt: Date?
+    let expiresAt: Date?
 }
 
 // MARK: - Production implementation
@@ -53,6 +69,33 @@ final class SupabaseGrantsLoader: GrantsLoaderProtocol {
 
         return try rows.map { try $0.toDomain() }
     }
+}
+
+final class SupabasePremiumEntitlementsLoader: PremiumEntitlementsLoaderProtocol {
+    private let client: SupabaseClient
+
+    init(client: SupabaseClient) {
+        self.client = client
+    }
+
+    func fetchActiveEntitlements(userID: UUID) async throws -> [PremiumServerEntitlement] {
+        let rows: [EntitlementRow] = try await client
+            .from("premium_entitlements")
+            .select()
+            .eq("user_id", value: userID.uuidString.lowercased())
+            .eq("entitlement_id", value: RevenueCatConfig.entitlementIdentifier)
+            .is("revoked_at", value: nil)
+            .execute()
+            .value
+
+        return rows.map { $0.toDomain() }
+    }
+}
+
+final class EmptyPremiumEntitlementsLoader: PremiumEntitlementsLoaderProtocol, @unchecked Sendable {
+    nonisolated init() {}
+
+    func fetchActiveEntitlements(userID: UUID) async throws -> [PremiumServerEntitlement] { [] }
 }
 
 // MARK: - DB row DTO
@@ -87,4 +130,33 @@ enum GrantDecodeError: Error, Equatable {
     /// DB 的 category 文本超出 `PremiumGrant.Category` 的 rawValue 集合——
     /// 通常意味着表 CHECK 约束和 Swift enum 脱节，应当 surface 而不是静默吞。
     case unknownCategory(String)
+}
+
+private struct EntitlementRow: Decodable {
+    let id: UUID
+    let userID: UUID
+    let entitlementID: String
+    let productID: String?
+    let purchasedAt: Date?
+    let expiresAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case entitlementID = "entitlement_id"
+        case productID = "product_id"
+        case purchasedAt = "purchased_at"
+        case expiresAt = "expires_at"
+    }
+
+    func toDomain() -> PremiumServerEntitlement {
+        PremiumServerEntitlement(
+            id: id,
+            userID: userID,
+            entitlementID: entitlementID,
+            productID: productID,
+            purchasedAt: purchasedAt,
+            expiresAt: expiresAt
+        )
+    }
 }

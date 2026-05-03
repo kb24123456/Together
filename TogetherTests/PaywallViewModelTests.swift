@@ -32,15 +32,34 @@ private func makeVM(
     gate: PremiumGate,
     stub: StubPaywallPurchasing,
     recorder: FinishRecorder,
-    holdDuration: Duration = .zero
+    holdDuration: Duration = .zero,
+    activationPollDelays: [Duration] = []
 ) -> PaywallViewModel {
     PaywallViewModel(
         purchasing: stub,
         premiumGate: gate,
         onFinished: { recorder.reasons.append($0) },
         successHoldDuration: holdDuration,
+        activationPollDelays: activationPollDelays,
         logger: Logger(subsystem: "test", category: "paywall")
     )
+}
+
+@MainActor
+private func makeGateWithEntitlements(
+    now: Date = Date()
+) -> (gate: PremiumGate, entitlements: StubEntitlementsLoader) {
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    let cache = PremiumStatusCache(defaults: defaults, dateProvider: FixedDateProvider(fixed: now))
+    let entitlements = StubEntitlementsLoader()
+    let gate = PremiumGate(
+        rcClient: StubRCClient(),
+        grantsLoader: StubGrantsLoader(),
+        entitlementsLoader: entitlements,
+        cache: cache,
+        dateProvider: FixedDateProvider(fixed: now)
+    )
+    return (gate, entitlements)
 }
 
 /// bootstrap 一个 Pro 活跃的 gate（RC 订阅激活），`isPremium == true`。
@@ -185,6 +204,33 @@ struct PaywallViewModelPurchaseTests {
         #expect(rec.reasons == [.pendingApproval])
     }
 
+    @Test func pendingPurchaseActivatesFromServerEntitlementFinishesPurchased() async {
+        let now = Date()
+        let userID = UUID()
+        let (gate, entitlements) = makeGateWithEntitlements(now: now)
+        await gate.bootstrap(userID: userID)
+        await entitlements.setNextResult(.success([
+            PremiumServerEntitlement(
+                id: UUID(),
+                userID: userID,
+                entitlementID: RevenueCatConfig.entitlementIdentifier,
+                productID: "com.pigdog.together.monthly1m",
+                purchasedAt: now,
+                expiresAt: now.addingTimeInterval(86400)
+            )
+        ]))
+        let stub = StubPaywallPurchasing()
+        await stub.setNextPurchaseOutcomes([.success(.pending)])
+        let rec = FinishRecorder()
+        let vm = makeVM(gate: gate, stub: stub, recorder: rec)
+
+        await vm.load()
+        await vm.purchaseSelected()
+
+        #expect(vm.state == .succeeded)
+        #expect(rec.reasons == [.purchasedOrRestored])
+    }
+
     @Test func networkErrorFromPaywallErrorIsPreserved() async {
         let (gate, _, _) = makeGate()
         let stub = StubPaywallPurchasing()
@@ -227,6 +273,33 @@ struct PaywallViewModelPurchaseTests {
 
         #expect(vm.state == .pendingApproval)
         #expect(rec.reasons == [.pendingApproval])
+    }
+
+    @Test func pendingErrorActivatesFromServerEntitlementFinishesPurchased() async {
+        let now = Date()
+        let userID = UUID()
+        let (gate, entitlements) = makeGateWithEntitlements(now: now)
+        await gate.bootstrap(userID: userID)
+        await entitlements.setNextResult(.success([
+            PremiumServerEntitlement(
+                id: UUID(),
+                userID: userID,
+                entitlementID: RevenueCatConfig.entitlementIdentifier,
+                productID: "com.pigdog.together.monthly1m",
+                purchasedAt: now,
+                expiresAt: nil
+            )
+        ]))
+        let stub = StubPaywallPurchasing()
+        await stub.setNextPurchaseOutcomes([.failure(PaywallError.paymentPending)])
+        let rec = FinishRecorder()
+        let vm = makeVM(gate: gate, stub: stub, recorder: rec)
+
+        await vm.load()
+        await vm.purchaseSelected()
+
+        #expect(vm.state == .succeeded)
+        #expect(rec.reasons == [.purchasedOrRestored])
     }
 
     @Test func purchaseSelectedFromNonReadyIsNoOp() async {

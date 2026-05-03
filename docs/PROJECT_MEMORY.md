@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-05-02
+- 日期：2026-05-03
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的单人 Todo 效率工具。
@@ -14,7 +14,7 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：会员支付前后端深度审查修复；本地代码、Supabase DB 迁移、RevenueCat webhook Edge Function 部署与 RevenueCat Dashboard webhook 绑定已完成。Supabase MCP 与 RevenueCat MCP 均已在当前会话可用。
+- 当前任务：会员支付前后端深度审查修复；本地代码、Supabase DB 迁移、RevenueCat webhook Edge Function 部署、RevenueCat Dashboard webhook 绑定与 clean-room 订阅验收 runbook 已完成。Supabase MCP 与 RevenueCat MCP 均已在当前会话可用。
 - 当前验证策略：用户已要求后续不做模拟器测试；本阶段只做 `generic/platform=iOS` 编译与 build-for-testing，不启动模拟器。
 - 立即续接点：做真机购买 / 恢复购买 / entitlement webhook 端到端验证。Webhook URL：`https://nxielmwdoiwiwhzczrmt.supabase.co/functions/v1/revenuecat-webhook`。
 - 会员修复进度：
@@ -27,12 +27,17 @@
   - RevenueCat project `Together` 的 project id 为 `proj9691e26b`；active entitlement `lookup_key=pro` 已存在并绑定当前 App Store / Test Store 产品，与 `RevenueCatConfig.entitlementIdentifier = "pro"` 对齐。
   - RevenueCat webhook integration `Together Supabase Entitlements` 已创建，id 为 `whintgr6c8d5e0e8d`，指向 Supabase `revenuecat-webhook`，覆盖所有 app / environment / event types。
   - 生产 Supabase 已应用 `20260502055454 premium_entitlements_and_solo_sync_gate` 和 `20260502055831 restrict_premium_gate_function_execute`。`anon` 对新增 `SECURITY DEFINER` 函数的执行权已撤销；authenticated 仍可执行必要 RPC/helper，但 entitlement helper 已强制 `auth.uid() = p_user_id`。
+  - 真机月订阅购买链路已验证：Free → Apple sandbox 购买弹窗 → 购买成功 → Pro；RevenueCat webhook 写入 `premium_entitlements`，`product_id=com.pigdog.together.monthly1m`、`environment=SANDBOX`、`last_event_type=INITIAL_PURCHASE`、`revoked_at=null`。
+  - 已发现并修复退出登录再登录后变 Free 的架构缺口：客户端 `PremiumGate` 不能只依赖 RevenueCat SDK customerInfo 和 `premium_grants`，还必须合并 Supabase webhook 写入的 `premium_entitlements`。生产装配已新增 `SupabasePremiumEntitlementsLoader`，服务器 entitlement 按 `.subscription` 来源参与 Pro / Grace / cache fallback 合并。
+  - 已发现并修复购买成功后 Paywall 仍显示购买选项的最终一致性缺口：购买返回 `.success` / `.pending` / `paymentPending` 后，`PaywallViewModel` 会短时间轮询 `PremiumGate.refresh()`，等待 RevenueCat SDK 或 Supabase `premium_entitlements` 任一权威来源转 Pro；Profile 会员页进入 Free 分支前会先 `configurePremiumGate()`，若后端已有 active entitlement 不再显示普通 Paywall。
 - 当前未完成：
-  - 未做真机购买 / 恢复购买 / RevenueCat entitlement webhook 端到端验证。
+  - 需要安装 TestFlight build 34，用全新 Apple Sandbox Account 做 clean-room 月订阅新购 + 退出重登真机验收；本轮不测恢复购买、续订/过期/Grace。
 - 最近验证：
   - `git diff --check` 通过。
   - `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
   - `xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
+  - TestFlight build 34 已从当前 `main` archive 并上传到 App Store Connect；`xcodebuild -exportArchive` 返回 `Upload succeeded` / `Uploaded package is processing`。
+  - Clean-room 前置状态：测试用户 `bb7a3977-3bbc-447b-989a-3fbe6b8d8eb6` 的 Supabase active `premium_grants` 与 active `premium_entitlements` 均已软撤销为 0；RevenueCat customer `BB7A3977-3BBC-447B-989A-3FBE6B8D8EB6` active entitlements 为空。后续必须使用全新 Apple Sandbox Account 新购，避免旧 Apple 订阅历史污染。
   - Supabase MCP `_list_migrations` 确认 `premium_entitlements_and_solo_sync_gate` 与 `restrict_premium_gate_function_execute` 均已在远端。
   - Supabase SQL 权限检查确认新增函数 `anon_exec=false`。
   - Supabase MCP `_list_edge_functions` 确认 `revenuecat-webhook` active；`curl` 无授权请求确认返回 `401 UNAUTHORIZED`。
@@ -156,6 +161,8 @@
 
 ## 验证记录
 
+- 2026-05-03：执行支付订阅 clean-room 前置流程并上传 TestFlight build 34。新增 runbook `docs/superpowers/runbooks/2026-05-03-subscription-clean-room-validation.md`，明确 Apple Sandbox / RevenueCat / Supabase / App 四层状态边界和阻塞条件；测试用户 `bb7a3977-3bbc-447b-989a-3fbe6b8d8eb6` 的 Supabase active grant / active `pro` entitlement 已软撤销为 0，RevenueCat 对应 customer active entitlements 为空。代码修复包含购买后 pending/entitlement 延迟轮询和会员页进入 Paywall 前强制刷新 PremiumGate。构建号从 33 提升到 34；归档路径 `build/TestFlight-20260503-1016-build34/Together.xcarchive`；App Store Connect 返回 `Upload succeeded` / `Uploaded package is processing`。验证链路：`git diff --check`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、Release archive、`xcodebuild -exportArchive` 上传通过；未做模拟器测试。
+- 2026-05-03：基于当前 `main` 未提交修复打包上传 TestFlight build 33，用于验证月订阅购买后退出登录再登录仍保持 Pro。修复内容：`PremiumGate` 合并 RevenueCat SDK、`premium_grants` 与 Supabase webhook 写入的 `premium_entitlements`，新增 `SupabasePremiumEntitlementsLoader` 和回归测试。构建号从 32 提升到 33；归档路径记录在 `build/.last_archive_path`，导出上传使用 `build/exportOptions-TestFlight-upload.plist`；App Store Connect 返回 `Upload succeeded` / `Uploaded package is processing`。验证链路：`git diff --check`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、Release `xcodebuild archive ... -destination 'generic/platform=iOS'`、`xcodebuild -exportArchive ...` 上传通过；未做模拟器测试。
 - 2026-05-02：基于当前 `main` 未提交修复打包上传 TestFlight build 32，用于验证 build 31 真机反馈的双人任务身份误判与伴侣头像文件缺失补下载问题。构建号从 31 提升到 32；归档路径为 `build/TestFlight-20260502-1716-build32/Together.xcarchive`，导出上传使用 `build/exportOptions-TestFlight-upload.plist`，App Store Connect 返回 `Upload succeeded` / `Uploaded package is processing`。验证链路：`git diff --check`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、Release `xcodebuild archive ... -destination 'generic/platform=iOS'`、`xcodebuild -exportArchive ...` 上传通过；未做模拟器测试。真机安装 build 32 后，用户确认伴侣头像与双人任务身份显示均已恢复。
 - 2026-05-02：修复 build 31 真机反馈的双人任务身份与头像同步问题。根因：Supabase 中异常任务 `creator_supabase_user_id` 指向当前用户，但本地 UI 仍用历史设备本地 `creator_id` 判断是否可回应，导致创建者侧显示“待我回应 + 接受/拒绝”；伴侣头像远端 `user_profiles/space_members` 有 URL 和版本，但本地缺头像文件时旧逻辑因 metadata 未变化而跳过下载。处理：`SupabaseSyncService` 新增 `SupabaseIdentityMap`，任务/留言 pull 时用 Supabase auth uid 映射本地 user id，并对当前本地 user id 做一次性全量任务/留言身份回填；成员 pull 改为轻量全量校准，头像文件缺失也触发下载。新增任务创建者映射、留言发送者映射、头像缺文件修复测试。验证：`git diff --check`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过；未做模拟器测试。
 - 2026-05-02：基于 `main` commit `96acb2e` 打包上传 TestFlight build 31，用于替代 build 30 继续真机支付/恢复购买/RevenueCat webhook 端到端验证。归档与上传使用 Release scheme archive：`xcodebuild archive -project Together.xcodeproj -scheme Together -configuration Release -destination 'generic/platform=iOS' -archivePath ...` 和 `xcodebuild -exportArchive ... -exportOptionsPlist build/exportOptions-TestFlight-upload.plist`；App Store Connect 返回 `Upload succeeded`，包进入 processing。后续付费链路测试前需先确认安装来源为 TestFlight/Release 且 build 为 31，Profile 中不应出现 `开发者 (DEBUG)` 区域；若出现 DEBUG 区域，说明仍在运行 Xcode Debug Run 或旧包，不应继续支付验收。未做模拟器测试。

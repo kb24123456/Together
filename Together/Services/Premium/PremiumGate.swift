@@ -28,6 +28,7 @@ final class PremiumGate {
 
     private let rcClient: RCClientProtocol
     private let grantsLoader: GrantsLoaderProtocol
+    private let entitlementsLoader: PremiumEntitlementsLoaderProtocol
     private let cache: PremiumStatusCache
     private let dateProvider: DateProvider
 
@@ -46,11 +47,13 @@ final class PremiumGate {
     init(
         rcClient: RCClientProtocol,
         grantsLoader: GrantsLoaderProtocol,
+        entitlementsLoader: PremiumEntitlementsLoaderProtocol = EmptyPremiumEntitlementsLoader(),
         cache: PremiumStatusCache,
         dateProvider: DateProvider
     ) {
         self.rcClient = rcClient
         self.grantsLoader = grantsLoader
+        self.entitlementsLoader = entitlementsLoader
         self.cache = cache
         self.dateProvider = dateProvider
     }
@@ -64,14 +67,15 @@ final class PremiumGate {
 
         async let rcResult = safeFetchRC()
         async let grantsResult = safeFetchGrants(userID: userID)
-        let (rc, grants) = await (rcResult, grantsResult)
+        async let entitlementsResult = safeFetchEntitlements(userID: userID)
+        let (rc, grants, entitlements) = await (rcResult, grantsResult, entitlementsResult)
 
         // 竞态防护：只有 token 仍是最新的才应用结果
         guard bootstrapToken == token else { return }
 
         let cached = cache.load()
         let newStatus = Self.computeStatus(
-            rcResult: rc, grantsResult: grants,
+            rcResult: rc, grantsResult: grants, entitlementsResult: entitlements,
             cachedStatus: cached,
             now: dateProvider.now()
         )
@@ -113,6 +117,15 @@ final class PremiumGate {
         }
     }
 
+    private func safeFetchEntitlements(userID: UUID) async -> Result<[PremiumServerEntitlement], Error> {
+        do {
+            let entitlements = try await entitlementsLoader.fetchActiveEntitlements(userID: userID)
+            return .success(entitlements)
+        } catch {
+            return .failure(error)
+        }
+    }
+
     // MARK: - 合并逻辑（纯函数，便于测试）
 
     /// Grace Period 时长：14 天（秒）。
@@ -123,6 +136,7 @@ final class PremiumGate {
     nonisolated static func computeStatus(
         rcResult: Result<RCEntitlementSnapshot, Error>,
         grantsResult: Result<[PremiumGrant], Error>,
+        entitlementsResult: Result<[PremiumServerEntitlement], Error> = .success([]),
         cachedStatus: PremiumStatus?,
         now: Date
     ) -> PremiumStatus {
@@ -139,6 +153,12 @@ final class PremiumGate {
             }
         }
 
+        if case let .success(entitlements) = entitlementsResult {
+            for e in entitlements where e.entitlementID == RevenueCatConfig.entitlementIdentifier {
+                sources.append(MergeSource(kind: .subscription, expiresAt: e.expiresAt))
+            }
+        }
+
         // Step 2: 任一有效？（expiresAt == nil 或 > now）
         let active = sources.filter { s in
             guard let expiry = s.expiresAt else { return true }  // nil = 永久
@@ -152,6 +172,7 @@ final class PremiumGate {
         let graceCandidates = collectRecentlyExpired(
             rcResult: rcResult,
             grantsResult: grantsResult,
+            entitlementsResult: entitlementsResult,
             now: now
         )
         if let mostRecent = graceCandidates.max() {
@@ -168,7 +189,11 @@ final class PremiumGate {
         // grants 空数组会把真实订阅用户临时降级为 free。缓存自带 TTL，作为短期保守值。
         //
         // 注意：明确 active / grace 的成功来源优先于缓存，避免已知过期状态被旧 Pro 缓存覆盖。
-        if hasSourceFailure(rcResult: rcResult, grantsResult: grantsResult),
+        if hasSourceFailure(
+            rcResult: rcResult,
+            grantsResult: grantsResult,
+            entitlementsResult: entitlementsResult
+        ),
            let cached = cachedStatus {
             return cached
         }
@@ -205,16 +230,19 @@ final class PremiumGate {
 
     private nonisolated static func hasSourceFailure(
         rcResult: Result<RCEntitlementSnapshot, Error>,
-        grantsResult: Result<[PremiumGrant], Error>
+        grantsResult: Result<[PremiumGrant], Error>,
+        entitlementsResult: Result<[PremiumServerEntitlement], Error>
     ) -> Bool {
         if case .failure = rcResult { return true }
         if case .failure = grantsResult { return true }
+        if case .failure = entitlementsResult { return true }
         return false
     }
 
     private nonisolated static func collectRecentlyExpired(
         rcResult: Result<RCEntitlementSnapshot, Error>,
         grantsResult: Result<[PremiumGrant], Error>,
+        entitlementsResult: Result<[PremiumServerEntitlement], Error>,
         now: Date
     ) -> [Date] {
         var result: [Date] = []
@@ -232,6 +260,14 @@ final class PremiumGate {
         if case let .success(grants) = grantsResult {
             for g in grants {
                 if let expiry = g.expiresAt,
+                   expiry > fourteenDaysAgo, expiry <= now {
+                    result.append(expiry)
+                }
+            }
+        }
+        if case let .success(entitlements) = entitlementsResult {
+            for e in entitlements {
+                if let expiry = e.expiresAt,
                    expiry > fourteenDaysAgo, expiry <= now {
                     result.append(expiry)
                 }

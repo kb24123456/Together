@@ -39,6 +39,25 @@ struct PremiumGateMergeTests {
         #expect(status == .pro(source: .grant, expiresAt: nil))
     }
 
+    @Test func activeServerEntitlementMakesProWhenRCIsEmpty() {
+        let entitlement = PremiumServerEntitlement(
+            id: UUID(),
+            userID: UUID(),
+            entitlementID: RevenueCatConfig.entitlementIdentifier,
+            productID: "com.pigdog.together.monthly1m",
+            purchasedAt: dateOffset(-1),
+            expiresAt: dateOffset(1)
+        )
+        let status = PremiumGate.computeStatus(
+            rcResult: .success(RCEntitlementSnapshot(isProActive: false, proExpirationDate: nil)),
+            grantsResult: .success([]),
+            entitlementsResult: .success([entitlement]),
+            cachedStatus: nil,
+            now: now
+        )
+        #expect(status == .pro(source: .subscription, expiresAt: dateOffset(1)))
+    }
+
     @Test func bothActivePrefersLaterExpiry() {
         let lateGrant = PremiumGrant(
             id: UUID(), userID: UUID(), category: .grandfather,

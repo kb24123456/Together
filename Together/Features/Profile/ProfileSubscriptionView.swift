@@ -50,6 +50,9 @@ struct ProfileSubscriptionView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .task {
+                    await appContext.configurePremiumGate()
+                    guard !appContext.container.premiumGate.effectiveStatus.isProOrGracePeriod else { return }
+
                     let vm = PaywallViewModel(
                         purchasing: appContext.paywallPurchasing,
                         premiumGate: appContext.container.premiumGate,

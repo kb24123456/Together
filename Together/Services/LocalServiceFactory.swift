@@ -113,6 +113,7 @@ enum LocalServiceFactory {
         return PremiumGate(
             rcClient: RevenueCatClient(),
             grantsLoader: SupabaseGrantsLoader(client: SupabaseClientProvider.shared),
+            entitlementsLoader: SupabasePremiumEntitlementsLoader(client: SupabaseClientProvider.shared),
             cache: PremiumStatusCache(defaults: .standard, dateProvider: dateProvider),
             dateProvider: dateProvider
         )

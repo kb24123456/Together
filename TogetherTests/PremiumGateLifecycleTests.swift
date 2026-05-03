@@ -62,6 +62,16 @@ actor StubGrantsLoader: GrantsLoaderProtocol {
     }
 }
 
+actor StubEntitlementsLoader: PremiumEntitlementsLoaderProtocol {
+    private var _nextResult: Result<[PremiumServerEntitlement], Error> = .success([])
+
+    func setNextResult(_ r: Result<[PremiumServerEntitlement], Error>) { _nextResult = r }
+
+    func fetchActiveEntitlements(userID: UUID) async throws -> [PremiumServerEntitlement] {
+        try _nextResult.get()
+    }
+}
+
 // MARK: - Tests
 
 @MainActor
@@ -70,8 +80,9 @@ struct PremiumGateLifecycleTests {
     private func makeGate(
         rc: StubRCClient = StubRCClient(),
         grants: StubGrantsLoader = StubGrantsLoader(),
+        entitlements: StubEntitlementsLoader = StubEntitlementsLoader(),
         now: Date = Date()
-    ) -> (gate: PremiumGate, rc: StubRCClient, grants: StubGrantsLoader) {
+    ) -> (gate: PremiumGate, rc: StubRCClient, grants: StubGrantsLoader, entitlements: StubEntitlementsLoader) {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let cache = PremiumStatusCache(
             defaults: defaults,
@@ -80,20 +91,21 @@ struct PremiumGateLifecycleTests {
         let gate = PremiumGate(
             rcClient: rc,
             grantsLoader: grants,
+            entitlementsLoader: entitlements,
             cache: cache,
             dateProvider: FixedDateProvider(fixed: now)
         )
-        return (gate, rc, grants)
+        return (gate, rc, grants, entitlements)
     }
 
     @Test func initialStatusIsUnknown() {
-        let (gate, _, _) = makeGate()
+        let (gate, _, _, _) = makeGate()
         #expect(gate.status == .unknown)
         #expect(gate.isPremium == false)
     }
 
     @Test func bootstrapWithActiveGrantSetsPro() async {
-        let (gate, _, grants) = makeGate()
+        let (gate, _, grants, _) = makeGate()
         let grant = PremiumGrant(
             id: UUID(), userID: UUID(), category: .developer,
             reason: nil, grantedAt: Date(), expiresAt: nil
@@ -110,18 +122,37 @@ struct PremiumGateLifecycleTests {
         }
     }
 
+    @Test func bootstrapWithActiveServerEntitlementSetsPro() async {
+        let now = Date()
+        let (gate, rc, _, entitlements) = makeGate(now: now)
+        await rc.setNextResult(.success(RCEntitlementSnapshot(isProActive: false, proExpirationDate: nil)))
+        let entitlement = PremiumServerEntitlement(
+            id: UUID(),
+            userID: UUID(),
+            entitlementID: RevenueCatConfig.entitlementIdentifier,
+            productID: "com.pigdog.together.monthly1m",
+            purchasedAt: now,
+            expiresAt: now.addingTimeInterval(86400)
+        )
+        await entitlements.setNextResult(.success([entitlement]))
+
+        await gate.bootstrap(userID: UUID())
+        #expect(gate.status == .pro(source: .subscription, expiresAt: entitlement.expiresAt))
+    }
+
     @Test func bootstrapWithAllFailuresAndNoCacheYieldsFree() async {
-        let (gate, rc, grants) = makeGate()
+        let (gate, rc, grants, entitlements) = makeGate()
         let err = NSError(domain: "test", code: -1)
         await rc.setNextResult(.failure(err))
         await grants.setNextResult(.failure(err))
+        await entitlements.setNextResult(.failure(err))
 
         await gate.bootstrap(userID: UUID())
         #expect(gate.status == .free)
     }
 
     @Test func refreshWithoutBootstrapIsNoOp() async {
-        let (gate, _, grants) = makeGate()
+        let (gate, _, grants, _) = makeGate()
         // 配置一个会让 status 变 .pro 的结果；如果 refresh 真的跑了，这个会被应用
         await grants.setNextResult(.success([
             PremiumGrant(
@@ -139,7 +170,7 @@ struct PremiumGateLifecycleTests {
     }
 
     @Test func refreshAfterBootstrapRerunsWithSameUserID() async {
-        let (gate, _, grants) = makeGate()
+        let (gate, _, grants, _) = makeGate()
         let userID = UUID()
 
         // 第一次 bootstrap：空 grants → .free
@@ -162,7 +193,7 @@ struct PremiumGateLifecycleTests {
     }
 
     @Test func logOutClearsStatusAndCache() async {
-        let (gate, _, grants) = makeGate()
+        let (gate, _, grants, _) = makeGate()
         let grant = PremiumGrant(
             id: UUID(), userID: UUID(), category: .friend,
             reason: nil, grantedAt: Date(), expiresAt: nil
@@ -177,7 +208,7 @@ struct PremiumGateLifecycleTests {
 
     #if DEBUG
     @Test func debugOverrideTakesPrecedence() {
-        let (gate, _, _) = makeGate()
+        let (gate, _, _, _) = makeGate()
         #expect(gate.isPremium == false)
 
         gate.overrideStatus = .pro(source: .subscription, expiresAt: nil)
@@ -192,7 +223,7 @@ struct PremiumGateLifecycleTests {
     @Test func staleBootstrapResultIsDiscarded() async {
         // 两次 bootstrap 交叠：A 的 grants fetch 被 hold 住，B 在中间完成并推进 token；
         // A 释放后结果应被 token 校验丢弃。不依赖 sleep 时序。
-        let (gate, _, grants) = makeGate()
+        let (gate, _, grants, _) = makeGate()
         let userA = UUID()
         let userB = UUID()
 

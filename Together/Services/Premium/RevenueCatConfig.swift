@@ -32,5 +32,5 @@ enum RevenueCatConfig {
     }
 
     /// Entitlement 标识符，必须和 RC Dashboard 中创建的 entitlement ID 完全一致。
-    static let entitlementIdentifier: String = "pro"
+    nonisolated static let entitlementIdentifier: String = "pro"
 }
