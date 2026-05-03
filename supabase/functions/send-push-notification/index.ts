@@ -12,6 +12,12 @@ const appBundleId = "com.pigdog.Together";
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+type TaskNotificationContext = {
+  space_id?: string;
+  title?: string;
+  assignment_state?: string;
+};
+
 // JWT cached per instance; APNs token is valid for up to 60 minutes.
 let cachedJWT: { token: string; exp: number } | null = null;
 
@@ -101,6 +107,7 @@ function buildNotification(
   type: string,
   record: Record<string, unknown>,
   oldRecord?: Record<string, unknown>,
+  taskContext?: TaskNotificationContext,
 ): { title: string; body: string; eventType?: string } | null {
   if (table === "space_members" && type === "DELETE") {
     return {
@@ -130,7 +137,19 @@ function buildNotification(
   }
   if (table === "task_messages" && type === "INSERT") {
     if (record.type === "nudge") {
-      return { title: "提醒", body: "伴侣提醒你完成任务", eventType: "task_nudge" };
+      const taskTitle = taskContext?.title;
+      if (taskContext?.assignment_state === "pendingResponse") {
+        return {
+          title: "提醒接受任务",
+          body: taskTitle ? `伴侣提醒你接受「${taskTitle}」` : "伴侣提醒你接受任务",
+          eventType: "task_nudge",
+        };
+      }
+      return {
+        title: "提醒",
+        body: taskTitle ? `伴侣提醒你完成「${taskTitle}」` : "伴侣提醒你完成任务",
+        eventType: "task_nudge",
+      };
     }
     if (record.type === "comment") {
       return { title: "留言", body: "伴侣给你留了言", eventType: "task_comment" };
@@ -161,13 +180,15 @@ Deno.serve(async (req: Request) => {
 
     // Resolve space_id — either on record directly, or via tasks join for task_messages.
     let spaceId: string | undefined = record?.space_id;
+    let taskContext: TaskNotificationContext | undefined;
     if (!spaceId && table === "task_messages") {
       const { data: task } = await supabase
         .from("tasks")
-        .select("space_id")
+        .select("space_id, title, assignment_state")
         .eq("id", record.task_id)
         .single();
-      spaceId = task?.space_id;
+      taskContext = task ?? undefined;
+      spaceId = taskContext?.space_id;
     }
     if (!spaceId) return new Response("No space", { status: 200 });
 
@@ -204,7 +225,7 @@ Deno.serve(async (req: Request) => {
 
     if (!tokens || tokens.length === 0) return new Response("No tokens", { status: 200 });
 
-    const notification = buildNotification(table, type, record, old_record);
+    const notification = buildNotification(table, type, record, old_record, taskContext);
     if (!notification) return new Response("Skip", { status: 200 });
 
     const taskId: string | undefined = table === "task_messages"

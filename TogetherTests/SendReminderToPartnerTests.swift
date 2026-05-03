@@ -107,4 +107,32 @@ struct SendReminderToPartnerTests {
         let messages = try context.fetch(FetchDescriptor<PersistentTaskMessage>())
         #expect(messages.count == 1, "second tap within 30s cooldown is a no-op")
     }
+
+    @Test func sendReminder_fromAssigneeIsRejected() async throws {
+        let container = try makeContainer()
+        let spy = SpyCoordinator()
+        let itemRepo = LocalItemRepository(container: container, syncCoordinator: spy)
+        let messageRepo = LocalTaskMessageRepository(container: container)
+        let service = DefaultTaskApplicationService(
+            itemRepository: itemRepo,
+            taskMessageRepository: messageRepo,
+            syncCoordinator: spy,
+            reminderScheduler: NoopReminderScheduler()
+        )
+
+        let spaceID = UUID()
+        let creatorID = UUID()
+        let assigneeID = UUID()
+        let item = makePartnerItem(spaceID: spaceID, actorID: creatorID)
+        _ = try await itemRepo.saveItem(item)
+
+        do {
+            _ = try await service.sendReminderToPartner(in: spaceID, taskID: item.id, actorID: assigneeID)
+            Issue.record("Expected assignee reminder to be rejected.")
+        } catch {
+            let context = ModelContext(container)
+            let messages = try context.fetch(FetchDescriptor<PersistentTaskMessage>())
+            #expect(messages.isEmpty)
+        }
+    }
 }

@@ -1117,6 +1117,7 @@ struct TogetherTests {
 
         let entry = try #require(viewModel.timelineEntries.first)
         #expect(entry.syncStateText == "同步中")
+        #expect(entry.canSendReminder == true)
     }
 
     @Test @MainActor

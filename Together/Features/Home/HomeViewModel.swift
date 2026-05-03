@@ -45,6 +45,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let hasUnreadComment: Bool
     let reminderRequestedAt: Date?
     let lastActionAt: Date?
+    let canSendReminder: Bool
 
     var syncStateText: String? {
         syncState?.text
@@ -87,6 +88,24 @@ enum HomeDateTransitionStyle: Hashable {
 enum HomeCalendarDisplayMode: Hashable {
     case week
     case month
+}
+
+enum HomeReloadReason {
+    case userInitiated
+    case dateChange
+    case modeSwitch
+    case sync
+    case startupRestore
+    case userInserted
+
+    var animatesItemChanges: Bool {
+        switch self {
+        case .userInitiated, .dateChange, .userInserted:
+            true
+        case .modeSwitch, .sync, .startupRestore:
+            false
+        }
+    }
 }
 
 struct HomeMonthDay: Identifiable, Hashable {
@@ -440,7 +459,7 @@ final class HomeViewModel {
         sessionStore.switchMode(to: isPairModeActive ? .single : .pair)
         showsPairAvatarPreview = sessionStore.isViewingPairSpace
         Task {
-            await reload()
+            await reload(reason: .modeSwitch)
         }
     }
 
@@ -605,7 +624,10 @@ final class HomeViewModel {
         }
     }
 
-    func reload(insertedItemIDs expectedInsertedItemIDs: Set<UUID> = []) async {
+    func reload(
+        insertedItemIDs expectedInsertedItemIDs: Set<UUID> = [],
+        reason: HomeReloadReason = .userInitiated
+    ) async {
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
             latestCommentsByTaskID = [:]
@@ -631,7 +653,11 @@ final class HomeViewModel {
             // 同步到达的新任务也标记为 inserted，触发入场动画
             let arrivedIDs = visibleItemIDs.subtracting(previousIDs).subtracting(expectedInsertedItemIDs)
 
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            if reason.animatesItemChanges {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    items = fetchedItems
+                }
+            } else {
                 items = fetchedItems
             }
             insertedItemIDs = persistedInsertedIDs.union(nextInsertedIDs).union(arrivedIDs)
@@ -1524,7 +1550,8 @@ final class HomeViewModel {
             latestMessageAuthorName: latestAuthorName,
             hasUnreadComment: hasUnread(latestComment, taskID: item.id),
             reminderRequestedAt: item.reminderRequestedAt,
-            lastActionAt: item.lastActionAt
+            lastActionAt: item.lastActionAt,
+            canSendReminder: canSendReminder(to: item, viewerID: viewerID, isCompleted: isCompleted)
         )
     }
 
@@ -1584,6 +1611,17 @@ final class HomeViewModel {
             return item.assigneeMode == .both ? "一起处理中" : "进行中"
         case .completed:
             return "已完成"
+        }
+    }
+
+    private func canSendReminder(to item: Item, viewerID: UUID, isCompleted: Bool) -> Bool {
+        guard isPairModeActive, isCompleted == false else { return false }
+        guard item.assigneeMode == .partner, item.creatorID == viewerID else { return false }
+        switch item.assignmentState {
+        case .pendingResponse, .accepted, .active:
+            return true
+        case .snoozed, .declined, .completed:
+            return false
         }
     }
 

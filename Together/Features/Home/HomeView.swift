@@ -85,7 +85,7 @@ struct HomeView: View {
             await viewModel.performDeferredMaintenanceIfNeeded()
         }
         .task(id: viewModel.selectedDateKey) {
-            await viewModel.reload()
+            await viewModel.reload(reason: .dateChange)
             updateTodayJumpButtonVisibility()
         }
         .sheet(
@@ -133,7 +133,7 @@ struct HomeView: View {
         .onChange(of: appContext.startupRestorePresentationState) { oldValue, newValue in
             guard oldValue.isVisible, newValue == .idle else { return }
             Task {
-                await viewModel.reload()
+                await viewModel.reload(reason: .startupRestore)
                 updateTodayJumpButtonVisibility()
             }
         }
@@ -531,6 +531,10 @@ struct HomeView: View {
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
                     viewModel.toggleAvatarPreview()
                 }
+                routinesViewModel.restoreCachedTasksForCurrentSpace()
+                Task {
+                    await routinesViewModel.loadIfNeeded()
+                }
                 triggerSoftDateFeedback()
             }
         )
@@ -571,7 +575,7 @@ struct HomeView: View {
                         .padding(.top, 52)
                         .padding(.bottom, AppTheme.spacing.lg)
                 }
-                .id("startup-restore-\(viewModel.selectedDateKey)-\(viewModel.reloadRevision)")
+                .id("startup-restore-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
@@ -603,7 +607,7 @@ struct HomeView: View {
                     .padding(.top, AppTheme.spacing.md) // normalized 14→16
                     .padding(.bottom, AppTheme.spacing.lg)
                 }
-                .id("empty-\(viewModel.selectedDateKey)-\(viewModel.reloadRevision)")
+                .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
@@ -611,7 +615,7 @@ struct HomeView: View {
             } else {
                 ScrollViewReader { scrollProxy in
                     timelineList
-                        .id("timeline-\(viewModel.selectedDateKey)-\(viewModel.reloadRevision)")
+                        .id("timeline-\(viewModel.selectedDateKey)")
                         .transition(timelineTransition)
                         .onReceive(NotificationCenter.default.publisher(for: .openTaskFromNudge)) { notif in
                             guard let id = notif.userInfo?["task_id"] as? UUID else { return }
@@ -629,7 +633,6 @@ struct HomeView: View {
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.selectedDateKey)
-        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.reloadRevision)
         .animation(restoreTransitionAnimation, value: appContext.startupRestorePresentationState)
     }
 
@@ -2677,7 +2680,7 @@ private struct PairTimelineCard: View {
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                     PairCardPillButton(title: "再发", isPrimary: true, action: handleResendAction)
-                } else if entry.responseStateText == "已接受" || entry.responseStateText == "进行中" {
+                } else if entry.canSendReminder {
                     reminderButton
                 }
             }
@@ -3581,7 +3584,8 @@ private struct HomeOverdueSummarySheet: View {
                     latestMessageAuthorName: nil,
                     hasUnreadComment: false,
                     reminderRequestedAt: nil,
-                    lastActionAt: nil
+                    lastActionAt: nil,
+                    canSendReminder: false
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
                 isAnimatingReopening: false,

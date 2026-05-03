@@ -21,6 +21,16 @@ enum StartupRestorePresentationState: Equatable {
     }
 }
 
+private struct ReloadAfterSyncCause: OptionSet, Sendable {
+    let rawValue: Int
+
+    static let genericSync = ReloadAfterSyncCause(rawValue: 1 << 0)
+    static let pairMember = ReloadAfterSyncCause(rawValue: 1 << 1)
+    static let partnerAvatar = ReloadAfterSyncCause(rawValue: 1 << 2)
+    static let importantDates = ReloadAfterSyncCause(rawValue: 1 << 3)
+    static let startupRestore = ReloadAfterSyncCause(rawValue: 1 << 4)
+}
+
 @MainActor
 @Observable
 final class AppContext {
@@ -91,6 +101,10 @@ final class AppContext {
     private var lastPremiumRefreshAt: Date?
     private var startupRestoreSlowTask: Task<Void, Never>?
     private var startupRestoreRetryTask: Task<Void, Never>?
+    private var reloadAfterSyncTask: Task<Void, Never>?
+    private var pendingReloadAfterSyncCauses: ReloadAfterSyncCause = []
+
+    private static let reloadAfterSyncCoalescingDelay: Duration = .milliseconds(180)
 
     init(container: AppContainer, sessionStore: SessionStore, router: AppRouter, appearanceManager: AppearanceManager = AppearanceManager()) {
         self.container = container
@@ -248,7 +262,7 @@ final class AppContext {
             }
         }
         await restorePersistedUserProfileIfNeeded()
-        await routinesViewModel.load()
+        await routinesViewModel.loadIfNeeded()
         await syncReminderNotificationsIfNeeded()
 
         // 启动顺序对外部读者说明：
@@ -274,7 +288,7 @@ final class AppContext {
             }
             let didCompleteSoloRecovery = await startSupabaseSoloSyncRecoveryIfNeeded()
             if presentsStartupRestore, didCompleteSoloRecovery {
-                await reloadAfterSync()
+                await requestReloadAfterSync(cause: .startupRestore)
                 finishStartupRestorePresentation()
             }
             await startSoloSyncEngineIfNeeded()
@@ -395,7 +409,7 @@ final class AppContext {
             self.beginStartupRestorePresentation(cancelsRetry: false)
             let didCompleteSoloRecovery = await self.startSupabaseSoloSyncRecoveryIfNeeded()
             if didCompleteSoloRecovery {
-                await self.reloadAfterSync()
+                await self.requestReloadAfterSync(cause: .startupRestore)
                 self.finishStartupRestorePresentation()
             }
         }
@@ -1054,10 +1068,13 @@ final class AppContext {
             return
         }
         hasRestoredPersistedUserProfile = true
-        sessionStore.currentUser = mergedUser
+        let didChangeUser = sessionStore.currentUser != mergedUser
+        if didChangeUser {
+            sessionStore.currentUser = mergedUser
+        }
         #if DEBUG
         StartupTrace.mark(
-            "AppContext.restoreUser.end mergedAvatarFile=\(mergedUser.avatarPhotoFileName ?? "nil")"
+            "AppContext.restoreUser.end changed=\(didChangeUser) mergedAvatarFile=\(mergedUser.avatarPhotoFileName ?? "nil")"
         )
         #endif
     }
@@ -1274,8 +1291,48 @@ final class AppContext {
         await flushRecordedSharedMutation(change)
     }
 
-    /// 同步后刷新所有相关 ViewModel 的数据。
+    /// 同步后刷新所有相关 ViewModel 的数据。外部调用走合并入口，避免短时间重复重建首页。
     func reloadAfterSync() async {
+        await requestReloadAfterSync(cause: .genericSync)
+    }
+
+    private func requestReloadAfterSync(cause: ReloadAfterSyncCause) async {
+        pendingReloadAfterSyncCauses.formUnion(cause)
+        if reloadAfterSyncTask == nil {
+            let task = Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.runReloadAfterSyncLoop()
+            }
+            reloadAfterSyncTask = task
+        }
+        if let reloadAfterSyncTask {
+            await reloadAfterSyncTask.value
+        }
+    }
+
+    private func runReloadAfterSyncLoop() async {
+        try? await Task.sleep(for: Self.reloadAfterSyncCoalescingDelay)
+
+        while pendingReloadAfterSyncCauses.isEmpty == false {
+            let causes = pendingReloadAfterSyncCauses
+            pendingReloadAfterSyncCauses = []
+            await performReloadAfterSync(causes: causes)
+        }
+
+        reloadAfterSyncTask = nil
+    }
+
+    private func performReloadAfterSync(causes: ReloadAfterSyncCause) async {
+        if causes.contains(.importantDates),
+           let pairSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id {
+            await container.anniversaryScheduler.refresh(
+                spaceID: pairSpaceID,
+                partnerName: sessionStore.pairSpaceSummary?.partner?.displayName,
+                myName: sessionStore.currentUser?.displayName,
+                myUserID: sessionStore.currentUser?.id
+            )
+        }
+
         await restorePersistedUserProfileIfNeeded(force: true)
 
         // 先刷新 session state（空间名/头像等元数据），再 reload 依赖它的 ViewModel
@@ -1285,11 +1342,11 @@ final class AppContext {
             sessionStore.refresh(spaceContext: updatedSpaceCtx, pairingContext: updatedPairingCtx)
         }
 
-        await homeViewModel.reload()
+        await homeViewModel.reload(reason: .sync)
         await listsViewModel.load()
         await projectsViewModel.load()
         await calendarViewModel.load()
-        await routinesViewModel.load()
+        await routinesViewModel.reload()
     }
 
     /// 推送本地已有数据到 Supabase（配对成功后调用）
@@ -1409,7 +1466,7 @@ final class AppContext {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                await self.reloadAfterSync()
+                await self.requestReloadAfterSync(cause: .genericSync)
             }
         }
         NotificationCenter.default.addObserver(
@@ -1419,7 +1476,7 @@ final class AppContext {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                await self.reloadAfterSync()
+                await self.requestReloadAfterSync(cause: .pairMember)
             }
         }
         NotificationCenter.default.addObserver(
@@ -1439,7 +1496,7 @@ final class AppContext {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                await self.reloadAfterSync()
+                await self.requestReloadAfterSync(cause: .partnerAvatar)
             }
         }
         NotificationCenter.default.addObserver(
@@ -1449,14 +1506,7 @@ final class AppContext {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                guard let pairSpaceID = self.sessionStore.pairSpaceSummary?.sharedSpace.id else { return }
-                await self.container.anniversaryScheduler.refresh(
-                    spaceID: pairSpaceID,
-                    partnerName: self.sessionStore.pairSpaceSummary?.partner?.displayName,
-                    myName: self.sessionStore.currentUser?.displayName,
-                    myUserID: self.sessionStore.currentUser?.id
-                )
-                await self.reloadAfterSync()
+                await self.requestReloadAfterSync(cause: .importantDates)
             }
         }
     }

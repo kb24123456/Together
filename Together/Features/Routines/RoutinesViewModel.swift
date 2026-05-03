@@ -28,6 +28,8 @@ final class RoutinesViewModel {
     var isDetailPresented = false
     var detailTask: PeriodicTask?
     var detailDetent: PresentationDetent = .height(316)
+    private var loadedSpaceID: UUID?
+    private var tasksBySpaceID: [UUID: [PeriodicTask]] = [:]
 
     /// Fired after Repository/ApplicationService has already called recordLocalChange.
     /// AppContext wires this to flushRecordedSharedMutation to trigger a Supabase push.
@@ -55,6 +57,7 @@ final class RoutinesViewModel {
         } else {
             tasks.append(updated)
         }
+        cacheCurrentTasks()
     }
 
     // MARK: - Grouped Tasks
@@ -165,18 +168,77 @@ final class RoutinesViewModel {
     // MARK: - Actions
 
     func load() async {
-        guard let spaceID = sessionStore.currentSpace?.id else { return }
-        loadState = .loading
+        await load(showsLoading: true)
+    }
+
+    func loadIfNeeded() async {
+        guard let spaceID = sessionStore.currentSpace?.id else {
+            clearLoadedSpace()
+            return
+        }
+        if loadedSpaceID != spaceID {
+            restoreCachedTasks(for: spaceID)
+            await load(showsLoading: tasks.isEmpty)
+            return
+        }
+        guard loadState == .idle else { return }
+        await load(showsLoading: tasks.isEmpty)
+    }
+
+    func reload(showsLoading: Bool = false) async {
+        await load(showsLoading: showsLoading)
+    }
+
+    func restoreCachedTasksForCurrentSpace() {
+        guard let spaceID = sessionStore.currentSpace?.id else {
+            clearLoadedSpace()
+            return
+        }
+        guard loadedSpaceID != spaceID else { return }
+        restoreCachedTasks(for: spaceID)
+    }
+
+    private func load(showsLoading: Bool) async {
+        guard let spaceID = sessionStore.currentSpace?.id else {
+            clearLoadedSpace()
+            return
+        }
+        if showsLoading {
+            loadState = .loading
+        }
         do {
-            tasks = try await periodicTaskApplicationService.fetchTasks(in: spaceID)
+            let fetchedTasks = try await periodicTaskApplicationService.fetchTasks(in: spaceID)
+            tasksBySpaceID[spaceID] = fetchedTasks
+            guard sessionStore.currentSpace?.id == spaceID else { return }
+            tasks = fetchedTasks
+            loadedSpaceID = spaceID
             loadState = .loaded
         } catch {
             loadState = .failed(error.localizedDescription)
         }
     }
 
-    func reload() async {
-        await load()
+    private func restoreCachedTasks(for spaceID: UUID) {
+        if let cachedTasks = tasksBySpaceID[spaceID] {
+            tasks = cachedTasks
+            loadedSpaceID = spaceID
+            loadState = .loaded
+        } else {
+            tasks = []
+            loadedSpaceID = nil
+            loadState = .idle
+        }
+    }
+
+    private func clearLoadedSpace() {
+        tasks = []
+        loadedSpaceID = nil
+        loadState = .idle
+    }
+
+    private func cacheCurrentTasks() {
+        guard let spaceID = loadedSpaceID ?? sessionStore.currentSpace?.id else { return }
+        tasksBySpaceID[spaceID] = tasks
     }
 
     func toggleCompletion(taskID: UUID) async {
@@ -190,6 +252,7 @@ final class RoutinesViewModel {
             if let index = tasks.firstIndex(where: { $0.id == taskID }) {
                 tasks[index] = updated
             }
+            cacheCurrentTasks()
             emitMutationRecorded(taskID: taskID, operation: .upsert, spaceID: spaceID)
         } catch {
             // Reload to ensure consistency
@@ -207,6 +270,7 @@ final class RoutinesViewModel {
                 draft: draft
             )
             tasks.append(created)
+            cacheCurrentTasks()
             emitMutationRecorded(taskID: created.id, operation: .upsert, spaceID: spaceID)
         } catch {
             await load()
@@ -226,6 +290,7 @@ final class RoutinesViewModel {
             if let index = tasks.firstIndex(where: { $0.id == taskID }) {
                 tasks[index] = updated
             }
+            cacheCurrentTasks()
             emitMutationRecorded(taskID: taskID, operation: .upsert, spaceID: spaceID)
         } catch {
             await load()
@@ -248,6 +313,7 @@ final class RoutinesViewModel {
         do {
             try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID, actorID: actorID)
             tasks.removeAll { $0.id == taskID }
+            cacheCurrentTasks()
             emitMutationRecorded(taskID: taskID, operation: .delete, spaceID: spaceID)
         } catch {
             await load()

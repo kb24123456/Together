@@ -8,6 +8,7 @@ final class SessionStore {
     var isAppLocked: Bool = false
     var currentUser: User? {
         didSet {
+            guard oldValue != currentUser else { return }
             userProfileRevision = UUID()
         }
     }

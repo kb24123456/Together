@@ -132,7 +132,7 @@ struct AppRootView: View {
                 Text(isOverlayActive ? "今天" : "我的")
                     .font(AppTheme.typography.sized(15, weight: .semibold))
             }
-            .tint(isOverlayActive ? AppTheme.colors.pairAccent : AppTheme.colors.title)
+            .tint(isOverlayActive ? dockSelectionTint : AppTheme.colors.title)
             .accessibilityLabel(isOverlayActive ? "返回今天" : "打开我的")
             .accessibilityHint(isOverlayActive ? "退出当前视图回到 Today" : "打开个人页")
         }
@@ -145,7 +145,7 @@ struct AppRootView: View {
             } label: {
                 Image(systemName: "calendar")
             }
-            .tint(isMonthModeActive ? AppTheme.colors.pairAccent : AppTheme.colors.title)
+            .tint(isMonthModeActive ? dockSelectionTint : AppTheme.colors.title)
             .accessibilityLabel(isMonthModeActive ? "关闭月历" : "打开月历")
 
             if showsRoutinesButton {
@@ -154,7 +154,7 @@ struct AppRootView: View {
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath")
                 }
-                .tint(isRoutinesModeActive ? AppTheme.colors.pairAccent : AppTheme.colors.title)
+                .tint(isRoutinesModeActive ? dockSelectionTint : AppTheme.colors.title)
                 .accessibilityLabel(isRoutinesModeActive ? "关闭例行事务" : "打开例行事务")
             }
 
@@ -163,7 +163,7 @@ struct AppRootView: View {
             } label: {
                 Image(systemName: "folder")
             }
-            .tint(isProjectsModeActive ? AppTheme.colors.pairAccent : AppTheme.colors.title)
+            .tint(isProjectsModeActive ? dockSelectionTint : AppTheme.colors.title)
             .accessibilityLabel(isProjectsModeActive ? "关闭项目" : "打开项目")
         }
 
@@ -182,6 +182,10 @@ struct AppRootView: View {
     }
 
     // MARK: - Surface routing
+
+    private var dockSelectionTint: Color {
+        .blue
+    }
 
     private var projectModeAnimation: Animation {
         reduceMotion

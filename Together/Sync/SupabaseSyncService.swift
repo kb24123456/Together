@@ -285,7 +285,7 @@ actor SupabaseSyncService {
     // MARK: - Pull（Supabase → 本地，catch-up 补拉）
 
     /// 从 Supabase 拉取最新数据
-    func catchUp() async {
+    func catchUp(notify: Bool = true) async {
         guard let spaceID else { return }
         let since = lastSyncedAt ?? Date.distantPast
         let sinceISO = ISO8601DateFormatter().string(from: since)
@@ -319,9 +319,11 @@ actor SupabaseSyncService {
             lastSyncedAt = Date()
             logger.info("[CatchUp] ✅ 完成补拉")
 
-            // 通知 UI 刷新（即使没有新变更，首次 catchUp 也要让 ViewModel reload 一次）
-            await MainActor.run {
-                NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
+            if notify {
+                // 通知 UI 刷新（即使没有新变更，首次 catchUp 也要让 ViewModel reload 一次）
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
+                }
             }
         } catch {
             logger.error("[CatchUp] ❌ \(error.localizedDescription)")
@@ -970,7 +972,7 @@ actor SupabaseSyncService {
             }
         }
 
-        await catchUp()
+        await catchUp(notify: false)
         lastSyncedAt = Date()
 
         await MainActor.run {
@@ -1021,7 +1023,7 @@ actor SupabaseSyncService {
            Date().timeIntervalSince(pushedAt) < echoWindow {
             return
         }
-        await catchUp()
+        await catchUp(notify: false)
         await MainActor.run {
             NotificationCenter.default.post(name: .importantDatesChanged, object: nil)
             NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
@@ -1036,7 +1038,7 @@ actor SupabaseSyncService {
             }
         case .update:
             // 对方更新了头像或名称，触发补拉刷新本地数据
-            await catchUp()
+            await catchUp(notify: false)
             await MainActor.run {
                 NotificationCenter.default.post(name: .supabaseRealtimeChanged, object: nil)
             }

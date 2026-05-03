@@ -678,7 +678,7 @@ struct ComposerPlaceholderSheet: View {
                     actorID: actorID,
                     draft: draftState.taskDraft()
                 )
-                await appContext.homeViewModel.reload(insertedItemIDs: [item.id])
+                await appContext.homeViewModel.reload(insertedItemIDs: [item.id], reason: .userInserted)
                 await appContext.flushRecordedSharedMutation(
                     SyncChange(
                         entityKind: .task,
@@ -694,7 +694,7 @@ struct ComposerPlaceholderSheet: View {
                     actorID: actorID,
                     draft: draft
                 )
-                await appContext.routinesViewModel.load()
+                await appContext.routinesViewModel.reload()
                 await appContext.flushRecordedSharedMutation(
                     SyncChange(
                         entityKind: .periodicTask,

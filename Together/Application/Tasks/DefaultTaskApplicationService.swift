@@ -487,10 +487,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return try await existingTask(in: spaceID, taskID: taskID)
     }
 
-    /// Task creator sends reminders to the assignee (partner). No creator
-    /// permission check (creator IS the sender). Dual-writes: bumps
-    /// reminder_requested_at on the task (foreground-fallback cache) AND
-    /// inserts a task_messages(type='nudge') row (APNs trigger source).
+    /// Task creator sends reminders to the assignee (partner). Dual-writes:
+    /// bumps reminder_requested_at on the task (foreground-fallback cache)
+    /// AND inserts a task_messages(type='nudge') row (APNs trigger source).
     func sendReminderToPartner(
         in spaceID: UUID,
         taskID: UUID,
@@ -498,6 +497,15 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     ) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
         guard item.assigneeMode == .partner else { throw RepositoryError.notFound }
+        guard item.creatorID == actorID else { throw PermissionError.notCreator }
+        guard item.isArchived == false, item.assignmentState != .completed else {
+            throw RepositoryError.notFound
+        }
+        guard item.assignmentState == .pendingResponse
+            || item.assignmentState == .accepted
+            || item.assignmentState == .active else {
+            throw RepositoryError.notFound
+        }
 
         // 30 秒冷却
         if let lastReminder = item.reminderRequestedAt,

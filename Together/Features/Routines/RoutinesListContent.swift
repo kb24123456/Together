@@ -63,15 +63,12 @@ struct RoutinesListContent: View {
         .sheet(isPresented: $viewModel.isDetailPresented) {
             RoutinesDetailSheet(viewModel: viewModel)
         }
-        .task {
+        .task(id: appContext.sessionStore.currentSpace?.id) {
             appContext.router.pendingPeriodicCycle = selectedCycle
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
         .onChange(of: selectedCycle) { _, cycle in
             appContext.router.pendingPeriodicCycle = cycle
-        }
-        .task(id: appContext.sessionStore.currentSpace?.id) {
-            await viewModel.reload()
         }
         .onChange(of: isPresented) { _, newValue in
             guard newValue else { return }
