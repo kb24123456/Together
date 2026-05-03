@@ -269,6 +269,21 @@ struct PersistenceController {
     }
 
     static var persistentStoreURL: URL {
+        resolvedPersistentStoreURL(
+            appGroupContainerURL: FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: TodayWidgetConstants.appGroupIdentifier
+            )
+        )
+    }
+
+    static func resolvedPersistentStoreURL(appGroupContainerURL: URL?) -> URL {
+        if let appGroupContainerURL {
+            if FileManager.default.fileExists(atPath: appGroupContainerURL.path) == false {
+                try? FileManager.default.createDirectory(at: appGroupContainerURL, withIntermediateDirectories: true)
+            }
+            return appGroupContainerURL.appending(path: "Together.store")
+        }
+
         let applicationSupportDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
