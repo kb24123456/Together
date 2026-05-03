@@ -43,6 +43,7 @@ import Foundation
 /// </html>
 /// ```
 enum DeepLinkConfiguration {
+    static let appScheme = "together"
 
     // ── 正式域名 ──────────────────────────────────────────────────────────────
     static let primaryHost = "onetwotogether.xyz"
@@ -61,8 +62,13 @@ enum DeepLinkConfiguration {
     // ──────────────────────────────────────────────────────────────────────────
 
     private static let invitePathComponent = "invite"
+    private static let todayHost = "today"
 
     // MARK: - URL 构建
+
+    static var todayURL: URL {
+        URL(string: "\(appScheme)://\(todayHost)")!
+    }
 
     /// 生成邀请跳转链接。
     /// code = pairSpaceID UUID string (lowercase, with hyphens)
@@ -75,6 +81,10 @@ enum DeepLinkConfiguration {
     }
 
     // MARK: - URL 解析
+
+    static func isTodayURL(_ url: URL) -> Bool {
+        url.scheme == appScheme && url.host == todayHost
+    }
 
     /// 从 Universal Link URL 中提取邀请码（同时接受 primaryHost 和 fallbackHost）。
     static func inviteCode(from url: URL) -> String? {

@@ -1101,6 +1101,15 @@ final class AppContext {
     private(set) var pendingInviteCode: String?
 
     func handleDeepLink(url: URL) {
+        if DeepLinkConfiguration.isTodayURL(url) {
+            router.currentSurface = .today
+            router.isProfilePresented = false
+            router.activeComposer = nil
+            router.pendingComposerTitle = nil
+            router.pendingPeriodicCycle = nil
+            return
+        }
+
         guard let code = DeepLinkConfiguration.inviteCode(from: url) else { return }
         pendingInviteCode = code
         router.isProfilePresented = true
