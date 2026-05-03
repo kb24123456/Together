@@ -1348,6 +1348,7 @@ final class AppContext {
         homeViewModel.onConvertToPeriodicTask = { [weak self] title in
             guard let self else { return }
             router.pendingComposerTitle = title
+            router.pendingPeriodicCycle = nil
             router.activeComposer = .newPeriodicTask
         }
         homeViewModel.onConvertToProject = { [weak self] title in

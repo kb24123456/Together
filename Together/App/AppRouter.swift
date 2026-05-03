@@ -6,6 +6,7 @@ import Observation
 final class AppRouter {
     var activeComposer: ComposerRoute?
     var pendingComposerTitle: String?
+    var pendingPeriodicCycle: PeriodicCycle?
     var isProfilePresented = false
     var currentSurface: RootSurface = .today
 

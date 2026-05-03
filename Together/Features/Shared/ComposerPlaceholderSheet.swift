@@ -8,6 +8,7 @@ struct ComposerPlaceholderSheet: View {
     let route: ComposerRoute
     let appContext: AppContext
     let initialTitle: String?
+    let initialPeriodicCycle: PeriodicCycle?
 
     @Environment(\.dismiss) private var dismiss
     @State private var draftState: ComposerDraftState
@@ -29,10 +30,16 @@ struct ComposerPlaceholderSheet: View {
     @State private var taskTemplates: [TaskTemplate] = []
     @State private var isProjectSubtaskMode: Bool = false
 
-    init(route: ComposerRoute, appContext: AppContext, initialTitle: String? = nil) {
+    init(
+        route: ComposerRoute,
+        appContext: AppContext,
+        initialTitle: String? = nil,
+        initialPeriodicCycle: PeriodicCycle? = nil
+    ) {
         self.route = route
         self.appContext = appContext
         self.initialTitle = initialTitle
+        self.initialPeriodicCycle = initialPeriodicCycle
         let initialCategory: ComposerCategory = {
             switch route {
             case .newProject: return .project
@@ -47,6 +54,9 @@ struct ComposerPlaceholderSheet: View {
         var seededDraft = initialDraft
         if let initialTitle, !initialTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             seededDraft.title = initialTitle
+        }
+        if let initialPeriodicCycle, route == .newPeriodicTask {
+            seededDraft.periodicCycle = initialPeriodicCycle
         }
         _draftState = State(
             initialValue: seededDraft
@@ -1023,7 +1033,8 @@ struct ComposerTemplatePickerSheet: View {
                     EmptyStateCard(
                         title: "还没有可用模板",
                         message: "先在任务详情里把常用任务保存为模板。",
-                        illustration: "EmptyTemplate"
+                        illustration: "EmptyTemplate",
+                        usesNeutralBackground: true
                     )
                     .padding(.horizontal, AppTheme.spacing.lg)
                     Spacer()

@@ -68,6 +68,7 @@ CREATE TABLE projects (
   status text DEFAULT 'active',
   target_date timestamptz,
   remind_at timestamptz,
+  sort_order float8 DEFAULT 0,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   completed_at timestamptz,

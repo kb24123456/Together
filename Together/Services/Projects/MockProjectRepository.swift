@@ -14,6 +14,9 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
             .filter { $0.spaceID == spaceID }
             .sorted { lhs, rhs in
                 if lhs.status == rhs.status {
+                    if lhs.sortOrder != rhs.sortOrder {
+                        return lhs.sortOrder < rhs.sortOrder
+                    }
                     return lhs.updatedAt > rhs.updatedAt
                 }
                 return lhs.createdAt < rhs.createdAt
@@ -26,10 +29,24 @@ final class MockProjectRepository: ProjectRepositoryProtocol {
         if let index = projects.firstIndex(where: { $0.id == project.id }) {
             projects[index] = updatedProject
         } else {
+            if updatedProject.sortOrder == 0 {
+                updatedProject.sortOrder = (projects.map(\.sortOrder).max() ?? -1) + 1
+            }
             projects.append(updatedProject)
         }
         await reminderScheduler.syncProjectReminder(for: updatedProject)
         return updatedProject
+    }
+
+    func reorderProjects(projectIDs: [UUID], actorID: UUID) async throws -> [Project] {
+        var updated: [Project] = []
+        for (order, projectID) in projectIDs.enumerated() {
+            guard let index = projects.firstIndex(where: { $0.id == projectID }) else { continue }
+            projects[index].sortOrder = Double(order)
+            projects[index].updatedAt = MockDataFactory.now
+            updated.append(projects[index])
+        }
+        return updated
     }
 
     func archiveProject(projectID: UUID, actorID: UUID) async throws -> Project {

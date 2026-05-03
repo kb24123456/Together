@@ -87,6 +87,7 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     /// `lastActionByUserID` for pre-migration rows where it is nil.
     var completedByUserID: UUID? = nil
     var occurrenceCompletions: [ItemOccurrenceCompletion] = []
+    var sortOrder: Double = 0
     var isPinned: Bool = false
     var isDraft: Bool
     var isArchived: Bool = false

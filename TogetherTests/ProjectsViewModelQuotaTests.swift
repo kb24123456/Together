@@ -5,7 +5,8 @@ import Testing
 /// 空 seed 的 ProjectRepository stub，用来让 quota 测试从零开始计数
 /// （`MockProjectRepository` 初始就带 MockDataFactory.makeProjects()，
 /// 会把 `me` 的项目数抬高 3 个污染配额断言）。
-actor StubProjectRepository: ProjectRepositoryProtocol {
+@MainActor
+final class StubProjectRepository: ProjectRepositoryProtocol {
     private var projects: [Project] = []
 
     func fetchProjects(spaceID: UUID?) async throws -> [Project] {
@@ -25,8 +26,28 @@ actor StubProjectRepository: ProjectRepositoryProtocol {
         guard let i = projects.firstIndex(where: { $0.id == projectID }) else {
             throw RepositoryError.notFound
         }
-        // 测试不断言 subtasks，只需 not-throw
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subtask = ProjectSubtask(
+            projectID: projectID,
+            creatorID: creatorID,
+            title: trimmed,
+            isCompleted: isCompleted,
+            sortOrder: projects[i].subtasks.count
+        )
+        projects[i].subtasks.append(subtask)
+        projects[i].taskCount = projects[i].subtasks.count
+        projects[i].updatedAt = Date()
         return projects[i]
+    }
+
+    func reorderProjects(projectIDs: [UUID], actorID: UUID) async throws -> [Project] {
+        var updated: [Project] = []
+        for (order, projectID) in projectIDs.enumerated() {
+            guard let index = projects.firstIndex(where: { $0.id == projectID }) else { continue }
+            projects[index].sortOrder = Double(order)
+            updated.append(projects[index])
+        }
+        return updated
     }
 
     func archiveProject(projectID: UUID, actorID: UUID) async throws -> Project { fatalError("unused") }
@@ -101,6 +122,56 @@ struct ProjectsViewModelQuotaTests {
         #expect(vm.pendingUpsellTrigger == nil)
     }
 
+    @Test func addSubtaskUpdatesProjectAndEmitsMutation() async {
+        let (vm, _, me, _) = await makeViewModel(meCount: 0)
+        var recorded: [SyncChange] = []
+        vm.onSharedMutationRecorded = { change in
+            recorded.append(change)
+        }
+
+        guard let created = await vm.createNew(makeDraft(creatorID: me)) else {
+            Issue.record("expected project creation to succeed before adding a subtask")
+            return
+        }
+        recorded.removeAll()
+
+        await vm.addSubtask(projectID: created.id, title: "  步骤一  ")
+
+        let updated = vm.projects.first { $0.id == created.id }
+        #expect(updated?.subtasks.map(\.title) == ["步骤一"])
+        #expect(updated?.taskCount == 1)
+        #expect(recorded.contains {
+            $0.entityKind == .project &&
+            $0.operation == .upsert &&
+            $0.recordID == created.id
+        })
+    }
+
+    @Test func updateProjectTitleUpdatesProjectAndEmitsMutation() async {
+        let (vm, _, me, _) = await makeViewModel(meCount: 0)
+        var recorded: [SyncChange] = []
+        vm.onSharedMutationRecorded = { change in
+            recorded.append(change)
+        }
+
+        guard var created = await vm.createNew(makeDraft(creatorID: me)) else {
+            Issue.record("expected project creation to succeed before updating title")
+            return
+        }
+        recorded.removeAll()
+
+        created.name = "新的项目标题"
+        await vm.updateProject(created)
+
+        let updated = vm.projects.first { $0.id == created.id }
+        #expect(updated?.name == "新的项目标题")
+        #expect(recorded.contains {
+            $0.entityKind == .project &&
+            $0.operation == .upsert &&
+            $0.recordID == created.id
+        })
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(
@@ -149,10 +220,11 @@ struct ProjectsViewModelQuotaTests {
         return (vm, gate, me, partner)
     }
 
-    private func makeDraft(creatorID: UUID, spaceID: UUID = MockDataFactory.singleSpaceID) -> Project {
-        Project(
+    private func makeDraft(creatorID: UUID, spaceID: UUID? = nil) -> Project {
+        let resolvedSpaceID = spaceID ?? MockDataFactory.singleSpaceID
+        return Project(
             id: UUID(),
-            spaceID: spaceID,
+            spaceID: resolvedSpaceID,
             creatorID: creatorID,
             name: "New Project",
             notes: nil,

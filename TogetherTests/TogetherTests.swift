@@ -4712,6 +4712,22 @@ actor TestItemRepository: ItemRepositoryProtocol {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
+    func reorderItems(itemIDs: [UUID]) async throws -> [Item] {
+        var reordered: [Item] = []
+        var byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+
+        for (order, itemID) in itemIDs.enumerated() {
+            guard var item = byID.removeValue(forKey: itemID) else { continue }
+            item.sortOrder = Double(order)
+            item.updatedAt = Date()
+            reordered.append(item)
+        }
+
+        let remaining = byID.values.sorted { $0.sortOrder < $1.sortOrder }
+        items = reordered + remaining
+        return reordered.map(hydratedItem)
+    }
+
     func fetchArchivedCompletedItems(
         spaceID: UUID?,
         searchText: String?,

@@ -18,6 +18,7 @@ struct ProjectRecordCodable: RecordCodable {
         record["status"] = project.status.rawValue as CKRecordValue
         record["targetDate"] = project.targetDate as CKRecordValue?
         record["remindAt"] = project.remindAt as CKRecordValue?
+        record["sortOrder"] = project.sortOrder as CKRecordValue
         record["createdAt"] = project.createdAt as CKRecordValue
         record["updatedAt"] = project.updatedAt as CKRecordValue
         record["completedAt"] = project.completedAt as CKRecordValue?
@@ -50,6 +51,7 @@ struct ProjectRecordCodable: RecordCodable {
             remindAt: record["remindAt"] as? Date,
             taskCount: 0, // Computed locally
             subtasks: [], // Synced as separate ProjectSubtask records
+            sortOrder: record["sortOrder"] as? Double ?? 0,
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: record["completedAt"] as? Date

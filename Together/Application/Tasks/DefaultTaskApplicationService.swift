@@ -83,6 +83,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             createdAt: now,
             updatedAt: now,
             completedAt: nil,
+            sortOrder: now.timeIntervalSinceReferenceDate,
             isPinned: draft.isPinned,
             isDraft: draft.isDraft
             ,

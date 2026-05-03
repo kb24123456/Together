@@ -23,6 +23,17 @@ final class MockPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
         return task
     }
 
+    func reorderTasks(taskIDs: [UUID]) async throws -> [PeriodicTask] {
+        for (order, taskID) in taskIDs.enumerated() {
+            guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { continue }
+            tasks[index].sortOrder = Double(order)
+            tasks[index].updatedAt = .now
+        }
+        return taskIDs.compactMap { taskID in
+            tasks.first(where: { $0.id == taskID })
+        }
+    }
+
     func deleteTask(taskID: UUID) async throws {
         tasks.removeAll { $0.id == taskID }
     }

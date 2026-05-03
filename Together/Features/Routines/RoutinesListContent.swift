@@ -8,6 +8,7 @@ struct RoutinesListContent: View {
 
     @Environment(AppContext.self) private var appContext
     @State private var selectedCycle: PeriodicCycle = .weekly
+    @State private var isTaskReorderingActive = false
 
     private var cycleTabs: [PeriodicCycle] {
         [.weekly, .monthly, .quarterly, .yearly]
@@ -57,13 +58,17 @@ struct RoutinesListContent: View {
         }
         .background(GradientGridBackground())
         .sheet(isPresented: $viewModel.isEditorPresented) {
-            RoutinesEditorSheet(viewModel: viewModel)
+            RoutinesEditorSheet(viewModel: viewModel, initialCycle: viewModel.editorDefaultCycle)
         }
         .sheet(isPresented: $viewModel.isDetailPresented) {
             RoutinesDetailSheet(viewModel: viewModel)
         }
         .task {
+            appContext.router.pendingPeriodicCycle = selectedCycle
             await viewModel.load()
+        }
+        .onChange(of: selectedCycle) { _, cycle in
+            appContext.router.pendingPeriodicCycle = cycle
         }
         .task(id: appContext.sessionStore.currentSpace?.id) {
             await viewModel.reload()
@@ -101,6 +106,8 @@ struct RoutinesListContent: View {
                                     ? AppTheme.colors.title
                                     : AppTheme.colors.textTertiary
                             )
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
 
                         let count = viewModel.pendingCount(for: cycle)
                         if count > 0 {
@@ -162,6 +169,21 @@ struct RoutinesListContent: View {
 
     private var taskList: some View {
         List {
+            if isTaskReorderingActive {
+                routinesReorderingControl
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: AppTheme.spacing.xxs,
+                            leading: AppTheme.spacing.xl,
+                            bottom: AppTheme.spacing.sm,
+                            trailing: AppTheme.spacing.xl
+                        )
+                    )
+                    .listRowBackground(AppTheme.colors.background)
+                    .listRowSeparator(.hidden)
+            }
+
             ForEach(currentTasks) { task in
                 RoutinesTaskRow(task: task, viewModel: viewModel)
                     .listRowInsets(
@@ -174,18 +196,32 @@ struct RoutinesListContent: View {
                     )
                     .listRowBackground(AppTheme.colors.background)
                     .listRowSeparator(.hidden)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        if viewModel.canDeletePeriodicTask(task) {
-                            Button(role: .destructive) {
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                            guard isTaskReorderingActive == false else { return }
+                            HomeInteractionFeedback.selection()
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                                isTaskReorderingActive = true
+                            }
+                        }
+                    )
+                    .modifier(
+                        RoutinesSwipeActionsModifier(
+                            isEnabled: isTaskReorderingActive == false,
+                            canDelete: viewModel.canDeletePeriodicTask(task),
+                            onDelete: {
                                 HomeInteractionFeedback.delete()
                                 Task {
                                     await viewModel.deleteTask(taskID: task.id)
                                 }
-                            } label: {
-                                Label("删除", systemImage: "trash")
                             }
-                        }
-                    }
+                        )
+                    )
+            }
+            .onMove { fromOffsets, toOffset in
+                Task {
+                    await viewModel.reorderTasks(currentTasks, fromOffsets: fromOffsets, toOffset: toOffset)
+                }
             }
 
             Color.clear
@@ -197,7 +233,33 @@ struct RoutinesListContent: View {
         .listStyle(.plain)
         .scrollIndicators(.hidden)
         .contentMargins(.top, 0, for: .scrollContent)
+        .environment(\.editMode, .constant(isTaskReorderingActive ? EditMode.active : EditMode.inactive))
         .applyScrollEdgeProtection()
+    }
+
+    private var routinesReorderingControl: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                isTaskReorderingActive = false
+            }
+        } label: {
+            HStack(spacing: AppTheme.spacing.xs) {
+                Image(systemName: "line.3.horizontal")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                Text("完成排序")
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+            }
+            .foregroundStyle(AppTheme.colors.sky)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.xs)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.sky.opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("退出例行事务排序模式")
     }
 
     // MARK: - Empty States
@@ -223,6 +285,7 @@ struct RoutinesListContent: View {
 
             Button {
                 HomeInteractionFeedback.selection()
+                appContext.router.pendingPeriodicCycle = selectedCycle
                 appContext.router.activeComposer = .newPeriodicTask
             } label: {
                 HStack(spacing: AppTheme.spacing.xs) {
@@ -267,6 +330,7 @@ struct RoutinesListContent: View {
 
             Button {
                 HomeInteractionFeedback.selection()
+                appContext.router.pendingPeriodicCycle = selectedCycle
                 appContext.router.activeComposer = .newPeriodicTask
             } label: {
                 HStack(spacing: AppTheme.spacing.xs) {
@@ -289,4 +353,29 @@ struct RoutinesListContent: View {
         .padding(.top, 60) // empty-state hero offset, outside token scale
     }
 
+}
+
+private struct RoutinesSwipeActionsModifier: ViewModifier {
+    let isEnabled: Bool
+    let canDelete: Bool
+    let onDelete: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    if canDelete {
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                        .tint(.red)
+                    }
+                }
+        } else {
+            content
+        }
+    }
 }

@@ -30,6 +30,7 @@ final class PersistentItem {
     /// markIncomplete. Preserved across later post-completion actions
     /// (archive/unarchive) unlike lastActionByUserID.
     var completedByUserID: UUID?
+    var sortOrder: Double = 0
     var isPinned: Bool
     var isDraft: Bool
     var isArchived: Bool
@@ -63,6 +64,7 @@ final class PersistentItem {
         updatedAt: Date,
         completedAt: Date?,
         completedByUserID: UUID? = nil,
+        sortOrder: Double = 0,
         isPinned: Bool,
         isDraft: Bool,
         isArchived: Bool,
@@ -95,6 +97,7 @@ final class PersistentItem {
         self.updatedAt = updatedAt
         self.completedAt = completedAt
         self.completedByUserID = completedByUserID
+        self.sortOrder = sortOrder
         self.isPinned = isPinned
         self.isDraft = isDraft
         self.isArchived = isArchived
@@ -132,6 +135,7 @@ extension PersistentItem {
             updatedAt: item.updatedAt,
             completedAt: item.completedAt,
             completedByUserID: item.completedByUserID,
+            sortOrder: item.sortOrder,
             isPinned: item.isPinned,
             isDraft: item.isDraft,
             isArchived: item.isArchived,
@@ -169,6 +173,7 @@ extension PersistentItem {
             completedAt: repeatRuleData == nil ? completedAt : nil,
             completedByUserID: completedByUserID,
             occurrenceCompletions: occurrenceCompletions,
+            sortOrder: sortOrder,
             isPinned: isPinned,
             isDraft: isDraft,
             isArchived: isArchived,
@@ -200,6 +205,7 @@ extension PersistentItem {
         updatedAt = item.updatedAt
         completedAt = item.repeatRule == nil ? item.completedAt : nil
         completedByUserID = item.completedByUserID
+        sortOrder = item.sortOrder
         isPinned = item.isPinned
         isDraft = item.isDraft
         isArchived = item.isArchived

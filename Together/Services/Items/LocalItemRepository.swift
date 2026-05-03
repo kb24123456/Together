@@ -356,6 +356,32 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return savedItem
     }
 
+    func reorderItems(itemIDs: [UUID]) async throws -> [Item] {
+        guard itemIDs.isEmpty == false else { return [] }
+
+        let context = ModelContext(container)
+        let records = try fetchRecords(itemIDs: itemIDs, context: context)
+        let recordsByID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        let now = Date.now
+
+        for (index, itemID) in itemIDs.enumerated() {
+            guard let record = recordsByID[itemID] else { continue }
+            record.sortOrder = Double(index)
+            record.updatedAt = now
+        }
+
+        try context.save()
+
+        for itemID in itemIDs {
+            guard let record = recordsByID[itemID], let sid = record.spaceID else { continue }
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
+        return try hydrateItems(from: records, context: context)
+    }
+
     func deleteItem(itemID: UUID) async throws {
         let context = ModelContext(container)
         guard let record = try fetchRecord(itemID: itemID, context: context) else {

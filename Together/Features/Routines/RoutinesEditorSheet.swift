@@ -5,7 +5,7 @@ struct RoutinesEditorSheet: View {
 
     @State private var title: String = ""
     @State private var notes: String = ""
-    @State private var cycle: PeriodicCycle = .monthly
+    @State private var cycle: PeriodicCycle
     @State private var reminderRules: [PeriodicReminderRule] = []
 
     @State private var activeMenu: TaskEditorMenu?
@@ -15,6 +15,11 @@ struct RoutinesEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: Field?
     @Namespace private var chipRowNamespace
+
+    init(viewModel: RoutinesViewModel, initialCycle: PeriodicCycle = .monthly) {
+        self.viewModel = viewModel
+        _cycle = State(initialValue: initialCycle)
+    }
 
     enum Field: Hashable {
         case title

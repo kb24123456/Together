@@ -82,6 +82,16 @@ struct ProfileView: View {
         .navigationTitle("我")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(value: ProfileRoute.completedHistory) {
+                    Text("日志")
+                        .font(AppTheme.typography.body)
+                        .fontWeight(.medium)
+                }
+                .accessibilityHint("查看已完成任务")
+            }
+        }
         .toolbarBackground(.regularMaterial, for: .navigationBar)
         .toolbarBackground(topChromeProgress > 0.02 ? .visible : .hidden, for: .navigationBar)
         .font(AppTheme.typography.body)

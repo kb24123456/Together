@@ -74,6 +74,37 @@ actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
         return savedTask
     }
 
+    func reorderTasks(taskIDs: [UUID]) async throws -> [PeriodicTask] {
+        guard taskIDs.isEmpty == false else { return [] }
+
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentPeriodicTask>(
+            predicate: #Predicate<PersistentPeriodicTask> { $0.isLocallyDeleted == false }
+        )
+        let records = try context.fetch(descriptor)
+        let recordsByID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        let now = Date.now
+
+        for (index, taskID) in taskIDs.enumerated() {
+            guard let record = recordsByID[taskID] else { continue }
+            record.sortOrder = Double(index)
+            record.updatedAt = now
+        }
+
+        try context.save()
+
+        for taskID in taskIDs {
+            guard let record = recordsByID[taskID], let sid = record.spaceID else { continue }
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: taskID, spaceID: sid)
+            )
+        }
+
+        return taskIDs.compactMap { taskID in
+            recordsByID[taskID]?.domainModel()
+        }
+    }
+
     func deleteTask(taskID: UUID) async throws {
         let context = ModelContext(container)
         let records = try context.fetch(

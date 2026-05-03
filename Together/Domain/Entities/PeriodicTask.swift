@@ -12,7 +12,7 @@ enum PeriodicCycle: String, CaseIterable, Hashable, Sendable, Codable {
         switch self {
         case .weekly: "每周"
         case .monthly: "每月"
-        case .quarterly: "每季度"
+        case .quarterly: "每季"
         case .yearly: "每年"
         }
     }

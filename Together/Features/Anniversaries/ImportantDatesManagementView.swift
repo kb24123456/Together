@@ -140,12 +140,12 @@ struct ImportantDatesManagementView: View {
             ForEach(viewModel.events.sorted { nextKey($0) < nextKey($1) }) { event in
                 row(event: event)
                     .listRowInsets(.init(top: AppTheme.spacing.md, leading: AppTheme.spacing.md, bottom: AppTheme.spacing.md, trailing: AppTheme.spacing.md))
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             HomeInteractionFeedback.delete()
                             Task { await viewModel.delete(event.id) }
                         } label: {
-                            Label("删除", systemImage: "trash.fill")
+                            Image(systemName: "trash")
                         }
                         .tint(.red)
                     }

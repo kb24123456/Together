@@ -41,6 +41,7 @@ enum CloudKitTaskRecordCodec {
         record["createdAt"] = item.createdAt as CKRecordValue
         record["updatedAt"] = item.updatedAt as CKRecordValue
         record["completedAt"] = item.completedAt as CKRecordValue?
+        record["sortOrder"] = item.sortOrder as CKRecordValue
         record["isPinned"] = item.isPinned as CKRecordValue
         record["isDraft"] = item.isDraft as CKRecordValue
         record["isArchived"] = item.isArchived as CKRecordValue
@@ -98,6 +99,7 @@ enum CloudKitTaskRecordCodec {
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: record["completedAt"] as? Date,
+            sortOrder: record["sortOrder"] as? Double ?? 0,
             isPinned: record["isPinned"] as? Bool ?? false,
             isDraft: record["isDraft"] as? Bool ?? false,
             isArchived: record["isArchived"] as? Bool ?? false,

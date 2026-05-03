@@ -19,12 +19,18 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         if let spaceID {
             descriptor = FetchDescriptor(
                 predicate: #Predicate<PersistentProject> { $0.spaceID == spaceID && $0.isLocallyDeleted == false },
-                sortBy: [SortDescriptor(\PersistentProject.updatedAt, order: .reverse)]
+                sortBy: [
+                    SortDescriptor(\PersistentProject.sortOrder, order: .forward),
+                    SortDescriptor(\PersistentProject.updatedAt, order: .reverse)
+                ]
             )
         } else {
             descriptor = FetchDescriptor(
                 predicate: #Predicate<PersistentProject> { $0.isLocallyDeleted == false },
-                sortBy: [SortDescriptor(\PersistentProject.updatedAt, order: .reverse)]
+                sortBy: [
+                    SortDescriptor(\PersistentProject.sortOrder, order: .forward),
+                    SortDescriptor(\PersistentProject.updatedAt, order: .reverse)
+                ]
             )
         }
 
@@ -50,6 +56,9 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
             record.update(from: savedProject)
             record.isLocallyDeleted = false
         } else {
+            if savedProject.sortOrder == 0 {
+                savedProject.sortOrder = try nextProjectSortOrder(spaceID: savedProject.spaceID, context: context)
+            }
             context.insert(PersistentProject(project: savedProject))
         }
 
@@ -68,7 +77,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canDeleteProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+        guard try canDeleteProject(record, actorID: actorID, context: context) else {
             throw PermissionError.notCreator
         }
 
@@ -90,7 +99,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canDeleteProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+        guard try canDeleteProject(record, actorID: actorID, context: context) else {
             throw PermissionError.notCreator
         }
 
@@ -116,6 +125,41 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
             SyncChange(entityKind: .project, operation: .delete, recordID: projectID, spaceID: spaceID)
         )
         await reminderScheduler.removeProjectReminder(for: projectID)
+    }
+
+    func reorderProjects(projectIDs: [UUID], actorID: UUID) async throws -> [Project] {
+        guard projectIDs.isEmpty == false else { return [] }
+
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<PersistentProject>(
+            predicate: #Predicate<PersistentProject> { $0.isLocallyDeleted == false }
+        )
+        let records = try context.fetch(descriptor)
+        let recordsByID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        let now = Date.now
+        var updatedProjects: [Project] = []
+
+        for (index, projectID) in projectIDs.enumerated() {
+            guard let record = recordsByID[projectID] else { continue }
+            guard PairPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+                throw PermissionError.notCreator
+            }
+            record.sortOrder = Double(index)
+            record.updatedAt = now
+        }
+
+        try context.save()
+
+        for projectID in projectIDs {
+            guard let record = recordsByID[projectID] else { continue }
+            await syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .project, operation: .upsert, recordID: record.id, spaceID: record.spaceID)
+            )
+            let subtasks = try subtasks(for: record.id, in: context)
+            updatedProjects.append(record.domainModel(taskCount: subtasks.count).withSubtasks(subtasks))
+        }
+
+        return updatedProjects
     }
 
     func setProjectCompleted(projectID: UUID, isCompleted: Bool, actorID: UUID) async throws -> Project {
@@ -290,6 +334,27 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         return try context.fetch(descriptor).first
     }
 
+    private func canDeleteProject(_ record: PersistentProject, actorID: UUID, context: ModelContext) throws -> Bool {
+        if record.creatorID == actorID {
+            return true
+        }
+
+        guard let space = try fetchSpace(spaceID: record.spaceID, context: context) else {
+            return false
+        }
+
+        return space.typeRawValue == SpaceType.single.rawValue
+            && space.statusRawValue == SpaceStatus.active.rawValue
+            && space.ownerUserID == actorID
+    }
+
+    private func fetchSpace(spaceID: UUID, context: ModelContext) throws -> PersistentSpace? {
+        let descriptor = FetchDescriptor<PersistentSpace>(
+            predicate: #Predicate<PersistentSpace> { $0.id == spaceID }
+        )
+        return try context.fetch(descriptor).first
+    }
+
     private func subtasksByProject(
         in context: ModelContext,
         projectIDs: [UUID]
@@ -316,6 +381,16 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
             sortBy: [SortDescriptor(\PersistentProjectSubtask.sortOrder, order: .forward)]
         )
         return try context.fetch(descriptor).map { $0.domainModel() }
+    }
+
+    private func nextProjectSortOrder(spaceID: UUID, context: ModelContext) throws -> Double {
+        let descriptor = FetchDescriptor<PersistentProject>(
+            predicate: #Predicate<PersistentProject> {
+                $0.spaceID == spaceID && $0.isLocallyDeleted == false
+            },
+            sortBy: [SortDescriptor(\PersistentProject.sortOrder, order: .reverse)]
+        )
+        return (try context.fetch(descriptor).first?.sortOrder ?? -1) + 1
     }
 
     private func resequenceSubtasks(projectID: UUID, context: ModelContext) throws {
@@ -378,6 +453,7 @@ private extension Project {
             remindAt: remindAt,
             taskCount: subtasks.count,
             subtasks: subtasks,
+            sortOrder: sortOrder,
             createdAt: createdAt,
             updatedAt: updatedAt,
             completedAt: completedAt

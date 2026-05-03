@@ -8,6 +8,7 @@ struct EmptyStateCard: View {
     let message: String
     var illustration: String? = nil
     var systemImage: String? = nil
+    var usesNeutralBackground = false
 
     var body: some View {
         VStack(alignment: .center, spacing: AppTheme.spacing.sm) {
@@ -36,6 +37,9 @@ struct EmptyStateCard: View {
         }
         .padding(AppTheme.spacing.lg)
         .frame(maxWidth: .infinity)
-        .background(AppTheme.colors.accentSoft, in: RoundedRectangle(cornerRadius: AppTheme.radius.card))
+        .background(
+            (usesNeutralBackground ? Color.clear : AppTheme.colors.accentSoft),
+            in: RoundedRectangle(cornerRadius: AppTheme.radius.card)
+        )
     }
 }

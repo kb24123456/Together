@@ -26,6 +26,7 @@ struct HomeView: View {
     @State private var selectedChatViewModel: TaskChatViewModel?
     @State private var isTaskChatNavigationPresented = false
     @State private var taskChatCleanupTask: Task<Void, Never>?
+    @State private var isTimelineReorderingActive = false
     @Namespace private var taskChatZoomNamespace
 
     private let weekPageBreathingGap: CGFloat = 0
@@ -400,8 +401,7 @@ struct HomeView: View {
     private var spaceModeLine: some View {
         HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
             ModeIndicator(
-                isPairMode: viewModel.isPairModeActive,
-                soloTint: headerSecondaryColor
+                isPairMode: viewModel.isPairModeActive
             )
             .animation(AppTheme.motion.snappy, value: viewModel.isPairModeActive)
 
@@ -471,8 +471,7 @@ struct HomeView: View {
         ModeIndicator(
             isPairMode: viewModel.isPairModeActive,
             pairTint: AppTheme.colors.coral,
-            pairBackground: AppTheme.colors.coral.opacity(0.12),
-            soloTint: headerSecondaryColor
+            pairBackground: AppTheme.colors.coral.opacity(0.12)
         )
     }
 
@@ -481,8 +480,7 @@ struct HomeView: View {
             ModeIndicator(
                 isPairMode: viewModel.isPairModeActive,
                 pairTint: AppTheme.colors.coral,
-                pairBackground: AppTheme.colors.coral.opacity(0.12),
-                soloTint: headerSecondaryColor
+                pairBackground: AppTheme.colors.coral.opacity(0.12)
             )
             .layoutPriority(2)
 
@@ -741,9 +739,25 @@ struct HomeView: View {
                 .listRowSeparator(.hidden)
             }
 
+            if isTimelineReorderingActive {
+                timelineReorderingControl
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 4,
+                            leading: timelineRowHorizontalInset,
+                            bottom: 8,
+                            trailing: timelineRowHorizontalInset
+                        )
+                    )
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+
             timelineRows(
                 viewModel.activeTimelineEntries,
-                rowTransition: activeRowTransition
+                rowTransition: activeRowTransition,
+                allowsReordering: appContext.sessionStore.activeMode == .single
             )
 
             if viewModel.hasCompletedEntries {
@@ -776,6 +790,7 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .scrollDisabled(isOverlayModeActive)
         .environment(\.defaultMinListRowHeight, 0)
+        .environment(\.editMode, .constant(isTimelineReorderingActive ? EditMode.active : EditMode.inactive))
         .safeAreaPadding(.top, 0)
         .applyScrollEdgeProtection()
         .refreshable {
@@ -880,39 +895,63 @@ struct HomeView: View {
     }
 
     private var todayJumpButton: some View {
-        Button("Today", systemImage: "arrow.uturn.backward.circle.fill") {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+        Button {
+            withAnimation(.smooth(duration: 0.18)) {
                 isTodayJumpButtonVisible = false
                 viewModel.returnToToday()
             }
             HomeInteractionFeedback.selection()
+        } label: {
+            Text("今天")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .padding(.horizontal, AppTheme.spacing.sm)
+                .padding(.vertical, AppTheme.spacing.xxs)
         }
-        .font(AppTheme.typography.sized(13, weight: .semibold))
-        .foregroundStyle(headerPrimaryColor)
-        .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
-        .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
-        .frame(minHeight: 42)
-        .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
-        .modifier(HomeAvatarGlassModifier(isCircular: false))
+        .foregroundStyle(AppTheme.colors.title)
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Capsule(style: .continuous))
+        .background(
+            Capsule(style: .continuous)
+                .fill(AppTheme.colors.surfaceElevated)
+        )
         .buttonStyle(.plain)
         .accessibilityLabel("返回今天")
     }
 
-    private var todayJumpTransition: AnyTransition {
-        .asymmetric(
-            insertion: .scale(scale: 0.9, anchor: .leading)
-                .combined(with: .opacity),
-            removal: .scale(scale: 0.95, anchor: .leading)
-                .combined(with: .opacity)
-        )
+    private var timelineReorderingControl: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                isTimelineReorderingActive = false
+            }
+        } label: {
+            HStack(spacing: AppTheme.spacing.xs) {
+                Image(systemName: "line.3.horizontal")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                Text("完成排序")
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+            }
+            .foregroundStyle(AppTheme.colors.sky)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.xs)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.sky.opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("退出任务排序模式")
+    }
+
+    private var todayJumpTransition: some Transition {
+        .blurReplace
     }
 
     private func updateTodayJumpButtonVisibility() {
         todayJumpRevealTask?.cancel()
 
         guard shouldShowTodayJumpButton else {
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.92)) {
+            withAnimation(.smooth(duration: 0.18)) {
                 isTodayJumpButtonVisible = false
             }
             return
@@ -926,7 +965,7 @@ struct HomeView: View {
 
             await MainActor.run {
                 guard shouldShowTodayJumpButton else { return }
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                withAnimation(.smooth(duration: 0.22)) {
                     isTodayJumpButtonVisible = true
                 }
             }
@@ -975,9 +1014,11 @@ struct HomeView: View {
     private func timelineRows(
         _ entries: [HomeTimelineEntry],
         rowTransition: AnyTransition? = nil,
-        sectionVisibility: CompletedSectionVisibility? = nil
+        sectionVisibility: CompletedSectionVisibility? = nil,
+        allowsReordering: Bool = false
     ) -> some View {
-        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+        ForEach(entries) { entry in
+            let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
             Group {
                 if entry.isCompleted {
                     HomeTimelineRow(
@@ -1021,28 +1062,24 @@ struct HomeView: View {
                             viewModel.presentItemDetail(entry.id)
                         }
                     )
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            Task {
-                                await viewModel.snoozeItem(entry.id)
-                            }
-                        } label: {
-                            Image(systemName: "arrowshape.turn.up.forward.fill")
-                        }
-                        .tint(AppTheme.colors.sky)
-
-                        if viewModel.canDeleteItem(entry.id) {
-                            Button(role: .destructive) {
+                    .modifier(
+                        TimelineSwipeActionsModifier(
+                            isEnabled: isTimelineReorderingActive == false,
+                            canDelete: viewModel.canDeleteItem(entry.id),
+                            onSnooze: {
+                                HomeInteractionFeedback.selection()
+                                Task {
+                                    await viewModel.snoozeItem(entry.id)
+                                }
+                            },
+                            onDelete: {
                                 HomeInteractionFeedback.delete()
                                 Task {
                                     await viewModel.deleteItem(entry.id)
                                 }
-                            } label: {
-                                Image(systemName: "trash")
                             }
-                        }
-                    }
+                        )
+                    )
                 }
             }
             .id(entry.id)
@@ -1066,7 +1103,21 @@ struct HomeView: View {
             .applyCompletedSectionVisibility(
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
-
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                    guard allowsReordering, isTimelineReorderingActive == false else { return }
+                    HomeInteractionFeedback.selection()
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                        isTimelineReorderingActive = true
+                    }
+                }
+            )
+        }
+        .onMove { fromOffsets, toOffset in
+            guard allowsReordering else { return }
+            Task {
+                await viewModel.reorderTimelineEntries(entries, fromOffsets: fromOffsets, toOffset: toOffset)
+            }
         }
     }
 
@@ -3397,6 +3448,39 @@ private struct HomeAvatarGlassModifier: ViewModifier {
                     (isCircular ? AnyShape(Circle()) : AnyShape(Capsule(style: .continuous)))
                         .stroke(AppTheme.colors.outlineStrong.opacity(0.22), lineWidth: 1)
                 }
+        }
+    }
+}
+
+private struct TimelineSwipeActionsModifier: ViewModifier {
+    let isEnabled: Bool
+    let canDelete: Bool
+    let onSnooze: () -> Void
+    let onDelete: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        onSnooze()
+                    } label: {
+                        Image(systemName: "arrowshape.turn.up.forward.fill")
+                    }
+                    .tint(AppTheme.colors.sky)
+
+                    if canDelete {
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .tint(.red)
+                    }
+                }
+        } else {
+            content
         }
     }
 }

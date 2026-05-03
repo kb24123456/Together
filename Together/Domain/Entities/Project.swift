@@ -19,6 +19,7 @@ struct Project: Identifiable, Hashable, Sendable, Codable {
     var remindAt: Date?
     var taskCount: Int
     var subtasks: [ProjectSubtask]
+    var sortOrder: Double
     let createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
@@ -35,6 +36,7 @@ struct Project: Identifiable, Hashable, Sendable, Codable {
         remindAt: Date?,
         taskCount: Int,
         subtasks: [ProjectSubtask] = [],
+        sortOrder: Double = 0,
         createdAt: Date,
         updatedAt: Date,
         completedAt: Date?
@@ -50,6 +52,7 @@ struct Project: Identifiable, Hashable, Sendable, Codable {
         self.remindAt = remindAt
         self.taskCount = taskCount
         self.subtasks = subtasks
+        self.sortOrder = sortOrder
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt

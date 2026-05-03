@@ -135,11 +135,38 @@ struct ProjectsListContent: View {
                 .padding(.top, contentTopPadding)
                 .padding(.bottom, contentBottomPadding)
         }
+        .scrollIndicators(.hidden)
         .applyScrollEdgeProtection()
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             geo.contentOffset.y + geo.contentInsets.top
         } action: { _, newOffset in
             handleScrollOffsetChange(to: newOffset)
+        }
+    }
+
+    private var scrollSections: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+            if showsHeader {
+                headerSection
+            }
+
+            projectRows(
+                projects: viewModel.activeProjects,
+                sectionIndex: 0,
+                topInset: projectModeTopProtectionInset
+            )
+
+            if viewModel.archivedProjects.isEmpty == false {
+                archivedProjectsEntry(sectionIndex: 1)
+            }
+
+            if showsArchivedProjects, viewModel.archivedProjects.isEmpty == false {
+                projectRows(
+                    projects: viewModel.archivedProjects,
+                    sectionIndex: 2,
+                    topInset: 0
+                )
+            }
         }
     }
 
@@ -171,139 +198,103 @@ struct ProjectsListContent: View {
         }
     }
 
-    private var scrollSections: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-            if showsHeader {
-                headerSection
-            }
-
-            activeProjectsSection
-
-            if viewModel.archivedProjects.isEmpty == false {
-                archivedProjectsEntry(sectionIndex: 1)
-            }
-
-            if showsArchivedProjects, viewModel.archivedProjects.isEmpty == false {
-                archivedProjectsSection
-            }
-        }
-    }
-
-    private var activeProjectsSection: some View {
-        projectSection(
-            projects: viewModel.activeProjects,
-            sectionIndex: 0,
-            topInset: projectModeTopProtectionInset
-        )
-    }
-
-    private var archivedProjectsSection: some View {
-        projectSection(
-            projects: viewModel.archivedProjects,
-            sectionIndex: 2,
-            topInset: 0
-        )
-    }
-
     @ViewBuilder
     private var headerSection: some View {
         EmptyView()
     }
 
-    private func projectSection(
+    @ViewBuilder
+    private func projectRows(
         projects: [Project],
         sectionIndex: Int,
         topInset: CGFloat
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if projects.isEmpty {
-                ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 3 + 1) {
-                    emptyState
-                }
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
-                        let isExpanded = expansionState.expandedProjectIDs.contains(project.id)
-
-                        ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 6 + index + 1) {
-                            ProjectListRow(
-                                project: project,
-                                style: style,
-                                isExpanded: isExpanded,
-                                isEditingTitle: editingProjectID == project.id,
-                                animationBatch: expansionState.animationBatch,
-                                titleDraft: titleBinding(for: project.id),
-                                onToggleExpanded: {
-                                    toggleExpanded(project.id)
-                                },
-                                onToggleCompletion: {
-                                    if project.status != .completed, isExpanded {
-                                        withAnimation(collapseAnimation) {
-                                            expansionState.toggle(project.id)
-                                        }
-                                    }
-                                    Task {
-                                        await viewModel.toggleProjectCompletion(projectID: project.id)
-                                    }
-                                },
-                                onToggleSubtask: { subtaskID in
-                                    Task {
-                                        await viewModel.toggleSubtask(projectID: project.id, subtaskID: subtaskID)
-                                    }
-                                },
-                                onUpdateSubtask: { subtaskID, title in
-                                    Task {
-                                        await viewModel.updateSubtask(projectID: project.id, subtaskID: subtaskID, title: title)
-                                    }
-                                },
-                                onAddSubtask: { title in
-                                    Task {
-                                        await viewModel.addSubtask(projectID: project.id, title: title)
-                                    }
-                                },
-                                onBeginTitleEditing: {
-                                    guard viewModel.canEditProject(project) else { return }
-                                    HomeInteractionFeedback.selection()
-                                    editingProjectID = project.id
-                                    titleDraft = project.name
-                                },
-                                onCommitTitle: { title in
-                                    editingProjectID = nil
-                                    Task {
-                                        await commitTitle(for: project.id, value: title)
-                                    }
-                                },
-                                onOpenDeadlineEditor: {
-                                    HomeInteractionFeedback.selection()
-                                    editingProjectID = nil
-                                    stagedTargetDate = project.targetDate ?? .now
-                                    datePickerProjectID = project.id
-                                },
-                                onSubtitleTapped: {
-                                    toggleExpanded(project.id)
-                                },
-                                onRequestAddSubtask: {
-                                    toggleExpanded(project.id)
-                                }
-                            )
-                        }
-                        .projectContextMenu(
-                            project: project,
-                            canDelete: viewModel.canDeleteProject(project),
-                            onDelete: {
-                                HomeInteractionFeedback.selection()
-                                editingProjectID = nil
-                                titleDraft = ""
-                                Task {
-                                    await viewModel.deleteProject(projectID: project.id)
-                                }
-                            }
-                        )
+        if projects.isEmpty {
+            ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 3 + 1) {
+                emptyState
+            }
+        } else {
+            VStack(spacing: 0) {
+                ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
+                    projectRow(project: project, index: index, sectionIndex: sectionIndex)
                         .padding(.top, index == 0 ? topInset : 0)
-
-                    }
                 }
             }
+        }
+    }
+
+    private func projectRow(project: Project, index: Int, sectionIndex: Int) -> some View {
+        let isExpanded = expansionState.expandedProjectIDs.contains(project.id)
+        let canEditTitle = (project.status == .active || project.status == .onHold) && viewModel.canEditProject(project)
+        let canDeleteProject = viewModel.canDeleteProject(project)
+
+        return ProjectCascadeItem(isVisible: isPresented, index: sectionIndex * 6 + index + 1) {
+            ProjectListRow(
+                project: project,
+                style: style,
+                isExpanded: isExpanded,
+                isEditingTitle: editingProjectID == project.id,
+                canEditTitle: canEditTitle,
+                canDeleteProject: canDeleteProject,
+                showsDeleteControl: canDeleteProject && isExpanded,
+                animationBatch: expansionState.animationBatch,
+                titleDraft: titleBinding(for: project.id),
+                onToggleExpanded: {
+                    toggleExpanded(project.id)
+                },
+                onToggleCompletion: {
+                    if project.status != .completed, isExpanded {
+                        withAnimation(collapseAnimation) {
+                            expansionState.toggle(project.id)
+                        }
+                    }
+                    Task {
+                        await viewModel.toggleProjectCompletion(projectID: project.id)
+                    }
+                },
+                onToggleSubtask: { subtaskID in
+                    Task {
+                        await viewModel.toggleSubtask(projectID: project.id, subtaskID: subtaskID)
+                    }
+                },
+                onUpdateSubtask: { subtaskID, title in
+                    Task {
+                        await viewModel.updateSubtask(projectID: project.id, subtaskID: subtaskID, title: title)
+                    }
+                },
+                onAddSubtask: { title in
+                    Task {
+                        await viewModel.addSubtask(projectID: project.id, title: title)
+                    }
+                },
+                onBeginTitleEditing: {
+                    guard viewModel.canEditProject(project) else { return }
+                    HomeInteractionFeedback.selection()
+                    editingProjectID = project.id
+                    titleDraft = project.name
+                },
+                onCommitTitle: { title in
+                    editingProjectID = nil
+                    Task {
+                        await commitTitle(for: project.id, value: title)
+                    }
+                },
+                onOpenDeadlineEditor: {
+                    HomeInteractionFeedback.selection()
+                    editingProjectID = nil
+                    stagedTargetDate = project.targetDate ?? .now
+                    datePickerProjectID = project.id
+                },
+                onSubtitleTapped: {
+                    toggleExpanded(project.id)
+                },
+                onRequestAddSubtask: {
+                    toggleExpanded(project.id)
+                },
+                onRequestDelete: {
+                    deleteProject(project)
+                }
+            )
         }
     }
 
@@ -449,6 +440,15 @@ struct ProjectsListContent: View {
         await viewModel.updateProject(updatedProject)
     }
 
+    private func deleteProject(_ project: Project) {
+        withAnimation(collapseAnimation) {
+            expansionState.collapse(project.id)
+        }
+        Task {
+            await viewModel.deleteProject(projectID: project.id)
+        }
+    }
+
     private func applyEntryExpansionIfNeeded() {
         guard isPresented else { return }
         guard visibleProjectIDs.isEmpty == false else {
@@ -528,6 +528,9 @@ private struct ProjectListRow: View {
     let style: ProjectsPresentationStyle
     let isExpanded: Bool
     let isEditingTitle: Bool
+    let canEditTitle: Bool
+    let canDeleteProject: Bool
+    let showsDeleteControl: Bool
     let animationBatch: Int
     @Binding var titleDraft: String
     let onToggleExpanded: () -> Void
@@ -540,6 +543,9 @@ private struct ProjectListRow: View {
     let onOpenDeadlineEditor: () -> Void
     let onSubtitleTapped: () -> Void
     let onRequestAddSubtask: () -> Void
+    let onRequestDelete: () -> Void
+    @State private var isCommittingTitle = false
+    @State private var showsDeleteConfirmation = false
     @FocusState private var isTitleFieldFocused: Bool
     private let horizontalInset = AppTheme.spacing.xl
     private let expandedStateAnimation = Animation.snappy(duration: 0.42, extraBounce: 0.06)
@@ -575,7 +581,7 @@ private struct ProjectListRow: View {
 
                     Spacer(minLength: 0)
 
-                    deadlineEditorButton
+                    trailingProjectControls
                 }
 
                 if isExpanded {
@@ -596,6 +602,9 @@ private struct ProjectListRow: View {
                     )
                     .animation(subtaskAnimation, value: isExpanded)
                 }
+            }
+            .overlay(alignment: .topTrailing) {
+                deleteButtonOverlay
             }
         }
         .padding(.horizontal, horizontalInset)
@@ -641,6 +650,12 @@ private struct ProjectListRow: View {
     }
 
     private var progressTint: Color { AppTheme.colors.coral }
+
+    private var deleteTint: Color { Color(uiColor: .systemRed) }
+
+    private var progressGroupWidth: CGFloat {
+        ProjectProgressBar.visualWidth + AppTheme.spacing.xs + 24
+    }
 
     private var subtitleActionText: String {
         guard project.subtasks.isEmpty == false else { return "添加子任务" }
@@ -700,12 +715,15 @@ private struct ProjectListRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .focused($isTitleFieldFocused)
                 .onSubmit {
-                    onCommitTitle(titleDraft)
+                    commitTitleDraft()
                 }
                 .onChange(of: isTitleFieldFocused) { _, focused in
                     if focused == false, isEditingTitle {
-                        onCommitTitle(titleDraft)
+                        commitTitleDraft()
                     }
+                }
+                .onDisappear {
+                    commitTitleDraft()
                 }
         } else {
             Button(action: titleAction) {
@@ -761,7 +779,9 @@ private struct ProjectListRow: View {
                         Text("\(project.completedSubtaskCount)/\(project.subtasks.count)")
                             .font(AppTheme.typography.sized(12, weight: .semibold))
                             .foregroundStyle(subtitleColor.opacity(0.72))
+                            .frame(width: 24, alignment: .leading)
                     }
+                    .frame(width: progressGroupWidth, alignment: .trailing)
                 }
             }
             .contentShape(Rectangle())
@@ -769,42 +789,80 @@ private struct ProjectListRow: View {
         .buttonStyle(.plain)
     }
 
+    private var trailingProjectControls: some View {
+        deadlineEditorButton
+    }
+
+    @ViewBuilder
+    private var deleteButtonOverlay: some View {
+        if showsDeleteControl {
+            projectDeleteButton
+                .offset(y: AppTheme.spacing.xxl)
+                .transition(.scale(scale: 0.86).combined(with: .opacity))
+                .zIndex(1)
+        }
+    }
+
+    private var projectDeleteButton: some View {
+        Button(role: .destructive) {
+            HomeInteractionFeedback.selection()
+            showsDeleteConfirmation = true
+        } label: {
+            Text("删除项目")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .allowsTightening(true)
+                .foregroundStyle(deleteTint)
+                .frame(width: progressGroupWidth, height: 22)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(deleteTint.opacity(0.11))
+                )
+                .frame(width: max(44, progressGroupWidth), height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("删除项目")
+        .disabled(canDeleteProject == false)
+        .confirmationDialog(
+            "删除项目？",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                HomeInteractionFeedback.delete()
+                onRequestDelete()
+            }
+
+            Button("保留", role: .cancel) {}
+        } message: {
+            Text("项目和它的子任务都会被删除。")
+        }
+    }
+
     private func titleAction() {
-        guard canExpandInteractions else { return }
         if isExpanded {
+            guard canEditTitle else { return }
             onBeginTitleEditing()
         } else {
+            guard canExpandInteractions else { return }
             onToggleExpanded()
+        }
+    }
+
+    private func commitTitleDraft() {
+        guard isEditingTitle, isCommittingTitle == false else { return }
+        isCommittingTitle = true
+        onCommitTitle(titleDraft)
+        Task { @MainActor in
+            isCommittingTitle = false
         }
     }
 
     private func deadlineAction() {
         guard canExpandInteractions else { return }
         onOpenDeadlineEditor()
-    }
-}
-
-private extension View {
-    func projectContextMenu(
-        project: Project,
-        canDelete: Bool,
-        onDelete: @escaping () -> Void
-    ) -> some View {
-        simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.45)
-                .onEnded { _ in
-                    HomeInteractionFeedback.soft()
-                }
-        )
-        .contextMenu {
-            Button(role: .destructive) {
-                HomeInteractionFeedback.delete()
-                onDelete()
-            } label: {
-                Label("删除项目", systemImage: "trash")
-            }
-            .disabled(!canDelete)
-        }
     }
 }
 
@@ -925,7 +983,13 @@ private struct ProjectSubtasksSection: View {
                         .textInputAutocapitalization(.sentences)
                         .submitLabel(.done)
                         .focused($isInputFocused)
-                        .onSubmit(addSubtask)
+                        .onSubmit {
+                            commitDraftSubtask(feedback: true)
+                        }
+                        .onChange(of: isInputFocused) { _, isFocused in
+                            guard isFocused == false else { return }
+                            commitDraftSubtask(feedback: false)
+                        }
                 }
             }
         }
@@ -942,6 +1006,9 @@ private struct ProjectSubtasksSection: View {
                 self.editingSubtaskID = nil
                 subtaskDraft = ""
             }
+        }
+        .onDisappear {
+            commitDraftSubtask(feedback: false)
         }
     }
 
@@ -972,9 +1039,15 @@ private struct ProjectSubtasksSection: View {
     }
 
     private func addSubtask() {
+        commitDraftSubtask(feedback: true)
+    }
+
+    private func commitDraftSubtask(feedback: Bool) {
         let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else { return }
-        HomeInteractionFeedback.selection()
+        if feedback {
+            HomeInteractionFeedback.selection()
+        }
         onAddSubtask(trimmed)
         draftTitle = ""
     }
@@ -983,7 +1056,7 @@ private struct ProjectSubtasksSection: View {
 private struct ProjectProgressBar: View {
     let progress: Double
     let tint: Color
-    private let barWidth: CGFloat = 48
+    fileprivate static let visualWidth: CGFloat = 48
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -992,9 +1065,9 @@ private struct ProjectProgressBar: View {
 
             Capsule(style: .continuous)
                 .fill(tint)
-                .frame(width: progress > 0 ? max(10, barWidth * progress) : 0)
+                .frame(width: progress > 0 ? max(10, Self.visualWidth * progress) : 0)
         }
-        .frame(width: barWidth, height: 6)
+        .frame(width: Self.visualWidth, height: 6)
         .animation(.smooth(duration: 0.2), value: progress)
     }
 }
@@ -1019,6 +1092,10 @@ struct ProjectExpansionPresentationState {
         } else {
             expandedProjectIDs.insert(projectID)
         }
+    }
+
+    mutating func collapse(_ projectID: UUID) {
+        expandedProjectIDs.remove(projectID)
     }
 }
 

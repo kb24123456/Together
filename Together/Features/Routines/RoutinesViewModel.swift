@@ -22,6 +22,7 @@ final class RoutinesViewModel {
     var referenceDate: Date = .now
     var isEditorPresented = false
     var editingTask: PeriodicTask?
+    var editorDefaultCycle: PeriodicCycle = .monthly
 
     // Detail sheet (two-stage: compact → expanded)
     var isDetailPresented = false
@@ -46,6 +47,14 @@ final class RoutinesViewModel {
         onSharedMutationRecorded?(
             SyncChange(entityKind: .periodicTask, operation: operation, recordID: taskID, spaceID: spaceID)
         )
+    }
+
+    private func replaceTask(_ updated: PeriodicTask) {
+        if let index = tasks.firstIndex(where: { $0.id == updated.id }) {
+            tasks[index] = updated
+        } else {
+            tasks.append(updated)
+        }
     }
 
     // MARK: - Grouped Tasks
@@ -92,6 +101,22 @@ final class RoutinesViewModel {
         let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
         let completedCount = cycleTasks.filter { $0.isCompleted(forPeriodKey: periodKey) }.count
         return "\(completedCount)/\(cycleTasks.count) 已完成"
+    }
+
+    func reorderTasks(_ orderedTasks: [PeriodicTask], fromOffsets: IndexSet, toOffset: Int) async {
+        guard let spaceID = sessionStore.currentSpace?.id else { return }
+
+        var reorderedIDs = orderedTasks.map(\.id)
+        reorderedIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
+
+        do {
+            let updatedTasks = try await periodicTaskApplicationService.reorderTasks(in: spaceID, taskIDs: reorderedIDs)
+            for task in updatedTasks {
+                replaceTask(task)
+            }
+        } catch {
+            loadState = .failed(error.localizedDescription)
+        }
     }
 
     func daysRemaining(for cycle: PeriodicCycle) -> Int {
@@ -229,14 +254,16 @@ final class RoutinesViewModel {
         }
     }
 
-    func presentEditor(for task: PeriodicTask? = nil) {
+    func presentEditor(for task: PeriodicTask? = nil, defaultCycle: PeriodicCycle? = nil) {
         editingTask = task
+        editorDefaultCycle = task?.cycle ?? defaultCycle ?? .monthly
         isEditorPresented = true
     }
 
     func dismissEditor() {
         isEditorPresented = false
         editingTask = nil
+        editorDefaultCycle = .monthly
     }
 
     func presentDetail(for task: PeriodicTask) {

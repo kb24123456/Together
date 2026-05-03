@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 @MainActor
 @Observable
@@ -59,11 +60,21 @@ final class ProjectsViewModel {
     }
 
     var activeProjects: [Project] {
-        projects.filter { $0.status == .active || $0.status == .onHold }
+        projects
+            .filter { $0.status == .active || $0.status == .onHold }
+            .sorted(by: projectSort)
     }
 
     var archivedProjects: [Project] {
-        projects.filter { $0.status == .completed || $0.status == .archived }
+        projects
+            .filter { $0.status == .completed || $0.status == .archived }
+            .sorted(by: projectSort)
+    }
+
+    private func projectSort(lhs: Project, rhs: Project) -> Bool {
+        if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+        if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 
     func toggleProjectCompletion(projectID: UUID) async {
@@ -134,6 +145,25 @@ final class ProjectsViewModel {
         }
     }
 
+    func reorderProjects(_ orderedProjects: [Project], fromOffsets: IndexSet, toOffset: Int) async {
+        let actorID = sessionStore.currentUser?.id ?? UUID()
+        var reorderedIDs = orderedProjects.map(\.id)
+        reorderedIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
+
+        do {
+            let updatedProjects = try await projectRepository.reorderProjects(
+                projectIDs: reorderedIDs,
+                actorID: actorID
+            )
+            for updated in updatedProjects {
+                replaceProject(updated)
+                emitMutationRecorded(projectID: updated.id, operation: .upsert)
+            }
+        } catch {
+            loadState = .failed(error.localizedDescription)
+        }
+    }
+
     func deleteSubtask(projectID: UUID, subtaskID: UUID) async {
         let actorID = sessionStore.currentUser?.id ?? UUID()
         do {
@@ -163,6 +193,7 @@ final class ProjectsViewModel {
     func canDeleteProject(_ project: Project) -> Bool {
         guard let userID = sessionStore.currentUser?.id else { return true }
         return PairPermissionService.canDeleteProject(project, actorID: userID)
+            || canManageProjectAsCurrentSingleSpaceOwner(project, actorID: userID)
     }
 
     func canEditProject(_ project: Project) -> Bool {
@@ -247,5 +278,13 @@ final class ProjectsViewModel {
         }
 
         projects[index] = updated
+    }
+
+    private func canManageProjectAsCurrentSingleSpaceOwner(_ project: Project, actorID: UUID) -> Bool {
+        guard let space = sessionStore.currentSpace else { return false }
+        return space.id == project.spaceID
+            && space.type == .single
+            && space.ownerUserID == actorID
+            && space.status == .active
     }
 }

@@ -1206,6 +1206,22 @@ final class HomeViewModel {
         timelineEntries.map(\.id)
     }
 
+    func reorderTimelineEntries(_ entries: [HomeTimelineEntry], fromOffsets: IndexSet, toOffset: Int) async {
+        guard isPairModeActive == false else { return }
+
+        var reorderedIDs = entries.map(\.id)
+        reorderedIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
+
+        do {
+            let updatedItems = try await itemRepository.reorderItems(itemIDs: reorderedIDs)
+            for item in updatedItems {
+                replaceItemPreservingOrder(item)
+            }
+        } catch {
+            await reload()
+        }
+    }
+
     private func scheduleDetailSave(immediately: Bool = false) {
         guard detailDetent != .large else { return }
         detailSaveTask?.cancel()
@@ -1381,6 +1397,10 @@ final class HomeViewModel {
                 if lhsCompletedAt != rhsCompletedAt {
                     return lhsCompletedAt < rhsCompletedAt
                 }
+            }
+
+            if lhs.sortOrder != rhs.sortOrder {
+                return lhs.sortOrder < rhs.sortOrder
             }
 
             let lhsDueAt = timelineSortDate(for: lhs)

@@ -268,6 +268,18 @@ final class MockItemRepository: ItemRepositoryProtocol {
         return hydratedItem(updatedItem)
     }
 
+    func reorderItems(itemIDs: [UUID]) async throws -> [Item] {
+        let now = MockDataFactory.now
+        for (order, itemID) in itemIDs.enumerated() {
+            guard let index = items.firstIndex(where: { $0.id == itemID }) else { continue }
+            items[index].sortOrder = Double(order)
+            items[index].updatedAt = now
+        }
+        return itemIDs.compactMap { itemID in
+            items.first(where: { $0.id == itemID }).map(hydratedItem)
+        }
+    }
+
     func deleteItem(itemID: UUID) async throws {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else {
             throw RepositoryError.notFound

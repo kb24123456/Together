@@ -50,8 +50,8 @@ struct ModeIndicator: View {
     var soloLabel: String = "单人模式"
     var pairTint: Color = AppTheme.colors.pairAccent
     var pairBackground: Color = AppTheme.colors.pairAccentSoft
-    var soloTint: Color = AppTheme.colors.body.opacity(0.68)
-    var soloBackground: Color = AppTheme.colors.surfaceElevated
+    var soloTint: Color = AppTheme.colors.sky
+    var soloBackground: Color = AppTheme.colors.sky.opacity(0.12)
 
     var body: some View {
         Text(isPairMode ? pairLabel : soloLabel)

@@ -4,6 +4,7 @@ protocol PeriodicTaskApplicationServiceProtocol: Sendable {
     func fetchTasks(in spaceID: UUID) async throws -> [PeriodicTask]
     func createTask(in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
+    func reorderTasks(in spaceID: UUID, taskIDs: [UUID]) async throws -> [PeriodicTask]
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws
 }
@@ -73,6 +74,16 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         )
         await reminderScheduler.syncPeriodicTaskReminder(for: saved, referenceDate: .now)
         return saved
+    }
+
+    func reorderTasks(in spaceID: UUID, taskIDs: [UUID]) async throws -> [PeriodicTask] {
+        let updated = try await repository.reorderTasks(taskIDs: taskIDs)
+        for taskID in taskIDs {
+            await syncCoordinator.recordLocalChange(
+                SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: taskID, spaceID: spaceID)
+            )
+        }
+        return updated
     }
 
     /// No actorID permission check: both partners can toggle periodic task completion.

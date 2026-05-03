@@ -619,6 +619,7 @@ struct PersistenceController {
                 remindAt: $0.remindAt,
                 taskCount: 0,
                 subtasks: [],
+                sortOrder: $0.sortOrder,
                 createdAt: $0.createdAt,
                 updatedAt: $0.updatedAt,
                 completedAt: $0.completedAt

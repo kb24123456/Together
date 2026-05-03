@@ -1,10 +1,14 @@
 import SwiftUI
 import UIKit
 
+private enum AppRootRoute: Hashable {
+    case profile
+}
+
 struct AppRootView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var profileNavigationPath = NavigationPath()
+    @State private var rootNavigationPath = NavigationPath()
 
     var body: some View {
         @Bindable var router = appContext.router
@@ -13,53 +17,31 @@ struct AppRootView: View {
         // .onChange(of:) 能检测到变化（修 Phase 2 真机 onChange 不触发的 bug）
         let isPremiumNow = appContext.container.premiumGate.isPremium
 
-        NavigationStack {
+        NavigationStack(path: $rootNavigationPath) {
             rootSurfaceView(router: router)
                 .toolbar {
                     dockToolbar(router: router)
                 }
                 .toolbarBackgroundVisibility(.hidden, for: .bottomBar)
                 .toolbarVisibility(appContext.homeViewModel.isDockHidden ? .hidden : .visible, for: .bottomBar)
+                .navigationDestination(for: AppRootRoute.self) { route in
+                    switch route {
+                    case .profile:
+                        ProfileView(viewModel: appContext.profileViewModel)
+                    }
+                }
         }
         .background(GradientGridBackground())
         .ignoresSafeArea(.keyboard, edges: .bottom)
-        .fullScreenCover(isPresented: $router.isProfilePresented) {
-            NavigationStack(path: $profileNavigationPath) {
-                ProfileView(viewModel: appContext.profileViewModel)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button("日志") {
-                                HomeInteractionFeedback.selection()
-                                profileNavigationPath.append(ProfileRoute.completedHistory)
-                            }
-                            .font(AppTheme.typography.body)
-                            .fontWeight(.medium)
-                            .foregroundStyle(AppTheme.colors.title)
-                            .accessibilityHint("查看已完成任务")
-                        }
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("关闭") {
-                                router.isProfilePresented = false
-                            }
-                            .font(AppTheme.typography.body)
-                            .fontWeight(.medium)
-                            .foregroundStyle(AppTheme.colors.title)
-                        }
-                }
-            }
-            .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
-            .paywallRootSheet(appContext)   // fullScreenCover 内再挂一份，否则 paywall sheet 会被 Profile cover 挡住
-            .onDisappear {
-                profileNavigationPath = NavigationPath()
-            }
-        }
         .sheet(item: $router.activeComposer, onDismiss: {
             router.pendingComposerTitle = nil
+            router.pendingPeriodicCycle = nil
         }) { route in
             ComposerPlaceholderSheet(
                 route: route,
                 appContext: appContext,
-                initialTitle: router.pendingComposerTitle
+                initialTitle: router.pendingComposerTitle,
+                initialPeriodicCycle: router.pendingPeriodicCycle
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.hidden)
@@ -86,6 +68,16 @@ struct AppRootView: View {
                     wasPremium: oldValue,
                     isPremium: newValue
                 )
+            }
+        }
+        .onChange(of: router.isProfilePresented) { _, isPresented in
+            guard isPresented else { return }
+            guard rootNavigationPath.count == 0 else { return }
+            rootNavigationPath.append(AppRootRoute.profile)
+        }
+        .onChange(of: rootNavigationPath.count) { _, count in
+            if count == 0 {
+                router.isProfilePresented = false
             }
         }
         .paywallRootSheet(appContext)
@@ -134,7 +126,7 @@ struct AppRootView: View {
                 if isOverlayActive {
                     returnToToday(router: router)
                 } else {
-                    router.isProfilePresented = true
+                    openProfile(router: router)
                 }
             } label: {
                 Text(isOverlayActive ? "今天" : "我的")
@@ -209,6 +201,11 @@ struct AppRootView: View {
         case .today:
             break
         }
+    }
+
+    private func openProfile(router: AppRouter) {
+        guard router.isProfilePresented == false else { return }
+        router.isProfilePresented = true
     }
 
     private func openContextualComposer(router: AppRouter) {

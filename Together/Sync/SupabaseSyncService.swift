@@ -1231,6 +1231,7 @@ struct TaskDTO: Codable, Sendable {
     var updatedAt: Date
     var completedAt: Date?
     var completedByUserID: UUID?
+    var sortOrder: Double
     var isArchived: Bool
     var archivedAt: Date?
     var isDeleted: Bool
@@ -1270,6 +1271,7 @@ struct TaskDTO: Codable, Sendable {
         case updatedAt = "updated_at"
         case completedAt = "completed_at"
         case completedByUserID = "completed_by_user_id"
+        case sortOrder = "sort_order"
         case isArchived = "is_archived"
         case archivedAt = "archived_at"
         case isDeleted = "is_deleted"
@@ -1280,6 +1282,44 @@ struct TaskDTO: Codable, Sendable {
         case assignmentMessages = "assignment_messages"
         case reminderRequestedAt = "reminder_requested_at"
         case locationText = "location_text"
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(UUID.self, forKey: .id)
+        self.spaceId = try c.decode(UUID.self, forKey: .spaceId)
+        self.listId = try c.decodeIfPresent(UUID.self, forKey: .listId)
+        self.projectId = try c.decodeIfPresent(UUID.self, forKey: .projectId)
+        self.creatorId = try c.decode(UUID.self, forKey: .creatorId)
+        self.creatorSupabaseUserID = try c.decodeIfPresent(UUID.self, forKey: .creatorSupabaseUserID)
+        self.title = try c.decode(String.self, forKey: .title)
+        self.notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        self.locationText = try c.decodeIfPresent(String.self, forKey: .locationText)
+        self.assigneeMode = try c.decode(String.self, forKey: .assigneeMode)
+        self.status = try c.decode(String.self, forKey: .status)
+        self.dueAt = try c.decodeIfPresent(Date.self, forKey: .dueAt)
+        self.hasExplicitTime = try c.decode(Bool.self, forKey: .hasExplicitTime)
+        self.remindAt = try c.decodeIfPresent(Date.self, forKey: .remindAt)
+        self.isPinned = try c.decode(Bool.self, forKey: .isPinned)
+        self.isDraft = try c.decode(Bool.self, forKey: .isDraft)
+        self.isReadByPartner = try c.decode(Bool.self, forKey: .isReadByPartner)
+        self.readAt = try c.decodeIfPresent(Date.self, forKey: .readAt)
+        self.repeatRule = try c.decodeIfPresent(String.self, forKey: .repeatRule)
+        self.occurrenceCompletions = try c.decodeIfPresent(String.self, forKey: .occurrenceCompletions)
+        self.createdAt = try c.decode(Date.self, forKey: .createdAt)
+        self.updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        self.completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
+        self.completedByUserID = try c.decodeIfPresent(UUID.self, forKey: .completedByUserID)
+        self.sortOrder = try c.decodeIfPresent(Double.self, forKey: .sortOrder) ?? 0
+        self.isArchived = try c.decode(Bool.self, forKey: .isArchived)
+        self.archivedAt = try c.decodeIfPresent(Date.self, forKey: .archivedAt)
+        self.isDeleted = try c.decode(Bool.self, forKey: .isDeleted)
+        self.deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
+        self.executionRole = try c.decode(String.self, forKey: .executionRole)
+        self.assignmentState = try c.decode(String.self, forKey: .assignmentState)
+        self.responseHistory = try c.decodeIfPresent(String.self, forKey: .responseHistory)
+        self.assignmentMessages = try c.decodeIfPresent(String.self, forKey: .assignmentMessages)
+        self.reminderRequestedAt = try c.decodeIfPresent(Date.self, forKey: .reminderRequestedAt)
     }
 
     nonisolated init(from persistent: PersistentItem, spaceID: UUID, supabaseUserID: UUID? = nil) {
@@ -1312,6 +1352,7 @@ struct TaskDTO: Codable, Sendable {
         self.updatedAt = persistent.updatedAt
         self.completedAt = persistent.completedAt
         self.completedByUserID = persistent.completedByUserID
+        self.sortOrder = persistent.sortOrder
         self.isArchived = persistent.isArchived
         self.archivedAt = persistent.archivedAt
         // 软删除使用 tombstone；isLocallyDeleted=true 表示要让对方也删除
@@ -1352,6 +1393,7 @@ struct TaskDTO: Codable, Sendable {
         try c.encode(updatedAt, forKey: .updatedAt)
         try c.encodeIfPresent(completedAt, forKey: .completedAt)
         try c.encodeIfPresent(completedByUserID, forKey: .completedByUserID)
+        try c.encode(sortOrder, forKey: .sortOrder)
         try c.encode(isArchived, forKey: .isArchived)
         try c.encodeIfPresent(archivedAt, forKey: .archivedAt)
         try c.encode(isDeleted, forKey: .isDeleted)
@@ -1457,6 +1499,7 @@ struct TaskDTO: Codable, Sendable {
             existing.isDraft = isDraft
             existing.completedAt = completedAt
             existing.completedByUserID = localCompletedByUserID
+            existing.sortOrder = sortOrder
             existing.isArchived = isArchived
             existing.archivedAt = archivedAt
             existing.updatedAt = updatedAt
@@ -1499,6 +1542,7 @@ struct TaskDTO: Codable, Sendable {
                 updatedAt: updatedAt,
                 completedAt: completedAt,
                 completedByUserID: localCompletedByUserID,
+                sortOrder: sortOrder,
                 isPinned: isPinned,
                 isDraft: isDraft,
                 isArchived: isArchived,
@@ -1601,6 +1645,7 @@ struct ProjectDTO: Codable, Sendable {
     var status: String
     var targetDate: Date?
     var remindAt: Date?
+    var sortOrder: Double
     var createdAt: Date
     var updatedAt: Date
     var completedAt: Date?
@@ -1614,6 +1659,7 @@ struct ProjectDTO: Codable, Sendable {
         case colorToken = "color_token"
         case targetDate = "target_date"
         case remindAt = "remind_at"
+        case sortOrder = "sort_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case completedAt = "completed_at"
@@ -1631,6 +1677,7 @@ struct ProjectDTO: Codable, Sendable {
         self.status = persistent.statusRawValue
         self.targetDate = persistent.targetDate
         self.remindAt = persistent.remindAt
+        self.sortOrder = persistent.sortOrder
         self.createdAt = persistent.createdAt
         self.updatedAt = persistent.updatedAt
         self.completedAt = persistent.completedAt
@@ -1649,6 +1696,7 @@ struct ProjectDTO: Codable, Sendable {
             existing.statusRawValue = status
             existing.targetDate = targetDate
             existing.remindAt = remindAt
+            existing.sortOrder = sortOrder
             existing.completedAt = completedAt
             existing.updatedAt = updatedAt
             if isDeleted {
@@ -1665,6 +1713,7 @@ struct ProjectDTO: Codable, Sendable {
                 statusRawValue: status,
                 targetDate: targetDate,
                 remindAt: remindAt,
+                sortOrder: sortOrder,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 completedAt: completedAt

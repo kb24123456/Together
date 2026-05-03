@@ -150,6 +150,83 @@ struct ProjectRepositorySyncTests {
         #expect(subtaskDeletes.count == expectedSubtaskCount, "\(expectedSubtaskCount) subtask .delete(s) recorded")
     }
 
+    @Test func deleteProject_allows_single_space_owner_when_creator_is_orphaned() async throws {
+        let container = try makeContainer()
+        let spy = SpyCoordinator()
+        let scheduler = NoopReminderScheduler()
+        let repo = LocalProjectRepository(
+            container: container,
+            reminderScheduler: scheduler,
+            syncCoordinator: spy
+        )
+
+        let spaceID = UUID()
+        let ownerID = UUID()
+        let orphanCreatorID = UUID()
+        let now = Date()
+        let context = ModelContext(container)
+        let project = makeProject(spaceID: spaceID, creatorID: orphanCreatorID)
+        context.insert(PersistentSpace(
+            id: spaceID,
+            typeRawValue: SpaceType.single.rawValue,
+            displayName: "我的空间",
+            ownerUserID: ownerID,
+            statusRawValue: SpaceStatus.active.rawValue,
+            createdAt: now,
+            updatedAt: now,
+            archivedAt: nil
+        ))
+        context.insert(PersistentProject(project: project))
+        try context.save()
+
+        try await repo.deleteProject(
+            projectID: project.id,
+            actorID: ownerID
+        )
+
+        let verificationContext = ModelContext(container)
+        let projects = try verificationContext.fetch(FetchDescriptor<PersistentProject>())
+        #expect(projects.first?.isLocallyDeleted == true)
+
+        let recorded = await spy.recorded
+        #expect(recorded.contains { $0.entityKind == .project && $0.operation == .delete && $0.spaceID == spaceID })
+    }
+
+    @Test func deleteProject_rejects_nonOwner_when_creator_is_orphaned() async throws {
+        let container = try makeContainer()
+        let spy = SpyCoordinator()
+        let scheduler = NoopReminderScheduler()
+        let repo = LocalProjectRepository(
+            container: container,
+            reminderScheduler: scheduler,
+            syncCoordinator: spy
+        )
+
+        let spaceID = UUID()
+        let ownerID = UUID()
+        let otherActorID = UUID()
+        let orphanCreatorID = UUID()
+        let now = Date()
+        let context = ModelContext(container)
+        let project = makeProject(spaceID: spaceID, creatorID: orphanCreatorID)
+        context.insert(PersistentSpace(
+            id: spaceID,
+            typeRawValue: SpaceType.single.rawValue,
+            displayName: "我的空间",
+            ownerUserID: ownerID,
+            statusRawValue: SpaceStatus.active.rawValue,
+            createdAt: now,
+            updatedAt: now,
+            archivedAt: nil
+        ))
+        context.insert(PersistentProject(project: project))
+        try context.save()
+
+        await #expect(throws: PermissionError.self) {
+            try await repo.deleteProject(projectID: project.id, actorID: otherActorID)
+        }
+    }
+
     @Test func fetchProjects_excludes_tombstones() async throws {
         let container = try makeContainer()
         let spy = SpyCoordinator()
