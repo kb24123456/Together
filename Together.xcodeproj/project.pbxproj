@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1227E13B2F99E0370087E381 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 1227E13A2F99E0370087E381 /* RevenueCat */; };
 		128977FF2F905DC600B86CAA /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 1A5B00012F60000000000002 /* Supabase */; };
+		7B050400000000000000000B /* TogetherWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 7B0504000000000000000001 /* TogetherWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,12 +27,34 @@
 			remoteGlobalIDString = 122A42C52F5DF61600BFFAD1;
 			remoteInfo = Together;
 		};
+		7B050400000000000000000C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 122A42BE2F5DF61600BFFAD1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7B0504000000000000000006;
+			remoteInfo = TogetherWidget;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		7B050400000000000000000A /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				7B050400000000000000000B /* TogetherWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		122A42C62F5DF61600BFFAD1 /* Together.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Together.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		122A42D72F5DF61800BFFAD1 /* TogetherTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TogetherTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		122A42E12F5DF61800BFFAD1 /* TogetherUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TogetherUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7B0504000000000000000001 /* TogetherWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TogetherWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -41,6 +64,14 @@
 				Info.plist,
 			);
 			target = 122A42C52F5DF61600BFFAD1 /* Together */;
+		};
+		7B0504000000000000000002 /* Exceptions for "TogetherWidget" folder in "TogetherWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				TogetherWidget.entitlements,
+			);
+			target = 7B0504000000000000000006 /* TogetherWidget */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -61,6 +92,14 @@
 		122A42E42F5DF61800BFFAD1 /* TogetherUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TogetherUITests;
+			sourceTree = "<group>";
+		};
+		7B0504000000000000000003 /* TogetherWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7B0504000000000000000002 /* Exceptions for "TogetherWidget" folder in "TogetherWidget" target */,
+			);
+			path = TogetherWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -89,6 +128,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7B0504000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -96,6 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				122A42C82F5DF61600BFFAD1 /* Together */,
+				7B0504000000000000000003 /* TogetherWidget */,
 				122A42DA2F5DF61800BFFAD1 /* TogetherTests */,
 				122A42E42F5DF61800BFFAD1 /* TogetherUITests */,
 				122A42C72F5DF61600BFFAD1 /* Products */,
@@ -106,6 +153,7 @@
 			isa = PBXGroup;
 			children = (
 				122A42C62F5DF61600BFFAD1 /* Together.app */,
+				7B0504000000000000000001 /* TogetherWidget.appex */,
 				122A42D72F5DF61800BFFAD1 /* TogetherTests.xctest */,
 				122A42E12F5DF61800BFFAD1 /* TogetherUITests.xctest */,
 			);
@@ -122,10 +170,12 @@
 				122A42C22F5DF61600BFFAD1 /* Sources */,
 				122A42C32F5DF61600BFFAD1 /* Frameworks */,
 				122A42C42F5DF61600BFFAD1 /* Resources */,
+				7B050400000000000000000A /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				7B050400000000000000000D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				122A42C82F5DF61600BFFAD1 /* Together */,
@@ -185,6 +235,28 @@
 			productReference = 122A42E12F5DF61800BFFAD1 /* TogetherUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		7B0504000000000000000006 /* TogetherWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7B0504000000000000000009 /* Build configuration list for PBXNativeTarget "TogetherWidget" */;
+			buildPhases = (
+				7B050400000000000000000E /* Sources */,
+				7B0504000000000000000004 /* Frameworks */,
+				7B0504000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				7B0504000000000000000003 /* TogetherWidget */,
+			);
+			name = TogetherWidget;
+			packageProductDependencies = (
+			);
+			productName = TogetherWidget;
+			productReference = 7B0504000000000000000001 /* TogetherWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -205,6 +277,9 @@
 					122A42E02F5DF61800BFFAD1 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 122A42C52F5DF61600BFFAD1;
+					};
+					7B0504000000000000000006 = {
+						CreatedOnToolsVersion = 26.2;
 					};
 				};
 			};
@@ -228,6 +303,7 @@
 			projectRoot = "";
 			targets = (
 				122A42C52F5DF61600BFFAD1 /* Together */,
+				7B0504000000000000000006 /* TogetherWidget */,
 				122A42D62F5DF61800BFFAD1 /* TogetherTests */,
 				122A42E02F5DF61800BFFAD1 /* TogetherUITests */,
 			);
@@ -250,6 +326,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		122A42DF2F5DF61800BFFAD1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7B0504000000000000000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -280,6 +363,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7B050400000000000000000E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -292,6 +382,11 @@
 			isa = PBXTargetDependency;
 			target = 122A42C52F5DF61600BFFAD1 /* Together */;
 			targetProxy = 122A42E22F5DF61800BFFAD1 /* PBXContainerItemProxy */;
+		};
+		7B050400000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7B0504000000000000000006 /* TogetherWidget */;
+			targetProxy = 7B050400000000000000000C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -573,6 +668,66 @@
 			};
 			name = Release;
 		};
+		7B0504000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = TogetherWidget/TogetherWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 36;
+				DEVELOPMENT_TEAM = N2ZJ3W3FFD;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TogetherWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pigdog.Together.TogetherWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7B0504000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = TogetherWidget/TogetherWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 36;
+				DEVELOPMENT_TEAM = N2ZJ3W3FFD;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TogetherWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pigdog.Together.TogetherWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -608,6 +763,15 @@
 			buildConfigurations = (
 				122A42F32F5DF61800BFFAD1 /* Debug */,
 				122A42F42F5DF61800BFFAD1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7B0504000000000000000009 /* Build configuration list for PBXNativeTarget "TogetherWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7B0504000000000000000007 /* Debug */,
+				7B0504000000000000000008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

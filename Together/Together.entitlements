@@ -13,6 +13,10 @@
 		<string>applinks:onetwotogether.xyz</string>
 		<string>applinks:together-web-theta.vercel.app</string>
 	</array>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.pigdog.Together</string>
+	</array>
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
 		<string>iCloud.com.pigdog.Together</string>
