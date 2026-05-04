@@ -41,7 +41,7 @@ The plan keeps the current project rule of working on `main` and validating with
 ### Persistence / App Group
 
 - Modify: `Together/Together.entitlements`
-  - Add `com.apple.security.application-groups` with `group.com.pigdog.Together`.
+  - Add `com.apple.security.application-groups` with `group.com.pigdog.together.shared`.
 - Create: `TogetherWidget/TogetherWidget.entitlements`
   - Widget extension entitlements with the same App Group.
 - Modify: `Together/Persistence/PersistenceController.swift`
@@ -145,7 +145,7 @@ Create `Together/WidgetSupport/TodayWidgetConstants.swift`:
 import Foundation
 
 enum TodayWidgetConstants {
-    static let appGroupIdentifier = "group.com.pigdog.Together"
+    static let appGroupIdentifier = "group.com.pigdog.together.shared"
 
     static let focusWidgetKind = "com.pigdog.Together.widgets.today-focus"
     static let listWidgetKind = "com.pigdog.Together.widgets.today-list"
@@ -1196,7 +1196,7 @@ Modify `Together/Together.entitlements`:
 ```xml
 <key>com.apple.security.application-groups</key>
 <array>
-    <string>group.com.pigdog.Together</string>
+    <string>group.com.pigdog.together.shared</string>
 </array>
 ```
 
@@ -1213,7 +1213,7 @@ Create `TogetherWidget/TogetherWidget.entitlements`:
 <dict>
     <key>com.apple.security.application-groups</key>
     <array>
-        <string>group.com.pigdog.Together</string>
+        <string>group.com.pigdog.together.shared</string>
     </array>
 </dict>
 </plist>

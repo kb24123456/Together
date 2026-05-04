@@ -192,7 +192,7 @@ App 主进程负责把 Today 当前排序结果写入 widget 专用快照。Widg
 
 - 当前 `Together/Together.entitlements` 尚未配置 App Groups。
 - 首阶段必须为 App target 和 Widget Extension target 同时增加 App Group capability。
-- 建议 App Group id：`group.com.pigdog.Together`。
+- 建议 App Group id：`group.com.pigdog.together.shared`。
 - Widget 快照、完成后的临时 optimistic 状态和需要跨进程读取的最小数据都放在 App Group 容器内。
 
 快照字段：
@@ -358,7 +358,7 @@ Prompt：
 - `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
 - `xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
 - Widget extension 编译通过。
-- App target 与 Widget Extension target 都包含 `group.com.pigdog.Together` App Group entitlement。
+- App target 与 Widget Extension target 都包含 `group.com.pigdog.together.shared` App Group entitlement。
 - 既有本地 SwiftData store 迁移到 App Group store 时不丢任务；如果实现选择不迁移 SwiftData，必须有等价的 extension-safe 完成路径。
 - 小号 Focus、小号 List、中号 List Preview 能展示正常态。
 - Preview 覆盖空状态。
@@ -393,7 +393,7 @@ Prompt：
 2026-05-04 自审打掉的问题：
 
 - P1：原 spec 假设 App Intent 能直接复用主 App 运行态服务。已改为必须实现 extension-safe completion gateway，并明确不能绕过业务状态机。
-- P1：原 spec 假设 App Group 已可用。已补充当前 entitlements 未配置 App Groups，并指定首阶段需要新增 `group.com.pigdog.Together`。
+- P1：原 spec 假设 App Group 已可用。已补充当前 entitlements 未配置 App Groups，并指定首阶段需要新增 `group.com.pigdog.together.shared`。
 - P1：原 spec 没有说明两个小号形态如何同时暴露。已收敛为两个 widget kind：`Today Focus` 和 `Today List`。
 - P1：原 spec 假设已有 Today deep link。已补充当前代码只支持邀请链接，并要求新增 `together://today`。
 - P2：原 spec 没有明确 checkbox 与打开 App 的触发区域实现边界。已补充 `Button(intent:)` 和 `Link/widgetURL` 的分区要求。

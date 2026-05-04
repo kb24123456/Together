@@ -1,7 +1,7 @@
 import Foundation
 
 enum TodayWidgetConstants {
-    nonisolated static let appGroupIdentifier = "group.com.pigdog.Together"
+    nonisolated static let appGroupIdentifier = "group.com.pigdog.together.shared"
 
     nonisolated static let focusWidgetKind = "com.pigdog.Together.widgets.today-focus"
     nonisolated static let listWidgetKind = "com.pigdog.Together.widgets.today-list"

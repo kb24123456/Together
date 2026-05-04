@@ -48,8 +48,8 @@
   - Build 30 已从当前 `main` archive 并上传到 App Store Connect / TestFlight；`xcodebuild -exportArchive` 返回 `Upload succeeded`。
 - 最新功能进度：Task 9 `Full Regression and Project Memory` 已完成；双人任务卡片聊天主链路已完成本地回归；自定义 morph overlay 已废弃，聊天面板改用 SwiftUI 原生 `.navigationTransition(.zoom)`。
 - 2026-05-04 Today 任务 Widget 第一阶段已落地到 `main`：小号 Focus、小号/中号 List 均读 App Group snapshot；显示“还剩 N 项”、任务右侧截止时间、左侧虚线圆角方形完成框；点击完成框运行 `TodayTaskCompletionIntent`，写共享 SwiftData store、记录 `.task/.complete` outbox、更新 snapshot 并 reload widget；其他区域通过 `together://today` 进入 App Today。
-- Today Widget 关键文件：`Together/WidgetSupport/*` 负责 App 侧 snapshot/context/write/gateway；`TogetherWidget/TodayWidgets.swift` 负责 Widget UI；`TogetherWidget/TodayTaskCompletionIntent.swift` 负责 extension 内完成动作；`TogetherWidget/TodayWidgetShared.swift` 是 extension-safe DTO/store；`Together.xcodeproj` 已新增 `TogetherWidget` extension target；App 与 extension entitlements 均使用 `group.com.pigdog.Together`。
-- Today Widget 已知边界：带签名的真机/TestFlight 构建前，Apple Developer App ID / provisioning profile 必须开启 App Groups 并包含 `group.com.pigdog.Together`；本地 `CODE_SIGNING_ALLOWED=NO` 构建已通过但不等价于签名配置完成。`xcodebuild` 会反复删除 `Together.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`，提交前需用 git 恢复，不能提交该删除。
+- Today Widget 关键文件：`Together/WidgetSupport/*` 负责 App 侧 snapshot/context/write/gateway；`TogetherWidget/TodayWidgets.swift` 负责 Widget UI；`TogetherWidget/TodayTaskCompletionIntent.swift` 负责 extension 内完成动作；`TogetherWidget/TodayWidgetShared.swift` 是 extension-safe DTO/store；`Together.xcodeproj` 已新增 `TogetherWidget` extension target；App 与 extension entitlements 均使用 `group.com.pigdog.together.shared`。
+- Today Widget 已知边界：带签名的真机/TestFlight 构建前，Apple Developer App ID / provisioning profile 必须开启 App Groups 并包含 `group.com.pigdog.together.shared`；本地 `CODE_SIGNING_ALLOWED=NO` 构建已通过但不等价于签名配置完成。`xcodebuild` 会反复删除 `Together.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`，提交前需用 git 恢复，不能提交该删除。
 - 已完成并提交：
   - Today Widget：App Group store 迁移、snapshot 生成/刷新、deep link、completion gateway、extension target、真实 Widget UI 与 AppIntent 已分步提交。
   - Task 1：Supabase `task_messages` comment 约束与 RLS guard，提交 `3e5e480`。

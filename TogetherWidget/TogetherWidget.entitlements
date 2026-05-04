@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.pigdog.Together</string>
+		<string>group.com.pigdog.together.shared</string>
 	</array>
 </dict>
 </plist>
