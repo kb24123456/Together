@@ -96,13 +96,13 @@ private struct TodayWidgetView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("今日")
-                .font(.system(size: family == .systemMedium ? 17 : 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
 
             Spacer(minLength: 8)
 
             Text("还剩 \(entry.snapshot.remainingCount) 项")
-                .font(.system(size: family == .systemMedium ? 13 : 11, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
@@ -112,7 +112,7 @@ private struct TodayWidgetView: View {
     private var taskList: some View {
         VStack(alignment: .leading, spacing: family == .systemMedium ? 8 : 5) {
             ForEach(mode.visibleTasks(from: entry.snapshot, family: family)) { task in
-                TodayWidgetTaskRow(task: task, compact: family == .systemSmall)
+                TodayWidgetTaskRow(task: task)
             }
         }
     }
@@ -122,16 +122,16 @@ private struct TodayWidgetView: View {
             Spacer(minLength: 0)
 
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: family == .systemMedium ? 28 : 22, weight: .semibold))
+                .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(Color(red: 0.92, green: 0.36, blue: 0.31))
 
             Text("今日已清空")
-                .font(.system(size: family == .systemMedium ? 18 : 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 18, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
 
             Text("去 App 看看接下来做什么")
-                .font(.system(size: family == .systemMedium ? 12 : 10, weight: .regular, design: .rounded))
+                .font(.system(size: 12, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -143,18 +143,17 @@ private struct TodayWidgetView: View {
 
 private struct TodayWidgetTaskRow: View {
     let task: TodayWidgetTaskSnapshot
-    let compact: Bool
 
     var body: some View {
-        HStack(spacing: compact ? 6 : 8) {
+        HStack(spacing: 8) {
             Button(intent: TodayTaskCompletionIntent(taskID: task.id.uuidString)) {
                 TodayWidgetCheckbox()
             }
             .buttonStyle(.plain)
-            .frame(width: compact ? 24 : 28, height: compact ? 24 : 28)
+            .frame(width: 28, height: 28)
 
             Text(task.title)
-                .font(.system(size: compact ? 12 : 14, weight: .medium, design: .rounded))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
@@ -163,22 +162,19 @@ private struct TodayWidgetTaskRow: View {
 
             if let dueTimeText = task.dueTimeText {
                 Text(dueTimeText)
-                    .font(.system(size: compact ? 10 : 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(Color(red: 0.92, green: 0.36, blue: 0.31))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
             }
         }
-        .frame(height: compact ? 27 : 32)
+        .frame(height: 32)
     }
 }
 
 private struct TodayWidgetCheckbox: View {
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(red: 0.92, green: 0.36, blue: 0.31).opacity(0.12))
-
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(
                     Color(red: 0.92, green: 0.36, blue: 0.31).opacity(0.58),

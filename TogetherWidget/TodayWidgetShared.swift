@@ -174,7 +174,7 @@ struct TodayWidgetSharedContext: Codable, Equatable {
 
 struct TodayWidgetSharedContextStore {
     private nonisolated(unsafe) let defaults: UserDefaults?
-    private nonisolated let key = "todayWidgetSharedContext.v1"
+    private nonisolated let key = "today-widget-context"
 
     nonisolated init(
         defaults: UserDefaults? = UserDefaults(
