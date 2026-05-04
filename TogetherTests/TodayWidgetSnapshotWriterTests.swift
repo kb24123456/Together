@@ -48,7 +48,47 @@ struct TodayWidgetSnapshotWriterTests {
         #expect(snapshot.tasks.map(\.title) == ["核对审核备注"])
     }
 
-    private func makeTask(spaceID: UUID, actorID: UUID, title: String) -> Item {
+    @Test("stores full ordered queue so hidden widget rows can fill completed gaps")
+    func storesFullOrderedQueue() async throws {
+        let containerURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let suiteName = "today-widget-full-queue-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let spaceID = UUID()
+        let actorID = UUID()
+        let items = (0..<4).map { index in
+            makeTask(
+                spaceID: spaceID,
+                actorID: actorID,
+                title: "任务 \(index + 1)",
+                sortOrder: Double(index)
+            )
+        }
+        let repository = MockTodayWidgetItemRepository(items: items)
+        let contextStore = TodayWidgetSharedContextStore(defaults: defaults)
+        contextStore.write(TodayWidgetSharedContext(spaceID: spaceID, actorID: actorID))
+        let snapshotStore = TodayWidgetSnapshotStore(containerURL: containerURL)
+        let writer = TodayWidgetSnapshotWriter(
+            itemRepository: repository,
+            contextStore: contextStore,
+            snapshotStore: snapshotStore,
+            builder: TodayWidgetSnapshotBuilder()
+        )
+
+        try await writer.refreshTodayWidgetSnapshot()
+        let snapshot = try snapshotStore.read()
+
+        #expect(snapshot.remainingCount == 4)
+        #expect(snapshot.tasks.map(\.title) == ["任务 1", "任务 2", "任务 3", "任务 4"])
+    }
+
+    private func makeTask(
+        spaceID: UUID,
+        actorID: UUID,
+        title: String,
+        sortOrder: Double = 0
+    ) -> Item {
         Item(
             id: UUID(),
             spaceID: spaceID,
@@ -66,6 +106,7 @@ struct TodayWidgetSnapshotWriterTests {
             responseHistory: [],
             createdAt: .now,
             updatedAt: .now,
+            sortOrder: sortOrder,
             isDraft: false
         )
     }

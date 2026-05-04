@@ -25,7 +25,7 @@ actor TodayWidgetSnapshotWriter: TodayWidgetSnapshotWriting {
         }
 
         let items = try await itemRepository.fetchActiveItems(spaceID: context.spaceID)
-        let snapshot = builder.build(items: items, referenceDate: .now, limit: 3)
+        let snapshot = builder.build(items: items, referenceDate: .now, limit: .max)
         try snapshotStore.write(snapshot)
     }
 }

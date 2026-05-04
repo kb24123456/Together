@@ -7,6 +7,7 @@ import Supabase
 import SwiftData
 import UIKit
 import UserNotifications
+import WidgetKit
 
 private let appContextLogger = Logger(subsystem: "com.pigdog.Together", category: "AppContext")
 // premiumLogger 定义在 Together/Services/Premium/PremiumLogger.swift 作为 module-internal
@@ -325,6 +326,16 @@ final class AppContext {
 
         todayWidgetContextStore.write(TodayWidgetSharedContext(spaceID: spaceID, actorID: actorID))
         try? await todayWidgetSnapshotWriter.refreshTodayWidgetSnapshot()
+        WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.focusWidgetKind)
+        WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.listWidgetKind)
+    }
+
+    func handleAppBecameActive() async {
+        if let spaceID = sessionStore.currentSpace?.id {
+            syncAfterMutation(spaceID: spaceID)
+        }
+        await homeViewModel.reload(reason: .sync)
+        await refreshTodayWidgetSnapshot()
     }
 
     private func startSupabaseSoloSyncRecoveryIfNeeded() async -> Bool {

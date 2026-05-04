@@ -19,23 +19,27 @@ struct TodayWidgetSnapshot: Codable, Equatable {
         case referenceDate
         case remainingCount
         case tasks
+        case animatingCompletionTaskIDs
     }
 
     var generatedAt: Date
     var referenceDate: Date
     var remainingCount: Int
     var tasks: [TodayWidgetTaskSnapshot]
+    var animatingCompletionTaskIDs: [UUID]
 
     nonisolated init(
         generatedAt: Date,
         referenceDate: Date,
         remainingCount: Int,
-        tasks: [TodayWidgetTaskSnapshot]
+        tasks: [TodayWidgetTaskSnapshot],
+        animatingCompletionTaskIDs: [UUID] = []
     ) {
         self.generatedAt = generatedAt
         self.referenceDate = referenceDate
         self.remainingCount = remainingCount
         self.tasks = tasks
+        self.animatingCompletionTaskIDs = animatingCompletionTaskIDs
     }
 
     nonisolated init(from decoder: any Decoder) throws {
@@ -44,6 +48,10 @@ struct TodayWidgetSnapshot: Codable, Equatable {
         referenceDate = try container.decode(Date.self, forKey: .referenceDate)
         remainingCount = try container.decode(Int.self, forKey: .remainingCount)
         tasks = try container.decode([TodayWidgetTaskSnapshot].self, forKey: .tasks)
+        animatingCompletionTaskIDs = try container.decodeIfPresent(
+            [UUID].self,
+            forKey: .animatingCompletionTaskIDs
+        ) ?? []
     }
 
     nonisolated func encode(to encoder: any Encoder) throws {
@@ -52,6 +60,7 @@ struct TodayWidgetSnapshot: Codable, Equatable {
         try container.encode(referenceDate, forKey: .referenceDate)
         try container.encode(remainingCount, forKey: .remainingCount)
         try container.encode(tasks, forKey: .tasks)
+        try container.encode(animatingCompletionTaskIDs, forKey: .animatingCompletionTaskIDs)
     }
 
     nonisolated static var empty: TodayWidgetSnapshot {
@@ -132,10 +141,12 @@ struct TodayWidgetSnapshotStore {
         try data.write(to: fileURL, options: [.atomic])
     }
 
-    nonisolated func removeTask(taskID: UUID, completedAt: Date) throws {
+    nonisolated func markTaskCompletedForAnimation(taskID: UUID, completedAt: Date) throws {
         var snapshot = try read()
-        snapshot.tasks.removeAll { $0.id == taskID }
         snapshot.remainingCount = max(0, snapshot.remainingCount - 1)
+        if snapshot.animatingCompletionTaskIDs.contains(taskID) == false {
+            snapshot.animatingCompletionTaskIDs.append(taskID)
+        }
         snapshot.generatedAt = completedAt
         try write(snapshot)
     }

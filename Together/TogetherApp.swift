@@ -127,6 +127,7 @@ struct TogetherApp: App {
                         if appContext.sessionStore.hasActivePairSpace {
                             Task { await appContext.syncPairSpaceIfNeeded() }
                         }
+                        Task { await appContext.handleAppBecameActive() }
                         Task { await appContext.refreshPremiumGateIfStale() }
                         Task { await appContext.autoCheckInviteAcceptedIfPending() }
                     default:

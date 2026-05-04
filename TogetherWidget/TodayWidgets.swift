@@ -41,8 +41,17 @@ struct TodayWidgetProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayWidgetEntry>) -> Void) {
-        let entry = TodayWidgetEntry(date: .now, snapshot: readSnapshot())
-        completion(Timeline(entries: [entry], policy: .after(Date.now.addingTimeInterval(15 * 60))))
+        let snapshot = readSnapshot()
+        let now = Date.now
+        var entries = [TodayWidgetEntry(date: now, snapshot: snapshot)]
+
+        if snapshot.animatingCompletionTaskIDs.isEmpty == false {
+            let settledSnapshot = snapshot.removingAnimatingCompletionTasks()
+            entries.append(TodayWidgetEntry(date: now.addingTimeInterval(0.85), snapshot: settledSnapshot))
+            try? TodayWidgetSnapshotStore().write(settledSnapshot)
+        }
+
+        completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(15 * 60))))
     }
 
     private func readSnapshot() -> TodayWidgetSnapshot {
@@ -112,7 +121,10 @@ private struct TodayWidgetView: View {
     private var taskList: some View {
         VStack(alignment: .leading, spacing: family == .systemMedium ? 8 : 5) {
             ForEach(mode.visibleTasks(from: entry.snapshot, family: family)) { task in
-                TodayWidgetTaskRow(task: task)
+                TodayWidgetTaskRow(
+                    task: task,
+                    isCompleting: entry.snapshot.animatingCompletionTaskIDs.contains(task.id)
+                )
             }
         }
     }
@@ -143,11 +155,12 @@ private struct TodayWidgetView: View {
 
 private struct TodayWidgetTaskRow: View {
     let task: TodayWidgetTaskSnapshot
+    let isCompleting: Bool
 
     var body: some View {
         HStack(spacing: 8) {
             Button(intent: TodayTaskCompletionIntent(taskID: task.id.uuidString)) {
-                TodayWidgetCheckbox()
+                TodayWidgetCheckbox(isCompleting: isCompleting)
             }
             .buttonStyle(.plain)
             .frame(width: 28, height: 28)
@@ -173,15 +186,42 @@ private struct TodayWidgetTaskRow: View {
 }
 
 private struct TodayWidgetCheckbox: View {
+    let isCompleting: Bool
+
     var body: some View {
         ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(red: 0.92, green: 0.36, blue: 0.31).opacity(isCompleting ? 0.16 : 0))
+
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(
                     Color(red: 0.92, green: 0.36, blue: 0.31).opacity(0.58),
                     style: StrokeStyle(lineWidth: 1.5, dash: [3.6, 4.4])
                 )
+
+            Image(systemName: "checkmark")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(Color(red: 0.92, green: 0.36, blue: 0.31))
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, options: .speed(1.18), value: isCompleting)
+                .opacity(isCompleting ? 1 : 0)
         }
         .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .animation(.bouncy(duration: 0.42, extraBounce: 0.16), value: isCompleting)
+    }
+}
+
+private extension TodayWidgetSnapshot {
+    func removingAnimatingCompletionTasks() -> TodayWidgetSnapshot {
+        guard animatingCompletionTaskIDs.isEmpty == false else { return self }
+        let completingIDs = Set(animatingCompletionTaskIDs)
+        return TodayWidgetSnapshot(
+            generatedAt: generatedAt,
+            referenceDate: referenceDate,
+            remainingCount: remainingCount,
+            tasks: tasks.filter { completingIDs.contains($0.id) == false },
+            animatingCompletionTaskIDs: []
+        )
     }
 }
 

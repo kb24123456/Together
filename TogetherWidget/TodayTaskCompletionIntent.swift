@@ -24,7 +24,7 @@ struct TodayTaskCompletionIntent: AppIntent {
 
         let completedAt = Date.now
         try TodayWidgetCompletionStore().complete(taskID: taskUUID, referenceDate: completedAt)
-        try? TodayWidgetSnapshotStore().removeTask(taskID: taskUUID, completedAt: completedAt)
+        try? TodayWidgetSnapshotStore().markTaskCompletedForAnimation(taskID: taskUUID, completedAt: completedAt)
 
         WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.focusWidgetKind)
         WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.listWidgetKind)
