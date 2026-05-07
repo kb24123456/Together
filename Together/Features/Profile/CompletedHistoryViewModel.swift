@@ -34,7 +34,7 @@ final class CompletedHistoryViewModel {
     /// Populated during `reload()` via a lightweight aggregate fetch.
     private(set) var pairSummary: LogbookPairSummary?
 
-    var isPairMode: Bool { sessionStore.hasActivePairSpace }
+    var isPairMode: Bool { sessionStore.isViewingPairSpace }
 
     private var projectNames: [UUID: String] = [:]
     private var taskListNames: [UUID: String] = [:]

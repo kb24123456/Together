@@ -30,9 +30,7 @@ struct CompletedHistoryView: View {
             }
 
             if viewModel.sections.isEmpty {
-                if viewModel.isPairMode == false {
-                    emptySection
-                }
+                emptySection
             } else {
                 ForEach(viewModel.sections) { section in
                     sectionHeader(section.title)
@@ -112,9 +110,10 @@ struct CompletedHistoryView: View {
 
     private var emptySection: some View {
         EmptyStateCard(
-            title: "还没有历史任务",
-            message: "已完成任务会在这里沉淀，Today 只保留当前仍需处理的任务。",
-            illustration: "EmptyHistory"
+            title: viewModel.isPairMode ? "还没有共享历史" : "还没有历史任务",
+            message: viewModel.isPairMode ? "你们完成的共享任务会在这里沉淀。" : "已完成任务会在这里沉淀，Today 只保留当前仍需处理的任务。",
+            illustration: "EmptyHistory",
+            usesNeutralBackground: true
         )
         .listRowInsets(EdgeInsets(top: AppTheme.spacing.lg, leading: AppTheme.spacing.lg, bottom: AppTheme.spacing.lg, trailing: AppTheme.spacing.lg))
         .listRowBackground(AppTheme.colors.background)

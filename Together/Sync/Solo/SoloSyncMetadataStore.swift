@@ -40,6 +40,15 @@ final class SoloSyncMetadataStore: @unchecked Sendable {
         defaults.set(date, forKey: key("lastPushedAt", spaceID))
     }
 
+    func baselineRefreshVersion(spaceID: UUID) -> String? {
+        defaults.string(forKey: key("baselineRefreshVersion", spaceID))
+    }
+
+    func markBaselineRefreshCompleted(spaceID: UUID, version: String, at date: Date) {
+        defaults.set(version, forKey: key("baselineRefreshVersion", spaceID))
+        defaults.set(date, forKey: key("baselineRefreshCompletedAt", spaceID))
+    }
+
     private func key(_ name: String, _ spaceID: UUID) -> String {
         "together.soloSupabase.\(spaceID.uuidString).\(name)"
     }

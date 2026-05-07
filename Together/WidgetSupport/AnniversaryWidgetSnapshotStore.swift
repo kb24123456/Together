@@ -1,10 +1,10 @@
 import Foundation
 
-enum TodayWidgetSnapshotStoreError: Error {
+enum AnniversaryWidgetSnapshotStoreError: Error {
     case missingAppGroupContainer
 }
 
-struct TodayWidgetSnapshotStore: Sendable {
+struct AnniversaryWidgetSnapshotStore {
     private let containerURL: URL?
 
     nonisolated init(
@@ -15,17 +15,17 @@ struct TodayWidgetSnapshotStore: Sendable {
         self.containerURL = containerURL
     }
 
-    nonisolated func read() throws -> TodayWidgetSnapshot {
+    nonisolated func read() throws -> AnniversaryWidgetSnapshot {
         guard let fileURL else { return .empty }
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return .empty }
 
         let data = try Data(contentsOf: fileURL)
-        return try JSONDecoder.todayWidget.decode(TodayWidgetSnapshot.self, from: data)
+        return try JSONDecoder.todayWidget.decode(AnniversaryWidgetSnapshot.self, from: data)
     }
 
-    nonisolated func write(_ snapshot: TodayWidgetSnapshot) throws {
+    nonisolated func write(_ snapshot: AnniversaryWidgetSnapshot) throws {
         guard let fileURL else {
-            throw TodayWidgetSnapshotStoreError.missingAppGroupContainer
+            throw AnniversaryWidgetSnapshotStoreError.missingAppGroupContainer
         }
 
         try FileManager.default.createDirectory(
@@ -37,13 +37,22 @@ struct TodayWidgetSnapshotStore: Sendable {
         try data.write(to: fileURL, options: [.atomic])
     }
 
+    nonisolated var diagnosticFilePath: String {
+        fileURL?.path ?? "<missing app group container>"
+    }
+
+    nonisolated var fileExistsForDiagnostics: Bool {
+        guard let fileURL else { return false }
+        return FileManager.default.fileExists(atPath: fileURL.path)
+    }
+
     private nonisolated var fileURL: URL? {
-        containerURL?.appending(path: TodayWidgetConstants.snapshotFileName)
+        containerURL?.appending(path: TodayWidgetConstants.anniversarySnapshotFileName)
     }
 }
 
 private extension JSONEncoder {
-    static var todayWidget: JSONEncoder {
+    nonisolated static var todayWidget: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return encoder
@@ -51,7 +60,7 @@ private extension JSONEncoder {
 }
 
 private extension JSONDecoder {
-    static var todayWidget: JSONDecoder {
+    nonisolated static var todayWidget: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder

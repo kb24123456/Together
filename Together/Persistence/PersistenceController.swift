@@ -42,20 +42,8 @@ struct PersistenceController {
             }
         }
 
-        // Store is broken or schema is incompatible — nuke it and try fresh.
-        Self.deleteStoreFiles()
-        StartupTrace.mark("PersistenceController.storeReset")
-
-        var secondError = ""
-        if let resolved = Self.attemptFullInit(inMemory: false, errorOut: &secondError) {
-            self.container = resolved
-            StartupTrace.mark("PersistenceController.init.end.afterReset")
-            return
-        }
-
-        // Both attempts failed — fatal. Print both errors so we can diagnose.
         let storePath = Self.persistentStoreURL.path(percentEncoded: false)
-        fatalError("[Persistence] Failed even after store reset.\npath: \(storePath)\n1st: \(firstError)\n2nd: \(secondError)")
+        fatalError("[Persistence] Refusing to reset persistent store automatically.\npath: \(storePath)\n1st: \(firstError)\nUse the explicit debug reset flow only when local data loss is intended.")
     }
 
     /// Creates the container AND exercises it (seed + cleanup) so that any lazy-load

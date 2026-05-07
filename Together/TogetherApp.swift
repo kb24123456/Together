@@ -108,7 +108,10 @@ struct TogetherApp: App {
                           appBootstrapper.phase == .ready
                     else { return }
                     appContext.updateSyncPolling()
-                    Task { await appContext.syncPairSpaceIfNeeded() }
+                    Task {
+                        await appContext.refreshAnniversaryWidgetSnapshot()
+                        await appContext.syncPairSpaceIfNeeded()
+                    }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard let appContext = appBootstrapper.appContext,

@@ -5,8 +5,10 @@ enum TodayWidgetConstants {
 
     nonisolated static let focusWidgetKind = "com.pigdog.Together.widgets.today-focus"
     nonisolated static let listWidgetKind = "com.pigdog.Together.widgets.today-list"
+    nonisolated static let anniversaryWidgetKind = "com.pigdog.Together.widgets.anniversary"
 
     nonisolated static let snapshotFileName = "today-widget-snapshot.json"
+    nonisolated static let anniversarySnapshotFileName = "anniversary-widget-snapshot.json"
 
     nonisolated static var todayDeepLink: URL {
         URL(string: "together://today")!

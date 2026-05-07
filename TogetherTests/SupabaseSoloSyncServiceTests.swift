@@ -327,6 +327,7 @@ struct SupabaseSoloSyncServiceTests {
         let taskID = UUID()
         harness.remote.setSpaceID(spaceID)
         harness.metadata.markMigrationCompleted(spaceID: spaceID, at: .now, build: "13")
+        harness.metadata.markBaselineRefreshCompleted(spaceID: spaceID, version: "2026-05-project-periodic-full-pull", at: .now)
 
         let context = ModelContext(harness.container)
         context.insert(PersistentSpace(
@@ -360,6 +361,101 @@ struct SupabaseSoloSyncServiceTests {
         #expect(harness.remote.upsertCallCount() == 1)
         #expect(changes.isEmpty)
         #expect(harness.metadata.lastPushedAt(spaceID: spaceID) != nil)
+    }
+
+    @Test("baseline startup runs one-time full pull so old remote projects and routines restore")
+    func baselineStartupRunsOneTimeFullPullForProjectsAndRoutines() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let taskID = UUID()
+        let projectID = UUID()
+        let subtaskID = UUID()
+        let periodicID = UUID()
+        let cursor = Date(timeIntervalSince1970: 1_777_800_000)
+        let oldDate = Date(timeIntervalSince1970: 1_700_000_000)
+        harness.remote.setSpaceID(spaceID)
+        harness.metadata.markMigrationCompleted(spaceID: spaceID, at: cursor, build: "13")
+        harness.metadata.setLastPulledAt(cursor, spaceID: spaceID)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: spaceID,
+                type: .single,
+                displayName: "我的空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: oldDate,
+                updatedAt: oldDate
+            )
+        ))
+        context.insert(PersistentItem.sample(id: taskID, spaceID: spaceID, creatorID: harness.userID, title: "existing task"))
+        try context.save()
+
+        let remoteProject = PersistentProject.sample(id: projectID, spaceID: spaceID, creatorID: harness.userID, name: "remote project")
+        remoteProject.updatedAt = oldDate
+        let remoteSubtask = PersistentProjectSubtask.sample(id: subtaskID, projectID: projectID, creatorID: harness.userID, title: "remote subtask")
+        remoteSubtask.updatedAt = oldDate
+        let remotePeriodic = PersistentPeriodicTask.sample(id: periodicID, spaceID: spaceID, creatorID: harness.userID, title: "remote routine")
+        remotePeriodic.updatedAt = oldDate
+        harness.remote.setSnapshot(SoloRemoteSnapshot(
+            projects: [ProjectDTO(from: remoteProject, spaceID: spaceID)],
+            projectSubtasks: [ProjectSubtaskDTO(from: remoteSubtask, spaceID: spaceID)],
+            periodicTasks: [PeriodicTaskDTO(from: remotePeriodic, spaceID: spaceID)]
+        ))
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        let projects = try context.fetch(FetchDescriptor<PersistentProject>())
+        let subtasks = try context.fetch(FetchDescriptor<PersistentProjectSubtask>())
+        let periodicTasks = try context.fetch(FetchDescriptor<PersistentPeriodicTask>())
+
+        #expect(harness.remote.fetchSnapshotSinceValues() == [nil])
+        #expect(projects.map(\.name) == ["remote project"])
+        #expect(subtasks.map(\.title) == ["remote subtask"])
+        #expect(periodicTasks.map(\.title) == ["remote routine"])
+        #expect(harness.metadata.baselineRefreshVersion(spaceID: spaceID) == "2026-05-project-periodic-full-pull")
+    }
+
+    @Test("baseline startup uses delta pull after full refresh marker exists")
+    func baselineStartupUsesDeltaAfterFullRefreshMarkerExists() async throws {
+        let harness = try SoloSyncHarness()
+        let spaceID = UUID()
+        let cursor = Date(timeIntervalSince1970: 1_777_800_000)
+        harness.remote.setSpaceID(spaceID)
+        harness.metadata.markMigrationCompleted(spaceID: spaceID, at: cursor, build: "13")
+        harness.metadata.setLastPulledAt(cursor, spaceID: spaceID)
+        harness.metadata.markBaselineRefreshCompleted(spaceID: spaceID, version: "2026-05-project-periodic-full-pull", at: cursor)
+
+        let context = ModelContext(harness.container)
+        context.insert(PersistentSpace(
+            space: Space(
+                id: spaceID,
+                type: .single,
+                displayName: "我的空间",
+                ownerUserID: harness.userID,
+                status: .active,
+                createdAt: .now,
+                updatedAt: .now
+            )
+        ))
+        try context.save()
+
+        try await harness.service.start(
+            userID: harness.userID,
+            localUserID: harness.userID,
+            displayName: "我",
+            platform: .iphone,
+            isPro: false
+        )
+
+        #expect(harness.remote.fetchSnapshotSinceValues() == [cursor])
     }
 
     @Test("baseline startup revives sending changes before pushing")
@@ -829,6 +925,7 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
     private var _countTasksSpaceIDs: [UUID] = []
     private var _fetchSnapshotCallCount = 0
     private var _fetchSnapshotSpaceIDs: [UUID] = []
+    private var _fetchSnapshotSinceValues: [Date?] = []
     private var _upsertCallCount = 0
 
     func setSpaceID(_ id: UUID) {
@@ -886,6 +983,10 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
         lock.withLock { _fetchSnapshotSpaceIDs }
     }
 
+    func fetchSnapshotSinceValues() -> [Date?] {
+        lock.withLock { _fetchSnapshotSinceValues }
+    }
+
     func upsertCallCount() -> Int {
         lock.withLock { _upsertCallCount }
     }
@@ -917,6 +1018,7 @@ private final class FakeSoloRemoteGateway: SupabaseSoloRemoteGatewayProtocol, @u
         let result = lock.withLock { () -> Result<SoloRemoteSnapshot, Error> in
             _fetchSnapshotCallCount += 1
             _fetchSnapshotSpaceIDs.append(spaceID)
+            _fetchSnapshotSinceValues.append(since)
             if let error = _fetchError {
                 return .failure(error)
             }
@@ -1059,6 +1161,25 @@ private extension PersistentProjectSubtask {
             title: title,
             isCompleted: false,
             sortOrder: 0
+        )
+    }
+}
+
+private extension PersistentPeriodicTask {
+    static func sample(id: UUID, spaceID: UUID, creatorID: UUID, title: String) -> PersistentPeriodicTask {
+        PersistentPeriodicTask(
+            id: id,
+            spaceID: spaceID,
+            creatorID: creatorID,
+            title: title,
+            notes: nil,
+            cycleRawValue: PeriodicCycle.monthly.rawValue,
+            reminderRulesData: nil,
+            completionsData: Data("{}".utf8),
+            sortOrder: 0,
+            isActive: true,
+            createdAt: .now,
+            updatedAt: .now
         )
     }
 }

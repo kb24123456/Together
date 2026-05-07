@@ -29,6 +29,7 @@ protocol SupabaseSoloSyncServicing: Sendable {
 
 actor SupabaseSoloSyncService: SupabaseSoloSyncServicing {
     static let sendingRecoveryStaleInterval: TimeInterval = 5 * 60
+    private static let baselineRefreshVersion = "2026-05-project-periodic-full-pull"
 
     private let modelContainer: ModelContainer
     private let remote: SupabaseSoloRemoteGatewayProtocol
@@ -147,7 +148,16 @@ actor SupabaseSoloSyncService: SupabaseSoloSyncServicing {
             try await bootstrapLocalData(spaceID: spaceID, userID: userID)
         case .hasBaseline:
             try await pushPending(spaceID: spaceID, userID: userID)
-            try await pullDeltas(spaceID: spaceID)
+            if shouldRunBaselineRefresh(spaceID: spaceID) {
+                try await fullPull(spaceID: spaceID)
+                metadata.markBaselineRefreshCompleted(
+                    spaceID: spaceID,
+                    version: Self.baselineRefreshVersion,
+                    at: Date()
+                )
+            } else {
+                try await pullDeltas(spaceID: spaceID)
+            }
         }
     }
 
@@ -657,6 +667,10 @@ private extension SupabaseSoloSyncService {
         let now = Date()
         metadata.setLastPulledAt(now, spaceID: spaceID)
         metadata.markMigrationCompleted(spaceID: spaceID, at: now, build: buildNumberProvider())
+    }
+
+    func shouldRunBaselineRefresh(spaceID: UUID) -> Bool {
+        metadata.baselineRefreshVersion(spaceID: spaceID) != Self.baselineRefreshVersion
     }
 
     func bootstrapLocalData(spaceID: UUID, userID: UUID) async throws {

@@ -155,3 +155,26 @@
 - 不要把密钥、token、私人数据、临时日志全文或未经验证的推测写入项目记忆。
 - Claude 旧 worktree 与历史计划只作为参考，不自动视为当前事实；若与当前根目录文档或代码冲突，以当前根目录文档和代码为准。
 - 如果同一类流程重复出现 2-3 次，优先沉淀为 `.agents/skills/` 下的项目 Skill。
+
+## 14. Widget 开发专项规则
+- 开发 iOS widget 前必须先确认 App Group、主 App entitlement、Widget entitlement、Apple Developer 后台能力和 provisioning profile 一致；当前共享组为 `group.com.pigdog.together.shared`。
+- Widget extension 禁止用局部 `@Model` / 局部 SwiftData schema 打开主 App 的完整 SwiftData store。原因是 extension schema 不完整时可能污染或触发主 App store 打开失败，进而造成配对关系、项目、例行事务等数据风险。
+- Widget 需要改动任务状态时，只允许采用以下两类路径之一：
+  1. 主 App 提供完整、共享、安全的持久化模块；
+  2. Widget 只做经过审查的最小共享写入，例如最小 SQLite transaction 写入任务完成状态、occurrence completion 和 sync outbox。
+- Widget 的 AppIntent 不能只更新 widget snapshot；凡是“完成任务、恢复任务、删除任务、修改状态”等业务动作，必须同时保证主 App 数据源、同步 outbox、widget snapshot 和回前台 reload 链路一致。
+- Widget snapshot 只能作为展示缓存和动画状态，不是业务真相。业务真相必须回到主 App 数据库和 Supabase/同步链路。
+- Widget 完成动画必须状态驱动：先保留被点任务展示虚线框填充和勾选，再让整行消失，最后让补位任务执行出现动画；不要让勾选图标单独消失，也不要在最后一项完成时直接跳空态。
+- Widget 空态、插画、字号、颜色和文案应优先复用 Today 当前设计语言；如果 Today 使用 `EmptyCalendar` 小猫占位图，widget 不应误用 `EmptyList` 等其他插画。
+- 小号 widget 中，只有虚线完成框可触发完成动作；其他区域应进入 App。实现时要明确 Button / widgetURL 的命中边界，避免整行误触完成或完成框无法触发。
+- Widget 与 App 同步问题必须同时测三条链路：
+  1. App 修改任务后 widget 是否刷新；
+  2. Widget 完成任务后 App 前台列表、下拉刷新、切换单双人模式是否一致；
+  3. App 恢复已完成任务后 widget 是否重新出现对应待办。
+- 如果 widget 或恢复链路曾导致本地 store 重建、schema/probe 失败、数据缺失，排查时必须检查 Supabase solo recovery 的 `lastPulledAt / migrationCompletedAt` 游标；本地库重建但游标仍存在时，只拉增量会漏掉远端旧项目和例行事务，必要时应做一次性 `since:nil` 全量恢复。
+- 真机验证 widget UI / provider 改动时，不能在同一 `CFBundleVersion` 下反复安装后直接判断桌面结果。WidgetKit / SpringBoard 可能复用旧 timeline 渲染缓存，添加页 preview 已更新也不代表桌面 widget 已更新。每次改 widget extension 后应提升主 App 与 extension 的 `CURRENT_PROJECT_VERSION`，或删除重加 widget / 重启后再验收。
+- Widget snapshot 里禁止直接塞未处理的原始头像、相册大图或其他大尺寸图片 Data。主 App 写入前必须生成 widget 专用缩略图，并控制单个 snapshot 总字节量；小号 widget 要有旧 snapshot 大图 Data 的降级兜底，否则可能在桌面宿主快照归档时整块空白。
+- Widget 问题排查必须按“数据层 -> timeline/provider -> 各 family 渲染树 -> SpringBoard 缓存”的顺序逐层证伪。中号/大号正常不能证明小号正常；添加页 preview 正常也不能证明桌面 widget 正常。
+- Widget 文本中的纯数字如果不希望出现本地化千分位分隔符，必须使用 `Text(verbatim:)` 或提前生成非本地化展示字符串，不要使用 `Text("\(number)")` 这类 SwiftUI 本地化插值。
+- 所有 widget 视觉色值必须显式适配 `colorScheme`。背景、强调色、分割线、空态插画、头像占位、头像描边、阴影和完成框都不能只按浅色模式硬编码；新增 widget 前优先复用已有 widget theme。
+- 涉及 widget 的修复完成前，最低验证要求是：`git diff --check`、widget snapshot 相关测试、相关同步/恢复测试、`xcodebuild build-for-testing`。真机验收必须覆盖桌面 widget 点击、动画、App 回前台、删除重装恢复和 App Group 签名能力。

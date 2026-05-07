@@ -384,7 +384,16 @@ final class HomeViewModel {
     }
 
     var spaceDisplayName: String {
-        sessionStore.currentSpace?.displayName ?? (isPairModeActive ? "双人模式" : "我的任务空间")
+        if isPairModeActive {
+            return sessionStore.currentSpace?.displayName ?? "双人模式"
+        }
+
+        if let displayName = sessionStore.currentUser?.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+           displayName.isEmpty == false {
+            return displayName
+        }
+
+        return sessionStore.currentSpace?.displayName ?? "我的任务空间"
     }
 
     var spaceSyncState: SharedMutationDisplayState? {

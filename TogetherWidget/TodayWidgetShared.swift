@@ -5,8 +5,10 @@ enum TodayWidgetConstants {
 
     nonisolated static let focusWidgetKind = "com.pigdog.Together.widgets.today-focus"
     nonisolated static let listWidgetKind = "com.pigdog.Together.widgets.today-list"
+    nonisolated static let anniversaryWidgetKind = "com.pigdog.Together.widgets.anniversary"
 
     nonisolated static let snapshotFileName = "today-widget-snapshot.json"
+    nonisolated static let anniversarySnapshotFileName = "anniversary-widget-snapshot.json"
 
     nonisolated static var todayDeepLink: URL {
         URL(string: "together://today")!
@@ -20,6 +22,7 @@ struct TodayWidgetSnapshot: Codable, Equatable {
         case remainingCount
         case tasks
         case animatingCompletionTaskIDs
+        case appearingTaskIDs
     }
 
     var generatedAt: Date
@@ -27,19 +30,22 @@ struct TodayWidgetSnapshot: Codable, Equatable {
     var remainingCount: Int
     var tasks: [TodayWidgetTaskSnapshot]
     var animatingCompletionTaskIDs: [UUID]
+    var appearingTaskIDs: [UUID]
 
     nonisolated init(
         generatedAt: Date,
         referenceDate: Date,
         remainingCount: Int,
         tasks: [TodayWidgetTaskSnapshot],
-        animatingCompletionTaskIDs: [UUID] = []
+        animatingCompletionTaskIDs: [UUID] = [],
+        appearingTaskIDs: [UUID] = []
     ) {
         self.generatedAt = generatedAt
         self.referenceDate = referenceDate
         self.remainingCount = remainingCount
         self.tasks = tasks
         self.animatingCompletionTaskIDs = animatingCompletionTaskIDs
+        self.appearingTaskIDs = appearingTaskIDs
     }
 
     nonisolated init(from decoder: any Decoder) throws {
@@ -52,6 +58,10 @@ struct TodayWidgetSnapshot: Codable, Equatable {
             [UUID].self,
             forKey: .animatingCompletionTaskIDs
         ) ?? []
+        appearingTaskIDs = try container.decodeIfPresent(
+            [UUID].self,
+            forKey: .appearingTaskIDs
+        ) ?? []
     }
 
     nonisolated func encode(to encoder: any Encoder) throws {
@@ -61,6 +71,7 @@ struct TodayWidgetSnapshot: Codable, Equatable {
         try container.encode(remainingCount, forKey: .remainingCount)
         try container.encode(tasks, forKey: .tasks)
         try container.encode(animatingCompletionTaskIDs, forKey: .animatingCompletionTaskIDs)
+        try container.encode(appearingTaskIDs, forKey: .appearingTaskIDs)
     }
 
     nonisolated static var empty: TodayWidgetSnapshot {
@@ -147,6 +158,7 @@ struct TodayWidgetSnapshotStore {
         if snapshot.animatingCompletionTaskIDs.contains(taskID) == false {
             snapshot.animatingCompletionTaskIDs.append(taskID)
         }
+        snapshot.appearingTaskIDs = []
         snapshot.generatedAt = completedAt
         try write(snapshot)
     }

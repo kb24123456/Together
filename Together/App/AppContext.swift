@@ -106,6 +106,7 @@ final class AppContext {
     private var pendingReloadAfterSyncCauses: ReloadAfterSyncCause = []
     private let todayWidgetContextStore: TodayWidgetSharedContextStore
     private let todayWidgetSnapshotWriter: TodayWidgetSnapshotWriter
+    private let anniversaryWidgetSnapshotWriter: AnniversaryWidgetSnapshotWriter
 
     private static let reloadAfterSyncCoalescingDelay: Duration = .milliseconds(180)
 
@@ -122,6 +123,9 @@ final class AppContext {
         self.todayWidgetSnapshotWriter = TodayWidgetSnapshotWriter(
             itemRepository: container.itemRepository,
             contextStore: todayWidgetContextStore
+        )
+        self.anniversaryWidgetSnapshotWriter = AnniversaryWidgetSnapshotWriter(
+            repository: container.importantDateRepository
         )
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
@@ -181,6 +185,7 @@ final class AppContext {
                 myName: self.sessionStore.currentUser?.displayName,
                 myUserID: self.sessionStore.currentUser?.id
             )
+            await self.refreshAnniversaryWidgetSnapshot()
         }
         // Session B Task 11: 启动 status 转活监听（OSLog only）
         self.pendingApprovalObserver.start()
@@ -296,8 +301,10 @@ final class AppContext {
                 finishStartupRestorePresentation()
             }
             let didCompleteSoloRecovery = await startSupabaseSoloSyncRecoveryIfNeeded()
-            if presentsStartupRestore, didCompleteSoloRecovery {
+            if didCompleteSoloRecovery {
                 await requestReloadAfterSync(cause: .startupRestore)
+            }
+            if presentsStartupRestore, didCompleteSoloRecovery {
                 finishStartupRestorePresentation()
             }
             await startSoloSyncEngineIfNeeded()
@@ -320,14 +327,37 @@ final class AppContext {
             let actorID = sessionStore.currentUser?.id
         else {
             todayWidgetContextStore.clear()
-            try? TodayWidgetSnapshotStore().write(.empty)
+            do {
+                try TodayWidgetSnapshotStore().write(.empty)
+                try AnniversaryWidgetSnapshotStore().write(.empty)
+            } catch {
+                appContextLogger.error("[WidgetSnapshot] clear failed: \(error.localizedDescription, privacy: .public)")
+            }
+            WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.anniversaryWidgetKind)
             return
         }
 
         todayWidgetContextStore.write(TodayWidgetSharedContext(spaceID: spaceID, actorID: actorID))
-        try? await todayWidgetSnapshotWriter.refreshTodayWidgetSnapshot()
+        do {
+            try await todayWidgetSnapshotWriter.refreshTodayWidgetSnapshot()
+        } catch {
+            appContextLogger.error("[WidgetSnapshot] today write failed: \(error.localizedDescription, privacy: .public)")
+        }
+        await refreshAnniversaryWidgetSnapshot()
         WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.focusWidgetKind)
         WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.listWidgetKind)
+    }
+
+    func refreshAnniversaryWidgetSnapshot() async {
+        do {
+            try await anniversaryWidgetSnapshotWriter.refreshAnniversaryWidgetSnapshot(
+                currentUser: sessionStore.currentUser,
+                pairSummary: sessionStore.pairSpaceSummary
+            )
+        } catch {
+            appContextLogger.error("[WidgetSnapshot] anniversary write failed: \(error.localizedDescription, privacy: .public)")
+        }
+        WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.anniversaryWidgetKind)
     }
 
     func handleAppBecameActive() async {

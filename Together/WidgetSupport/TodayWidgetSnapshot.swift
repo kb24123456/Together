@@ -7,6 +7,7 @@ struct TodayWidgetSnapshot: Codable, Equatable, Sendable {
         case remainingCount
         case tasks
         case animatingCompletionTaskIDs
+        case appearingTaskIDs
     }
 
     var generatedAt: Date
@@ -14,19 +15,22 @@ struct TodayWidgetSnapshot: Codable, Equatable, Sendable {
     var remainingCount: Int
     var tasks: [TodayWidgetTaskSnapshot]
     var animatingCompletionTaskIDs: [UUID]
+    var appearingTaskIDs: [UUID]
 
     nonisolated init(
         generatedAt: Date,
         referenceDate: Date,
         remainingCount: Int,
         tasks: [TodayWidgetTaskSnapshot],
-        animatingCompletionTaskIDs: [UUID] = []
+        animatingCompletionTaskIDs: [UUID] = [],
+        appearingTaskIDs: [UUID] = []
     ) {
         self.generatedAt = generatedAt
         self.referenceDate = referenceDate
         self.remainingCount = remainingCount
         self.tasks = tasks
         self.animatingCompletionTaskIDs = animatingCompletionTaskIDs
+        self.appearingTaskIDs = appearingTaskIDs
     }
 
     nonisolated init(from decoder: any Decoder) throws {
@@ -39,6 +43,10 @@ struct TodayWidgetSnapshot: Codable, Equatable, Sendable {
             [UUID].self,
             forKey: .animatingCompletionTaskIDs
         ) ?? []
+        appearingTaskIDs = try container.decodeIfPresent(
+            [UUID].self,
+            forKey: .appearingTaskIDs
+        ) ?? []
     }
 
     nonisolated func encode(to encoder: any Encoder) throws {
@@ -48,6 +56,7 @@ struct TodayWidgetSnapshot: Codable, Equatable, Sendable {
         try container.encode(remainingCount, forKey: .remainingCount)
         try container.encode(tasks, forKey: .tasks)
         try container.encode(animatingCompletionTaskIDs, forKey: .animatingCompletionTaskIDs)
+        try container.encode(appearingTaskIDs, forKey: .appearingTaskIDs)
     }
 
     nonisolated static var empty: TodayWidgetSnapshot {
