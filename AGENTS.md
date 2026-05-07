@@ -173,6 +173,7 @@
   3. App 恢复已完成任务后 widget 是否重新出现对应待办。
 - 如果 widget 或恢复链路曾导致本地 store 重建、schema/probe 失败、数据缺失，排查时必须检查 Supabase solo recovery 的 `lastPulledAt / migrationCompletedAt` 游标；本地库重建但游标仍存在时，只拉增量会漏掉远端旧项目和例行事务，必要时应做一次性 `since:nil` 全量恢复。
 - 真机验证 widget UI / provider 改动时，不能在同一 `CFBundleVersion` 下反复安装后直接判断桌面结果。WidgetKit / SpringBoard 可能复用旧 timeline 渲染缓存，添加页 preview 已更新也不代表桌面 widget 已更新。每次改 widget extension 后应提升主 App 与 extension 的 `CURRENT_PROJECT_VERSION`，或删除重加 widget / 重启后再验收。
+- Widget extension 的 `Info.plist` 必须包含 App Store Connect 要求的基础 bundle 字段，尤其是 `CFBundleDisplayName`。本地 archive 成功不代表 ASC 上传会通过；上传 TestFlight 前应检查归档内 `TogetherWidget.appex/Info.plist`。
 - Widget snapshot 里禁止直接塞未处理的原始头像、相册大图或其他大尺寸图片 Data。主 App 写入前必须生成 widget 专用缩略图，并控制单个 snapshot 总字节量；小号 widget 要有旧 snapshot 大图 Data 的降级兜底，否则可能在桌面宿主快照归档时整块空白。
 - Widget 问题排查必须按“数据层 -> timeline/provider -> 各 family 渲染树 -> SpringBoard 缓存”的顺序逐层证伪。中号/大号正常不能证明小号正常；添加页 preview 正常也不能证明桌面 widget 正常。
 - Widget 文本中的纯数字如果不希望出现本地化千分位分隔符，必须使用 `Text(verbatim:)` 或提前生成非本地化展示字符串，不要使用 `Text("\(number)")` 这类 SwiftUI 本地化插值。
