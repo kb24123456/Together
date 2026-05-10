@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-05-04
+- 日期：2026-05-10
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的单人 Todo 效率工具。
@@ -14,7 +14,7 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：会员支付主链路已通过真机验收；上架前合规收敛已完成仓库内可控部分，包括法律文案、权限声明、Privacy Manifest、开发者赠权 runbook、App Store Connect 人工核对清单与 ASC 可粘贴送审材料。
+- 当前任务：会员支付主链路已通过真机验收；上架前合规收敛已完成仓库内可控部分，包括法律文案、权限声明、Privacy Manifest、开发者赠权 runbook、App Store Connect 人工核对清单与 ASC 可粘贴送审材料。2026-05-10 已将桌面宣传截图整理为 iPhone 6.9 安全上传包；V1 target 已改为 iPhone-only，build 46 已重新上传 TestFlight，避免继续按 Universal App 补 iPad 截图。
 - 当前验证策略：用户已要求后续不做模拟器测试；本阶段只做 `generic/platform=iOS` 编译与 build-for-testing，不启动模拟器。
 - 立即续接点：做真机购买 / 恢复购买 / entitlement webhook 端到端验证。Webhook URL：`https://nxielmwdoiwiwhzczrmt.supabase.co/functions/v1/revenuecat-webhook`。
 - 会员修复进度：
@@ -32,9 +32,14 @@
   - 已发现并修复购买成功后 Paywall 仍显示购买选项的最终一致性缺口：购买返回 `.success` / `.pending` / `paymentPending` 后，`PaywallViewModel` 会短时间轮询 `PremiumGate.refresh()`，等待 RevenueCat SDK 或 Supabase `premium_entitlements` 任一权威来源转 Pro；Profile 会员页进入 Free 分支前会先 `configurePremiumGate()`，若后端已有 active entitlement 不再显示普通 Paywall。
 - 当前未完成：
   - 需要按 `docs/superpowers/runbooks/2026-05-03-app-store-release-readiness.md` 人工核对 App Store Connect、RevenueCat、Supabase 和 TestFlight 真机验收项。
-  - 需要在 App Store Connect 后台替换 App 描述、关键词、IAP 元数据、审核备注和隐私标签，并绑定 build 36。
+  - 需要在 App Store Connect 后台替换 App 描述、关键词、IAP 元数据、审核备注和隐私标签，并在 build 46 processing 完成后绑定到 iOS 1.0 待提交版本。
+  - 需要上传 `/Users/papertiger/Desktop/宣传截图_ASC/iPhone-6.9-safe/` 的 iPhone 6.9 截图，并确认 App Store Connect 不再要求 iPad 截图。
+  - 当前本地工程构建号已提升为 `1.0 (46)`；未提交的逾期任务“移到今天”新功能已按保守送审策略移除，本次送审只保留 iPhone-only 与上架准备改动。
+  - 2026-05-10 RevenueCat 后台已收敛：current offering `default` 中 `$rc_monthly/$rc_annual/$rc_lifetime` 分别绑定 App Store 产品 `com.pigdog.together.monthly1m`、`com.pigdog.together.yearly`、`com.pigdog.together.lifetime`；多余 entitlement `Create an app called Together Pro` 已删除，MCP 复核 active entitlement 只剩 `pro`。
+  - 2026-05-10 Xcode destination 环境已恢复：`xcodebuild -showdestinations` 能列出 Any iOS Device 与 iOS 26.4.1 simulators；generic build、build-for-testing、Release archive 与 TestFlight upload 均已通过。
   - `docs/legal/*.md` 已同步 push 到独立 `together-app-legal` 仓库 commit `6385a3c`；GitHub Pages 线上 Privacy Policy / Terms 已验证显示 2026-05-04 版本。
 - 最近验证：
+  - 2026-05-10 App Store 送审冻结 build 46：`git diff --check`、`plutil -lint Together/Info.plist Together/PrivacyInfo.xcprivacy TogetherWidget/Info.plist Together/Together.entitlements TogetherWidget/TogetherWidget.entitlements`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -onlyUsePackageVersionsFromResolvedFile -quiet`、`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -onlyUsePackageVersionsFromResolvedFile -quiet`、Release archive 均通过；归档路径 `build/TestFlight-20260510-1027-build46/Together.xcarchive`；`xcodebuild -exportArchive` 返回 `Upload succeeded` / `Uploaded package is processing`。仍需 App Store Connect processing 完成后绑定 build 46，并上传截图与元数据。
   - 2026-05-03 上架合规收敛：`git diff --check` 通过；`plutil -lint Together/Info.plist Together/PrivacyInfo.xcprivacy` 通过；旧麦克风/语音识别权限键与旧 Grace 全 Pro 文案无残留；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过；`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过；未做模拟器测试。
   - `git diff --check` 通过。
   - `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。

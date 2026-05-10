@@ -5,15 +5,17 @@
 ## 代码与构建冻结
 
 - [ ] `main` 已包含本轮法律文案、权限、Privacy Manifest、订阅状态和赠权 runbook 修复。
-- [ ] `git diff --check` 通过。
-- [ ] `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
-- [ ] `xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -quiet` 通过。
-- [ ] TestFlight 安装的是本轮上传的新 build `1.0 (36)`；Profile 不显示 `开发者 (DEBUG)` 区域。
+- [x] `git diff --check` 通过。
+- [x] `xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -onlyUsePackageVersionsFromResolvedFile -quiet` 通过。
+- [x] `xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -onlyUsePackageVersionsFromResolvedFile -quiet` 通过。
+- [ ] TestFlight 安装的是本轮冻结后重新上传的新 build 46；Profile 不显示 `开发者 (DEBUG)` 区域。
 
 ## App Store Connect
 
 - [ ] 将 `docs/legal/privacy-policy.md` 与 `docs/legal/terms-of-service.md` 同步 push 到 `together-app-legal` GitHub Pages 仓库，并确认线上 URL 已显示 2026-05-04 版本。
 - [ ] 使用 `docs/superpowers/runbooks/2026-05-04-app-store-connect-submission-materials.md` 更新 App 描述、关键词、宣传文本、IAP 元数据和审核备注。
+- [ ] 上传 `/Users/papertiger/Desktop/宣传截图_ASC/iPhone-6.9-safe/` 中的 iPhone 6.9 截图。
+- [ ] build 46 processing 完成后，在 App Store Connect 确认版本页不再要求 iPad 截图。
 - [ ] App 隐私标签与 `Together/PrivacyInfo.xcprivacy` 一致：姓名、邮箱、用户 ID、头像照片、用户内容、购买历史均用于 App 功能，不用于追踪。
 - [ ] 隐私政策 URL 指向 `https://kb24123456.github.io/together-app-legal/privacy-policy/`。
 - [ ] 使用条款 URL 指向 `https://kb24123456.github.io/together-app-legal/terms-of-service/`。
@@ -26,7 +28,7 @@
 ## RevenueCat
 
 - [ ] Project 为 Together。
-- [ ] App Store app、products、entitlement `pro`、offering/package 映射正确。
+- [x] App Store app、products、entitlement `pro`、offering/package 映射正确。
 - [ ] Production / Sandbox API key 与 build 配置一致。
 - [ ] Webhook integration 指向 Supabase `revenuecat-webhook`。
 - [ ] Webhook Authorization 与 Supabase Edge Function secret 一致。

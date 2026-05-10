@@ -92,8 +92,9 @@ Together Pro 可解锁更多能力，包括跨设备同步、更多项目与纪�
 ## 仍需人工后台完成
 
 - 在 App Store Connect 保存 App 描述、关键词、宣传文本和审核备注。
-- 上传最新 iPhone 截图；如果当前版本仍以 Universal App 提交，还需确认是否要求 iPad 截图。
-- 等 build `1.0 (36)` processing 完成后绑定到 iOS 1.0 版本页。
+- 上传 `/Users/papertiger/Desktop/宣传截图_ASC/iPhone-6.9-safe/` 中已整理的 iPhone 6.9 截图。
+- 本地 target 已改为 iPhone-only；build 46 已重新上传 TestFlight，processing 完成后在 App Store Connect 确认版本页不再要求 iPad 截图。
+- 等 build 46 processing 完成后绑定到 iOS 1.0 版本页。
 - 补齐三个 IAP / 订阅项目的本地化、价格、说明、审核元数据，并随 iOS 1.0 一起提交。
-- 在 RevenueCat 后台确认 current offering 三个 package 只绑定 `monthly1m`、`yearly`、`lifetime`，不引用历史产品。
-- 清理或确认多余 entitlement `Create an app called Together Pro` 不被任何 offering / product 引用。
+- RevenueCat 后台已确认 current offering 三个 package 只绑定 `monthly1m`、`yearly`、`lifetime`，不引用历史 App Store 产品。
+- RevenueCat 多余 entitlement `Create an app called Together Pro` 已删除；当前只保留 `pro`。
