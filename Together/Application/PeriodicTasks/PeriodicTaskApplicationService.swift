@@ -58,7 +58,7 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
             throw PeriodicTaskError.notFound
         }
 
-        guard PairPermissionService.canEditPeriodicTask(task, actorID: actorID) else {
+        guard SoloPermissionService.canEditPeriodicTask(task, actorID: actorID) else {
             throw PermissionError.notCreator
         }
 
@@ -86,8 +86,7 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         return updated
     }
 
-    /// No actorID permission check: both partners can toggle periodic task completion.
-    /// Periodic tasks represent shared routines (e.g. "daily cleaning") where either party marks done.
+    /// No actorID permission check: periodic tasks are personal routines in the current single-user model.
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask {
         guard let task = try await repository.fetchTask(taskID: taskID) else {
             throw PeriodicTaskError.notFound
@@ -113,7 +112,7 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         guard let task = try await repository.fetchTask(taskID: taskID) else {
             throw PeriodicTaskError.notFound
         }
-        guard PairPermissionService.canDeletePeriodicTask(task, actorID: actorID) else {
+        guard SoloPermissionService.canDeletePeriodicTask(task, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         await reminderScheduler.removePeriodicTaskReminder(for: taskID)

@@ -1,19 +1,13 @@
-import CloudKit
 import Foundation
 
 struct AppContainer {
-    let supabaseAuthService: SupabaseAuthService
     let authService: AuthServiceProtocol
     let spaceService: SpaceServiceProtocol
     let taskApplicationService: TaskApplicationServiceProtocol
     let syncCoordinator: SyncCoordinatorProtocol
-    let pairingService: PairingServiceProtocol
     let userProfileRepository: UserProfileRepositoryProtocol
     let itemRepository: ItemRepositoryProtocol
     let taskTemplateRepository: TaskTemplateRepositoryProtocol
-    let taskMessageRepository: TaskMessageRepositoryProtocol
-    let importantDateRepository: ImportantDateRepositoryProtocol
-    let anniversaryScheduler: AnniversaryNotificationSchedulerProtocol
     let taskListRepository: TaskListRepositoryProtocol
     let projectRepository: ProjectRepositoryProtocol
     let decisionRepository: DecisionRepositoryProtocol
@@ -24,17 +18,4 @@ struct AppContainer {
     let biometricAuthService: BiometricAuthServiceProtocol
     let avatarUploader: AvatarStorageUploaderProtocol
     let userProfileRemote: UserProfileRemoteRepositoryProtocol
-
-    // CloudKit infrastructure
-    let cloudKitContainer: CKContainer
-
-    // CKSyncEngine-based sync (private DB, solo zone only)
-    let syncEngineCoordinator: SyncEngineCoordinator
-
-    // Supabase-backed solo recovery sync.
-    let supabaseSoloSyncService: any SupabaseSoloSyncServicing
-
-    // Premium (Together Pro) 门禁。bootstrap / teardown 由 AppContext 驱动，
-    // 这里只负责装配。
-    let premiumGate: PremiumGate
 }

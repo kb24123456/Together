@@ -46,7 +46,7 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
 
         if let record = try fetchRecord(listID: list.id, context: context) {
             // Updating existing list — check permission
-            guard PairPermissionService.canEditTaskList(record.domainModel(taskCount: 0), actorID: actorID) else {
+            guard SoloPermissionService.canEditTaskList(record.domainModel(taskCount: 0), actorID: actorID) else {
                 throw PermissionError.notCreator
             }
             record.update(from: savedList)
@@ -68,7 +68,7 @@ actor LocalTaskListRepository: TaskListRepositoryProtocol {
         guard let record = try fetchRecord(listID: listID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canDeleteTaskList(record.domainModel(taskCount: 0), actorID: actorID) else {
+        guard SoloPermissionService.canDeleteTaskList(record.domainModel(taskCount: 0), actorID: actorID) else {
             throw PermissionError.notCreator
         }
 

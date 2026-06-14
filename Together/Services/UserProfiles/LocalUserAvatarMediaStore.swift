@@ -11,8 +11,8 @@ struct LocalUserAvatarMediaStore: UserAvatarMediaStoreProtocol {
         UserAvatarStorage.fileName(forAssetID: assetID)
     }
 
-    nonisolated func partnerCacheFileName(for assetID: String, version: Int) -> String {
-        UserAvatarStorage.partnerFileName(forAssetID: assetID, version: version)
+    nonisolated func versionedCacheFileName(for assetID: String, version: Int) -> String {
+        UserAvatarStorage.versionedFileName(forAssetID: assetID, version: version)
     }
 
     nonisolated func avatarData(named fileName: String) throws -> Data {
@@ -66,10 +66,9 @@ enum UserAvatarStorage {
         return "asset-\(assetID.lowercased()).jpg"
     }
 
-    /// Filename for partner-synced avatars that includes the version so each
-    /// remote update lands at a distinct on-disk path (prevents SwiftUI /
-    /// UIImage cache from serving stale bytes).
-    nonisolated static func partnerFileName(forAssetID assetID: String, version: Int) -> String {
+    /// Filename for remotely synced avatars that includes the version so each
+    /// update lands at a distinct on-disk path.
+    nonisolated static func versionedFileName(forAssetID assetID: String, version: Int) -> String {
         "asset-\(assetID.lowercased())-v\(version).jpg"
     }
 

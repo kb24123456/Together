@@ -3,18 +3,18 @@ import SwiftData
 
 @Model
 final class PersistentProject {
-    var id: UUID
-    var spaceID: UUID
+    var id: UUID = UUID()
+    var spaceID: UUID = UUID()
     var creatorID: UUID = UUID()
-    var name: String
+    var name: String = ""
     var notes: String?
     var colorToken: String?
-    var statusRawValue: String
+    var statusRawValue: String = ProjectStatus.active.rawValue
     var targetDate: Date?
     var remindAt: Date?
     var sortOrder: Double = 0
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
     var completedAt: Date?
     var isLocallyDeleted: Bool = false
 

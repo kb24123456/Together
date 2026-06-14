@@ -31,10 +31,6 @@ final class RoutinesViewModel {
     private var loadedSpaceID: UUID?
     private var tasksBySpaceID: [UUID: [PeriodicTask]] = [:]
 
-    /// Fired after Repository/ApplicationService has already called recordLocalChange.
-    /// AppContext wires this to flushRecordedSharedMutation to trigger a Supabase push.
-    var onSharedMutationRecorded: ((SyncChange) -> Void)?
-
     init(
         sessionStore: SessionStore,
         periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol,
@@ -43,12 +39,6 @@ final class RoutinesViewModel {
         self.sessionStore = sessionStore
         self.periodicTaskApplicationService = periodicTaskApplicationService
         self.taskTemplateRepository = taskTemplateRepository
-    }
-
-    private func emitMutationRecorded(taskID: UUID, operation: SyncOperationKind, spaceID: UUID) {
-        onSharedMutationRecorded?(
-            SyncChange(entityKind: .periodicTask, operation: operation, recordID: taskID, spaceID: spaceID)
-        )
     }
 
     private func replaceTask(_ updated: PeriodicTask) {
@@ -253,7 +243,6 @@ final class RoutinesViewModel {
                 tasks[index] = updated
             }
             cacheCurrentTasks()
-            emitMutationRecorded(taskID: taskID, operation: .upsert, spaceID: spaceID)
         } catch {
             // Reload to ensure consistency
             await load()
@@ -271,7 +260,6 @@ final class RoutinesViewModel {
             )
             tasks.append(created)
             cacheCurrentTasks()
-            emitMutationRecorded(taskID: created.id, operation: .upsert, spaceID: spaceID)
         } catch {
             await load()
         }
@@ -291,7 +279,6 @@ final class RoutinesViewModel {
                 tasks[index] = updated
             }
             cacheCurrentTasks()
-            emitMutationRecorded(taskID: taskID, operation: .upsert, spaceID: spaceID)
         } catch {
             await load()
         }
@@ -299,12 +286,12 @@ final class RoutinesViewModel {
 
     func canDeletePeriodicTask(_ task: PeriodicTask) -> Bool {
         guard let userID = sessionStore.currentUser?.id else { return true }
-        return PairPermissionService.canDeletePeriodicTask(task, actorID: userID)
+        return SoloPermissionService.canDeletePeriodicTask(task, actorID: userID)
     }
 
     func canEditPeriodicTask(_ task: PeriodicTask) -> Bool {
         guard let userID = sessionStore.currentUser?.id else { return true }
-        return PairPermissionService.canEditPeriodicTask(task, actorID: userID)
+        return SoloPermissionService.canEditPeriodicTask(task, actorID: userID)
     }
 
     func deleteTask(taskID: UUID) async {
@@ -314,7 +301,6 @@ final class RoutinesViewModel {
             try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID, actorID: actorID)
             tasks.removeAll { $0.id == taskID }
             cacheCurrentTasks()
-            emitMutationRecorded(taskID: taskID, operation: .delete, spaceID: spaceID)
         } catch {
             await load()
         }

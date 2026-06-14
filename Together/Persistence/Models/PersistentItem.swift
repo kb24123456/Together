@@ -3,40 +3,33 @@ import SwiftData
 
 @Model
 final class PersistentItem {
-    var id: UUID
+    var id: UUID = UUID()
     var spaceID: UUID?
     var listID: UUID?
     var projectID: UUID?
-    var creatorID: UUID
-    var title: String
+    var creatorID: UUID = UUID()
+    var title: String = ""
     var notes: String?
     var locationText: String?
-    var executionRoleRawValue: String
-    var assigneeModeRawValue: String
     var dueAt: Date?
-    var hasExplicitTime: Bool
+    var hasExplicitTime: Bool = false
     var remindAt: Date?
-    var statusRawValue: String
-    var assignmentStateRawValue: String
-    var latestResponseData: Data?
-    var responseHistoryData: Data
-    var assignmentMessagesData: Data
+    var statusRawValue: String = ItemStatus.inProgress.rawValue
     var lastActionByUserID: UUID?
     var lastActionAt: Date?
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
     var completedAt: Date?
     /// Authoritative completer — set once on markCompleted, cleared on
     /// markIncomplete. Preserved across later post-completion actions
     /// (archive/unarchive) unlike lastActionByUserID.
     var completedByUserID: UUID?
     var sortOrder: Double = 0
-    var isPinned: Bool
-    var isDraft: Bool
-    var isArchived: Bool
+    var isPinned: Bool = false
+    var isDraft: Bool = false
+    var isArchived: Bool = false
     var archivedAt: Date?
     var repeatRuleData: Data?
-    var reminderRequestedAt: Date?
     var isLocallyDeleted: Bool = false
 
     init(
@@ -48,16 +41,10 @@ final class PersistentItem {
         title: String,
         notes: String?,
         locationText: String?,
-        executionRoleRawValue: String,
-        assigneeModeRawValue: String,
         dueAt: Date?,
         hasExplicitTime: Bool,
         remindAt: Date?,
         statusRawValue: String,
-        assignmentStateRawValue: String,
-        latestResponseData: Data?,
-        responseHistoryData: Data,
-        assignmentMessagesData: Data,
         lastActionByUserID: UUID?,
         lastActionAt: Date?,
         createdAt: Date,
@@ -70,7 +57,6 @@ final class PersistentItem {
         isArchived: Bool,
         archivedAt: Date?,
         repeatRuleData: Data?,
-        reminderRequestedAt: Date? = nil,
         isLocallyDeleted: Bool = false
     ) {
         self.id = id
@@ -81,16 +67,10 @@ final class PersistentItem {
         self.title = title
         self.notes = notes
         self.locationText = locationText
-        self.executionRoleRawValue = executionRoleRawValue
-        self.assigneeModeRawValue = assigneeModeRawValue
         self.dueAt = dueAt
         self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
         self.statusRawValue = statusRawValue
-        self.assignmentStateRawValue = assignmentStateRawValue
-        self.latestResponseData = latestResponseData
-        self.responseHistoryData = responseHistoryData
-        self.assignmentMessagesData = assignmentMessagesData
         self.lastActionByUserID = lastActionByUserID
         self.lastActionAt = lastActionAt
         self.createdAt = createdAt
@@ -103,7 +83,6 @@ final class PersistentItem {
         self.isArchived = isArchived
         self.archivedAt = archivedAt
         self.repeatRuleData = repeatRuleData
-        self.reminderRequestedAt = reminderRequestedAt
         self.isLocallyDeleted = isLocallyDeleted
     }
 }
@@ -119,16 +98,10 @@ extension PersistentItem {
             title: item.title,
             notes: item.notes,
             locationText: item.locationText,
-            executionRoleRawValue: item.executionRole.rawValue,
-            assigneeModeRawValue: item.assigneeMode.rawValue,
             dueAt: item.dueAt,
             hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
             statusRawValue: item.status.rawValue,
-            assignmentStateRawValue: item.assignmentState.rawValue,
-            latestResponseData: Self.encode(item.latestResponse),
-            responseHistoryData: Self.encode(item.responseHistory),
-            assignmentMessagesData: Self.encode(item.assignmentMessages),
             lastActionByUserID: item.lastActionByUserID,
             lastActionAt: item.lastActionAt,
             createdAt: item.createdAt,
@@ -140,8 +113,7 @@ extension PersistentItem {
             isDraft: item.isDraft,
             isArchived: item.isArchived,
             archivedAt: item.archivedAt,
-            repeatRuleData: Self.encode(item.repeatRule),
-            reminderRequestedAt: item.reminderRequestedAt
+            repeatRuleData: Self.encode(item.repeatRule)
         )
     }
 
@@ -155,17 +127,10 @@ extension PersistentItem {
             title: title,
             notes: notes,
             locationText: locationText,
-            executionRole: ItemExecutionRole(rawValue: executionRoleRawValue) ?? .initiator,
-            assigneeMode: TaskAssigneeMode(rawValue: assigneeModeRawValue) ?? .self,
             dueAt: dueAt,
             hasExplicitTime: hasExplicitTime,
             remindAt: remindAt,
-            status: ItemStatus(rawValue: statusRawValue) ?? .pendingConfirmation,
-            assignmentState: TaskAssignmentState(rawValue: assignmentStateRawValue)
-                ?? (ItemStatus(rawValue: statusRawValue) ?? .pendingConfirmation).assignmentState,
-            latestResponse: Self.decode(latestResponseData, defaultValue: nil),
-            responseHistory: Self.decode(responseHistoryData, defaultValue: []),
-            assignmentMessages: Self.decode(assignmentMessagesData, defaultValue: []),
+            status: ItemStatus(rawValue: statusRawValue) ?? .inProgress,
             lastActionByUserID: lastActionByUserID,
             lastActionAt: lastActionAt,
             createdAt: createdAt,
@@ -178,8 +143,7 @@ extension PersistentItem {
             isDraft: isDraft,
             isArchived: isArchived,
             archivedAt: archivedAt,
-            repeatRule: Self.decode(repeatRuleData, defaultValue: nil),
-            reminderRequestedAt: reminderRequestedAt
+            repeatRule: Self.decode(repeatRuleData, defaultValue: nil)
         )
     }
 
@@ -190,16 +154,10 @@ extension PersistentItem {
         title = item.title
         notes = item.notes
         locationText = item.locationText
-        executionRoleRawValue = item.executionRole.rawValue
-        assigneeModeRawValue = item.assigneeMode.rawValue
         dueAt = item.dueAt
         hasExplicitTime = item.hasExplicitTime
         remindAt = item.remindAt
         statusRawValue = item.status.rawValue
-        assignmentStateRawValue = item.assignmentState.rawValue
-        latestResponseData = Self.encode(item.latestResponse)
-        responseHistoryData = Self.encode(item.responseHistory)
-        assignmentMessagesData = Self.encode(item.assignmentMessages)
         lastActionByUserID = item.lastActionByUserID
         lastActionAt = item.lastActionAt
         updatedAt = item.updatedAt
@@ -211,7 +169,6 @@ extension PersistentItem {
         isArchived = item.isArchived
         archivedAt = item.archivedAt
         repeatRuleData = Self.encode(item.repeatRule)
-        reminderRequestedAt = item.reminderRequestedAt
     }
 
     private static func encode<T: Encodable>(_ value: T?) -> Data? {

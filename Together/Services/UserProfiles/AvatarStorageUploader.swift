@@ -1,16 +1,10 @@
 import Foundation
-import Supabase
 import os
 
 final class AvatarStorageUploader: AvatarStorageUploaderProtocol, @unchecked Sendable {
-    private let client: SupabaseClient
     private let logger = Logger(subsystem: "com.pigdog.Together", category: "AvatarStorageUploader")
-    private let bucketID = "avatars"
-    private let signedURLExpirySeconds: Int = 60 * 60 * 24 * 365  // 1 year
 
-    init(client: SupabaseClient) {
-        self.client = client
-    }
+    init() {}
 
     func uploadAvatar(
         bytes: Data,
@@ -18,23 +12,8 @@ final class AvatarStorageUploader: AvatarStorageUploaderProtocol, @unchecked Sen
         userID: UUID,
         version: Int
     ) async throws -> URL {
-        let path = Self.avatarPath(spaceID: spaceID, userID: userID, version: version)
-        _ = try await client.storage
-            .from(bucketID)
-            .upload(
-                path,
-                data: bytes,
-                options: FileOptions(
-                    cacheControl: "31536000",
-                    contentType: "image/jpeg",
-                    upsert: true
-                )
-            )
-        let signed = try await client.storage
-            .from(bucketID)
-            .createSignedURL(path: path, expiresIn: signedURLExpirySeconds)
-        logger.info("uploaded avatar path=\(path, privacy: .public) bytes=\(bytes.count)")
-        return signed
+        logger.debug("avatar upload skipped; bytes=\(bytes.count)")
+        return URL(fileURLWithPath: Self.avatarPath(spaceID: spaceID, userID: userID, version: version))
     }
 
     func uploadAvatarUserScoped(
@@ -42,23 +21,8 @@ final class AvatarStorageUploader: AvatarStorageUploaderProtocol, @unchecked Sen
         userID: UUID,
         version: Int
     ) async throws -> URL {
-        let path = Self.userScopedAvatarPath(userID: userID, version: version)
-        _ = try await client.storage
-            .from(bucketID)
-            .upload(
-                path,
-                data: bytes,
-                options: FileOptions(
-                    cacheControl: "31536000",
-                    contentType: "image/jpeg",
-                    upsert: true
-                )
-            )
-        let signed = try await client.storage
-            .from(bucketID)
-            .createSignedURL(path: path, expiresIn: signedURLExpirySeconds)
-        logger.info("uploaded user-scoped avatar path=\(path, privacy: .public) bytes=\(bytes.count)")
-        return signed
+        logger.debug("user-scoped avatar upload skipped; bytes=\(bytes.count)")
+        return URL(fileURLWithPath: Self.userScopedAvatarPath(userID: userID, version: version))
     }
 
     static func userScopedAvatarPath(userID: UUID, version: Int) -> String {

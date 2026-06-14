@@ -5,7 +5,6 @@ enum NotificationActionCatalog {
     static let taskCategoryIdentifier = "together.notification.task"
     static let genericCategoryIdentifier = "together.notification.generic"
     static let taskNudgeCategoryIdentifier = "TASK_NUDGE"
-    static let pairStatusCategoryIdentifier = "PAIR_STATUS"
     static let completeActionIdentifier = "together.notification.complete"
     static let completeNudgeActionIdentifier = "COMPLETE_NUDGE"
 
@@ -53,12 +52,6 @@ enum NotificationActionCatalog {
                         options: []
                     )
                 ],
-                intentIdentifiers: [],
-                options: [.customDismissAction]
-            ),
-            UNNotificationCategory(
-                identifier: pairStatusCategoryIdentifier,
-                actions: [],
                 intentIdentifiers: [],
                 options: [.customDismissAction]
             )

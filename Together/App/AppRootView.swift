@@ -13,10 +13,6 @@ struct AppRootView: View {
     var body: some View {
         @Bindable var router = appContext.router
 
-        // 显式 read isPremium 建立 @Observable 追踪依赖，确保 body re-evaluate 时
-        // .onChange(of:) 能检测到变化（修 Phase 2 真机 onChange 不触发的 bug）
-        let isPremiumNow = appContext.container.premiumGate.isPremium
-
         NavigationStack(path: $rootNavigationPath) {
             rootSurfaceView(router: router)
                 .toolbar {
@@ -52,24 +48,19 @@ struct AppRootView: View {
             .interactiveDismissDisabled(false)
             .modifier(ComposerPresentationSizingModifier())
         }
+        .sheet(isPresented: $router.isOCRImportPresented) {
+            OCRImportView(
+                viewModel: OCRImportViewModel(),
+                appContext: appContext
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(28)
+        }
         .environment(\.symbolVariants, .none)
         .font(AppTheme.typography.body)
         .tint(AppTheme.colors.title)
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
-        .onChange(of: appContext.projectsViewModel.pendingUpsellTrigger) { _, new in
-            if let trigger = new {
-                appContext.rootPaywallPresentation.requestTrigger(trigger)
-            }
-        }
-        .onChange(of: isPremiumNow) { oldValue, newValue in
-            // Pro → Free 运行时：数据面停同步 + UI 面 lapse sheet
-            Task {
-                await appContext.handlePremiumStatusChange(
-                    wasPremium: oldValue,
-                    isPremium: newValue
-                )
-            }
-        }
         .onChange(of: router.isProfilePresented) { _, isPresented in
             guard isPresented else { return }
             guard rootNavigationPath.count == 0 else { return }
@@ -80,7 +71,6 @@ struct AppRootView: View {
                 router.isProfilePresented = false
             }
         }
-        .paywallRootSheet(appContext)
         .task {
             StartupTrace.mark("AppRootView.visible")
         }
@@ -96,6 +86,9 @@ struct AppRootView: View {
                 routinesViewModel: appContext.routinesViewModel,
                 isProjectModePresented: router.isProjectModePresented,
                 isRoutinesModePresented: router.isRoutinesModePresented,
+                onProfileTapped: {
+                    openProfile(router: router)
+                },
                 onCreateTaskTapped: {
                     closeProjectsMode(router: router)
                     router.pendingComposerTitle = nil
@@ -120,24 +113,22 @@ struct AppRootView: View {
         let isProjectsModeActive = router.isProjectModePresented
         let showsRoutinesButton = appContext.sessionStore.activeMode == .single
 
-        ToolbarItem(placement: .bottomBar) {
-            Button {
-                HomeInteractionFeedback.selection()
-                if isOverlayActive {
+        if isOverlayActive {
+            ToolbarItem(placement: .bottomBar) {
+                Button {
+                    HomeInteractionFeedback.selection()
                     returnToToday(router: router)
-                } else {
-                    openProfile(router: router)
+                } label: {
+                    Text("今天")
+                        .font(AppTheme.typography.sized(15, weight: .semibold))
                 }
-            } label: {
-                Text(isOverlayActive ? "今天" : "我的")
-                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                .tint(dockSelectionTint)
+                .accessibilityLabel("返回今天")
+                .accessibilityHint("退出当前视图回到 Today")
             }
-            .tint(isOverlayActive ? dockSelectionTint : AppTheme.colors.title)
-            .accessibilityLabel(isOverlayActive ? "返回今天" : "打开我的")
-            .accessibilityHint(isOverlayActive ? "退出当前视图回到 Today" : "打开个人页")
-        }
 
-        ToolbarSpacer(.flexible, placement: .bottomBar)
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+        }
 
         ToolbarItemGroup(placement: .bottomBar) {
             Button {
@@ -168,6 +159,17 @@ struct AppRootView: View {
         }
 
         ToolbarSpacer(.fixed, placement: .bottomBar)
+
+        ToolbarItem(placement: .bottomBar) {
+            Button {
+                HomeInteractionFeedback.selection()
+                router.isOCRImportPresented = true
+            } label: {
+                Image(systemName: "doc.text.viewfinder")
+            }
+            .accessibilityLabel("OCR 导入")
+            .accessibilityHint("拍摄或选择纸面笔记生成草稿")
+        }
 
         ToolbarItem(placement: .bottomBar) {
             Button {
@@ -218,13 +220,7 @@ struct AppRootView: View {
         case .today, .calendar:
             router.activeComposer = .newTask
         case .projects:
-            // 入口预检：超额直接弹 paywall，不弹 Composer——
-            // 避免用户填一堆草稿再被告知付费的糟糕体验
-            if appContext.projectsViewModel.canCreateAnotherForCurrentUser() {
-                router.activeComposer = .newProject
-            } else {
-                appContext.projectsViewModel.requestQuotaUpsell()
-            }
+            router.activeComposer = .newProject
         case .routines:
             router.activeComposer = .newPeriodicTask
         }

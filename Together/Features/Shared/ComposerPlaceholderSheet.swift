@@ -73,7 +73,6 @@ struct ComposerPlaceholderSheet: View {
                 ComposerPage(
                     category: draftState.category,
                     draftState: $draftState,
-                    isPairMode: appContext.sessionStore.isViewingPairSpace,
                     templates: taskTemplates,
                     isLoadingTemplates: isLoadingTemplates,
                     onTemplatePicked: applyTemplate,
@@ -679,49 +678,25 @@ struct ComposerPlaceholderSheet: View {
                     draft: draftState.taskDraft()
                 )
                 await appContext.homeViewModel.reload(insertedItemIDs: [item.id], reason: .userInserted)
-                await appContext.flushRecordedSharedMutation(
-                    SyncChange(
-                        entityKind: .task,
-                        operation: .upsert,
-                        recordID: item.id,
-                        spaceID: spaceID
-                    )
-                )
+                await appContext.refreshTodayWidgetSnapshot()
             case .periodic:
                 let draft = draftState.periodicTaskDraft()
-                let created = try await appContext.container.periodicTaskApplicationService.createTask(
+                _ = try await appContext.container.periodicTaskApplicationService.createTask(
                     in: spaceID,
                     actorID: actorID,
                     draft: draft
                 )
                 await appContext.routinesViewModel.reload()
-                await appContext.flushRecordedSharedMutation(
-                    SyncChange(
-                        entityKind: .periodicTask,
-                        operation: .upsert,
-                        recordID: created.id,
-                        spaceID: spaceID
-                    )
-                )
+                await appContext.refreshTodayWidgetSnapshot()
             case .project:
-                // 走 ViewModel.createNew 以激活项目配额门禁。
-                // 超额时 created 为 nil，pendingUpsellTrigger 已被设置——
-                // sheet 正常 dismiss，ProjectsView 观察到 trigger 后弹 alert。
                 let created = await appContext.projectsViewModel.createNew(
                     draftState.projectDraft(spaceID: spaceID, creatorID: actorID),
                     subtasks: draftState.projectSubtasks.map {
                         (title: $0.title, isCompleted: $0.isCompleted)
                     }
                 )
-                if let project = created {
-                    await appContext.flushRecordedSharedMutation(
-                        SyncChange(
-                            entityKind: .project,
-                            operation: .upsert,
-                            recordID: project.id,
-                            spaceID: spaceID
-                        )
-                    )
+                if created != nil {
+                    await appContext.refreshTodayWidgetSnapshot()
                 }
             }
 
@@ -786,8 +761,6 @@ private struct ComposerDraftState: Hashable {
     var notes = ""
     var linkedListID: UUID?
     var linkedProjectID: UUID?
-    var assigneeMode: TaskAssigneeMode = .self
-    var assignmentNote = ""
     var taskDate: Date
     var taskTime: Date?
     var projectTargetDate: Date?
@@ -873,11 +846,6 @@ private struct ComposerDraftState: Hashable {
                 dueAt: dueAt,
                 hasExplicitTime: taskTime != nil,
                 remindAt: remindAt,
-                assigneeMode: assigneeMode,
-                assignmentState: assigneeMode == .partner ? .pendingResponse : .active,
-                assignmentNote: assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? nil
-                    : assignmentNote.trimmingCharacters(in: .whitespacesAndNewlines),
                 isPinned: isPinned,
                 repeatRule: repeatRule
             )
@@ -966,8 +934,6 @@ private struct ComposerDraftState: Hashable {
         linkedListID = template.listID
         linkedProjectID = template.projectID
         isPinned = template.isPinned
-        assigneeMode = .self
-        assignmentNote = ""
         projectSubtasks = []
         projectSubtaskInput = ""
         projectTargetDate = nil
@@ -1168,7 +1134,6 @@ enum TaskCreationDateValidator {
 private struct ComposerPage: View {
     let category: ComposerCategory
     @Binding var draftState: ComposerDraftState
-    let isPairMode: Bool
     let templates: [TaskTemplate]
     let isLoadingTemplates: Bool
     let onTemplatePicked: (TaskTemplate) -> Void
@@ -1218,11 +1183,6 @@ private struct ComposerPage: View {
                 maximumNumberOfLines: 8
             )
 
-            if isPairMode, category != .project, category != .periodic {
-                composerAssignmentSection
-                    .padding(.top, AppTheme.spacing.sm)
-            }
-
             if category == .project && isProjectSubtaskMode {
                 ComposerProjectSubtasksInline(draftState: $draftState)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -1232,57 +1192,9 @@ private struct ComposerPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-
-    private var composerAssignmentSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                    assignmentLabel
-                    assignmentPicker
-                        .frame(width: 236)
-                }
-
-                VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-                    assignmentLabel
-                    assignmentPicker
-                }
-            }
-
-            if draftState.assigneeMode == .partner {
-                TextField("补一句说明或留言", text: $draftState.assignmentNote, axis: .vertical)
-                    .font(AppTheme.typography.sized(15, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.82))
-                    .lineLimit(1...3)
-                    .padding(.horizontal, AppTheme.spacing.md) // 14→16
-                    .padding(.vertical, AppTheme.spacing.md) // 12→16
-                    .background(
-                        RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                            .fill(AppTheme.colors.surfaceElevated)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                            .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
-                    }
-            }
-        }
-    }
-
-    private var assignmentLabel: some View {
-        Text("归属给")
-            .font(AppTheme.typography.sized(14, weight: .bold))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-            .frame(minWidth: 50, alignment: .leading)
-    }
-
-    private var assignmentPicker: some View {
-        Picker("归属给", selection: $draftState.assigneeMode) {
-            Text("自己").tag(TaskAssigneeMode.`self`)
-            Text("对方").tag(TaskAssigneeMode.partner)
-            Text("一起").tag(TaskAssigneeMode.both)
-        }
-        .pickerStyle(.segmented)
-    }
 }
+
+
 
 private struct ComposerFocusableTextView: UIViewRepresentable {
     @Binding var text: String

@@ -4,14 +4,39 @@
 
 ## 当前状态
 
-- 日期：2026-05-10
+- 日期：2026-06-13
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
-- 产品主轴：iPhone-only 的单人 Todo 效率工具。
-- 当前策略：V1 优先跑通单人 Todo 主链路；V2 再扩展双人协作；V3 多人 Space 仅做底层预留。
+- 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
+- 当前策略：彻底移除双人协作、多人预留、Supabase、RevenueCat、Paywall、PremiumGate；本地 SwiftData 是数据真相源，CloudKit private database 是唯一跨设备同步/恢复能力。
+- 新增主能力：OCR 扫描导入纸面笔记，先生成任务/项目草稿，用户确认后再写入 SwiftData。
 - Chronicle：暂不开启；先使用项目文档、AGENTS 和 Skill 机制承接记忆。
 
 ## 当前进行中交接
+
+- 分支：`main`
+- 当前任务：7 阶段纯单人化迁移已完成实现与本轮验证；后续进入用户验收、真机 OCR/CloudKit/Widget 验证和并发 warning 收敛。
+- 已确认边界：
+  - 不迁移旧 Supabase 数据，允许删除。
+  - 不保留 RevenueCat、Paywall、PremiumGate、Supabase webhook。
+  - CloudKit 作为唯一跨设备同步/恢复能力，本地 SwiftData 必须保留。
+  - OCR 第一版接受“识别 -> 草稿确认 -> 入库”。
+- 当前结果：
+  - 已删除旧 Supabase / RevenueCat / Paywall / PremiumGate / webhook 代码与 Supabase 目录。
+  - 已删除双人协作、配对、邀请、重要日期、任务聊天、共享 mutation UI 与旧 CKSyncEngine/outbox/record codec 链路。
+  - `PersistenceController` 生产配置使用 SwiftData `cloudKitDatabase: .private("iCloud.com.pigdog.Together")`；in-memory preview/test 使用 `.none`。
+  - OCR MVP 已落地：底部工具栏 `doc.text.viewfinder` 入口；支持拍照或选图；`VNRecognizeTextRequest` 后台识别；本地 parser 生成任务/项目草稿；用户确认后才写入任务或项目。
+  - 测试 target 已重建为当前架构的 Swift Testing 基础测试，覆盖 Item 状态机、单人 SessionStore、OCR parser。
+- 当前验证：
+  - `git diff --check` 通过。
+  - XcodeBuildMCP `build_run_sim` 通过。
+  - XcodeBuildMCP `test_sim` 通过，4/4 passed。
+- 已知遗留：
+  - 仍有既有 Swift 6 actor/concurrency warnings，主要在权限服务、repository、widget shared store 和 mock avatar uploader；本轮未扩展处理。
+  - OCR 未做真机拍照与真实 iCloud 同步验收；模拟器只能验证构建、启动、照片入口和 parser 测试。
+  - `SyncCoordinatorProtocol` 仍作为 repository 兼容 no-op 存在；没有手写 CloudKit 发送/拉取链路，后续可进一步删除 repository 层 `recordLocalChange` 样板。
+
+## 历史交接（旧方向，仅供溯源）
 
 - 分支：`main`
 - 当前任务：会员支付主链路已通过真机验收；上架前合规收敛已完成仓库内可控部分，包括法律文案、权限声明、Privacy Manifest、开发者赠权 runbook、App Store Connect 人工核对清单与 ASC 可粘贴送审材料。2026-05-10 已将桌面宣传截图整理为 iPhone 6.9 安全上传包；V1 target 已改为 iPhone-only，build 46 已重新上传 TestFlight，避免继续按 Universal App 补 iPad 截图。
@@ -102,28 +127,28 @@
 
 ## 产品记忆
 
-- 产品定位：以单人工作与日常待办管理为核心，后续可扩展到双人协作。
+- 产品定位：纯单人 Todo 效率工具，不再扩展双人或多人协作。
 - V1 一级结构：Today、清单、项目、日历、我。
 - Task 是当前 IA 核心对象；清单、项目、日历是不同观察维度。
 - 当前首页 UI 保留，语义上作为单人模式 Today 首页继续深化。
-- 决策、纪念日、邀请、绑定、关系页属于后续附加模块或旧逻辑遗留，不作为 V1 主链路。
+- 决策、纪念日、邀请、绑定、关系页属于旧逻辑遗留，后续应删除或下线，不作为产品路线。
 - 当前不做多人模式、社区、内容流、开放社交，也不做只为视觉好看的复杂交互。
-- 双人 Today 的重要日期胶囊规则：默认 anchor 为 `.anniversary`（在一起的日子）；手动分页池包含所有仍有下一次发生日期的纪念日，anchor 第一、最新添加的非 anchor 第二；临近自动提示池独立限制为当天或未来 7 天内的非 anchor 日期。临近日期可临时自动顶上来，过期后回到用户手动滑到的日期；用户在临近期间主动滑走时，应尊重当前手动选择。生日不是一次性日期，只能是每年公历或农历重复。
+- OCR 导入规则：OCR 结果先进入草稿确认页，用户确认前不得写入真实任务或项目。
 
 ## 工程记忆
 
 - 平台：iPhone only。
 - 技术：SwiftUI 优先；仅在 SwiftUI 无法合理实现时局部使用 UIKit。
 - 环境目标：Xcode 26.2、Swift、iOS 18+。
-- 当前阶段：本地数据 + mock 登录 + 可替换服务层；长期方案需不阻断 CloudKit。
+- 当前阶段：本地 SwiftData + CloudKit private database；不得继续保留 Supabase 或 RevenueCat 作为核心链路。
 - Swift 代码按 Swift 6.2+ 现代写法推进，优先 `async/await` 和 `@Observable`。
-- 新开发优先使用 `spaceID` 语义，不继续扩散 `relationshipID`。
-- 旧的 `PairSpace / relationshipID / Invite / BindingState` 属于历史包袱，改造时应兼容迁移，不一次性大拆。
+- 新开发不得继续扩散 `spaceID / PairSpace / relationshipID / Invite / BindingState / Premium / Supabase` 语义；这些属于删除对象。
+- 旧 store 和旧 Supabase 数据允许删除；如果为安全启动保留临时兼容层，必须标明删除阶段和验证方式。
 - 状态机逻辑、数据模型转换、repository 行为和关键 ViewModel 行为必须可单测。
 
 ## 同步与数据恢复记忆
 
-- 单人模式的稳定恢复主链路应以 Supabase 为 canonical backend；CloudKit 不应作为唯一恢复依据。
+- 单人模式的稳定恢复主链路改为 CloudKit private database；Supabase 不再作为 canonical backend 或恢复依据。
 - CloudKit 适合 Apple-only 辅助备份或系统级同步，但不适合承载 Together 当前的账号恢复、Pro 权限控制、后台诊断和跨端策略。
 - 如果同时存在 CloudKit 与 Supabase，不要让二者共用一个“已确认”语义；CloudKit confirmed 不等于 Supabase 已入库。
 - 对单人任务恢复问题，优先按层排查：本地 SwiftData 是否有任务、本地 `PersistentSyncChange` outbox 是否有记录、outbox lifecycle 是 `pending / sending / failed / confirmed` 哪一类、Supabase 是否已有对应 `tasks.id`、设备安装表是否是当前 build。
@@ -229,5 +254,5 @@
 
 - 是否启用 Codex Memories 的用户级配置。
 - Chronicle 是否在低敏任务中短时试用。
-- V1 全局创建入口最终是单按钮直达还是展开式快捷菜单。
-- 是否近期启动 `PairSpace -> Space` 命名迁移，还是继续通过兼容层过渡。
+- 全局创建入口最终是单按钮直达、展开式快捷菜单，还是任务创建与 OCR 导入两个明确入口。
+- OCR 草稿是否需要跨启动持久化，还是仅在当前导入会话内短期保存。

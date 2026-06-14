@@ -77,40 +77,12 @@ struct TogetherApp: App {
                 }
                 .onChange(of: appBootstrapper.appContext?.sessionStore.authState) { _, newValue in
                     if newValue == .signedOut, appBootstrapper.phase == .ready {
-                        if let appContext = appBootstrapper.appContext {
-                            Task { await appContext.teardownPremiumGate() }
-                        }
                         appBootstrapper.handleSignOut()
                     }
                 }
-                // Pro→Free 运行时 onChange 已挪到 AppRootView（那边 body 显式读 isPremium
-                // 建立 observation 追踪；TogetherApp body 的 onChange modifier 参数不足以让
-                // SwiftUI 追踪 @Observable computed property 变化，iOS 26 真机实测不触发）
                 .onOpenURL { url in
-                    // Universal Link 邀请跳转
                     if let appContext = appBootstrapper.appContext {
                         appContext.handleDeepLink(url: url)
-                    }
-                }
-                .onChange(of: appBootstrapper.appContext?.sessionStore.activeMode) { _, newMode in
-                    guard let appContext = appBootstrapper.appContext,
-                          appBootstrapper.phase == .ready
-                    else { return }
-                    // UI 模式切换不再决定双人同步生命周期，但仍需要刷新当前空间视图
-                    appContext.updateSyncPolling()
-                    if newMode == .pair {
-                        Task { await appContext.syncPairSpaceIfNeeded() }
-                    }
-                }
-                .onChange(of: appBootstrapper.appContext?.sessionStore.pairSpaceSummary) { _, _ in
-                    // 绑定状态变化后立即重评估双人同步，不依赖 activeMode
-                    guard let appContext = appBootstrapper.appContext,
-                          appBootstrapper.phase == .ready
-                    else { return }
-                    appContext.updateSyncPolling()
-                    Task {
-                        await appContext.refreshAnniversaryWidgetSnapshot()
-                        await appContext.syncPairSpaceIfNeeded()
                     }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
@@ -124,15 +96,10 @@ struct TogetherApp: App {
                         if lockEnabled {
                             appContext.sessionStore.isAppLocked = true
                         }
-                        // CKSyncEngine automatically handles background scheduling
+                        // SwiftData handles CloudKit scheduling for the private database.
                     case .active:
                         appContext.updateSyncPolling()
-                        if appContext.sessionStore.hasActivePairSpace {
-                            Task { await appContext.syncPairSpaceIfNeeded() }
-                        }
                         Task { await appContext.handleAppBecameActive() }
-                        Task { await appContext.refreshPremiumGateIfStale() }
-                        Task { await appContext.autoCheckInviteAcceptedIfPending() }
                     default:
                         break
                     }

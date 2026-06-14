@@ -9,51 +9,6 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
     case space
     case memberProfile
     case avatarAsset
-    case taskMessage   // Supabase task_messages event stream: comments, nudges, future task-scoped events
-    case importantDate
-
-    /// Maps entity kind to the CKRecord type used by the codec registry.
-    var ckRecordType: String {
-        switch self {
-        case .task: return ItemRecordCodable.ckRecordType
-        case .taskList: return TaskListRecordCodable.ckRecordType
-        case .project: return ProjectRecordCodable.ckRecordType
-        case .projectSubtask: return ProjectSubtaskRecordCodable.ckRecordType
-        case .periodicTask: return PeriodicTaskRecordCodable.ckRecordType
-        case .space: return SpaceRecordCodable.ckRecordType
-        case .memberProfile: return MemberProfileRecordCodable.ckRecordType
-        case .avatarAsset: return AvatarAssetRecordCodable.ckRecordType
-        case .taskMessage: return "TaskMessage"
-        case .importantDate: return "ImportantDate"
-        }
-    }
-
-    init?(ckRecordType: String) {
-        switch ckRecordType {
-        case ItemRecordCodable.ckRecordType:
-            self = .task
-        case TaskListRecordCodable.ckRecordType:
-            self = .taskList
-        case ProjectRecordCodable.ckRecordType:
-            self = .project
-        case ProjectSubtaskRecordCodable.ckRecordType:
-            self = .projectSubtask
-        case PeriodicTaskRecordCodable.ckRecordType:
-            self = .periodicTask
-        case SpaceRecordCodable.ckRecordType:
-            self = .space
-        case MemberProfileRecordCodable.ckRecordType:
-            self = .memberProfile
-        case AvatarAssetRecordCodable.ckRecordType:
-            self = .avatarAsset
-        case "TaskMessage":
-            self = .taskMessage
-        case "ImportantDate":
-            self = .importantDate
-        default:
-            return nil
-        }
-    }
 }
 
 enum SyncOperationKind: String, Codable, Hashable, Sendable {
@@ -88,77 +43,6 @@ struct SyncChange: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-enum SyncMutationLifecycleState: String, Codable, Hashable, Sendable {
-    case pending
-    case sending
-    case confirmed
-    case failed
-}
-
-struct SyncMutationSnapshot: Hashable, Sendable {
-    let change: SyncChange
-    let lifecycleState: SyncMutationLifecycleState
-    let lastAttemptedAt: Date?
-    let confirmedAt: Date?
-    let lastError: String?
-}
-
-struct SyncCursor: Codable, Hashable, Sendable {
-    let token: String
-    let updatedAt: Date
-
-    /// Serialized CKServerChangeToken data for incremental zone fetches.
-    /// When present, the sync gateway uses this instead of the legacy token string.
-    var serverChangeTokenData: Data?
-
-    nonisolated init(token: String, updatedAt: Date, serverChangeTokenData: Data? = nil) {
-        self.token = token
-        self.updatedAt = updatedAt
-        self.serverChangeTokenData = serverChangeTokenData
-    }
-}
-
-struct SyncPushResult: Codable, Hashable, Sendable {
-    let pushedCount: Int
-    let cursor: SyncCursor?
-
-    nonisolated init(pushedCount: Int, cursor: SyncCursor?) {
-        self.pushedCount = pushedCount
-        self.cursor = cursor
-    }
-}
-
-struct SyncPullResult: Codable, Hashable, Sendable {
-    let cursor: SyncCursor?
-    let changedRecordIDs: [UUID]
-    let payload: RemoteSyncPayload
-
-    nonisolated init(
-        cursor: SyncCursor?,
-        changedRecordIDs: [UUID],
-        payload: RemoteSyncPayload = .empty
-    ) {
-        self.cursor = cursor
-        self.changedRecordIDs = changedRecordIDs
-        self.payload = payload
-    }
-}
-
 protocol SyncCoordinatorProtocol: Sendable {
     func recordLocalChange(_ change: SyncChange) async
-    func pendingChanges() async -> [SyncChange]
-    func mutationLog(for spaceID: UUID) async -> [SyncMutationSnapshot]
-    func clearPendingChanges(recordIDs: [UUID]) async
-    func syncState(for spaceID: UUID) async -> SyncState?
-    func markPushSuccess(
-        for spaceID: UUID,
-        cursor: SyncCursor?,
-        clearedRecordIDs: [UUID],
-        syncedAt: Date
-    ) async
-    func markSyncFailure(
-        for spaceID: UUID,
-        errorMessage: String,
-        failedAt: Date
-    ) async
 }

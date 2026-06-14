@@ -41,27 +41,20 @@ struct Badge: View {
     }
 }
 
-/// 双人/单人模式指示器。
-/// HomeView 3 处（spaceModeLine / projectModeIndicator / routinesModeHeaderMeta）原本重复定义。
-/// 默认色：active = pairAccent，可覆盖为 coral（project / routines 用）。
 struct ModeIndicator: View {
-    let isPairMode: Bool
-    var pairLabel: String = "双人模式"
-    var soloLabel: String = "单人模式"
-    var pairTint: Color = AppTheme.colors.pairAccent
-    var pairBackground: Color = AppTheme.colors.pairAccentSoft
-    var soloTint: Color = AppTheme.colors.sky
-    var soloBackground: Color = AppTheme.colors.sky.opacity(0.12)
+    var label: String = "今日视图"
+    var tint: Color = AppTheme.colors.sky
+    var background: Color = AppTheme.colors.sky.opacity(0.12)
 
     var body: some View {
-        Text(isPairMode ? pairLabel : soloLabel)
+        Text(label)
             .font(AppTheme.typography.sized(12, weight: .bold))
-            .foregroundStyle(isPairMode ? pairTint : soloTint)
+            .foregroundStyle(tint)
             .padding(.horizontal, AppTheme.spacing.sm)
             .padding(.vertical, AppTheme.spacing.xxs)
             .background(
                 Capsule(style: .continuous)
-                    .fill(isPairMode ? pairBackground : soloBackground)
+                    .fill(background)
             )
     }
 }
@@ -97,11 +90,7 @@ struct PillToggleButton: View {
         Badge(text: "共享", tint: AppTheme.colors.coral, size: .small)
         Badge(text: "已完成", tint: AppTheme.colors.success)
         Badge(text: "超期", tint: AppTheme.colors.danger, size: .regular)
-        ModeIndicator(isPairMode: true)
-        ModeIndicator(isPairMode: false)
-        ModeIndicator(isPairMode: true,
-                      pairTint: AppTheme.colors.coral,
-                      pairBackground: AppTheme.colors.coral.opacity(0.12))
+        ModeIndicator()
         HStack {
             PillToggleButton(title: "全部", isActive: true) {}
             PillToggleButton(title: "你负责", isActive: false) {}

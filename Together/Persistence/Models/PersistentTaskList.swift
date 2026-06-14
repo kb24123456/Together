@@ -3,16 +3,16 @@ import SwiftData
 
 @Model
 final class PersistentTaskList {
-    var id: UUID
-    var spaceID: UUID
+    var id: UUID = UUID()
+    var spaceID: UUID = UUID()
     var creatorID: UUID = UUID()
-    var name: String
-    var kindRawValue: String
+    var name: String = ""
+    var kindRawValue: String = TaskListKind.custom.rawValue
     var colorToken: String?
-    var sortOrder: Double
-    var isArchived: Bool
-    var createdAt: Date
-    var updatedAt: Date
+    var sortOrder: Double = 0
+    var isArchived: Bool = false
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
     var isLocallyDeleted: Bool = false
 
     init(

@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class PersistentSpace {
-    var id: UUID
-    var typeRawValue: String
-    var displayName: String
-    var ownerUserID: UUID
-    var statusRawValue: String
-    var createdAt: Date
-    var updatedAt: Date
+    var id: UUID = UUID()
+    var typeRawValue: String = SpaceType.single.rawValue
+    var displayName: String = ""
+    var ownerUserID: UUID = UUID()
+    var statusRawValue: String = SpaceStatus.active.rawValue
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
     var archivedAt: Date?
 
     init(

@@ -13,7 +13,7 @@ protocol AvatarStorageUploaderProtocol: Sendable {
     /// Uploads JPEG bytes to avatars/users/{userID}/{version}.jpg (user-scoped,
     /// not bound to any space) and returns a signed URL valid for ~1 year.
     /// Used by user_profiles writes so reinstall + SIWA can recover the avatar
-    /// even if the user has never paired.
+    /// even if no remote avatar service is configured.
     func uploadAvatarUserScoped(
         bytes: Data,
         userID: UUID,

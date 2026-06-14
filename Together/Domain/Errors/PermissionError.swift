@@ -1,6 +1,6 @@
 import Foundation
 
-/// Errors thrown when a pair-space permission check fails.
+/// Errors thrown when a local permission check fails.
 enum PermissionError: LocalizedError {
     case notCreator
     case notSpaceOwner

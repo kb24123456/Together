@@ -15,9 +15,6 @@ actor LocalSpaceService: SpaceServiceProtocol {
                 sortBy: [SortDescriptor(\PersistentSpace.updatedAt, order: .reverse)]
             )
         )) ?? []
-        let pairSpaceRecords = (try? context.fetch(FetchDescriptor<PersistentPairSpace>())) ?? []
-        let membershipRecords = (try? context.fetch(FetchDescriptor<PersistentPairMembership>())) ?? []
-
         let activeSingleSpaceRecords = spaceRecords.filter {
             $0.typeRawValue == SpaceType.single.rawValue && $0.statusRawValue != SpaceStatus.archived.rawValue
         }
@@ -34,21 +31,10 @@ actor LocalSpaceService: SpaceServiceProtocol {
 
         let singleSpace = selectedSingleSpaceRecord?.domainModel
 
-        let pairSummary = userID.flatMap {
-            PairSpaceSummaryResolver.resolve(
-                for: $0,
-                spaces: spaceRecords,
-                pairSpaces: pairSpaceRecords,
-                memberships: membershipRecords
-            )
-        }
-
-        let availableModes: [AppMode] = pairSummary?.pairSpace.status == .active ? [.single, .pair] : [.single]
         return SpaceContext(
             singleSpace: singleSpace,
-            pairSpaceSummary: pairSummary,
             activeMode: .single,
-            availableModes: availableModes
+            availableModes: [.single]
         )
     }
 

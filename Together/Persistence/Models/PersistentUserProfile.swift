@@ -3,8 +3,8 @@ import SwiftData
 
 @Model
 final class PersistentUserProfile {
-    var userID: UUID
-    var displayName: String
+    var userID: UUID = UUID()
+    var displayName: String = ""
     var avatarSystemName: String?
     var avatarPhotoFileName: String?
     var avatarAssetID: String?
@@ -12,16 +12,15 @@ final class PersistentUserProfile {
     // Legacy/local repair payload only. Shared-authority avatar semantics must rely on
     // avatarAssetID/avatarVersion, while disk files remain a rebuildable runtime cache.
     @Attribute(.externalStorage) var avatarPhotoData: Data?
-    var taskReminderEnabled: Bool
-    var dailySummaryEnabled: Bool
-    var calendarReminderEnabled: Bool
-    var futureCollaborationInviteEnabled: Bool
-    var taskUrgencyWindowMinutes: Int
-    var defaultSnoozeMinutes: Int
-    var quickTimePresetMinutes: [Int]
-    var completedTaskAutoArchiveEnabled: Bool
-    var completedTaskAutoArchiveDays: Int
-    var updatedAt: Date
+    var taskReminderEnabled: Bool = true
+    var dailySummaryEnabled: Bool = true
+    var calendarReminderEnabled: Bool = true
+    var taskUrgencyWindowMinutes: Int = 30
+    var defaultSnoozeMinutes: Int = NotificationSettings.defaultSnoozeMinutes
+    var quickTimePresetMinutes: [Int] = NotificationSettings.defaultQuickTimePresetMinutes
+    var completedTaskAutoArchiveEnabled: Bool = false
+    var completedTaskAutoArchiveDays: Int = NotificationSettings.defaultCompletedTaskAutoArchiveDays
+    var updatedAt: Date = Date.now
 
     init(
         userID: UUID,
@@ -34,7 +33,6 @@ final class PersistentUserProfile {
         taskReminderEnabled: Bool,
         dailySummaryEnabled: Bool,
         calendarReminderEnabled: Bool,
-        futureCollaborationInviteEnabled: Bool,
         taskUrgencyWindowMinutes: Int,
         defaultSnoozeMinutes: Int,
         quickTimePresetMinutes: [Int],
@@ -52,7 +50,6 @@ final class PersistentUserProfile {
         self.taskReminderEnabled = taskReminderEnabled
         self.dailySummaryEnabled = dailySummaryEnabled
         self.calendarReminderEnabled = calendarReminderEnabled
-        self.futureCollaborationInviteEnabled = futureCollaborationInviteEnabled
         self.taskUrgencyWindowMinutes = taskUrgencyWindowMinutes
         self.defaultSnoozeMinutes = defaultSnoozeMinutes
         self.quickTimePresetMinutes = quickTimePresetMinutes
@@ -75,7 +72,6 @@ extension PersistentUserProfile {
             taskReminderEnabled: user.preferences.taskReminderEnabled,
             dailySummaryEnabled: user.preferences.dailySummaryEnabled,
             calendarReminderEnabled: user.preferences.calendarReminderEnabled,
-            futureCollaborationInviteEnabled: user.preferences.futureCollaborationInviteEnabled,
             taskUrgencyWindowMinutes: user.preferences.taskUrgencyWindowMinutes,
             defaultSnoozeMinutes: user.preferences.defaultSnoozeMinutes,
             quickTimePresetMinutes: user.preferences.quickTimePresetMinutes,
@@ -96,7 +92,6 @@ extension PersistentUserProfile {
             taskReminderEnabled: taskReminderEnabled,
             dailySummaryEnabled: dailySummaryEnabled,
             calendarReminderEnabled: calendarReminderEnabled,
-            futureCollaborationInviteEnabled: futureCollaborationInviteEnabled,
             taskUrgencyWindowMinutes: NotificationSettings.normalizedSnoozeMinutes(taskUrgencyWindowMinutes),
             defaultSnoozeMinutes: NotificationSettings.normalizedSnoozeMinutes(defaultSnoozeMinutes),
             quickTimePresetMinutes: NotificationSettings.normalizedQuickTimePresetMinutes(quickTimePresetMinutes),
@@ -119,7 +114,6 @@ extension PersistentUserProfile {
         taskReminderEnabled = user.preferences.taskReminderEnabled
         dailySummaryEnabled = user.preferences.dailySummaryEnabled
         calendarReminderEnabled = user.preferences.calendarReminderEnabled
-        futureCollaborationInviteEnabled = user.preferences.futureCollaborationInviteEnabled
         taskUrgencyWindowMinutes = NotificationSettings.normalizedSnoozeMinutes(user.preferences.taskUrgencyWindowMinutes)
         defaultSnoozeMinutes = NotificationSettings.normalizedSnoozeMinutes(user.preferences.defaultSnoozeMinutes)
         quickTimePresetMinutes = NotificationSettings.normalizedQuickTimePresetMinutes(user.preferences.quickTimePresetMinutes)

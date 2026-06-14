@@ -5,7 +5,6 @@ enum ProfileExpandedSetting: Hashable {
     case taskUrgency
     case defaultSnooze
     case completedArchive
-    case pairQuickReplies
     case appearance
 }
 
@@ -39,7 +38,6 @@ enum ProfileCustomDurationKind: Hashable, Identifiable {
 final class ProfileViewModel {
     private let sessionStore: SessionStore
     private let authService: AuthServiceProtocol
-    private let pairingService: PairingServiceProtocol
     private let userProfileRepository: UserProfileRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
@@ -48,32 +46,19 @@ final class ProfileViewModel {
     private let projectRepository: ProjectRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
     private let biometricAuthService: BiometricAuthServiceProtocol
-    private let premiumGate: PremiumGate
 
     var onTaskMutated: ((_ spaceID: UUID) -> Void)?
     var loadState: LoadableState = .idle
     var notificationAuthorization: NotificationAuthorizationStatus = .notDetermined
     var expandedSetting: ProfileExpandedSetting?
     var customDurationSheet: ProfileCustomDurationKind?
-    var inviteCodeEntryPresented: Bool = false
-    var isCheckingInvite: Bool = false
-    var isCreatingInvite: Bool = false
-    var acceptInviteError: String?
-    var createInviteError: String?
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
-    /// Pro subscription status. Defaults to `.free`. Will be driven by StoreKit 2
-    /// in a future feature — for now the Pro entry row always renders the free
-    /// CTA subtitle. Wiring real StoreKit state is an out-of-scope follow-up
-    /// (see spec §11.1).
-    var proSubscriptionStatus: ProSubscriptionStatus = .free
     var onProfileSaved: ((_ user: User) -> Void)?
-    var onSharedMutationRecorded: ((_ change: SyncChange) -> Void)?
 
     init(
         sessionStore: SessionStore,
         authService: AuthServiceProtocol,
-        pairingService: PairingServiceProtocol,
         userProfileRepository: UserProfileRepositoryProtocol,
         notificationService: NotificationServiceProtocol,
         itemRepository: ItemRepositoryProtocol,
@@ -81,12 +66,10 @@ final class ProfileViewModel {
         taskListRepository: TaskListRepositoryProtocol,
         projectRepository: ProjectRepositoryProtocol,
         reminderScheduler: ReminderSchedulerProtocol,
-        biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService(),
-        premiumGate: PremiumGate
+        biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService()
     ) {
         self.sessionStore = sessionStore
         self.authService = authService
-        self.pairingService = pairingService
         self.userProfileRepository = userProfileRepository
         self.notificationService = notificationService
         self.itemRepository = itemRepository
@@ -95,42 +78,20 @@ final class ProfileViewModel {
         self.projectRepository = projectRepository
         self.reminderScheduler = reminderScheduler
         self.biometricAuthService = biometricAuthService
-        self.premiumGate = premiumGate
     }
 
     var currentUser: User? { sessionStore.currentUser }
     var currentUserRevision: UUID { sessionStore.userProfileRevision }
     var currentSpace: Space? { sessionStore.currentSpace }
-    var bindingState: BindingState { sessionStore.bindingState }
-    var isPairMode: Bool { sessionStore.hasActivePairSpace }
-    var pairSpace: PairSpace? { sessionStore.currentPairSpace }
-    var activeInvite: Invite? { sessionStore.activeInvite }
 
     var profileCardPrimaryName: String { currentUserDisplayName }
-    var profileCardSecondaryName: String? { linkedPartnerDisplayName }
+    var profileCardSecondaryName: String? { nil }
 
     var profileCardPrimaryAvatar: ProfileCardAvatar {
         ProfileCardAvatar(
             displayName: currentUserDisplayName,
             avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
             overrideImage: nil
-        )
-    }
-
-    var profileCardSecondaryAvatarState: ProfileCardSecondaryAvatarState {
-        guard let partnerName = linkedPartnerDisplayName else {
-            return .placeholder
-        }
-
-        let partnerAvatarAsset = sessionStore.pairSpaceSummary?.partner?.avatarAsset
-            ?? .system("person.crop.circle.fill")
-
-        return .user(
-            ProfileCardAvatar(
-                displayName: partnerName,
-                avatarAsset: partnerAvatarAsset,
-                overrideImage: nil
-            )
         )
     }
 
@@ -142,73 +103,6 @@ final class ProfileViewModel {
         )
         vm.onProfileSaved = onProfileSaved
         return vm
-    }
-
-    /// 对方的头像信息（用于双人编辑界面）
-    var pairPartnerAvatar: ProfileCardAvatar {
-        let partner = sessionStore.pairSpaceSummary?.partner
-        return ProfileCardAvatar(
-            displayName: partner?.displayName ?? pairPartner?.nickname ?? "对方",
-            avatarAsset: partner?.avatarAsset ?? .system("person.crop.circle.fill"),
-            overrideImage: nil
-        )
-    }
-
-    /// 共享空间的自定义名称
-    var pairSpaceDisplayName: String {
-        sessionStore.pairSpaceSummary?.sharedSpace.displayName ?? PairSpace.defaultSharedSpaceDisplayName
-    }
-
-    var canRenameSpace: Bool {
-        guard let userID = currentUser?.id,
-              let sharedSpace = sessionStore.pairSpaceSummary?.sharedSpace else { return true }
-        return PairPermissionService.canRenameSpace(sharedSpace, actorID: userID)
-    }
-
-    var spaceSyncState: SharedMutationDisplayState? {
-        guard
-            sessionStore.hasActivePairSpace,
-            let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id
-        else {
-            return nil
-        }
-        return sessionStore.sharedMutationDisplayState(entityKind: .space, recordID: sharedSpaceID)
-    }
-
-    var spaceSyncStatusText: String? {
-        spaceSyncState?.text
-    }
-
-    /// 更新共享空间的显示名称（仅邀请方/空间所有者可调用）
-    func updatePairSpaceDisplayName(_ newName: String) {
-        guard let pairSpace = sessionStore.currentPairSpace,
-              let userID = currentUser?.id else { return }
-        let resolvedName: String? = newName.isEmpty ? nil : newName
-        sessionStore.updatePairSpaceDisplayName(resolvedName)
-
-        Task {
-            await pairingService.updatePairSpaceDisplayName(pairSpaceID: pairSpace.id, displayName: resolvedName, actorID: userID)
-            onSharedMutationRecorded?(
-                SyncChange(
-                    entityKind: .space,
-                    operation: .upsert,
-                    recordID: pairSpace.sharedSpaceID,
-                    spaceID: pairSpace.sharedSpaceID
-                )
-            )
-        }
-    }
-
-    /// 获取配对的对方成员
-    private var pairPartner: PairMember? {
-        guard
-            let currentUserID = currentUser?.id,
-            let summary = sessionStore.pairSpaceSummary
-        else { return nil }
-        if summary.pairSpace.memberA.userID != currentUserID {
-            return summary.pairSpace.memberA
-        }
-        return summary.pairSpace.memberB
     }
 
     var notificationSummary: String {
@@ -236,51 +130,11 @@ final class ProfileViewModel {
     }
 
     var spaceSummary: String {
-        let baseName: String
-        if sessionStore.hasActivePairSpace {
-            baseName = sessionStore.pairSpaceSummary?.sharedSpace.displayName ?? PairSpace.defaultSharedSpaceDisplayName
-        } else {
-            baseName = currentSpace?.displayName ?? "我的任务空间"
-        }
-        guard let syncStateText = spaceSyncStatusText else {
-            return baseName
-        }
-        return "\(baseName) · \(syncStateText)"
+        currentSpace?.displayName ?? "我的任务空间"
     }
 
-    /// Subtitle displayed below the name in the identity card.
-    /// Solo: "独立工作空间". Pair: "{space name} · 配对 {N} 天" (days segment
-    /// omitted when 0).
     var identityCardSubtitle: String {
-        guard isPairMode else {
-            return "独立工作空间"
-        }
-        let spaceName = pairSpaceDisplayName
-        if pairDaysCount > 0 {
-            return "\(spaceName) · \(pairDaysLabel)"
-        }
-        return spaceName
-    }
-
-    var collaborationSummary: String {
-        bindingState.description
-    }
-
-    var collaborationDetailText: String {
-        switch bindingState {
-        case .paired:
-            return pairSpaceSummaryText
-        case .invitePending:
-            return "等待对方接受邀请"
-        case .inviteReceived:
-            return "收到邀请，等待你的处理"
-        case .singleTrial, .unbound:
-            return "创建共享任务空间后，你们会看到同一套双人任务数据"
-        }
-    }
-
-    var activeModeSummary: String {
-        sessionStore.isViewingPairSpace ? "当前在双人模式" : "当前在单人模式"
+        "独立工作空间"
     }
 
     var taskUrgencyWindowMinutes: Int {
@@ -346,32 +200,6 @@ final class ProfileViewModel {
         return formatter.string(fromByteCount: Int64(cacheSize))
     }
 
-    /// Number of whole days since the shared pair space was created.
-    /// Returns 0 when not paired (UI branch will hide the "{N} 天" segment).
-    var pairDaysCount: Int {
-        guard
-            sessionStore.hasActivePairSpace,
-            let createdAt = sessionStore.pairSpaceSummary?.sharedSpace.createdAt
-        else {
-            return 0
-        }
-        let days = Calendar(identifier: .gregorian)
-            .dateComponents([.day], from: createdAt, to: .now)
-            .day ?? 0
-        return max(0, days)
-    }
-
-    /// Empty string when not paired; "配对 N 天" when paired.
-    var pairDaysLabel: String {
-        guard pairDaysCount > 0 else { return "" }
-        return "配对 \(pairDaysCount) 天"
-    }
-
-    /// Subtitle for the Pro entry row. Derived from `proSubscriptionStatus`.
-    var proSubtitleText: String {
-        proSubscriptionStatus.subtitleText
-    }
-
     func updateAppLockEnabled(_ isEnabled: Bool) {
         if isEnabled {
             // 开启前先验证生物识别身份
@@ -388,13 +216,6 @@ final class ProfileViewModel {
             user.preferences.appLockEnabled = false
             applyUpdatedPreferences(user.preferences, to: user)
         }
-    }
-
-    var pairQuickReplyMessages: [String] {
-        NotificationSettings.normalizedPairQuickReplyMessages(
-            sessionStore.currentUser?.preferences.pairQuickReplyMessages
-            ?? NotificationSettings.defaultPairQuickReplyMessages
-        )
     }
 
     var customDurationInitialMinutes: Int {
@@ -427,15 +248,9 @@ final class ProfileViewModel {
 
     func requestAccountDeletion() async {
         isAccountDeletionInProgress = true
-        let userID = currentUser?.id
         let spaceID = currentSpace?.id
 
-        // 1. 如果配对状态，先解绑
-        if let pairSpaceID = pairSpace?.id, let userID {
-            _ = try? await pairingService.unbind(pairSpaceID: pairSpaceID, actorID: userID)
-        }
-
-        // 2. 删除所有任务数据
+        // 1. 删除所有任务数据
         if let spaceID {
             let allItems = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
             let archivedItems = (try? await itemRepository.fetchCompletedItems(
@@ -446,7 +261,7 @@ final class ProfileViewModel {
             }
         }
 
-        // 3. 删除所有项目
+        // 2. 删除所有项目
         if let spaceID {
             let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
             for project in projects {
@@ -454,10 +269,10 @@ final class ProfileViewModel {
             }
         }
 
-        // 4. 取消所有本地通知
+        // 3. 取消所有本地通知
         await reminderScheduler.resync(tasks: [], projects: [])
 
-        // 5. 签出（清除 Keychain + Session）
+        // 4. 签出（清除 Keychain + Session）
         await signOut()
         isAccountDeletionInProgress = false
     }
@@ -469,128 +284,6 @@ final class ProfileViewModel {
         let tasks = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
         await reminderScheduler.resync(tasks: tasks, projects: projects)
-    }
-
-    func createInvite() async {
-        guard let inviterID = currentUser?.id else { return }
-        guard isCreatingInvite == false else { return }
-        let displayName = currentUser?.displayName ?? ""
-        createInviteError = nil
-        isCreatingInvite = true
-        defer { isCreatingInvite = false }
-        do {
-            try await createInviteAndRefresh(inviterID: inviterID, displayName: displayName)
-        } catch PairingError.supabaseAuthUnavailable {
-            do {
-                let session = try await authService.signInWithApple()
-                sessionStore.handleSignIn(session: session)
-                try await createInviteAndRefresh(inviterID: inviterID, displayName: displayName)
-            } catch {
-                createInviteError = createInviteErrorMessage(for: error)
-            }
-        } catch {
-            createInviteError = createInviteErrorMessage(for: error)
-        }
-    }
-
-    private func createInviteAndRefresh(inviterID: UUID, displayName: String) async throws {
-        _ = try await pairingService.createInvite(from: inviterID, displayName: displayName)
-        let freshContext = await pairingService.currentPairingContext(for: inviterID)
-        apply(pairingContext: freshContext)
-    }
-
-    private func createInviteErrorMessage(for error: Error) -> String {
-        if let pairingError = error as? PairingError {
-            return pairingError.errorDescription ?? error.localizedDescription
-        }
-        return "发布邀请失败：\(error.localizedDescription)"
-    }
-
-    /// Device B: accept a cross-device invite by entering the invite code.
-    /// Returns an error message string if failed, or nil on success.
-    @discardableResult
-    func acceptInviteByCode(_ code: String) async -> String? {
-        guard let responderID = currentUser?.id else { return "用户未登录" }
-        let responderName = currentUser?.displayName ?? ""
-        acceptInviteError = nil
-        do {
-            let context = try await pairingService.acceptInviteByCode(
-                code,
-                responderID: responderID,
-                responderDisplayName: responderName
-            )
-            apply(pairingContext: context)
-            inviteCodeEntryPresented = false
-            // PairSyncService handles initial sync automatically via PairSyncPoller
-            return nil
-        } catch let error as PairingError {
-            let msg = error.errorDescription ?? "配对失败"
-            acceptInviteError = msg
-            return msg
-        } catch {
-            let msg = "连接失败：\(error.localizedDescription)"
-            acceptInviteError = msg
-            return msg
-        }
-    }
-
-    /// Device A: cancel all pending invites and reset to singleTrial.
-    func cancelCurrentInvite() async {
-        sessionStore.applyPairingContext(
-            PairingContext(state: .singleTrial, pairSpaceSummary: nil, activeInvite: nil)
-        )
-
-        guard let userID = currentUser?.id else { return }
-        if let freshContext = try? await pairingService.cancelAllPendingInvites(for: userID) {
-            apply(pairingContext: freshContext)
-        }
-    }
-
-    /// Device A: poll CloudKit to see if the partner has accepted the invite.
-    func checkInviteAccepted() async {
-        guard let inviterID = currentUser?.id else { return }
-
-        // 优先从 activeInvite 获取 pairSpaceID，没有则从已有 pairSpace 获取
-        let pairSpaceID: UUID? = activeInvite?.pairSpaceID ?? pairSpace?.id
-
-        guard let pairSpaceID else {
-            // 如果连 pairSpaceID 都获取不到，重新加载 context 看看
-            let freshContext = await pairingService.currentPairingContext(for: inviterID)
-            if freshContext.state != .invitePending {
-                // 状态已经不是 invitePending，直接同步
-                apply(pairingContext: freshContext)
-            }
-            return
-        }
-
-        isCheckingInvite = true
-        if let context = try? await pairingService.checkAndFinalizeIfAccepted(
-            pairSpaceID: pairSpaceID,
-            inviterID: inviterID
-        ) {
-            apply(pairingContext: context)
-            // 1.8: 检测到对方接受后，推送本地任务到 CloudKit
-            // PairSyncService handles sync automatically via PairSyncPoller
-        }
-        isCheckingInvite = false
-    }
-
-    func acceptInvite() async {
-        guard let inviteID = activeInvite?.id, let userID = currentUser?.id else { return }
-        guard let pairingContext = try? await pairingService.acceptInvite(inviteID: inviteID, responderID: userID) else { return }
-        apply(pairingContext: pairingContext)
-    }
-
-    func declineInvite() async {
-        guard let inviteID = activeInvite?.id, let userID = currentUser?.id else { return }
-        guard let pairingContext = try? await pairingService.declineInvite(inviteID: inviteID, responderID: userID) else { return }
-        apply(pairingContext: pairingContext)
-    }
-
-    func unbindPairSpace() async {
-        guard let pairSpaceID = pairSpace?.id, let userID = currentUser?.id else { return }
-        guard let pairingContext = try? await pairingService.unbind(pairSpaceID: pairSpaceID, actorID: userID) else { return }
-        apply(pairingContext: pairingContext)
     }
 
     func updateTaskUrgencyWindow(minutes: Int) {
@@ -626,12 +319,6 @@ final class ProfileViewModel {
         }
     }
 
-    func updatePairQuickReplyMessages(_ messages: [String]) {
-        guard var user = sessionStore.currentUser else { return }
-        user.preferences.pairQuickReplyMessages = NotificationSettings.normalizedPairQuickReplyMessages(messages)
-        applyUpdatedPreferences(user.preferences, to: user)
-    }
-
     func toggleExpandedSetting(_ setting: ProfileExpandedSetting) {
         if expandedSetting == setting {
             expandedSetting = nil
@@ -665,11 +352,9 @@ final class ProfileViewModel {
             itemRepository: itemRepository,
             taskApplicationService: taskApplicationService,
             taskListRepository: taskListRepository,
-            projectRepository: projectRepository,
-            premiumGate: premiumGate
+            projectRepository: projectRepository
         )
         viewModel.onTaskMutated = onTaskMutated
-        viewModel.onSharedMutationRecorded = onSharedMutationRecorded
         return viewModel
     }
 
@@ -710,23 +395,4 @@ final class ProfileViewModel {
         currentUser?.displayName ?? "未加载用户"
     }
 
-    private var linkedPartnerDisplayName: String? {
-        guard bindingState.supportsSharedCollaboration else { return nil }
-        guard let nickname = sessionStore.pairSpaceSummary?.partner?.displayName
-            .trimmingCharacters(in: .whitespacesAndNewlines) else {
-            return nil
-        }
-        return nickname.isEmpty ? nil : nickname
-    }
-
-    private var pairSpaceSummaryText: String {
-        if let linkedPartnerDisplayName {
-            return "已与 \(linkedPartnerDisplayName) 共享"
-        }
-        return "双人空间已开启"
-    }
-
-    private func apply(pairingContext: PairingContext) {
-        sessionStore.applyPairingContext(pairingContext, autoSwitchToPairWhenBound: true)
-    }
 }

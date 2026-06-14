@@ -23,7 +23,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSCameraUsageDescription</key>
-	<string>Together 需要使用相机拍摄头像照片，用于更新你的个人资料头像。</string>
+	<string>Together 需要使用相机拍摄头像照片或纸面笔记，用于更新头像和生成 OCR 导入草稿。</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Together 使用 Face ID 保护你的隐私数据。</string>
 	<key>UIBackgroundModes</key>

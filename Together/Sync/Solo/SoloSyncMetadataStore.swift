@@ -50,6 +50,6 @@ final class SoloSyncMetadataStore: @unchecked Sendable {
     }
 
     private func key(_ name: String, _ spaceID: UUID) -> String {
-        "together.soloSupabase.\(spaceID.uuidString).\(name)"
+        "together.soloSync.\(spaceID.uuidString).\(name)"
     }
 }

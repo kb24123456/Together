@@ -9,6 +9,7 @@ struct HomeView: View {
     @Bindable var routinesViewModel: RoutinesViewModel
     let isProjectModePresented: Bool
     let isRoutinesModePresented: Bool
+    let onProfileTapped: () -> Void
     let onCreateTaskTapped: () -> Void
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isRequestStackExpanded = false
@@ -21,13 +22,7 @@ struct HomeView: View {
     @State private var monthPagerOffset: CGFloat = 0
     @State private var isMonthPagerSettling = false
     @State private var highlightedTaskID: UUID?
-    @State private var isImportantDatesManagementPresented = false
-    @State private var selectedChatItemID: UUID?
-    @State private var selectedChatViewModel: TaskChatViewModel?
-    @State private var isTaskChatNavigationPresented = false
-    @State private var taskChatCleanupTask: Task<Void, Never>?
     @State private var isTimelineReorderingActive = false
-    @Namespace private var taskChatZoomNamespace
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -104,115 +99,17 @@ struct HomeView: View {
         ) {
             HomeOverdueSummarySheet(viewModel: viewModel)
         }
-        .sheet(isPresented: $isImportantDatesManagementPresented) {
-            ImportantDatesManagementSheet()
-        }
-        .navigationDestination(isPresented: $isTaskChatNavigationPresented) {
-            taskChatDestination
-        }
-        .onChange(of: isTaskChatNavigationPresented) { _, isPresented in
-            if isPresented == false {
-                scheduleTaskChatCleanup()
-            }
-        }
         .onAppear {
             isCompletedSectionVisible = viewModel.showsCompletedItems
         }
         .onDisappear {
             todayJumpRevealTask?.cancel()
-            taskChatCleanupTask?.cancel()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .importantDatesChanged)) { _ in
-            Task {
-                if let pairSpaceID = appContext.sessionStore.pairSpaceSummary?.sharedSpace.id {
-                    appContext.importantDatesViewModel.configure(spaceID: pairSpaceID)
-                }
-                await appContext.importantDatesViewModel.load()
-            }
         }
         .onChange(of: appContext.startupRestorePresentationState) { oldValue, newValue in
             guard oldValue.isVisible, newValue == .idle else { return }
             Task {
                 await viewModel.reload(reason: .startupRestore)
                 updateTodayJumpButtonVisibility()
-            }
-        }
-    }
-
-    private var importantDateRecords: [ImportantDateStoredRecord] {
-        appContext.importantDatesViewModel.storedRecords
-    }
-
-    private var importantDateCapsulePlan: ImportantDateCapsulePlan {
-        ImportantDateCapsulePlanner.plan(from: importantDateRecords)
-    }
-
-    private var importantDateCapsulePager: some View {
-        let plan = importantDateCapsulePlan
-        return ImportantDateCapsulePagerView(
-            candidates: plan.pages,
-            autoHighlightCandidateID: plan.autoHighlightCandidateID,
-            viewerSupabaseUserID: appContext.currentSupabaseUserID,
-            partnerDisplayName: appContext.sessionStore.pairSpaceSummary?.partner?.displayName,
-            onPrimaryTap: { isImportantDatesManagementPresented = true }
-        )
-    }
-
-    @ViewBuilder
-    private var taskChatDestination: some View {
-        if let selectedChatItemID, let selectedChatViewModel {
-            TaskChatZoomDestination(
-                viewModel: selectedChatViewModel,
-                currentUserID: appContext.sessionStore.currentUser?.id,
-                partnerAvatar: viewModel.pairPreviewAvatar,
-                currentUserAvatar: viewModel.currentUserAvatar,
-                onDismiss: dismissChat
-            )
-            .toolbar(.visible, for: .navigationBar)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar(.hidden, for: .bottomBar)
-            .navigationBarBackButtonHidden()
-            .navigationTransition(.zoom(sourceID: selectedChatItemID, in: taskChatZoomNamespace))
-        } else {
-            EmptyView()
-        }
-    }
-
-    private func openChat(for itemID: UUID) {
-        guard selectedChatItemID != itemID || isTaskChatNavigationPresented == false else { return }
-        guard let item = viewModel.item(for: itemID) else { return }
-
-        HomeInteractionFeedback.selection()
-        taskChatCleanupTask?.cancel()
-        let chatViewModel = viewModel.makeTaskChatViewModel(for: item)
-        selectedChatItemID = itemID
-        selectedChatViewModel = chatViewModel
-        isTaskChatNavigationPresented = true
-    }
-
-    private func dismissChat() {
-        guard isTaskChatNavigationPresented else { return }
-        isTaskChatNavigationPresented = false
-    }
-
-    private func scheduleTaskChatCleanup() {
-        guard selectedChatItemID != nil || selectedChatViewModel != nil else { return }
-        let chatItemID = selectedChatItemID
-        taskChatCleanupTask?.cancel()
-        taskChatCleanupTask = Task { @MainActor in
-            let delay: Duration = reduceMotion ? .milliseconds(120) : .milliseconds(360)
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled else { return }
-
-            if let chatItemID {
-                await viewModel.refreshTaskChatMetadata(for: chatItemID)
-            }
-
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                selectedChatItemID = nil
-                selectedChatViewModel = nil
             }
         }
     }
@@ -395,39 +292,17 @@ struct HomeView: View {
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
         .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
-        .animation(.spring(response: 0.34, dampingFraction: 0.82), value: viewModel.showsPairAvatarPreview)
     }
 
     private var spaceModeLine: some View {
         HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
-            ModeIndicator(
-                isPairMode: viewModel.isPairModeActive
-            )
-            .animation(AppTheme.motion.snappy, value: viewModel.isPairModeActive)
+            ModeIndicator(label: currentViewLabel)
 
             Text(viewModel.spaceDisplayName)
                 .font(AppTheme.typography.sized(13, weight: .semibold))
                 .foregroundStyle(headerSecondaryColor)
                 .lineLimit(1)
 
-            if let syncState = viewModel.spaceSyncState {
-                Text(syncState.text)
-                    .font(AppTheme.typography.sized(11, weight: .semibold))
-                    .foregroundStyle(
-                        syncState == .failed
-                            ? AppTheme.colors.coral
-                            : syncState == .confirmed
-                                ? .green.opacity(0.72)
-                                : AppTheme.colors.body.opacity(0.46)
-                    )
-                    .lineLimit(1)
-            }
-
-            if viewModel.isPairModeActive {
-                SyncStatusIndicator(
-                    status: appContext.sessionStore.sharedSyncStatus
-                )
-            }
         }
     }
 
@@ -468,20 +343,12 @@ struct HomeView: View {
     }
 
     private var projectModeIndicator: some View {
-        ModeIndicator(
-            isPairMode: viewModel.isPairModeActive,
-            pairTint: AppTheme.colors.coral,
-            pairBackground: AppTheme.colors.coral.opacity(0.12)
-        )
+        ModeIndicator(label: "项目视图")
     }
 
     private var routinesModeHeaderMeta: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            ModeIndicator(
-                isPairMode: viewModel.isPairModeActive,
-                pairTint: AppTheme.colors.coral,
-                pairBackground: AppTheme.colors.coral.opacity(0.12)
-            )
+            ModeIndicator(label: "例行任务")
             .layoutPriority(2)
 
             Text(routinesModeSummary)
@@ -507,6 +374,22 @@ struct HomeView: View {
         return "全部完成"
     }
 
+    private var currentViewLabel: String {
+        if isProjectModePresented {
+            return "项目视图"
+        }
+
+        if isRoutinesModePresented {
+            return "例行任务"
+        }
+
+        if viewModel.isMonthMode {
+            return "日历视图"
+        }
+
+        return "今日视图"
+    }
+
     private func headerTitle(compact: Bool) -> some View {
         Text(viewModel.headerDateText)
             .font(AppTheme.typography.sized(36, weight: .bold))
@@ -528,19 +411,15 @@ struct HomeView: View {
             compact: compact,
             showsRestorePlaceholder: showsStartupRestorePlaceholder,
             action: {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                    viewModel.toggleAvatarPreview()
-                }
-                routinesViewModel.restoreCachedTasksForCurrentSpace()
-                Task {
-                    await routinesViewModel.loadIfNeeded()
-                }
-                triggerSoftDateFeedback()
+                HomeInteractionFeedback.selection()
+                onProfileTapped()
             }
         )
         .padding(.top, compact ? 0 : 2)
         .id(appContext.sessionStore.userProfileRevision)
         .compositingGroup()
+        .accessibilityLabel("打开个人页")
+        .accessibilityHint("查看个人资料和设置")
     }
 
     private var contentCard: some View {
@@ -595,10 +474,6 @@ struct HomeView: View {
                                     }
                                 }
                             )
-                        }
-
-                        if appContext.sessionStore.activeMode == .pair {
-                            importantDateCapsulePager
                         }
 
                         timelineSection
@@ -681,13 +556,7 @@ struct HomeView: View {
     }
 
     private var timelineList: some View {
-        Group {
-            if viewModel.isPairModeActive {
-                pairTimelineList
-            } else {
-                standardTimelineList
-            }
-        }
+        standardTimelineList
     }
 
     private var standardTimelineList: some View {
@@ -705,20 +574,6 @@ struct HomeView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
-            }
-
-            if appContext.sessionStore.activeMode == .pair {
-                importantDateCapsulePager
-                .listRowInsets(
-                    EdgeInsets(
-                        top: AppTheme.spacing.xs,
-                        leading: timelineRowHorizontalInset,
-                        bottom: 8,
-                        trailing: timelineRowHorizontalInset
-                    )
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
             }
 
             if appContext.sessionStore.activeMode == .single,
@@ -797,102 +652,6 @@ struct HomeView: View {
         .safeAreaPadding(.top, 0)
         .applyScrollEdgeProtection()
         .refreshable {
-            if appContext.sessionStore.hasActivePairSpace {
-                await appContext.syncPairSpaceIfNeeded()
-            }
-            await viewModel.reload()
-        }
-    }
-
-    private var pairTimelineList: some View {
-        List {
-            if viewModel.showsOverdueCapsule {
-                overdueReminderCapsule
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: 10,
-                            leading: timelineRowHorizontalInset,
-                            bottom: 8,
-                            trailing: timelineRowHorizontalInset
-                        )
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
-
-            if appContext.sessionStore.activeMode == .pair {
-                importantDateCapsulePager
-                .listRowInsets(
-                    EdgeInsets(
-                        top: AppTheme.spacing.xs,
-                        leading: timelineRowHorizontalInset,
-                        bottom: 8,
-                        trailing: timelineRowHorizontalInset
-                    )
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-
-            if appContext.sessionStore.activeMode == .single,
-               appContext.routinesViewModel.hasPendingTasks {
-                RoutinesSummaryCard(
-                    viewModel: appContext.routinesViewModel,
-                    onNavigateToRoutines: {
-                        appContext.router.shouldAutoSelectPendingCycle = true
-                        appContext.router.currentSurface = .routines
-                    }
-                )
-                .listRowInsets(
-                    EdgeInsets(
-                        top: 6,
-                        leading: timelineRowHorizontalInset,
-                        bottom: 8,
-                        trailing: timelineRowHorizontalInset
-                    )
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-
-            pairTimelineRows(viewModel.activeTimelineEntries)
-
-            if viewModel.hasCompletedEntries {
-                completedVisibilityButton
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: 12,
-                            leading: timelineRowHorizontalInset,
-                            bottom: viewModel.completedTimelineEntries.isEmpty ? timelineBottomInset : 10,
-                            trailing: timelineRowHorizontalInset
-                        )
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                if viewModel.showsCompletedItems, viewModel.completedTimelineEntries.isEmpty == false {
-                    completedTimelineSection
-                }
-            } else {
-                Color.clear
-                    .frame(height: timelineBottomInset)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .scrollIndicators(.hidden)
-        .scrollDisabled(isOverlayModeActive)
-        .environment(\.defaultMinListRowHeight, 0)
-        .safeAreaPadding(.top, 0)
-        .applyScrollEdgeProtection()
-        .refreshable {
-            if appContext.sessionStore.hasActivePairSpace {
-                await appContext.syncPairSpaceIfNeeded()
-            }
             await viewModel.reload()
         }
     }
@@ -1007,12 +766,6 @@ struct HomeView: View {
         }
     }
 
-    private func isNudged(_ entry: HomeTimelineEntry) -> Bool {
-        guard let reminderAt = entry.reminderRequestedAt else { return false }
-        guard let lastAction = entry.lastActionAt else { return true }
-        return reminderAt > lastAction
-    }
-
     @ViewBuilder
     private func timelineRows(
         _ entries: [HomeTimelineEntry],
@@ -1124,183 +877,241 @@ struct HomeView: View {
         }
     }
 
-    /// 请求类卡片（待回应）最多显示数量，超过时堆叠
-    private var requestCardStackThreshold: Int { 3 }
+    private var timelineSection: some View {
+        ZStack {
+            if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
+                VStack(spacing: AppTheme.spacing.xl) {
+                    VStack(spacing: AppTheme.spacing.md) {
+                        Image("EmptyCalendar")
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 120, height: 120)
+                            .accessibilityHidden(true)
 
-    @ViewBuilder
-    private func pairTimelineRows(_ entries: [HomeTimelineEntry]) -> some View {
-        let requestEntries = entries.filter { $0.pairCardStyle == .request }
-        let otherEntries = entries.filter { $0.pairCardStyle != .request }
+                        Text("今天没有待办事项")
+                            .font(AppTheme.typography.sized(17, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.6))
 
-        // 待回应卡片：超过阈值时堆叠显示
-        if requestEntries.count > requestCardStackThreshold && !isRequestStackExpanded {
-            stackedRequestCards(requestEntries)
-        } else {
-            ForEach(requestEntries) { entry in
-                pairTimelineCardRow(entry: entry)
-            }
-        }
-
-        // 其他类型卡片正常显示
-        ForEach(otherEntries) { entry in
-            pairTimelineCardRow(entry: entry)
-        }
-    }
-
-    @ViewBuilder
-    private func stackedRequestCards(_ entries: [HomeTimelineEntry]) -> some View {
-        if let topEntry = entries.first {
-            ZStack(alignment: .topTrailing) {
-                // 底层卡片（第3张）
-                if entries.count > 2 {
-                    pairTimelineCardContent(entry: entries[2])
-                        .scaleEffect(0.92)
-                        .offset(y: 16)
-                        .opacity(0.4)
-                }
-                // 中间卡片（第2张）
-                if entries.count > 1 {
-                    pairTimelineCardContent(entry: entries[1])
-                        .scaleEffect(0.96)
-                        .offset(y: 8)
-                        .opacity(0.6)
-                }
-                // 顶部卡片
-                pairTimelineCardContent(entry: topEntry)
-
-                // 计数徽章
-                Text("+\(entries.count - 1)")
-                    .font(AppTheme.typography.sized(12, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, AppTheme.spacing.xs) // normalized 8→6
-                    .padding(.vertical, AppTheme.spacing.xxs)
-                    .background(Capsule(style: .continuous).fill(AppTheme.colors.coral))
-                    .offset(x: -8, y: -4)
-            }
-            .listRowInsets(
-                EdgeInsets(
-                    top: 8,
-                    leading: timelineRowHorizontalInset,
-                    bottom: 24,
-                    trailing: timelineRowHorizontalInset
-                )
-            )
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .onTapGesture {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    isRequestStackExpanded = true
-                }
-            }
-        }
-    }
-
-    /// 仅卡片内容（不含 listRow 修饰符），用于堆叠展示
-    private func pairTimelineCardContent(entry: HomeTimelineEntry) -> some View {
-        PairTimelineCard(
-            entry: entry,
-            quickReplyMessages: appContext.sessionStore.currentUser?.preferences.pairQuickReplyMessages
-                ?? NotificationSettings.defaultPairQuickReplyMessages,
-            onPrimaryAction: {},
-            onSecondaryAction: {},
-            onOpenDetail: {},
-            onQuickMessage: { _ in },
-            onResend: {},
-            onDelete: {},
-            onSendReminder: {},
-            onOpenChat: {}
-        )
-        .allowsHitTesting(false)
-    }
-
-    private func pairTimelineCardRow(entry: HomeTimelineEntry) -> some View {
-        PairTimelineCard(
-            entry: entry,
-            quickReplyMessages: appContext.sessionStore.currentUser?.preferences.pairQuickReplyMessages
-                ?? NotificationSettings.defaultPairQuickReplyMessages,
-            onPrimaryAction: {
-                switch entry.pairCardStyle {
-                case .request:
-                    HomeInteractionFeedback.selection()
-                    Task {
-                        await viewModel.respondToItem(entry.id, response: .willing, message: nil)
+                        Text("享受当下，或规划新任务")
+                            .font(AppTheme.typography.sized(14, weight: .medium))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.38))
                     }
-                default:
-                    if entry.isCompleted {
+
+                    Button {
                         HomeInteractionFeedback.selection()
-                    } else {
-                        HomeInteractionFeedback.completion()
+                        onCreateTaskTapped()
+                    } label: {
+                        HStack(spacing: AppTheme.spacing.xs) {
+                            Image(systemName: "plus")
+                                .font(AppTheme.typography.sized(14, weight: .semibold))
+
+                            Text("新建任务")
+                                .font(AppTheme.typography.sized(15, weight: .semibold))
+                        }
+                        .foregroundStyle(AppTheme.colors.title)
+                        .padding(.horizontal, AppTheme.spacing.lg)
+                        .padding(.vertical, AppTheme.spacing.md)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(AppTheme.colors.surfaceElevated)
+                        )
                     }
-                    Task {
-                        await viewModel.completeItem(entry.id)
+                    .buttonStyle(.plain)
+
+                    if viewModel.hasCompletedEntries {
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            isCompletedVisibilityButtonCompressed = true
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(110))
+                                isCompletedVisibilityButtonCompressed = false
+                            }
+                            toggleCompletedSectionVisibility()
+                        } label: {
+                            Text("查看已完成 \(viewModel.completedEntryCount) 项")
+                                .font(AppTheme.typography.sized(13, weight: .medium))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-            },
-            onSecondaryAction: {
-                HomeInteractionFeedback.selection()
-                Task {
-                    await viewModel.respondToItem(entry.id, response: .notSuitable, message: nil)
-                }
-            },
-            onOpenDetail: {
-                viewModel.presentItemDetail(entry.id)
-            },
-            onQuickMessage: { message in
-                Task {
-                    switch entry.pairCardStyle {
-                    case .request:
-                        await viewModel.respondToItem(entry.id, response: .notSuitable, message: message)
-                    case .sent:
-                        await viewModel.appendAssignmentMessage(to: entry.id, message: message)
-                    case .assigned, .shared, .standard:
-                        break
-                    }
-                }
-            },
-            onResend: {
-                Task {
-                    await viewModel.requeueDeclinedItem(entry.id)
-                }
-            },
-            onDelete: {
-                guard viewModel.canDeleteItem(entry.id) else { return }
-                Task {
-                    await viewModel.deleteItem(entry.id)
-                }
-            },
-            onSendReminder: {
-                Task {
-                    await viewModel.sendReminderToPartner(entry.id)
-                }
-            },
-            onOpenChat: {
-                openChat(for: entry.id)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 60)
+            } else {
+                EmptyView()
             }
-        )
-        .matchedTransitionSource(id: entry.id, in: taskChatZoomNamespace)
-        .id(entry.id)
-        .listRowInsets(
-            EdgeInsets(
-                top: 8,
-                leading: timelineRowHorizontalInset,
-                bottom: 8,
-                trailing: timelineRowHorizontalInset
+        }
+        .animation(.spring(response: 0.26, dampingFraction: 0.88), value: viewModel.selectedDateKey)
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.timelineEntryIDs)
+        .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.hasCompletedEntries)
+    }
+
+    private var completedVisibilityButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            isCompletedVisibilityButtonCompressed = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(110))
+                isCompletedVisibilityButtonCompressed = false
+            }
+            toggleCompletedSectionVisibility()
+        } label: {
+            HStack(spacing: AppTheme.spacing.xs) {
+                Text(viewModel.completedVisibilityButtonTitle)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.76))
+
+                Text("\(viewModel.completedEntryCount)")
+                    .font(AppTheme.typography.sized(11, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.56))
+                    .frame(minWidth: 20, minHeight: 20)
+                    .background(
+                        Circle()
+                            .fill(AppTheme.colors.background.opacity(0.8))
+                    )
+            }
+            .padding(.leading, AppTheme.spacing.md) // normalized 14→16
+            .padding(.trailing, AppTheme.spacing.sm)
+            .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.surfaceElevated)
             )
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(
+            x: isCompletedVisibilityButtonCompressed ? 0.92 : 1,
+            y: isCompletedVisibilityButtonCompressed ? 0.88 : 1,
+            anchor: .center
         )
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .insertedListItemMotion(
-            isInserted: viewModel.isAnimatingInsertion(for: entry.id),
-            onAnimationCompleted: {
-                viewModel.completeInsertionAnimation(for: entry.id)
+        .animation(.bouncy(duration: 0.54, extraBounce: 0.28), value: isCompletedVisibilityButtonCompressed)
+    }
+
+    private var overdueReminderCapsule: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            viewModel.presentOverdueSheet()
+        } label: {
+            HStack(spacing: AppTheme.spacing.sm) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+
+                Text(viewModel.overdueCapsuleTitle)
+                    .font(AppTheme.typography.sized(14, weight: .semibold))
+
+                Spacer(minLength: 0)
+
+                Text("查看全部")
+                    .font(AppTheme.typography.sized(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.coral.opacity(0.8))
             }
-        )
+            .foregroundStyle(AppTheme.colors.coral)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.md)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.coral.opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(viewModel.overdueCapsuleTitle)
+    }
+
+    private var headerPrimaryColor: Color { AppTheme.colors.title }
+
+    private var headerSecondaryColor: Color { AppTheme.colors.body.opacity(0.62) }
+
+    private var headerVerticalOffset: CGFloat {
+        isOverlayModeActive ? -6 : 0
+    }
+
+    private var weekSectionVerticalOffset: CGFloat {
+        if isOverlayModeActive {
+            return 0
+        }
+
+        return viewModel.isMonthMode ? 2 : 0
+    }
+
+    private var contentCardVerticalOffset: CGFloat {
+        0
+    }
+
+    private var projectModeContentTransitionOffset: CGFloat {
+        30
+    }
+
+    private var contentCardScale: CGFloat {
+        1
+    }
+
+    private var modeFadeAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.14)
+            : .easeOut(duration: 0.16)
+    }
+
+    private var calendarModeAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.18)
+            : .spring(response: 0.42, dampingFraction: 0.84)
+    }
+
+    private var projectModeAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.2)
+            : .spring(response: 0.4, dampingFraction: 0.86)
+    }
+
+    private var isOverlayModeActive: Bool {
+        isProjectModePresented || isRoutinesModePresented
+    }
+
+    private func headerTopPadding(safeAreaTop: CGFloat) -> CGFloat {
+        safeAreaTop + (isOverlayModeActive ? 16 : AppTheme.spacing.sm)
+    }
+
+    private var horizontalContentPadding: CGFloat {
+        AppTheme.spacing.xl
+    }
+
+    private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
+        safeAreaTop + topChromeReservedHeight + visibleCalendarContainerHeight + startupRestoreStatusReservedHeight
+    }
+
+    private var topChromeReservedHeight: CGFloat {
+        if isOverlayModeActive {
+            return 86
+        }
+
+        return 90
+    }
+
+    private var visibleCalendarContainerHeight: CGFloat {
+        isOverlayModeActive ? 0 : calendarContainerHeight
+    }
+
+    private var startupRestoreStatusReservedHeight: CGFloat {
+        showsStartupRestoreStatus ? 40 : 0
+    }
+
+    private var calendarContainerHeight: CGFloat {
+        viewModel.isMonthMode ? monthCalendarExpandedHeight : 76
+    }
+
+    private var monthCalendarExpandedHeight: CGFloat {
+        20 + monthGridContainerHeight
+    }
+
+    private var monthGridContainerHeight: CGFloat {
+        (5 * monthDayCellHeight) + (4 * monthGridSpacing)
     }
 
     private var calendarSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             calendarWeekdayHeader
-                .padding(.bottom, AppTheme.spacing.xs) // normalized 8→6
+                .padding(.bottom, AppTheme.spacing.xs)
 
             if viewModel.isMonthMode {
                 monthCalendarGrid
@@ -1550,237 +1361,6 @@ struct HomeView: View {
         }
 
         return AppTheme.colors.textTertiary.opacity(0.5)
-    }
-
-    private var timelineSection: some View {
-        ZStack {
-            if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
-                VStack(spacing: AppTheme.spacing.xl) {
-                    VStack(spacing: AppTheme.spacing.md) {
-                        Image("EmptyCalendar")
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 120, height: 120)
-                            .accessibilityHidden(true)
-
-                        Text(viewModel.isPairModeActive ? "共享空间暂无待办" : "今天没有待办事项")
-                            .font(AppTheme.typography.sized(17, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.body.opacity(0.6))
-
-                        Text(viewModel.isPairModeActive ? "和对方一起创建任务吧" : "享受当下，或规划新任务")
-                            .font(AppTheme.typography.sized(14, weight: .medium))
-                            .foregroundStyle(AppTheme.colors.body.opacity(0.38))
-                    }
-
-                    Button {
-                        HomeInteractionFeedback.selection()
-                        onCreateTaskTapped()
-                    } label: {
-                        HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
-                            Image(systemName: "plus")
-                                .font(AppTheme.typography.sized(14, weight: .semibold))
-
-                            Text("新建任务")
-                                .font(AppTheme.typography.sized(15, weight: .semibold))
-                        }
-                        .foregroundStyle(AppTheme.colors.title)
-                        .padding(.horizontal, AppTheme.spacing.lg)
-                        .padding(.vertical, AppTheme.spacing.md) // normalized 11→16
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(AppTheme.colors.surfaceElevated)
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    if viewModel.hasCompletedEntries {
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            isCompletedVisibilityButtonCompressed = true
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(110))
-                                isCompletedVisibilityButtonCompressed = false
-                            }
-                            toggleCompletedSectionVisibility()
-                        } label: {
-                            Text("查看已完成 \(viewModel.completedEntryCount) 项")
-                                .font(AppTheme.typography.sized(13, weight: .medium))
-                                .foregroundStyle(AppTheme.colors.body.opacity(0.5))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 60) // specific empty-state inset, not a tier
-            } else {
-                EmptyView()
-            }
-        }
-        .animation(.spring(response: 0.26, dampingFraction: 0.88), value: viewModel.selectedDateKey)
-        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.timelineEntryIDs)
-        .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.hasCompletedEntries)
-    }
-
-    private var completedVisibilityButton: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            isCompletedVisibilityButtonCompressed = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(110))
-                isCompletedVisibilityButtonCompressed = false
-            }
-            toggleCompletedSectionVisibility()
-        } label: {
-            HStack(spacing: AppTheme.spacing.xs) {
-                Text(viewModel.completedVisibilityButtonTitle)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.76))
-
-                Text("\(viewModel.completedEntryCount)")
-                    .font(AppTheme.typography.sized(11, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.56))
-                    .frame(minWidth: 20, minHeight: 20)
-                    .background(
-                        Circle()
-                            .fill(AppTheme.colors.background.opacity(0.8))
-                    )
-            }
-            .padding(.leading, AppTheme.spacing.md) // normalized 14→16
-            .padding(.trailing, AppTheme.spacing.sm)
-            .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
-            .background(
-                Capsule(style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
-        }
-        .buttonStyle(.plain)
-        .scaleEffect(
-            x: isCompletedVisibilityButtonCompressed ? 0.92 : 1,
-            y: isCompletedVisibilityButtonCompressed ? 0.88 : 1,
-            anchor: .center
-        )
-        .animation(.bouncy(duration: 0.54, extraBounce: 0.28), value: isCompletedVisibilityButtonCompressed)
-    }
-
-    private var overdueReminderCapsule: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            viewModel.presentOverdueSheet()
-        } label: {
-            HStack(spacing: AppTheme.spacing.sm) {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-
-                Text(viewModel.overdueCapsuleTitle)
-                    .font(AppTheme.typography.sized(14, weight: .semibold))
-
-                Spacer(minLength: 0)
-
-                Text("查看全部")
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.coral.opacity(0.8))
-            }
-            .foregroundStyle(AppTheme.colors.coral)
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.md)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(AppTheme.colors.coral.opacity(0.12))
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(viewModel.overdueCapsuleTitle)
-    }
-
-    private var headerPrimaryColor: Color { AppTheme.colors.title }
-
-    private var headerSecondaryColor: Color { AppTheme.colors.body.opacity(0.62) }
-
-    private var headerVerticalOffset: CGFloat {
-        isOverlayModeActive ? -6 : 0
-    }
-
-    private var weekSectionVerticalOffset: CGFloat {
-        if isOverlayModeActive {
-            return 0
-        }
-
-        return viewModel.isMonthMode ? 2 : 0
-    }
-
-    private var contentCardVerticalOffset: CGFloat {
-        0
-    }
-
-    private var projectModeContentTransitionOffset: CGFloat {
-        30
-    }
-
-    private var contentCardScale: CGFloat {
-        1
-    }
-
-    private var modeFadeAnimation: Animation {
-        reduceMotion
-            ? .easeOut(duration: 0.14)
-            : .easeOut(duration: 0.16)
-    }
-
-    private var calendarModeAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: 0.18)
-            : .spring(response: 0.42, dampingFraction: 0.84)
-    }
-
-    private var projectModeAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: 0.2)
-            : .spring(response: 0.4, dampingFraction: 0.86)
-    }
-
-    private var isOverlayModeActive: Bool {
-        isProjectModePresented || isRoutinesModePresented
-    }
-
-    private func headerTopPadding(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + (isOverlayModeActive ? 16 : AppTheme.spacing.sm)
-    }
-
-    private var horizontalContentPadding: CGFloat {
-        AppTheme.spacing.xl
-    }
-
-    private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + topChromeReservedHeight + visibleCalendarContainerHeight + startupRestoreStatusReservedHeight
-    }
-
-    private var topChromeReservedHeight: CGFloat {
-        if isOverlayModeActive {
-            return 86
-        }
-
-        return viewModel.isPairModeActive ? 98 : 90
-    }
-
-    private var visibleCalendarContainerHeight: CGFloat {
-        isOverlayModeActive ? 0 : calendarContainerHeight
-    }
-
-    private var startupRestoreStatusReservedHeight: CGFloat {
-        showsStartupRestoreStatus ? 40 : 0
-    }
-
-    private var calendarContainerHeight: CGFloat {
-        viewModel.isMonthMode ? monthCalendarExpandedHeight : 76
-    }
-
-    private var monthCalendarExpandedHeight: CGFloat {
-        20 + monthGridContainerHeight
-    }
-
-    private var monthGridContainerHeight: CGFloat {
-        (5 * monthDayCellHeight) + (4 * monthGridSpacing)
     }
 
     private var monthPageDividerOverlay: some View {
@@ -2190,6 +1770,7 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
         routinesViewModel: context.routinesViewModel,
         isProjectModePresented: false,
         isRoutinesModePresented: false,
+        onProfileTapped: {},
         onCreateTaskTapped: {}
     )
 }
@@ -2214,12 +1795,6 @@ private struct HomeTimelineRow: View {
     @State private var rowOpacity: Double = 1
     @State private var reopeningCheckmarkOpacity: Double = 1
 
-    private var isNudgedEntry: Bool {
-        guard let reminderAt = entry.reminderRequestedAt else { return false }
-        guard let lastAction = entry.lastActionAt else { return true }
-        return reminderAt > lastAction
-    }
-
     var body: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
             Button(action: onToggleCompletion) {
@@ -2242,32 +1817,6 @@ private struct HomeTimelineRow: View {
                             .minimumScaleFactor(titleMinimumScaleFactor)
                             .allowsTightening(true)
 
-                        if (entry.assigneeText != nil || entry.needsResponse), entry.isCompleted == false {
-                            HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
-                                if let assigneeText = entry.assigneeText {
-                                    Text(assigneeText)
-                                        .font(AppTheme.typography.sized(12, weight: .bold))
-                                        .foregroundStyle(entry.needsResponse ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.72))
-                                        .padding(.horizontal, AppTheme.spacing.sm)
-                                        .padding(.vertical, AppTheme.spacing.xxs) // normalized 5→4
-                                        .background(
-                                            Capsule(style: .continuous)
-                                                .fill(
-                                                    entry.needsResponse
-                                                    ? AppTheme.colors.coral.opacity(0.12)
-                                                    : AppTheme.colors.surfaceElevated
-                                                )
-                                        )
-                                }
-
-                                if entry.needsResponse {
-                                    Text("待你回应")
-                                        .font(AppTheme.typography.sized(12, weight: .bold))
-                                        .foregroundStyle(AppTheme.colors.coral)
-                                }
-                            }
-                        }
-
                         Text(displaySubtitle)
                             .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
                             .foregroundStyle(subtitleColor)
@@ -2278,11 +1827,6 @@ private struct HomeTimelineRow: View {
 
                     VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
                         HomeTimelineTimeText(entry: entry)
-                        if isNudgedEntry {
-                            Image(systemName: "bell.badge.fill")
-                                .foregroundStyle(AppTheme.colors.coral)
-                                .font(AppTheme.typography.textStyle(.caption1))
-                        }
                     }
                 }
                 .contentShape(Rectangle())
@@ -2374,15 +1918,8 @@ private struct HomeTimelineRow: View {
     }
 
     private var displaySubtitle: String {
-        if let messagePreview = entry.messagePreview?.trimmingCharacters(in: .whitespacesAndNewlines),
-           messagePreview.isEmpty == false {
-            return messagePreview
-        }
         if let notes = entry.notes, notes.isEmpty == false {
             return notes
-        }
-        if let responseStateText = entry.responseStateText {
-            return responseStateText
         }
         return entry.statusText
     }
@@ -2473,838 +2010,6 @@ private struct HomeTimelineRow: View {
     private var checkmarkOpacity: Double {
         guard entry.isCompleted || isAnimatingCompletion || isAnimatingReopening else { return 0 }
         return isAnimatingReopening ? reopeningCheckmarkOpacity : 1
-    }
-}
-
-private struct PairTimelineCard: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let entry: HomeTimelineEntry
-    let quickReplyMessages: [String]
-    let onPrimaryAction: () -> Void
-    let onSecondaryAction: () -> Void
-    let onOpenDetail: () -> Void
-    let onQuickMessage: (String) -> Void
-    let onResend: () -> Void
-    let onDelete: () -> Void
-    let onSendReminder: () -> Void
-    let onOpenChat: () -> Void
-    @State private var isMorphingToAssigned = false
-    @State private var completionAnimationCount = 0
-    @State private var completionBadgeScale: CGFloat = 1
-    @State private var completionFillScale: CGFloat = 0.5
-    @State private var completionFillOpacity = 0.0
-    @State private var completionOutlineOpacity = 1.0
-    @State private var rowScale: CGFloat = 1
-    @State private var rowVerticalOffset: CGFloat = 0
-    @State private var rowOpacity: Double = 1
-    @State private var transientBubbleText: String?
-    @State private var bubbleScale: CGFloat = 1
-    @State private var bubbleOpacity: Double = 1
-    @State private var lastSentAnimationSignature = ""
-    @State private var showsKeepForLaterAction = true
-    @State private var isAwaitingCompletionCommit = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
-            Button(action: handleCardTap) {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
-                    headerRow
-                    subtitleLine
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            bottomRow
-        }
-        .padding(.horizontal, AppTheme.spacing.md) // normalized 18→16
-        .padding(.vertical, AppTheme.spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            HStack(spacing: 0) {
-                if effectivePairCardStyle == .shared {
-                    AppTheme.colors.sky.opacity(0.36)
-                        .frame(width: 5)
-                }
-                AppTheme.colors.surfaceElevated
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.radius.xxl, style: .continuous)) // normalized 28→34
-        .shadow(color: AppTheme.colors.shadow.opacity(0.08), radius: 16, y: 10)
-        .scaleEffect(rowScale)
-        .offset(y: rowVerticalOffset)
-        .opacity(rowOpacity)
-        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: effectivePairCardStyle)
-        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: entry.responseStateText)
-        .modifier(
-            PairNativeContextMenuModifier(
-                messages: supportsLongPressMenu ? quickReplyMessages : [],
-                onSelectMessage: handleQuickMessage
-            )
-        )
-        .onChange(of: entry.isCompleted) { _, isCompleted in
-            guard isCompleted else {
-                resetCompletionBadgeState()
-                return
-            }
-            if isAwaitingCompletionCommit {
-                isAwaitingCompletionCommit = false
-                return
-            }
-            runCompletionAnimation()
-        }
-        .onAppear {
-            lastSentAnimationSignature = sentAnimationSignature
-            showsKeepForLaterAction = entry.pairCardStyle == .sent ? entry.responseStateText == "已拒绝" : true
-            if entry.isCompleted == false {
-                resetCompletionBadgeState()
-            }
-        }
-        .onChange(of: sentAnimationSignature) { oldValue, newValue in
-            guard oldValue != newValue else { return }
-            lastSentAnimationSignature = newValue
-            guard entry.pairCardStyle == .sent else { return }
-            guard newValue.isEmpty == false else { return }
-            runSentCardMessageAnimation()
-        }
-        .onChange(of: entry.responseStateText) { _, newValue in
-            guard entry.pairCardStyle == .sent else { return }
-            showsKeepForLaterAction = newValue == "已拒绝"
-        }
-        .onChange(of: effectivePairCardStyle) { _, newValue in
-            guard newValue == .assigned || newValue == .shared || newValue == .standard else { return }
-            if entry.isCompleted == false {
-                resetCompletionBadgeState()
-            }
-        }
-    }
-
-    private var supportsLongPressMenu: Bool {
-        entry.pairCardStyle == .request || supportsSentQuickReplyMenu
-    }
-
-    private var supportsSentQuickReplyMenu: Bool {
-        entry.pairCardStyle == .sent && entry.responseStateText == "已拒绝"
-    }
-
-    @ViewBuilder
-    private var headerRow: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
-            Text(entry.title)
-                .font(AppTheme.typography.sized(20, weight: .bold))
-                .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.42) : AppTheme.colors.title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .allowsTightening(true)
-
-            Spacer(minLength: 0)
-
-            if entry.timeText.isEmpty == false {
-                Text(entry.timeText)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .foregroundStyle(timeColor)
-            }
-        }
-    }
-
-    private var subtitleLine: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-            if let notes = entry.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-               notes.isEmpty == false {
-                Text(notes)
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.84)
-            }
-            Text(subtitleText)
-                .font(AppTheme.typography.sized(14, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.62))
-                .lineLimit(1)
-                .minimumScaleFactor(0.84)
-        }
-    }
-
-    @ViewBuilder
-    private var bottomRow: some View {
-        if entry.syncState == .syncing {
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                chatMessageZone
-                Spacer(minLength: 0)
-                syncStateBadge(text: "同步中", state: .syncing)
-            }
-        } else if entry.syncState == .confirmed {
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                chatMessageZone
-                Spacer(minLength: 0)
-                syncStateBadge(text: "已同步", state: .confirmed)
-            }
-        } else {
-        switch entry.pairCardStyle {
-        case .request:
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                chatMessageZone
-
-                Spacer(minLength: 0)
-
-                if isMorphingToAssigned {
-                    PairCompletionBadge(
-                        isCompleted: false,
-                        isAnimatingCompletion: false,
-                        accentColor: AppTheme.colors.coral,
-                        scale: 1,
-                        fillScale: 1,
-                        fillOpacity: 0.12,
-                        outlineOpacity: 0.2,
-                        animationCount: 0,
-                        action: {}
-                    )
-                    .transition(.scale(scale: 0.86).combined(with: .opacity))
-                } else {
-                    PairCardPillButton(title: "拒绝", isPrimary: false, action: handleSecondaryAction)
-                    PairCardPillButton(title: "接受", isPrimary: true, action: handlePrimaryAction)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
-            }
-        case .sent:
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                chatMessageZone
-                Spacer(minLength: 0)
-
-                if entry.responseStateText == "已拒绝" {
-                    PairCardPillButton(title: "删除", isPrimary: false, action: handleDeleteAction)
-                    if showsKeepForLaterAction {
-                        PairCardPillButton(title: "暂留", isPrimary: false, action: handleKeepForLaterAction)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
-                    PairCardPillButton(title: "再发", isPrimary: true, action: handleResendAction)
-                } else if entry.canSendReminder {
-                    reminderButton
-                }
-            }
-        case .assigned, .shared, .standard:
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                chatMessageZone
-
-                Spacer(minLength: 0)
-
-                PairCompletionBadge(
-                    isCompleted: entry.isCompleted,
-                    isAnimatingCompletion: isAwaitingCompletionCommit,
-                    accentColor: entry.pairCardStyle == .shared ? AppTheme.colors.sky : AppTheme.colors.coral,
-                    scale: completionBadgeScale,
-                    fillScale: completionFillScale,
-                    fillOpacity: completionFillOpacity,
-                    outlineOpacity: completionOutlineOpacity,
-                    animationCount: completionAnimationCount,
-                    action: handleCompletionAction
-                )
-            }
-        }
-        }
-    }
-
-    private func syncStateBadge(text: String, state: SharedMutationDisplayState) -> some View {
-        Text(text)
-            .font(AppTheme.typography.sized(12, weight: .semibold))
-            .foregroundStyle(
-                state == .confirmed
-                    ? .green.opacity(0.78)
-                    : AppTheme.colors.body.opacity(0.62)
-            )
-            .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
-            .padding(.vertical, AppTheme.spacing.xs) // normalized 8→6
-            .background(
-                Capsule(style: .continuous)
-                    .fill(
-                        state == .confirmed
-                            ? AppTheme.colors.surfaceElevated.opacity(0.92)
-                            : AppTheme.colors.surfaceElevated
-                    )
-            )
-    }
-
-    private var chatMessageZone: some View {
-        Button(action: onOpenChat) {
-            messageIdentityRow
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(chatAccessibilityLabel)
-    }
-
-    private var messageIdentityRow: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
-            PairTimelineAvatarStrip(
-                primaryAvatar: entry.primaryAvatar,
-                secondaryAvatar: entry.secondaryAvatar,
-                style: effectivePairCardStyle
-            )
-
-            if hasVisibleMessageText {
-                messageTextView
-            }
-        }
-    }
-
-    /// 催促对方的小按钮（30 秒冷却）
-    @State private var reminderShakeCount = 0
-
-    private var reminderButton: some View {
-        let isOnCooldown: Bool = {
-            guard let lastReminder = entry.reminderRequestedAt else { return false }
-            return Date.now.timeIntervalSince(lastReminder) < 30
-        }()
-
-        return Button {
-            // 强震动反馈
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.warning)
-            reminderShakeCount += 1
-            onSendReminder()
-        } label: {
-            HStack(spacing: AppTheme.spacing.xxs) {
-                Image(systemName: "bell.badge")
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .symbolEffect(.bounce.byLayer, value: reminderShakeCount)
-                Text("提醒")
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-            }
-            .foregroundStyle(isOnCooldown ? AppTheme.colors.textTertiary : AppTheme.colors.coral)
-            .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
-            .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isOnCooldown ? AppTheme.colors.background : AppTheme.colors.coral.opacity(0.12))
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(isOnCooldown)
-        .animation(.easeInOut(duration: 0.2), value: isOnCooldown)
-    }
-
-    private var messageTextView: some View {
-        Group {
-            if shouldShowMessageBubble {
-                Text(visibleMessageText)
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.84))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.84)
-                    .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
-                    .padding(.vertical, AppTheme.spacing.sm) // normalized 9→10
-                    .background(alignment: .bottomLeading) {
-                        PairMessageBubbleBackground(fill: bubbleFillColor)
-                    }
-                    .scaleEffect(bubbleScale)
-                    .opacity(bubbleOpacity)
-            } else {
-                Text(visibleMessageText)
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.74))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.84)
-            }
-        }
-    }
-
-    private var messagePreview: String? {
-        if let transientBubbleText {
-            return transientBubbleText
-        }
-        guard let message = entry.messagePreview?.trimmingCharacters(in: .whitespacesAndNewlines),
-              message.isEmpty == false else {
-            return nil
-        }
-
-        if let author = entry.latestMessageAuthorName {
-            return "\(author)：\(message)"
-        }
-        return message
-    }
-
-    private var hasVisibleMessageText: Bool {
-        messagePreview != nil
-    }
-
-    private var subtitleText: String {
-        if let syncStateText = entry.syncStateText, syncStateText.isEmpty == false {
-            return syncStateText
-        }
-        if let responseStateText = entry.responseStateText, responseStateText.isEmpty == false {
-            return responseStateText
-        }
-        if let relationText = entry.relationText, relationText.isEmpty == false {
-            return relationText
-        }
-        return "轻点展开详情"
-    }
-
-    private var visibleMessageText: String {
-        messagePreview ?? ""
-    }
-
-    private var chatAccessibilityLabel: String {
-        if let messagePreview {
-            return "任务留言，最后一条 \(messagePreview)，点按打开聊天"
-        }
-        return "任务留言，点按打开聊天"
-    }
-
-    private var shouldShowMessageBubble: Bool {
-        if effectivePairCardStyle == .assigned || effectivePairCardStyle == .standard {
-            return false
-        }
-        if transientBubbleText != nil {
-            return true
-        }
-        return entry.messagePreview?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
-
-    private var bubbleFillColor: Color {
-        switch effectivePairCardStyle {
-        case .request:
-            return AppTheme.colors.surfaceElevated
-        case .sent:
-            return AppTheme.colors.surfaceElevated
-        case .shared:
-            return AppTheme.colors.surfaceElevated
-        case .assigned, .standard:
-            return AppTheme.colors.surfaceElevated
-        }
-    }
-
-    private var relationColor: Color {
-        switch effectivePairCardStyle {
-        case .request:
-            return AppTheme.colors.coral
-        case .shared:
-            return AppTheme.colors.sky
-        case .sent:
-            return AppTheme.colors.body.opacity(0.74)
-        case .assigned, .standard:
-            return AppTheme.colors.title.opacity(0.76)
-        }
-    }
-
-    private var timeColor: Color {
-        switch entry.urgency {
-        case .overdue:
-            return AppTheme.colors.coral
-        case .imminent:
-            return AppTheme.colors.sky
-        case .normal:
-            return AppTheme.colors.body.opacity(0.58)
-        }
-    }
-
-    private var cardBackground: some ShapeStyle {
-        switch effectivePairCardStyle {
-        case .request:
-            return AppTheme.colors.background
-        case .shared:
-            return AppTheme.colors.sky.opacity(0.08)
-        case .sent:
-            return AppTheme.colors.surfaceElevated.opacity(0.9)
-        case .assigned, .standard:
-            return AppTheme.colors.background
-        }
-    }
-
-    private var cardStroke: Color {
-        switch effectivePairCardStyle {
-        case .request:
-            return AppTheme.colors.outlineStrong.opacity(0.1)
-        case .shared:
-            return AppTheme.colors.sky.opacity(0.16)
-        case .sent:
-            return AppTheme.colors.outlineStrong.opacity(0.12)
-        case .assigned, .standard:
-            return AppTheme.colors.outlineStrong.opacity(0.1)
-        }
-    }
-
-    private var effectivePairCardStyle: HomePairCardStyle {
-        isMorphingToAssigned ? .assigned : entry.pairCardStyle
-    }
-
-    private var sentAnimationSignature: String {
-        guard entry.pairCardStyle == .sent else { return "" }
-        return "\(entry.responseStateText ?? "")|\(entry.messagePreview ?? "")"
-    }
-
-    private func handleCardTap() {
-        onOpenDetail()
-    }
-
-    private func handlePrimaryAction() {
-        guard entry.pairCardStyle == .request else {
-            onPrimaryAction()
-            return
-        }
-
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
-            isMorphingToAssigned = true
-        }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(190))
-            onPrimaryAction()
-            try? await Task.sleep(for: .milliseconds(280))
-            isMorphingToAssigned = false
-        }
-    }
-
-    private func handleSecondaryAction() {
-        guard entry.pairCardStyle == .request else {
-            onSecondaryAction()
-            return
-        }
-
-        Task { @MainActor in
-            if reduceMotion == false {
-                withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
-                    rowScale = 0.98
-                    rowVerticalOffset = -8
-                    rowOpacity = 0
-                }
-                try? await Task.sleep(for: .milliseconds(140))
-            }
-            onSecondaryAction()
-        }
-    }
-
-    private func handleQuickMessage(_ message: String) {
-        guard entry.pairCardStyle == .request || supportsSentQuickReplyMenu else { return }
-        HomeInteractionFeedback.menuTap()
-        transientBubbleText = message
-        runMessageBubbleEntranceAnimation()
-
-        Task { @MainActor in
-            if entry.pairCardStyle == .request, reduceMotion == false {
-                try? await Task.sleep(for: .milliseconds(220))
-                withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
-                    rowScale = 0.98
-                    rowVerticalOffset = -8
-                    rowOpacity = 0
-                }
-                try? await Task.sleep(for: .milliseconds(120))
-            }
-            onQuickMessage(message)
-        }
-    }
-
-    private func handleResendAction() {
-        HomeInteractionFeedback.selection()
-        Task { @MainActor in
-            if reduceMotion == false {
-                withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
-                    rowScale = 1.02
-                }
-                try? await Task.sleep(for: .milliseconds(110))
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                    rowScale = 1
-                }
-            }
-            onResend()
-        }
-    }
-
-    private func handleKeepForLaterAction() {
-        HomeInteractionFeedback.selection()
-        guard entry.pairCardStyle == .sent else {
-            return
-        }
-
-        if reduceMotion {
-            showsKeepForLaterAction = false
-            return
-        }
-
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
-            showsKeepForLaterAction = false
-            rowScale = 0.992
-        }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-                rowScale = 1
-            }
-        }
-    }
-
-    private func handleDeleteAction() {
-        HomeInteractionFeedback.selection()
-        Task { @MainActor in
-            if reduceMotion == false {
-                withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
-                    rowScale = 0.98
-                    rowOpacity = 0
-                }
-                try? await Task.sleep(for: .milliseconds(140))
-            }
-            onDelete()
-        }
-    }
-
-    private func handleCompletionAction() {
-        guard entry.isCompleted == false else {
-            onPrimaryAction()
-            return
-        }
-
-        isAwaitingCompletionCommit = true
-        runCompletionAnimation()
-
-        Task { @MainActor in
-            if reduceMotion == false {
-                try? await Task.sleep(for: .milliseconds(70))
-            }
-            onPrimaryAction()
-        }
-    }
-
-    private func runMessageBubbleEntranceAnimation() {
-        guard reduceMotion == false else {
-            bubbleScale = 1
-            bubbleOpacity = 1
-            return
-        }
-
-        bubbleScale = 0.92
-        bubbleOpacity = 0.28
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.76)) {
-            bubbleScale = 1
-            bubbleOpacity = 1
-            rowScale = 1
-            rowVerticalOffset = 0
-        }
-    }
-
-    private func runSentCardMessageAnimation() {
-        guard reduceMotion == false else {
-            bubbleScale = 1
-            bubbleOpacity = 1
-            return
-        }
-
-        bubbleScale = 0.9
-        bubbleOpacity = 0.18
-        rowScale = 0.992
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
-            bubbleScale = 1
-            bubbleOpacity = 1
-            rowScale = 1
-        }
-    }
-
-    private func runCompletionAnimation() {
-        completionAnimationCount += 1
-        completionOutlineOpacity = 1
-        completionFillScale = 0.42
-        completionFillOpacity = reduceMotion ? 0.12 : 0.2
-        completionBadgeScale = reduceMotion ? 1 : 0.82
-        rowScale = reduceMotion ? 1 : 0.988
-        rowVerticalOffset = reduceMotion ? 0 : -1
-
-        withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.1)) {
-            completionOutlineOpacity = reduceMotion ? 0.18 : 0
-        }
-
-        Task { @MainActor in
-            if reduceMotion {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    completionFillScale = 1
-                    completionFillOpacity = 0
-                }
-                return
-            }
-
-            try? await Task.sleep(for: .milliseconds(72))
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.5)) {
-                completionBadgeScale = 1.16
-                completionFillScale = 1.02
-                rowScale = 0.982
-            }
-            withAnimation(.easeOut(duration: 0.18)) {
-                completionFillOpacity = 0.26
-            }
-
-            try? await Task.sleep(for: .milliseconds(120))
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.68)) {
-                completionBadgeScale = 1
-                rowScale = 1
-                rowVerticalOffset = 2
-            }
-            withAnimation(.easeOut(duration: 0.2)) {
-                completionFillScale = 1.34
-                completionFillOpacity = 0
-            }
-
-            try? await Task.sleep(for: .milliseconds(84))
-            withAnimation(.easeOut(duration: 0.12)) {
-                rowVerticalOffset = 0
-            }
-        }
-    }
-
-    private func resetCompletionBadgeState() {
-        completionBadgeScale = 1
-        completionFillScale = 0.5
-        completionFillOpacity = 0
-        completionOutlineOpacity = 1
-        rowScale = 1
-        rowVerticalOffset = 0
-        rowOpacity = 1
-        isAwaitingCompletionCommit = false
-    }
-}
-
-private struct PairMessageBubbleBackground: View {
-    let fill: Color
-
-    var body: some View {
-        Capsule(style: .continuous)
-            .fill(fill)
-    }
-}
-
-private struct PairTimelineAvatarStrip: View {
-    let primaryAvatar: HomeAvatar?
-    let secondaryAvatar: HomeAvatar?
-    let style: HomePairCardStyle
-
-    var body: some View {
-        HStack(spacing: secondaryAvatar == nil ? 0 : -8) {
-            if let primaryAvatar {
-                avatar(primaryAvatar, fillColor: AppTheme.colors.surfaceElevated)
-            }
-
-            if let secondaryAvatar {
-                avatar(secondaryAvatar, fillColor: AppTheme.colors.avatarWarm)
-            }
-        }
-        .frame(width: stripWidth, height: 34, alignment: .leading)
-    }
-
-    private var stripWidth: CGFloat {
-        switch style {
-        case .shared:
-            return 58
-        default:
-            return 34
-        }
-    }
-
-    private func avatar(_ avatar: HomeAvatar, fillColor: Color) -> some View {
-        UserAvatarView(
-            avatarAsset: avatar.avatarAsset,
-            displayName: avatar.displayName,
-            size: 34,
-            fillColor: fillColor,
-            symbolColor: AppTheme.colors.title,
-            symbolFont: AppTheme.typography.sized(13, weight: .semibold),
-            overrideImage: avatar.overrideImage
-        )
-        .frame(width: 34, height: 34)
-        .overlay {
-            Circle()
-                .stroke(.white.opacity(0.92), lineWidth: 2)
-        }
-    }
-}
-
-private struct PairCardPillButton: View {
-    let title: String
-    let isPrimary: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(AppTheme.typography.sized(13, weight: .bold))
-                .foregroundStyle(isPrimary ? Color.white : AppTheme.colors.title)
-                .padding(.horizontal, AppTheme.spacing.md) // normalized 14→16
-                .padding(.vertical, AppTheme.spacing.sm)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(isPrimary ? AppTheme.colors.coral : AppTheme.colors.surfaceElevated)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-
-private struct PairNativeContextMenuModifier: ViewModifier {
-    let messages: [String]
-    let onSelectMessage: (String) -> Void
-
-    func body(content: Content) -> some View {
-        if messages.isEmpty {
-            content
-        } else {
-            content.contextMenu {
-                ForEach(messages, id: \.self) { message in
-                    Button(message) {
-                        onSelectMessage(message)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct PairCompletionBadge: View {
-    let isCompleted: Bool
-    let isAnimatingCompletion: Bool
-    let accentColor: Color
-    let scale: CGFloat
-    let fillScale: CGFloat
-    let fillOpacity: Double
-    let outlineOpacity: Double
-    let animationCount: Int
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
-                    .fill(accentColor.opacity(0.14))
-                    .scaleEffect(fillScale)
-                    .opacity(isCompleted ? 0 : fillOpacity)
-
-                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
-                    .strokeBorder(
-                        accentColor.opacity(0.58),
-                        style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
-                    )
-                    .opacity(isCompleted ? 0 : outlineOpacity)
-
-                Image(systemName: "checkmark")
-                    .font(AppTheme.typography.sized(17, weight: .bold))
-                    .foregroundStyle(accentColor)
-                    .contentTransition(.symbolEffect(.replace))
-                    .symbolEffect(.bounce, options: .speed(1.15), value: animationCount)
-                    .opacity((isCompleted || isAnimatingCompletion) ? 1 : 0)
-                    .offset(
-                        x: AppTheme.metrics.checkmarkVisualOffset.width,
-                        y: AppTheme.metrics.checkmarkVisualOffset.height
-                    )
-            }
-            .frame(width: 40, height: 40)
-            .scaleEffect(scale)
-            .shadow(
-                color: accentColor.opacity(isCompleted ? 0 : 0.2),
-                radius: isCompleted ? 0 : 12,
-                y: isCompleted ? 0 : 5
-            )
-        }
-        .frame(width: 56, height: 56)
-        .contentShape(Rectangle())
-        .buttonStyle(.plain)
     }
 }
 
@@ -3567,25 +2272,14 @@ private struct HomeOverdueSummarySheet: View {
                     notes: entry.detailText,
                     timeText: entry.timeText,
                     statusText: "已逾期",
-                    syncState: nil,
-                    assigneeText: nil,
-                    messagePreview: nil,
-                    latestComment: nil,
-                    responseStateText: nil,
-                    needsResponse: false,
                     accentColorName: "coral",
                     isMuted: false,
                     isCompleted: false,
                     urgency: .overdue,
-                    pairCardStyle: .standard,
                     relationText: nil,
                     primaryAvatar: nil,
                     secondaryAvatar: nil,
-                    latestMessageAuthorName: nil,
-                    hasUnreadComment: false,
-                    reminderRequestedAt: nil,
-                    lastActionAt: nil,
-                    canSendReminder: false
+                    lastActionAt: nil
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
                 isAnimatingReopening: false,
@@ -3658,32 +2352,6 @@ private struct VerticalMotionModifier: ViewModifier {
             .scaleEffect(scale, anchor: .center)
             .opacity(opacity)
     }
-}
-
-private struct TaskChatZoomDestination: View {
-    @Bindable var viewModel: TaskChatViewModel
-    let currentUserID: UUID?
-    let partnerAvatar: HomeAvatar?
-    let currentUserAvatar: HomeAvatar?
-    let onDismiss: () -> Void
-
-    var body: some View {
-        ZStack {
-            GradientGridBackground()
-                .ignoresSafeArea()
-
-            TaskChatPanelView(
-                viewModel: viewModel,
-                currentUserID: currentUserID,
-                partnerAvatar: partnerAvatar,
-                currentUserAvatar: currentUserAvatar,
-                onDismiss: onDismiss,
-                showsContainerChrome: false
-            )
-            .background(.regularMaterial)
-        }
-    }
-
 }
 
 private struct CompletedSectionVisibility {

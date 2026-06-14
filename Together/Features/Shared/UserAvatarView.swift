@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 #if canImport(UIKit)
 import UIKit
@@ -77,13 +76,6 @@ private struct AvatarPhotoView: View {
 
     #if canImport(UIKit)
     @State private var loadedImage: UIImage?
-    @State private var reloadTick: Int = 0
-
-    private var partnerAvatarPublisher: AnyPublisher<Notification, Never> {
-        NotificationCenter.default.publisher(for: .partnerAvatarDownloaded)
-            .receive(on: DispatchQueue.main)
-            .eraseToAnyPublisher()
-    }
     #endif
 
     var body: some View {
@@ -98,15 +90,8 @@ private struct AvatarPhotoView: View {
                 fallbackView
             }
         }
-        .task(id: "\(fileName)#\(reloadTick)") {
+        .task(id: fileName) {
             await reloadFromDisk()
-        }
-        .onReceive(partnerAvatarPublisher) { _ in
-            // Any partner avatar write invalidates our in-memory copy so the
-            // next disk read sees the freshly written bytes.
-            UserAvatarRuntimeStore.remove(fileName: fileName)
-            loadedImage = nil
-            reloadTick &+= 1
         }
         #else
         fallbackView

@@ -3,19 +3,19 @@ import SwiftData
 
 @Model
 final class PersistentTaskTemplate {
-    var id: UUID
+    var id: UUID = UUID()
     var spaceID: UUID?
-    var title: String
+    var title: String = ""
     var notes: String?
     var listID: UUID?
     var projectID: UUID?
-    var isPinned: Bool
-    var hasExplicitTime: Bool
+    var isPinned: Bool = false
+    var hasExplicitTime: Bool = false
     var timeData: Data?
     var reminderOffset: TimeInterval?
     var repeatRuleData: Data?
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
 
     init(
         id: UUID,

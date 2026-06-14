@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class PersistentProjectSubtask {
-    var id: UUID
-    var projectID: UUID
-    var creatorID: UUID
-    var title: String
-    var isCompleted: Bool
-    var sortOrder: Int
-    var updatedAt: Date
+    var id: UUID = UUID()
+    var projectID: UUID = UUID()
+    var creatorID: UUID = UUID()
+    var title: String = ""
+    var isCompleted: Bool = false
+    var sortOrder: Int = 0
+    var updatedAt: Date = Date.now
     var isLocallyDeleted: Bool = false
 
     init(
@@ -19,7 +19,7 @@ final class PersistentProjectSubtask {
         title: String,
         isCompleted: Bool,
         sortOrder: Int,
-        updatedAt: Date = .now,
+        updatedAt: Date = Date.now,
         isLocallyDeleted: Bool = false
     ) {
         self.id = id

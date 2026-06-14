@@ -3,18 +3,18 @@ import SwiftData
 
 @Model
 final class PersistentPeriodicTask {
-    var id: UUID
+    var id: UUID = UUID()
     var spaceID: UUID?
-    var creatorID: UUID
-    var title: String
+    var creatorID: UUID = UUID()
+    var title: String = ""
     var notes: String?
-    var cycleRawValue: String
+    var cycleRawValue: String = PeriodicCycle.monthly.rawValue
     var reminderRulesData: Data?
-    var completionsData: Data
-    var sortOrder: Double
-    var isActive: Bool
-    var createdAt: Date
-    var updatedAt: Date
+    var completionsData: Data = Data()
+    var sortOrder: Double = 0
+    var isActive: Bool = true
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
     var isLocallyDeleted: Bool = false
 
     init(

@@ -28,7 +28,7 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate 
     ) async -> UNNotificationPresentationOptions {
         let userInfo = notification.request.content.userInfo
         if userInfo["event_type"] != nil || userInfo["task_id"] != nil {
-            await appContext?.handlePairRemoteNotification(userInfo)
+            await appContext?.handleRemoteNotification(userInfo)
         }
 
         // Drop self-notifications: if the push was sent by the current user, suppress the banner.

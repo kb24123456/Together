@@ -3,12 +3,12 @@ import SwiftData
 
 @Model
 final class PersistentItemOccurrenceCompletion {
-    var id: UUID
-    var itemID: UUID
-    var occurrenceDate: Date
-    var completedAt: Date
-    var createdAt: Date
-    var updatedAt: Date
+    var id: UUID = UUID()
+    var itemID: UUID = UUID()
+    var occurrenceDate: Date = Date.now
+    var completedAt: Date = Date.now
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
 
     init(
         id: UUID = UUID(),

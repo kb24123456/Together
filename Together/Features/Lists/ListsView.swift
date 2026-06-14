@@ -6,24 +6,20 @@ struct ListsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                if viewModel.isPairModeActive {
-                    pairModeHeader
-                } else {
-                    CardSection(
-                        title: "当前是个人清单视图",
-                        subtitle: viewModel.spaceSummary
-                    ) {
-                        Text("这里展示的是单人空间下的清单数据。")
-                            .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                            .foregroundStyle(AppTheme.colors.body.opacity(0.76))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                CardSection(
+                    title: "当前是个人清单视图",
+                    subtitle: viewModel.spaceSummary
+                ) {
+                    Text("这里展示的是个人任务空间下的清单数据。")
+                        .font(AppTheme.typography.textStyle(.body, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.76))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 CardSection(title: "系统清单", subtitle: "先把收集、Today 和即将到来分清") {
                     VStack(spacing: AppTheme.spacing.sm) {
                         ForEach(viewModel.systemLists) { list in
-                            listRow(list, isShared: viewModel.isPairModeActive)
+                            listRow(list)
                         }
                     }
                 }
@@ -38,7 +34,7 @@ struct ListsView: View {
                             )
                         } else {
                             ForEach(viewModel.customLists) { list in
-                                listRow(list, isShared: viewModel.isPairModeActive)
+                                listRow(list)
                             }
                         }
                     }
@@ -56,29 +52,7 @@ struct ListsView: View {
         }
     }
 
-    private var pairModeHeader: some View {
-        CardSection(title: "双人清单", subtitle: viewModel.spaceSummary) {
-            HStack(spacing: AppTheme.spacing.md) {
-                PairListModeAvatarStrip(
-                    currentUser: viewModel.currentUser,
-                    partner: viewModel.partner
-                )
-
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                    Text("共享清单")
-                        .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.title)
-
-                    Text("这里的系统清单和自定义清单都只读取双人空间，不会混入单人数据。")
-                        .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.68))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    private func listRow(_ list: TaskList, isShared: Bool) -> some View {
+    private func listRow(_ list: TaskList) -> some View {
         HStack(spacing: AppTheme.spacing.md) {
             Circle()
                 .fill(list.kind == .custom ? AppTheme.colors.secondaryAccent : AppTheme.colors.accent)
@@ -90,10 +64,6 @@ struct ListsView: View {
 
             Spacer()
 
-            if isShared {
-                Badge(text: "共享", tint: AppTheme.colors.coral, size: .small)
-            }
-
             Text("\(list.taskCount)")
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body)
@@ -102,37 +72,6 @@ struct ListsView: View {
         .padding(.vertical, AppTheme.spacing.xxs)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(list.name))
-        .accessibilityValue(Text("\(list.taskCount) 个任务\(isShared ? "，已共享" : "")"))
-    }
-}
-
-private struct PairListModeAvatarStrip: View {
-    let currentUser: User?
-    let partner: User?
-
-    var body: some View {
-        HStack(spacing: -8) {
-            avatar(for: currentUser, fill: AppTheme.colors.surfaceElevated)
-            if partner != nil {
-                avatar(for: partner, fill: AppTheme.colors.avatarWarm)
-            }
-        }
-        .frame(width: partner == nil ? 40 : 70, height: 40, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func avatar(for user: User?, fill: Color) -> some View {
-        UserAvatarView(
-            avatarAsset: user?.avatarAsset ?? .system("person.crop.circle.fill"),
-            displayName: user?.displayName ?? "用户",
-            size: 40,
-            fillColor: fill,
-            symbolColor: AppTheme.colors.title,
-            symbolFont: AppTheme.typography.sized(14, weight: .semibold)
-        )
-        .overlay {
-            Circle()
-                .stroke(.white.opacity(0.92), lineWidth: 2)
-        }
+        .accessibilityValue(Text("\(list.taskCount) 个任务"))
     }
 }

@@ -1,20 +1,15 @@
-import CloudKit
 import UIKit
 
 /// Handles UIApplicationDelegate callbacks that are not available in the SwiftUI lifecycle.
 ///
 /// Responsibilities:
-/// - Register for remote notifications used by CloudKit sync.
+/// - Register for remote notifications used by local notification deep links.
 /// - Forward silent pushes to AppContext when the app is alive.
 /// - Capture cold-launch task_id from APNs userInfo for deep-link routing.
 @MainActor
 final class AppDelegate: NSObject, UIApplicationDelegate {
 
     weak var bootstrapper: AppBootstrapper?
-
-    /// Stored when share acceptance arrives before the app is fully bootstrapped.
-    /// AppContext consumes this via `consumePendingShareMetadata()` once ready.
-    private(set) var pendingShareMetadata: CKShare.Metadata?
 
     /// Captured from launchOptions[.remoteNotification] on cold launch.
     /// Consumed once by `consumePendingTaskIDFromNotification()` after bootstrap.
@@ -26,7 +21,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // CloudKit shared/private database subscriptions may still wake the app in background.
         application.registerForRemoteNotifications()
 
         if let remote = launchOptions?[.remoteNotification] as? [AnyHashable: Any],
@@ -65,7 +59,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
-        // 注册 device token 到 Supabase（用于双人同步 APNs 推送）
+        // 保留 APNs token 入口，当前版本不上传到第三方后端。
         Task {
             await DeviceTokenService().registerToken(deviceToken)
         }
@@ -78,22 +72,5 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         #if DEBUG
         print("[AppDelegate] Failed to register for remote notifications: \(error)")
         #endif
-    }
-
-    // MARK: - CKShare (legacy, disabled)
-    // Direct share-link acceptance is not yet the primary invite path. The current
-    // production flow accepts shares from the invite code lookup result.
-
-    func application(
-        _ application: UIApplication,
-        userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
-    ) {
-        pendingShareMetadata = cloudKitShareMetadata
-    }
-
-    func consumePendingShareMetadata() -> CKShare.Metadata? {
-        let m = pendingShareMetadata
-        pendingShareMetadata = nil
-        return m
     }
 }

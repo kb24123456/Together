@@ -161,52 +161,6 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return item.isCompleted(on: referenceDate, calendar: calendar)
     }
 
-    func updateItemStatus(itemID: UUID, response: ItemResponseKind?, message: String?, actorID: UUID) async throws -> Item {
-        let context = ModelContext(container)
-        guard let record = try fetchRecord(itemID: itemID, context: context) else {
-            throw RepositoryError.notFound
-        }
-
-        var item = record.domainModel()
-        if let response {
-            guard item.canActorRespond(actorID) else {
-                throw RepositoryError.notFound
-            }
-            let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let responseRecord = ItemResponse(
-                responderID: actorID,
-                kind: response,
-                message: trimmedMessage,
-                respondedAt: .now
-            )
-            item.latestResponse = responseRecord
-            item.responseHistory.append(responseRecord)
-            item.assignmentState = ItemStateMachine.nextAssignmentState(
-                from: item.assignmentState,
-                response: response
-            )
-            item.status = ItemStateMachine.nextStatus(
-                from: item.status,
-                executionRole: item.executionRole,
-                response: response
-            )
-        }
-
-        item.lastActionByUserID = actorID
-        item.lastActionAt = .now
-        item.updatedAt = .now
-        record.update(from: item)
-        try context.save()
-
-        if let sid = record.spaceID {
-            await syncCoordinator?.recordLocalChange(
-                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
-            )
-        }
-
-        return try hydratedItem(from: record, context: context)
-    }
-
     func markCompleted(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item {
         let context = ModelContext(container)
         guard let record = try fetchRecord(itemID: itemID, context: context) else {
@@ -224,19 +178,8 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
         var item = record.domainModel()
         if item.repeatRule == nil {
-            // Only enforce role-based completion for .partner mode tasks (where
-            // the non-creator must be the one completing). For .self and .both
-            // modes, space-level authorization (already verified by existingTask)
-            // is sufficient — blocking on creatorID equality would prevent
-            // legitimate single-user completions when the stored creatorID has
-            // drifted (e.g., after user profile migration or seeding).
-            guard item.assigneeMode != .partner || item.canActorComplete(actorID) else {
-                throw RepositoryError.notFound
-            }
-            item.assignmentState = .completed
             item.status = ItemStateMachine.nextStatus(
                 from: item.status,
-                executionRole: item.executionRole,
                 isCompletion: true
             )
             item.completedAt = Date.now
@@ -289,7 +232,6 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         var item = record.domainModel()
         if item.repeatRule == nil {
             item.completedAt = nil
-            item.assignmentState = item.assigneeMode == .partner ? .accepted : .active
             if item.status == .completed {
                 item.status = .inProgress
             }
@@ -343,7 +285,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
         try context.save()
 
-        // 记录到同步队列：任何通过 repository 走的任务变更都应被 Supabase push
+        // 记录到本地同步队列。
         if let sid = savedItem.spaceID {
             await syncCoordinator?.recordLocalChange(
                 SyncChange(entityKind: .task, operation: .upsert, recordID: savedItem.id, spaceID: sid)

@@ -50,7 +50,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
 
         if let record = try fetchRecord(projectID: project.id, context: context) {
             // Updating existing project — check permission
-            guard PairPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+            guard SoloPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
                 throw PermissionError.notCreator
             }
             record.update(from: savedProject)
@@ -141,7 +141,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
 
         for (index, projectID) in projectIDs.enumerated() {
             guard let record = recordsByID[projectID] else { continue }
-            guard PairPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
+            guard SoloPermissionService.canEditProject(record.domainModel(taskCount: 0), actorID: actorID) else {
                 throw PermissionError.notCreator
             }
             record.sortOrder = Double(index)
@@ -167,8 +167,8 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        // Both partners may toggle project completion in shared spaces.
-        guard PairPermissionService.canToggleProjectCompletion(record.domainModel(taskCount: 0), actorID: actorID) else {
+        // Project completion is a personal action in the current single-user model.
+        guard SoloPermissionService.canToggleProjectCompletion(record.domainModel(taskCount: 0), actorID: actorID) else {
             throw PermissionError.notCreator
         }
 
@@ -191,7 +191,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+        guard SoloPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
             throw PermissionError.notCreator
         }
 
@@ -226,8 +226,8 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        // Both partners may check / uncheck a subtask in a shared project.
-        guard PairPermissionService.canToggleSubtaskCompletion(projectCreatorID: record.creatorID, actorID: actorID) else {
+        // Project subtasks are personal checklist rows in the current single-user model.
+        guard SoloPermissionService.canToggleSubtaskCompletion(projectCreatorID: record.creatorID, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context) else {
@@ -254,7 +254,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+        guard SoloPermissionService.canEditProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context) else {
@@ -285,7 +285,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         guard let record = try fetchRecord(projectID: projectID, context: context) else {
             throw RepositoryError.notFound
         }
-        guard PairPermissionService.canDeleteProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
+        guard SoloPermissionService.canDeleteProjectSubtask(projectCreatorID: record.creatorID, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context) else {
@@ -306,7 +306,7 @@ actor LocalProjectRepository: ProjectRepositoryProtocol {
         try normalizeProjectStatus(record: record, context: context)
         try context.save()
 
-        // Sync resequenced siblings so the partner gets updated sortOrder values
+        // Sync resequenced siblings so CloudKit receives updated sortOrder values.
         let remainingSubtasks = try subtasks(for: projectID, in: context)
         for sibling in remainingSubtasks {
             await syncCoordinator.recordLocalChange(

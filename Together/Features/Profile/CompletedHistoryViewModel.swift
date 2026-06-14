@@ -16,25 +16,14 @@ final class CompletedHistoryViewModel {
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let taskListRepository: TaskListRepositoryProtocol
     private let projectRepository: ProjectRepositoryProtocol
-    private let premiumGate: PremiumGate
     private let pageSize = 30
 
-    /// 非 Pro 用户 Logbook 历史的天数上限（spec 产品切分 §2）。
-    private static let freeLogbookFloorDays = 30
-
     var onTaskMutated: ((UUID) -> Void)?
-    var onSharedMutationRecorded: ((SyncChange) -> Void)?
     var items: [Item] = []
     var searchText = ""
     var isLoading = false
     var hasLoaded = false
     var canLoadMore = true
-
-    /// Aggregated stats for the Logbook pair-mode hero. Nil when solo.
-    /// Populated during `reload()` via a lightweight aggregate fetch.
-    private(set) var pairSummary: LogbookPairSummary?
-
-    var isPairMode: Bool { sessionStore.isViewingPairSpace }
 
     private var projectNames: [UUID: String] = [:]
     private var taskListNames: [UUID: String] = [:]
@@ -44,22 +33,13 @@ final class CompletedHistoryViewModel {
         itemRepository: ItemRepositoryProtocol,
         taskApplicationService: TaskApplicationServiceProtocol,
         taskListRepository: TaskListRepositoryProtocol,
-        projectRepository: ProjectRepositoryProtocol,
-        premiumGate: PremiumGate
+        projectRepository: ProjectRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.itemRepository = itemRepository
         self.taskApplicationService = taskApplicationService
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
-        self.premiumGate = premiumGate
-    }
-
-    /// Pro / gracePeriod 用户返回 nil（看完整历史）；free / unknown 返回 30 天前时间戳
-    /// 作为 `fetchCompletedItems(since:)` 的下界，隐藏更早的完成记录。
-    private var logbookSinceFloor: Date? {
-        guard !premiumGate.allowsFullLogbook else { return nil }
-        return calendar.date(byAdding: .day, value: -Self.freeLogbookFloorDays, to: Date())
     }
 
     var sections: [CompletedHistorySection] {
@@ -109,7 +89,7 @@ final class CompletedHistoryViewModel {
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
                 before: nil,
-                since: logbookSinceFloor,
+                since: nil,
                 limit: pageSize
             )
             items = fetched
@@ -121,7 +101,6 @@ final class CompletedHistoryViewModel {
             hasLoaded = true
         }
 
-        await refreshPairSummaryIfNeeded(spaceID: spaceID)
     }
 
     func loadMoreIfNeeded(currentItem item: Item) async {
@@ -136,7 +115,7 @@ final class CompletedHistoryViewModel {
             items.removeAll { $0.id == restored.id }
             canLoadMore = true
             if let spaceID = restored.spaceID ?? sessionStore.currentSpace?.id {
-                emitSharedTaskMutation(.upsert, taskID: restored.id, spaceID: spaceID)
+                onTaskMutated?(spaceID)
             }
         } catch {
             return
@@ -157,11 +136,8 @@ final class CompletedHistoryViewModel {
             )
         } catch {
             do {
-                // Logbook rows can outlive legacy pair/profile migrations. In
-                // that case creatorID may no longer match the current user, so
-                // the active-task permission path rejects the swipe delete even
-                // though the row is already historical. Tombstone the current
-                // history row directly so users can clean stale entries.
+                // Historical rows can outlive profile repair. Tombstone the
+                // current history row directly so users can clean stale entries.
                 try await itemRepository.deleteItem(itemID: item.id)
             } catch {
                 return
@@ -170,26 +146,7 @@ final class CompletedHistoryViewModel {
 
         items.removeAll { $0.id == item.id }
         canLoadMore = true
-        emitSharedTaskMutation(.delete, taskID: item.id, spaceID: spaceID)
-        await refreshPairSummaryIfNeeded(spaceID: spaceID)
-    }
-
-    private func emitSharedTaskMutation(
-        _ operation: SyncOperationKind,
-        taskID: UUID,
-        spaceID: UUID
-    ) {
-        let change = SyncChange(
-            entityKind: .task,
-            operation: operation,
-            recordID: taskID,
-            spaceID: spaceID
-        )
-        if let onSharedMutationRecorded {
-            onSharedMutationRecorded(change)
-        } else {
-            onTaskMutated?(spaceID)
-        }
+        onTaskMutated?(spaceID)
     }
 
     func subtitle(for item: Item) -> String {
@@ -216,29 +173,18 @@ final class CompletedHistoryViewModel {
         item.isArchived && item.archivedAt != nil
     }
 
-    /// Returns the avatar asset for a given user ID. Resolves:
-    /// - currentUser.id → currentUser.avatarAsset
-    /// - partner user ID → partner.avatarAsset
-    /// - nil or unknown → `.system("person.fill")`
     func avatarAsset(forUserID userID: UUID?) -> UserAvatarAsset {
         guard let userID else { return .system("person.fill") }
         if userID == sessionStore.currentUser?.id {
             return sessionStore.currentUser?.avatarAsset ?? .system("person.crop.circle.fill")
         }
-        if let partner = sessionStore.pairSpaceSummary?.partner, partner.id == userID {
-            return partner.avatarAsset ?? .system("person.crop.circle.fill")
-        }
         return .system("person.fill")
     }
 
-    /// Resolves a display name for VoiceOver. Mirrors `avatarAsset`'s lookup.
     func displayName(forUserID userID: UUID?) -> String {
         guard let userID else { return "未知完成者" }
         if userID == sessionStore.currentUser?.id {
             return sessionStore.currentUser?.displayName ?? "我"
-        }
-        if let partner = sessionStore.pairSpaceSummary?.partner, partner.id == userID {
-            return partner.displayName
         }
         return "未知完成者"
     }
@@ -260,7 +206,7 @@ final class CompletedHistoryViewModel {
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
                 before: cursor,
-                since: logbookSinceFloor,
+                since: nil,
                 limit: pageSize
             )
             items.append(contentsOf: fetched)
@@ -280,31 +226,6 @@ final class CompletedHistoryViewModel {
         if let projects = try? await projects {
             projectNames = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.name) })
         }
-    }
-
-    /// Aggregates Logbook pair hero stats via the dedicated
-    /// `completedItemStats` repository method. It avoids full Item hydration,
-    /// keeping the Logbook opener responsive as history grows.
-    private func refreshPairSummaryIfNeeded(spaceID: UUID) async {
-        guard isPairMode else {
-            pairSummary = nil
-            return
-        }
-
-        let stats: CompletedItemStats
-        do {
-            stats = try await itemRepository.completedItemStats(spaceID: spaceID, referenceDate: .now)
-        } catch {
-            pairSummary = nil
-            return
-        }
-
-        pairSummary = LogbookPairSummary(
-            totalCount: stats.totalCount,
-            thisMonthCount: stats.thisMonthCount,
-            firstItemTitle: stats.firstItemTitle,
-            lastCompletedAt: stats.lastCompletedAt
-        )
     }
 
     private func runAutoArchiveIfNeeded(spaceID: UUID) async {

@@ -51,21 +51,21 @@
 - 工程、设计、产品细则统一以下沉文档为准，不在本文件重复展开。
 
 ## 6. 执行边界
-- 若任务涉及新增或重构 UI、交互、动效，在用户偏好和验收标准未明确前必须先问。
+- 若任务涉及新增或重构 UI、交互、动效，在用户偏好和验收标准未明确前必须先问；本轮已确认 OCR 采用“草稿确认后入库”，但具体 UI 手感仍需按实现阶段审查。
 - 若需求与 `PRODUCT_SPEC.md` 冲突，先指出冲突并确认，不得擅自改方向。
 - 若用户提出的 UI、交互或动效需求与 iOS 原生框架、系统控件行为或安全区域机制冲突，必须先指出冲突点、系统约束和可选取舍，得到确认后再实现；禁止在未说明框架冲突的情况下反复局部修补。
-- 若需要改动核心数据模型、状态机、信息架构、第三方依赖、用户数据迁移，必须先问。
+- 若需要改动核心数据模型、状态机、信息架构、第三方依赖、用户数据迁移，必须先问；当前已确认允许删除旧 Supabase 数据、不保留 RevenueCat、不保留 Supabase webhook、CloudKit 作为唯一跨设备同步/恢复能力。
 
 ## 7. 默认执行顺序
 1. 读文档与相关代码
 2. 明确影响范围
-3. 先模型与状态
-4. 再服务与数据流
-5. 再 Today / 首页
-6. 再清单 / 项目 / 日历
-7. 再详情、创建入口、筛选与排序
-8. 再我页与设置
-9. 最后处理双人扩展与附加模块
+3. 先删除 Supabase / RevenueCat / 双人协作骨架
+4. 再模型与状态
+5. 再 SwiftData / CloudKit 服务与数据流
+6. 再 Today / 首页
+7. 再清单 / 项目 / 日历
+8. 再详情、创建入口、筛选与排序
+9. 再我页、设置、Widget 与 OCR 导入
 
 ## 8. 复杂任务输出模板
 - 任务目标
@@ -84,6 +84,8 @@
 - 禁止跳过文档直接写代码。
 - 禁止继续按旧的“双人优先 / 情侣优先”逻辑新增功能。
 - 禁止擅自新增多人模式实现。
+- 禁止继续新增 Supabase、RevenueCat、Paywall、PremiumGate、邀请、共享、聊天或关系运营能力。
+- 禁止把 OCR 结果未经用户确认直接写入真实任务或项目。
 - 禁止为了省事把逻辑硬编码进单个页面。
 - 禁止跨模块大改。
 - 禁止生成与当前任务无关的大段样板代码。
@@ -162,8 +164,8 @@
 - Widget 需要改动任务状态时，只允许采用以下两类路径之一：
   1. 主 App 提供完整、共享、安全的持久化模块；
   2. Widget 只做经过审查的最小共享写入，例如最小 SQLite transaction 写入任务完成状态、occurrence completion 和 sync outbox。
-- Widget 的 AppIntent 不能只更新 widget snapshot；凡是“完成任务、恢复任务、删除任务、修改状态”等业务动作，必须同时保证主 App 数据源、同步 outbox、widget snapshot 和回前台 reload 链路一致。
-- Widget snapshot 只能作为展示缓存和动画状态，不是业务真相。业务真相必须回到主 App 数据库和 Supabase/同步链路。
+- Widget 的 AppIntent 不能只更新 widget snapshot；凡是“完成任务、恢复任务、删除任务、修改状态”等业务动作，必须同时保证主 App 数据源、CloudKit 同步链路、widget snapshot 和回前台 reload 链路一致。
+- Widget snapshot 只能作为展示缓存和动画状态，不是业务真相。业务真相必须回到主 App SwiftData 数据库。
 - Widget 完成动画必须状态驱动：先保留被点任务展示虚线框填充和勾选，再让整行消失，最后让补位任务执行出现动画；不要让勾选图标单独消失，也不要在最后一项完成时直接跳空态。
 - Widget 空态、插画、字号、颜色和文案应优先复用 Today 当前设计语言；如果 Today 使用 `EmptyCalendar` 小猫占位图，widget 不应误用 `EmptyList` 等其他插画。
 - 小号 widget 中，只有虚线完成框可触发完成动作；其他区域应进入 App。实现时要明确 Button / widgetURL 的命中边界，避免整行误触完成或完成框无法触发。
@@ -171,11 +173,11 @@
   1. App 修改任务后 widget 是否刷新；
   2. Widget 完成任务后 App 前台列表、下拉刷新、切换单双人模式是否一致；
   3. App 恢复已完成任务后 widget 是否重新出现对应待办。
-- 如果 widget 或恢复链路曾导致本地 store 重建、schema/probe 失败、数据缺失，排查时必须检查 Supabase solo recovery 的 `lastPulledAt / migrationCompletedAt` 游标；本地库重建但游标仍存在时，只拉增量会漏掉远端旧项目和例行事务，必要时应做一次性 `since:nil` 全量恢复。
+- 如果 widget 或恢复链路导致本地 store 重建、schema/probe 失败、数据缺失，排查时必须检查 SwiftData store、CloudKit private database 状态、App Group store 路径和 Widget SQLite 最小写入逻辑。
 - 真机验证 widget UI / provider 改动时，不能在同一 `CFBundleVersion` 下反复安装后直接判断桌面结果。WidgetKit / SpringBoard 可能复用旧 timeline 渲染缓存，添加页 preview 已更新也不代表桌面 widget 已更新。每次改 widget extension 后应提升主 App 与 extension 的 `CURRENT_PROJECT_VERSION`，或删除重加 widget / 重启后再验收。
 - Widget extension 的 `Info.plist` 必须包含 App Store Connect 要求的基础 bundle 字段，尤其是 `CFBundleDisplayName`。本地 archive 成功不代表 ASC 上传会通过；上传 TestFlight 前应检查归档内 `TogetherWidget.appex/Info.plist`。
 - Widget snapshot 里禁止直接塞未处理的原始头像、相册大图或其他大尺寸图片 Data。主 App 写入前必须生成 widget 专用缩略图，并控制单个 snapshot 总字节量；小号 widget 要有旧 snapshot 大图 Data 的降级兜底，否则可能在桌面宿主快照归档时整块空白。
 - Widget 问题排查必须按“数据层 -> timeline/provider -> 各 family 渲染树 -> SpringBoard 缓存”的顺序逐层证伪。中号/大号正常不能证明小号正常；添加页 preview 正常也不能证明桌面 widget 正常。
 - Widget 文本中的纯数字如果不希望出现本地化千分位分隔符，必须使用 `Text(verbatim:)` 或提前生成非本地化展示字符串，不要使用 `Text("\(number)")` 这类 SwiftUI 本地化插值。
 - 所有 widget 视觉色值必须显式适配 `colorScheme`。背景、强调色、分割线、空态插画、头像占位、头像描边、阴影和完成框都不能只按浅色模式硬编码；新增 widget 前优先复用已有 widget theme。
-- 涉及 widget 的修复完成前，最低验证要求是：`git diff --check`、widget snapshot 相关测试、相关同步/恢复测试、`xcodebuild build-for-testing`。真机验收必须覆盖桌面 widget 点击、动画、App 回前台、删除重装恢复和 App Group 签名能力。
+- 涉及 widget 的修复完成前，最低验证要求是：`git diff --check`、widget snapshot 相关测试、CloudKit/SwiftData 相关同步或恢复测试、`xcodebuild build-for-testing`。真机验收必须覆盖桌面 widget 点击、动画、App 回前台、删除重装恢复和 App Group 签名能力。

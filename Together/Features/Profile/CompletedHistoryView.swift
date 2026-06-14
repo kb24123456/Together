@@ -2,33 +2,9 @@ import SwiftUI
 
 struct CompletedHistoryView: View {
     @Bindable var viewModel: CompletedHistoryViewModel
-    @Environment(AppContext.self) private var appContext
 
     var body: some View {
         List {
-            // Grace period 横幅置顶（高于 hero）—— 硬时间窗通知优先级最高。
-            // 用 effectiveStatus 含 DEBUG override，让 picker 切到 grace 也能验证横幅渲染。
-            if case .gracePeriod(_, let logbookFullUntil) = appContext.container.premiumGate.effectiveStatus {
-                GracePeriodBanner(
-                    logbookFullUntil: logbookFullUntil,
-                    onTap: { daysRemaining in
-                        appContext.rootPaywallPresentation.requestTrigger(
-                            .graceExpiring(daysRemaining: daysRemaining)
-                        )
-                    }
-                )
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-
-            if viewModel.isPairMode, let summary = viewModel.pairSummary {
-                LogbookPairSummaryHero(summary: summary)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets())
-            }
-
             if viewModel.sections.isEmpty {
                 emptySection
             } else {
@@ -110,8 +86,8 @@ struct CompletedHistoryView: View {
 
     private var emptySection: some View {
         EmptyStateCard(
-            title: viewModel.isPairMode ? "还没有共享历史" : "还没有历史任务",
-            message: viewModel.isPairMode ? "你们完成的共享任务会在这里沉淀。" : "已完成任务会在这里沉淀，Today 只保留当前仍需处理的任务。",
+            title: "还没有历史任务",
+            message: "已完成任务会在这里沉淀，Today 只保留当前仍需处理的任务。",
             illustration: "EmptyHistory",
             usesNeutralBackground: true
         )
@@ -133,10 +109,6 @@ struct CompletedHistoryView: View {
 
     private func historyRow(for item: Item) -> some View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-            if viewModel.isPairMode {
-                completionAvatar(for: item)
-            }
-
             VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                 Text(item.title)
                     .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
@@ -164,36 +136,11 @@ struct CompletedHistoryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(pairModeAccessibilityLabel(for: item))
+        .accessibilityLabel(accessibilityLabel(for: item))
     }
 
-    @ViewBuilder
-    private func completionAvatar(for item: Item) -> some View {
-        // Prefer the authoritative completedByUserID; fall back to
-        // lastActionByUserID for pre-migration rows that haven't been
-        // touched by a post-upgrade completion action yet.
-        let completerID = item.completedByUserID ?? item.lastActionByUserID
-        let asset = viewModel.avatarAsset(forUserID: completerID)
-        let displayName = viewModel.displayName(forUserID: completerID)
-        UserAvatarView(
-            avatarAsset: asset,
-            displayName: displayName,
-            size: 20,
-            fillColor: AppTheme.colors.avatarWarm,
-            symbolColor: AppTheme.colors.title.opacity(0.82),
-            symbolFont: AppTheme.typography.sized(10, weight: .semibold),
-            overrideImage: nil
-        )
-        .padding(.top, 2)
-    }
-
-    private func pairModeAccessibilityLabel(for item: Item) -> String {
-        let completerID = item.completedByUserID ?? item.lastActionByUserID
-        let completer = viewModel.displayName(forUserID: completerID)
+    private func accessibilityLabel(for item: Item) -> String {
         let completedDate = viewModel.completedDateText(for: item)
-        if viewModel.isPairMode {
-            return "\(completer) 完成 · \(item.title) · \(completedDate)"
-        }
         return "\(item.title) · \(completedDate)"
     }
 
@@ -208,35 +155,18 @@ struct CompletedHistoryView: View {
                     let store = SessionStore()
                     store.seedMock(
                         currentUser: MockDataFactory.makeCurrentUser(),
-                        singleSpace: MockDataFactory.makeSingleSpace(),
-                        pairSummary: nil
+                        singleSpace: MockDataFactory.makeSingleSpace()
                     )
                     return store
                 }(),
                 itemRepository: MockItemRepository(),
                 taskApplicationService: DefaultTaskApplicationService(
                     itemRepository: MockItemRepository(),
-                    taskMessageRepository: MockTaskMessageRepository(),
                     syncCoordinator: NoOpSyncCoordinator(),
                     reminderScheduler: MockReminderScheduler()
                 ),
                 taskListRepository: MockTaskListRepository(),
-                projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
-                premiumGate: {
-                    // Preview 里 inert PremiumGate + DEBUG 覆盖为 Pro，这样预览 UI
-                    // 看到完整历史（不被 30 天 floor 裁剪）。
-                    let date = SystemDateProvider()
-                    let gate = PremiumGate(
-                        rcClient: RevenueCatClient(),
-                        grantsLoader: SupabaseGrantsLoader(client: SupabaseClientProvider.shared),
-                        cache: PremiumStatusCache(defaults: .standard, dateProvider: date),
-                        dateProvider: date
-                    )
-                    #if DEBUG
-                    gate.overrideStatus = .pro(source: .subscription, expiresAt: nil)
-                    #endif
-                    return gate
-                }()
+                projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler())
             )
         )
     }

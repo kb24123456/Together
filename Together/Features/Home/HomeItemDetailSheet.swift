@@ -18,9 +18,6 @@ struct HomeItemDetailSheet: View {
     @State private var taskTemplates: [TaskTemplate] = []
     @State private var isLoadingTemplates = false
     @State private var pendingConversionTarget: ConversionTarget?
-    @State private var showsInlineAssigneeOptions = false
-    @State private var visibleAssigneeModes: [TaskAssigneeMode] = []
-    @State private var assigneeAnimationTask: Task<Void, Never>?
     @StateObject private var keyboardObserver = TaskEditorKeyboardObserver()
     @Namespace private var chipRowNamespace
     @Namespace private var categorySwitcherNamespace
@@ -137,7 +134,6 @@ struct HomeItemDetailSheet: View {
             performPendingActionIfNeeded()
         }
         .onDisappear {
-            assigneeAnimationTask?.cancel()
         }
         .confirmationDialog(
             pendingConversionTarget.map { "转为\($0.title)" } ?? "",
@@ -382,14 +378,6 @@ struct HomeItemDetailSheet: View {
                     .font(AppTheme.typography.sized(15, weight: .semibold))
                     .foregroundStyle(statusTextColor)
 
-                if viewModel.isPairModeActive {
-                    Spacer(minLength: 0)
-                    compactAssignmentAvatarButton
-                }
-            }
-
-            if viewModel.isPairModeActive, selectedItemNeedsResponse {
-                compactResponseActionRow
             }
         }
         .padding(.top, AppTheme.spacing.xxl) // normalized 38→36
@@ -630,265 +618,10 @@ struct HomeItemDetailSheet: View {
                 placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.74)),
                 maximumNumberOfLines: 8
             )
-
-            if viewModel.isPairModeActive {
-                detailAssignmentSection
-                    .padding(.top, AppTheme.spacing.sm)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .disabled(!viewModel.canEditSelectedItem)
         .opacity(viewModel.canEditSelectedItem ? 1 : 0.7)
-    }
-
-    private var detailAssignmentSection: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
-            assignmentAvatarControl
-
-            if selectedItemNeedsResponse {
-                compactResponseActionRow
-            }
-        }
-    }
-
-    private var compactAssignmentAvatarButton: some View {
-        assignmentAvatarControl
-    }
-
-    private var assignmentAvatarControl: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            toggleInlineAssigneeOptions()
-        } label: {
-            HStack(spacing: AppTheme.spacing.md) {
-                PairDetailAvatarStrip(
-                    primaryAvatar: pairDetailPrimaryAvatar,
-                    secondaryAvatar: pairDetailSecondaryAvatar,
-                    showsPair: pairDetailSecondaryAvatar != nil,
-                    animatesChanges: !reduceMotion
-                )
-
-                if showsInlineAssigneeOptions {
-                    assigneeInlineOptions
-                        .clipped()
-                }
-
-                Spacer(minLength: 0)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(assigneeAccessibilityLabel)
-        .accessibilityHint("点按后更改任务归属")
-    }
-
-    private var compactResponseActionRow: some View {
-        HStack(spacing: AppTheme.spacing.sm) {
-            responseActionButton(title: "接受", tint: AppTheme.colors.title) {
-                Task { await viewModel.respondToSelectedItem(response: .willing, message: nil) }
-            }
-            responseActionButton(title: "拒绝", tint: AppTheme.colors.coral) {
-                Task { await viewModel.respondToSelectedItem(response: .notSuitable, message: nil) }
-            }
-        }
-    }
-
-    private var assigneeInlineOptions: some View {
-        HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
-            ForEach(orderedAssigneeModes, id: \.self) { mode in
-                if visibleAssigneeModes.contains(mode) {
-                    assigneeOptionChip(title: assigneeTitle(for: mode), mode: mode)
-                        .transition(assigneeOptionTransition(for: mode))
-                }
-            }
-        }
-        .animation(assigneeOptionsSpring, value: visibleAssigneeModes)
-    }
-
-    private func assigneeOptionChip(title: String, mode: TaskAssigneeMode) -> some View {
-        let isSelected = (viewModel.detailDraft?.assigneeMode ?? .self) == mode
-
-        return Button {
-            viewModel.updateDraftAssigneeMode(mode)
-            HomeInteractionFeedback.assigneeChange()
-            if reduceMotion {
-                collapseInlineAssigneeOptions()
-            } else {
-                assigneeAnimationTask?.cancel()
-                assigneeAnimationTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(120))
-                    guard !Task.isCancelled else { return }
-                    collapseInlineAssigneeOptions()
-                }
-            }
-        } label: {
-            Text(title)
-                .font(AppTheme.typography.sized(13, weight: .bold))
-                .foregroundStyle(isSelected ? Color.white : AppTheme.colors.title)
-                .padding(.horizontal, AppTheme.spacing.md) // normalized 12→16
-                .padding(.vertical, AppTheme.spacing.sm) // normalized 9→10
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(isSelected ? AppTheme.colors.coral : AppTheme.colors.surfaceElevated)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var orderedAssigneeModes: [TaskAssigneeMode] {
-        [.self, .partner, .both]
-    }
-
-    private var assigneeOptionsSpring: Animation {
-        .spring(response: 0.3, dampingFraction: 0.84)
-    }
-
-    private func assigneeOptionTransition(for mode: TaskAssigneeMode) -> AnyTransition {
-        let distance: CGFloat
-        let scale: CGFloat
-
-        switch mode {
-        case .self:
-            distance = -8
-            scale = 0.97
-        case .partner:
-            distance = -16
-            scale = 0.94
-        case .both:
-            distance = -24
-            scale = 0.9
-        }
-
-        return .offset(x: distance)
-            .combined(with: .scale(scale: scale, anchor: .leading))
-            .combined(with: .opacity)
-    }
-
-    private func assigneeTitle(for mode: TaskAssigneeMode) -> String {
-        switch mode {
-        case .self:
-            return "自己"
-        case .partner:
-            return "对方"
-        case .both:
-            return "一起"
-        }
-    }
-
-    private func toggleInlineAssigneeOptions() {
-        showsInlineAssigneeOptions ? collapseInlineAssigneeOptions() : expandInlineAssigneeOptions()
-    }
-
-    private func expandInlineAssigneeOptions() {
-        assigneeAnimationTask?.cancel()
-        if reduceMotion {
-            visibleAssigneeModes = orderedAssigneeModes
-            showsInlineAssigneeOptions = true
-            return
-        }
-
-        visibleAssigneeModes = []
-        withAnimation(assigneeOptionsSpring) {
-            showsInlineAssigneeOptions = true
-        }
-
-        assigneeAnimationTask = Task { @MainActor in
-            for (index, mode) in orderedAssigneeModes.enumerated() {
-                if index > 0 {
-                    let delay = index == 1 ? 42 : 56
-                    try? await Task.sleep(for: .milliseconds(delay))
-                }
-                guard !Task.isCancelled else { return }
-                withAnimation(assigneeOptionsSpring) {
-                    visibleAssigneeModes.append(mode)
-                }
-            }
-        }
-    }
-
-    private func collapseInlineAssigneeOptions() {
-        assigneeAnimationTask?.cancel()
-        if reduceMotion {
-            visibleAssigneeModes = []
-            showsInlineAssigneeOptions = false
-            return
-        }
-
-        withAnimation(.easeOut(duration: 0.18)) {
-            visibleAssigneeModes = []
-        }
-
-        assigneeAnimationTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(160))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.16)) {
-                showsInlineAssigneeOptions = false
-            }
-        }
-    }
-
-    private var pairDetailPrimaryAvatar: HomeAvatar {
-        let assigneeMode = viewModel.detailDraft?.assigneeMode ?? .self
-        let isCurrentUserCreator: Bool = {
-            guard let item = viewModel.selectedItem,
-                  let currentUserID = viewModel.currentUserID else { return true }
-            return item.creatorID == currentUserID
-        }()
-
-        switch assigneeMode {
-        case .partner:
-            // "partner" is relative to the creator.
-            // If I created it → the partner is the assignee → show partner avatar.
-            // If partner created it → I am the "partner" assignee → show my avatar.
-            return isCurrentUserCreator ? viewModel.pairPreviewAvatar : viewModel.currentUserAvatar
-        case .both, .self:
-            return viewModel.currentUserAvatar
-        }
-    }
-
-    private var pairDetailSecondaryAvatar: HomeAvatar? {
-        switch viewModel.detailDraft?.assigneeMode ?? .self {
-        case .both:
-            return viewModel.pairPreviewAvatar
-        case .partner, .self:
-            return nil
-        }
-    }
-
-    private var assigneeAccessibilityLabel: String {
-        switch viewModel.selectedItem?.assigneeMode ?? viewModel.detailDraft?.assigneeMode ?? .self {
-        case .partner:
-            return viewModel.partnerDisplayName ?? "对方"
-        case .both:
-            return "一起做"
-        case .self:
-            return "自己"
-        }
-    }
-
-    private var selectedItemNeedsResponse: Bool {
-        guard let item = viewModel.selectedItem else { return false }
-        guard let actorID = viewModel.currentUserID else { return false }
-        return item.requiresResponse && item.canActorRespond(actorID)
-    }
-
-    private func responseActionButton(title: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(AppTheme.typography.sized(14, weight: .bold))
-                .foregroundStyle(tint)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, AppTheme.spacing.md) // normalized 11→16
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous) // normalized 16→14
-                        .fill(AppTheme.colors.surfaceElevated)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous) // normalized 16→14
-                        .stroke(AppTheme.colors.outline.opacity(0.14), lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
     }
 
     private func chipRow(action: @escaping (TaskEditorMenu) -> Void) -> some View {
@@ -1106,10 +839,6 @@ struct HomeItemDetailSheet: View {
     }
 
     private func cancelInlineActions() {
-        if showsInlineAssigneeOptions {
-            collapseInlineAssigneeOptions()
-        }
-
         if isAwaitingDeleteConfirmation {
             withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
                 isAwaitingDeleteConfirmation = false
@@ -1127,9 +856,6 @@ struct HomeItemDetailSheet: View {
     }
 
     private var statusLabelText: String {
-        if let syncStateText = viewModel.selectedItemSyncStatusText {
-            return syncStateText
-        }
         if let item = viewModel.selectedItem,
            item.isCompleted(on: viewModel.selectedDate, calendar: .current) || item.status == .completed {
             return "已完成"
@@ -2421,47 +2147,7 @@ private enum HomeDetailRepeatPreset: CaseIterable, Identifiable {
     }
 }
 
-private struct PairDetailAvatarStrip: View {
-    let primaryAvatar: HomeAvatar
-    let secondaryAvatar: HomeAvatar?
-    let showsPair: Bool
-    let animatesChanges: Bool
 
-    var body: some View {
-        HStack(spacing: showsPair ? -8 : 0) {
-            avatar(primaryAvatar, fillColor: AppTheme.colors.surfaceElevated)
-            if let secondaryAvatar {
-                avatar(secondaryAvatar, fillColor: AppTheme.colors.avatarWarm)
-                    .transition(.scale(scale: 0.88, anchor: .leading).combined(with: .opacity))
-            }
-        }
-        .frame(width: showsPair ? 62 : 36, height: 36, alignment: .leading)
-        .animation(animatesChanges ? .spring(response: 0.28, dampingFraction: 0.82) : nil, value: showsPair)
-        .animation(animatesChanges ? .spring(response: 0.28, dampingFraction: 0.82) : nil, value: primaryAvatar.id)
-        .animation(animatesChanges ? .spring(response: 0.28, dampingFraction: 0.82) : nil, value: secondaryAvatar?.id)
-    }
-
-    private func avatar(_ avatar: HomeAvatar, fillColor: Color) -> some View {
-        ZStack {
-            UserAvatarView(
-                avatarAsset: avatar.avatarAsset,
-                displayName: avatar.displayName,
-                size: 36,
-                fillColor: fillColor,
-                symbolColor: AppTheme.colors.title,
-                symbolFont: AppTheme.typography.sized(13, weight: .semibold),
-                overrideImage: avatar.overrideImage
-            )
-            .id(avatar.id)
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
-        }
-        .overlay {
-            Circle()
-                .stroke(.white.opacity(0.92), lineWidth: 2)
-        }
-        .compositingGroup()
-    }
-}
 
 private struct HomeDetailMenuOptionGlassModifier: ViewModifier {
     func body(content: Content) -> some View {

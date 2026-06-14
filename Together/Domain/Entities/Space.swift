@@ -2,8 +2,6 @@ import Foundation
 
 enum SpaceType: String, CaseIterable, Hashable, Sendable, Codable {
     case single
-    case pair
-    case multi
 }
 
 enum SpaceStatus: String, CaseIterable, Hashable, Sendable, Codable {

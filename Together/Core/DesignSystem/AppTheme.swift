@@ -63,12 +63,12 @@ enum AppTheme {
         static let accentSoft = Color(light: .init(red: 0.92, green: 0.96, blue: 0.94),
                                       dark: .init(red: 0.18, green: 0.26, blue: 0.24))
 
-        // MARK: - Pair Mode Accent (双人模式专属色系)
+        // MARK: - Warm Accent
 
-        static let pairAccent = Color(light: .init(red: 0.87, green: 0.48, blue: 0.41),
+        static let warmAccent = Color(light: .init(red: 0.87, green: 0.48, blue: 0.41),
                                       dark: .init(red: 0.93, green: 0.60, blue: 0.52))
 
-        static let pairAccentSoft = Color(light: .init(red: 0.99, green: 0.93, blue: 0.91),
+        static let warmAccentSoft = Color(light: .init(red: 0.99, green: 0.93, blue: 0.91),
                                           dark: .init(red: 0.30, green: 0.20, blue: 0.18))
 
         static let profileAccent = Color(light: .init(red: 0.29, green: 0.31, blue: 0.34),
@@ -82,11 +82,8 @@ enum AppTheme {
         static let sky = Color(red: 0.42, green: 0.70, blue: 0.98)
         static let secondaryAccent = Color(red: 0.86, green: 0.78, blue: 0.67)
         static let coral = Color(red: 0.87, green: 0.48, blue: 0.41)
-        /// Romantic rose pink, paired with `coral`. Used for anniversary
-        /// surfaces (birthday capsules, "在一起 N 天" counter, etc.) where
-        /// coral would clash with the existing overdue / pair-accent palette
-        /// already coral-toned. Tuned to read as warm-romantic rather than
-        /// hot magenta.
+        /// Warm rose pink paired with `coral`. Reserved for small celebratory
+        /// accents where plain coral is too close to overdue states.
         static let rose = Color(red: 0.93, green: 0.45, blue: 0.62)
         static let sun = Color(red: 0.93, green: 0.74, blue: 0.18)
         static let violet = Color(red: 0.44, green: 0.28, blue: 0.91)
@@ -116,12 +113,12 @@ enum AppTheme {
         static let hairline = Color(light: .init(red: 0.16, green: 0.18, blue: 0.19).opacity(0.10),
                                     dark: .white.opacity(0.08))
 
-        /// Profile-module selection accent. Shares the warm coral hue with `pairAccent`
+        /// Profile-module selection accent. Shares the warm coral hue with `warmAccent`
         /// but the light-mode variant is deepened to meet WCAG AA (3:1) on near-white
-        /// `surfaceElevated` — the brand `pairAccent` itself sits at ~2.8:1 which is
+        /// `surfaceElevated` — the brand `warmAccent` itself sits at ~2.8:1 which is
         /// fine for large decorative uses (4pt dot, avatar backgrounds) but not for
         /// information-bearing UI like the selection checkmark. Dark-mode variant
-        /// matches pairAccent dark (already compliant). Guarded by
+        /// matches `warmAccent` dark (already compliant). Guarded by
         /// `ProfileTokenContrastTests`.
         ///
         /// Do NOT use outside Profile module.
@@ -194,7 +191,7 @@ enum AppTheme {
         // MARK: - Semantic display tokens (Wave 5 design system 统一)
         // 用语义化 token 替代散落的 `sized(N, weight:)`，确保层级统一。
 
-        /// Page hero / paywall 主标题 — 30pt bold（如 "Together Pro"）
+        /// Page hero 主标题 — 30pt bold
         static let display = sized(30, weight: .bold)
         /// 章节中央装饰 header — 15pt semibold（"你已解锁 X 个 Pro 功能"）
         static let sectionHeader = sized(15, weight: .semibold)

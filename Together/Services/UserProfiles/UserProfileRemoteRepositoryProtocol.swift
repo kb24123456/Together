@@ -30,11 +30,10 @@ struct UserProfileDTO: Codable, Hashable, Sendable {
 /// dual-written for 1.0 compatibility — see migration 025 header).
 protocol UserProfileRemoteRepositoryProtocol: Sendable {
     /// Fetches the caller's own row (auth.uid()). Returns nil if not signed in
-    /// to Supabase or the row hasn't been seeded yet.
+    /// to a remote profile service or the row hasn't been seeded yet.
     func fetchOwn() async throws -> UserProfileDTO?
 
-    /// Fetches another user's row. RLS gates this on shared space membership.
-    /// Returns nil when the row doesn't exist (e.g. partner is still on 1.0).
+    /// Fetches a remote profile row when a caller needs to hydrate CloudKit metadata.
     func fetchByUserID(_ userID: UUID) async throws -> UserProfileDTO?
 
     /// Upserts the caller's own row. RLS rejects writes where

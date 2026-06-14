@@ -27,37 +27,14 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let notes: String?
     let timeText: String
     let statusText: String
-    let syncState: SharedMutationDisplayState?
-    let assigneeText: String?
-    let messagePreview: String?
-    let latestComment: TaskMessage?
-    let responseStateText: String?
-    let needsResponse: Bool
     let accentColorName: String
     let isMuted: Bool
     let isCompleted: Bool
     let urgency: HomeTimelineUrgency
-    let pairCardStyle: HomePairCardStyle
     let relationText: String?
     let primaryAvatar: HomeAvatar?
     let secondaryAvatar: HomeAvatar?
-    let latestMessageAuthorName: String?
-    let hasUnreadComment: Bool
-    let reminderRequestedAt: Date?
     let lastActionAt: Date?
-    let canSendReminder: Bool
-
-    var syncStateText: String? {
-        syncState?.text
-    }
-}
-
-enum HomePairCardStyle: Hashable {
-    case standard
-    case request
-    case assigned
-    case shared
-    case sent
 }
 
 struct HomeTimelineSection: Identifiable, Hashable {
@@ -142,13 +119,10 @@ final class HomeViewModel {
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
     private let taskTemplateRepository: TaskTemplateRepositoryProtocol
-    private let taskMessageRepository: TaskMessageRepositoryProtocol
 
-    /// 任务操作完成后的回调，参数为 spaceID，用于触发同步
+    /// 任务操作完成后的回调，参数为 spaceID，用于刷新外部依赖。
     var onTaskMutated: ((UUID) -> Void)?
     var onTodayDataChanged: (@MainActor @Sendable () -> Void)?
-    /// 共享任务 mutation 已记录后的精确回调，供 AppContext 走一等 shared mutation 发送路径。
-    var onSharedMutationRecorded: ((SyncChange) -> Void)?
     /// 将当前任务转为例行事务时的回调（传递任务标题）
     var onConvertToPeriodicTask: ((String) -> Void)?
     /// 将当前任务转为项目时的回调（传递任务标题）
@@ -166,15 +140,12 @@ final class HomeViewModel {
     var displayedMonth: Date = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     var items: [Item] = []
     private(set) var reloadRevision = 0
-    var showsPairAvatarPreview = false
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
     var detailDetent: PresentationDetent = .height(316)
     private var completingOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingReopeningOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
-    private var latestCommentsByTaskID: [UUID: TaskMessage] = [:]
-    private var chatReadStatesByTaskID: [UUID: TaskChatReadState] = [:]
     var showsCompletedItems = true
     var isPerformingSnooze = false
     var isOverdueSheetPresented = false
@@ -184,14 +155,12 @@ final class HomeViewModel {
         sessionStore: SessionStore,
         taskApplicationService: TaskApplicationServiceProtocol,
         itemRepository: ItemRepositoryProtocol,
-        taskTemplateRepository: TaskTemplateRepositoryProtocol,
-        taskMessageRepository: TaskMessageRepositoryProtocol
+        taskTemplateRepository: TaskTemplateRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
         self.itemRepository = itemRepository
         self.taskTemplateRepository = taskTemplateRepository
-        self.taskMessageRepository = taskMessageRepository
     }
 
     var currentUserRevision: UUID {
@@ -319,25 +288,20 @@ final class HomeViewModel {
         return items.first(where: { $0.id == selectedItemID })
     }
 
-    var selectedItemSyncStatusText: String? {
-        guard let selectedItem else { return nil }
-        return taskMutationDisplayState(for: selectedItem)?.text
-    }
-
     var canEditSelectedItem: Bool {
         guard let item = selectedItem, let userID = sessionStore.currentUser?.id else { return true }
-        return PairPermissionService.canEditTask(item, actorID: userID)
+        return SoloPermissionService.canEditTask(item, actorID: userID)
     }
 
     var canDeleteSelectedItem: Bool {
         guard let item = selectedItem, let userID = sessionStore.currentUser?.id else { return true }
-        return PairPermissionService.canDeleteTask(item, actorID: userID)
+        return SoloPermissionService.canDeleteTask(item, actorID: userID)
     }
 
     func canDeleteItem(_ itemID: UUID) -> Bool {
         guard let item = items.first(where: { $0.id == itemID }),
               let userID = sessionStore.currentUser?.id else { return true }
-        return PairPermissionService.canDeleteTask(item, actorID: userID)
+        return SoloPermissionService.canDeleteTask(item, actorID: userID)
     }
 
     func isAnimatingInsertion(for itemID: UUID) -> Bool {
@@ -371,23 +335,7 @@ final class HomeViewModel {
         calendar.isDate(selectedDate, inSameDayAs: .now)
     }
 
-    var isPairModeActive: Bool {
-        sessionStore.isViewingPairSpace
-    }
-
-    var hasPairModeAvailable: Bool {
-        sessionStore.availableModeStates.contains(.pair)
-    }
-
-    var partnerDisplayName: String? {
-        sessionStore.pairSpaceSummary?.partner?.displayName
-    }
-
     var spaceDisplayName: String {
-        if isPairModeActive {
-            return sessionStore.currentSpace?.displayName ?? "双人模式"
-        }
-
         if let displayName = sessionStore.currentUser?.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
            displayName.isEmpty == false {
             return displayName
@@ -396,29 +344,7 @@ final class HomeViewModel {
         return sessionStore.currentSpace?.displayName ?? "我的任务空间"
     }
 
-    var spaceSyncState: SharedMutationDisplayState? {
-        guard
-            isPairModeActive,
-            let sharedSpaceID = sessionStore.pairSpaceSummary?.sharedSpace.id
-        else {
-            return nil
-        }
-        return sessionStore.sharedMutationDisplayState(entityKind: .space, recordID: sharedSpaceID)
-    }
-
-    var spaceSyncStatusText: String? {
-        spaceSyncState?.text
-    }
-
-    var pairBannerText: String? {
-        nil
-    }
-
     var headerAvatars: [HomeAvatar] {
-        if isPairModeActive {
-            return [currentUserAvatar, pairPreviewAvatar]
-        }
-
         return [currentUserAvatar]
     }
 
@@ -428,16 +354,6 @@ final class HomeViewModel {
             id: currentUser.id,
             displayName: currentUser.displayName,
             avatarAsset: currentUser.avatarAsset,
-            overrideImage: nil
-        )
-    }
-
-    var pairPreviewAvatar: HomeAvatar {
-        let pairPreviewUser = sessionStore.pairSpaceSummary?.partner ?? MockDataFactory.makePartnerUser()
-        return HomeAvatar(
-            id: pairPreviewUser.id,
-            displayName: pairPreviewUser.displayName,
-            avatarAsset: pairPreviewUser.avatarAsset,
             overrideImage: nil
         )
     }
@@ -465,109 +381,7 @@ final class HomeViewModel {
     }
 
     func toggleAvatarPreview() {
-        guard hasPairModeAvailable else { return }
-        sessionStore.switchMode(to: isPairModeActive ? .single : .pair)
-        showsPairAvatarPreview = sessionStore.isViewingPairSpace
-        Task {
-            await reload(reason: .modeSwitch)
-        }
-    }
-
-    func updateDraftAssigneeMode(_ assigneeMode: TaskAssigneeMode) {
-        guard var draft = detailDraft else { return }
-        draft.assigneeMode = assigneeMode
-        draft.executionRole = assigneeMode.legacyExecutionRole
-        draft.assignmentState = assigneeMode == .partner ? .pendingResponse : .active
-        draft.status = draft.assignmentState.legacyStatus
-        detailDraft = draft
-        scheduleDetailSave(immediately: true)
-    }
-
-    func updateDraftAssignmentNote(_ note: String) {
-        detailDraft?.assignmentNote = note
-        scheduleDetailSave()
-    }
-
-    func respondToSelectedItem(response: ItemResponseKind, message: String?) async {
-        guard
-            let selectedItemID
-        else { return }
-
-        await respondToItem(selectedItemID, response: response, message: message, updatesDetailDraft: true)
-    }
-
-    func respondToItem(
-        _ itemID: UUID,
-        response: ItemResponseKind,
-        message: String?,
-        updatesDetailDraft: Bool = false
-    ) async {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else { return }
-
-        do {
-            let saved = try await taskApplicationService.respondToTask(
-                in: spaceID,
-                taskID: itemID,
-                actorID: actorID,
-                response: response,
-                message: message
-            )
-            if updatesDetailDraft || selectedItemID == itemID {
-                let refreshedDraft = TaskDraft(item: saved)
-                detailDraft = refreshedDraft
-                savedDetailDraft = refreshedDraft
-            }
-            replaceItem(saved)
-            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
-        } catch {}
-    }
-
-    func appendAssignmentMessage(to itemID: UUID, message: String) async {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else { return }
-
-        do {
-            let saved = try await taskApplicationService.appendAssignmentMessage(
-                in: spaceID,
-                taskID: itemID,
-                actorID: actorID,
-                message: message
-            )
-            if selectedItemID == itemID {
-                let refreshedDraft = TaskDraft(item: saved)
-                detailDraft = refreshedDraft
-                savedDetailDraft = refreshedDraft
-            }
-            replaceItem(saved)
-            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
-        } catch {}
-    }
-
-    func requeueDeclinedItem(_ itemID: UUID) async {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else { return }
-
-        do {
-            let saved = try await taskApplicationService.requeueDeclinedTask(
-                in: spaceID,
-                taskID: itemID,
-                actorID: actorID
-            )
-            if selectedItemID == itemID {
-                let refreshedDraft = TaskDraft(item: saved)
-                detailDraft = refreshedDraft
-                savedDetailDraft = refreshedDraft
-            }
-            replaceItem(saved)
-            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
-        } catch {}
+        return
     }
 
     func toggleCalendarDisplayMode() {
@@ -640,8 +454,6 @@ final class HomeViewModel {
     ) async {
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
-            latestCommentsByTaskID = [:]
-            chatReadStatesByTaskID = [:]
             insertedItemIDs = []
             reloadRevision += 1
             return
@@ -655,7 +467,6 @@ final class HomeViewModel {
                 in: spaceID,
                 scope: scope(for: selectedDate)
             )
-            await refreshLatestComments(for: fetchedItems)
             let visibleItemIDs = Set(fetchedItems.map(\.id))
             let persistedInsertedIDs = insertedItemIDs.intersection(visibleItemIDs)
             let nextInsertedIDs = expectedInsertedItemIDs.intersection(visibleItemIDs)
@@ -677,8 +488,6 @@ final class HomeViewModel {
             }
         } catch {
             items = []
-            latestCommentsByTaskID = [:]
-            chatReadStatesByTaskID = [:]
             insertedItemIDs = []
             reloadRevision += 1
         }
@@ -686,68 +495,6 @@ final class HomeViewModel {
 
     func item(for itemID: UUID) -> Item? {
         items.first { $0.id == itemID }
-    }
-
-    func makeTaskChatViewModel(for item: Item) -> TaskChatViewModel {
-        TaskChatViewModel(
-            task: item,
-            taskApplicationService: taskApplicationService,
-            taskMessageRepository: taskMessageRepository,
-            sessionStore: sessionStore,
-            onTaskMessageMutationReady: { [weak self] change in
-                self?.onSharedMutationRecorded?(change)
-            }
-        )
-    }
-
-    func refreshTaskChatMetadata(for taskID: UUID) async {
-        guard isPairModeActive else { return }
-
-        do {
-            let latestComments = try await taskMessageRepository.fetchLatestComments(taskIDs: [taskID])
-            if let latestComment = latestComments[taskID] {
-                latestCommentsByTaskID[taskID] = latestComment
-            } else {
-                latestCommentsByTaskID.removeValue(forKey: taskID)
-            }
-
-            if let readState = try await taskMessageRepository.fetchReadState(taskID: taskID) {
-                chatReadStatesByTaskID[taskID] = readState
-            } else {
-                chatReadStatesByTaskID.removeValue(forKey: taskID)
-            }
-        } catch {
-            latestCommentsByTaskID.removeValue(forKey: taskID)
-            chatReadStatesByTaskID.removeValue(forKey: taskID)
-        }
-    }
-
-    private func refreshLatestComments(for items: [Item]) async {
-        let taskIDs = items
-            .filter { item in
-                isPairModeActive && (item.assigneeMode == .partner || item.assigneeMode == .both)
-            }
-            .map(\.id)
-
-        guard taskIDs.isEmpty == false else {
-            latestCommentsByTaskID = [:]
-            chatReadStatesByTaskID = [:]
-            return
-        }
-
-        do {
-            latestCommentsByTaskID = try await taskMessageRepository.fetchLatestComments(taskIDs: taskIDs)
-            var readStates: [UUID: TaskChatReadState] = [:]
-            for taskID in taskIDs {
-                if let state = try await taskMessageRepository.fetchReadState(taskID: taskID) {
-                    readStates[taskID] = state
-                }
-            }
-            chatReadStatesByTaskID = readStates
-        } catch {
-            latestCommentsByTaskID = [:]
-            chatReadStatesByTaskID = [:]
-        }
     }
 
     func presentItemDetail(_ itemID: UUID) {
@@ -901,7 +648,7 @@ final class HomeViewModel {
                 draft: template.makeTaskDraft(for: selectedDate, calendar: calendar)
             )
             await reload(insertedItemIDs: [item.id])
-            emitSharedTaskMutation(.upsert, taskID: item.id, spaceID: spaceID)
+            emitTaskMutation(spaceID: spaceID)
             return true
         } catch {
             return false
@@ -1019,11 +766,7 @@ final class HomeViewModel {
                     }
                 }
             }
-            emitSharedTaskMutation(
-                didCompleteOccurrence ? .complete : .upsert,
-                taskID: saved.id,
-                spaceID: spaceID
-            )
+            emitTaskMutation(spaceID: spaceID)
         } catch {
             #if DEBUG
             print("[HomeViewModel] completeItem failed for itemID=\(itemID): \(error)")
@@ -1058,7 +801,7 @@ final class HomeViewModel {
             )
             items.removeAll { $0.id == itemID }
             dismissItemDetail()
-            emitSharedTaskMutation(.delete, taskID: itemID, spaceID: spaceID)
+            emitTaskMutation(spaceID: spaceID)
         } catch {
             return
         }
@@ -1097,28 +840,7 @@ final class HomeViewModel {
             if overdueEntryCount == 0 {
                 isOverdueSheetPresented = false
             }
-            emitSharedTaskMutation(.delete, taskID: itemID, spaceID: spaceID)
-        } catch {
-            return
-        }
-    }
-
-    func sendReminderToPartner(_ itemID: UUID) async {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else { return }
-
-        do {
-            let updated = try await taskApplicationService.sendReminderToPartner(
-                in: spaceID,
-                taskID: itemID,
-                actorID: actorID
-            )
-            if let index = items.firstIndex(where: { $0.id == itemID }) {
-                items[index] = updated
-            }
-            emitSharedTaskMutation(.upsert, taskID: updated.id, spaceID: spaceID)
+            emitTaskMutation(spaceID: spaceID)
         } catch {
             return
         }
@@ -1182,7 +904,7 @@ final class HomeViewModel {
     }
 
     var showsOverdueCapsule: Bool {
-        isViewingToday && overdueEntryCount > 0 && !isPairModeActive
+        isViewingToday && overdueEntryCount > 0
     }
 
     var overdueCapsuleTitle: String {
@@ -1206,25 +928,6 @@ final class HomeViewModel {
         primaryIncompleteTimelineItems.map(makeTimelineEntry)
     }
 
-    var pairTimelineSections: [HomeTimelineSection] {
-        guard isPairModeActive else { return [] }
-
-        let activeEntries = activeTimelineEntries
-        guard activeEntries.isEmpty == false else { return [] }
-
-        let sections: [(String, [HomeTimelineEntry])] = [
-            ("等你回应", activeEntries.filter { $0.pairCardStyle == .request }),
-            ("你负责", activeEntries.filter { $0.pairCardStyle == .assigned }),
-            ("一起做", activeEntries.filter { $0.pairCardStyle == .shared }),
-            ("你发出的", activeEntries.filter { $0.pairCardStyle == .sent })
-        ]
-
-        return sections.compactMap { title, entries in
-            guard entries.isEmpty == false else { return nil }
-            return HomeTimelineSection(title: title, entries: entries)
-        }
-    }
-
     var completedTimelineEntries: [HomeTimelineEntry] {
         guard showsCompletedItems else { return [] }
         return completedTimelineItems.map(makeTimelineEntry)
@@ -1243,8 +946,6 @@ final class HomeViewModel {
     }
 
     func reorderTimelineEntries(_ entries: [HomeTimelineEntry], fromOffsets: IndexSet, toOffset: Int) async {
-        guard isPairModeActive == false else { return }
-
         var reorderedIDs = entries.map(\.id)
         reorderedIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
 
@@ -1294,7 +995,7 @@ final class HomeViewModel {
             self.detailDraft = refreshedDraft
             self.savedDetailDraft = refreshedDraft
             replaceItem(saved)
-            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
+            emitTaskMutation(spaceID: spaceID)
 
             // dueAt 跨天变化时，原日期视图需要重新拉取以移除/纳入该任务
             if dueDateScopeChanged(from: previousDueAt, to: saved.dueAt) {
@@ -1455,14 +1156,6 @@ final class HomeViewModel {
     }
 
     private func shouldDisplayInCurrentTimeline(_ item: Item) -> Bool {
-        guard isPairModeActive else { return true }
-        guard let viewerID = sessionStore.currentUser?.id else { return true }
-        guard item.assigneeMode == .partner else { return true }
-
-        if item.assignmentState == .declined {
-            return item.creatorID == viewerID
-        }
-
         return true
     }
 
@@ -1524,45 +1217,20 @@ final class HomeViewModel {
 
     private func makeTimelineEntry(for item: Item) -> HomeTimelineEntry {
         let isCompleted = isCompleted(item, on: selectedDate)
-        let viewerID = sessionStore.currentUser?.id ?? item.creatorID
-        let isPairMode = isPairModeActive
-        let pairCardStyle = pairCardStyle(for: item, viewerID: viewerID, isCompleted: isCompleted)
-        let relationship = pairRelationship(for: item, viewerID: viewerID)
-        let syncState = taskMutationDisplayState(for: item)
-        let latestComment = isPairMode ? latestCommentsByTaskID[item.id] : nil
-        let fallbackPreview = isPairMode ? item.assignmentMessages.last?.body : nil
-        let latestPreview = latestComment?.content ?? fallbackPreview
-        let latestAuthorName = isPairMode
-            ? (latestComment.map { latestCommentAuthorName(for: $0) } ?? latestMessageAuthorName(for: item))
-            : nil
-
         return HomeTimelineEntry(
             id: item.id,
             title: item.title,
             notes: item.notes,
             timeText: timeText(for: item),
             statusText: statusText(for: item, isCompleted: isCompleted),
-            syncState: syncState,
-            assigneeText: isPairMode
-                ? item.executionRole.label(for: viewerID, creatorID: item.creatorID)
-                : nil,
-            messagePreview: latestPreview,
-            latestComment: latestComment,
-            responseStateText: responseStateText(for: item),
-            needsResponse: isPairMode && item.requiresResponse && item.canActorRespond(viewerID),
             accentColorName: accentColorName(for: item),
             isMuted: isCompleted,
             isCompleted: isCompleted,
             urgency: urgency(for: item, isCompleted: isCompleted),
-            pairCardStyle: pairCardStyle,
-            relationText: relationship.relationText,
-            primaryAvatar: relationship.primaryAvatar,
-            secondaryAvatar: relationship.secondaryAvatar,
-            latestMessageAuthorName: latestAuthorName,
-            hasUnreadComment: hasUnread(latestComment, taskID: item.id),
-            reminderRequestedAt: item.reminderRequestedAt,
-            lastActionAt: item.lastActionAt,
-            canSendReminder: canSendReminder(to: item, viewerID: viewerID, isCompleted: isCompleted)
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: item.lastActionAt
         )
     }
 
@@ -1607,128 +1275,6 @@ final class HomeViewModel {
         return "\(dayText) · \(overdueText)"
     }
 
-    private func responseStateText(for item: Item) -> String? {
-        guard isPairModeActive else { return nil }
-        switch item.assignmentState {
-        case .pendingResponse:
-            return item.canActorRespond(sessionStore.currentUser?.id ?? item.creatorID) ? "待我回应" : "等待对方回应"
-        case .accepted:
-            return "已接受"
-        case .snoozed:
-            return "已推迟"
-        case .declined:
-            return "已拒绝"
-        case .active:
-            return item.assigneeMode == .both ? "一起处理中" : "进行中"
-        case .completed:
-            return "已完成"
-        }
-    }
-
-    private func canSendReminder(to item: Item, viewerID: UUID, isCompleted: Bool) -> Bool {
-        guard isPairModeActive, isCompleted == false else { return false }
-        guard item.assigneeMode == .partner, item.creatorID == viewerID else { return false }
-        switch item.assignmentState {
-        case .pendingResponse, .accepted, .active:
-            return true
-        case .snoozed, .declined, .completed:
-            return false
-        }
-    }
-
-    private func pairCardStyle(for item: Item, viewerID: UUID, isCompleted: Bool) -> HomePairCardStyle {
-        guard isPairModeActive, isCompleted == false else { return .standard }
-
-        if item.assigneeMode == .partner {
-            if item.requiresResponse {
-                return item.canActorRespond(viewerID) ? .request : .sent
-            }
-
-            if item.creatorID == viewerID {
-                return .sent
-            }
-
-            return .assigned
-        }
-
-        if item.assigneeMode == .both {
-            return .shared
-        }
-
-        return .standard
-    }
-
-    private func pairRelationship(for item: Item, viewerID: UUID) -> (
-        relationText: String?,
-        primaryAvatar: HomeAvatar?,
-        secondaryAvatar: HomeAvatar?
-    ) {
-        guard isPairModeActive else {
-            return (nil, nil, nil)
-        }
-
-        let currentUser = sessionStore.currentUser
-        let partner = sessionStore.pairSpaceSummary?.partner
-        let currentUserAvatar = avatarMetadata(
-            id: currentUser?.id ?? viewerID,
-            displayName: currentUser?.displayName ?? "我",
-            user: currentUser
-        )
-        let partnerAvatar = partner.map {
-            avatarMetadata(id: $0.id, displayName: $0.displayName, user: $0)
-        }
-        let creatorAvatar: HomeAvatar? = {
-            if item.creatorID == currentUser?.id {
-                return currentUserAvatar
-            }
-            return partnerAvatar
-        }()
-
-        switch item.assigneeMode {
-        case .partner:
-            if item.creatorID == viewerID {
-                return ("\(partner?.displayName ?? "对方")待处理", partnerAvatar, nil)
-            }
-            return ("\(partner?.displayName ?? "对方")发给你", currentUserAvatar, nil)
-        case .both:
-            return (nil, currentUserAvatar, partnerAvatar)
-        case .self:
-            return (nil, creatorAvatar, nil)
-        }
-    }
-
-    private func latestMessageAuthorName(for item: Item) -> String? {
-        guard let message = item.assignmentMessages.last else { return nil }
-        let currentUserID = sessionStore.currentUser?.id
-        if message.authorID == currentUserID {
-            return "你"
-        }
-        if let partner = sessionStore.pairSpaceSummary?.partner, message.authorID == partner.id {
-            return partner.displayName
-        }
-        return nil
-    }
-
-    private func latestCommentAuthorName(for message: TaskMessage) -> String? {
-        let currentUserID = sessionStore.currentUser?.id
-        if message.senderID == currentUserID {
-            return "你"
-        }
-        if let partner = sessionStore.pairSpaceSummary?.partner, message.senderID == partner.id {
-            return partner.displayName
-        }
-        return nil
-    }
-
-    private func hasUnread(_ message: TaskMessage?, taskID: UUID) -> Bool {
-        guard let message else { return false }
-        guard message.senderID != sessionStore.currentUser?.id else { return false }
-        guard let readAt = chatReadStatesByTaskID[taskID]?.lastReadMessageCreatedAt else {
-            return true
-        }
-        return message.createdAt > readAt
-    }
-
     private func avatarMetadata(id: UUID, displayName: String, user: User?) -> HomeAvatar {
         HomeAvatar(
             id: id,
@@ -1736,15 +1282,6 @@ final class HomeViewModel {
             avatarAsset: user?.avatarAsset ?? .system("person.crop.circle.fill"),
             overrideImage: nil
         )
-    }
-
-    private func taskMutationDisplayState(for item: Item) -> SharedMutationDisplayState? {
-        guard
-            isPairModeActive
-        else {
-            return nil
-        }
-        return sessionStore.sharedMutationDisplayState(entityKind: .task, recordID: item.id)
     }
 
     private func removeItem(withID itemID: UUID) {
@@ -1823,26 +1360,12 @@ final class HomeViewModel {
                     removeItem(withID: saved.id)
                 }
             }
-            emitSharedTaskMutation(.upsert, taskID: saved.id, spaceID: spaceID)
+            emitTaskMutation(spaceID: spaceID)
         } catch {}
     }
 
-    private func emitSharedTaskMutation(
-        _ operation: SyncOperationKind,
-        taskID: UUID,
-        spaceID: UUID
-    ) {
-        let change = SyncChange(
-            entityKind: .task,
-            operation: operation,
-            recordID: taskID,
-            spaceID: spaceID
-        )
-        if let onSharedMutationRecorded {
-            onSharedMutationRecorded(change)
-        } else {
-            onTaskMutated?(spaceID)
-        }
+    private func emitTaskMutation(spaceID: UUID) {
+        onTaskMutated?(spaceID)
         onTodayDataChanged?()
     }
 }

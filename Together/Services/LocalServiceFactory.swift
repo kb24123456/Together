@@ -1,4 +1,3 @@
-import CloudKit
 import Foundation
 
 enum LocalServiceFactory {
@@ -16,34 +15,13 @@ enum LocalServiceFactory {
         let modelContainer = persistence.container
         let notificationService = LocalNotificationService()
         let reminderScheduler = LocalReminderScheduler(notificationService: notificationService)
-        let syncCoordinator = LocalSyncCoordinator(container: modelContainer)
+        let syncCoordinator = NoOpSyncCoordinator()
         let userProfileRepository = LocalUserProfileRepository(container: modelContainer)
-        let localPairingService = LocalPairingService(container: modelContainer)
-        let supabaseAuth = SupabaseAuthService()
-
-        // CloudKit container
-        let ckContainer = CKContainer(identifier: CloudKitSyncConfiguration.defaultContainerIdentifier)
-
-        let inviteGateway = SupabaseInviteGateway()
-        let pairingService = CloudPairingService(
-            localPairing: localPairingService,
-            inviteGateway: inviteGateway,
-            supabaseAuth: supabaseAuth
-        )
 
         let itemRepository = LocalItemRepository(container: modelContainer, syncCoordinator: syncCoordinator)
         let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
-        let taskMessageRepository = LocalTaskMessageRepository(container: modelContainer)
-        let importantDateRepository = LocalImportantDateRepository(
-            modelContainer: modelContainer,
-            syncCoordinator: syncCoordinator
-        )
-        let anniversaryScheduler = AnniversaryNotificationScheduler(
-            repository: importantDateRepository
-        )
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
-            taskMessageRepository: taskMessageRepository,
             syncCoordinator: syncCoordinator,
             reminderScheduler: reminderScheduler
         )
@@ -57,33 +35,17 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator
         )
 
-        let avatarUploader = AvatarStorageUploader(client: SupabaseClientProvider.shared)
-        let userProfileRemote = UserProfileRemoteRepository(client: SupabaseClientProvider.shared)
-
-        let premiumGate = Self.makePremiumGate()
-
-        // CKSyncEngine coordinator (private DB, solo zone only)
-        let healthMonitor = SyncHealthMonitor()
-        let syncEngineCoordinator = SyncEngineCoordinator(
-            ckContainer: ckContainer,
-            modelContainer: modelContainer,
-            healthMonitor: healthMonitor
-        )
-        let supabaseSoloSyncService = SupabaseSoloSyncService(modelContainer: modelContainer)
+        let avatarUploader = AvatarStorageUploader()
+        let userProfileRemote = UserProfileRemoteRepository()
 
         let container = AppContainer(
-            supabaseAuthService: supabaseAuth,
-            authService: AppleAuthService(container: modelContainer, supabaseAuth: supabaseAuth),
+            authService: AppleAuthService(container: modelContainer),
             spaceService: LocalSpaceService(container: modelContainer),
             taskApplicationService: taskApplicationService,
             syncCoordinator: syncCoordinator,
-            pairingService: pairingService,
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
             taskTemplateRepository: taskTemplateRepository,
-            taskMessageRepository: taskMessageRepository,
-            importantDateRepository: importantDateRepository,
-            anniversaryScheduler: anniversaryScheduler,
             taskListRepository: LocalTaskListRepository(container: modelContainer, syncCoordinator: syncCoordinator),
             projectRepository: LocalProjectRepository(
                 container: modelContainer,
@@ -97,25 +59,9 @@ enum LocalServiceFactory {
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
             avatarUploader: avatarUploader,
-            userProfileRemote: userProfileRemote,
-            cloudKitContainer: ckContainer,
-            syncEngineCoordinator: syncEngineCoordinator,
-            supabaseSoloSyncService: supabaseSoloSyncService,
-            premiumGate: premiumGate
+            userProfileRemote: userProfileRemote
         )
         StartupTrace.mark("LocalServiceFactory.makeContainer.end")
         return container
-    }
-
-    @MainActor
-    private static func makePremiumGate() -> PremiumGate {
-        let dateProvider = SystemDateProvider()
-        return PremiumGate(
-            rcClient: RevenueCatClient(),
-            grantsLoader: SupabaseGrantsLoader(client: SupabaseClientProvider.shared),
-            entitlementsLoader: SupabasePremiumEntitlementsLoader(client: SupabaseClientProvider.shared),
-            cache: PremiumStatusCache(defaults: .standard, dateProvider: dateProvider),
-            dateProvider: dateProvider
-        )
     }
 }

@@ -1,40 +1,43 @@
 # 一起 下一步建议
 
-## 1. 第一优先级
-- 把单人模式语义真正落到代码层：Task / List / Project / Calendar 为主，弱化旧的双人优先命名。
-- 在当前首页 UI 基础上完成 Today 主链路：
-  - 任务创建
-  - 任务完成
-  - 任务详情展开
-  - 日期切换
-  - 基础筛选与排序
-- 明确并实现 `TaskStatus`、`ProjectStatus`、提醒策略的单测。
+## 1. 第一优先级：完成纯单人化迁移
+- 删除 Supabase、RevenueCat、Paywall、PremiumGate、双人协作、邀请、聊天、关系运营相关入口与装配。
+- 将启动链路收敛为本地 SwiftData + CloudKit private database + 本地通知。
+- 将 `SessionStore / AppContext / AppContainer` 改成纯单人依赖，不再维护 pair mode、shared sync、premium gate。
 
-## 2. 第二优先级
-- 补齐清单页与项目页。
-- 补齐周视图 / 月视图切换与日历任务映射。
-- 接入本地持久化，支持离线任务与提醒。
-- 为首页、日历、详情抽屉补齐高质量原生动效。
+## 2. 第二优先级：重塑核心数据模型
+- 将 Task / TaskList / Project / Reminder 改成纯单人语义。
+- 删除 `assigneeMode / assignmentState / responseHistory / assignmentMessages / partner` 等协作字段。
+- 删除旧 Supabase outbox / recovery cursor / realtime DTO。
+- 建立 CloudKit 兼容 SwiftData schema。
 
-## 3. 第三优先级
-- 完成搜索、筛选、排序、批量整理。
-- 完成我页中的主题、通知、默认视图设置。
-- 评估是否保留决策与纪念日为附加模块入口。
+## 3. 第三优先级：恢复主链路可运行
+- 保留当前 Today 视觉方向。
+- 跑通任务创建、完成、恢复、归档、排序、筛选。
+- 跑通清单、项目、日历的纯单人数据流。
+- 确保 Profile 只保留个人设置、通知、主题、隐私和 iCloud 状态。
 
-## 4. 第四优先级（V2 准备）
-- 抽象 Space 兼容层，减少 `PairSpace / relationshipID` 扩散。
-- 设计双人模式共享边界、邀请方式、权限和协作状态。
-- 明确哪些任务字段在双人模式下需要共享，哪些保持私有。
+## 4. 第四优先级：Widget 适配
+- 保留 Today widget 展示个人任务。
+- 重写完成任务写入路径，移除 Supabase outbox 依赖。
+- 确认 Widget snapshot 与新 SwiftData schema 一致。
 
-## 5. 工程治理
-- 为关键状态机、repository、ViewModel 建立可持续单测。
+## 5. 第五优先级：OCR MVP
+- 新增 OCR 扫描导入入口。
+- 使用 Vision / VisionKit 识别图片文字。
+- 将识别结果转换为 `OCRImportDraft`。
+- 用户确认后再写入 Task / Project。
+
+## 6. 工程治理
+- 为关键状态机、repository、OCR parser、Widget completion 建立可持续单测。
 - 增加 lint / format / CI。
 - 为设计 token 与动效 token 建立统一入口。
-- 补充数据删除、提醒权限、未来协作权限边界说明。
+- 补充数据删除、iCloud 同步、相机权限和 OCR 隐私说明。
 
-## 6. 当前不要做
+## 7. 当前不要做
+- 不要新增任何双人、多人、邀请、共享、聊天或关系运营能力。
+- 不要继续接入或修补 Supabase。
+- 不要继续接入或修补 RevenueCat / Paywall / Pro gate。
+- 不要把 OCR 结果未经用户确认直接写入任务。
 - 不要先重写当前首页 UI。
-- 不要先做绑定流、邀请流、双人主链路。
-- 不要先做多人模式。
-- 不要先做关系运营、纪念日运营、情侣包装。
 - 不要做只有炫技价值、没有任务效率价值的动画。

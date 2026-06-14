@@ -56,7 +56,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
                 canonicalFileName: canonicalFileName,
                 context: context
             )
-            recoveredUser.preferences.pairQuickReplyMessages = storedPairQuickReplyMessages(for: userID)
+            recoveredUser.preferences.quickReplyMessages = storedQuickReplyMessages(for: userID)
             return recoveredUser
         }
 
@@ -127,7 +127,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
             "UserProfileRepository.merge.end mergedAvatarFile=\(mergedUser.avatarPhotoFileName ?? "nil") canonicalExists=\(avatarMediaStore.fileExists(named: canonicalFileName))"
         )
         #endif
-        mergedUser.preferences.pairQuickReplyMessages = storedPairQuickReplyMessages(for: userID)
+        mergedUser.preferences.quickReplyMessages = storedQuickReplyMessages(for: userID)
         return mergedUser
     }
 
@@ -192,7 +192,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         }
 
         do {
-            persistPairQuickReplyMessages(updatedUser.preferences.pairQuickReplyMessages, for: userID)
+            persistQuickReplyMessages(updatedUser.preferences.quickReplyMessages, for: userID)
             if let existingRecord = try context.fetch(descriptor).first {
                 existingRecord.update(from: updatedUser)
                 applyAvatarPayload(to: existingRecord, avatarUpdate: avatarUpdate)
@@ -222,11 +222,11 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
 
         var updatedUser = user
         updatedUser.preferences = preferences
-        updatedUser.preferences.pairQuickReplyMessages = NotificationSettings.normalizedPairQuickReplyMessages(
-            preferences.pairQuickReplyMessages
+        updatedUser.preferences.quickReplyMessages = NotificationSettings.normalizedQuickReplyMessages(
+            preferences.quickReplyMessages
         )
         updatedUser.updatedAt = .now
-        persistPairQuickReplyMessages(updatedUser.preferences.pairQuickReplyMessages, for: userID)
+        persistQuickReplyMessages(updatedUser.preferences.quickReplyMessages, for: userID)
 
         if let existingRecord = try context.fetch(descriptor).first {
             existingRecord.update(from: updatedUser)
@@ -426,7 +426,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         try? avatarMediaStore.migrateAvatarIfNeeded(from: recoveryFileName, to: cacheFileName)
         recoveredUser.avatarPhotoFileName = cacheFileName
         recoveredUser.avatarAssetID = assetID
-        recoveredUser.preferences.pairQuickReplyMessages = storedPairQuickReplyMessages(for: user.id)
+        recoveredUser.preferences.quickReplyMessages = storedQuickReplyMessages(for: user.id)
         recoveredUser.updatedAt = .now
 
         context.insert(PersistentUserProfile(user: recoveredUser))
@@ -454,18 +454,18 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         #endif
     }
 
-    private func pairQuickReplyMessagesKey(for userID: UUID) -> String {
-        "profile.pairQuickReplyMessages.\(userID.uuidString.lowercased())"
+    private func quickReplyMessagesKey(for userID: UUID) -> String {
+        "profile.quickReplyMessages.\(userID.uuidString.lowercased())"
     }
 
-    private func storedPairQuickReplyMessages(for userID: UUID) -> [String] {
-        let stored = defaults.stringArray(forKey: pairQuickReplyMessagesKey(for: userID)) ?? []
-        return NotificationSettings.normalizedPairQuickReplyMessages(stored)
+    private func storedQuickReplyMessages(for userID: UUID) -> [String] {
+        let stored = defaults.stringArray(forKey: quickReplyMessagesKey(for: userID)) ?? []
+        return NotificationSettings.normalizedQuickReplyMessages(stored)
     }
 
-    private func persistPairQuickReplyMessages(_ values: [String], for userID: UUID) {
-        let normalized = NotificationSettings.normalizedPairQuickReplyMessages(values)
-        defaults.set(normalized, forKey: pairQuickReplyMessagesKey(for: userID))
+    private func persistQuickReplyMessages(_ values: [String], for userID: UUID) {
+        let normalized = NotificationSettings.normalizedQuickReplyMessages(values)
+        defaults.set(normalized, forKey: quickReplyMessagesKey(for: userID))
     }
 }
 

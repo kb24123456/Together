@@ -63,7 +63,7 @@ struct SignInView: View {
                     legalFooter
 
                     #if DEBUG
-                    // 模拟器 / 开发环境快速登录（生成随机用户，用于配对测试）
+                    // 模拟器 / 开发环境快速登录（生成随机用户）
                     Button {
                         performDevSignIn()
                     } label: {
@@ -157,8 +157,7 @@ struct SignInView: View {
             preferences: NotificationSettings(
                 taskReminderEnabled: true,
                 dailySummaryEnabled: false,
-                calendarReminderEnabled: false,
-                futureCollaborationInviteEnabled: true
+                calendarReminderEnabled: false
             )
         )
         let session = AuthSession(state: .signedIn, user: devUser)

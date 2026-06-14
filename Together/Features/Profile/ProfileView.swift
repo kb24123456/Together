@@ -8,10 +8,6 @@ struct ProfileView: View {
     @State private var topChromeProgress: CGFloat = 0
     @State private var showsSignOutAlert: Bool = false
     @State private var showsClearCacheAlert: Bool = false
-    @State private var showsUnpairConfirm: Bool = false
-    @State private var isImportantDatesManagementPresented = false
-    @State private var pairCardAnimationID: Int = 0
-    @State private var isInvitePendingSheetPresented: Bool = false
     @Namespace private var profileTransition
 
     var body: some View {
@@ -23,19 +19,17 @@ struct ProfileView: View {
                     ProfileScrollOffsetProbe()
 
                     // MARK: - 名片区
-                    NavigationLink(value: viewModel.isPairMode ? ProfileRoute.editPairProfile : ProfileRoute.editProfile) {
+                    NavigationLink(value: ProfileRoute.editProfile) {
                         ProfileUserCard(
                             primaryName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
-                            secondaryName: viewModel.profileCardSecondaryName,
                             primaryAvatar: ProfileCardAvatar(
                                 displayName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
                                 avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
                                 overrideImage: nil
                             ),
-                            secondaryAvatarState: viewModel.profileCardSecondaryAvatarState,
                             subtitle: viewModel.identityCardSubtitle
                         )
-                        .id("\(appContext.sessionStore.userProfileRevision)-\(pairCardAnimationID)")
+                        .id(appContext.sessionStore.userProfileRevision)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
                         .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
                     }
@@ -46,17 +40,7 @@ struct ProfileView: View {
                         }
                     )
 
-                    // MARK: - Pro 入口
-                    NavigationLink(value: ProfileRoute.subscription) {
-                        ProfileProEntryRow(status: viewModel.proSubscriptionStatus)
-                    }
-                    .buttonStyle(.plain)
-                    .simultaneousGesture(
-                        TapGesture().onEnded { HomeInteractionFeedback.selection() }
-                    )
-
                     // MARK: - 分组设置
-                    collaborationSection
                     executionPreferencesSection
                     systemSettingsSection
                     aboutRow
@@ -64,11 +48,6 @@ struct ProfileView: View {
                     // MARK: - 退出登录
                     signOutFooter
 
-                    #if DEBUG
-                    if ProfileDebugVisibility.isEnabled() {
-                        ProfileDebugSection()
-                    }
-                    #endif
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.top, AppTheme.spacing.md)
@@ -104,18 +83,6 @@ struct ProfileView: View {
                     viewModel: viewModel.makeEditProfileViewModel(user: appContext.sessionStore.currentUser)
                 )
                     .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
-            case .editPairProfile:
-                EditPairProfileView(
-                    viewModel: viewModel.makeEditProfileViewModel(user: appContext.sessionStore.currentUser),
-                    partnerAvatar: viewModel.pairPartnerAvatar,
-                    partnerName: viewModel.profileCardSecondaryName ?? "对方",
-                    spaceName: viewModel.pairSpaceDisplayName,
-                    canRenameSpace: viewModel.canRenameSpace,
-                    onSpaceNameChanged: { newName in
-                        viewModel.updatePairSpaceDisplayName(newName)
-                    }
-                )
-                    .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel())
             case .privacyPolicy:
@@ -124,8 +91,6 @@ struct ProfileView: View {
                 ProfileTermsOfServiceView()
             case .accountDeletion:
                 ProfileAccountDeletionView(viewModel: viewModel)
-            case .subscription:
-                ProfileSubscriptionView()
             case .feedback:
                 ProfileFeedbackView()
             case .about:
@@ -137,13 +102,6 @@ struct ProfileView: View {
         .task {
             await viewModel.load()
         }
-        // Universal Link 到达后自动处理邀请码
-        .task(id: appContext.pendingInviteCode) {
-            guard let code = appContext.consumePendingInviteCode() else { return }
-            let state = appContext.sessionStore.bindingState
-            guard state == .singleTrial || state == .unbound else { return }
-            await viewModel.acceptInviteByCode(code)
-        }
         .sheet(item: $viewModel.customDurationSheet) { kind in
             ProfileDurationPickerSheet(
                 title: kind.title,
@@ -151,64 +109,6 @@ struct ProfileView: View {
                 onSave: { viewModel.applyCustomDuration($0) },
                 onDismiss: { viewModel.dismissCustomDurationSheet() }
             )
-        }
-        .onChange(of: viewModel.bindingState) { oldState, newState in
-            if oldState != .paired, newState == .paired {
-                let generator = UINotificationFeedbackGenerator()
-                generator.notificationOccurred(.success)
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                    pairCardAnimationID &+= 1
-                }
-            }
-
-            // Auto-present the invite sheet when transitioning INTO invitePending,
-            // and auto-dismiss when leaving the state (paired / singleTrial / unbound).
-            if newState == .invitePending {
-                isInvitePendingSheetPresented = true
-            } else if oldState == .invitePending {
-                isInvitePendingSheetPresented = false
-            }
-        }
-        .sheet(isPresented: $viewModel.inviteCodeEntryPresented) {
-            InviteCodeEntryView(isPresented: $viewModel.inviteCodeEntryPresented) { code in
-                await viewModel.acceptInviteByCode(code)
-            }
-            .presentationDetents([.medium])
-        }
-        .sheet(isPresented: $isInvitePendingSheetPresented) {
-            // 下滑关闭 sheet **不**取消邀请——只是把卡片收起来。
-            // 原先这里会自动 cancelCurrentInvite()，结果用户为了切到对端输入
-            // 邀请码，下滑 sheet 离开就把自己的 pair state 一并清回 singleTrial，
-            // 对端接受成功后 inviter 侧永远无法 finalize 到 paired。
-            // 显式取消走 sheet 内的 "取消" 按钮。状态仍是 .invitePending 时，
-            // Profile 页会渲染 "双人邀请进行中" 的 row 让用户重新打开。
-            NavigationStack {
-                InvitePendingSection(
-                    invite: viewModel.activeInvite,
-                    onCopy: { code in
-                        UIPasteboard.general.string = code
-                        HomeInteractionFeedback.selection()
-                    },
-                    onCheckAccepted: {
-                        await viewModel.checkInviteAccepted()
-                    },
-                    onCancel: {
-                        await viewModel.cancelCurrentInvite()
-                    },
-                    onRegenerate: {
-                        await viewModel.cancelCurrentInvite()
-                        await viewModel.createInvite()
-                    }
-                )
-                .padding(AppTheme.spacing.lg)
-                .navigationTitle("双人邀请")
-                .navigationBarTitleDisplayMode(.inline)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $isImportantDatesManagementPresented) {
-            ImportantDatesManagementSheet()
         }
         .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
             let progress = min(max(-offset / 56, 0), 1)
@@ -257,176 +157,6 @@ struct ProfileView: View {
             .allowsHitTesting(false)
     }
 
-    // MARK: - 双人协作
-
-    private var collaborationSection: some View {
-        ProfileSettingsGroupCard(title: "双人协作") {
-            ProfileSettingsRow(
-                title: "当前工作空间",
-                value: viewModel.spaceSummary
-            )
-
-            ProfileSettingsRow(
-                title: "双人模式",
-                value: viewModel.collaborationSummary
-            )
-
-            if viewModel.bindingState == .paired {
-                anniversariesEntryRow
-            }
-
-            collaborationActionRow
-        }
-        .animation(.spring(response: 0.38, dampingFraction: 0.86), value: viewModel.bindingState)
-    }
-
-    private var anniversariesEntryRow: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            isImportantDatesManagementPresented = true
-        } label: {
-            ProfileSettingsRow(title: "纪念日管理", value: "", showsChevron: true)
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private var collaborationActionRow: some View {
-        switch viewModel.bindingState {
-        case .singleTrial, .unbound:
-            Button {
-                HomeInteractionFeedback.selection()
-                Task { await viewModel.createInvite() }
-            } label: {
-                inviteCreationRow
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isCreatingInvite)
-
-            if let err = viewModel.createInviteError {
-                Text(err)
-                    .font(AppTheme.typography.sized(12, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.danger)
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, AppTheme.spacing.xs)
-                    .padding(.bottom, AppTheme.spacing.xs)
-            }
-
-            Button {
-                HomeInteractionFeedback.selection()
-                viewModel.inviteCodeEntryPresented = true
-            } label: {
-                ProfileSettingsRow(
-                    title: "输入邀请码",
-                    value: "",
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-
-        case .invitePending:
-            // Sheet-presented; no inline content. Tapping the row while in
-            // this state re-opens the sheet so the user isn't stranded.
-            Button {
-                HomeInteractionFeedback.selection()
-                isInvitePendingSheetPresented = true
-            } label: {
-                ProfileSettingsRow(
-                    title: "双人邀请进行中",
-                    value: "查看邀请码",
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-
-        case .inviteReceived:
-            Button {
-                HomeInteractionFeedback.selection()
-                Task { await viewModel.acceptInvite() }
-            } label: {
-                ProfileSettingsRow(
-                    title: "接受邀请",
-                    value: "",
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                HomeInteractionFeedback.selection()
-                Task { await viewModel.declineInvite() }
-            } label: {
-                ProfileSettingsRow(
-                    title: "拒绝邀请",
-                    value: "",
-                    showsChevron: false,
-                    titleColor: AppTheme.colors.danger
-                )
-            }
-            .buttonStyle(.plain)
-
-        case .paired:
-            Button {
-                HomeInteractionFeedback.warning()
-                showsUnpairConfirm = true
-            } label: {
-                ProfileSettingsRow(
-                    title: "解除双人空间",
-                    value: "",
-                    showsChevron: false,
-                    titleColor: AppTheme.colors.danger
-                )
-            }
-            .buttonStyle(.plain)
-            .confirmationDialog(
-                "确定要解除双人空间吗？",
-                isPresented: $showsUnpairConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("解除双人空间", role: .destructive) {
-                    Task { await viewModel.unbindPairSpace() }
-                }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("解除后双方都将退出共享，已同步的任务、列表、纪念日不会被删除，但不再继续同步。对方设备会自动跟随退出共享。")
-            }
-        }
-    }
-
-    private var inviteCreationRow: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text("发起双人邀请")
-                    .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.title.opacity(viewModel.isCreatingInvite ? 0.68 : 1))
-
-                if viewModel.isCreatingInvite {
-                    Text("正在生成邀请码…")
-                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.56))
-                        .transition(.opacity)
-                }
-            }
-
-            Spacer(minLength: AppTheme.spacing.md)
-
-            if viewModel.isCreatingInvite {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(AppTheme.colors.body.opacity(0.5))
-                    .transition(.opacity)
-            } else {
-                Image(systemName: "chevron.right")
-                    .font(AppTheme.typography.sized(12, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.36))
-            }
-        }
-        .padding(.vertical, AppTheme.spacing.sm)
-        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-        .contentShape(Rectangle())
-        .animation(.easeInOut(duration: 0.18), value: viewModel.isCreatingInvite)
-    }
-
     // MARK: - 执行偏好
 
     private var executionPreferencesSection: some View {
@@ -472,20 +202,6 @@ struct ProfileView: View {
                     onCustom: {
                         HomeInteractionFeedback.selection()
                         viewModel.presentCustomDurationSheet(.defaultSnooze)
-                    }
-                )
-            }
-
-            expandableSelectionRow(
-                title: "双人预设留言",
-                value: viewModel.pairQuickReplyMessages.joined(separator: " / "),
-                setting: .pairQuickReplies
-            ) {
-                ProfileQuickReplyEditor(
-                    initialMessages: viewModel.pairQuickReplyMessages,
-                    onSave: { messages in
-                        HomeInteractionFeedback.selection()
-                        viewModel.updatePairQuickReplyMessages(messages)
                     }
                 )
             }
@@ -713,9 +429,9 @@ private struct ProfileQuickReplyEditor: View {
     @State private var messages: [String]
 
     init(initialMessages: [String], onSave: @escaping ([String]) -> Void) {
-        self.initialMessages = NotificationSettings.normalizedPairQuickReplyMessages(initialMessages)
+        self.initialMessages = NotificationSettings.normalizedQuickReplyMessages(initialMessages)
         self.onSave = onSave
-        _messages = State(initialValue: NotificationSettings.normalizedPairQuickReplyMessages(initialMessages))
+        _messages = State(initialValue: NotificationSettings.normalizedQuickReplyMessages(initialMessages))
     }
 
     var body: some View {
@@ -740,7 +456,7 @@ private struct ProfileQuickReplyEditor: View {
                 Button("保存") {
                     HomeInteractionFeedback.selection()
                     onSave(messages)
-                    messages = NotificationSettings.normalizedPairQuickReplyMessages(messages)
+                    messages = NotificationSettings.normalizedQuickReplyMessages(messages)
                 }
                 .font(AppTheme.typography.sized(14, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.selectionTint)

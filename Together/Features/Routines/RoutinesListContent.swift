@@ -40,7 +40,7 @@ struct RoutinesListContent: View {
                 .padding(.top, AppTheme.spacing.xs)
                 .padding(.bottom, AppTheme.spacing.xs)
 
-            if viewModel.tasks.isEmpty && viewModel.loadState == .loaded && !appContext.sessionStore.isViewingPairSpace {
+            if viewModel.tasks.isEmpty && viewModel.loadState == .loaded {
                 ScrollView {
                     routinesEmptyState
                         .padding(.bottom, contentBottomPadding)

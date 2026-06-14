@@ -74,9 +74,6 @@ struct ProfileAccountDeletionView: View {
             deletionItem(icon: "checkmark.circle", text: "所有任务数据（待办、已完成、已归档）")
             deletionItem(icon: "square.stack", text: "例行事务和模板")
             deletionItem(icon: "folder", text: "项目和清单")
-            if viewModel.isPairMode {
-                deletionItem(icon: "person.2", text: "双人协作空间（将自动解绑）")
-            }
             deletionItem(icon: "icloud", text: "iCloud 云端同步数据")
         }
     }

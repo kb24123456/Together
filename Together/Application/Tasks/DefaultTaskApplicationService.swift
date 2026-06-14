@@ -2,19 +2,16 @@ import Foundation
 
 actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     private let itemRepository: ItemRepositoryProtocol
-    private let taskMessageRepository: TaskMessageRepositoryProtocol
     private let syncCoordinator: SyncCoordinatorProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
     private let calendar = Calendar.current
 
     init(
         itemRepository: ItemRepositoryProtocol,
-        taskMessageRepository: TaskMessageRepositoryProtocol,
         syncCoordinator: SyncCoordinatorProtocol,
         reminderScheduler: ReminderSchedulerProtocol
     ) {
         self.itemRepository = itemRepository
-        self.taskMessageRepository = taskMessageRepository
         self.syncCoordinator = syncCoordinator
         self.reminderScheduler = reminderScheduler
     }
@@ -52,13 +49,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     }
 
     func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
-        let assignmentCommentContent = draft.assigneeMode == .partner
-            ? try validatedCommentContent(draft.assignmentNote)
-            : nil
         let now = Date.now
-        let assignmentState = draft.assigneeMode == .partner
-            ? .pendingResponse
-            : ItemStateMachine.initialAssignmentState(for: draft.assigneeMode)
         let item = Item(
             id: UUID(),
             spaceID: spaceID,
@@ -68,16 +59,10 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: draft.notes,
             locationText: nil,
-            executionRole: draft.assigneeMode.legacyExecutionRole,
-            assigneeMode: draft.assigneeMode,
             dueAt: draft.dueAt,
             hasExplicitTime: draft.hasExplicitTime,
             remindAt: draft.remindAt,
-            status: assignmentState.legacyStatus,
-            assignmentState: assignmentState,
-            latestResponse: nil,
-            responseHistory: [],
-            assignmentMessages: [],
+            status: draft.status,
             lastActionByUserID: actorID,
             lastActionAt: now,
             createdAt: now,
@@ -99,38 +84,22 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        if let assignmentCommentContent {
-            await insertAssociatedTaskCommentIfPossible(
-                in: spaceID,
-                taskID: saved.id,
-                actorID: actorID,
-                content: assignmentCommentContent
-            )
-        }
         await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
 
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
-        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
-        let assignmentCommentContent = draft.assigneeMode == .partner
-            ? try validatedCommentContent(draft.assignmentNote)
-            : nil
         item.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         item.notes = draft.notes
         item.listID = draft.listID
         item.projectID = draft.projectID
         item.dueAt = draft.dueAt
         item.remindAt = draft.remindAt
-        item.executionRole = draft.assigneeMode.legacyExecutionRole
-        item.assigneeMode = draft.assigneeMode
-        item.assignmentState = draft.assigneeMode == .partner && item.responseHistory.isEmpty
-            ? .pendingResponse
-            : draft.assignmentState
-        item.status = item.assignmentState.legacyStatus
+        item.status = draft.status
         item.hasExplicitTime = draft.hasExplicitTime
         item.isPinned = draft.isPinned
         item.isDraft = draft.isDraft
@@ -148,14 +117,6 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        if let assignmentCommentContent {
-            await insertAssociatedTaskCommentIfPossible(
-                in: spaceID,
-                taskID: saved.id,
-                actorID: actorID,
-                content: assignmentCommentContent
-            )
-        }
         await reminderScheduler.syncTaskReminder(for: saved)
         return saved
     }
@@ -168,7 +129,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         projectID: UUID?
     ) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
-        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         item.listID = listID
@@ -196,7 +157,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         remindAt: Date?
     ) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
-        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         item.dueAt = dueAt
@@ -223,7 +184,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         option: TaskSnoozeOption
     ) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
-        guard PairPermissionService.canEditTask(item, actorID: actorID) else {
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         guard item.status != .completed, item.completedAt == nil else {
@@ -316,7 +277,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
         var item = try await existingTask(in: spaceID, taskID: taskID)
-        guard PairPermissionService.canDeleteTask(item, actorID: actorID) else {
+        guard SoloPermissionService.canDeleteTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         item.isArchived = true
@@ -339,7 +300,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {
         let item = try await existingTask(in: spaceID, taskID: taskID)
-        guard PairPermissionService.canDeleteTask(item, actorID: actorID) else {
+        guard SoloPermissionService.canDeleteTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
         try await itemRepository.deleteItem(itemID: taskID)
@@ -352,188 +313,6 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             )
         )
         await reminderScheduler.removeTaskReminder(for: taskID)
-    }
-
-    func respondToTask(
-        in spaceID: UUID,
-        taskID: UUID,
-        actorID: UUID,
-        response: ItemResponseKind,
-        message: String?
-    ) async throws -> Item {
-        let responseCommentContent = try validatedCommentContent(message)
-        let item = try await itemRepository.updateItemStatus(
-            itemID: taskID,
-            response: response,
-            message: message,
-            actorID: actorID
-        )
-        await syncCoordinator.recordLocalChange(
-            SyncChange(
-                entityKind: .task,
-                operation: .upsert,
-                recordID: item.id,
-                spaceID: spaceID
-            )
-        )
-        if let responseCommentContent {
-            await insertAssociatedTaskCommentIfPossible(
-                in: spaceID,
-                taskID: item.id,
-                actorID: actorID,
-                content: responseCommentContent
-            )
-        }
-        return item
-    }
-
-    @discardableResult
-    func sendTaskComment(
-        in spaceID: UUID,
-        taskID: UUID,
-        actorID: UUID,
-        content: String
-    ) async throws -> TaskMessage? {
-        let item = try await existingTask(in: spaceID, taskID: taskID)
-        guard item.assigneeMode == .partner || item.assigneeMode == .both else {
-            throw RepositoryError.notFound
-        }
-        guard item.status != .completed,
-              item.assignmentState != .completed,
-              item.isArchived == false else {
-            throw RepositoryError.notFound
-        }
-
-        guard let trimmed = try validatedCommentContent(content) else { return nil }
-
-        let messageID = UUID()
-        let createdAt = Date.now
-        try await taskMessageRepository.insertComment(
-            messageID: messageID,
-            taskID: taskID,
-            senderID: actorID,
-            content: trimmed,
-            createdAt: createdAt
-        )
-        await syncCoordinator.recordLocalChange(
-            SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
-        )
-        return TaskMessage(
-            id: messageID,
-            taskID: taskID,
-            senderID: actorID,
-            type: .comment,
-            content: trimmed,
-            createdAt: createdAt
-        )
-    }
-
-    private func validatedCommentContent(_ content: String?) throws -> String? {
-        let trimmed = content?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard trimmed.isEmpty == false else { return nil }
-        guard trimmed.count <= 500 else { throw RepositoryError.notFound }
-        return trimmed
-    }
-
-    private func insertAssociatedTaskCommentIfPossible(
-        in spaceID: UUID,
-        taskID: UUID,
-        actorID: UUID,
-        content: String
-    ) async {
-        do {
-            _ = try await sendTaskComment(in: spaceID, taskID: taskID, actorID: actorID, content: content)
-        } catch {}
-    }
-
-    func requeueDeclinedTask(
-        in spaceID: UUID,
-        taskID: UUID,
-        actorID: UUID
-    ) async throws -> Item {
-        var item = try await existingTask(in: spaceID, taskID: taskID)
-        guard item.creatorID == actorID else { throw RepositoryError.notFound }
-        guard item.assigneeMode == .partner else { throw RepositoryError.notFound }
-        guard item.assignmentState == .declined else { throw RepositoryError.notFound }
-
-        item.assignmentState = .pendingResponse
-        item.status = .pendingConfirmation
-        item.latestResponse = nil
-        item.responseHistory = []
-        item.lastActionByUserID = actorID
-        item.lastActionAt = .now
-        item.updatedAt = .now
-
-        let saved = try await itemRepository.saveItem(item)
-        await syncCoordinator.recordLocalChange(
-            SyncChange(
-                entityKind: .task,
-                operation: .upsert,
-                recordID: saved.id,
-                spaceID: spaceID
-            )
-        )
-        return saved
-    }
-
-    /// No creatorID permission check: both task creator and assignee can exchange messages.
-    func appendAssignmentMessage(
-        in spaceID: UUID,
-        taskID: UUID,
-        actorID: UUID,
-        message: String
-    ) async throws -> Item {
-        _ = try await sendTaskComment(in: spaceID, taskID: taskID, actorID: actorID, content: message)
-        return try await existingTask(in: spaceID, taskID: taskID)
-    }
-
-    /// Task creator sends reminders to the assignee (partner). Dual-writes:
-    /// bumps reminder_requested_at on the task (foreground-fallback cache)
-    /// AND inserts a task_messages(type='nudge') row (APNs trigger source).
-    func sendReminderToPartner(
-        in spaceID: UUID,
-        taskID: UUID,
-        actorID: UUID
-    ) async throws -> Item {
-        var item = try await existingTask(in: spaceID, taskID: taskID)
-        guard item.assigneeMode == .partner else { throw RepositoryError.notFound }
-        guard item.creatorID == actorID else { throw PermissionError.notCreator }
-        guard item.isArchived == false, item.assignmentState != .completed else {
-            throw RepositoryError.notFound
-        }
-        guard item.assignmentState == .pendingResponse
-            || item.assignmentState == .accepted
-            || item.assignmentState == .active else {
-            throw RepositoryError.notFound
-        }
-
-        // 30 秒冷却
-        if let lastReminder = item.reminderRequestedAt,
-           Date.now.timeIntervalSince(lastReminder) < 30 {
-            return item
-        }
-
-        // 1. 更新 tasks.reminder_requested_at（前台兜底派生字段）
-        item.reminderRequestedAt = .now
-        item.updatedAt = .now
-        let saved = try await itemRepository.saveItem(item)
-        await syncCoordinator.recordLocalChange(
-            SyncChange(entityKind: .task, operation: .upsert, recordID: saved.id, spaceID: spaceID)
-        )
-
-        // 2. 插入 task_messages(type='nudge') 事件（push 触发 APNs）
-        let messageID = UUID()
-        try await taskMessageRepository.insertNudge(
-            messageID: messageID,
-            taskID: taskID,
-            senderID: actorID,
-            createdAt: Date.now
-        )
-        await syncCoordinator.recordLocalChange(
-            SyncChange(entityKind: .taskMessage, operation: .upsert, recordID: messageID, spaceID: spaceID)
-        )
-
-        return saved
     }
 
     private func existingTask(in spaceID: UUID, taskID: UUID) async throws -> Item {

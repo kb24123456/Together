@@ -1,12 +1,12 @@
 import Foundation
 
 struct CloudKitSyncConfiguration: Hashable, Sendable {
-    /// The default container for Together. Used by both invite and task sync.
+    /// The default CloudKit container for Together personal task sync.
     nonisolated static let defaultContainerIdentifier = "iCloud.com.pigdog.Together"
 
     let containerIdentifier: String
 
-    /// Database environment: "private" for pair task sync, "public" for invite discovery.
+    /// Database environment for the user's private CloudKit sync.
     let environment: String
 
     /// Fallback polling interval in seconds (used when subscription push is delayed).

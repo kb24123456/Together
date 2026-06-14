@@ -18,9 +18,7 @@ struct User: Identifiable, Hashable, Sendable {
     var preferences: NotificationSettings
 
     var avatarCacheFileName: String? {
-        // Prefer the explicit filename stored on the record — partner avatars
-        // carry a versioned name (`asset-{id}-v{N}.jpg`) that breaks UIImage's
-        // URL cache on each remote update. Fall back to the legacy
+        // Prefer the explicit filename stored on the record. Fall back to the
         // assetID-derived name when avatarPhotoFileName is absent.
         if let avatarPhotoFileName, !avatarPhotoFileName.isEmpty {
             return avatarPhotoFileName
@@ -41,7 +39,7 @@ struct User: Identifiable, Hashable, Sendable {
 
 struct NotificationSettings: Hashable, Sendable {
     nonisolated static let defaultQuickTimePresetMinutes: [Int] = [5, 30, 60]
-    nonisolated static let defaultPairQuickReplyMessages: [String] = ["不想做", "没时间", "有点忙"]
+    nonisolated static let defaultQuickReplyMessages: [String] = ["不想做", "没时间", "有点忙"]
     nonisolated static let defaultSnoozeMinutes: Int = 30
     nonisolated static let defaultCompletedTaskAutoArchiveDays: Int = 30
     nonisolated static let completedTaskAutoArchiveDayOptions: [Int] = [7, 14, 30, 90]
@@ -49,11 +47,10 @@ struct NotificationSettings: Hashable, Sendable {
     var taskReminderEnabled: Bool
     var dailySummaryEnabled: Bool
     var calendarReminderEnabled: Bool
-    var futureCollaborationInviteEnabled: Bool
     var taskUrgencyWindowMinutes: Int = 30
     var defaultSnoozeMinutes: Int = NotificationSettings.defaultSnoozeMinutes
     var quickTimePresetMinutes: [Int] = NotificationSettings.defaultQuickTimePresetMinutes
-    var pairQuickReplyMessages: [String] = NotificationSettings.defaultPairQuickReplyMessages
+    var quickReplyMessages: [String] = NotificationSettings.defaultQuickReplyMessages
     var completedTaskAutoArchiveEnabled: Bool = true
     var completedTaskAutoArchiveDays: Int = NotificationSettings.defaultCompletedTaskAutoArchiveDays
     var appLockEnabled: Bool = false
@@ -76,14 +73,14 @@ struct NotificationSettings: Hashable, Sendable {
         return normalized
     }
 
-    nonisolated static func normalizedPairQuickReplyMessages(_ values: [String]) -> [String] {
+    nonisolated static func normalizedQuickReplyMessages(_ values: [String]) -> [String] {
         let trimmed = values.map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         let filtered = trimmed.filter { !$0.isEmpty }
         var normalized = Array(filtered.prefix(3))
         if normalized.count < 3 {
-            normalized.append(contentsOf: defaultPairQuickReplyMessages.dropFirst(normalized.count))
+            normalized.append(contentsOf: defaultQuickReplyMessages.dropFirst(normalized.count))
         }
         return normalized
     }

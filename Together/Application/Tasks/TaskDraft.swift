@@ -8,11 +8,7 @@ struct TaskDraft: Hashable, Sendable {
     var dueAt: Date?
     var hasExplicitTime: Bool
     var remindAt: Date?
-    var executionRole: ItemExecutionRole
-    var assigneeMode: TaskAssigneeMode
     var status: ItemStatus
-    var assignmentState: TaskAssignmentState
-    var assignmentNote: String?
     var isPinned: Bool
     var isDraft: Bool
     var repeatRule: ItemRepeatRule?
@@ -25,11 +21,7 @@ struct TaskDraft: Hashable, Sendable {
         dueAt: Date? = nil,
         hasExplicitTime: Bool = false,
         remindAt: Date? = nil,
-        executionRole: ItemExecutionRole = .initiator,
-        assigneeMode: TaskAssigneeMode = .self,
         status: ItemStatus = .inProgress,
-        assignmentState: TaskAssignmentState = .active,
-        assignmentNote: String? = nil,
         isPinned: Bool = false,
         isDraft: Bool = false,
         repeatRule: ItemRepeatRule? = nil
@@ -41,11 +33,7 @@ struct TaskDraft: Hashable, Sendable {
         self.dueAt = dueAt
         self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
-        self.executionRole = executionRole
-        self.assigneeMode = assigneeMode
         self.status = status
-        self.assignmentState = assignmentState
-        self.assignmentNote = assignmentNote
         self.isPinned = isPinned
         self.isDraft = isDraft
         self.repeatRule = repeatRule
@@ -62,12 +50,7 @@ extension TaskDraft {
             dueAt: item.dueAt,
             hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
-            executionRole: item.executionRole,
-            assigneeMode: item.assigneeMode,
             status: item.status,
-            assignmentState: item.assignmentState,
-            // Existing collaboration messages belong to the task history, not the editable draft.
-            assignmentNote: nil,
             isPinned: item.isPinned,
             isDraft: item.isDraft,
             repeatRule: item.repeatRule
