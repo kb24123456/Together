@@ -8,6 +8,7 @@ enum ReminderTargetType: String, Hashable, Sendable {
     case invite
     case binding
     case periodicTask
+    case dailySummary
 }
 
 enum ReminderChannel: String, Hashable, Sendable {

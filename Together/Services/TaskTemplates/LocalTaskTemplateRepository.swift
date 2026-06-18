@@ -40,6 +40,7 @@ actor LocalTaskTemplateRepository: TaskTemplateRepositoryProtocol {
             time: template.time,
             reminderOffset: template.reminderOffset,
             repeatRule: template.repeatRule,
+            subtasks: template.subtasks,
             createdAt: template.createdAt,
             updatedAt: .now
         )

@@ -69,7 +69,7 @@ enum TaskEditorMenuContext: Equatable {
     var menus: [TaskEditorMenu] {
         switch self {
         case .task:
-            return [.date, .time, .reminder, .repeatRule]
+            return [.date, .time, .reminder, .repeatRule, .subtasks]
         case .project:
             return [.date]
         case .templates:

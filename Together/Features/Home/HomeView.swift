@@ -783,6 +783,7 @@ struct HomeView: View {
                         isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.id, on: viewModel.selectedDate),
                         titleLineLimit: 1,
                         titleMinimumScaleFactor: 0.72,
+                        isSubtasksExpanded: viewModel.isTaskSubtasksExpanded(entry.id),
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -795,6 +796,14 @@ struct HomeView: View {
                         },
                         onOpenDetail: {
                             viewModel.presentItemDetail(entry.id)
+                        },
+                        onToggleSubtasks: {
+                            viewModel.toggleTimelineSubtasks(entry.id)
+                        },
+                        onToggleSubtask: { subtaskID in
+                            Task {
+                                await viewModel.toggleTaskSubtask(itemID: entry.id, subtaskID: subtaskID)
+                            }
                         }
                     )
                 } else {
@@ -804,6 +813,7 @@ struct HomeView: View {
                         isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.id, on: viewModel.selectedDate),
                         titleLineLimit: 2,
                         titleMinimumScaleFactor: 0.84,
+                        isSubtasksExpanded: viewModel.isTaskSubtasksExpanded(entry.id),
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -816,6 +826,14 @@ struct HomeView: View {
                         },
                         onOpenDetail: {
                             viewModel.presentItemDetail(entry.id)
+                        },
+                        onToggleSubtasks: {
+                            viewModel.toggleTimelineSubtasks(entry.id)
+                        },
+                        onToggleSubtask: { subtaskID in
+                            Task {
+                                await viewModel.toggleTaskSubtask(itemID: entry.id, subtaskID: subtaskID)
+                            }
                         }
                     )
                     .modifier(
@@ -1783,8 +1801,11 @@ private struct HomeTimelineRow: View {
     let isAnimatingReopening: Bool
     let titleLineLimit: Int
     let titleMinimumScaleFactor: CGFloat
+    let isSubtasksExpanded: Bool
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
+    let onToggleSubtasks: () -> Void
+    let onToggleSubtask: (UUID) -> Void
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
@@ -1794,9 +1815,13 @@ private struct HomeTimelineRow: View {
     @State private var rowVerticalOffset: CGFloat = 0
     @State private var rowOpacity: Double = 1
     @State private var reopeningCheckmarkOpacity: Double = 1
+    @State private var subtaskAnimationBatch = 0
+    @State private var shouldRenderSubtasks = false
+    @State private var subtaskContentVisible = false
+    @State private var subtaskCollapseTask: Task<Void, Never>?
 
     var body: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
             Button(action: onToggleCompletion) {
                 timelineSymbol
                     .frame(width: 40, height: 40)
@@ -1804,34 +1829,92 @@ private struct HomeTimelineRow: View {
             .buttonStyle(.plain)
             .contentShape(Rectangle())
 
-            Button {
-                HomeInteractionFeedback.soft()
-                onOpenDetail()
-            } label: {
-                HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                    VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                        Text(entry.title)
-                            .font(AppTheme.typography.sized(19, weight: .bold))
-                            .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-                            .lineLimit(titleLineLimit)
-                            .minimumScaleFactor(titleMinimumScaleFactor)
-                            .allowsTightening(true)
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                Button {
+                    HomeInteractionFeedback.soft()
+                    onOpenDetail()
+                } label: {
+                    HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                            Text(entry.title)
+                                .font(AppTheme.typography.sized(19, weight: .bold))
+                                .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+                                .lineLimit(titleLineLimit)
+                                .minimumScaleFactor(titleMinimumScaleFactor)
+                                .allowsTightening(true)
 
-                        Text(displaySubtitle)
-                            .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                            .foregroundStyle(subtitleColor)
-                            .lineLimit(2)
+                            Text(displaySubtitle)
+                                .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                                .foregroundStyle(subtitleColor)
+                                .lineLimit(2)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
+                            HomeTimelineTimeText(entry: entry)
+                        }
                     }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
 
-                    Spacer(minLength: 0)
+                if entry.subtasks.isEmpty == false && entry.isCompleted == false {
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        var transaction = Transaction()
+                        transaction.animation = nil
+                        withTransaction(transaction) {
+                            onToggleSubtasks()
+                        }
+                    } label: {
+                        HStack(spacing: AppTheme.spacing.xs) {
+                            Text(subtaskProgressText)
+                                .font(AppTheme.typography.sized(13, weight: .semibold))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
 
-                    VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
-                        HomeTimelineTimeText(entry: entry)
+                            Image(systemName: isSubtasksExpanded ? "chevron.up" : "chevron.down")
+                                .font(AppTheme.typography.sized(11, weight: .bold))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.5))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if shouldRenderSubtasks || isSubtasksExpanded {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(sortedSubtasks.enumerated()), id: \.element.id) { index, subtask in
+                                SubtaskCascadeRow(
+                                    index: index,
+                                    animationBatch: subtaskAnimationBatch,
+                                    reduceMotion: reduceMotion
+                                ) {
+                                    HStack(spacing: AppTheme.spacing.xs) {
+                                        SubtaskCheckbox(
+                                            isCompleted: subtask.isCompleted,
+                                            onToggle: { onToggleSubtask(subtask.id) }
+                                        )
+
+                                        Text(subtask.title)
+                                            .font(AppTheme.typography.sized(14, weight: .medium))
+                                            .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.44 : 0.82))
+                                            .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.32))
+                                            .lineLimit(2)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                        .padding(.top, AppTheme.spacing.xs)
+                        .opacity(subtaskContentVisible ? 1 : 0)
+                        .offset(y: subtaskContentOffsetY)
+                        .allowsHitTesting(isSubtasksExpanded && subtaskContentVisible)
                     }
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .padding(.top, 2)
         }
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
@@ -1915,6 +1998,21 @@ private struct HomeTimelineRow: View {
                 }
             }
         }
+        .onAppear {
+            guard isSubtasksExpanded else { return }
+            shouldRenderSubtasks = true
+            subtaskContentVisible = true
+        }
+        .onDisappear {
+            subtaskCollapseTask?.cancel()
+        }
+        .onChange(of: isSubtasksExpanded) { _, isExpanded in
+            if isExpanded {
+                showSubtasks()
+            } else {
+                hideSubtasks()
+            }
+        }
     }
 
     private var displaySubtitle: String {
@@ -1922,6 +2020,68 @@ private struct HomeTimelineRow: View {
             return notes
         }
         return entry.statusText
+    }
+
+    private var subtaskProgressText: String {
+        let total = entry.subtasks.count
+        let completed = entry.subtasks.filter(\.isCompleted).count
+        return "\(completed)/\(total) 子任务"
+    }
+
+    private var sortedSubtasks: [TaskSubtask] {
+        entry.subtasks.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var subtaskContentOffsetY: CGFloat {
+        guard subtaskContentVisible == false, isSubtasksExpanded else { return 0 }
+        return 8
+    }
+
+    private var subtaskExpandedStateAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .snappy(duration: 0.42, extraBounce: 0.06)
+    }
+
+    private var subtaskCollapsedStateAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.28, extraBounce: 0)
+    }
+
+    private var subtaskCollapseAnimation: Animation {
+        subtaskCollapsedStateAnimation
+    }
+
+    private var subtaskCollapseDelayMilliseconds: UInt64 {
+        reduceMotion ? 160 : 280
+    }
+
+    private func showSubtasks() {
+        subtaskCollapseTask?.cancel()
+        subtaskAnimationBatch += 1
+        shouldRenderSubtasks = true
+        subtaskContentVisible = false
+
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(subtaskExpandedStateAnimation) {
+                subtaskContentVisible = true
+            }
+        }
+    }
+
+    private func hideSubtasks() {
+        subtaskCollapseTask?.cancel()
+        withAnimation(subtaskCollapseAnimation) {
+            subtaskContentVisible = false
+        }
+
+        subtaskCollapseTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(subtaskCollapseDelayMilliseconds))
+            guard Task.isCancelled == false else { return }
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                shouldRenderSubtasks = false
+            }
+        }
     }
 
     private var subtitleColor: Color {
@@ -2279,12 +2439,14 @@ private struct HomeOverdueSummarySheet: View {
                     relationText: nil,
                     primaryAvatar: nil,
                     secondaryAvatar: nil,
-                    lastActionAt: nil
+                    lastActionAt: nil,
+                    subtasks: []
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
                 isAnimatingReopening: false,
                 titleLineLimit: 1,
                 titleMinimumScaleFactor: 0.68,
+                isSubtasksExpanded: false,
                 onToggleCompletion: {
                     HomeInteractionFeedback.completion()
                     Task {
@@ -2293,7 +2455,9 @@ private struct HomeOverdueSummarySheet: View {
                 },
                 onOpenDetail: {
                     viewModel.presentItemDetail(entry.id)
-                }
+                },
+                onToggleSubtasks: {},
+                onToggleSubtask: { _ in }
             )
             .padding(.vertical, AppTheme.spacing.md)
         }

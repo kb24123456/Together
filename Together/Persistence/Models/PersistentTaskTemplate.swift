@@ -14,6 +14,7 @@ final class PersistentTaskTemplate {
     var timeData: Data?
     var reminderOffset: TimeInterval?
     var repeatRuleData: Data?
+    var subtasksData: Data?
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
 
@@ -29,6 +30,7 @@ final class PersistentTaskTemplate {
         timeData: Data?,
         reminderOffset: TimeInterval?,
         repeatRuleData: Data?,
+        subtasksData: Data?,
         createdAt: Date,
         updatedAt: Date
     ) {
@@ -43,6 +45,7 @@ final class PersistentTaskTemplate {
         self.timeData = timeData
         self.reminderOffset = reminderOffset
         self.repeatRuleData = repeatRuleData
+        self.subtasksData = subtasksData
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -62,6 +65,7 @@ extension PersistentTaskTemplate {
             timeData: Self.encode(template.time),
             reminderOffset: template.reminderOffset,
             repeatRuleData: Self.encode(template.repeatRule),
+            subtasksData: Self.encode(template.subtasks),
             createdAt: template.createdAt,
             updatedAt: template.updatedAt
         )
@@ -80,6 +84,7 @@ extension PersistentTaskTemplate {
             time: Self.decode(timeData, defaultValue: nil),
             reminderOffset: reminderOffset,
             repeatRule: Self.decode(repeatRuleData, defaultValue: nil),
+            subtasks: Self.decode(subtasksData, defaultValue: []),
             createdAt: createdAt,
             updatedAt: updatedAt
         )
@@ -96,6 +101,7 @@ extension PersistentTaskTemplate {
         timeData = Self.encode(template.time)
         reminderOffset = template.reminderOffset
         repeatRuleData = Self.encode(template.repeatRule)
+        subtasksData = Self.encode(template.subtasks)
         updatedAt = template.updatedAt
     }
 

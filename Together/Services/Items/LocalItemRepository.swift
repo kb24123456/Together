@@ -276,17 +276,30 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         var savedItem = item
         savedItem.updatedAt = .now
 
+        let subtaskChanges: SubtaskChangeSet
         if let record = try fetchRecord(itemID: item.id, context: context) {
             try migrateLegacyRecurringCompletionIfNeeded(record: record, context: context)
             record.update(from: savedItem)
+            subtaskChanges = try replaceSubtasks(for: savedItem, context: context)
         } else {
             context.insert(PersistentItem(item: savedItem))
+            subtaskChanges = try replaceSubtasks(for: savedItem, context: context)
         }
 
         try context.save()
 
         // 记录到本地同步队列。
         if let sid = savedItem.spaceID {
+            for subtaskID in subtaskChanges.upserted {
+                await syncCoordinator?.recordLocalChange(
+                    SyncChange(entityKind: .taskSubtask, operation: .upsert, recordID: subtaskID, spaceID: sid)
+                )
+            }
+            for subtaskID in subtaskChanges.deleted {
+                await syncCoordinator?.recordLocalChange(
+                    SyncChange(entityKind: .taskSubtask, operation: .delete, recordID: subtaskID, spaceID: sid)
+                )
+            }
             await syncCoordinator?.recordLocalChange(
                 SyncChange(entityKind: .task, operation: .upsert, recordID: savedItem.id, spaceID: sid)
             )
@@ -296,6 +309,137 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             return try hydratedItem(from: record, context: context)
         }
         return savedItem
+    }
+
+    func addSubtask(itemID: UUID, title: String, creatorID: UUID) async throws -> Item {
+        let context = ModelContext(container)
+        guard let record = try fetchRecord(itemID: itemID, context: context), record.isLocallyDeleted == false else {
+            throw RepositoryError.notFound
+        }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            throw RepositoryError.invalidInput("子任务标题不能为空")
+        }
+
+        let existingSubtasks = try subtasks(for: itemID, in: context)
+        let subtask = TaskSubtask(
+            itemID: itemID,
+            creatorID: creatorID,
+            title: trimmed,
+            sortOrder: existingSubtasks.count
+        )
+        context.insert(PersistentTaskSubtask(subtask: subtask))
+        record.updatedAt = .now
+        try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .taskSubtask, operation: .upsert, recordID: subtask.id, spaceID: sid)
+            )
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
+        return try hydratedItem(from: record, context: context)
+    }
+
+    func toggleSubtask(itemID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item {
+        let context = ModelContext(container)
+        guard let record = try fetchRecord(itemID: itemID, context: context), record.isLocallyDeleted == false else {
+            throw RepositoryError.notFound
+        }
+        guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context),
+              subtaskRecord.itemID == itemID,
+              subtaskRecord.isLocallyDeleted == false
+        else {
+            throw RepositoryError.notFound
+        }
+
+        subtaskRecord.isCompleted.toggle()
+        subtaskRecord.updatedAt = .now
+        record.updatedAt = .now
+        try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .taskSubtask, operation: .upsert, recordID: subtaskID, spaceID: sid)
+            )
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
+        return try hydratedItem(from: record, context: context)
+    }
+
+    func updateSubtask(itemID: UUID, subtaskID: UUID, title: String, actorID: UUID) async throws -> Item {
+        let context = ModelContext(container)
+        guard let record = try fetchRecord(itemID: itemID, context: context), record.isLocallyDeleted == false else {
+            throw RepositoryError.notFound
+        }
+        guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context),
+              subtaskRecord.itemID == itemID,
+              subtaskRecord.isLocallyDeleted == false
+        else {
+            throw RepositoryError.notFound
+        }
+
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            throw RepositoryError.invalidInput("子任务标题不能为空")
+        }
+
+        subtaskRecord.title = trimmed
+        subtaskRecord.updatedAt = .now
+        record.updatedAt = .now
+        try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .taskSubtask, operation: .upsert, recordID: subtaskID, spaceID: sid)
+            )
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
+        return try hydratedItem(from: record, context: context)
+    }
+
+    func deleteSubtask(itemID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item {
+        let context = ModelContext(container)
+        guard let record = try fetchRecord(itemID: itemID, context: context), record.isLocallyDeleted == false else {
+            throw RepositoryError.notFound
+        }
+        guard let subtaskRecord = try fetchSubtaskRecord(subtaskID: subtaskID, context: context),
+              subtaskRecord.itemID == itemID,
+              subtaskRecord.isLocallyDeleted == false
+        else {
+            throw RepositoryError.notFound
+        }
+
+        subtaskRecord.isLocallyDeleted = true
+        subtaskRecord.updatedAt = .now
+        record.updatedAt = .now
+        let resequenced = try resequenceSubtasks(itemID: itemID, context: context)
+        try context.save()
+
+        if let sid = record.spaceID {
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .taskSubtask, operation: .delete, recordID: subtaskID, spaceID: sid)
+            )
+            for siblingID in resequenced {
+                await syncCoordinator?.recordLocalChange(
+                    SyncChange(entityKind: .taskSubtask, operation: .upsert, recordID: siblingID, spaceID: sid)
+                )
+            }
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(entityKind: .task, operation: .upsert, recordID: itemID, spaceID: sid)
+            )
+        }
+
+        return try hydratedItem(from: record, context: context)
     }
 
     func reorderItems(itemIDs: [UUID]) async throws -> [Item] {
@@ -334,6 +478,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         for occurrenceRecord in occurrenceRecords {
             context.delete(occurrenceRecord)
         }
+        let subtaskRecords = try subtaskRecords(for: itemID, in: context)
+        for subtaskRecord in subtaskRecords {
+            subtaskRecord.isLocallyDeleted = true
+            subtaskRecord.updatedAt = .now
+        }
         // 使用 tombstone 代替硬删，避免下次 pull 把已删记录 INSERT 复活
         let spaceID = record.spaceID
         record.isLocallyDeleted = true
@@ -341,6 +490,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         try context.save()
 
         if let sid = spaceID {
+            for subtaskRecord in subtaskRecords {
+                await syncCoordinator?.recordLocalChange(
+                    SyncChange(entityKind: .taskSubtask, operation: .delete, recordID: subtaskRecord.id, spaceID: sid)
+                )
+            }
             await syncCoordinator?.recordLocalChange(
                 SyncChange(entityKind: .task, operation: .delete, recordID: itemID, spaceID: sid)
             )
@@ -564,28 +718,42 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         from records: [PersistentItem],
         context: ModelContext
     ) throws -> [Item] {
+        let itemIDs = records.map(\.id)
         let completions = try occurrenceCompletionMap(
-            itemIDs: records.map(\.id),
+            itemIDs: itemIDs,
             itemRecords: records,
             context: context
         )
+        let subtasks = try subtaskMap(itemIDs: itemIDs, context: context)
         return try records.map { record in
-            try hydratedItem(from: record, occurrenceCompletions: completions[record.id] ?? [], context: context)
+            try hydratedItem(
+                from: record,
+                occurrenceCompletions: completions[record.id] ?? [],
+                subtasks: subtasks[record.id] ?? [],
+                context: context
+            )
         }
     }
 
     private func hydratedItem(from record: PersistentItem, context: ModelContext) throws -> Item {
+        let subtasks = try subtaskMap(itemIDs: [record.id], context: context)
         let completions = try occurrenceCompletionMap(
             itemIDs: [record.id],
             itemRecords: [record],
             context: context
         )
-        return try hydratedItem(from: record, occurrenceCompletions: completions[record.id] ?? [], context: context)
+        return try hydratedItem(
+            from: record,
+            occurrenceCompletions: completions[record.id] ?? [],
+            subtasks: subtasks[record.id] ?? [],
+            context: context
+        )
     }
 
     private func hydratedItem(
         from record: PersistentItem,
         occurrenceCompletions: [ItemOccurrenceCompletion],
+        subtasks: [TaskSubtask],
         context: ModelContext
     ) throws -> Item {
         let migratedLegacyCompletions = try legacyOccurrenceCompletions(for: record, context: context)
@@ -596,7 +764,111 @@ actor LocalItemRepository: ItemRepositoryProtocol {
                 }
                 return lhs.completedAt < rhs.completedAt
             }
-        return record.domainModel(occurrenceCompletions: merged)
+        return record.domainModel(occurrenceCompletions: merged, subtasks: subtasks)
+    }
+
+    private struct SubtaskChangeSet {
+        var upserted: [UUID] = []
+        var deleted: [UUID] = []
+    }
+
+    private func replaceSubtasks(for item: Item, context: ModelContext) throws -> SubtaskChangeSet {
+        let existingRecords = try subtaskRecords(for: item.id, in: context)
+        let recordsByID = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.id, $0) })
+        let activeExistingIDs = Set(existingRecords.filter { $0.isLocallyDeleted == false }.map(\.id))
+        var desiredIDs: Set<UUID> = []
+        var changes = SubtaskChangeSet()
+
+        let normalizedSubtasks = item.subtasks
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .enumerated()
+            .compactMap { index, subtask -> TaskSubtask? in
+                let trimmed = subtask.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.isEmpty == false else { return nil }
+                return TaskSubtask(
+                    id: subtask.id,
+                    itemID: item.id,
+                    creatorID: subtask.creatorID,
+                    title: trimmed,
+                    isCompleted: subtask.isCompleted,
+                    sortOrder: index,
+                    updatedAt: .now
+                )
+            }
+
+        for subtask in normalizedSubtasks {
+            desiredIDs.insert(subtask.id)
+            if let record = recordsByID[subtask.id] {
+                if record.title != subtask.title
+                    || record.isCompleted != subtask.isCompleted
+                    || record.sortOrder != subtask.sortOrder
+                    || record.isLocallyDeleted
+                {
+                    record.update(from: subtask)
+                    changes.upserted.append(subtask.id)
+                }
+            } else {
+                context.insert(PersistentTaskSubtask(subtask: subtask))
+                changes.upserted.append(subtask.id)
+            }
+        }
+
+        for record in existingRecords where activeExistingIDs.contains(record.id) && desiredIDs.contains(record.id) == false {
+            record.isLocallyDeleted = true
+            record.updatedAt = .now
+            changes.deleted.append(record.id)
+        }
+
+        return changes
+    }
+
+    private func fetchSubtaskRecord(subtaskID: UUID, context: ModelContext) throws -> PersistentTaskSubtask? {
+        let descriptor = FetchDescriptor<PersistentTaskSubtask>(
+            predicate: #Predicate<PersistentTaskSubtask> { $0.id == subtaskID }
+        )
+        return try context.fetch(descriptor).first
+    }
+
+    private func subtaskRecords(for itemID: UUID, in context: ModelContext) throws -> [PersistentTaskSubtask] {
+        let descriptor = FetchDescriptor<PersistentTaskSubtask>(
+            predicate: #Predicate<PersistentTaskSubtask> { $0.itemID == itemID },
+            sortBy: [SortDescriptor(\PersistentTaskSubtask.sortOrder, order: .forward)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    private func subtasks(for itemID: UUID, in context: ModelContext) throws -> [TaskSubtask] {
+        try subtaskRecords(for: itemID, in: context)
+            .filter { $0.isLocallyDeleted == false }
+            .map { $0.domainModel() }
+    }
+
+    private func subtaskMap(itemIDs: [UUID], context: ModelContext) throws -> [UUID: [TaskSubtask]] {
+        guard itemIDs.isEmpty == false else { return [:] }
+        let itemIDSet = Set(itemIDs)
+        let records = try context.fetch(
+            FetchDescriptor<PersistentTaskSubtask>(
+                predicate: #Predicate<PersistentTaskSubtask> { $0.isLocallyDeleted == false },
+                sortBy: [SortDescriptor(\PersistentTaskSubtask.sortOrder, order: .forward)]
+            )
+        )
+        return records.reduce(into: [:]) { result, record in
+            guard itemIDSet.contains(record.itemID) else { return }
+            result[record.itemID, default: []].append(record.domainModel())
+        }
+    }
+
+    @discardableResult
+    private func resequenceSubtasks(itemID: UUID, context: ModelContext) throws -> [UUID] {
+        let records = try subtaskRecords(for: itemID, in: context)
+            .filter { $0.isLocallyDeleted == false }
+        var changedIDs: [UUID] = []
+        for (index, record) in records.enumerated() where record.sortOrder != index {
+            record.sortOrder = index
+            record.updatedAt = .now
+            changedIDs.append(record.id)
+        }
+        return changedIDs
     }
 
     private func occurrenceCompletionMap(

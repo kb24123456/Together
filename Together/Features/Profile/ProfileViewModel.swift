@@ -3,33 +3,21 @@ import Observation
 
 enum ProfileExpandedSetting: Hashable {
     case taskUrgency
-    case defaultSnooze
     case completedArchive
     case appearance
 }
 
 enum ProfileCustomDurationKind: Hashable, Identifiable {
     case taskUrgency
-    case defaultSnooze
 
     var id: Self { self }
 
     var title: String {
-        switch self {
-        case .taskUrgency:
-            return "自定义临期提醒"
-        case .defaultSnooze:
-            return "自定义默认推迟时间"
-        }
+        "自定义临期提醒"
     }
 
     var initialMinutes: Int {
-        switch self {
-        case .taskUrgency:
-            return 30
-        case .defaultSnooze:
-            return NotificationSettings.defaultSnoozeMinutes
-        }
+        30
     }
 }
 
@@ -121,10 +109,6 @@ final class ProfileViewModel {
         return taskUrgencyLabel(minutes: taskUrgencyWindowMinutes)
     }
 
-    var defaultSnoozeSummary: String {
-        relativeTimeLabel(minutes: defaultSnoozeMinutes)
-    }
-
     var completedArchiveSummary: String {
         "\(completedTaskAutoArchiveDays)天后"
     }
@@ -148,14 +132,7 @@ final class ProfileViewModel {
     }
 
     let taskUrgencyOptions: [Int] = [5, 10, 30, 60]
-    let snoozeMinuteOptions: [Int] = [5, 10, 30, 60]
     let completedTaskAutoArchiveOptions: [Int] = NotificationSettings.completedTaskAutoArchiveDayOptions
-
-    var defaultSnoozeMinutes: Int {
-        NotificationSettings.normalizedSnoozeMinutes(
-            sessionStore.currentUser?.preferences.defaultSnoozeMinutes ?? NotificationSettings.defaultSnoozeMinutes
-        )
-    }
 
     var completedTaskAutoArchiveEnabled: Bool {
         sessionStore.currentUser?.preferences.completedTaskAutoArchiveEnabled ?? true
@@ -222,10 +199,8 @@ final class ProfileViewModel {
         switch customDurationSheet {
         case .taskUrgency:
             return taskUrgencyWindowMinutes
-        case .defaultSnooze:
-            return defaultSnoozeMinutes
         case nil:
-            return ProfileCustomDurationKind.defaultSnooze.initialMinutes
+            return ProfileCustomDurationKind.taskUrgency.initialMinutes
         }
     }
 
@@ -292,12 +267,6 @@ final class ProfileViewModel {
         applyUpdatedPreferences(user.preferences, to: user)
     }
 
-    func updateDefaultSnoozeMinutes(_ minutes: Int) {
-        guard var user = sessionStore.currentUser else { return }
-        user.preferences.defaultSnoozeMinutes = NotificationSettings.normalizedSnoozeMinutes(minutes)
-        applyUpdatedPreferences(user.preferences, to: user)
-    }
-
     func updateCompletedTaskAutoArchiveEnabled(_ isEnabled: Bool) {
         guard var user = sessionStore.currentUser else { return }
         user.preferences.completedTaskAutoArchiveEnabled = isEnabled
@@ -340,8 +309,6 @@ final class ProfileViewModel {
         switch customDurationSheet {
         case .taskUrgency:
             updateTaskUrgencyWindow(minutes: minutes)
-        case .defaultSnooze:
-            updateDefaultSnoozeMinutes(minutes)
         }
         self.customDurationSheet = nil
     }

@@ -714,6 +714,13 @@ struct HomeItemDetailSheet: View {
                         title: repeatTitle,
                         rank: viewModel.detailDraft?.repeatRule?.animationRank ?? 0
                     )
+                ),
+                TaskEditorChipSnapshot(
+                    id: TaskEditorMenu.subtasks.rawValue,
+                    title: subtaskTitle,
+                    systemImage: "checklist",
+                    menu: .subtasks,
+                    semanticValue: .subtasks(viewModel.detailDraft?.subtasks.count ?? 0)
                 )
             ]
         case .project:
@@ -755,6 +762,13 @@ struct HomeItemDetailSheet: View {
             return "不重复"
         }
         return rule.title(anchorDate: dueAt, calendar: .current)
+    }
+
+    private var subtaskTitle: String {
+        let subtasks = viewModel.detailDraft?.subtasks ?? []
+        guard subtasks.isEmpty == false else { return "子任务" }
+        let completed = subtasks.filter(\.isCompleted).count
+        return "\(completed)/\(subtasks.count)"
     }
 
     private var showsTimeClearButton: Bool {
@@ -1388,7 +1402,7 @@ private struct HomeDetailMenuSheet: View {
                 selectionFeedback: HomeInteractionFeedback.selection
             )
         case .subtasks:
-            EmptyView()
+            HomeDetailTaskSubtasksPanel(viewModel: viewModel)
         case .template:
             ComposerTemplatePickerSheet(
                 templates: templates,
@@ -1513,6 +1527,173 @@ private struct HomeDetailMenuSheet: View {
             ? dueAt
             : Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
         return target.timeIntervalSince(remindAt)
+    }
+}
+
+private struct HomeDetailTaskSubtasksPanel: View {
+    @Bindable var viewModel: HomeViewModel
+    @State private var inputTitle = ""
+    @State private var editingSubtaskID: UUID?
+    @State private var editingTitle = ""
+    @FocusState private var isInputFocused: Bool
+    @FocusState private var focusedSubtaskID: UUID?
+
+    private var subtasks: [TaskSubtaskDraft] {
+        viewModel.detailDraft?.subtasks ?? []
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if subtasks.isEmpty == false {
+                ScrollView {
+                    VStack(spacing: AppTheme.spacing.sm) {
+                        ForEach(subtasks) { subtask in
+                            subtaskRow(subtask)
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.94, anchor: .top).combined(with: .opacity),
+                                    removal: .scale(scale: 0.94, anchor: .top).combined(with: .opacity)
+                                ))
+                        }
+                    }
+                    .animation(.spring(response: 0.35, dampingFraction: 0.75), value: subtasks)
+                    .padding(.horizontal, AppTheme.spacing.md)
+                    .padding(.top, AppTheme.spacing.xs)
+                    .padding(.bottom, AppTheme.spacing.md)
+                }
+                .scrollIndicators(.hidden)
+            }
+
+            HStack(spacing: AppTheme.spacing.md) {
+                TextField("添加子任务", text: $inputTitle)
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($isInputFocused)
+                    .onSubmit { addSubtask() }
+
+                Button("添加") { addSubtask() }
+                    .buttonStyle(.plain)
+                    .font(AppTheme.typography.sized(15, weight: .bold))
+                    .foregroundStyle(inputTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
+                    .disabled(inputTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.vertical, AppTheme.spacing.md)
+            .background(RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous).fill(AppTheme.colors.pillSurface))
+            .overlay(RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous).stroke(AppTheme.colors.pillOutline, lineWidth: 1))
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.top, AppTheme.spacing.xs)
+            .padding(.bottom, AppTheme.spacing.md)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            if subtasks.isEmpty {
+                DispatchQueue.main.async { isInputFocused = true }
+            }
+        }
+        .onChange(of: subtasks) { _, subtasks in
+            if let editingSubtaskID, subtasks.contains(where: { $0.id == editingSubtaskID }) == false {
+                self.editingSubtaskID = nil
+                editingTitle = ""
+            }
+        }
+    }
+
+    private func subtaskRow(_ subtask: TaskSubtaskDraft) -> some View {
+        HStack(spacing: AppTheme.spacing.md) {
+            Button {
+                HomeInteractionFeedback.selection()
+                viewModel.toggleDetailDraftSubtask(subtask.id)
+            } label: {
+                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(AppTheme.typography.sized(20, weight: .semibold))
+                    .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
+                    .frame(width: 28, height: 28)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if editingSubtaskID == subtask.id {
+                TextField("", text: editingBinding(for: subtask), prompt: Text(subtask.title))
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($focusedSubtaskID, equals: subtask.id)
+                    .onSubmit { commitSubtask(subtask) }
+                    .onChange(of: focusedSubtaskID) { _, focusedID in
+                        if focusedID != subtask.id, editingSubtaskID == subtask.id {
+                            commitSubtask(subtask)
+                        }
+                    }
+            } else {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    editingSubtaskID = subtask.id
+                    editingTitle = subtask.title
+                    focusedSubtaskID = subtask.id
+                } label: {
+                    Text(subtask.title)
+                        .font(AppTheme.typography.sized(16, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 1))
+                        .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.36))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                HomeInteractionFeedback.selection()
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    viewModel.deleteDetailDraftSubtask(subtask.id)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(AppTheme.typography.sized(11, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.66))
+                    .frame(width: 18, height: 18)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除子任务")
+        }
+        .padding(.horizontal, AppTheme.spacing.md)
+        .frame(minHeight: 54)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(TaskEditorMenuOptionGlassModifier())
+    }
+
+    private func editingBinding(for subtask: TaskSubtaskDraft) -> Binding<String> {
+        Binding(
+            get: { editingSubtaskID == subtask.id ? editingTitle : subtask.title },
+            set: { editingTitle = $0 }
+        )
+    }
+
+    private func commitSubtask(_ subtask: TaskSubtaskDraft) {
+        let trimmed = editingTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer {
+            editingSubtaskID = nil
+            editingTitle = ""
+            focusedSubtaskID = nil
+        }
+        guard trimmed.isEmpty == false, trimmed != subtask.title else { return }
+        viewModel.updateDetailDraftSubtask(subtask.id, title: trimmed)
+    }
+
+    private func addSubtask() {
+        let trimmed = inputTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        HomeInteractionFeedback.soft()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            viewModel.addDetailDraftSubtask(title: trimmed)
+            inputTitle = ""
+        }
+        isInputFocused = true
     }
 }
 

@@ -5,6 +5,7 @@ enum SyncEntityKind: String, Codable, Hashable, Sendable {
     case taskList
     case project
     case projectSubtask
+    case taskSubtask
     case periodicTask
     case space
     case memberProfile

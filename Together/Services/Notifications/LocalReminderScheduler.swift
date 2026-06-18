@@ -54,16 +54,29 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         await notificationService.cancel([AppNotification.identifier(for: .project, targetID: projectID)])
     }
 
+    func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {
+        if let notification = makeDailySummaryNotification(spaceID: spaceID, tasks: tasks, now: .now) {
+            try? await notificationService.schedule([notification])
+        } else {
+            await notificationService.cancel([AppNotification.identifier(for: .dailySummary, targetID: spaceID)])
+        }
+    }
+
     func resync(tasks: [Item], projects: [Project]) async {
         let taskNotifications = tasks.compactMap(makeTaskNotification(for:))
         let projectNotifications = projects.compactMap(makeProjectNotification(for:))
+        let spaceIDs = Set(tasks.compactMap(\.spaceID) + projects.compactMap(\.spaceID))
+        let dailySummaryNotifications = spaceIDs.compactMap { spaceID in
+            makeDailySummaryNotification(spaceID: spaceID, tasks: tasks, now: .now)
+        }
 
-        try? await notificationService.schedule(taskNotifications + projectNotifications)
+        try? await notificationService.schedule(taskNotifications + projectNotifications + dailySummaryNotifications)
 
-        let desiredIdentifiers = Set((taskNotifications + projectNotifications).map(\.identifier))
+        let desiredIdentifiers = Set((taskNotifications + projectNotifications + dailySummaryNotifications).map(\.identifier))
         let allIdentifiers = Set(
             tasks.map { AppNotification.identifier(for: .item, targetID: $0.id) }
             + projects.map { AppNotification.identifier(for: .project, targetID: $0.id) }
+            + spaceIDs.map { AppNotification.identifier(for: .dailySummary, targetID: $0) }
         )
         let staleIdentifiers = Array(allIdentifiers.subtracting(desiredIdentifiers))
         await notificationService.cancel(staleIdentifiers)
@@ -111,16 +124,45 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         )
     }
 
+    private func makeDailySummaryNotification(spaceID: UUID, tasks: [Item], now: Date) -> AppNotification? {
+        let incompleteNoDueCount = tasks.filter { item in
+            item.spaceID == spaceID
+                && item.isArchived == false
+                && item.dueAt == nil
+                && item.status != .completed
+                && item.completedAt == nil
+        }.count
+
+        guard incompleteNoDueCount > 0 else { return nil }
+        guard let scheduledAt = nextDailySummaryDate(now: now) else { return nil }
+
+        return AppNotification(
+            id: UUID(),
+            spaceID: spaceID,
+            targetID: spaceID,
+            targetType: .dailySummary,
+            channel: .localNotification,
+            status: .scheduled,
+            title: "今天还有 \(incompleteNoDueCount) 件事没完成",
+            body: "打开 Together 收尾没有到期时间的待办",
+            scheduledAt: scheduledAt,
+            deliveredAt: nil
+        )
+    }
+
     private func nextReminderDate(for item: Item, now: Date) -> Date? {
-        guard let remindAt = item.remindAt else { return nil }
+        let reminderDate = item.remindAt ?? item.dueAt.map {
+            reminderTargetDate(for: $0, hasExplicitTime: item.hasExplicitTime)
+        }
+        guard let reminderDate else { return nil }
 
         if item.repeatRule == nil {
-            return normalizedScheduledDate(remindAt, now: now)
+            return normalizedScheduledDate(reminderDate, now: now)
         }
 
         guard let dueAt = item.dueAt, let repeatRule = item.repeatRule else { return nil }
         let reminderTarget = reminderTargetDate(for: dueAt, hasExplicitTime: item.hasExplicitTime)
-        let reminderLead = reminderTarget.timeIntervalSince(remindAt)
+        let reminderLead = reminderTarget.timeIntervalSince(reminderDate)
         let anchorDate = item.anchorDateForRepeatRule
         let threshold = now.addingTimeInterval(reminderLead)
         let startDay = calendar.startOfDay(for: max(anchorDate, threshold))
@@ -139,6 +181,18 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         }
 
         return nil
+    }
+
+    private func nextDailySummaryDate(now: Date) -> Date? {
+        let todaySummary = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now)
+        if let todaySummary, todaySummary > now {
+            return todaySummary
+        }
+
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) else {
+            return nil
+        }
+        return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: tomorrow)
     }
 
     private func normalizedScheduledDate(_ scheduledAt: Date, now: Date) -> Date? {

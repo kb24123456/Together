@@ -35,6 +35,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let primaryAvatar: HomeAvatar?
     let secondaryAvatar: HomeAvatar?
     let lastActionAt: Date?
+    let subtasks: [TaskSubtask]
 }
 
 struct HomeTimelineSection: Identifiable, Hashable {
@@ -132,6 +133,7 @@ final class HomeViewModel {
     private var savedDetailDraft: TaskDraft?
     private var hasCompletedDeferredMaintenance = false
     private var insertedItemIDs: Set<UUID> = []
+    private var expandedSubtaskItemIDs: Set<UUID> = []
     private(set) var selectedDateTransitionEdge: Edge = .trailing
     private(set) var selectedDateTransitionStyle: HomeDateTransitionStyle = .sameWeek
 
@@ -315,13 +317,6 @@ final class HomeViewModel {
     var hasUnsavedDetailChanges: Bool {
         guard detailDetent == .large, let detailDraft else { return false }
         return detailDraft != savedDetailDraft
-    }
-
-    var defaultSnoozeMinutes: Int {
-        NotificationSettings.normalizedSnoozeMinutes(
-            sessionStore.currentUser?.preferences.defaultSnoozeMinutes
-            ?? NotificationSettings.defaultSnoozeMinutes
-        )
     }
 
     var quickTimePresetMinutes: [Int] {
@@ -603,6 +598,43 @@ final class HomeViewModel {
         scheduleDetailSave(immediately: true)
     }
 
+    func addDetailDraftSubtask(title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false, var draft = detailDraft else { return }
+        draft.subtasks.append(TaskSubtaskDraft(title: trimmed, sortOrder: draft.subtasks.count))
+        detailDraft = draft
+        scheduleDetailSave(immediately: true)
+    }
+
+    func toggleDetailDraftSubtask(_ subtaskID: UUID) {
+        guard var draft = detailDraft,
+              let index = draft.subtasks.firstIndex(where: { $0.id == subtaskID })
+        else { return }
+        draft.subtasks[index].isCompleted.toggle()
+        detailDraft = draft
+        scheduleDetailSave(immediately: true)
+    }
+
+    func updateDetailDraftSubtask(_ subtaskID: UUID, title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false, var draft = detailDraft,
+              let index = draft.subtasks.firstIndex(where: { $0.id == subtaskID })
+        else { return }
+        draft.subtasks[index].title = trimmed
+        detailDraft = draft
+        scheduleDetailSave(immediately: true)
+    }
+
+    func deleteDetailDraftSubtask(_ subtaskID: UUID) {
+        guard var draft = detailDraft else { return }
+        draft.subtasks.removeAll { $0.id == subtaskID }
+        for index in draft.subtasks.indices {
+            draft.subtasks[index].sortOrder = index
+        }
+        detailDraft = draft
+        scheduleDetailSave(immediately: true)
+    }
+
     func saveDetailDraft() async {
         detailSaveTask?.cancel()
         _ = await persistDetailDraft()
@@ -857,7 +889,7 @@ final class HomeViewModel {
     }
 
     func snoozeItem(_ itemID: UUID) async {
-        await snoozeItem(itemID, using: .minutes(defaultSnoozeMinutes))
+        await snoozeItem(itemID, using: .tomorrow)
     }
 
     func isSelectedDate(_ date: Date) -> Bool {
@@ -957,6 +989,44 @@ final class HomeViewModel {
             onTodayDataChanged?()
         } catch {
             await reload()
+        }
+    }
+
+    func isTaskSubtasksExpanded(_ itemID: UUID) -> Bool {
+        expandedSubtaskItemIDs.contains(itemID)
+    }
+
+    func toggleTimelineSubtasks(_ itemID: UUID) {
+        if expandedSubtaskItemIDs.contains(itemID) {
+            expandedSubtaskItemIDs.remove(itemID)
+        } else {
+            expandedSubtaskItemIDs.insert(itemID)
+        }
+    }
+
+    func toggleTaskSubtask(itemID: UUID, subtaskID: UUID) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return }
+
+        do {
+            let saved = try await taskApplicationService.toggleTaskSubtask(
+                in: spaceID,
+                taskID: itemID,
+                subtaskID: subtaskID,
+                actorID: actorID
+            )
+            replaceItemPreservingOrder(saved)
+            if selectedItemID == itemID {
+                let refreshedDraft = TaskDraft(item: saved)
+                detailDraft = refreshedDraft
+                savedDetailDraft = refreshedDraft
+            }
+            emitTaskMutation(spaceID: spaceID)
+            onTodayDataChanged?()
+        } catch {
+            return
         }
     }
 
@@ -1230,7 +1300,8 @@ final class HomeViewModel {
             relationText: nil,
             primaryAvatar: nil,
             secondaryAvatar: nil,
-            lastActionAt: item.lastActionAt
+            lastActionAt: item.lastActionAt,
+            subtasks: item.subtasks
         )
     }
 

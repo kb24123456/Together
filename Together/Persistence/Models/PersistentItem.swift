@@ -117,7 +117,10 @@ extension PersistentItem {
         )
     }
 
-    func domainModel(occurrenceCompletions: [ItemOccurrenceCompletion] = []) -> Item {
+    func domainModel(
+        occurrenceCompletions: [ItemOccurrenceCompletion] = [],
+        subtasks: [TaskSubtask] = []
+    ) -> Item {
         Item(
             id: id,
             spaceID: spaceID,
@@ -138,6 +141,7 @@ extension PersistentItem {
             completedAt: repeatRuleData == nil ? completedAt : nil,
             completedByUserID: completedByUserID,
             occurrenceCompletions: occurrenceCompletions,
+            subtasks: subtasks,
             sortOrder: sortOrder,
             isPinned: isPinned,
             isDraft: isDraft,

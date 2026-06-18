@@ -274,6 +274,10 @@ final class AppContext {
         guard hasSyncedReminderNotifications == false else { return }
         hasSyncedReminderNotifications = true
         await homeViewModel.reload(reason: .sync)
+        guard let spaceID = sessionStore.currentSpace?.id else { return }
+        let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
+        let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        await container.reminderScheduler.resync(tasks: tasks, projects: projects)
     }
 
     private func syncAfterMutation(spaceID: UUID) {

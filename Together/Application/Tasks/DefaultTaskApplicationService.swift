@@ -50,8 +50,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 
     func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
         let now = Date.now
+        let itemID = UUID()
         let item = Item(
-            id: UUID(),
+            id: itemID,
             spaceID: spaceID,
             listID: draft.listID,
             projectID: draft.projectID,
@@ -68,10 +69,14 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             createdAt: now,
             updatedAt: now,
             completedAt: nil,
+            subtasks: makeTaskSubtasks(
+                itemID: itemID,
+                creatorID: actorID,
+                drafts: draft.subtasks
+            ),
             sortOrder: now.timeIntervalSinceReferenceDate,
             isPinned: draft.isPinned,
-            isDraft: draft.isDraft
-            ,
+            isDraft: draft.isDraft,
             repeatRule: draft.repeatRule
         )
 
@@ -84,7 +89,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        await reminderScheduler.syncTaskReminder(for: saved)
+        await syncReminderState(for: saved, in: spaceID)
         return saved
     }
 
@@ -104,6 +109,11 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.isPinned = draft.isPinned
         item.isDraft = draft.isDraft
         item.repeatRule = draft.repeatRule
+        item.subtasks = makeTaskSubtasks(
+            itemID: item.id,
+            creatorID: item.creatorID,
+            drafts: draft.subtasks
+        )
         item.lastActionByUserID = actorID
         item.lastActionAt = .now
         item.updatedAt = .now
@@ -117,7 +127,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        await reminderScheduler.syncTaskReminder(for: saved)
+        await syncReminderState(for: saved, in: spaceID)
         return saved
     }
 
@@ -145,7 +155,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        await reminderScheduler.syncTaskReminder(for: saved)
+        await syncReminderState(for: saved, in: spaceID)
         return saved
     }
 
@@ -173,7 +183,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        await reminderScheduler.syncTaskReminder(for: saved)
+        await syncReminderState(for: saved, in: spaceID)
         return saved
     }
 
@@ -213,7 +223,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        await reminderScheduler.syncTaskReminder(for: saved)
+        await syncReminderState(for: saved, in: spaceID)
         return saved
     }
 
@@ -240,7 +250,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                     spaceID: spaceID
                 )
             )
-            await reminderScheduler.syncTaskReminder(for: saved)
+            await syncReminderState(for: saved, in: spaceID)
             return saved
         }
 
@@ -271,8 +281,48 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 spaceID: spaceID
             )
         )
-        await reminderScheduler.syncTaskReminder(for: item)
+        await syncReminderState(for: item, in: spaceID)
         return item
+    }
+
+    func addTaskSubtask(in spaceID: UUID, taskID: UUID, actorID: UUID, title: String) async throws -> Item {
+        let item = try await existingTask(in: spaceID, taskID: taskID)
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
+        let saved = try await itemRepository.addSubtask(itemID: taskID, title: title, creatorID: actorID)
+        await syncReminderState(for: saved, in: spaceID)
+        return saved
+    }
+
+    func toggleTaskSubtask(in spaceID: UUID, taskID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item {
+        let item = try await existingTask(in: spaceID, taskID: taskID)
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
+        let saved = try await itemRepository.toggleSubtask(itemID: taskID, subtaskID: subtaskID, actorID: actorID)
+        await syncReminderState(for: saved, in: spaceID)
+        return saved
+    }
+
+    func updateTaskSubtask(in spaceID: UUID, taskID: UUID, subtaskID: UUID, actorID: UUID, title: String) async throws -> Item {
+        let item = try await existingTask(in: spaceID, taskID: taskID)
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
+        let saved = try await itemRepository.updateSubtask(itemID: taskID, subtaskID: subtaskID, title: title, actorID: actorID)
+        await syncReminderState(for: saved, in: spaceID)
+        return saved
+    }
+
+    func deleteTaskSubtask(in spaceID: UUID, taskID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item {
+        let item = try await existingTask(in: spaceID, taskID: taskID)
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
+        let saved = try await itemRepository.deleteSubtask(itemID: taskID, subtaskID: subtaskID, actorID: actorID)
+        await syncReminderState(for: saved, in: spaceID)
+        return saved
     }
 
     func archiveTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
@@ -295,6 +345,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             )
         )
         await reminderScheduler.removeTaskReminder(for: saved.id)
+        await syncDailySummary(in: spaceID)
         return saved
     }
 
@@ -313,6 +364,39 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             )
         )
         await reminderScheduler.removeTaskReminder(for: taskID)
+        await syncDailySummary(in: spaceID)
+    }
+
+    private func syncReminderState(for item: Item, in spaceID: UUID) async {
+        await reminderScheduler.syncTaskReminder(for: item)
+        await syncDailySummary(in: spaceID)
+    }
+
+    private func syncDailySummary(in spaceID: UUID) async {
+        guard let tasks = try? await itemRepository.fetchActiveItems(spaceID: spaceID) else { return }
+        await reminderScheduler.syncDailySummary(for: spaceID, tasks: tasks)
+    }
+
+    private func makeTaskSubtasks(
+        itemID: UUID,
+        creatorID: UUID,
+        drafts: [TaskSubtaskDraft]
+    ) -> [TaskSubtask] {
+        drafts
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .enumerated()
+            .compactMap { index, draft in
+                let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.isEmpty == false else { return nil }
+                return TaskSubtask(
+                    id: draft.id,
+                    itemID: itemID,
+                    creatorID: creatorID,
+                    title: trimmed,
+                    isCompleted: draft.isCompleted,
+                    sortOrder: index
+                )
+            }
     }
 
     private func existingTask(in spaceID: UUID, taskID: UUID) async throws -> Item {

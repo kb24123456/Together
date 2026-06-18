@@ -226,6 +226,68 @@ final class MockItemRepository: ItemRepositoryProtocol {
         return hydratedItem(updatedItem)
     }
 
+    func addSubtask(itemID: UUID, title: String, creatorID: UUID) async throws -> Item {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            throw RepositoryError.invalidInput("子任务标题不能为空")
+        }
+        let subtask = TaskSubtask(
+            itemID: itemID,
+            creatorID: creatorID,
+            title: trimmed,
+            sortOrder: items[index].subtasks.count,
+            updatedAt: MockDataFactory.now
+        )
+        items[index].subtasks.append(subtask)
+        items[index].updatedAt = MockDataFactory.now
+        return hydratedItem(items[index])
+    }
+
+    func toggleSubtask(itemID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item {
+        guard let itemIndex = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+        guard let subtaskIndex = items[itemIndex].subtasks.firstIndex(where: { $0.id == subtaskID }) else {
+            throw RepositoryError.notFound
+        }
+        items[itemIndex].subtasks[subtaskIndex].isCompleted.toggle()
+        items[itemIndex].subtasks[subtaskIndex].updatedAt = MockDataFactory.now
+        items[itemIndex].updatedAt = MockDataFactory.now
+        return hydratedItem(items[itemIndex])
+    }
+
+    func updateSubtask(itemID: UUID, subtaskID: UUID, title: String, actorID: UUID) async throws -> Item {
+        guard let itemIndex = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+        guard let subtaskIndex = items[itemIndex].subtasks.firstIndex(where: { $0.id == subtaskID }) else {
+            throw RepositoryError.notFound
+        }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            throw RepositoryError.invalidInput("子任务标题不能为空")
+        }
+        items[itemIndex].subtasks[subtaskIndex].title = trimmed
+        items[itemIndex].subtasks[subtaskIndex].updatedAt = MockDataFactory.now
+        items[itemIndex].updatedAt = MockDataFactory.now
+        return hydratedItem(items[itemIndex])
+    }
+
+    func deleteSubtask(itemID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item {
+        guard let itemIndex = items.firstIndex(where: { $0.id == itemID }) else {
+            throw RepositoryError.notFound
+        }
+        items[itemIndex].subtasks.removeAll { $0.id == subtaskID }
+        for index in items[itemIndex].subtasks.indices {
+            items[itemIndex].subtasks[index].sortOrder = index
+        }
+        items[itemIndex].updatedAt = MockDataFactory.now
+        return hydratedItem(items[itemIndex])
+    }
+
     func reorderItems(itemIDs: [UUID]) async throws -> [Item] {
         let now = MockDataFactory.now
         for (order, itemID) in itemIDs.enumerated() {

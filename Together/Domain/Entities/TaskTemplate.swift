@@ -61,6 +61,7 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
     var time: TaskTemplateClockTime?
     var reminderOffset: TimeInterval?
     var repeatRule: ItemRepeatRule?
+    var subtasks: [TaskSubtaskDraft]
     let createdAt: Date
     var updatedAt: Date
 
@@ -76,6 +77,7 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         time: TaskTemplateClockTime? = nil,
         reminderOffset: TimeInterval? = nil,
         repeatRule: ItemRepeatRule? = nil,
+        subtasks: [TaskSubtaskDraft] = [],
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -90,6 +92,7 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         self.time = time
         self.reminderOffset = reminderOffset
         self.repeatRule = repeatRule
+        self.subtasks = subtasks
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -128,6 +131,7 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
             time: resolvedTime,
             reminderOffset: reminderOffset,
             repeatRule: draft.repeatRule,
+            subtasks: draft.subtasks,
             createdAt: createdAt,
             updatedAt: createdAt
         )
@@ -154,7 +158,8 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
             hasExplicitTime: hasExplicitTime,
             remindAt: remindAt,
             isPinned: isPinned,
-            repeatRule: repeatRule
+            repeatRule: repeatRule,
+            subtasks: subtasks
         )
     }
 
@@ -168,6 +173,7 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         && time == other.time
         && reminderOffset == other.reminderOffset
         && repeatRule == other.repeatRule
+        && subtasks == other.subtasks
     }
 
     private nonisolated static func reminderTargetDate(

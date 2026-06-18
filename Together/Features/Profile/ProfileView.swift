@@ -189,23 +189,6 @@ struct ProfileView: View {
                 .transition(profileListRowTransition)
             }
 
-            expandableSelectionRow(
-                title: "默认推迟时间",
-                value: viewModel.defaultSnoozeSummary,
-                setting: .defaultSnooze
-            ) {
-                selectionContent(
-                    options: viewModel.snoozeMinuteOptions,
-                    selectedValue: viewModel.defaultSnoozeMinutes,
-                    label: { viewModel.relativeTimeLabel(minutes: $0) },
-                    onSelect: { viewModel.updateDefaultSnoozeMinutes($0) },
-                    onCustom: {
-                        HomeInteractionFeedback.selection()
-                        viewModel.presentCustomDurationSheet(.defaultSnooze)
-                    }
-                )
-            }
-
             ProfileSettingsRow(
                 title: "已完成自动归档",
                 isOn: Binding(

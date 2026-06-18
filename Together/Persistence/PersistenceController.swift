@@ -103,6 +103,7 @@ struct PersistenceController {
             PersistentProject.self,
             PersistentProjectSubtask.self,
             PersistentItem.self,
+            PersistentTaskSubtask.self,
             PersistentItemOccurrenceCompletion.self,
             PersistentTaskTemplate.self,
             PersistentPeriodicTask.self,

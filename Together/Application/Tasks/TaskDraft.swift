@@ -12,6 +12,7 @@ struct TaskDraft: Hashable, Sendable {
     var isPinned: Bool
     var isDraft: Bool
     var repeatRule: ItemRepeatRule?
+    var subtasks: [TaskSubtaskDraft]
 
     nonisolated init(
         title: String,
@@ -24,7 +25,8 @@ struct TaskDraft: Hashable, Sendable {
         status: ItemStatus = .inProgress,
         isPinned: Bool = false,
         isDraft: Bool = false,
-        repeatRule: ItemRepeatRule? = nil
+        repeatRule: ItemRepeatRule? = nil,
+        subtasks: [TaskSubtaskDraft] = []
     ) {
         self.title = title
         self.notes = notes
@@ -37,6 +39,7 @@ struct TaskDraft: Hashable, Sendable {
         self.isPinned = isPinned
         self.isDraft = isDraft
         self.repeatRule = repeatRule
+        self.subtasks = subtasks
     }
 }
 
@@ -53,7 +56,15 @@ extension TaskDraft {
             status: item.status,
             isPinned: item.isPinned,
             isDraft: item.isDraft,
-            repeatRule: item.repeatRule
+            repeatRule: item.repeatRule,
+            subtasks: item.subtasks.map {
+                TaskSubtaskDraft(
+                    id: $0.id,
+                    title: $0.title,
+                    isCompleted: $0.isCompleted,
+                    sortOrder: $0.sortOrder
+                )
+            }
         )
     }
 }

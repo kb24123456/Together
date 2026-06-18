@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-06-13
+- 日期：2026-06-14
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
@@ -15,13 +15,18 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：7 阶段纯单人化迁移已完成实现与本轮验证；后续进入用户验收、真机 OCR/CloudKit/Widget 验证和并发 warning 收敛。
+- 当前任务：纯单人化迁移已完成；2026-06-14 已完成普通任务子任务、项目子任务左对齐、默认推迟到明天、Profile 入口与任务提醒/当日汇总推送收敛。后续进入用户验收、真机 OCR/CloudKit/Widget/通知验证和并发 warning 收敛。
 - 已确认边界：
   - 不迁移旧 Supabase 数据，允许删除。
   - 不保留 RevenueCat、Paywall、PremiumGate、Supabase webhook。
   - CloudKit 作为唯一跨设备同步/恢复能力，本地 SwiftData 必须保留。
   - OCR 第一版接受“识别 -> 草稿确认 -> 入库”。
 - 当前结果：
+  - 2026-06-14 普通任务子任务已落地：新增独立 `TaskSubtask` / `PersistentTaskSubtask`，`Item.subtasks` 与 `TaskDraft.subtasks` 走本地 SwiftData hydrate；不复用 `ProjectSubtask`，不引入 Supabase 或多人能力；删除父任务会 tombstone 普通任务子任务。
+  - 普通任务子任务应用服务已接入 `TaskApplicationServiceProtocol` / `DefaultTaskApplicationService`，支持新增、勾选、改名、删除；子任务完成只更新子任务和父任务 `updatedAt`，不会自动完成父任务。
+  - 普通任务创建器、详情页和 Today Timeline 已接入子任务：创建器通过“子任务” chip 内联编辑；详情页 `.subtasks` 面板可新增/编辑/删除；Timeline 有子任务摘要，可展开后直接勾选，但卡片内不提供新增/删除输入。
+  - 任务模板已保存和恢复普通任务子任务；`TaskTemplate` 用 Codable 子任务草稿数组，`PersistentTaskTemplate.subtasksData` 存储。
+  - 项目子任务 UI 已调整为与项目标题左边缘对齐，保留子任务 checkbox 44pt 命中区。
   - 已删除旧 Supabase / RevenueCat / Paywall / PremiumGate / webhook 代码与 Supabase 目录。
   - 已删除双人协作、配对、邀请、重要日期、任务聊天、共享 mutation UI 与旧 CKSyncEngine/outbox/record codec 链路。
   - `PersistenceController` 生产配置使用 SwiftData `cloudKitDatabase: .private("iCloud.com.pigdog.Together")`；in-memory preview/test 使用 `.none`。
@@ -29,6 +34,8 @@
   - 测试 target 已重建为当前架构的 Swift Testing 基础测试，覆盖 Item 状态机、单人 SessionStore、OCR parser。
 - 当前验证：
   - `git diff --check` 通过。
+  - 2026-06-14 普通任务子任务验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖创建 hydrate 排序、整单更新过滤空标题、勾选最后子任务不自动完成父任务、删除父任务隐藏子任务、模板保存/恢复子任务、Timeline entry 子任务数据。
+  - 2026-06-14 普通任务子任务构建：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；仍有既有 Swift 6 actor isolation / Widget / Notification warning，本次新增的 `TaskSubtaskDraft` Equatable warning 已收敛。
   - XcodeBuildMCP `build_run_sim` 通过。
   - XcodeBuildMCP `test_sim` 通过，4/4 passed。
 - 已知遗留：
@@ -208,6 +215,7 @@
 
 ## 验证记录
 
+- 2026-06-14：强化任务本地通知调度机制。任务提醒规则改为：显式 `remindAt` 优先；未设置提醒但有 `dueAt` 的任务，按到期时间调度本地通知；无到期时间且未完成的任务按 space 聚合为每日 18:00 汇总通知，标题显示当天剩余件数。任务创建、更新、移动、改期、推迟、完成/恢复、归档、删除后都会刷新单条任务提醒和 18:00 汇总；App 启动后会从当前 space 的 task/project 数据重建提醒。当前纯单人 Apple-only 边界下没有新增远端 APNs provider，通知投递仍依赖 iOS 本地通知授权和 `UNUserNotificationCenter`。验证：新增 `TogetherTests` 覆盖显式提醒、到期时间兜底、无到期任务 18:00 汇总；`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；`git diff --check` 通过。
 - 2026-05-07：所有 widget 深色模式适配。新增 `TogetherWidget/WidgetTheme.swift` 统一 Today 与 Anniversary widget 的深浅色 token；Today widget 的背景、截止时间强调色、完成框、分割线、空态小猫插画在深色模式下自适应；Anniversary widget 的 avatar-derived material background、头像占位渐变、头像描边/阴影、数字强调色、倒计时胶囊和分割线在深色模式下自适应。长期规则已追加到 `AGENTS.md`：新增或修改 widget 时不能只硬编码浅色模式，必须显式处理 `colorScheme`，优先复用 widget theme。构建号提升到 44，避免真机桌面 widget 缓存旧 UI。仍需真机在系统浅色/深色模式下分别删除重加 Today 重点、Today 清单、纪念日三类 widget 验收。
 - 2026-05-07：完成纪念日 widget 小号真机修复后的 UI 收尾与经验沉淀。UI：移除纪念日头像组右侧白色圆形心形图标；纪念日累计天数、周年倒计时和下一个节点天数均改用非本地化 `Text(verbatim:)` 展示，避免 SwiftUI `Text` 的本地化数字插值把 `2212` 渲染为 `2,212`。经验：本轮多次返工的核心教训已追加到 `AGENTS.md` Widget 专项规则，包括 snapshot 不得写入原始大图 Data、必须按 family 单独验证小号渲染、添加页 preview 不等于桌面 widget、数字显示需避免隐式本地化格式化。仍需真机安装最新 build 后确认小号纪念日 widget 正式 UI。
 - 2026-05-07：继续排查“小号纪念日 widget 桌面纯白、中号/大号正常”。上一轮只移除了小号背景头像模糊，但小号前景头像仍会直接解码 App Group snapshot 中的原始头像 Data；真机历史日志显示两张头像合计约 485KB。新的根因判断：数据层、App Group、provider/timeline 均已排除，问题集中在 `systemSmall` 桌面快照归档时的真实头像解码/渲染成本。处理：`AnniversaryWidgetSnapshotBuilder` 在主 App 写入 snapshot 前把头像转成 widget 专用 320px 方形 JPEG 缩略图；`AnniversaryWidgetView` 对小号旧 snapshot 中过大的头像 Data 做防御性降级，先显示系统头像占位，避免整张小号 widget 被归档成空白；构建号提升到 42，避免 SpringBoard 复用旧 widget timeline 缓存。验证：`git diff --check` 通过；`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/AnniversaryWidgetSnapshotBuilderTests -quiet` 通过，并新增头像缩略图测试；`xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过。仍需真机安装 build 42、打开 App 让 snapshot 重写，再删除并重加小号纪念日 widget 验收。

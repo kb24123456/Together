@@ -51,6 +51,10 @@ protocol ItemRepositoryProtocol: Sendable {
     func markCompleted(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
     func markIncomplete(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
     func saveItem(_ item: Item) async throws -> Item
+    func addSubtask(itemID: UUID, title: String, creatorID: UUID) async throws -> Item
+    func toggleSubtask(itemID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item
+    func updateSubtask(itemID: UUID, subtaskID: UUID, title: String, actorID: UUID) async throws -> Item
+    func deleteSubtask(itemID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item
     func reorderItems(itemIDs: [UUID]) async throws -> [Item]
     func deleteItem(itemID: UUID) async throws
 }

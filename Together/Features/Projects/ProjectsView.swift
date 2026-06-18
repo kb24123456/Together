@@ -906,6 +906,9 @@ private struct ProjectSubtasksSection: View {
     @FocusState private var isInputFocused: Bool
     @FocusState private var focusedSubtaskID: UUID?
     private let verticalSpacing: CGFloat = AppTheme.spacing.sm
+    private var textAlignmentOffset: CGFloat {
+        44 + AppTheme.spacing.sm
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: verticalSpacing) {
@@ -955,6 +958,8 @@ private struct ProjectSubtasksSection: View {
 
                         Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .offset(x: -textAlignmentOffset)
                 }
             }
 
@@ -968,6 +973,9 @@ private struct ProjectSubtasksSection: View {
                         Image(systemName: "plus.circle.fill")
                             .font(AppTheme.typography.sized(17, weight: .semibold))
                             .foregroundStyle(AppTheme.colors.coral)
+                            .frame(width: 28, height: 28)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .simultaneousGesture(
                         TapGesture().onEnded {
@@ -991,9 +999,12 @@ private struct ProjectSubtasksSection: View {
                             commitDraftSubtask(feedback: false)
                         }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .offset(x: -textAlignmentOffset)
             }
         }
         .padding(.top, verticalSpacing)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
             if shouldFocusInput {
                 Task { @MainActor in
