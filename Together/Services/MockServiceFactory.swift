@@ -20,6 +20,7 @@ enum MockServiceFactory {
             reminderScheduler: reminderScheduler,
             syncCoordinator: syncCoordinator
         )
+        let migrationPersistence = PersistenceController(inMemory: true)
         return AppContainer(
             authService: MockAuthService(),
             spaceService: MockSpaceService(),
@@ -30,6 +31,7 @@ enum MockServiceFactory {
             taskTemplateRepository: taskTemplateRepository,
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
+            projectToTaskMigrationService: ProjectToTaskMigrationService(container: migrationPersistence.container),
             decisionRepository: MockDecisionRepository(),
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,

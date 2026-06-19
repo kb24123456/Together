@@ -303,7 +303,7 @@ struct RoutinesListContent: View {
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 60) // empty-state hero offset, outside token scale
+        .padding(.top, AppTheme.spacing.xl)
     }
 
     private var emptyTabState: some View {
@@ -347,7 +347,7 @@ struct RoutinesListContent: View {
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 60) // empty-state hero offset, outside token scale
+        .padding(.top, AppTheme.spacing.xl)
     }
 
 }

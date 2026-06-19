@@ -11,7 +11,7 @@ struct RoutinesView: View {
         RoutinesListContent(
             viewModel: viewModel,
             isPresented: true,
-            contentTopPadding: AppTheme.spacing.md,
+            contentTopPadding: AppTheme.spacing.xs,
             contentBottomPadding: 120
         )
     }

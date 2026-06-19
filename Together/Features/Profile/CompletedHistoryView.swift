@@ -4,15 +4,27 @@ struct CompletedHistoryView: View {
     @Bindable var viewModel: CompletedHistoryViewModel
 
     var body: some View {
-        List {
-            if viewModel.sections.isEmpty {
-                emptySection
-            } else {
-                ForEach(viewModel.sections) { section in
-                    sectionHeader(section.title)
+        VStack(spacing: 0) {
+            filterPicker
+                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.top, AppTheme.spacing.sm)
+                .padding(.bottom, AppTheme.spacing.xs)
 
-                    ForEach(section.items) { item in
-                        historyRow(for: item)
+            List {
+                if viewModel.sections.isEmpty {
+                    emptySection
+                } else {
+                    ForEach(viewModel.sections) { section in
+                        sectionHeader(section.title)
+
+                        ForEach(section.items) { item in
+                            CompletedTaskRow(
+                                item: item,
+                                subtitle: viewModel.subtitle(for: item),
+                                trailingText: trailingText(for: item),
+                                showsArchivedDate: viewModel.isArchived(item),
+                                archivedDateText: viewModel.archivedDateText(for: item)
+                            )
                             .listRowInsets(
                                 EdgeInsets(
                                     top: AppTheme.spacing.sm,
@@ -27,14 +39,12 @@ struct CompletedHistoryView: View {
                                 await viewModel.loadMoreIfNeeded(currentItem: item)
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                if viewModel.isArchived(item) {
-                                    Button("移回当前列表", systemImage: "arrow.uturn.backward.circle") {
-                                        Task {
-                                            await viewModel.restore(item)
-                                        }
+                                Button("恢复", systemImage: "arrow.uturn.backward.circle") {
+                                    Task {
+                                        await viewModel.restore(item)
                                     }
-                                    .tint(AppTheme.colors.selectionTint)
                                 }
+                                .tint(AppTheme.colors.selectionTint)
 
                                 Button("删除", systemImage: "trash") {
                                     Task {
@@ -43,19 +53,34 @@ struct CompletedHistoryView: View {
                                 }
                                 .tint(AppTheme.colors.danger)
                             }
+                            .contextMenu {
+                                Button("恢复", systemImage: "arrow.uturn.backward.circle") {
+                                    Task {
+                                        await viewModel.restore(item)
+                                    }
+                                }
+
+                                Button("删除", systemImage: "trash", role: .destructive) {
+                                    Task {
+                                        await viewModel.delete(item)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if viewModel.isLoading {
+                        loadingRow
                     }
                 }
-
-                if viewModel.isLoading {
-                    loadingRow
-                }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
-        .listStyle(.plain)
         .applyScrollEdgeProtection()
-        .scrollContentBackground(.hidden)
         .background(AppTheme.colors.background.ignoresSafeArea())
-        .navigationTitle("日志")
+        .navigationTitle("已完成")
+        .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $viewModel.searchText, prompt: "搜索已完成任务")
         .task {
             await viewModel.loadIfNeeded()
@@ -63,6 +88,19 @@ struct CompletedHistoryView: View {
         .task(id: viewModel.searchText) {
             await viewModel.reload()
         }
+        .task(id: viewModel.selectedFilter) {
+            await viewModel.reload()
+        }
+    }
+
+    private var filterPicker: some View {
+        Picker("筛选", selection: $viewModel.selectedFilter) {
+            ForEach(CompletedHistoryFilter.allCases) { filter in
+                Text(filter.title).tag(filter)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityLabel("已完成任务筛选")
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -107,43 +145,110 @@ struct CompletedHistoryView: View {
         .listRowSeparator(.hidden)
     }
 
-    private func historyRow(for item: Item) -> some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                Text(item.title)
-                    .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .allowsTightening(true)
-                    .multilineTextAlignment(.leading)
-
-                Text(viewModel.subtitle(for: item))
-                    .font(AppTheme.typography.textStyle(.subheadline))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                    Text(viewModel.completedDateText(for: item))
-                    if viewModel.isArchived(item) {
-                        Text(viewModel.archivedDateText(for: item))
-                    }
-                }
-                .font(AppTheme.typography.textStyle(.caption1))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.64))
-            }
-        }
-        .padding(.vertical, AppTheme.spacing.xs)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(.rect)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel(for: item))
-    }
-
     private func accessibilityLabel(for item: Item) -> String {
         let completedDate = viewModel.completedDateText(for: item)
         return "\(item.title) · \(completedDate)"
     }
 
+    private func trailingText(for item: Item) -> String {
+        switch viewModel.selectedFilter {
+        case .week:
+            guard let completedAt = item.completedAt else { return "" }
+            return weekdayLabel(for: completedAt)
+        case .month:
+            guard let completedAt = item.completedAt else { return "" }
+            return monthDayText(for: completedAt)
+        case .all:
+            return viewModel.completedDateText(for: item)
+        }
+    }
+
+    private func weekdayLabel(for date: Date) -> String {
+        switch Calendar.current.component(.weekday, from: date) {
+        case 1: return "周日"
+        case 2: return "周一"
+        case 3: return "周二"
+        case 4: return "周三"
+        case 5: return "周四"
+        case 6: return "周五"
+        case 7: return "周六"
+        default: return ""
+        }
+    }
+
+    private func monthDayText(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.month, .day], from: date)
+        return "\(components.month ?? 1)月\(components.day ?? 1)日"
+    }
+
+}
+
+struct CompletedTaskRow: View {
+    let item: Item
+    let subtitle: String
+    let trailingText: String
+    let showsArchivedDate: Bool
+    let archivedDateText: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+            completedBadge
+                .frame(width: 40, height: 40)
+
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: AppTheme.spacing.md) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                        Text(item.title)
+                            .font(AppTheme.typography.sized(18, weight: .bold))
+                            .foregroundStyle(AppTheme.colors.title.opacity(0.62))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.78)
+                            .allowsTightening(true)
+
+                        Text(subtitle)
+                            .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.52))
+                            .lineLimit(2)
+
+                        if showsArchivedDate {
+                            Text("归档 \(archivedDateText)")
+                                .font(AppTheme.typography.textStyle(.caption2, weight: .medium))
+                                .foregroundStyle(AppTheme.colors.body.opacity(0.44))
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Text(trailingText)
+                        .font(AppTheme.typography.sized(17, weight: .bold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.34))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+            }
+            .padding(.top, 2)
+        }
+        .padding(.vertical, AppTheme.spacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.rect)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.title) · \(trailingText)")
+    }
+
+    private var completedBadge: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(
+                    AppTheme.colors.body.opacity(0.24),
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [6, 6])
+                )
+
+            Image(systemName: "checkmark")
+                .font(AppTheme.typography.sized(15, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+        }
+        .padding(4)
+    }
 }
 
 #if DEBUG

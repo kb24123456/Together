@@ -313,13 +313,16 @@ final class ProfileViewModel {
         self.customDurationSheet = nil
     }
 
-    func makeCompletedHistoryViewModel() -> CompletedHistoryViewModel {
+    func makeCompletedHistoryViewModel(
+        initialFilter: CompletedHistoryFilter = .week
+    ) -> CompletedHistoryViewModel {
         let viewModel = CompletedHistoryViewModel(
             sessionStore: sessionStore,
             itemRepository: itemRepository,
             taskApplicationService: taskApplicationService,
             taskListRepository: taskListRepository,
-            projectRepository: projectRepository
+            projectRepository: projectRepository,
+            initialFilter: initialFilter
         )
         viewModel.onTaskMutated = onTaskMutated
         return viewModel

@@ -29,7 +29,6 @@ struct HomeItemDetailSheet: View {
 
     private enum DetailCategory {
         case task
-        case project
     }
 
     private enum DetailEntryAction {
@@ -40,19 +39,16 @@ struct HomeItemDetailSheet: View {
 
     private enum ConversionTarget {
         case periodicTask
-        case project
 
         var title: String {
             switch self {
             case .periodicTask: return "例行事务"
-            case .project:     return "项目"
             }
         }
 
         var icon: String {
             switch self {
             case .periodicTask: return "square.stack"
-            case .project:      return "checklist"
             }
         }
     }
@@ -150,8 +146,6 @@ struct HomeItemDetailSheet: View {
                         switch target {
                         case .periodicTask:
                             await viewModel.convertCurrentTaskToPeriodicTask()
-                        case .project:
-                            await viewModel.convertCurrentTaskToProject()
                         }
                     }
                 }
@@ -214,7 +208,7 @@ struct HomeItemDetailSheet: View {
 
     private var expandedCategorySwitcher: some View {
         HStack(spacing: AppTheme.spacing.sm) {
-            ForEach(["模板", "任务", "周期", "项目"], id: \.self) { title in
+            ForEach(["模板", "任务", "周期"], id: \.self) { title in
                 let isActive = expandedCategoryTitle == title
 
                 Button {
@@ -228,9 +222,6 @@ struct HomeItemDetailSheet: View {
                     } else if title == "周期" {
                         HomeInteractionFeedback.selection()
                         pendingConversionTarget = .periodicTask
-                    } else if title == "项目" {
-                        HomeInteractionFeedback.selection()
-                        pendingConversionTarget = .project
                     }
                 } label: {
                     Text(title)
@@ -597,7 +588,7 @@ struct HomeItemDetailSheet: View {
                 focusedField: $focusedField,
                 focusCoordinator: focusCoordinator,
                 field: .title,
-                placeholder: detailCategory == .project ? "项目标题" : "任务标题",
+                placeholder: "任务标题",
                 font: AppTheme.typography.sizedUIFont(30, weight: .bold),
                 textColor: UIColor(AppTheme.colors.title),
                 placeholderColor: UIColor(AppTheme.colors.textTertiary.opacity(0.62)),
@@ -670,63 +661,51 @@ struct HomeItemDetailSheet: View {
     }
 
     private var expandedCategoryTitle: String {
-        switch detailCategory {
-        case .task:
-            return "任务"
-        case .project:
-            return "项目"
-        }
+        "任务"
     }
 
     private var chips: [TaskEditorRenderedChip] {
-        let snapshots: [TaskEditorChipSnapshot]
-        switch detailCategory {
-        case .task:
-            snapshots = [
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.date.rawValue,
-                    title: taskDateTitle,
-                    systemImage: "calendar",
-                    menu: .date,
-                    semanticValue: .date(viewModel.detailDraft?.dueAt ?? viewModel.selectedDate)
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.time.rawValue,
-                    title: taskTimeTitle,
-                    systemImage: "clock",
-                    menu: .time,
-                    semanticValue: .time(viewModel.detailDraft?.dueAt),
-                    showsTrailingClear: showsTimeClearButton
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.reminder.rawValue,
-                    title: reminderTitle,
-                    systemImage: "bell",
-                    menu: .reminder,
-                    semanticValue: .reminder(reminderOffset)
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.repeatRule.rawValue,
+        let snapshots = [
+            TaskEditorChipSnapshot(
+                id: TaskEditorMenu.date.rawValue,
+                title: taskDateTitle,
+                systemImage: "calendar",
+                menu: .date,
+                semanticValue: .date(viewModel.detailDraft?.dueAt ?? viewModel.selectedDate)
+            ),
+            TaskEditorChipSnapshot(
+                id: TaskEditorMenu.time.rawValue,
+                title: taskTimeTitle,
+                systemImage: "clock",
+                menu: .time,
+                semanticValue: .time(viewModel.detailDraft?.dueAt),
+                showsTrailingClear: showsTimeClearButton
+            ),
+            TaskEditorChipSnapshot(
+                id: TaskEditorMenu.reminder.rawValue,
+                title: reminderTitle,
+                systemImage: "bell",
+                menu: .reminder,
+                semanticValue: .reminder(reminderOffset)
+            ),
+            TaskEditorChipSnapshot(
+                id: TaskEditorMenu.repeatRule.rawValue,
+                title: repeatTitle,
+                systemImage: "arrow.triangle.2.circlepath",
+                menu: .repeatRule,
+                semanticValue: .repeatRule(
                     title: repeatTitle,
-                    systemImage: "arrow.triangle.2.circlepath",
-                    menu: .repeatRule,
-                    semanticValue: .repeatRule(
-                        title: repeatTitle,
-                        rank: viewModel.detailDraft?.repeatRule?.animationRank ?? 0
-                    )
-                ),
-                TaskEditorChipSnapshot(
-                    id: TaskEditorMenu.subtasks.rawValue,
-                    title: subtaskTitle,
-                    systemImage: "checklist",
-                    menu: .subtasks,
-                    semanticValue: .subtasks(viewModel.detailDraft?.subtasks.count ?? 0)
+                    rank: viewModel.detailDraft?.repeatRule?.animationRank ?? 0
                 )
-            ]
-        case .project:
-            snapshots = []
-        }
-
+            ),
+            TaskEditorChipSnapshot(
+                id: TaskEditorMenu.subtasks.rawValue,
+                title: subtaskTitle,
+                systemImage: "checklist",
+                menu: .subtasks,
+                semanticValue: .subtasks(viewModel.detailDraft?.subtasks.count ?? 0)
+            )
+        ]
         return makeRenderedChips(from: snapshots)
     }
 

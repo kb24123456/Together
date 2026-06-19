@@ -2,13 +2,33 @@ import Foundation
 
 @MainActor
 final class MockItemRepository: ItemRepositoryProtocol {
-    private var items: [Item] = MockDataFactory.makeItems()
+    private var items: [Item]
     private var occurrenceCompletions: [UUID: [ItemOccurrenceCompletion]] = [:]
     private let calendar = Calendar.current
+
+    init() {
+        self.items = MockDataFactory.makeItems()
+    }
+
+    init(items: [Item]) {
+        self.items = items
+    }
 
     func fetchActiveItems(spaceID: UUID?) async throws -> [Item] {
         items
             .filter { $0.spaceID == spaceID && $0.isArchived == false }
+            .map(hydratedItem)
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func fetchHomeItems(spaceID: UUID?, completedFrom: Date, completedBefore: Date) async throws -> [Item] {
+        items
+            .filter { item in
+                guard item.spaceID == spaceID && item.isArchived == false else { return false }
+                guard item.status == .completed || item.completedAt != nil else { return true }
+                guard let completedAt = item.completedAt else { return false }
+                return completedAt >= completedFrom && completedAt < completedBefore
+            }
             .map(hydratedItem)
             .sorted { $0.updatedAt > $1.updatedAt }
     }
@@ -72,10 +92,29 @@ final class MockItemRepository: ItemRepositoryProtocol {
         since: Date?,
         limit: Int
     ) async throws -> [Item] {
+        try await fetchCompletedItems(
+            spaceID: spaceID,
+            searchText: searchText,
+            completedFrom: since,
+            completedBefore: nil,
+            before: before,
+            limit: limit
+        )
+    }
+
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        completedFrom: Date?,
+        completedBefore: Date?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item] {
         let normalizedLimit = max(limit, 1)
         let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return items
+            .map(hydratedItem)
             .filter { item in
                 guard item.spaceID == spaceID else { return false }
                 guard let completedAt = item.completedAt else { return false }
@@ -83,19 +122,40 @@ final class MockItemRepository: ItemRepositoryProtocol {
                 if let before, cursorDate >= before {
                     return false
                 }
-                if let since, cursorDate < since {
+                if let completedFrom, completedAt < completedFrom {
+                    return false
+                }
+                if let completedBefore, completedAt >= completedBefore {
                     return false
                 }
                 guard let normalizedSearch, normalizedSearch.isEmpty == false else {
                     return true
                 }
-                return item.title.localizedStandardContains(normalizedSearch)
+                return item.matchesCompletedHistorySearch(normalizedSearch)
             }
             .sorted {
                 ($0.archivedAt ?? $0.completedAt ?? .distantPast) > ($1.archivedAt ?? $1.completedAt ?? .distantPast)
             }
             .prefix(normalizedLimit)
             .map { $0 }
+    }
+
+    func completedItemCount(
+        spaceID: UUID?,
+        completedFrom: Date?,
+        completedBefore: Date?
+    ) async throws -> Int {
+        items.filter { item in
+            guard item.spaceID == spaceID else { return false }
+            guard let completedAt = item.completedAt else { return false }
+            if let completedFrom, completedAt < completedFrom {
+                return false
+            }
+            if let completedBefore, completedAt >= completedBefore {
+                return false
+            }
+            return true
+        }.count
     }
 
     func archiveCompletedItemsIfNeeded(
@@ -330,5 +390,13 @@ final class MockItemRepository: ItemRepositoryProtocol {
         let filtered = occurrenceCompletions[itemID, default: []]
             .filter { calendar.isDate($0.occurrenceDate, inSameDayAs: occurrenceDate) == false }
         occurrenceCompletions[itemID] = filtered.isEmpty ? nil : filtered
+    }
+}
+
+private extension Item {
+    nonisolated func matchesCompletedHistorySearch(_ searchText: String) -> Bool {
+        title.localizedStandardContains(searchText)
+            || (notes?.localizedStandardContains(searchText) ?? false)
+            || subtasks.contains { $0.title.localizedStandardContains(searchText) }
     }
 }

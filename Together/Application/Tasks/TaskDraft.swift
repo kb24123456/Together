@@ -62,7 +62,14 @@ extension TaskDraft {
                     id: $0.id,
                     title: $0.title,
                     isCompleted: $0.isCompleted,
-                    sortOrder: $0.sortOrder
+                    sortOrder: $0.sortOrder,
+                    sourceTaskID: $0.sourceTaskID,
+                    sourceNotes: $0.sourceNotes,
+                    sourceDueAt: $0.sourceDueAt,
+                    sourceHasExplicitTime: $0.sourceHasExplicitTime,
+                    sourceRemindAt: $0.sourceRemindAt,
+                    sourceCreatedAt: $0.sourceCreatedAt,
+                    sourceCompletedAt: $0.sourceCompletedAt
                 )
             }
         )

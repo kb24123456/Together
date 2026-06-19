@@ -221,6 +221,21 @@ private struct OCRTaskDraftEditor: View {
             )
             .font(AppTheme.typography.sized(13, weight: .regular))
             .lineLimit(1...3)
+
+            if task.subtasks.isEmpty == false {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                    Text("子任务")
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+
+                    ForEach($task.subtasks) { $subtask in
+                        Toggle(isOn: $subtask.isSelected) {
+                            TextField("子任务标题", text: $subtask.title)
+                                .font(AppTheme.typography.sized(13, weight: .medium))
+                        }
+                    }
+                }
+            }
         }
         .padding(AppTheme.spacing.md)
         .background(AppTheme.colors.surfaceElevated)

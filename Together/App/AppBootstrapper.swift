@@ -54,6 +54,7 @@ final class AppBootstrapper {
 
         // Set up spaces for a newly signed-in user
         await appContext.setupSpacesForCurrentUserIfNeeded()
+        await appContext.migrateLegacyProjectsIfNeeded()
         await appContext.restorePersistedUserProfileIfNeeded()
         phase = .ready
         StartupTrace.mark("AppBootstrapper.handleSignIn.ready")

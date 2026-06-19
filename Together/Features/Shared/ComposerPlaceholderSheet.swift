@@ -43,7 +43,7 @@ struct ComposerPlaceholderSheet: View {
         self.initialPeriodicCycle = initialPeriodicCycle
         let initialCategory: ComposerCategory = {
             switch route {
-            case .newProject: return .project
+            case .newProject: return .task
             case .newPeriodicTask: return .periodic
             case .newTask: return .task
             }
@@ -705,15 +705,13 @@ struct ComposerPlaceholderSheet: View {
                 await appContext.routinesViewModel.reload()
                 await appContext.refreshTodayWidgetSnapshot()
             case .project:
-                let created = await appContext.projectsViewModel.createNew(
-                    draftState.projectDraft(spaceID: spaceID, creatorID: actorID),
-                    subtasks: draftState.projectSubtasks.map {
-                        (title: $0.title, isCompleted: $0.isCompleted)
-                    }
+                let item = try await appContext.container.taskApplicationService.createTask(
+                    in: spaceID,
+                    actorID: actorID,
+                    draft: draftState.legacyProjectTaskDraft()
                 )
-                if created != nil {
-                    await appContext.refreshTodayWidgetSnapshot()
-                }
+                await appContext.homeViewModel.reload(insertedItemIDs: [item.id], reason: .userInserted)
+                await appContext.refreshTodayWidgetSnapshot()
             }
 
             focusedField = nil
@@ -729,6 +727,10 @@ private enum ComposerCategory: Int, CaseIterable, Identifiable {
     case task
     case periodic
     case project
+
+    static var allCases: [ComposerCategory] {
+        [.template, .task, .periodic]
+    }
 
     var id: Int { rawValue }
 
@@ -878,8 +880,27 @@ private struct ComposerDraftState: Hashable {
         case .periodic:
             return TaskDraft(title: title)
         case .project:
-            return TaskDraft(title: title, notes: trimmedNotes.isEmpty ? nil : trimmedNotes)
+            return legacyProjectTaskDraft()
         }
+    }
+
+    func legacyProjectTaskDraft() -> TaskDraft {
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subtasks = projectSubtasks.compactMap { subtask -> TaskSubtaskDraft? in
+            let trimmedTitle = subtask.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmedTitle.isEmpty == false else { return nil }
+            return TaskSubtaskDraft(
+                title: trimmedTitle,
+                isCompleted: subtask.isCompleted
+            )
+        }
+        return TaskDraft(
+            title: title,
+            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+            dueAt: projectTargetDate,
+            hasExplicitTime: false,
+            subtasks: subtasks
+        )
     }
 
     func creationValidationMessage(now: Date, calendar: Calendar = .current) -> String? {

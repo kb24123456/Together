@@ -52,6 +52,7 @@ enum LocalServiceFactory {
                 reminderScheduler: reminderScheduler,
                 syncCoordinator: syncCoordinator
             ),
+            projectToTaskMigrationService: ProjectToTaskMigrationService(container: modelContainer),
             decisionRepository: MockDecisionRepository(),
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,

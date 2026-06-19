@@ -20,6 +20,7 @@ struct CompletedItemStats: Equatable, Sendable {
 
 protocol ItemRepositoryProtocol: Sendable {
     func fetchActiveItems(spaceID: UUID?) async throws -> [Item]
+    func fetchHomeItems(spaceID: UUID?, completedFrom: Date, completedBefore: Date) async throws -> [Item]
     /// 拉取已完成（非归档）条目。`since != nil` 时只返回 `cursorDate >= since` 的记录，
     func fetchCompletedItems(
         spaceID: UUID?,
@@ -28,6 +29,19 @@ protocol ItemRepositoryProtocol: Sendable {
         since: Date?,
         limit: Int
     ) async throws -> [Item]
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        completedFrom: Date?,
+        completedBefore: Date?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item]
+    func completedItemCount(
+        spaceID: UUID?,
+        completedFrom: Date?,
+        completedBefore: Date?
+    ) async throws -> Int
     /// Aggregate stats (count, this-month count, first title, last date)
     /// over all completed items in the given space. Used by the Logbook
     /// hero; faster than a full-item fetch because no occurrence
@@ -62,6 +76,15 @@ protocol ItemRepositoryProtocol: Sendable {
 extension ItemRepositoryProtocol {
     func fetchItems(spaceID: UUID?) async throws -> [Item] {
         try await fetchActiveItems(spaceID: spaceID)
+    }
+
+    func fetchHomeItems(spaceID: UUID?, completedFrom: Date, completedBefore: Date) async throws -> [Item] {
+        try await fetchActiveItems(spaceID: spaceID).filter { item in
+            guard item.isArchived == false else { return false }
+            guard item.status == .completed || item.completedAt != nil else { return true }
+            guard let completedAt = item.completedAt else { return false }
+            return completedAt >= completedFrom && completedAt < completedBefore
+        }
     }
 
     /// 无 `since` 参数的便捷 overload。

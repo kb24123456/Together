@@ -10,6 +10,7 @@ struct AppContainer {
     let taskTemplateRepository: TaskTemplateRepositoryProtocol
     let taskListRepository: TaskListRepositoryProtocol
     let projectRepository: ProjectRepositoryProtocol
+    let projectToTaskMigrationService: ProjectToTaskMigrationService
     let decisionRepository: DecisionRepositoryProtocol
     let notificationService: NotificationServiceProtocol
     let reminderScheduler: ReminderSchedulerProtocol

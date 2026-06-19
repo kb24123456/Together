@@ -135,6 +135,7 @@ final class AppContext {
             if sessionStore.singleSpace == nil {
                 await setupSpacesForCurrentUserIfNeeded()
             }
+            await migrateLegacyProjectsIfNeeded()
             await restorePersistedUserProfileIfNeeded()
         }
         hasBootstrapped = true
@@ -151,6 +152,16 @@ final class AppContext {
         }
         sessionStore.applySpaceContext(spaceContext)
         sessionStore.activeMode = .single
+    }
+
+    func migrateLegacyProjectsIfNeeded() async {
+        do {
+            _ = try container.projectToTaskMigrationService.migrateLegacyProjectsToTasks(
+                spaceID: sessionStore.currentSpace?.id
+            )
+        } catch {
+            appContextLogger.error("[ProjectMigration] failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func restorePersistedUserProfileIfNeeded(force _: Bool = false) async {

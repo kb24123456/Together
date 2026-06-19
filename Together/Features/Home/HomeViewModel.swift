@@ -36,6 +36,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let secondaryAvatar: HomeAvatar?
     let lastActionAt: Date?
     let subtasks: [TaskSubtask]
+    let subtaskCompletedCount: Int
 }
 
 struct HomeTimelineSection: Identifiable, Hashable {
@@ -148,7 +149,10 @@ final class HomeViewModel {
     private var completingOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingReopeningOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
-    var showsCompletedItems = true
+    var isWeeklyCompletedSheetPresented = false
+    var isWeeklyCompletedSheetLoading = false
+    var weeklyCompletedSheetItems: [Item] = []
+    var weeklyCompletedEntryCount = 0
     var isPerformingSnooze = false
     var isOverdueSheetPresented = false
     var isDockHidden = false
@@ -449,6 +453,8 @@ final class HomeViewModel {
     ) async {
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
+            weeklyCompletedSheetItems = []
+            weeklyCompletedEntryCount = 0
             insertedItemIDs = []
             reloadRevision += 1
             return
@@ -458,9 +464,17 @@ final class HomeViewModel {
             // 记录刷新前的 ID 集合，用于检测同步到达的新任务
             let previousIDs = Set(items.map(\.id))
 
-            let fetchedItems = try await taskApplicationService.tasks(
-                in: spaceID,
-                scope: scope(for: selectedDate)
+            let completedRange = CompletedTaskRange.today.bounds(for: .now, calendar: calendar)
+            let fetchedItems = try await itemRepository.fetchHomeItems(
+                spaceID: spaceID,
+                completedFrom: completedRange.lowerBound ?? .distantPast,
+                completedBefore: completedRange.upperBound ?? .distantFuture
+            )
+            let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
+            weeklyCompletedEntryCount = try await itemRepository.completedItemCount(
+                spaceID: spaceID,
+                completedFrom: weeklyRange.lowerBound,
+                completedBefore: weeklyRange.upperBound
             )
             let visibleItemIDs = Set(fetchedItems.map(\.id))
             let persistedInsertedIDs = insertedItemIDs.intersection(visibleItemIDs)
@@ -483,6 +497,8 @@ final class HomeViewModel {
             }
         } catch {
             items = []
+            weeklyCompletedSheetItems = []
+            weeklyCompletedEntryCount = 0
             insertedItemIDs = []
             reloadRevision += 1
         }
@@ -878,14 +894,46 @@ final class HomeViewModel {
         }
     }
 
-    func toggleCompletedVisibility() {
-        withAnimation(.bouncy(duration: 0.74, extraBounce: 0.08)) {
-            showsCompletedItems.toggle()
-        }
+    func presentWeeklyCompletedSheet() async {
+        isWeeklyCompletedSheetPresented = true
+        await loadWeeklyCompletedSheet()
     }
 
-    func setCompletedVisibility(_ isVisible: Bool) {
-        showsCompletedItems = isVisible
+    func dismissWeeklyCompletedSheet() {
+        isWeeklyCompletedSheetPresented = false
+    }
+
+    func loadWeeklyCompletedSheet() async {
+        guard let spaceID = sessionStore.currentSpace?.id else {
+            weeklyCompletedSheetItems = []
+            weeklyCompletedEntryCount = 0
+            return
+        }
+
+        isWeeklyCompletedSheetLoading = true
+        defer { isWeeklyCompletedSheetLoading = false }
+
+        let range = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
+
+        do {
+            async let count = itemRepository.completedItemCount(
+                spaceID: spaceID,
+                completedFrom: range.lowerBound,
+                completedBefore: range.upperBound
+            )
+            async let items = itemRepository.fetchCompletedItems(
+                spaceID: spaceID,
+                searchText: nil,
+                completedFrom: range.lowerBound,
+                completedBefore: range.upperBound,
+                before: nil,
+                limit: 60
+            )
+            weeklyCompletedEntryCount = try await count
+            weeklyCompletedSheetItems = try await items
+        } catch {
+            weeklyCompletedSheetItems = []
+        }
     }
 
     func snoozeItem(_ itemID: UUID) async {
@@ -928,7 +976,15 @@ final class HomeViewModel {
     }
 
     var completedEntryCount: Int {
-        sortedItemsForTimeline.filter { isCompleted($0, on: selectedDate) }.count
+        sortedItemsForTimeline.filter(isTimelineCompleted).count
+    }
+
+    var todayCompletedEntryCount: Int {
+        completedEntryCount
+    }
+
+    var hasWeeklyCompletedEntries: Bool {
+        weeklyCompletedEntryCount > 0
     }
 
     var overdueEntryCount: Int {
@@ -953,7 +1009,7 @@ final class HomeViewModel {
     }
 
     var completedVisibilityButtonTitle: String {
-        showsCompletedItems ? "隐藏已完成" : "显示已完成"
+        "本周已完成"
     }
 
     var activeTimelineEntries: [HomeTimelineEntry] {
@@ -961,7 +1017,6 @@ final class HomeViewModel {
     }
 
     var completedTimelineEntries: [HomeTimelineEntry] {
-        guard showsCompletedItems else { return [] }
         return completedTimelineItems.map(makeTimelineEntry)
     }
 
@@ -1105,10 +1160,7 @@ final class HomeViewModel {
     }
 
     private func scope(for date: Date) -> TaskScope {
-        if calendar.isDate(date, inSameDayAs: .now) {
-            return .today(referenceDate: date)
-        }
-        return .scheduled(on: date)
+        .all
     }
 
     private func defaultDueDate() -> Date {
@@ -1148,13 +1200,19 @@ final class HomeViewModel {
     }
 
     private func timeText(for item: Item) -> String {
-        guard let dueAt = item.dueAt else {
-            return item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar) ?? "--:--"
+        HomeTaskDateLabel.text(for: item, calendar: calendar)
+    }
+
+    private func timelineTimeText(for item: Item, isCompleted: Bool) -> String {
+        guard isCompleted,
+              let completedAt = completionTimestamp(for: item) else {
+            return timeText(for: item)
         }
-        guard item.hasExplicitTime else {
-            return item.repeatRule?.title(anchorDate: item.anchorDateForRepeatRule, calendar: calendar) ?? "当天"
-        }
-        return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+        return weekdayLabel(for: completedAt)
+    }
+
+    private func completionTimestamp(for item: Item) -> Date? {
+        item.completionDate(on: selectedDate, calendar: calendar) ?? item.completedAt
     }
 
     private func accentColorName(for item: Item) -> String {
@@ -1166,9 +1224,7 @@ final class HomeViewModel {
     }
 
     private var visibleTimelineItems: [Item] {
-        let sortedItems = sortedItemsForTimeline.filter(shouldDisplayInCurrentTimeline)
-        guard showsCompletedItems == false else { return sortedItems }
-        return sortedItems.filter { !isCompleted($0, on: selectedDate) }
+        sortedItemsForTimeline.filter(shouldDisplayInCurrentTimeline)
     }
 
     private var incompleteTimelineItems: [Item] {
@@ -1186,8 +1242,20 @@ final class HomeViewModel {
     }
 
     private var completedTimelineItems: [Item] {
-        guard showsCompletedItems else { return [] }
-        return visibleTimelineItems.filter { isCompleted($0, on: selectedDate) }
+        return Array(visibleTimelineItems
+            .filter(isTimelineCompleted)
+            .sorted { lhs, rhs in
+                let lhsCompletedAt = completionTimestamp(for: lhs) ?? .distantPast
+                let rhsCompletedAt = completionTimestamp(for: rhs) ?? .distantPast
+                if lhsCompletedAt != rhsCompletedAt {
+                    return lhsCompletedAt > rhsCompletedAt
+                }
+                if lhs.updatedAt != rhs.updatedAt {
+                    return lhs.updatedAt > rhs.updatedAt
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            .prefix(6))
     }
 
     private var sortedItemsForTimeline: [Item] {
@@ -1286,12 +1354,13 @@ final class HomeViewModel {
     }
 
     private func makeTimelineEntry(for item: Item) -> HomeTimelineEntry {
-        let isCompleted = isCompleted(item, on: selectedDate)
+        let isCompleted = isTimelineCompleted(item)
+        let sortedSubtasks = item.subtasks.sorted { $0.sortOrder < $1.sortOrder }
         return HomeTimelineEntry(
             id: item.id,
             title: item.title,
             notes: item.notes,
-            timeText: timeText(for: item),
+            timeText: timelineTimeText(for: item, isCompleted: isCompleted),
             statusText: statusText(for: item, isCompleted: isCompleted),
             accentColorName: accentColorName(for: item),
             isMuted: isCompleted,
@@ -1301,7 +1370,8 @@ final class HomeViewModel {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: item.lastActionAt,
-            subtasks: item.subtasks
+            subtasks: sortedSubtasks,
+            subtaskCompletedCount: sortedSubtasks.filter(\.isCompleted).count
         )
     }
 
@@ -1384,6 +1454,10 @@ final class HomeViewModel {
 
     private func isCompleted(_ item: Item, on referenceDate: Date) -> Bool {
         item.isCompleted(on: referenceDate, calendar: calendar) || item.status == .completed
+    }
+
+    private func isTimelineCompleted(_ item: Item) -> Bool {
+        isCompleted(item, on: selectedDate) || item.completedAt != nil
     }
 
     private func archiveCompletedItemsIfNeeded(in spaceID: UUID) async throws -> Bool {

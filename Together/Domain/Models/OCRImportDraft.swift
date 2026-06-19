@@ -16,17 +16,39 @@ struct OCRImportTaskDraft: Identifiable, Hashable, Sendable, Codable {
     var notes: String?
     var isSelected: Bool
     var sourceText: String?
+    var subtasks: [OCRImportSubtaskDraft]
 
     nonisolated init(
         id: UUID = UUID(),
         title: String,
         notes: String? = nil,
         isSelected: Bool = true,
-        sourceText: String? = nil
+        sourceText: String? = nil,
+        subtasks: [OCRImportSubtaskDraft] = []
     ) {
         self.id = id
         self.title = title
         self.notes = notes
+        self.isSelected = isSelected
+        self.sourceText = sourceText
+        self.subtasks = subtasks
+    }
+}
+
+struct OCRImportSubtaskDraft: Identifiable, Hashable, Sendable, Codable {
+    var id: UUID
+    var title: String
+    var isSelected: Bool
+    var sourceText: String?
+
+    nonisolated init(
+        id: UUID = UUID(),
+        title: String,
+        isSelected: Bool = true,
+        sourceText: String? = nil
+    ) {
+        self.id = id
+        self.title = title
         self.isSelected = isSelected
         self.sourceText = sourceText
     }
@@ -100,12 +122,12 @@ enum OCRImportDraftParser {
             )
         }
 
-        let projectDrafts = parseProjectDrafts(from: lines)
-        let consumedProjectLines = Set(projectDrafts.flatMap { project in
-            [project.sourceText].compactMap { $0 } + project.taskDrafts.compactMap(\.sourceText)
+        let groupedTaskDrafts = parseGroupedTaskDrafts(from: lines)
+        let consumedGroupedLines = Set(groupedTaskDrafts.flatMap { task in
+            [task.sourceText].compactMap { $0 } + task.subtasks.compactMap(\.sourceText)
         })
         let taskDrafts = lines
-            .filter { consumedProjectLines.contains($0) == false }
+            .filter { consumedGroupedLines.contains($0) == false }
             .map { OCRImportTaskDraft(title: $0, sourceText: $0) }
 
         return OCRImportDraft(
@@ -113,13 +135,13 @@ enum OCRImportDraftParser {
             createdAt: now,
             updatedAt: now,
             status: .needsReview,
-            taskDrafts: taskDrafts,
-            projectDrafts: projectDrafts
+            taskDrafts: groupedTaskDrafts + taskDrafts,
+            projectDrafts: []
         )
     }
 
-    private nonisolated static func parseProjectDrafts(from lines: [String]) -> [OCRImportProjectDraft] {
-        var projects: [OCRImportProjectDraft] = []
+    private nonisolated static func parseGroupedTaskDrafts(from lines: [String]) -> [OCRImportTaskDraft] {
+        var tasks: [OCRImportTaskDraft] = []
         var index = 0
 
         while index < lines.count {
@@ -129,19 +151,19 @@ enum OCRImportDraftParser {
                 continue
             }
 
-            var tasks: [OCRImportTaskDraft] = []
+            var subtasks: [OCRImportSubtaskDraft] = []
             var next = index + 1
             while next < lines.count, projectTitle(from: lines[next]) == nil {
-                tasks.append(OCRImportTaskDraft(title: lines[next], sourceText: lines[next]))
+                subtasks.append(OCRImportSubtaskDraft(title: lines[next], sourceText: lines[next]))
                 next += 1
             }
 
-            if tasks.isEmpty == false {
-                projects.append(
-                    OCRImportProjectDraft(
-                        name: projectName,
-                        taskDrafts: tasks,
-                        sourceText: line
+            if subtasks.isEmpty == false {
+                tasks.append(
+                    OCRImportTaskDraft(
+                        title: projectName,
+                        sourceText: line,
+                        subtasks: subtasks
                     )
                 )
                 index = next
@@ -150,7 +172,7 @@ enum OCRImportDraftParser {
             }
         }
 
-        return projects
+        return tasks
     }
 
     private nonisolated static func normalizedLines(from rawText: String) -> [String] {

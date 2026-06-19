@@ -9,19 +9,25 @@
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
 - 当前策略：彻底移除双人协作、多人预留、Supabase、RevenueCat、Paywall、PremiumGate；本地 SwiftData 是数据真相源，CloudKit private database 是唯一跨设备同步/恢复能力。
-- 新增主能力：OCR 扫描导入纸面笔记，先生成任务/项目草稿，用户确认后再写入 SwiftData。
+- 新增主能力：OCR 扫描导入纸面笔记，先生成任务草稿，用户确认后再写入 SwiftData。
 - Chronicle：暂不开启；先使用项目文档、AGENTS 和 Skill 机制承接记忆。
 
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：纯单人化迁移已完成；2026-06-14 已完成普通任务子任务、项目子任务左对齐、默认推迟到明天、Profile 入口与任务提醒/当日汇总推送收敛。后续进入用户验收、真机 OCR/CloudKit/Widget/通知验证和并发 warning 收敛。
+- 当前任务：2026-06-18 正在落地首页统一任务区与项目真合并；首页取消日历视图、顶部周视图和项目切换入口，改为原生 toolbar + ScrollView/LazyVStack 任务流。
 - 已确认边界：
   - 不迁移旧 Supabase 数据，允许删除。
   - 不保留 RevenueCat、Paywall、PremiumGate、Supabase webhook。
   - CloudKit 作为唯一跨设备同步/恢复能力，本地 SwiftData 必须保留。
   - OCR 第一版接受“识别 -> 草稿确认 -> 入库”。
 - 当前结果：
+  - 2026-06-18 首页统一任务区方案已进入实现：`AppRootView` 顶部 toolbar 左侧 OCR、右侧头像进入 Profile；底部 toolbar 保留新建和周期事务入口；`HomeView` 主列表改为 `ScrollView` / `LazyVStack`，不再使用顶部周视图、月历、项目切换或 `List.onMove`。
+  - 2026-06-18 项目产品语义合并到任务：所有新建都落到 Task；`PersistentProject` / `PersistentProjectSubtask` 仅暂留为 legacy migration source。`ProjectToTaskMigrationService` 将旧 Project 用原 UUID 迁移为普通 Task，ProjectSubtask 与 linked task 并入 TaskSubtask，并保留 source metadata。
+  - 2026-06-18 OCR 导入改为只生成任务草稿；“标题 + 子项”结构落为一条 Task + 多个 TaskSubtask，不再写 Project。
+  - 2026-06-18 首页任务日期标签规则：无截止显示创建日期；有截止但无具体时间显示截止日期；有具体时间显示截止时间。
+  - 2026-06-19 首页已完成任务分层：首页主任务流只拉取未完成任务 + 今天已完成任务，今天已完成最多内联展示 6 条；“本周已完成”按钮改为打开原生 sheet，sheet 展示本周工作日内但不含今天的已完成任务，并提供进入完整“已完成”归档页的入口。
+  - 2026-06-19 “已完成”归档页重构为完整历史入口：支持本周 / 本月 / 所有分段筛选、搜索标题/备注/子任务、按周几/日期/月分组，使用系统 `List` + 分页加载和任务风格 completed row；恢复任务统一走重新打开任务，不只是取消归档。
   - 2026-06-14 普通任务子任务已落地：新增独立 `TaskSubtask` / `PersistentTaskSubtask`，`Item.subtasks` 与 `TaskDraft.subtasks` 走本地 SwiftData hydrate；不复用 `ProjectSubtask`，不引入 Supabase 或多人能力；删除父任务会 tombstone 普通任务子任务。
   - 普通任务子任务应用服务已接入 `TaskApplicationServiceProtocol` / `DefaultTaskApplicationService`，支持新增、勾选、改名、删除；子任务完成只更新子任务和父任务 `updatedAt`，不会自动完成父任务。
   - 普通任务创建器、详情页和 Today Timeline 已接入子任务：创建器通过“子任务” chip 内联编辑；详情页 `.subtasks` 面板可新增/编辑/删除；Timeline 有子任务摘要，可展开后直接勾选，但卡片内不提供新增/删除输入。
@@ -30,15 +36,18 @@
   - 已删除旧 Supabase / RevenueCat / Paywall / PremiumGate / webhook 代码与 Supabase 目录。
   - 已删除双人协作、配对、邀请、重要日期、任务聊天、共享 mutation UI 与旧 CKSyncEngine/outbox/record codec 链路。
   - `PersistenceController` 生产配置使用 SwiftData `cloudKitDatabase: .private("iCloud.com.pigdog.Together")`；in-memory preview/test 使用 `.none`。
-  - OCR MVP 已落地：底部工具栏 `doc.text.viewfinder` 入口；支持拍照或选图；`VNRecognizeTextRequest` 后台识别；本地 parser 生成任务/项目草稿；用户确认后才写入任务或项目。
+  - OCR MVP 已落地：支持拍照或选图；`VNRecognizeTextRequest` 后台识别；本地 parser 生成任务草稿；用户确认后才写入任务。
   - 测试 target 已重建为当前架构的 Swift Testing 基础测试，覆盖 Item 状态机、单人 SessionStore、OCR parser。
 - 当前验证：
   - `git diff --check` 通过。
   - 2026-06-14 普通任务子任务验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖创建 hydrate 排序、整单更新过滤空标题、勾选最后子任务不自动完成父任务、删除父任务隐藏子任务、模板保存/恢复子任务、Timeline entry 子任务数据。
   - 2026-06-14 普通任务子任务构建：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；仍有既有 Swift 6 actor isolation / Widget / Notification warning，本次新增的 `TaskSubtaskDraft` Equatable warning 已收敛。
+  - 2026-06-19 已完成任务分层 focused 测试：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖 CompletedTaskRange、首页今天已完成过滤、本周 sheet 排除今天、已完成页子任务搜索与所有历史分页。
+  - 2026-06-19 已完成任务分层构建验证：`git diff --check` 通过；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；XcodeBuildMCP `build_run_sim` 通过并已 stop app。仍有既有 Swift 6 actor isolation / notification warning，本轮未处理。
   - XcodeBuildMCP `build_run_sim` 通过。
   - XcodeBuildMCP `test_sim` 通过，4/4 passed。
 - 已知遗留：
+  - 首页改为 `ScrollView` 后失去 `List.onMove` 和原生 swipe 行为；本轮用 context menu / 详情页承接删除、推迟等操作，排序入口后续单独评估。
   - 仍有既有 Swift 6 actor/concurrency warnings，主要在权限服务、repository、widget shared store 和 mock avatar uploader；本轮未扩展处理。
   - OCR 未做真机拍照与真实 iCloud 同步验收；模拟器只能验证构建、启动、照片入口和 parser 测试。
   - `SyncCoordinatorProtocol` 仍作为 repository 兼容 no-op 存在；没有手写 CloudKit 发送/拉取链路，后续可进一步删除 repository 层 `recordLocalChange` 样板。
@@ -215,6 +224,8 @@
 
 ## 验证记录
 
+- 2026-06-19：修复首页真机反馈的子任务和本周已完成区细节。子任务展开后，子任务虚线勾选框通过视觉 inset 补偿与父任务完成框右边缘对齐；子任务收起不再直接移除布局，而是测量自然高度并将容器高度动画到 0，避免下方任务闪跳。首页已完成胶囊标题固定为“本周已完成”；本周已完成任务按 `completedAt` 从周五到周一倒序展示，右侧显示“周五/周四/…”而不是日期。验证：`git diff --check`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；仍需真机确认收起动画手感和框线对齐。
+- 2026-06-19：首页性能与 toolbar 布局收敛。首页数据源改走 `ItemRepository.fetchHomeItems`，只 hydrate 未完成任务与当前工作周已完成任务；已完成工作周范围由 `HomeCompletedDisplayRange` 统一计算为周一 00:00 <= `completedAt` < 周六 00:00。全部已完成历史保留在 `CompletedHistoryView`，从底部 toolbar 独立进入并显示标题“已完成”。首页和例行任务页标题统一使用原生 inline navigation title；顶部左侧为例行任务入口、右侧为收窄头像按钮，底部左侧为已完成历史，底部右侧为 OCR 与 plus。任务日期标签改为 `M月d日` 或具体时间；有子任务的任务行显示 `0/3 子任务` 并取代“进行中”，子任务展开时保留稳定 row 身份和显式 snappy 动画，子任务标题与父任务标题左对齐。验证：`git diff --check`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet`、XcodeBuildMCP `build_run_sim` 通过；仍需真机用 140+ 已完成任务验证滚动体感、Reduce Motion、大字体和深色模式。
 - 2026-06-14：强化任务本地通知调度机制。任务提醒规则改为：显式 `remindAt` 优先；未设置提醒但有 `dueAt` 的任务，按到期时间调度本地通知；无到期时间且未完成的任务按 space 聚合为每日 18:00 汇总通知，标题显示当天剩余件数。任务创建、更新、移动、改期、推迟、完成/恢复、归档、删除后都会刷新单条任务提醒和 18:00 汇总；App 启动后会从当前 space 的 task/project 数据重建提醒。当前纯单人 Apple-only 边界下没有新增远端 APNs provider，通知投递仍依赖 iOS 本地通知授权和 `UNUserNotificationCenter`。验证：新增 `TogetherTests` 覆盖显式提醒、到期时间兜底、无到期任务 18:00 汇总；`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；`git diff --check` 通过。
 - 2026-05-07：所有 widget 深色模式适配。新增 `TogetherWidget/WidgetTheme.swift` 统一 Today 与 Anniversary widget 的深浅色 token；Today widget 的背景、截止时间强调色、完成框、分割线、空态小猫插画在深色模式下自适应；Anniversary widget 的 avatar-derived material background、头像占位渐变、头像描边/阴影、数字强调色、倒计时胶囊和分割线在深色模式下自适应。长期规则已追加到 `AGENTS.md`：新增或修改 widget 时不能只硬编码浅色模式，必须显式处理 `colorScheme`，优先复用 widget theme。构建号提升到 44，避免真机桌面 widget 缓存旧 UI。仍需真机在系统浅色/深色模式下分别删除重加 Today 重点、Today 清单、纪念日三类 widget 验收。
 - 2026-05-07：完成纪念日 widget 小号真机修复后的 UI 收尾与经验沉淀。UI：移除纪念日头像组右侧白色圆形心形图标；纪念日累计天数、周年倒计时和下一个节点天数均改用非本地化 `Text(verbatim:)` 展示，避免 SwiftUI `Text` 的本地化数字插值把 `2212` 渲染为 `2,212`。经验：本轮多次返工的核心教训已追加到 `AGENTS.md` Widget 专项规则，包括 snapshot 不得写入原始大图 Data、必须按 family 单独验证小号渲染、添加页 preview 不等于桌面 widget、数字显示需避免隐式本地化格式化。仍需真机安装最新 build 后确认小号纪念日 widget 正式 UI。

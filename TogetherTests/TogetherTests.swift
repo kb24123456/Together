@@ -4,6 +4,7 @@ import Testing
 @testable import Together
 
 @MainActor
+@Suite(.serialized)
 struct TogetherTests {
     @Test func itemStateMachineCompletesInProgressTask() async throws {
         let next = ItemStateMachine.nextStatus(
@@ -40,17 +41,286 @@ struct TogetherTests {
         #expect(draft.taskDrafts.map(\.title) == ["买牛奶", "整理周报", "给房东发消息"])
     }
 
-    @Test func ocrParserCreatesProjectDraftFromHeadingAndBullets() {
+    @Test func ocrParserCreatesTaskWithSubtasksFromHeadingAndBullets() {
         let draft = OCRImportDraftParser.parse(rawText: """
         搬家准备:
         - 预约搬家公司
         - 打包厨房
         """)
 
-        #expect(draft.taskDrafts.isEmpty)
-        #expect(draft.projectDrafts.count == 1)
-        #expect(draft.projectDrafts.first?.name == "搬家准备")
-        #expect(draft.projectDrafts.first?.taskDrafts.map(\.title) == ["预约搬家公司", "打包厨房"])
+        #expect(draft.projectDrafts.isEmpty)
+        #expect(draft.taskDrafts.count == 1)
+        #expect(draft.taskDrafts.first?.title == "搬家准备")
+        #expect(draft.taskDrafts.first?.subtasks.map(\.title) == ["预约搬家公司", "打包厨房"])
+    }
+
+    @Test func homeTaskDateLabelUsesCreatedDateDueDateAndExplicitTime() throws {
+        let calendar = gregorianCalendar()
+        let createdAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 9)))
+        let dueDate = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
+        let dueTime = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 18, minute: 30)))
+
+        var item = Item(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: MockDataFactory.currentUserID,
+            title: "无截止任务",
+            notes: nil,
+            locationText: nil,
+            dueAt: nil,
+            hasExplicitTime: false,
+            remindAt: nil,
+            status: .inProgress,
+            lastActionByUserID: MockDataFactory.currentUserID,
+            lastActionAt: .now,
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            completedAt: nil,
+            isDraft: false
+        )
+        #expect(HomeTaskDateLabel.text(for: item, calendar: calendar) == "6月14日")
+
+        item.dueAt = dueDate
+        item.hasExplicitTime = false
+        #expect(HomeTaskDateLabel.text(for: item, calendar: calendar) == "6月20日")
+
+        item.dueAt = dueTime
+        item.hasExplicitTime = true
+        #expect(HomeTaskDateLabel.text(for: item, calendar: calendar) == "18:30")
+    }
+
+    @Test func completedTaskRangeUsesExpectedDayWeekAndMonthBounds() throws {
+        let calendar = gregorianCalendar()
+        let thursday = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 12)))
+        let today = CompletedTaskRange.today.bounds(for: thursday, calendar: calendar)
+        let workweek = CompletedTaskRange.workweek.bounds(for: thursday, calendar: calendar)
+        let workweekExcludingToday = CompletedTaskRange.workweekExcludingToday.bounds(for: thursday, calendar: calendar)
+        let month = CompletedTaskRange.month.bounds(for: thursday, calendar: calendar)
+
+        #expect(today.lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
+        #expect(today.upperBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 21)))
+        #expect(workweek.lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 17)))
+        #expect(workweek.upperBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 22)))
+        #expect(workweekExcludingToday.lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 17)))
+        #expect(workweekExcludingToday.upperBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
+        #expect(month.lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 1)))
+        #expect(month.upperBound == calendar.date(from: DateComponents(year: 2030, month: 7, day: 1)))
+        #expect(CompletedTaskRange.all.bounds(for: thursday, calendar: calendar).lowerBound == nil)
+    }
+
+    @Test func homeFetchIncludesOnlyIncompleteAndTodayCompletedTasks() async throws {
+        let calendar = gregorianCalendar()
+        let container = makeTaskSubtaskModelContainer()
+        let context = ModelContext(container)
+        context.insert(PersistentSpace(space: MockDataFactory.makeSingleSpace()))
+
+        let todayStart = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
+        let tomorrowStart = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 21)))
+        let todayCompleted = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 10)))
+        let yesterdayCompleted = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 19, hour: 18)))
+        let previousWeekCompleted = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 18)))
+
+        context.insert(PersistentItem(item: makeHomeFilterItem(title: "未完成任务", completedAt: nil, status: .inProgress)))
+        context.insert(PersistentItem(item: makeHomeFilterItem(title: "今天已完成", completedAt: todayCompleted, status: .completed)))
+        context.insert(PersistentItem(item: makeHomeFilterItem(title: "昨天已完成", completedAt: yesterdayCompleted, status: .completed)))
+        context.insert(PersistentItem(item: makeHomeFilterItem(title: "上周已完成", completedAt: previousWeekCompleted, status: .completed)))
+        try context.save()
+
+        let repository = LocalItemRepository(container: container)
+        let fetched = try await repository.fetchHomeItems(
+            spaceID: MockDataFactory.singleSpaceID,
+            completedFrom: todayStart,
+            completedBefore: tomorrowStart
+        )
+
+        let fetchedTitles = Set(fetched.map(\.title))
+        let expectedTitles: Set<String> = ["未完成任务", "今天已完成"]
+        #expect(fetchedTitles == expectedTitles, "Fetched titles: \(fetchedTitles.sorted())")
+    }
+
+    @Test func completedTimelineEntriesShowOnlyTodayCompletedTasks() async throws {
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        let todayStart = calendar.startOfDay(for: .now)
+        let today = try #require(calendar.date(bySettingHour: 10, minute: 0, second: 0, of: todayStart))
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: today))
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let items = [
+            makeHomeFilterItem(title: "今天完成", completedAt: today, status: .completed),
+            makeHomeFilterItem(title: "昨天完成", completedAt: yesterday, status: .completed)
+        ]
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: CapturingTaskApplicationService(),
+            itemRepository: MockItemRepository(items: items),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        await viewModel.reload()
+
+        #expect(viewModel.completedVisibilityButtonTitle == "本周已完成")
+        #expect(viewModel.completedTimelineEntries.map(\.title) == ["今天完成"])
+        #expect(viewModel.weeklyCompletedEntryCount == 1)
+    }
+
+    @Test func weeklyCompletedSheetExcludesTodayAndSortsDescending() async throws {
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        let todayStart = calendar.startOfDay(for: .now)
+        let today = try #require(calendar.date(bySettingHour: 10, minute: 0, second: 0, of: todayStart))
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: today))
+        let twoDaysAgo = try #require(calendar.date(byAdding: .day, value: -1, to: yesterday))
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let items = [
+            makeHomeFilterItem(title: "今天完成", completedAt: today, status: .completed),
+            makeHomeFilterItem(title: "昨天完成", completedAt: yesterday, status: .completed),
+            makeHomeFilterItem(title: "前天完成", completedAt: twoDaysAgo, status: .completed)
+        ]
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: CapturingTaskApplicationService(),
+            itemRepository: MockItemRepository(items: items),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        await viewModel.loadWeeklyCompletedSheet()
+
+        #expect(viewModel.weeklyCompletedSheetItems.map(\.title) == ["昨天完成", "前天完成"])
+    }
+
+    @Test func completedHistoryFiltersAndSearchesSubtasks() async throws {
+        let now = Date.now
+        var matching = makeHomeFilterItem(title: "客户资料", completedAt: now, status: .completed)
+        matching.subtasks = [
+            TaskSubtask(
+                id: UUID(),
+                itemID: matching.id,
+                creatorID: MockDataFactory.currentUserID,
+                title: "整理报价附件",
+                isCompleted: true,
+                sortOrder: 0,
+                updatedAt: now
+            )
+        ]
+        let other = makeHomeFilterItem(title: "普通完成", completedAt: now, status: .completed)
+        let viewModel = makeCompletedHistoryViewModel(
+            items: [matching, other],
+            initialFilter: .month
+        )
+        viewModel.searchText = "报价"
+
+        await viewModel.reload()
+
+        #expect(viewModel.items.map(\.title) == ["客户资料"])
+        #expect(viewModel.sections.count == 1)
+    }
+
+    @Test func completedHistoryAllFilterPaginates() async throws {
+        let now = Date.now
+        let items = (0..<35).compactMap { index -> Item? in
+            guard let completedAt = Calendar.current.date(byAdding: .minute, value: -index, to: now) else {
+                return nil
+            }
+            return makeHomeFilterItem(title: "完成 \(index)", completedAt: completedAt, status: .completed)
+        }
+        let viewModel = makeCompletedHistoryViewModel(items: items, initialFilter: .all)
+
+        await viewModel.reload()
+        #expect(viewModel.items.count == 30)
+        #expect(viewModel.canLoadMore)
+
+        let last = try #require(viewModel.items.last)
+        await viewModel.loadMoreIfNeeded(currentItem: last)
+
+        #expect(viewModel.items.count == 35)
+        #expect(viewModel.canLoadMore == false)
+    }
+
+    @Test func projectToTaskMigrationConvertsProjectSubtasksAndLinkedTasksOnce() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let projectID = UUID()
+        let linkedTaskID = UUID()
+        let dueAt = Date(timeIntervalSince1970: 1_900_000_000)
+        let remindAt = Date(timeIntervalSince1970: 1_899_996_400)
+        let context = ModelContext(container)
+        context.insert(PersistentSpace(space: MockDataFactory.makeSingleSpace()))
+        context.insert(PersistentProject(project: Project(
+            id: projectID,
+            spaceID: MockDataFactory.singleSpaceID,
+            creatorID: MockDataFactory.currentUserID,
+            name: "搬家准备",
+            notes: "周末前完成",
+            colorToken: nil,
+            status: .active,
+            targetDate: dueAt,
+            remindAt: remindAt,
+            taskCount: 1,
+            sortOrder: 7,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_100),
+            completedAt: nil
+        )))
+        context.insert(PersistentProjectSubtask(subtask: ProjectSubtask(
+            projectID: projectID,
+            creatorID: MockDataFactory.currentUserID,
+            title: "打包厨房",
+            isCompleted: true,
+            sortOrder: 0
+        )))
+        context.insert(PersistentItem(item: Item(
+            id: linkedTaskID,
+            spaceID: MockDataFactory.singleSpaceID,
+            listID: nil,
+            projectID: projectID,
+            creatorID: MockDataFactory.currentUserID,
+            title: "预约搬家公司",
+            notes: "确认价格",
+            locationText: nil,
+            dueAt: dueAt,
+            hasExplicitTime: true,
+            remindAt: remindAt,
+            status: .inProgress,
+            lastActionByUserID: MockDataFactory.currentUserID,
+            lastActionAt: .now,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_200),
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_300),
+            completedAt: nil,
+            isDraft: false
+        )))
+        try context.save()
+
+        let migration = ProjectToTaskMigrationService(container: container)
+        #expect(try migration.migrateLegacyProjectsToTasks(spaceID: MockDataFactory.singleSpaceID) == 1)
+        #expect(try migration.migrateLegacyProjectsToTasks(spaceID: MockDataFactory.singleSpaceID) == 0)
+
+        let itemRepository = LocalItemRepository(container: container, syncCoordinator: NoOpSyncCoordinator())
+        let items = try await itemRepository.fetchActiveItems(spaceID: MockDataFactory.singleSpaceID)
+        let migrated = try #require(items.first { $0.id == projectID })
+        #expect(items.contains { $0.id == linkedTaskID } == false)
+        #expect(migrated.title == "搬家准备")
+        #expect(migrated.subtasks.map(\.title) == ["打包厨房", "预约搬家公司"])
+        let linkedSubtask = try #require(migrated.subtasks.first { $0.sourceTaskID == linkedTaskID })
+        #expect(linkedSubtask.sourceNotes == "确认价格")
+        #expect(linkedSubtask.sourceDueAt == dueAt)
+        #expect(linkedSubtask.sourceHasExplicitTime == true)
+        #expect(linkedSubtask.sourceRemindAt == remindAt)
+
+        let projectRepository = LocalProjectRepository(
+            container: container,
+            reminderScheduler: MockReminderScheduler(),
+            syncCoordinator: NoOpSyncCoordinator()
+        )
+        #expect(try await projectRepository.fetchProjects(spaceID: MockDataFactory.singleSpaceID).isEmpty)
     }
 
     @Test func homeSnoozeUsesTomorrowInsteadOfConfiguredMinutes() async throws {
@@ -276,7 +546,7 @@ struct TogetherTests {
         let viewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: taskApplicationService,
-            itemRepository: MockItemRepository(),
+            itemRepository: MockItemRepository(items: [item]),
             taskTemplateRepository: MockTaskTemplateRepository()
         )
 
@@ -285,6 +555,7 @@ struct TogetherTests {
         let entry = try #require(viewModel.activeTimelineEntries.first)
         #expect(entry.subtasks.count == 2)
         #expect(entry.subtasks.filter(\.isCompleted).count == 1)
+        #expect(entry.subtaskCompletedCount == 1)
     }
 }
 
@@ -303,6 +574,31 @@ private func makeTaskSubtaskItemRepository() -> LocalItemRepository {
     )
 }
 
+@MainActor
+private func makeCompletedHistoryViewModel(
+    items: [Item],
+    initialFilter: CompletedHistoryFilter
+) -> CompletedHistoryViewModel {
+    let sessionStore = SessionStore()
+    sessionStore.seedMock(
+        currentUser: MockDataFactory.makeCurrentUser(),
+        singleSpace: MockDataFactory.makeSingleSpace()
+    )
+    let itemRepository = MockItemRepository(items: items)
+    return CompletedHistoryViewModel(
+        sessionStore: sessionStore,
+        itemRepository: itemRepository,
+        taskApplicationService: DefaultTaskApplicationService(
+            itemRepository: itemRepository,
+            syncCoordinator: NoOpSyncCoordinator(),
+            reminderScheduler: MockReminderScheduler()
+        ),
+        taskListRepository: MockTaskListRepository(),
+        projectRepository: MockProjectRepository(reminderScheduler: MockReminderScheduler()),
+        initialFilter: initialFilter
+    )
+}
+
 private func makeTaskSubtaskModelContainer() -> ModelContainer {
     let schema = Schema([
         PersistentUserProfile.self,
@@ -316,7 +612,11 @@ private func makeTaskSubtaskModelContainer() -> ModelContainer {
         PersistentTaskTemplate.self,
         PersistentPeriodicTask.self
     ])
-    let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+    let configuration = ModelConfiguration(
+        "TogetherTests-\(UUID().uuidString)",
+        isStoredInMemoryOnly: true,
+        cloudKitDatabase: .none
+    )
     return try! ModelContainer(for: schema, configurations: [configuration])
 }
 
@@ -350,6 +650,29 @@ private func makeReminderTestItem(
         createdAt: .now,
         updatedAt: .now,
         completedAt: nil,
+        isDraft: false
+    )
+}
+
+private func makeHomeFilterItem(title: String, completedAt: Date?, status: ItemStatus) -> Item {
+    Item(
+        id: UUID(),
+        spaceID: MockDataFactory.singleSpaceID,
+        listID: nil,
+        projectID: nil,
+        creatorID: MockDataFactory.currentUserID,
+        title: title,
+        notes: nil,
+        locationText: nil,
+        dueAt: nil,
+        hasExplicitTime: false,
+        remindAt: nil,
+        status: status,
+        lastActionByUserID: MockDataFactory.currentUserID,
+        lastActionAt: completedAt ?? .now,
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+        updatedAt: completedAt ?? Date(timeIntervalSince1970: 1_800_000_000),
+        completedAt: completedAt,
         isDraft: false
     )
 }

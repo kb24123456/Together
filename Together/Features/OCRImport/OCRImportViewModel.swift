@@ -21,11 +21,20 @@ final class OCRImportViewModel {
     }
 
     var canApply: Bool {
-        selectedTaskDrafts.isEmpty == false || selectedProjectDrafts.isEmpty == false
+        selectedTaskDrafts.isEmpty == false
     }
 
     var selectedTaskDrafts: [OCRImportTaskDraft] {
-        draft.taskDrafts.filter { $0.isSelected && $0.title.trimmedForOCR.isEmpty == false }
+        draft.taskDrafts.compactMap { task in
+            guard task.isSelected && task.title.trimmedForOCR.isEmpty == false else {
+                return nil
+            }
+            var copy = task
+            copy.subtasks = task.subtasks.filter {
+                $0.isSelected && $0.title.trimmedForOCR.isEmpty == false
+            }
+            return copy
+        }
     }
 
     var selectedProjectDrafts: [OCRImportProjectDraft] {
@@ -81,9 +90,8 @@ final class OCRImportViewModel {
         }
 
         let tasks = selectedTaskDrafts
-        let projects = selectedProjectDrafts
-        guard tasks.isEmpty == false || projects.isEmpty == false else {
-            errorMessage = "请至少保留一个待办或项目。"
+        guard tasks.isEmpty == false else {
+            errorMessage = "请至少保留一个待办。"
             return false
         }
 
@@ -94,34 +102,18 @@ final class OCRImportViewModel {
                 let item = try await appContext.container.taskApplicationService.createTask(
                     in: spaceID,
                     actorID: actorID,
-                    draft: TaskDraft(title: task.title.trimmedForOCR, notes: task.notes?.nilIfBlank)
+                    draft: TaskDraft(
+                        title: task.title.trimmedForOCR,
+                        notes: task.notes?.nilIfBlank,
+                        subtasks: task.subtasks.enumerated().map { index, subtask in
+                            TaskSubtaskDraft(
+                                title: subtask.title.trimmedForOCR,
+                                sortOrder: index
+                            )
+                        }
+                    )
                 )
                 insertedTaskIDs.append(item.id)
-            }
-
-            for projectDraft in projects {
-                let project = Project(
-                    id: UUID(),
-                    spaceID: spaceID,
-                    creatorID: actorID,
-                    name: projectDraft.name.trimmedForOCR,
-                    notes: projectDraft.notes?.nilIfBlank,
-                    colorToken: nil,
-                    status: .active,
-                    targetDate: nil,
-                    remindAt: nil,
-                    taskCount: projectDraft.taskDrafts.count,
-                    sortOrder: Date.now.timeIntervalSinceReferenceDate,
-                    createdAt: Date.now,
-                    updatedAt: Date.now,
-                    completedAt: nil
-                )
-                _ = await appContext.projectsViewModel.createNew(
-                    project,
-                    subtasks: projectDraft.taskDrafts.map {
-                        (title: $0.title.trimmedForOCR, isCompleted: false)
-                    }
-                )
             }
 
             if insertedTaskIDs.isEmpty {
@@ -129,7 +121,6 @@ final class OCRImportViewModel {
             } else {
                 await appContext.homeViewModel.reload(insertedItemIDs: Set(insertedTaskIDs), reason: .userInserted)
             }
-            await appContext.projectsViewModel.load()
             await appContext.refreshTodayWidgetSnapshot()
             draft.status = .applied
             return true

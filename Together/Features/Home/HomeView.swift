@@ -11,6 +11,7 @@ struct HomeView: View {
     let isRoutinesModePresented: Bool
     let onProfileTapped: () -> Void
     let onCreateTaskTapped: () -> Void
+    let onCompletedHistoryTapped: (CompletedHistoryFilter) -> Void
     @State private var weekPagerOffset: CGFloat = 0
     @State private var isRequestStackExpanded = false
     @State private var isWeekPagerSettling = false
@@ -18,7 +19,6 @@ struct HomeView: View {
     @State private var todayJumpRevealTask: Task<Void, Never>?
     @State private var isCompletedVisibilityButtonCompressed = false
     @State private var isCompletedSectionVisible = true
-    @State private var isCompletedSectionTransitioning = false
     @State private var monthPagerOffset: CGFloat = 0
     @State private var isMonthPagerSettling = false
     @State private var highlightedTaskID: UUID?
@@ -57,9 +57,6 @@ struct HomeView: View {
                     .offset(y: contentCardVerticalOffset)
                     .scaleEffect(contentCardScale, anchor: .top)
 
-                topChrome(safeAreaTop: proxy.safeAreaInsets.top)
-                    .zIndex(2)
-
                 if viewModel.selectedItemID != nil {
                     Color.clear
                         .contentShape(Rectangle())
@@ -70,10 +67,8 @@ struct HomeView: View {
                         }
                 }
             }
-            .ignoresSafeArea(edges: .top)
         }
         .font(AppTheme.typography.body)
-        .toolbar(.hidden, for: .navigationBar)
         .task {
             await viewModel.loadIfNeeded()
             updateTodayJumpButtonVisibility()
@@ -99,8 +94,31 @@ struct HomeView: View {
         ) {
             HomeOverdueSummarySheet(viewModel: viewModel)
         }
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isWeeklyCompletedSheetPresented },
+                set: { if !$0 { viewModel.dismissWeeklyCompletedSheet() } }
+            )
+        ) {
+            WeeklyCompletedSheet(
+                items: viewModel.weeklyCompletedSheetItems,
+                count: viewModel.weeklyCompletedEntryCount,
+                isLoading: viewModel.isWeeklyCompletedSheetLoading,
+                weekdayLabel: { viewModel.weekdayLabel(for: $0) },
+                onOpenFullHistory: {
+                    viewModel.dismissWeeklyCompletedSheet()
+                    onCompletedHistoryTapped(.week)
+                },
+                onRefresh: {
+                    await viewModel.loadWeeklyCompletedSheet()
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(28)
+        }
         .onAppear {
-            isCompletedSectionVisible = viewModel.showsCompletedItems
+            isCompletedSectionVisible = true
         }
         .onDisappear {
             todayJumpRevealTask?.cancel()
@@ -539,7 +557,7 @@ struct HomeView: View {
         RoutinesListContent(
             viewModel: routinesViewModel,
             isPresented: isRoutinesModePresented,
-            contentTopPadding: 24,
+            contentTopPadding: 0,
             contentBottomPadding: 104
         )
     }
@@ -560,95 +578,76 @@ struct HomeView: View {
     }
 
     private var standardTimelineList: some View {
-        List {
-            if viewModel.showsOverdueCapsule {
-                overdueReminderCapsule
-                    .listRowInsets(
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if viewModel.showsOverdueCapsule {
+                    overdueReminderCapsule
+                        .padding(
+                            EdgeInsets(
+                                top: 10,
+                                leading: timelineRowHorizontalInset,
+                                bottom: 8,
+                                trailing: timelineRowHorizontalInset
+                            )
+                        )
+                }
+
+                if appContext.sessionStore.activeMode == .single,
+                   appContext.routinesViewModel.hasPendingTasks {
+                    RoutinesSummaryCard(
+                        viewModel: appContext.routinesViewModel,
+                        onNavigateToRoutines: {
+                            appContext.router.shouldAutoSelectPendingCycle = true
+                            appContext.router.currentSurface = .routines
+                        }
+                    )
+                    .padding(
                         EdgeInsets(
-                            top: 10,
+                            top: 6,
                             leading: timelineRowHorizontalInset,
                             bottom: 8,
                             trailing: timelineRowHorizontalInset
                         )
                     )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                }
 
-            }
-
-            if appContext.sessionStore.activeMode == .single,
-               appContext.routinesViewModel.hasPendingTasks {
-                RoutinesSummaryCard(
-                    viewModel: appContext.routinesViewModel,
-                    onNavigateToRoutines: {
-                        appContext.router.shouldAutoSelectPendingCycle = true
-                        appContext.router.currentSurface = .routines
-                    }
+                timelineRows(
+                    viewModel.activeTimelineEntries,
+                    rowTransition: activeRowTransition
                 )
-                .listRowInsets(
-                    EdgeInsets(
-                        top: 6,
-                        leading: timelineRowHorizontalInset,
-                        bottom: 8,
-                        trailing: timelineRowHorizontalInset
-                    )
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
 
-            if isTimelineReorderingActive {
-                timelineReorderingControl
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: 4,
-                            leading: timelineRowHorizontalInset,
-                            bottom: 8,
-                            trailing: timelineRowHorizontalInset
+                if viewModel.hasCompletedEntries {
+                    todayCompletedHeader
+                        .padding(
+                            EdgeInsets(
+                                top: 12,
+                                leading: timelineRowHorizontalInset,
+                                bottom: 10,
+                                trailing: timelineRowHorizontalInset
+                            )
                         )
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
 
-            timelineRows(
-                viewModel.activeTimelineEntries,
-                rowTransition: activeRowTransition,
-                allowsReordering: appContext.sessionStore.activeMode == .single
-            )
-
-            if viewModel.hasCompletedEntries {
-                completedVisibilityButton
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .listRowInsets(
-                        EdgeInsets(
-                            top: 12,
-                            leading: timelineRowHorizontalInset,
-                            bottom: viewModel.completedTimelineEntries.isEmpty ? timelineBottomInset : 10,
-                            trailing: timelineRowHorizontalInset
-                        )
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                if viewModel.showsCompletedItems {
                     completedTimelineSection
                 }
-            } else {
-                Color.clear
-                    .frame(height: timelineBottomInset)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+
+                if viewModel.hasWeeklyCompletedEntries {
+                    completedVisibilityButton
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(
+                            EdgeInsets(
+                                top: viewModel.hasCompletedEntries ? 4 : 12,
+                                leading: timelineRowHorizontalInset,
+                                bottom: timelineBottomInset,
+                                trailing: timelineRowHorizontalInset
+                            )
+                        )
+                } else if viewModel.hasCompletedEntries == false {
+                    Color.clear.frame(height: timelineBottomInset)
+                }
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
         .scrollIndicators(.hidden)
         .scrollDisabled(isOverlayModeActive)
-        .environment(\.defaultMinListRowHeight, 0)
-        .environment(\.editMode, .constant(isTimelineReorderingActive ? EditMode.active : EditMode.inactive))
         .safeAreaPadding(.top, 0)
         .applyScrollEdgeProtection()
         .refreshable {
@@ -754,24 +753,31 @@ struct HomeView: View {
                 count: viewModel.completedTimelineEntries.count
             )
         )
+    }
 
-        if viewModel.completedTimelineEntries.isEmpty == false {
-            Color.clear
-                .frame(height: timelineBottomInset)
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .modifier(CompletedSectionMotionModifier(isVisible: isCompletedSectionVisible))
-                .allowsHitTesting(false)
+    private var todayCompletedHeader: some View {
+        HStack(spacing: AppTheme.spacing.xs) {
+            Text("今天已完成")
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.58))
+
+            Text("\(viewModel.todayCompletedEntryCount)")
+                .font(AppTheme.typography.sized(11, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.46))
+                .frame(minWidth: 20, minHeight: 20)
+                .background(
+                    Circle()
+                        .fill(AppTheme.colors.surfaceElevated.opacity(0.86))
+                )
         }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     @ViewBuilder
     private func timelineRows(
         _ entries: [HomeTimelineEntry],
         rowTransition: AnyTransition? = nil,
-        sectionVisibility: CompletedSectionVisibility? = nil,
-        allowsReordering: Bool = false
+        sectionVisibility: CompletedSectionVisibility? = nil
     ) -> some View {
         ForEach(entries) { entry in
             let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
@@ -838,7 +844,7 @@ struct HomeView: View {
                     )
                     .modifier(
                         TimelineSwipeActionsModifier(
-                            isEnabled: isTimelineReorderingActive == false,
+                            isEnabled: false,
                             canDelete: viewModel.canDeleteItem(entry.id),
                             onSnooze: {
                                 HomeInteractionFeedback.selection()
@@ -854,10 +860,31 @@ struct HomeView: View {
                             }
                         )
                     )
+                    .contextMenu {
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            Task {
+                                await viewModel.snoozeItem(entry.id)
+                            }
+                        } label: {
+                            Label("推迟到明天", systemImage: "calendar.badge.clock")
+                        }
+
+                        if viewModel.canDeleteItem(entry.id) {
+                            Button(role: .destructive) {
+                                HomeInteractionFeedback.delete()
+                                Task {
+                                    await viewModel.deleteItem(entry.id)
+                                }
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
                 }
             }
             .id(entry.id)
-            .listRowInsets(
+            .padding(
                 EdgeInsets(
                     top: timelineRowVerticalInset,
                     leading: timelineRowHorizontalInset,
@@ -865,8 +892,6 @@ struct HomeView: View {
                     trailing: timelineRowHorizontalInset
                 )
             )
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
             .insertedListItemMotion(
                 isInserted: viewModel.isAnimatingInsertion(for: entry.id),
                 onAnimationCompleted: {
@@ -877,21 +902,6 @@ struct HomeView: View {
             .applyCompletedSectionVisibility(
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.45).onEnded { _ in
-                    guard allowsReordering, isTimelineReorderingActive == false else { return }
-                    HomeInteractionFeedback.selection()
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                        isTimelineReorderingActive = true
-                    }
-                }
-            )
-        }
-        .onMove { fromOffsets, toOffset in
-            guard allowsReordering else { return }
-            Task {
-                await viewModel.reorderTimelineEntries(entries, fromOffsets: fromOffsets, toOffset: toOffset)
-            }
         }
     }
 
@@ -907,11 +917,11 @@ struct HomeView: View {
                             .frame(width: 120, height: 120)
                             .accessibilityHidden(true)
 
-                        Text("今天没有待办事项")
+                        Text("还没有任务")
                             .font(AppTheme.typography.sized(17, weight: .semibold))
                             .foregroundStyle(AppTheme.colors.body.opacity(0.6))
 
-                        Text("享受当下，或规划新任务")
+                        Text("添加一个新任务，或用 OCR 导入纸面清单")
                             .font(AppTheme.typography.sized(14, weight: .medium))
                             .foregroundStyle(AppTheme.colors.body.opacity(0.38))
                     }
@@ -937,7 +947,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if viewModel.hasCompletedEntries {
+                    if viewModel.hasWeeklyCompletedEntries {
                         Button {
                             HomeInteractionFeedback.selection()
                             isCompletedVisibilityButtonCompressed = true
@@ -945,9 +955,11 @@ struct HomeView: View {
                                 try? await Task.sleep(for: .milliseconds(110))
                                 isCompletedVisibilityButtonCompressed = false
                             }
-                            toggleCompletedSectionVisibility()
+                            Task {
+                                await viewModel.presentWeeklyCompletedSheet()
+                            }
                         } label: {
-                            Text("查看已完成 \(viewModel.completedEntryCount) 项")
+                            Text("本周已完成 \(viewModel.weeklyCompletedEntryCount) 项")
                                 .font(AppTheme.typography.sized(13, weight: .medium))
                                 .foregroundStyle(AppTheme.colors.body.opacity(0.5))
                         }
@@ -973,14 +985,16 @@ struct HomeView: View {
                 try? await Task.sleep(for: .milliseconds(110))
                 isCompletedVisibilityButtonCompressed = false
             }
-            toggleCompletedSectionVisibility()
+            Task {
+                await viewModel.presentWeeklyCompletedSheet()
+            }
         } label: {
             HStack(spacing: AppTheme.spacing.xs) {
                 Text(viewModel.completedVisibilityButtonTitle)
                     .font(AppTheme.typography.sized(13, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.76))
 
-                Text("\(viewModel.completedEntryCount)")
+                Text("\(viewModel.weeklyCompletedEntryCount)")
                     .font(AppTheme.typography.sized(11, weight: .bold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.56))
                     .frame(minWidth: 20, minHeight: 20)
@@ -1095,7 +1109,7 @@ struct HomeView: View {
     }
 
     private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + topChromeReservedHeight + visibleCalendarContainerHeight + startupRestoreStatusReservedHeight
+        0
     }
 
     private var topChromeReservedHeight: CGFloat {
@@ -1408,37 +1422,6 @@ struct HomeView: View {
 
     private func triggerSoftDateFeedback() {
         HomeInteractionFeedback.soft()
-    }
-
-    private func toggleCompletedSectionVisibility() {
-        guard isCompletedSectionTransitioning == false else { return }
-        isCompletedSectionTransitioning = true
-        let staggerCount = min(viewModel.completedTimelineEntries.count, 6)
-        let staggerDelay = Double(max(staggerCount - 1, 0)) * 0.028
-
-        if viewModel.showsCompletedItems {
-            withAnimation(.bouncy(duration: 0.46, extraBounce: 0.16)) {
-                isCompletedSectionVisible = false
-            }
-
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.46 + staggerDelay))
-                viewModel.setCompletedVisibility(false)
-                isCompletedSectionTransitioning = false
-            }
-        } else {
-            isCompletedSectionVisible = false
-            viewModel.setCompletedVisibility(true)
-
-            Task { @MainActor in
-                await Task.yield()
-                withAnimation(.bouncy(duration: 0.82, extraBounce: 0.2)) {
-                    isCompletedSectionVisible = true
-                }
-                try? await Task.sleep(for: .seconds(0.82 + staggerDelay))
-                isCompletedSectionTransitioning = false
-            }
-        }
     }
 
     private var timelineTransition: AnyTransition {
@@ -1789,7 +1772,8 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
         isProjectModePresented: false,
         isRoutinesModePresented: false,
         onProfileTapped: {},
-        onCreateTaskTapped: {}
+        onCreateTaskTapped: {},
+        onCompletedHistoryTapped: { _ in }
     )
 }
 #endif
@@ -1815,106 +1799,55 @@ private struct HomeTimelineRow: View {
     @State private var rowVerticalOffset: CGFloat = 0
     @State private var rowOpacity: Double = 1
     @State private var reopeningCheckmarkOpacity: Double = 1
-    @State private var subtaskAnimationBatch = 0
-    @State private var shouldRenderSubtasks = false
-    @State private var subtaskContentVisible = false
-    @State private var subtaskCollapseTask: Task<Void, Never>?
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-            Button(action: onToggleCompletion) {
-                timelineSymbol
-                    .frame(width: 40, height: 40)
-            }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
-
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                Button {
-                    HomeInteractionFeedback.soft()
-                    onOpenDetail()
-                } label: {
-                    HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                            Text(entry.title)
-                                .font(AppTheme.typography.sized(19, weight: .bold))
-                                .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-                                .lineLimit(titleLineLimit)
-                                .minimumScaleFactor(titleMinimumScaleFactor)
-                                .allowsTightening(true)
-
-                            Text(displaySubtitle)
-                                .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                                .foregroundStyle(subtitleColor)
-                                .lineLimit(2)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
-                            HomeTimelineTimeText(entry: entry)
-                        }
-                    }
-                    .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+                Button(action: onToggleCompletion) {
+                    timelineSymbol
+                        .frame(width: 40, height: 40)
                 }
                 .buttonStyle(.plain)
+                .contentShape(Rectangle())
 
-                if entry.subtasks.isEmpty == false && entry.isCompleted == false {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                     Button {
-                        HomeInteractionFeedback.selection()
-                        var transaction = Transaction()
-                        transaction.animation = nil
-                        withTransaction(transaction) {
-                            onToggleSubtasks()
-                        }
+                        HomeInteractionFeedback.soft()
+                        onOpenDetail()
                     } label: {
-                        HStack(spacing: AppTheme.spacing.xs) {
-                            Text(subtaskProgressText)
-                                .font(AppTheme.typography.sized(13, weight: .semibold))
-                                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                                Text(entry.title)
+                                    .font(AppTheme.typography.sized(19, weight: .bold))
+                                    .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+                                    .lineLimit(titleLineLimit)
+                                    .minimumScaleFactor(titleMinimumScaleFactor)
+                                    .allowsTightening(true)
 
-                            Image(systemName: isSubtasksExpanded ? "chevron.up" : "chevron.down")
-                                .font(AppTheme.typography.sized(11, weight: .bold))
-                                .foregroundStyle(AppTheme.colors.body.opacity(0.5))
+                                if showsStandardSubtitle {
+                                    Text(displaySubtitle)
+                                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                                        .foregroundStyle(subtitleColor)
+                                        .lineLimit(2)
+                                }
+                            }
+
+                            Spacer(minLength: 0)
+
+                            VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
+                                HomeTimelineTimeText(entry: entry)
+                            }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-
-                    if shouldRenderSubtasks || isSubtasksExpanded {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(sortedSubtasks.enumerated()), id: \.element.id) { index, subtask in
-                                SubtaskCascadeRow(
-                                    index: index,
-                                    animationBatch: subtaskAnimationBatch,
-                                    reduceMotion: reduceMotion
-                                ) {
-                                    HStack(spacing: AppTheme.spacing.xs) {
-                                        SubtaskCheckbox(
-                                            isCompleted: subtask.isCompleted,
-                                            onToggle: { onToggleSubtask(subtask.id) }
-                                        )
-
-                                        Text(subtask.title)
-                                            .font(AppTheme.typography.sized(14, weight: .medium))
-                                            .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.44 : 0.82))
-                                            .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.32))
-                                            .lineLimit(2)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                        }
-                        .padding(.top, AppTheme.spacing.xs)
-                        .opacity(subtaskContentVisible ? 1 : 0)
-                        .offset(y: subtaskContentOffsetY)
-                        .allowsHitTesting(isSubtasksExpanded && subtaskContentVisible)
-                    }
                 }
+                .padding(.top, 2)
             }
-            .padding(.top, 2)
+
+            if entry.subtasks.isEmpty == false {
+                subtaskDisclosure
+            }
         }
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
@@ -1998,21 +1931,6 @@ private struct HomeTimelineRow: View {
                 }
             }
         }
-        .onAppear {
-            guard isSubtasksExpanded else { return }
-            shouldRenderSubtasks = true
-            subtaskContentVisible = true
-        }
-        .onDisappear {
-            subtaskCollapseTask?.cancel()
-        }
-        .onChange(of: isSubtasksExpanded) { _, isExpanded in
-            if isExpanded {
-                showSubtasks()
-            } else {
-                hideSubtasks()
-            }
-        }
     }
 
     private var displaySubtitle: String {
@@ -2022,66 +1940,76 @@ private struct HomeTimelineRow: View {
         return entry.statusText
     }
 
+    private var showsStandardSubtitle: Bool {
+        entry.subtasks.isEmpty
+    }
+
+    @ViewBuilder
+    private var subtaskDisclosure: some View {
+        HomeSubtaskDisclosureStack(
+            isExpanded: subtaskExpansionBinding,
+            labelLeadingInset: subtaskLabelLeadingInset,
+            rowCount: entry.subtasks.count,
+            animation: subtaskExpandedStateAnimation,
+            reduceMotion: reduceMotion
+        ) {
+            Text(subtaskProgressText)
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+        } content: { isContentVisible in
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(entry.subtasks.enumerated()), id: \.element.id) { index, subtask in
+                    HomeSubtaskCascadeRow(
+                        index: index,
+                        rowCount: entry.subtasks.count,
+                        isVisible: isContentVisible,
+                        reduceMotion: reduceMotion
+                    ) {
+                        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                            SubtaskCheckbox(
+                                isCompleted: subtask.isCompleted,
+                                onToggle: { onToggleSubtask(subtask.id) }
+                            )
+                            .offset(x: 6)
+                            .frame(width: 40, height: 44)
+
+                            Text(subtask.title)
+                                .font(AppTheme.typography.sized(14, weight: .medium))
+                                .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.44 : 0.82))
+                                .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.32))
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, AppTheme.spacing.xs)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
+                }
+            }
+            .padding(.top, AppTheme.spacing.xs)
+        }
+    }
+
     private var subtaskProgressText: String {
         let total = entry.subtasks.count
-        let completed = entry.subtasks.filter(\.isCompleted).count
-        return "\(completed)/\(total) 子任务"
+        return "\(entry.subtaskCompletedCount)/\(total) 子任务"
     }
 
-    private var sortedSubtasks: [TaskSubtask] {
-        entry.subtasks.sorted { $0.sortOrder < $1.sortOrder }
+    private var subtaskLabelLeadingInset: CGFloat {
+        40 + AppTheme.spacing.md
     }
 
-    private var subtaskContentOffsetY: CGFloat {
-        guard subtaskContentVisible == false, isSubtasksExpanded else { return 0 }
-        return 8
+    private var subtaskExpansionBinding: Binding<Bool> {
+        Binding(
+            get: { isSubtasksExpanded },
+            set: { newValue in
+                guard newValue != isSubtasksExpanded else { return }
+                onToggleSubtasks()
+            }
+        )
     }
 
     private var subtaskExpandedStateAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.2) : .snappy(duration: 0.42, extraBounce: 0.06)
-    }
-
-    private var subtaskCollapsedStateAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.28, extraBounce: 0)
-    }
-
-    private var subtaskCollapseAnimation: Animation {
-        subtaskCollapsedStateAnimation
-    }
-
-    private var subtaskCollapseDelayMilliseconds: UInt64 {
-        reduceMotion ? 160 : 280
-    }
-
-    private func showSubtasks() {
-        subtaskCollapseTask?.cancel()
-        subtaskAnimationBatch += 1
-        shouldRenderSubtasks = true
-        subtaskContentVisible = false
-
-        Task { @MainActor in
-            await Task.yield()
-            withAnimation(subtaskExpandedStateAnimation) {
-                subtaskContentVisible = true
-            }
-        }
-    }
-
-    private func hideSubtasks() {
-        subtaskCollapseTask?.cancel()
-        withAnimation(subtaskCollapseAnimation) {
-            subtaskContentVisible = false
-        }
-
-        subtaskCollapseTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(subtaskCollapseDelayMilliseconds))
-            guard Task.isCancelled == false else { return }
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                shouldRenderSubtasks = false
-            }
-        }
+        reduceMotion ? .easeInOut(duration: 0.16) : .spring(response: 0.32, dampingFraction: 0.86)
     }
 
     private var subtitleColor: Color {
@@ -2170,6 +2098,154 @@ private struct HomeTimelineRow: View {
     private var checkmarkOpacity: Double {
         guard entry.isCompleted || isAnimatingCompletion || isAnimatingReopening else { return 0 }
         return isAnimatingReopening ? reopeningCheckmarkOpacity : 1
+    }
+}
+
+private struct HomeSubtaskDisclosureStack<Label: View, Content: View>: View {
+    @Binding var isExpanded: Bool
+    let labelLeadingInset: CGFloat
+    let rowCount: Int
+    let animation: Animation
+    let reduceMotion: Bool
+    @ViewBuilder let label: Label
+    let content: (Bool) -> Content
+
+    @State private var rendersContent = false
+    @State private var isContentVisible = false
+    @State private var layoutProgress: CGFloat = 0
+    @State private var visibilityTask: Task<Void, Never>?
+
+    init(
+        isExpanded: Binding<Bool>,
+        labelLeadingInset: CGFloat,
+        rowCount: Int,
+        animation: Animation,
+        reduceMotion: Bool,
+        @ViewBuilder label: () -> Label,
+        @ViewBuilder content: @escaping (Bool) -> Content
+    ) {
+        self._isExpanded = isExpanded
+        self.labelLeadingInset = labelLeadingInset
+        self.rowCount = rowCount
+        self.animation = animation
+        self.reduceMotion = reduceMotion
+        self.label = label()
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                HomeInteractionFeedback.selection()
+                withAnimation(animation) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: AppTheme.spacing.xs) {
+                    label
+
+                    Image(systemName: "chevron.down")
+                        .font(AppTheme.typography.sized(11, weight: .bold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.5))
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(.leading, labelLeadingInset)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if rendersContent {
+                content(isContentVisible)
+                    .frame(height: estimatedContentHeight * layoutProgress, alignment: .top)
+                    .clipped()
+                    .allowsHitTesting(isExpanded && isContentVisible)
+            }
+        }
+        .onAppear {
+            guard isExpanded else { return }
+            rendersContent = true
+            isContentVisible = true
+            layoutProgress = 1
+        }
+        .onDisappear {
+            visibilityTask?.cancel()
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            updateContentVisibility(expanded)
+        }
+    }
+
+    private func updateContentVisibility(_ expanded: Bool) {
+        visibilityTask?.cancel()
+
+        if expanded {
+            rendersContent = true
+            isContentVisible = false
+            layoutProgress = 0
+            visibilityTask = Task { @MainActor in
+                await Task.yield()
+                guard Task.isCancelled == false else { return }
+                withAnimation(animation) {
+                    layoutProgress = 1
+                    isContentVisible = true
+                }
+            }
+            return
+        }
+
+        withAnimation(animation) {
+            layoutProgress = 0
+            isContentVisible = false
+        }
+
+        visibilityTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(collapseDelayMilliseconds))
+            guard Task.isCancelled == false else { return }
+            withAnimation(animation) {
+                rendersContent = false
+            }
+        }
+    }
+
+    private var collapseDelayMilliseconds: UInt64 {
+        guard reduceMotion == false else { return 150 }
+        let cascadeDelay = Double(max(rowCount - 1, 0)) * 34
+        return UInt64(max(cascadeDelay + 230, 340))
+    }
+
+    private var estimatedContentHeight: CGFloat {
+        AppTheme.spacing.xs + CGFloat(rowCount) * 44
+    }
+}
+
+private struct HomeSubtaskCascadeRow<Content: View>: View {
+    let index: Int
+    let rowCount: Int
+    let isVisible: Bool
+    let reduceMotion: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : 14)
+            .scaleEffect(isVisible ? 1 : 0.985, anchor: .top)
+            .animation(rowAnimation, value: isVisible)
+    }
+
+    private var rowAnimation: Animation {
+        if reduceMotion {
+            return .easeInOut(duration: 0.14)
+        }
+
+        let delay: TimeInterval
+        if isVisible {
+            delay = Double(index) * 0.045
+        } else {
+            delay = Double(max(rowCount - index - 1, 0)) * 0.034
+        }
+        return .spring(response: 0.28, dampingFraction: 0.86).delay(delay)
     }
 }
 
@@ -2353,6 +2429,177 @@ private struct TimelineSwipeActionsModifier: ViewModifier {
     }
 }
 
+private struct WeeklyCompletedSheet: View {
+    let items: [Item]
+    let count: Int
+    let isLoading: Bool
+    let weekdayLabel: (Date) -> String
+    let onOpenFullHistory: () -> Void
+    let onRefresh: () async -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.top, AppTheme.spacing.lg)
+                .padding(.bottom, AppTheme.spacing.sm)
+
+            List {
+                if items.isEmpty {
+                    emptyRow
+                } else {
+                    ForEach(sections) { section in
+                        Text(section.title)
+                            .font(AppTheme.typography.textStyle(.headline, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+                            .listRowInsets(
+                                EdgeInsets(
+                                    top: AppTheme.spacing.md,
+                                    leading: AppTheme.spacing.xl,
+                                    bottom: AppTheme.spacing.xs,
+                                    trailing: AppTheme.spacing.xl
+                                )
+                            )
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+
+                        ForEach(section.items) { item in
+                            CompletedTaskRow(
+                                item: item,
+                                subtitle: subtitle(for: item),
+                                trailingText: item.completedAt.map(weekdayLabel) ?? "",
+                                showsArchivedDate: false,
+                                archivedDateText: ""
+                            )
+                            .listRowInsets(
+                                EdgeInsets(
+                                    top: AppTheme.spacing.sm,
+                                    leading: AppTheme.spacing.xl,
+                                    bottom: AppTheme.spacing.md,
+                                    trailing: AppTheme.spacing.xl
+                                )
+                            )
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .refreshable {
+                await onRefresh()
+            }
+        }
+        .background(AppTheme.colors.background.ignoresSafeArea())
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                Text("本周已完成")
+                    .font(AppTheme.typography.sized(24, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+
+                Text("不含今天，共 \(count) 项")
+                    .font(AppTheme.typography.sized(13, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                HomeInteractionFeedback.selection()
+                onOpenFullHistory()
+            } label: {
+                Text("查看全部")
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.colors.sky)
+            .frame(minHeight: 44)
+        }
+    }
+
+    private var emptyRow: some View {
+        VStack(spacing: AppTheme.spacing.sm) {
+            if isLoading {
+                ProgressView()
+            } else {
+                Image(systemName: "checkmark.circle")
+                    .font(AppTheme.typography.sized(24, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.36))
+            }
+
+            Text(isLoading ? "正在加载" : "本周还没有历史完成任务")
+                .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.56))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, AppTheme.spacing.xl)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var sections: [WeeklyCompletedSection] {
+        let grouped = Dictionary(grouping: items) { item in
+            weekdaySortKey(for: item.completedAt ?? .distantPast)
+        }
+        return grouped.keys.sorted(by: >).compactMap { key in
+            guard let items = grouped[key] else { return nil }
+            let sorted = items.sorted {
+                ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast)
+            }
+            return WeeklyCompletedSection(
+                id: key,
+                title: weekdayTitle(forSortKey: key),
+                items: sorted
+            )
+        }
+    }
+
+    private func subtitle(for item: Item) -> String {
+        if item.subtasks.isEmpty == false {
+            return "\(item.subtasks.filter(\.isCompleted).count)/\(item.subtasks.count) 子任务"
+        }
+        if let notes = item.notes, notes.isEmpty == false {
+            return notes
+        }
+        return "已完成"
+    }
+
+    private func weekdaySortKey(for date: Date) -> String {
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let order: Int
+        switch weekday {
+        case 6: order = 5
+        case 5: order = 4
+        case 4: order = 3
+        case 3: order = 2
+        case 2: order = 1
+        default: order = 0
+        }
+        return order.formatted(.number.precision(.integerLength(2)))
+    }
+
+    private func weekdayTitle(forSortKey key: String) -> String {
+        switch Int(key) ?? 0 {
+        case 5: return "周五"
+        case 4: return "周四"
+        case 3: return "周三"
+        case 2: return "周二"
+        case 1: return "周一"
+        default: return "其他"
+        }
+    }
+}
+
+private struct WeeklyCompletedSection: Identifiable {
+    let id: String
+    let title: String
+    let items: [Item]
+}
+
 private struct HomeOverdueSummarySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: HomeViewModel
@@ -2440,7 +2687,8 @@ private struct HomeOverdueSummarySheet: View {
                     primaryAvatar: nil,
                     secondaryAvatar: nil,
                     lastActionAt: nil,
-                    subtasks: []
+                    subtasks: [],
+                    subtaskCompletedCount: 0
                 ),
                 isAnimatingCompletion: animatingCompletionIDs.contains(entry.id),
                 isAnimatingReopening: false,

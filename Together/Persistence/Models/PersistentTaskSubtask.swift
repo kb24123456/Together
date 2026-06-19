@@ -10,6 +10,13 @@ final class PersistentTaskSubtask {
     var isCompleted: Bool = false
     var sortOrder: Int = 0
     var updatedAt: Date = Date.now
+    var sourceTaskID: UUID?
+    var sourceNotes: String?
+    var sourceDueAt: Date?
+    var sourceHasExplicitTime: Bool = false
+    var sourceRemindAt: Date?
+    var sourceCreatedAt: Date?
+    var sourceCompletedAt: Date?
     var isLocallyDeleted: Bool = false
 
     init(
@@ -20,6 +27,13 @@ final class PersistentTaskSubtask {
         isCompleted: Bool,
         sortOrder: Int,
         updatedAt: Date = Date.now,
+        sourceTaskID: UUID? = nil,
+        sourceNotes: String? = nil,
+        sourceDueAt: Date? = nil,
+        sourceHasExplicitTime: Bool = false,
+        sourceRemindAt: Date? = nil,
+        sourceCreatedAt: Date? = nil,
+        sourceCompletedAt: Date? = nil,
         isLocallyDeleted: Bool = false
     ) {
         self.id = id
@@ -29,6 +43,13 @@ final class PersistentTaskSubtask {
         self.isCompleted = isCompleted
         self.sortOrder = sortOrder
         self.updatedAt = updatedAt
+        self.sourceTaskID = sourceTaskID
+        self.sourceNotes = sourceNotes
+        self.sourceDueAt = sourceDueAt
+        self.sourceHasExplicitTime = sourceHasExplicitTime
+        self.sourceRemindAt = sourceRemindAt
+        self.sourceCreatedAt = sourceCreatedAt
+        self.sourceCompletedAt = sourceCompletedAt
         self.isLocallyDeleted = isLocallyDeleted
     }
 }
@@ -42,7 +63,14 @@ extension PersistentTaskSubtask {
             title: subtask.title,
             isCompleted: subtask.isCompleted,
             sortOrder: subtask.sortOrder,
-            updatedAt: subtask.updatedAt
+            updatedAt: subtask.updatedAt,
+            sourceTaskID: subtask.sourceTaskID,
+            sourceNotes: subtask.sourceNotes,
+            sourceDueAt: subtask.sourceDueAt,
+            sourceHasExplicitTime: subtask.sourceHasExplicitTime,
+            sourceRemindAt: subtask.sourceRemindAt,
+            sourceCreatedAt: subtask.sourceCreatedAt,
+            sourceCompletedAt: subtask.sourceCompletedAt
         )
     }
 
@@ -54,7 +82,14 @@ extension PersistentTaskSubtask {
             title: title,
             isCompleted: isCompleted,
             sortOrder: sortOrder,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            sourceTaskID: sourceTaskID,
+            sourceNotes: sourceNotes,
+            sourceDueAt: sourceDueAt,
+            sourceHasExplicitTime: sourceHasExplicitTime,
+            sourceRemindAt: sourceRemindAt,
+            sourceCreatedAt: sourceCreatedAt,
+            sourceCompletedAt: sourceCompletedAt
         )
     }
 
@@ -65,6 +100,13 @@ extension PersistentTaskSubtask {
         isCompleted = subtask.isCompleted
         sortOrder = subtask.sortOrder
         updatedAt = subtask.updatedAt
+        sourceTaskID = subtask.sourceTaskID
+        sourceNotes = subtask.sourceNotes
+        sourceDueAt = subtask.sourceDueAt
+        sourceHasExplicitTime = subtask.sourceHasExplicitTime
+        sourceRemindAt = subtask.sourceRemindAt
+        sourceCreatedAt = subtask.sourceCreatedAt
+        sourceCompletedAt = subtask.sourceCompletedAt
         isLocallyDeleted = false
     }
 }

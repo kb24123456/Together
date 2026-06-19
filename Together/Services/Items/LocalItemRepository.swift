@@ -17,6 +17,17 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return try hydrateItems(from: records, context: context)
     }
 
+    func fetchHomeItems(spaceID: UUID?, completedFrom: Date, completedBefore: Date) async throws -> [Item] {
+        let context = ModelContext(container)
+        let records = try homeRecords(
+            spaceID: spaceID,
+            completedFrom: completedFrom,
+            completedBefore: completedBefore,
+            context: context
+        )
+        return try hydrateItems(from: records, context: context)
+    }
+
     func fetchArchivedCompletedItems(
         spaceID: UUID?,
         searchText: String?,
@@ -52,10 +63,33 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         since: Date?,
         limit: Int
     ) async throws -> [Item] {
+        try await fetchCompletedItems(
+            spaceID: spaceID,
+            searchText: searchText,
+            completedFrom: since,
+            completedBefore: nil,
+            before: before,
+            limit: limit
+        )
+    }
+
+    func fetchCompletedItems(
+        spaceID: UUID?,
+        searchText: String?,
+        completedFrom: Date?,
+        completedBefore: Date?,
+        before: Date?,
+        limit: Int
+    ) async throws -> [Item] {
         let context = ModelContext(container)
         let normalizedLimit = max(limit, 1)
         let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let sourceLimit = normalizedSearch?.isEmpty == false || before != nil ? nil : normalizedLimit * 2
+        let sourceLimit = normalizedSearch?.isEmpty == false
+            || before != nil
+            || completedFrom != nil
+            || completedBefore != nil
+            ? nil
+            : normalizedLimit
         let records = try completedRecords(spaceID: spaceID, context: context, fetchLimit: sourceLimit)
 
         let filtered = records.filter { record in
@@ -64,17 +98,37 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             if let before, cursorDate >= before {
                 return false
             }
-            if let since, cursorDate < since {
+            if let completedFrom, completedAt < completedFrom {
                 return false
             }
-            guard let normalizedSearch,
-                  !normalizedSearch.isEmpty else {
-                return true
+            if let completedBefore, completedAt >= completedBefore {
+                return false
             }
-            return record.title.localizedStandardContains(normalizedSearch)
+            return true
         }
 
-        return Array(filtered.prefix(normalizedLimit)).map { $0.domainModel() }
+        guard let normalizedSearch, normalizedSearch.isEmpty == false else {
+            return try hydrateItems(from: Array(filtered.prefix(normalizedLimit)), context: context)
+        }
+
+        let hydrated = try hydrateItems(from: filtered, context: context)
+        return Array(hydrated.filter { item in
+            item.matchesCompletedHistorySearch(normalizedSearch)
+        }.prefix(normalizedLimit))
+    }
+
+    func completedItemCount(
+        spaceID: UUID?,
+        completedFrom: Date?,
+        completedBefore: Date?
+    ) async throws -> Int {
+        let context = ModelContext(container)
+        return try completedItemCount(
+            spaceID: spaceID,
+            context: context,
+            from: completedFrom,
+            to: completedBefore
+        )
     }
 
     func archiveCompletedItemsIfNeeded(
@@ -534,6 +588,74 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
     }
 
+    private func homeRecords(
+        spaceID: UUID?,
+        completedFrom: Date,
+        completedBefore: Date,
+        context: ModelContext
+    ) throws -> [PersistentItem] {
+        let incompleteRecords = try incompleteHomeRecords(spaceID: spaceID, context: context)
+        let completedRecords = try completedHomeRecords(
+            spaceID: spaceID,
+            completedFrom: completedFrom,
+            completedBefore: completedBefore,
+            context: context
+        )
+
+        return (incompleteRecords + completedRecords)
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    private func incompleteHomeRecords(
+        spaceID: UUID?,
+        context: ModelContext
+    ) throws -> [PersistentItem] {
+        let completedStatus = ItemStatus.completed.rawValue
+        return try activeRecords(spaceID: spaceID, context: context).filter {
+            $0.completedAt == nil && $0.statusRawValue != completedStatus
+        }
+    }
+
+    private func completedHomeRecords(
+        spaceID: UUID?,
+        completedFrom: Date,
+        completedBefore: Date,
+        context: ModelContext
+    ) throws -> [PersistentItem] {
+        let descriptor: FetchDescriptor<PersistentItem>
+
+        if let spaceID {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    if let completedAt = item.completedAt {
+                        item.spaceID == spaceID
+                        && item.isArchived == false
+                        && completedAt >= completedFrom
+                        && completedAt < completedBefore
+                    } else {
+                        false
+                    }
+                },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
+            )
+        } else {
+            descriptor = FetchDescriptor(
+                predicate: #Predicate<PersistentItem> { item in
+                    if let completedAt = item.completedAt {
+                        item.isArchived == false
+                        && completedAt >= completedFrom
+                        && completedAt < completedBefore
+                    } else {
+                        false
+                    }
+                },
+                sortBy: [SortDescriptor(\PersistentItem.completedAt, order: .reverse)]
+            )
+        }
+
+        return try context.fetch(descriptor).filter { !$0.isLocallyDeleted }
+    }
+
     private func archivedCompletedRecords(
         spaceID: UUID?,
         context: ModelContext,
@@ -792,7 +914,14 @@ actor LocalItemRepository: ItemRepositoryProtocol {
                     title: trimmed,
                     isCompleted: subtask.isCompleted,
                     sortOrder: index,
-                    updatedAt: .now
+                    updatedAt: .now,
+                    sourceTaskID: subtask.sourceTaskID,
+                    sourceNotes: subtask.sourceNotes,
+                    sourceDueAt: subtask.sourceDueAt,
+                    sourceHasExplicitTime: subtask.sourceHasExplicitTime,
+                    sourceRemindAt: subtask.sourceRemindAt,
+                    sourceCreatedAt: subtask.sourceCreatedAt,
+                    sourceCompletedAt: subtask.sourceCompletedAt
                 )
             }
 
@@ -802,6 +931,13 @@ actor LocalItemRepository: ItemRepositoryProtocol {
                 if record.title != subtask.title
                     || record.isCompleted != subtask.isCompleted
                     || record.sortOrder != subtask.sortOrder
+                    || record.sourceTaskID != subtask.sourceTaskID
+                    || record.sourceNotes != subtask.sourceNotes
+                    || record.sourceDueAt != subtask.sourceDueAt
+                    || record.sourceHasExplicitTime != subtask.sourceHasExplicitTime
+                    || record.sourceRemindAt != subtask.sourceRemindAt
+                    || record.sourceCreatedAt != subtask.sourceCreatedAt
+                    || record.sourceCompletedAt != subtask.sourceCompletedAt
                     || record.isLocallyDeleted
                 {
                     record.update(from: subtask)
@@ -986,5 +1122,13 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
     private func normalizedOccurrenceDate(for date: Date) -> Date {
         calendar.startOfDay(for: date)
+    }
+}
+
+private extension Item {
+    nonisolated func matchesCompletedHistorySearch(_ searchText: String) -> Bool {
+        title.localizedStandardContains(searchText)
+            || (notes?.localizedStandardContains(searchText) ?? false)
+            || subtasks.contains { $0.title.localizedStandardContains(searchText) }
     }
 }

@@ -7,6 +7,30 @@ struct CompletedHistorySection: Identifiable, Hashable {
     let items: [Item]
 }
 
+enum CompletedHistoryFilter: String, CaseIterable, Identifiable, Hashable {
+    case week
+    case month
+    case all
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .week: return "本周"
+        case .month: return "本月"
+        case .all: return "所有"
+        }
+    }
+
+    var range: CompletedTaskRange {
+        switch self {
+        case .week: return .workweek
+        case .month: return .month
+        case .all: return .all
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class CompletedHistoryViewModel {
@@ -21,6 +45,7 @@ final class CompletedHistoryViewModel {
     var onTaskMutated: ((UUID) -> Void)?
     var items: [Item] = []
     var searchText = ""
+    var selectedFilter: CompletedHistoryFilter
     var isLoading = false
     var hasLoaded = false
     var canLoadMore = true
@@ -33,18 +58,20 @@ final class CompletedHistoryViewModel {
         itemRepository: ItemRepositoryProtocol,
         taskApplicationService: TaskApplicationServiceProtocol,
         taskListRepository: TaskListRepositoryProtocol,
-        projectRepository: ProjectRepositoryProtocol
+        projectRepository: ProjectRepositoryProtocol,
+        initialFilter: CompletedHistoryFilter = .week
     ) {
         self.sessionStore = sessionStore
         self.itemRepository = itemRepository
         self.taskApplicationService = taskApplicationService
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
+        self.selectedFilter = initialFilter
     }
 
     var sections: [CompletedHistorySection] {
         let grouped = Dictionary(grouping: items) { item in
-            monthKey(for: item.historySortDate)
+            sectionKey(for: item.historySortDate)
         }
 
         return grouped.keys.sorted(by: >).compactMap { key in
@@ -55,7 +82,7 @@ final class CompletedHistoryViewModel {
 
             return CompletedHistorySection(
                 id: key,
-                title: monthTitle(for: key),
+                title: sectionTitle(for: key),
                 items: sortedItems
             )
         }
@@ -85,11 +112,13 @@ final class CompletedHistoryViewModel {
         await runAutoArchiveIfNeeded(spaceID: spaceID)
 
         do {
+            let bounds = selectedFilter.range.bounds(for: .now, calendar: calendar)
             let fetched = try await itemRepository.fetchCompletedItems(
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
+                completedFrom: bounds.lowerBound,
+                completedBefore: bounds.upperBound,
                 before: nil,
-                since: nil,
                 limit: pageSize
             )
             items = fetched
@@ -110,8 +139,14 @@ final class CompletedHistoryViewModel {
     }
 
     func restore(_ item: Item) async {
+        guard let actorID = sessionStore.currentUser?.id else { return }
+
         do {
-            let restored = try await itemRepository.restoreArchivedItem(itemID: item.id)
+            let restored = try await itemRepository.markIncomplete(
+                itemID: item.id,
+                actorID: actorID,
+                referenceDate: item.completedAt ?? .now
+            )
             items.removeAll { $0.id == restored.id }
             canLoadMore = true
             if let spaceID = restored.spaceID ?? sessionStore.currentSpace?.id {
@@ -150,6 +185,12 @@ final class CompletedHistoryViewModel {
     }
 
     func subtitle(for item: Item) -> String {
+        if item.subtasks.isEmpty == false {
+            return "\(item.subtasks.filter(\.isCompleted).count)/\(item.subtasks.count) 子任务"
+        }
+        if let notes = item.notes, notes.isEmpty == false {
+            return notes
+        }
         let projectName = item.projectID.flatMap { projectNames[$0] }
         let listName = item.listID.flatMap { taskListNames[$0] }
         let parts = [projectName, listName].compactMap { $0 }
@@ -161,12 +202,12 @@ final class CompletedHistoryViewModel {
 
     func completedDateText(for item: Item) -> String {
         guard let completedAt = item.completedAt else { return "完成时间未知" }
-        return "完成于 \(completedAt.formatted(date: .abbreviated, time: .shortened))"
+        return completedAt.formatted(date: .abbreviated, time: .shortened)
     }
 
     func archivedDateText(for item: Item) -> String {
         guard let archivedAt = item.archivedAt else { return "尚未归档" }
-        return "归档于 \(archivedAt.formatted(date: .abbreviated, time: .omitted))"
+        return archivedAt.formatted(date: .abbreviated, time: .omitted)
     }
 
     func isArchived(_ item: Item) -> Bool {
@@ -202,11 +243,13 @@ final class CompletedHistoryViewModel {
         defer { isLoading = false }
 
         do {
+            let bounds = selectedFilter.range.bounds(for: .now, calendar: calendar)
             let fetched = try await itemRepository.fetchCompletedItems(
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
+                completedFrom: bounds.lowerBound,
+                completedBefore: bounds.upperBound,
                 before: cursor,
-                since: nil,
                 limit: pageSize
             )
             items.append(contentsOf: fetched)
@@ -256,6 +299,71 @@ final class CompletedHistoryViewModel {
         let parts = key.split(separator: "-")
         guard parts.count == 2 else { return key }
         return "\(parts[0])年\(parts[1])月"
+    }
+
+    private func dayKey(for date: Date) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = (components.month ?? 1).formatted(.number.precision(.integerLength(2)))
+        let day = (components.day ?? 1).formatted(.number.precision(.integerLength(2)))
+        return "\(year)-\(month)-\(day)"
+    }
+
+    private func sectionKey(for date: Date) -> String {
+        switch selectedFilter {
+        case .week:
+            return weekdaySortKey(for: date)
+        case .month:
+            return dayKey(for: date)
+        case .all:
+            return monthKey(for: date)
+        }
+    }
+
+    private func sectionTitle(for key: String) -> String {
+        switch selectedFilter {
+        case .week:
+            return weekdayTitle(forSortKey: key)
+        case .month:
+            return dayTitle(for: key)
+        case .all:
+            return monthTitle(for: key)
+        }
+    }
+
+    private func weekdaySortKey(for date: Date) -> String {
+        let weekday = calendar.component(.weekday, from: date)
+        let order: Int
+        switch weekday {
+        case 6: order = 5
+        case 5: order = 4
+        case 4: order = 3
+        case 3: order = 2
+        case 2: order = 1
+        default: order = 0
+        }
+        return order.formatted(.number.precision(.integerLength(2)))
+    }
+
+    private func weekdayTitle(forSortKey key: String) -> String {
+        switch Int(key) ?? 0 {
+        case 5: return "周五"
+        case 4: return "周四"
+        case 3: return "周三"
+        case 2: return "周二"
+        case 1: return "周一"
+        default: return "其他"
+        }
+    }
+
+    private func dayTitle(for key: String) -> String {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else {
+            return key
+        }
+        return "\(month)月\(day)日"
     }
 }
 

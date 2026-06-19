@@ -394,7 +394,14 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                     creatorID: creatorID,
                     title: trimmed,
                     isCompleted: draft.isCompleted,
-                    sortOrder: index
+                    sortOrder: index,
+                    sourceTaskID: draft.sourceTaskID,
+                    sourceNotes: draft.sourceNotes,
+                    sourceDueAt: draft.sourceDueAt,
+                    sourceHasExplicitTime: draft.sourceHasExplicitTime,
+                    sourceRemindAt: draft.sourceRemindAt,
+                    sourceCreatedAt: draft.sourceCreatedAt,
+                    sourceCompletedAt: draft.sourceCompletedAt
                 )
             }
     }

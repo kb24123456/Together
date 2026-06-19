@@ -3,6 +3,7 @@ import UIKit
 
 private enum AppRootRoute: Hashable {
     case profile
+    case completedHistory(CompletedHistoryFilter)
 }
 
 struct AppRootView: View {
@@ -16,14 +17,21 @@ struct AppRootView: View {
         NavigationStack(path: $rootNavigationPath) {
             rootSurfaceView(router: router)
                 .toolbar {
+                    topToolbar(router: router)
                     dockToolbar(router: router)
                 }
+                .navigationTitle(navigationTitle(for: router))
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackgroundVisibility(.hidden, for: .bottomBar)
                 .toolbarVisibility(appContext.homeViewModel.isDockHidden ? .hidden : .visible, for: .bottomBar)
                 .navigationDestination(for: AppRootRoute.self) { route in
                     switch route {
                     case .profile:
                         ProfileView(viewModel: appContext.profileViewModel)
+                    case .completedHistory(let filter):
+                        CompletedHistoryView(
+                            viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
+                        )
                     }
                 }
         }
@@ -79,67 +87,38 @@ struct AppRootView: View {
     @ViewBuilder
     private func rootSurfaceView(router: AppRouter) -> some View {
         switch router.currentSurface {
-        case .today, .projects, .routines:
+        case .today, .routines:
             HomeView(
                 viewModel: appContext.homeViewModel,
                 projectsViewModel: appContext.projectsViewModel,
                 routinesViewModel: appContext.routinesViewModel,
-                isProjectModePresented: router.isProjectModePresented,
+                isProjectModePresented: false,
                 isRoutinesModePresented: router.isRoutinesModePresented,
                 onProfileTapped: {
                     openProfile(router: router)
                 },
                 onCreateTaskTapped: {
-                    closeProjectsMode(router: router)
                     router.pendingComposerTitle = nil
                     router.activeComposer = .newTask
+                },
+                onCompletedHistoryTapped: { filter in
+                    rootNavigationPath.append(AppRootRoute.completedHistory(filter))
                 }
             )
-        case .calendar:
-            CalendarView(
-                viewModel: appContext.calendarViewModel,
-                showsNavigationChrome: false
-            )
+        case .calendar, .projects:
+            EmptyView()
         }
     }
 
     // MARK: - Native bottom toolbar
 
     @ToolbarContentBuilder
-    private func dockToolbar(router: AppRouter) -> some ToolbarContent {
-        let isOverlayActive = router.currentSurface != .today
-        let isMonthModeActive = appContext.homeViewModel.isMonthMode
-        let isRoutinesModeActive = router.currentSurface == .routines
-        let isProjectsModeActive = router.isProjectModePresented
+    private func topToolbar(router: AppRouter) -> some ToolbarContent {
         let showsRoutinesButton = appContext.sessionStore.activeMode == .single
+        let isRoutinesModeActive = router.currentSurface == .routines
 
-        if isOverlayActive {
-            ToolbarItem(placement: .bottomBar) {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    returnToToday(router: router)
-                } label: {
-                    Text("今天")
-                        .font(AppTheme.typography.sized(15, weight: .semibold))
-                }
-                .tint(dockSelectionTint)
-                .accessibilityLabel("返回今天")
-                .accessibilityHint("退出当前视图回到 Today")
-            }
-
-            ToolbarSpacer(.flexible, placement: .bottomBar)
-        }
-
-        ToolbarItemGroup(placement: .bottomBar) {
-            Button {
-                toggleCalendarSurface(router: router)
-            } label: {
-                Image(systemName: "calendar")
-            }
-            .tint(isMonthModeActive ? dockSelectionTint : AppTheme.colors.title)
-            .accessibilityLabel(isMonthModeActive ? "关闭月历" : "打开月历")
-
-            if showsRoutinesButton {
+        if showsRoutinesButton {
+            ToolbarItem(placement: .topBarLeading) {
                 Button {
                     toggleRoutinesSurface(router: router)
                 } label: {
@@ -148,19 +127,48 @@ struct AppRootView: View {
                 .tint(isRoutinesModeActive ? dockSelectionTint : AppTheme.colors.title)
                 .accessibilityLabel(isRoutinesModeActive ? "关闭例行事务" : "打开例行事务")
             }
-
-            Button {
-                toggleProjectsSurface(router: router)
-            } label: {
-                Image(systemName: "folder")
-            }
-            .tint(isProjectsModeActive ? dockSelectionTint : AppTheme.colors.title)
-            .accessibilityLabel(isProjectsModeActive ? "关闭项目" : "打开项目")
         }
 
-        ToolbarSpacer(.fixed, placement: .bottomBar)
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                HomeInteractionFeedback.selection()
+                openProfile(router: router)
+            } label: {
+                let avatar = appContext.homeViewModel.currentUserAvatar
+                UserAvatarView(
+                    avatarAsset: avatar.avatarAsset,
+                    displayName: avatar.displayName,
+                    size: 28,
+                    fillColor: AppTheme.colors.avatarWarm,
+                    symbolColor: AppTheme.colors.title.opacity(0.82),
+                    symbolFont: AppTheme.typography.sized(15, weight: .semibold),
+                    overrideImage: avatar.overrideImage
+                )
+            }
+            .buttonStyle(.plain)
+            .frame(width: 32, height: 32)
+            .contentShape(Circle())
+            .accessibilityLabel("打开个人页")
+            .accessibilityHint("查看个人资料和设置")
+        }
+    }
 
+    @ToolbarContentBuilder
+    private func dockToolbar(router: AppRouter) -> some ToolbarContent {
         ToolbarItem(placement: .bottomBar) {
+            Button {
+                HomeInteractionFeedback.selection()
+                rootNavigationPath.append(AppRootRoute.completedHistory(.week))
+            } label: {
+                Image(systemName: "checkmark.circle")
+            }
+            .accessibilityLabel("已完成任务")
+            .accessibilityHint("查看全部已完成任务")
+        }
+
+        ToolbarSpacer(.flexible, placement: .bottomBar)
+
+        ToolbarItemGroup(placement: .bottomBar) {
             Button {
                 HomeInteractionFeedback.selection()
                 router.isOCRImportPresented = true
@@ -169,9 +177,7 @@ struct AppRootView: View {
             }
             .accessibilityLabel("OCR 导入")
             .accessibilityHint("拍摄或选择纸面笔记生成草稿")
-        }
 
-        ToolbarItem(placement: .bottomBar) {
             Button {
                 HomeInteractionFeedback.selection()
                 openContextualComposer(router: router)
@@ -198,12 +204,10 @@ struct AppRootView: View {
     private func returnToToday(router: AppRouter) {
         let surface = router.currentSurface
         switch surface {
-        case .calendar:
-            toggleCalendarSurface(router: router)
         case .routines:
             toggleRoutinesSurface(router: router)
-        case .projects:
-            closeProjectsMode(router: router)
+        case .calendar, .projects:
+            router.currentSurface = .today
         case .today:
             break
         }
@@ -217,41 +221,10 @@ struct AppRootView: View {
     private func openContextualComposer(router: AppRouter) {
         router.pendingComposerTitle = nil
         switch router.currentSurface {
-        case .today, .calendar:
+        case .today, .calendar, .projects:
             router.activeComposer = .newTask
-        case .projects:
-            router.activeComposer = .newProject
         case .routines:
             router.activeComposer = .newPeriodicTask
-        }
-    }
-
-    private func openProjectsMode(router: AppRouter) {
-        guard router.isProfilePresented == false else { return }
-        guard router.activeComposer == nil else { return }
-        guard router.isProjectModePresented == false else { return }
-
-        HomeInteractionFeedback.selection()
-        withAnimation(projectModeAnimation) {
-            appContext.homeViewModel.setCalendarDisplayMode(.week)
-            router.currentSurface = .projects
-        }
-    }
-
-    private func closeProjectsMode(router: AppRouter) {
-        guard router.isProjectModePresented else { return }
-
-        HomeInteractionFeedback.selection()
-        withAnimation(projectModeAnimation) {
-            router.currentSurface = .today
-        }
-    }
-
-    private func toggleProjectsSurface(router: AppRouter) {
-        if router.currentSurface == .projects {
-            closeProjectsMode(router: router)
-        } else {
-            openProjectsMode(router: router)
         }
     }
 
@@ -265,26 +238,17 @@ struct AppRootView: View {
             if router.currentSurface == .routines {
                 router.currentSurface = .today
             } else {
-                appContext.homeViewModel.setCalendarDisplayMode(.week)
                 router.currentSurface = .routines
             }
         }
     }
 
-    private func toggleCalendarSurface(router: AppRouter) {
-        guard router.isProfilePresented == false else { return }
-        guard router.activeComposer == nil else { return }
-
-        HomeInteractionFeedback.selection()
-
-        withAnimation(projectModeAnimation) {
-            if router.currentSurface == .projects {
-                router.currentSurface = .today
-                appContext.homeViewModel.setCalendarDisplayMode(.month)
-            } else {
-                router.currentSurface = .today
-                appContext.homeViewModel.toggleCalendarDisplayMode()
-            }
+    private func navigationTitle(for router: AppRouter) -> String {
+        switch router.currentSurface {
+        case .routines:
+            return "例行任务"
+        case .today, .calendar, .projects:
+            return "任务"
         }
     }
 }
