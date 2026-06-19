@@ -2,88 +2,110 @@ import SwiftUI
 
 struct CompletedHistoryView: View {
     @Bindable var viewModel: CompletedHistoryViewModel
+    @State private var isPreciseFilterPresented = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            filterPicker
-                .padding(.horizontal, AppTheme.spacing.xl)
-                .padding(.top, AppTheme.spacing.sm)
-                .padding(.bottom, AppTheme.spacing.xs)
+        List {
+            if viewModel.sections.isEmpty {
+                emptySection
+            } else {
+                ForEach(viewModel.sections) { section in
+                    sectionHeader(section.title)
 
-            List {
-                if viewModel.sections.isEmpty {
-                    emptySection
-                } else {
-                    ForEach(viewModel.sections) { section in
-                        sectionHeader(section.title)
-
-                        ForEach(section.items) { item in
-                            CompletedTaskRow(
-                                item: item,
-                                subtitle: viewModel.subtitle(for: item),
-                                trailingText: trailingText(for: item),
-                                showsArchivedDate: viewModel.isArchived(item),
-                                archivedDateText: viewModel.archivedDateText(for: item)
+                    ForEach(section.items) { item in
+                        CompletedTaskRow(
+                            item: item,
+                            subtitle: viewModel.subtitle(for: item),
+                            trailingText: trailingText(for: item),
+                            showsArchivedDate: viewModel.isArchived(item),
+                            archivedDateText: viewModel.archivedDateText(for: item)
+                        )
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: AppTheme.spacing.sm,
+                                leading: AppTheme.spacing.xl,
+                                bottom: AppTheme.spacing.md,
+                                trailing: AppTheme.spacing.xl
                             )
-                            .listRowInsets(
-                                EdgeInsets(
-                                    top: AppTheme.spacing.sm,
-                                    leading: AppTheme.spacing.xl,
-                                    bottom: AppTheme.spacing.md,
-                                    trailing: AppTheme.spacing.xl
-                                )
-                            )
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .task {
-                                await viewModel.loadMoreIfNeeded(currentItem: item)
+                        )
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .task {
+                            await viewModel.loadMoreIfNeeded(currentItem: item)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button("恢复", systemImage: "arrow.uturn.backward.circle") {
+                                Task {
+                                    await viewModel.restore(item)
+                                }
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("恢复", systemImage: "arrow.uturn.backward.circle") {
-                                    Task {
-                                        await viewModel.restore(item)
-                                    }
-                                }
-                                .tint(AppTheme.colors.selectionTint)
+                            .tint(AppTheme.colors.selectionTint)
 
-                                Button("删除", systemImage: "trash") {
-                                    Task {
-                                        await viewModel.delete(item)
-                                    }
+                            Button("删除", systemImage: "trash") {
+                                Task {
+                                    await viewModel.delete(item)
                                 }
-                                .tint(AppTheme.colors.danger)
                             }
-                            .contextMenu {
-                                Button("恢复", systemImage: "arrow.uturn.backward.circle") {
-                                    Task {
-                                        await viewModel.restore(item)
-                                    }
+                            .tint(AppTheme.colors.danger)
+                        }
+                        .contextMenu {
+                            Button("恢复", systemImage: "arrow.uturn.backward.circle") {
+                                Task {
+                                    await viewModel.restore(item)
                                 }
+                            }
 
-                                Button("删除", systemImage: "trash", role: .destructive) {
-                                    Task {
-                                        await viewModel.delete(item)
-                                    }
+                            Button("删除", systemImage: "trash", role: .destructive) {
+                                Task {
+                                    await viewModel.delete(item)
                                 }
                             }
                         }
                     }
+                }
 
-                    if viewModel.isLoading {
-                        loadingRow
-                    }
+                if viewModel.isLoading {
+                    loadingRow
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
         }
-        .applyScrollEdgeProtection()
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("已完成")
+        .navigationSubtitle(viewModel.selectedFilter.navigationSubtitle)
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $viewModel.searchText, prompt: "搜索已完成任务")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                quickFilterMenu
+            }
+
+            if #available(iOS 26.0, *) {
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(.flexible, placement: .bottomBar)
+            }
+
+            ToolbarItem(placement: .bottomBar) {
+                preciseFilterToolbarButton
+            }
+        }
+        .searchable(text: $viewModel.searchText, prompt: "搜索")
+        .sheet(isPresented: $isPreciseFilterPresented) {
+            NavigationStack {
+                CompletedHistoryPreciseFilterSheet(
+                    viewModel: viewModel,
+                    onApply: { filter in
+                        viewModel.applyFilter(filter)
+                        isPreciseFilterPresented = false
+                    }
+                )
+            }
+            .presentationDetents([.height(540)])
+            .presentationDragIndicator(.visible)
+        }
         .task {
             await viewModel.loadIfNeeded()
+            await viewModel.refreshCompletedStats()
         }
         .task(id: viewModel.searchText) {
             await viewModel.reload()
@@ -93,14 +115,65 @@ struct CompletedHistoryView: View {
         }
     }
 
-    private var filterPicker: some View {
-        Picker("筛选", selection: $viewModel.selectedFilter) {
-            ForEach(CompletedHistoryFilter.allCases) { filter in
-                Text(filter.title).tag(filter)
-            }
+    private var quickFilterMenu: some View {
+        Menu {
+            quickFilterButton(title: "本周", filter: .week)
+            quickFilterButton(title: "本月", filter: .month)
+            quickFilterButton(title: "全部", filter: .all)
+        } label: {
+            Text(quickFilterMenuTitle)
         }
-        .pickerStyle(.segmented)
-        .accessibilityLabel("已完成任务筛选")
+        .accessibilityLabel("快捷筛选")
+        .accessibilityValue(viewModel.selectedFilter.navigationSubtitle)
+    }
+
+    private var quickFilterMenuTitle: String {
+        switch viewModel.selectedFilter {
+        case .week:
+            return "本周"
+        case .month:
+            return "本月"
+        case .all:
+            return "全部"
+        case .specificMonth, .specificDay:
+            return "筛选"
+        }
+    }
+
+    private func quickFilterButton(
+        title: String,
+        filter: CompletedHistoryFilter
+    ) -> some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            dismissPreciseFilter()
+            viewModel.applyFilter(filter)
+        } label: {
+            Text(title)
+        }
+    }
+
+    private var preciseFilterToolbarButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            Task { await viewModel.refreshCompletedStats() }
+            isPreciseFilterPresented = true
+        } label: {
+            Label(
+                "精确筛选",
+                systemImage: viewModel.selectedFilter.isPrecise
+                ? "line.3.horizontal.decrease.circle.fill"
+                : "line.3.horizontal.decrease.circle"
+            )
+        }
+        .tint(viewModel.selectedFilter.isPrecise ? AppTheme.colors.sky : nil)
+        .accessibilityLabel("精确筛选")
+        .accessibilityValue(viewModel.selectedFilter.isPrecise ? viewModel.selectedFilter.title : "未启用")
+    }
+
+    private func dismissPreciseFilter() {
+        guard isPreciseFilterPresented else { return }
+        isPreciseFilterPresented = false
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -155,9 +228,12 @@ struct CompletedHistoryView: View {
         case .week:
             guard let completedAt = item.completedAt else { return "" }
             return weekdayLabel(for: completedAt)
-        case .month:
+        case .month, .specificMonth(_):
             guard let completedAt = item.completedAt else { return "" }
             return monthDayText(for: completedAt)
+        case .specificDay(_):
+            guard let completedAt = item.completedAt else { return "" }
+            return completedAt.formatted(date: .omitted, time: .shortened)
         case .all:
             return viewModel.completedDateText(for: item)
         }
@@ -183,6 +259,188 @@ struct CompletedHistoryView: View {
 
 }
 
+private enum CompletedHistoryPreciseFilterMode: Hashable {
+    case day
+    case month
+}
+
+private struct CompletedHistoryPrimaryGlassButtonModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .buttonStyle(.glassProminent)
+        } else {
+            content
+                .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+private struct CompletedHistoryPreciseFilterSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let viewModel: CompletedHistoryViewModel
+    let onApply: (CompletedHistoryFilter) -> Void
+
+    @State private var mode: CompletedHistoryPreciseFilterMode
+    @State private var selectedDay: Date
+    @State private var selectedYear: Int
+    @State private var selectedMonth: Int
+    private let calendar = Calendar.current
+    private let contentHeight: CGFloat = 340
+
+    init(
+        viewModel: CompletedHistoryViewModel,
+        onApply: @escaping (CompletedHistoryFilter) -> Void
+    ) {
+        self.viewModel = viewModel
+        self.onApply = onApply
+        let day = viewModel.selectedFilter.daySelectionDate ?? .now
+        let monthDate = viewModel.selectedFilter.monthSelectionDate ?? .now
+        let components = Calendar.current.dateComponents([.year, .month], from: monthDate)
+        let initialMode: CompletedHistoryPreciseFilterMode = viewModel.selectedFilter.monthSelectionDate == nil ? .day : .month
+        _mode = State(initialValue: initialMode)
+        _selectedDay = State(initialValue: Calendar.current.startOfDay(for: day))
+        _selectedYear = State(initialValue: components.year ?? Calendar.current.component(.year, from: .now))
+        _selectedMonth = State(initialValue: components.month ?? Calendar.current.component(.month, from: .now))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+            Picker("筛选类型", selection: $mode) {
+                Text("日期").tag(CompletedHistoryPreciseFilterMode.day)
+                Text("月份").tag(CompletedHistoryPreciseFilterMode.month)
+            }
+            .pickerStyle(.segmented)
+
+            ZStack {
+                dayFilterContent
+                    .opacity(mode == .day ? 1 : 0)
+                    .allowsHitTesting(mode == .day)
+
+                monthFilterContent
+                    .opacity(mode == .month ? 1 : 0)
+                    .allowsHitTesting(mode == .month)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: contentHeight, alignment: .top)
+            .clipped()
+        }
+        .padding(.horizontal, AppTheme.spacing.xl)
+        .padding(.top, AppTheme.spacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .navigationTitle("精确筛选")
+        .navigationSubtitle("选择具体日期或月份")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("完成") {
+                    dismiss()
+                }
+            }
+        }
+        .task {
+            await viewModel.refreshCompletedStats()
+            normalizeMonthSelection()
+        }
+    }
+
+    private var dayFilterContent: some View {
+        DatePicker(
+            "选择日期",
+            selection: $selectedDay,
+            in: selectableDateRange,
+            displayedComponents: .date
+        )
+        .datePickerStyle(.graphical)
+        .frame(maxWidth: .infinity)
+        .onChange(of: selectedDay) { _, newValue in
+            apply(.specificDay(newValue))
+        }
+    }
+
+    private var monthFilterContent: some View {
+        VStack(spacing: AppTheme.spacing.lg) {
+            Spacer(minLength: 0)
+
+            HStack(spacing: AppTheme.spacing.md) {
+                Picker("年份", selection: $selectedYear) {
+                    ForEach(availableYears, id: \.self) { year in
+                        Text("\(year)年").tag(year)
+                    }
+                }
+                .pickerStyle(.wheel)
+
+                Picker("月份", selection: $selectedMonth) {
+                    ForEach(1...12, id: \.self) { month in
+                        Text("\(month)月").tag(month)
+                    }
+                }
+                .pickerStyle(.wheel)
+            }
+            .frame(height: 188)
+            .clipped()
+
+            Button {
+                apply(.specificMonth(selectedMonthDate))
+            } label: {
+                Label("查看 \(selectedYear)年\(selectedMonth)月", systemImage: "calendar")
+                    .frame(maxWidth: .infinity)
+            }
+            .modifier(CompletedHistoryPrimaryGlassButtonModifier())
+            .controlSize(.large)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: contentHeight)
+    }
+
+    private var selectableDateRange: ClosedRange<Date> {
+        let fallback = calendar.startOfDay(for: .now)
+        let start = calendar.startOfDay(for: viewModel.completedStats.firstCompletedAt ?? fallback)
+        let latestCompleted = viewModel.completedStats.lastCompletedAt ?? fallback
+        let end = max(calendar.startOfDay(for: latestCompleted), fallback)
+        return start...max(start, end)
+    }
+
+    private var availableYears: [Int] {
+        let currentYear = calendar.component(.year, from: .now)
+        let firstYear = calendar.component(
+            .year,
+            from: viewModel.completedStats.firstCompletedAt ?? .now
+        )
+        let lastYear = calendar.component(
+            .year,
+            from: viewModel.completedStats.lastCompletedAt ?? .now
+        )
+        let years = [firstYear, lastYear, currentYear]
+        let lower = years.min() ?? currentYear
+        let upper = years.max() ?? currentYear
+        return Array(lower...upper).reversed()
+    }
+
+    private var selectedMonthDate: Date {
+        calendar.date(from: DateComponents(
+            year: selectedYear,
+            month: selectedMonth,
+            day: 1
+        )) ?? .now
+    }
+
+    private func apply(_ filter: CompletedHistoryFilter) {
+        HomeInteractionFeedback.selection()
+        onApply(filter)
+    }
+
+    private func normalizeMonthSelection() {
+        guard availableYears.contains(selectedYear) == false,
+              let firstYear = availableYears.first else {
+            return
+        }
+        selectedYear = firstYear
+    }
+}
+
 struct CompletedTaskRow: View {
     let item: Item
     let subtitle: String
@@ -200,7 +458,7 @@ struct CompletedTaskRow: View {
                     VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                         Text(item.title)
                             .font(AppTheme.typography.sized(18, weight: .bold))
-                            .foregroundStyle(AppTheme.colors.title.opacity(0.62))
+                            .foregroundStyle(AppTheme.colors.title)
                             .lineLimit(2)
                             .minimumScaleFactor(0.78)
                             .allowsTightening(true)

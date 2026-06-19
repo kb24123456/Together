@@ -108,13 +108,26 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         }
 
         guard let normalizedSearch, normalizedSearch.isEmpty == false else {
-            return try hydrateItems(from: Array(filtered.prefix(normalizedLimit)), context: context)
+            let limitedRecords = Array(filtered.prefix(normalizedLimit))
+            do {
+                return try hydrateItems(from: limitedRecords, context: context)
+            } catch {
+                return limitedRecords.map { $0.domainModel() }
+            }
         }
 
-        let hydrated = try hydrateItems(from: filtered, context: context)
-        return Array(hydrated.filter { item in
-            item.matchesCompletedHistorySearch(normalizedSearch)
-        }.prefix(normalizedLimit))
+        do {
+            let hydrated = try hydrateItems(from: filtered, context: context)
+            return Array(hydrated.filter { item in
+                item.matchesCompletedHistorySearch(normalizedSearch)
+            }.prefix(normalizedLimit))
+        } catch {
+            let fallbackRecords = filtered.filter { record in
+                record.title.localizedStandardContains(normalizedSearch)
+                    || (record.notes?.localizedStandardContains(normalizedSearch) ?? false)
+            }
+            return Array(fallbackRecords.prefix(normalizedLimit)).map { $0.domainModel() }
+        }
     }
 
     func completedItemCount(
@@ -706,6 +719,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return CompletedItemStats(
             totalCount: totalCount,
             thisMonthCount: thisMonthCount,
+            firstCompletedAt: firstRecord?.completedAt,
             firstItemTitle: firstRecord?.title,
             lastCompletedAt: latestRecord?.completedAt
         )
@@ -777,20 +791,26 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         if let spaceID {
             descriptor = FetchDescriptor(
                 predicate: #Predicate<PersistentItem> { item in
-                    item.spaceID == spaceID
-                    && item.isLocallyDeleted == false
-                    && item.completedAt != nil
-                    && item.completedAt! >= lowerBound
-                    && item.completedAt! < upperBound
+                    if let completedAt = item.completedAt {
+                        item.spaceID == spaceID
+                            && item.isLocallyDeleted == false
+                            && completedAt >= lowerBound
+                            && completedAt < upperBound
+                    } else {
+                        false
+                    }
                 }
             )
         } else {
             descriptor = FetchDescriptor(
                 predicate: #Predicate<PersistentItem> { item in
-                    item.isLocallyDeleted == false
-                    && item.completedAt != nil
-                    && item.completedAt! >= lowerBound
-                    && item.completedAt! < upperBound
+                    if let completedAt = item.completedAt {
+                        item.isLocallyDeleted == false
+                            && completedAt >= lowerBound
+                            && completedAt < upperBound
+                    } else {
+                        false
+                    }
                 }
             )
         }

@@ -104,6 +104,7 @@ struct HomeView: View {
                 items: viewModel.weeklyCompletedSheetItems,
                 count: viewModel.weeklyCompletedEntryCount,
                 isLoading: viewModel.isWeeklyCompletedSheetLoading,
+                didFailLoading: viewModel.didFailLoadingWeeklyCompletedSheet,
                 weekdayLabel: { viewModel.weekdayLabel(for: $0) },
                 onOpenFullHistory: {
                     viewModel.dismissWeeklyCompletedSheet()
@@ -115,7 +116,6 @@ struct HomeView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
-            .presentationCornerRadius(28)
         }
         .onAppear {
             isCompletedSectionVisible = true
@@ -2433,17 +2433,13 @@ private struct WeeklyCompletedSheet: View {
     let items: [Item]
     let count: Int
     let isLoading: Bool
+    let didFailLoading: Bool
     let weekdayLabel: (Date) -> String
     let onOpenFullHistory: () -> Void
     let onRefresh: () async -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, AppTheme.spacing.xl)
-                .padding(.top, AppTheme.spacing.lg)
-                .padding(.bottom, AppTheme.spacing.sm)
-
+        NavigationStack {
             List {
                 if items.isEmpty {
                     emptyRow
@@ -2490,35 +2486,24 @@ private struct WeeklyCompletedSheet: View {
             .refreshable {
                 await onRefresh()
             }
+            .navigationTitle("本周已完成")
+            .navigationSubtitle("不含今天，共 \(count) 项")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        onOpenFullHistory()
+                    } label: {
+                        Text("查看全部")
+                    }
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.sky)
+                    .frame(minHeight: 44)
+                }
+            }
         }
         .background(AppTheme.colors.background.ignoresSafeArea())
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text("本周已完成")
-                    .font(AppTheme.typography.sized(24, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-
-                Text("不含今天，共 \(count) 项")
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
-            }
-
-            Spacer(minLength: 0)
-
-            Button {
-                HomeInteractionFeedback.selection()
-                onOpenFullHistory()
-            } label: {
-                Text("查看全部")
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(AppTheme.colors.sky)
-            .frame(minHeight: 44)
-        }
     }
 
     private var emptyRow: some View {
@@ -2526,12 +2511,12 @@ private struct WeeklyCompletedSheet: View {
             if isLoading {
                 ProgressView()
             } else {
-                Image(systemName: "checkmark.circle")
+                Image(systemName: emptySystemImage)
                     .font(AppTheme.typography.sized(24, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.36))
             }
 
-            Text(isLoading ? "正在加载" : "本周还没有历史完成任务")
+            Text(emptyMessage)
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.56))
         }
@@ -2539,6 +2524,20 @@ private struct WeeklyCompletedSheet: View {
         .padding(.vertical, AppTheme.spacing.xl)
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+    }
+
+    private var emptySystemImage: String {
+        didFailLoading && count > 0 ? "exclamationmark.circle" : "checkmark.circle"
+    }
+
+    private var emptyMessage: String {
+        if isLoading {
+            return "正在加载"
+        }
+        if didFailLoading && count > 0 {
+            return "历史列表暂时无法加载，下拉刷新重试"
+        }
+        return "本周还没有历史完成任务"
     }
 
     private var sections: [WeeklyCompletedSection] {

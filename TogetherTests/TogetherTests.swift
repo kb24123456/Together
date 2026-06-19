@@ -110,6 +110,36 @@ struct TogetherTests {
         #expect(CompletedTaskRange.all.bounds(for: thursday, calendar: calendar).lowerBound == nil)
     }
 
+    @Test func completedHistoryFilterUsesShortcutAndPreciseBounds() throws {
+        let calendar = gregorianCalendar()
+        let reference = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 12)))
+        let specificMonth = CompletedHistoryFilter.specificMonth(reference)
+            .normalized(calendar: calendar)
+            .bounds(for: reference, calendar: calendar)
+        let specificDay = CompletedHistoryFilter.specificDay(reference)
+            .normalized(calendar: calendar)
+            .bounds(for: reference, calendar: calendar)
+
+        #expect(CompletedHistoryFilter.week.bounds(for: reference, calendar: calendar).lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 17)))
+        #expect(CompletedHistoryFilter.month.bounds(for: reference, calendar: calendar).lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 1)))
+        #expect(CompletedHistoryFilter.all.bounds(for: reference, calendar: calendar).lowerBound == nil)
+        #expect(specificMonth.lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 1)))
+        #expect(specificMonth.upperBound == calendar.date(from: DateComponents(year: 2030, month: 7, day: 1)))
+        #expect(specificDay.lowerBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
+        #expect(specificDay.upperBound == calendar.date(from: DateComponents(year: 2030, month: 6, day: 21)))
+    }
+
+    @Test func completedHistoryFilterNavigationSubtitleUsesShortcutAndPreciseLabels() throws {
+        let calendar = gregorianCalendar()
+        let reference = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 12)))
+
+        #expect(CompletedHistoryFilter.week.navigationSubtitle == "本周")
+        #expect(CompletedHistoryFilter.month.navigationSubtitle == "本月")
+        #expect(CompletedHistoryFilter.all.navigationSubtitle == "全部")
+        #expect(CompletedHistoryFilter.specificMonth(reference).navigationSubtitle == "2030年6月")
+        #expect(CompletedHistoryFilter.specificDay(reference).navigationSubtitle == "2030年6月20日")
+    }
+
     @Test func homeFetchIncludesOnlyIncompleteAndTodayCompletedTasks() async throws {
         let calendar = gregorianCalendar()
         let container = makeTaskSubtaskModelContainer()
@@ -169,6 +199,37 @@ struct TogetherTests {
         #expect(viewModel.weeklyCompletedEntryCount == 1)
     }
 
+    @Test func homeReloadKeepsTasksWhenWeeklyCompletedCountFails() async throws {
+        let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: .current)
+        var expectedWeeklyCount = 0
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        var items = [
+            makeHomeFilterItem(title: "未完成仍显示", completedAt: nil, status: .inProgress)
+        ]
+        if let lowerBound = weeklyRange.lowerBound,
+           let upperBound = weeklyRange.upperBound,
+           lowerBound < upperBound,
+           let completedAt = Calendar.current.date(byAdding: .hour, value: 1, to: lowerBound) {
+            items.append(makeHomeFilterItem(title: "本周完成仍计数", completedAt: completedAt, status: .completed))
+            expectedWeeklyCount = 1
+        }
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: CapturingTaskApplicationService(),
+            itemRepository: MockItemRepository(items: items, throwsOnCompletedItemCount: true),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        await viewModel.reload()
+
+        #expect(viewModel.activeTimelineEntries.map(\.title) == ["未完成仍显示"])
+        #expect(viewModel.weeklyCompletedEntryCount == expectedWeeklyCount)
+    }
+
     @Test func weeklyCompletedSheetExcludesTodayAndSortsDescending() async throws {
         var calendar = Calendar.current
         calendar.timeZone = .current
@@ -198,6 +259,40 @@ struct TogetherTests {
         #expect(viewModel.weeklyCompletedSheetItems.map(\.title) == ["昨天完成", "前天完成"])
     }
 
+    @Test func weeklyCompletedSheetSeparatesListFailureFromCount() async throws {
+        let calendar = Calendar.current
+        let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
+        guard let lowerBound = weeklyRange.lowerBound,
+              let upperBound = weeklyRange.upperBound,
+              lowerBound < upperBound else {
+            return
+        }
+        let completedAt = try #require(calendar.date(byAdding: .hour, value: 1, to: lowerBound))
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let items = [
+            makeHomeFilterItem(title: "本周完成", completedAt: completedAt, status: .completed)
+        ]
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: CapturingTaskApplicationService(),
+            itemRepository: MockItemRepository(
+                items: items,
+                throwsOnFetchCompletedItems: true
+            ),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        await viewModel.loadWeeklyCompletedSheet()
+
+        #expect(viewModel.weeklyCompletedEntryCount == 1)
+        #expect(viewModel.weeklyCompletedSheetItems.isEmpty)
+        #expect(viewModel.didFailLoadingWeeklyCompletedSheet)
+    }
+
     @Test func completedHistoryFiltersAndSearchesSubtasks() async throws {
         let now = Date.now
         var matching = makeHomeFilterItem(title: "客户资料", completedAt: now, status: .completed)
@@ -225,6 +320,19 @@ struct TogetherTests {
         #expect(viewModel.sections.count == 1)
     }
 
+    @Test func completedHistorySubtitleFallsBackToCompletionTime() async throws {
+        let calendar = gregorianCalendar()
+        let completedAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 18, minute: 30)))
+        let item = makeHomeFilterItem(title: "普通完成", completedAt: completedAt, status: .completed)
+        let viewModel = makeCompletedHistoryViewModel(items: [item], initialFilter: .all)
+
+        let subtitle = viewModel.subtitle(for: item)
+
+        #expect(subtitle.hasPrefix("完成于 "))
+        #expect(subtitle.contains(":") == false)
+        #expect(subtitle.contains("未归类任务") == false)
+    }
+
     @Test func completedHistoryAllFilterPaginates() async throws {
         let now = Date.now
         let items = (0..<35).compactMap { index -> Item? in
@@ -244,6 +352,60 @@ struct TogetherTests {
 
         #expect(viewModel.items.count == 35)
         #expect(viewModel.canLoadMore == false)
+    }
+
+    @Test func completedHistoryPreciseFiltersAndPaginationReset() async throws {
+        let calendar = gregorianCalendar()
+        let juneDay = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 10)))
+        let juneOtherDay = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 21, hour: 11)))
+        let julyDay = try #require(calendar.date(from: DateComponents(year: 2030, month: 7, day: 1, hour: 12)))
+        let items = [
+            makeHomeFilterItem(title: "六月当天", completedAt: juneDay, status: .completed),
+            makeHomeFilterItem(title: "六月其他", completedAt: juneOtherDay, status: .completed),
+            makeHomeFilterItem(title: "七月", completedAt: julyDay, status: .completed)
+        ]
+        let viewModel = makeCompletedHistoryViewModel(items: items, initialFilter: .all)
+
+        await viewModel.reload()
+        #expect(viewModel.items.count == 3)
+
+        viewModel.applyFilter(.specificMonth(juneDay))
+        await viewModel.reload()
+        #expect(viewModel.items.map(\.title) == ["六月其他", "六月当天"])
+        #expect(viewModel.canLoadMore == false)
+
+        viewModel.applyFilter(.specificDay(juneDay))
+        await viewModel.reload()
+        #expect(viewModel.items.map(\.title) == ["六月当天"])
+    }
+
+    @Test func completedItemStatsIncludesFirstAndLastCompletedDates() async throws {
+        let calendar = gregorianCalendar()
+        let older = try #require(calendar.date(from: DateComponents(year: 2030, month: 5, day: 1, hour: 9)))
+        let newer = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 1, hour: 9)))
+        let items = [
+            makeHomeFilterItem(title: "较早", completedAt: older, status: .completed),
+            makeHomeFilterItem(title: "较新", completedAt: newer, status: .completed)
+        ]
+        let mockStats = try await MockItemRepository(items: items).completedItemStats(
+            spaceID: MockDataFactory.singleSpaceID,
+            referenceDate: newer
+        )
+        #expect(mockStats.firstCompletedAt == older)
+        #expect(mockStats.lastCompletedAt == newer)
+
+        let container = makeTaskSubtaskModelContainer()
+        let context = ModelContext(container)
+        context.insert(PersistentSpace(space: MockDataFactory.makeSingleSpace()))
+        items.forEach { context.insert(PersistentItem(item: $0)) }
+        try context.save()
+
+        let localStats = try await LocalItemRepository(container: container).completedItemStats(
+            spaceID: MockDataFactory.singleSpaceID,
+            referenceDate: newer
+        )
+        #expect(localStats.firstCompletedAt == older)
+        #expect(localStats.lastCompletedAt == newer)
     }
 
     @Test func projectToTaskMigrationConvertsProjectSubtasksAndLinkedTasksOnce() async throws {

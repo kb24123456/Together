@@ -7,30 +7,120 @@ struct CompletedHistorySection: Identifiable, Hashable {
     let items: [Item]
 }
 
-enum CompletedHistoryFilter: String, CaseIterable, Identifiable, Hashable {
+enum CompletedHistoryFilter: Identifiable, Hashable {
     case week
     case month
     case all
+    case specificMonth(Date)
+    case specificDay(Date)
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .week: return "week"
+        case .month: return "month"
+        case .all: return "all"
+        case .specificMonth(let date): return "specificMonth:\(Self.dateKey(for: date, components: [.year, .month]))"
+        case .specificDay(let date): return "specificDay:\(Self.dateKey(for: date, components: [.year, .month, .day]))"
+        }
+    }
 
     var title: String {
         switch self {
         case .week: return "本周"
         case .month: return "本月"
-        case .all: return "所有"
+        case .all: return "全部"
+        case .specificMonth(let date):
+            let components = Calendar.current.dateComponents([.year, .month], from: date)
+            return "\(components.year ?? 0)年\(components.month ?? 1)月"
+        case .specificDay(let date):
+            let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+            return "\(components.year ?? 0)年\(components.month ?? 1)月\(components.day ?? 1)日"
         }
     }
 
-    var range: CompletedTaskRange {
+    var navigationSubtitle: String { title }
+
+    var shortTitle: String {
         switch self {
-        case .week: return .workweek
-        case .month: return .month
-        case .all: return .all
+        case .week, .month, .all:
+            return title
+        case .specificMonth(let date):
+            let components = Calendar.current.dateComponents([.year, .month], from: date)
+            return "\(components.year ?? 0).\(components.month ?? 1)"
+        case .specificDay(let date):
+            let components = Calendar.current.dateComponents([.month, .day], from: date)
+            return "\(components.month ?? 1).\(components.day ?? 1)"
         }
+    }
+
+    func bounds(for referenceDate: Date, calendar: Calendar) -> CompletedTaskRangeBounds {
+        switch self {
+        case .week:
+            return CompletedTaskRange.workweek.bounds(for: referenceDate, calendar: calendar)
+        case .month:
+            return CompletedTaskRange.month.bounds(for: referenceDate, calendar: calendar)
+        case .all:
+            return CompletedTaskRange.all.bounds(for: referenceDate, calendar: calendar)
+        case .specificMonth(let date):
+            return CompletedTaskRange.month.bounds(for: date, calendar: calendar)
+        case .specificDay(let date):
+            let start = calendar.startOfDay(for: date)
+            let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+            return CompletedTaskRangeBounds(lowerBound: start, upperBound: end)
+        }
+    }
+
+    func normalized(calendar: Calendar) -> CompletedHistoryFilter {
+        switch self {
+        case .specificMonth(let date):
+            let components = calendar.dateComponents([.year, .month], from: date)
+            let normalized = calendar.date(from: DateComponents(
+                year: components.year,
+                month: components.month,
+                day: 1
+            )) ?? calendar.startOfDay(for: date)
+            return .specificMonth(normalized)
+        case .specificDay(let date):
+            return .specificDay(calendar.startOfDay(for: date))
+        case .week, .month, .all:
+            return self
+        }
+    }
+
+    var monthSelectionDate: Date? {
+        if case .specificMonth(let date) = self {
+            return date
+        }
+        return nil
+    }
+
+    var isPrecise: Bool {
+        switch self {
+        case .specificMonth, .specificDay:
+            return true
+        case .week, .month, .all:
+            return false
+        }
+    }
+
+    var daySelectionDate: Date? {
+        if case .specificDay(let date) = self {
+            return date
+        }
+        return nil
+    }
+
+    private static func dateKey(for date: Date, components: Set<Calendar.Component>) -> String {
+        let values = Calendar.current.dateComponents(components, from: date)
+        let year = values.year ?? 0
+        let month = (values.month ?? 1).formatted(.number.precision(.integerLength(2)))
+        if components.contains(.day) {
+            let day = (values.day ?? 1).formatted(.number.precision(.integerLength(2)))
+            return "\(year)-\(month)-\(day)"
+        }
+        return "\(year)-\(month)"
     }
 }
-
 @MainActor
 @Observable
 final class CompletedHistoryViewModel {
@@ -46,6 +136,7 @@ final class CompletedHistoryViewModel {
     var items: [Item] = []
     var searchText = ""
     var selectedFilter: CompletedHistoryFilter
+    var completedStats = CompletedItemStats.empty
     var isLoading = false
     var hasLoaded = false
     var canLoadMore = true
@@ -66,7 +157,7 @@ final class CompletedHistoryViewModel {
         self.taskApplicationService = taskApplicationService
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
-        self.selectedFilter = initialFilter
+        self.selectedFilter = initialFilter.normalized(calendar: calendar)
     }
 
     var sections: [CompletedHistorySection] {
@@ -112,7 +203,7 @@ final class CompletedHistoryViewModel {
         await runAutoArchiveIfNeeded(spaceID: spaceID)
 
         do {
-            let bounds = selectedFilter.range.bounds(for: .now, calendar: calendar)
+            let bounds = selectedFilter.bounds(for: .now, calendar: calendar)
             let fetched = try await itemRepository.fetchCompletedItems(
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
@@ -136,6 +227,29 @@ final class CompletedHistoryViewModel {
         guard canLoadMore, isLoading == false else { return }
         guard item.id == items.last?.id else { return }
         await loadMore()
+    }
+
+    func applyFilter(_ filter: CompletedHistoryFilter) {
+        let normalized = filter.normalized(calendar: calendar)
+        guard selectedFilter != normalized else { return }
+        selectedFilter = normalized
+        items = []
+        canLoadMore = true
+        hasLoaded = false
+    }
+
+    func refreshCompletedStats() async {
+        guard let spaceID = sessionStore.currentSpace?.id else {
+            completedStats = .empty
+            return
+        }
+
+        if let stats = try? await itemRepository.completedItemStats(
+            spaceID: spaceID,
+            referenceDate: .now
+        ) {
+            completedStats = stats
+        }
     }
 
     func restore(_ item: Item) async {
@@ -191,13 +305,8 @@ final class CompletedHistoryViewModel {
         if let notes = item.notes, notes.isEmpty == false {
             return notes
         }
-        let projectName = item.projectID.flatMap { projectNames[$0] }
-        let listName = item.listID.flatMap { taskListNames[$0] }
-        let parts = [projectName, listName].compactMap { $0 }
-        if parts.isEmpty {
-            return "未归类任务"
-        }
-        return parts.joined(separator: " · ")
+        guard let completedAt = item.completedAt else { return "完成时间未知" }
+        return "完成于 \(completedAt.formatted(.dateTime.year().month().day()))"
     }
 
     func completedDateText(for item: Item) -> String {
@@ -243,7 +352,7 @@ final class CompletedHistoryViewModel {
         defer { isLoading = false }
 
         do {
-            let bounds = selectedFilter.range.bounds(for: .now, calendar: calendar)
+            let bounds = selectedFilter.bounds(for: .now, calendar: calendar)
             let fetched = try await itemRepository.fetchCompletedItems(
                 spaceID: spaceID,
                 searchText: normalizedSearchText,
@@ -313,7 +422,7 @@ final class CompletedHistoryViewModel {
         switch selectedFilter {
         case .week:
             return weekdaySortKey(for: date)
-        case .month:
+        case .month, .specificMonth(_), .specificDay(_):
             return dayKey(for: date)
         case .all:
             return monthKey(for: date)
@@ -324,7 +433,7 @@ final class CompletedHistoryViewModel {
         switch selectedFilter {
         case .week:
             return weekdayTitle(forSortKey: key)
-        case .month:
+        case .month, .specificMonth(_), .specificDay(_):
             return dayTitle(for: key)
         case .all:
             return monthTitle(for: key)

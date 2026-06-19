@@ -151,6 +151,7 @@ final class HomeViewModel {
     private var animatingReopeningOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     var isWeeklyCompletedSheetPresented = false
     var isWeeklyCompletedSheetLoading = false
+    var didFailLoadingWeeklyCompletedSheet = false
     var weeklyCompletedSheetItems: [Item] = []
     var weeklyCompletedEntryCount = 0
     var isPerformingSnooze = false
@@ -470,12 +471,7 @@ final class HomeViewModel {
                 completedFrom: completedRange.lowerBound ?? .distantPast,
                 completedBefore: completedRange.upperBound ?? .distantFuture
             )
-            let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
-            weeklyCompletedEntryCount = try await itemRepository.completedItemCount(
-                spaceID: spaceID,
-                completedFrom: weeklyRange.lowerBound,
-                completedBefore: weeklyRange.upperBound
-            )
+            await refreshWeeklyCompletedEntryCount(spaceID: spaceID)
             let visibleItemIDs = Set(fetchedItems.map(\.id))
             let persistedInsertedIDs = insertedItemIDs.intersection(visibleItemIDs)
             let nextInsertedIDs = expectedInsertedItemIDs.intersection(visibleItemIDs)
@@ -907,6 +903,7 @@ final class HomeViewModel {
         guard let spaceID = sessionStore.currentSpace?.id else {
             weeklyCompletedSheetItems = []
             weeklyCompletedEntryCount = 0
+            didFailLoadingWeeklyCompletedSheet = false
             return
         }
 
@@ -914,14 +911,10 @@ final class HomeViewModel {
         defer { isWeeklyCompletedSheetLoading = false }
 
         let range = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
+        didFailLoadingWeeklyCompletedSheet = false
 
         do {
-            async let count = itemRepository.completedItemCount(
-                spaceID: spaceID,
-                completedFrom: range.lowerBound,
-                completedBefore: range.upperBound
-            )
-            async let items = itemRepository.fetchCompletedItems(
+            weeklyCompletedSheetItems = try await itemRepository.fetchCompletedItems(
                 spaceID: spaceID,
                 searchText: nil,
                 completedFrom: range.lowerBound,
@@ -929,10 +922,45 @@ final class HomeViewModel {
                 before: nil,
                 limit: 60
             )
-            weeklyCompletedEntryCount = try await count
-            weeklyCompletedSheetItems = try await items
         } catch {
             weeklyCompletedSheetItems = []
+            didFailLoadingWeeklyCompletedSheet = true
+        }
+
+        do {
+            weeklyCompletedEntryCount = try await itemRepository.completedItemCount(
+                spaceID: spaceID,
+                completedFrom: range.lowerBound,
+                completedBefore: range.upperBound
+            )
+        } catch {
+            weeklyCompletedEntryCount = weeklyCompletedSheetItems.count
+        }
+    }
+
+    private func refreshWeeklyCompletedEntryCount(spaceID: UUID) async {
+        let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
+
+        do {
+            weeklyCompletedEntryCount = try await itemRepository.completedItemCount(
+                spaceID: spaceID,
+                completedFrom: weeklyRange.lowerBound,
+                completedBefore: weeklyRange.upperBound
+            )
+        } catch {
+            do {
+                let fallbackItems = try await itemRepository.fetchCompletedItems(
+                    spaceID: spaceID,
+                    searchText: nil,
+                    completedFrom: weeklyRange.lowerBound,
+                    completedBefore: weeklyRange.upperBound,
+                    before: nil,
+                    limit: 60
+                )
+                weeklyCompletedEntryCount = fallbackItems.count
+            } catch {
+                weeklyCompletedEntryCount = 0
+            }
         }
     }
 

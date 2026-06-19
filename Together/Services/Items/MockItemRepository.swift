@@ -5,13 +5,23 @@ final class MockItemRepository: ItemRepositoryProtocol {
     private var items: [Item]
     private var occurrenceCompletions: [UUID: [ItemOccurrenceCompletion]] = [:]
     private let calendar = Calendar.current
+    private let throwsOnCompletedItemCount: Bool
+    private let throwsOnFetchCompletedItems: Bool
 
-    init() {
+    init(throwsOnCompletedItemCount: Bool = false, throwsOnFetchCompletedItems: Bool = false) {
         self.items = MockDataFactory.makeItems()
+        self.throwsOnCompletedItemCount = throwsOnCompletedItemCount
+        self.throwsOnFetchCompletedItems = throwsOnFetchCompletedItems
     }
 
-    init(items: [Item]) {
+    init(
+        items: [Item],
+        throwsOnCompletedItemCount: Bool = false,
+        throwsOnFetchCompletedItems: Bool = false
+    ) {
         self.items = items
+        self.throwsOnCompletedItemCount = throwsOnCompletedItemCount
+        self.throwsOnFetchCompletedItems = throwsOnFetchCompletedItems
     }
 
     func fetchActiveItems(spaceID: UUID?) async throws -> [Item] {
@@ -80,6 +90,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
         return CompletedItemStats(
             totalCount: spaceItems.count,
             thisMonthCount: thisMonthCount,
+            firstCompletedAt: firstItem?.completedAt,
             firstItemTitle: firstItem?.title,
             lastCompletedAt: lastCompletedAt
         )
@@ -110,6 +121,10 @@ final class MockItemRepository: ItemRepositoryProtocol {
         before: Date?,
         limit: Int
     ) async throws -> [Item] {
+        if throwsOnFetchCompletedItems {
+            throw RepositoryError.invalidInput("completed items failed")
+        }
+
         let normalizedLimit = max(limit, 1)
         let normalizedSearch = searchText?.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -145,7 +160,11 @@ final class MockItemRepository: ItemRepositoryProtocol {
         completedFrom: Date?,
         completedBefore: Date?
     ) async throws -> Int {
-        items.filter { item in
+        if throwsOnCompletedItemCount {
+            throw RepositoryError.invalidInput("completed count failed")
+        }
+
+        return items.filter { item in
             guard item.spaceID == spaceID else { return false }
             guard let completedAt = item.completedAt else { return false }
             if let completedFrom, completedAt < completedFrom {

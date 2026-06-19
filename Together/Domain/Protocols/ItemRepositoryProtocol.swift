@@ -7,12 +7,14 @@ import Foundation
 struct CompletedItemStats: Equatable, Sendable {
     let totalCount: Int
     let thisMonthCount: Int
+    let firstCompletedAt: Date?
     let firstItemTitle: String?
     let lastCompletedAt: Date?
 
     static let empty = CompletedItemStats(
         totalCount: 0,
         thisMonthCount: 0,
+        firstCompletedAt: nil,
         firstItemTitle: nil,
         lastCompletedAt: nil
     )
