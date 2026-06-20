@@ -1326,16 +1326,16 @@ final class HomeViewModel {
                 if lhsCompletedAt != rhsCompletedAt {
                     return lhsCompletedAt < rhsCompletedAt
                 }
+            } else {
+                let lhsDueAt = timelineSortDate(for: lhs)
+                let rhsDueAt = timelineSortDate(for: rhs)
+                if lhsDueAt != rhsDueAt {
+                    return lhsDueAt < rhsDueAt
+                }
             }
 
             if lhs.sortOrder != rhs.sortOrder {
                 return lhs.sortOrder < rhs.sortOrder
-            }
-
-            let lhsDueAt = timelineSortDate(for: lhs)
-            let rhsDueAt = timelineSortDate(for: rhs)
-            if lhsDueAt != rhsDueAt {
-                return lhsDueAt < rhsDueAt
             }
 
             if lhs.createdAt != rhs.createdAt {

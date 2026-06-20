@@ -27,6 +27,7 @@ struct OCRImportView: View {
                     Button("关闭") {
                         dismiss()
                     }
+                    .font(.body)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -37,6 +38,7 @@ struct OCRImportView: View {
                             }
                         }
                     }
+                    .font(.body)
                     .disabled(viewModel.canApply == false || viewModel.draft.status == .applying)
                 }
             }

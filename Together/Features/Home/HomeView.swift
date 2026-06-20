@@ -129,7 +129,6 @@ struct HomeView: View {
                 )
                 .presentationDetents(TaskEditorMenuContext.taskInline.detents)
                 .presentationContentInteraction(.scrolls)
-                .presentationBackgroundInteraction(.enabled)
                 .presentationDragIndicator(.hidden)
                 .interactiveDismissDisabled(false)
                 .modifier(TaskEditorMenuPresentationSizingModifier())
@@ -880,9 +879,6 @@ struct HomeView: View {
                         onOpenDetail: {
                             toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
                         },
-                        onToggleSubtasks: {
-                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
-                        },
                         onCollapseDetail: {
                             toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
                         },
@@ -916,9 +912,6 @@ struct HomeView: View {
                             }
                         },
                         onOpenDetail: {
-                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
-                        },
-                        onToggleSubtasks: {
                             toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
                         },
                         onCollapseDetail: {
@@ -1914,17 +1907,39 @@ enum HomeInlineTaskLayoutMetrics {
     static let checkboxSize: CGFloat = 28
     static let titleGap: CGFloat = AppTheme.spacing.md
     static let titleLeadingInset: CGFloat = actionSlotWidth + titleGap
+    static let trailingControlWidth: CGFloat = 92
     static let rowMinHeight: CGFloat = 44
     static let detailVerticalSpacing: CGFloat = AppTheme.spacing.sm
-    static let attributeMinHeight: CGFloat = 44
+    static let attributeLeadingInset: CGFloat = 0
+    static let attributeSpacing: CGFloat = 6
+    static let attributeMinHeight: CGFloat = 36
+    static let attributeHorizontalPadding: CGFloat = 7
+    static let attributeIconSize: CGFloat = 13
+    static let attributeIconWidth: CGFloat = 15
+    static let attributeTextSize: CGFloat = 13
     static let detailTopPadding: CGFloat = AppTheme.spacing.sm
     static let detailBottomPadding: CGFloat = AppTheme.spacing.xs
 
     static func estimatedDetailHeight(subtaskCount: Int) -> CGFloat {
         let rowCount = max(subtaskCount + 3, 1)
-        let rowHeights = CGFloat(rowCount) * rowMinHeight
+        let rowHeights = CGFloat(rowCount - 1) * rowMinHeight + attributeMinHeight
         let spacings = CGFloat(max(rowCount - 1, 0)) * detailVerticalSpacing
         return detailTopPadding + rowHeights + spacings + detailBottomPadding
+    }
+}
+
+enum HomeTimelineSubtitleText {
+    static func text(for entry: HomeTimelineEntry) -> String {
+        if entry.subtasks.isEmpty == false {
+            let total = entry.subtasks.count
+            return "\(entry.subtaskCompletedCount)/\(total) 子任务"
+        }
+
+        if let notes = entry.notes, notes.isEmpty == false {
+            return notes
+        }
+
+        return entry.statusText
     }
 }
 
@@ -1940,7 +1955,6 @@ private struct HomeTimelineRow: View {
     let expandedTitle: String
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
-    let onToggleSubtasks: () -> Void
     let onCollapseDetail: () -> Void
     let onUpdateTitle: (String) -> Void
     let onInlineFocus: () -> Void
@@ -1967,54 +1981,25 @@ private struct HomeTimelineRow: View {
 
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                     if isDetailPresented {
-                        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                            expandedTitleEditor
-
-                            Spacer(minLength: 0)
-
-                            Button {
-                                HomeInteractionFeedback.selection()
-                                onCollapseDetail()
-                            } label: {
-                                Image(systemName: "chevron.up")
-                                    .font(AppTheme.typography.sized(18, weight: .bold))
-                                    .foregroundStyle(AppTheme.colors.title.opacity(0.86))
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("收起任务详情")
-                        }
-                        .contentShape(Rectangle())
+                        titleRow(isInteractive: false)
+                            .contentShape(Rectangle())
                     } else {
                         Button {
                             HomeInteractionFeedback.soft()
                             onOpenDetail()
                         } label: {
-                            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                                collapsedTitleStack
-
-                                Spacer(minLength: 0)
-
-                                VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
-                                    HomeTimelineTimeText(entry: entry)
-                                }
-                            }
-                            .contentShape(Rectangle())
+                            titleRow(isInteractive: true)
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 .padding(.top, 2)
             }
-
-            if entry.subtasks.isEmpty == false && isDetailPresented == false {
-                subtaskDisclosure
-            }
         }
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
+        .animation(rowDetailAnimation, value: isDetailPresented)
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue else { return }
 
@@ -2097,32 +2082,45 @@ private struct HomeTimelineRow: View {
     }
 
     private var displaySubtitle: String {
-        if let notes = entry.notes, notes.isEmpty == false {
-            return notes
+        HomeTimelineSubtitleText.text(for: entry)
+    }
+
+    private var showsSubtitle: Bool {
+        displaySubtitle.isEmpty == false
+    }
+
+    private func titleRow(isInteractive: Bool) -> some View {
+        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+            titleStack
+
+            Spacer(minLength: 0)
+
+            trailingControl(isInteractive: isInteractive)
         }
-        return entry.statusText
+        .contentShape(Rectangle())
     }
 
-    private var showsStandardSubtitle: Bool {
-        entry.subtasks.isEmpty
-    }
-
-    private var collapsedTitleStack: some View {
+    private var titleStack: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-            Text(entry.title)
-                .font(AppTheme.typography.sized(19, weight: .bold))
-                .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-                .lineLimit(titleLineLimit)
-                .minimumScaleFactor(titleMinimumScaleFactor)
-                .allowsTightening(true)
+            if isDetailPresented {
+                expandedTitleEditor
+            } else {
+                Text(entry.title)
+                    .font(AppTheme.typography.sized(19, weight: .bold))
+                    .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+                    .lineLimit(titleLineLimit)
+                    .minimumScaleFactor(titleMinimumScaleFactor)
+                    .allowsTightening(true)
+            }
 
-            if showsStandardSubtitle {
+            if showsSubtitle {
                 Text(displaySubtitle)
                     .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
                     .foregroundStyle(subtitleColor)
                     .lineLimit(2)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var expandedTitleEditor: some View {
@@ -2136,46 +2134,49 @@ private struct HomeTimelineRow: View {
         )
         .font(AppTheme.typography.sized(19, weight: .bold))
         .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-        .lineLimit(1...3)
+        .lineLimit(titleLineLimit)
         .minimumScaleFactor(titleMinimumScaleFactor)
         .textInputAutocapitalization(.sentences)
         .submitLabel(.done)
         .focused($isTitleFocused)
-        .onChange(of: isTitleFocused) { _, focused in
-            guard focused else { return }
-            onInlineFocus()
-        }
     }
 
-    @ViewBuilder
-    private var subtaskDisclosure: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            onToggleSubtasks()
-        } label: {
-            HStack(alignment: .center, spacing: AppTheme.spacing.xs) {
-                Text(subtaskProgressText)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+    private func trailingControl(isInteractive: Bool) -> some View {
+        ZStack(alignment: .trailing) {
+            HomeTimelineTimeText(entry: entry)
+                .opacity(isDetailPresented ? 0 : 1)
+                .scaleEffect(isDetailPresented ? 0.92 : 1, anchor: .trailing)
+                .offset(y: isDetailPresented ? -5 : 0)
 
-                Image(systemName: "chevron.down")
-                    .font(AppTheme.typography.sized(11, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.5))
+            if isInteractive {
+                Image(systemName: "chevron.up")
+                    .font(AppTheme.typography.sized(18, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title.opacity(0.86))
+                    .frame(width: 44, height: 44)
+                    .opacity(isDetailPresented ? 1 : 0)
+                    .scaleEffect(isDetailPresented ? 1 : 0.82)
+                    .offset(y: isDetailPresented ? 0 : 6)
+            } else {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    onCollapseDetail()
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .font(AppTheme.typography.sized(18, weight: .bold))
+                        .foregroundStyle(AppTheme.colors.title.opacity(0.86))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("收起任务详情")
+                .opacity(isDetailPresented ? 1 : 0)
+                .scaleEffect(isDetailPresented ? 1 : 0.82)
+                .offset(y: isDetailPresented ? 0 : 6)
+                .allowsHitTesting(isDetailPresented)
             }
-            .padding(.leading, subtaskLabelLeadingInset)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-    }
-
-    private var subtaskProgressText: String {
-        let total = entry.subtasks.count
-        return "\(entry.subtaskCompletedCount)/\(total) 子任务"
-    }
-
-    private var subtaskLabelLeadingInset: CGFloat {
-        HomeInlineTaskLayoutMetrics.titleLeadingInset
+        .frame(width: HomeInlineTaskLayoutMetrics.trailingControlWidth, height: 44, alignment: .trailing)
+        .animation(trailingAnimation, value: isDetailPresented)
     }
 
     private var subtitleColor: Color {
@@ -2188,6 +2189,14 @@ private struct HomeTimelineRow: View {
             return AppTheme.colors.coral.opacity(entry.isMuted ? 0.5 : 1)
         }
         return entry.isMuted ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.textTertiary
+    }
+
+    private var rowDetailAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.28, extraBounce: 0.02)
+    }
+
+    private var trailingAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.24, extraBounce: 0.04)
     }
 
     @ViewBuilder
@@ -2384,17 +2393,14 @@ private struct HomeInlineTaskDetailView: View {
     }
 
     private var attributePills: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: AppTheme.spacing.sm) {
-                settingButton(title: dateTitle, systemImage: "calendar", menu: .date)
-                settingButton(title: timeTitle, systemImage: "clock", menu: .time)
-                settingButton(title: reminderTitle, systemImage: "bell", menu: .reminder)
-                settingButton(title: repeatTitle, systemImage: "arrow.triangle.2.circlepath", menu: .repeatRule)
-            }
-            .padding(.leading, HomeInlineTaskLayoutMetrics.titleLeadingInset)
-            .padding(.trailing, AppTheme.spacing.xs)
+        HStack(spacing: HomeInlineTaskLayoutMetrics.attributeSpacing) {
+            settingButton(title: dateTitle, systemImage: "calendar", menu: .date)
+            settingButton(title: timeTitle, systemImage: "clock", menu: .time)
+            settingButton(title: reminderTitle, systemImage: "bell", menu: .reminder)
+            settingButton(title: repeatTitle, systemImage: "arrow.triangle.2.circlepath", menu: .repeatRule)
         }
-        .scrollIndicators(.hidden)
+        .padding(.leading, HomeInlineTaskLayoutMetrics.attributeLeadingInset)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -2404,22 +2410,23 @@ private struct HomeInlineTaskDetailView: View {
             focusedField = nil
             onOpenMenu(menu)
         } label: {
-            HStack(spacing: AppTheme.spacing.xs) {
+            HStack(spacing: 4) {
                 Image(systemName: systemImage)
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-                    .frame(width: 19)
+                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeIconSize, weight: .semibold))
+                    .frame(width: HomeInlineTaskLayoutMetrics.attributeIconWidth)
 
                 Text(title)
-                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeTextSize, weight: .semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+                    .minimumScaleFactor(0.62)
             }
+            .frame(maxWidth: .infinity, alignment: .center)
             .foregroundStyle(AppTheme.colors.title.opacity(isSettingEnabled(menu) ? 0.72 : 0.32))
-            .padding(.horizontal, AppTheme.spacing.md)
-            .frame(minWidth: 92, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
+            .padding(.horizontal, HomeInlineTaskLayoutMetrics.attributeHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
             .background(
                 Capsule(style: .continuous)
-                    .fill(AppTheme.colors.pillSurface.opacity(isSettingEnabled(menu) ? 0.78 : 0.42))
+                    .fill(Color(uiColor: .quaternarySystemFill))
             )
         }
         .buttonStyle(.plain)
@@ -2493,6 +2500,7 @@ private struct HomeInlineCascadeStack<Content: View>: View {
 
     @State private var measuredHeight: CGFloat = 0
     @State private var heightProgress: CGFloat = 0
+    @State private var heightTask: Task<Void, Never>?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -2508,31 +2516,61 @@ private struct HomeInlineCascadeStack<Content: View>: View {
         .frame(height: targetHeight * heightProgress, alignment: .top)
         .clipped()
         .onAppear {
-            heightProgress = isExpanded ? 1 : 0
+            updateHeightProgress(isExpanded, animated: isExpanded)
+        }
+        .onDisappear {
+            heightTask?.cancel()
+            heightTask = nil
         }
         .onPreferenceChange(HomeInlineDetailHeightPreferenceKey.self) { height in
             guard height > 0 else { return }
-            measuredHeight = height
-            if isExpanded {
+            if isExpanded && heightProgress > 0 {
                 withAnimation(heightAnimation) {
-                    heightProgress = 1
+                    measuredHeight = height
                 }
+            } else {
+                measuredHeight = height
             }
         }
         .onChange(of: isExpanded) { _, expanded in
-            withAnimation(heightAnimation) {
-                heightProgress = expanded ? 1 : 0
-            }
+            updateHeightProgress(expanded, animated: true)
         }
         .onChange(of: animationBatch) { _, _ in
-            withAnimation(heightAnimation) {
-                heightProgress = isExpanded ? 1 : 0
-            }
+            updateHeightProgress(isExpanded, animated: true)
         }
     }
 
     private var targetHeight: CGFloat {
         max(measuredHeight, fallbackHeight)
+    }
+
+    private func updateHeightProgress(_ expanded: Bool, animated: Bool) {
+        heightTask?.cancel()
+
+        if expanded {
+            heightProgress = 0
+            heightTask = Task { @MainActor in
+                await Task.yield()
+                guard Task.isCancelled == false else { return }
+                if animated {
+                    withAnimation(heightAnimation) {
+                        heightProgress = 1
+                    }
+                } else {
+                    heightProgress = 1
+                }
+            }
+            return
+        }
+
+        guard animated else {
+            heightProgress = 0
+            return
+        }
+
+        withAnimation(heightAnimation) {
+            heightProgress = 0
+        }
     }
 
     private var heightAnimation: Animation {
@@ -2971,7 +3009,7 @@ private struct WeeklyCompletedSheet: View {
                     } label: {
                         Text("查看全部")
                     }
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .font(.body)
                     .foregroundStyle(AppTheme.colors.sky)
                     .frame(minHeight: 44)
                 }
@@ -3179,7 +3217,6 @@ private struct HomeOverdueSummarySheet: View {
                 onOpenDetail: {
                     HomeInteractionFeedback.selection()
                 },
-                onToggleSubtasks: {},
                 onCollapseDetail: {},
                 onUpdateTitle: { _ in },
                 onInlineFocus: {}

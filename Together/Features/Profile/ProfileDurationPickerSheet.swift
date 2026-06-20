@@ -73,6 +73,7 @@ struct ProfileDurationPickerSheet: View {
                         HomeInteractionFeedback.selection()
                         onDismiss()
                     }
+                    .font(.body)
                 }
             }
         }

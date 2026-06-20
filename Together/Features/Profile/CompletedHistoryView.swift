@@ -1,12 +1,23 @@
 import SwiftUI
 
 struct CompletedHistoryView: View {
-    @Bindable var viewModel: CompletedHistoryViewModel
+    @State private var viewModel: CompletedHistoryViewModel
     @State private var isPreciseFilterPresented = false
+    @State private var didRunInitialLoad = false
+
+    init(viewModel: CompletedHistoryViewModel) {
+        self._viewModel = State(initialValue: viewModel)
+    }
 
     var body: some View {
+        @Bindable var bindableViewModel = viewModel
+
         List {
-            if viewModel.sections.isEmpty {
+            if viewModel.isInitialLoading {
+                initialLoadingSection
+            } else if viewModel.didFailLoading {
+                failedSection
+            } else if viewModel.sections.isEmpty {
                 emptySection
             } else {
                 ForEach(viewModel.sections) { section in
@@ -89,7 +100,7 @@ struct CompletedHistoryView: View {
                 preciseFilterToolbarButton
             }
         }
-        .searchable(text: $viewModel.searchText, prompt: "搜索")
+        .searchable(text: $bindableViewModel.searchText, prompt: "搜索")
         .sheet(isPresented: $isPreciseFilterPresented) {
             NavigationStack {
                 CompletedHistoryPreciseFilterSheet(
@@ -104,14 +115,18 @@ struct CompletedHistoryView: View {
             .presentationDragIndicator(.visible)
         }
         .task {
+            guard didRunInitialLoad == false else { return }
+            didRunInitialLoad = true
             await viewModel.loadIfNeeded()
             await viewModel.refreshCompletedStats()
         }
-        .task(id: viewModel.searchText) {
-            await viewModel.reload()
+        .onChange(of: viewModel.searchText) { _, _ in
+            guard didRunInitialLoad else { return }
+            Task { await viewModel.reload() }
         }
-        .task(id: viewModel.selectedFilter) {
-            await viewModel.reload()
+        .onChange(of: viewModel.selectedFilter) { _, _ in
+            guard didRunInitialLoad else { return }
+            Task { await viewModel.reload() }
         }
     }
 
@@ -122,6 +137,7 @@ struct CompletedHistoryView: View {
             quickFilterButton(title: "全部", filter: .all)
         } label: {
             Text(quickFilterMenuTitle)
+                .font(.body)
         }
         .accessibilityLabel("快捷筛选")
         .accessibilityValue(viewModel.selectedFilter.navigationSubtitle)
@@ -150,6 +166,7 @@ struct CompletedHistoryView: View {
             viewModel.applyFilter(filter)
         } label: {
             Text(title)
+                .font(.body)
         }
     }
 
@@ -202,6 +219,39 @@ struct CompletedHistoryView: View {
             illustration: "EmptyHistory",
             usesNeutralBackground: true
         )
+        .listRowInsets(EdgeInsets(top: AppTheme.spacing.lg, leading: AppTheme.spacing.lg, bottom: AppTheme.spacing.lg, trailing: AppTheme.spacing.lg))
+        .listRowBackground(AppTheme.colors.background)
+        .listRowSeparator(.hidden)
+    }
+
+    private var initialLoadingSection: some View {
+        HStack(spacing: AppTheme.spacing.md) {
+            ProgressView()
+            Text("正在加载历史任务")
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, AppTheme.spacing.xl)
+        .listRowBackground(AppTheme.colors.background)
+        .listRowSeparator(.hidden)
+    }
+
+    private var failedSection: some View {
+        VStack(spacing: AppTheme.spacing.md) {
+            EmptyStateCard(
+                title: "历史任务加载失败",
+                message: "下拉刷新或点击重试后会重新加载。",
+                systemImage: "exclamationmark.arrow.triangle.2.circlepath",
+                usesNeutralBackground: true
+            )
+
+            Button("重试") {
+                Task {
+                    await viewModel.reload()
+                }
+            }
+            .font(.body)
+        }
         .listRowInsets(EdgeInsets(top: AppTheme.spacing.lg, leading: AppTheme.spacing.lg, bottom: AppTheme.spacing.lg, trailing: AppTheme.spacing.lg))
         .listRowBackground(AppTheme.colors.background)
         .listRowSeparator(.hidden)
@@ -336,6 +386,7 @@ private struct CompletedHistoryPreciseFilterSheet: View {
                 Button("完成") {
                     dismiss()
                 }
+                .font(.body)
             }
         }
         .task {

@@ -230,6 +230,71 @@ struct TogetherTests {
         #expect(viewModel.weeklyCompletedEntryCount == expectedWeeklyCount)
     }
 
+    @Test func homeTimelineSortsIncompleteTasksByDueDateAscendingBeforeSortOrder() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let earlyDue = try #require(calendar.date(byAdding: .day, value: 1, to: todayStart))
+        let lateDue = try #require(calendar.date(byAdding: .day, value: 3, to: todayStart))
+        var early = makeHomeFilterItem(title: "更早截止", completedAt: nil, status: .inProgress)
+        early.dueAt = earlyDue
+        early.sortOrder = 99
+        var late = makeHomeFilterItem(title: "更晚截止", completedAt: nil, status: .inProgress)
+        late.dueAt = lateDue
+        late.sortOrder = 0
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: CapturingTaskApplicationService(),
+            itemRepository: MockItemRepository(items: [late, early]),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        await viewModel.reload()
+
+        #expect(viewModel.activeTimelineEntries.map(\.title) == ["更早截止", "更晚截止"])
+    }
+
+    @Test func homeSnoozeUpdatesDueDateAndResortsTimelineImmediately() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let initialDue = try #require(calendar.date(byAdding: .day, value: 1, to: todayStart))
+        let nextDue = try #require(calendar.date(byAdding: .day, value: 2, to: todayStart))
+        let laterDue = try #require(calendar.date(byAdding: .day, value: 3, to: todayStart))
+        var snoozed = makeHomeFilterItem(title: "要推迟", completedAt: nil, status: .inProgress)
+        snoozed.dueAt = initialDue
+        snoozed.sortOrder = 0
+        var later = makeHomeFilterItem(title: "后面的任务", completedAt: nil, status: .inProgress)
+        later.dueAt = nextDue
+        later.sortOrder = 1
+        var savedSnoozed = snoozed
+        savedSnoozed.dueAt = laterDue
+        savedSnoozed.updatedAt = .now
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let taskApplicationService = CapturingTaskApplicationService()
+        taskApplicationService.snoozeItemToReturn = savedSnoozed
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: taskApplicationService,
+            itemRepository: MockItemRepository(items: [snoozed, later]),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        await viewModel.reload()
+
+        await viewModel.snoozeItem(snoozed.id)
+
+        #expect(taskApplicationService.capturedSnoozeOption == .tomorrow)
+        #expect(viewModel.activeTimelineEntries.map(\.title) == ["后面的任务", "要推迟"])
+        #expect(viewModel.item(for: snoozed.id)?.dueAt == laterDue)
+    }
+
     @Test func weeklyCompletedSheetExcludesTodayAndSortsDescending() async throws {
         var calendar = Calendar.current
         calendar.timeZone = .current
@@ -318,6 +383,27 @@ struct TogetherTests {
 
         #expect(viewModel.items.map(\.title) == ["客户资料"])
         #expect(viewModel.sections.count == 1)
+    }
+
+    @Test func completedHistoryDistinguishesLoadingFailureFromEmptyState() async throws {
+        let viewModel = makeCompletedHistoryViewModel(
+            items: [makeHomeFilterItem(title: "会加载失败", completedAt: .now, status: .completed)],
+            initialFilter: .all,
+            throwsOnFetchCompletedItems: true
+        )
+
+        #expect(viewModel.isInitialLoading)
+
+        await viewModel.reload()
+
+        #expect(viewModel.hasLoaded)
+        #expect(viewModel.didFailLoading)
+        #expect(viewModel.isInitialLoading == false)
+        #expect(viewModel.isEmpty)
+
+        viewModel.applyFilter(.month)
+        #expect(viewModel.didFailLoading == false)
+        #expect(viewModel.isInitialLoading)
     }
 
     @Test func completedHistorySubtitleFallsBackToCompletionTime() async throws {
@@ -803,12 +889,52 @@ struct TogetherTests {
     @Test func inlineDetailLayoutMetricsAlignSubtasksWithParentTitle() {
         #expect(HomeInlineTaskLayoutMetrics.actionSlotWidth == 40)
         #expect(HomeInlineTaskLayoutMetrics.titleLeadingInset == HomeInlineTaskLayoutMetrics.actionSlotWidth + HomeInlineTaskLayoutMetrics.titleGap)
+        #expect(HomeInlineTaskLayoutMetrics.attributeLeadingInset == 0)
         #expect(HomeInlineTaskLayoutMetrics.checkboxSize < HomeInlineTaskLayoutMetrics.actionSlotWidth)
+        #expect(HomeInlineTaskLayoutMetrics.attributeMinHeight < HomeInlineTaskLayoutMetrics.rowMinHeight)
         #expect(HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 0) > 0)
         #expect(
             HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 2)
                 > HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 0)
         )
+    }
+
+    @Test func timelineSubtitlePrioritizesSubtaskProgress() {
+        let itemID = UUID()
+        let entry = HomeTimelineEntry(
+            id: itemID,
+            title: "信用卡商户",
+            notes: "备注不会盖过子任务",
+            timeText: "6月25日",
+            statusText: "进行中",
+            accentColorName: "sky",
+            isMuted: false,
+            isCompleted: false,
+            urgency: .normal,
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: nil,
+            subtasks: [
+                TaskSubtask(
+                    itemID: itemID,
+                    creatorID: MockDataFactory.currentUserID,
+                    title: "客户经理对接信用卡名单",
+                    isCompleted: true,
+                    sortOrder: 0
+                ),
+                TaskSubtask(
+                    itemID: itemID,
+                    creatorID: MockDataFactory.currentUserID,
+                    title: "召开线下沙龙会",
+                    isCompleted: false,
+                    sortOrder: 1
+                )
+            ],
+            subtaskCompletedCount: 1
+        )
+
+        #expect(HomeTimelineSubtitleText.text(for: entry) == "1/2 子任务")
     }
 
     @Test func inlineDetailCanCollapseTaskWithoutSubtasks() async {
@@ -864,14 +990,18 @@ private func makeInlineDetailHomeViewModel(repository: MockItemRepository) -> Ho
 @MainActor
 private func makeCompletedHistoryViewModel(
     items: [Item],
-    initialFilter: CompletedHistoryFilter
+    initialFilter: CompletedHistoryFilter,
+    throwsOnFetchCompletedItems: Bool = false
 ) -> CompletedHistoryViewModel {
     let sessionStore = SessionStore()
     sessionStore.seedMock(
         currentUser: MockDataFactory.makeCurrentUser(),
         singleSpace: MockDataFactory.makeSingleSpace()
     )
-    let itemRepository = MockItemRepository(items: items)
+    let itemRepository = MockItemRepository(
+        items: items,
+        throwsOnFetchCompletedItems: throwsOnFetchCompletedItems
+    )
     return CompletedHistoryViewModel(
         sessionStore: sessionStore,
         itemRepository: itemRepository,
@@ -996,6 +1126,7 @@ private actor CapturingNotificationService: NotificationServiceProtocol {
 @MainActor
 private final class CapturingTaskApplicationService: TaskApplicationServiceProtocol, @unchecked Sendable {
     var capturedSnoozeOption: TaskSnoozeOption?
+    var snoozeItemToReturn: Item?
     var tasksToReturn: [Item] = []
 
     func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] {
@@ -1048,6 +1179,9 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
         option: TaskSnoozeOption
     ) async throws -> Item {
         capturedSnoozeOption = option
+        if let snoozeItemToReturn {
+            return snoozeItemToReturn
+        }
         return MockDataFactory.makeItems()[0]
     }
 

@@ -67,9 +67,10 @@ struct ProfileView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: ProfileRoute.completedHistory) {
                     Text("日志")
-                        .font(AppTheme.typography.body)
-                        .fontWeight(.medium)
+                        .frame(minWidth: 54, minHeight: 34)
                 }
+                .font(.body)
+                .controlSize(.regular)
                 .accessibilityHint("查看已完成任务")
             }
         }
@@ -84,7 +85,7 @@ struct ProfileView: View {
                 )
                     .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
-                CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel())
+                CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel(initialFilter: .all))
             case .privacyPolicy:
                 ProfilePrivacyPolicyView()
             case .termsOfService:

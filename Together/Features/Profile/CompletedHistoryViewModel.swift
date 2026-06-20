@@ -139,10 +139,12 @@ final class CompletedHistoryViewModel {
     var completedStats = CompletedItemStats.empty
     var isLoading = false
     var hasLoaded = false
+    var didFailLoading = false
     var canLoadMore = true
 
     private var projectNames: [UUID: String] = [:]
     private var taskListNames: [UUID: String] = [:]
+    private var reloadGeneration = 0
 
     init(
         sessionStore: SessionStore,
@@ -183,21 +185,34 @@ final class CompletedHistoryViewModel {
         hasLoaded && items.isEmpty
     }
 
+    var isInitialLoading: Bool {
+        didFailLoading == false && (hasLoaded == false || (isLoading && items.isEmpty))
+    }
+
     func loadIfNeeded() async {
         guard hasLoaded == false else { return }
         await reload()
     }
 
     func reload() async {
+        reloadGeneration += 1
+        let generation = reloadGeneration
+
         guard let spaceID = sessionStore.currentSpace?.id else {
             items = []
             canLoadMore = false
             hasLoaded = true
+            didFailLoading = false
             return
         }
 
         isLoading = true
-        defer { isLoading = false }
+        didFailLoading = false
+        defer {
+            if generation == reloadGeneration {
+                isLoading = false
+            }
+        }
 
         await refreshReferenceNames(spaceID: spaceID)
         await runAutoArchiveIfNeeded(spaceID: spaceID)
@@ -212,13 +227,17 @@ final class CompletedHistoryViewModel {
                 before: nil,
                 limit: pageSize
             )
+            guard generation == reloadGeneration else { return }
             items = fetched
             canLoadMore = fetched.count == pageSize
             hasLoaded = true
+            didFailLoading = false
         } catch {
+            guard generation == reloadGeneration else { return }
             items = []
             canLoadMore = false
             hasLoaded = true
+            didFailLoading = true
         }
 
     }
@@ -232,10 +251,12 @@ final class CompletedHistoryViewModel {
     func applyFilter(_ filter: CompletedHistoryFilter) {
         let normalized = filter.normalized(calendar: calendar)
         guard selectedFilter != normalized else { return }
+        reloadGeneration += 1
         selectedFilter = normalized
         items = []
         canLoadMore = true
         hasLoaded = false
+        didFailLoading = false
     }
 
     func refreshCompletedStats() async {

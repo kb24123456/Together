@@ -32,6 +32,7 @@ struct EditProfileView: View {
                     HomeInteractionFeedback.selection()
                     handleDismissTapped()
                 }
+                .font(.body)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -45,6 +46,7 @@ struct EditProfileView: View {
                         }
                     }
                 }
+                .font(.body)
                 .disabled(viewModel.isSaveDisabled)
             }
         }
@@ -340,6 +342,7 @@ struct AvatarCropperView: View {
                         onCancel()
                         dismiss()
                     }
+                    .font(.body)
                     .foregroundStyle(Color.white)
                 }
             }
