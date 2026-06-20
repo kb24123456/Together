@@ -719,6 +719,111 @@ struct TogetherTests {
         #expect(entry.subtasks.filter(\.isCompleted).count == 1)
         #expect(entry.subtaskCompletedCount == 1)
     }
+
+    @Test func inlineDetailExpansionCreatesDraftAndSavesWhenSwitchingTasks() async throws {
+        let first = makeHomeFilterItem(title: "第一条", completedAt: nil, status: .inProgress)
+        let second = makeHomeFilterItem(title: "第二条", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [first, second])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        await viewModel.toggleInlineDetail(first.id)
+
+        #expect(viewModel.expandedDetailItemID == first.id)
+        #expect(viewModel.inlineDetailDraft?.title == "第一条")
+
+        viewModel.updateDraftTitle("第一条已编辑")
+        await viewModel.toggleInlineDetail(second.id)
+
+        #expect(viewModel.expandedDetailItemID == second.id)
+        #expect(try await repository.fetchItem(itemID: first.id)?.title == "第一条已编辑")
+    }
+
+    @Test func inlineDetailSettingsPersistThroughExistingUpdatePath() async throws {
+        let calendar = Calendar.current
+        let item = makeHomeFilterItem(title: "设置任务", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+        let dueDate = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
+        let dueTime = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 18, minute: 30)))
+        let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 18)))
+        let repeatRule = ItemRepeatRule(frequency: .weekly, weekday: 5)
+
+        await viewModel.reload()
+        await viewModel.toggleInlineDetail(item.id)
+        viewModel.updateDraftDueDate(dueDate)
+        viewModel.updateDraftDueTime(dueTime)
+        viewModel.updateDraftReminder(remindAt)
+        viewModel.updateDraftRepeatRule(repeatRule)
+        await viewModel.saveDetailDraft()
+
+        let saved = try #require(try await repository.fetchItem(itemID: item.id))
+        #expect(saved.dueAt == dueTime)
+        #expect(saved.hasExplicitTime)
+        #expect(saved.remindAt == remindAt)
+        #expect(saved.repeatRule == repeatRule)
+    }
+
+    @Test func inlineDetailSubtaskEditingPersistsAndReorders() async throws {
+        var item = makeHomeFilterItem(title: "子任务任务", completedAt: nil, status: .inProgress)
+        item.subtasks = [
+            TaskSubtask(
+                itemID: item.id,
+                creatorID: MockDataFactory.currentUserID,
+                title: "旧子任务",
+                isCompleted: false,
+                sortOrder: 0
+            )
+        ]
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        await viewModel.toggleInlineDetail(item.id)
+        let firstSubtaskID = try #require(viewModel.inlineDetailDraft?.subtasks.first?.id)
+
+        viewModel.updateDetailDraftSubtask(firstSubtaskID, title: "新子任务")
+        viewModel.addDetailDraftSubtask(title: "补充子任务")
+        let secondSubtaskID = try #require(viewModel.inlineDetailDraft?.subtasks.last?.id)
+        viewModel.toggleDetailDraftSubtask(secondSubtaskID)
+        viewModel.deleteDetailDraftSubtask(firstSubtaskID)
+        await viewModel.saveDetailDraft()
+
+        let saved = try #require(try await repository.fetchItem(itemID: item.id))
+        #expect(saved.subtasks.map(\.title) == ["补充子任务"])
+        #expect(saved.subtasks.map(\.isCompleted) == [true])
+        #expect(saved.subtasks.map(\.sortOrder) == [0])
+    }
+
+    @Test func inlineDetailMenuDoesNotExposeSubtasks() {
+        #expect(TaskEditorMenuContext.taskInline.menus == [.date, .time, .reminder, .repeatRule])
+        #expect(TaskEditorMenuContext.taskInline.menus.contains(.subtasks) == false)
+    }
+
+    @Test func inlineDetailLayoutMetricsAlignSubtasksWithParentTitle() {
+        #expect(HomeInlineTaskLayoutMetrics.actionSlotWidth == 40)
+        #expect(HomeInlineTaskLayoutMetrics.titleLeadingInset == HomeInlineTaskLayoutMetrics.actionSlotWidth + HomeInlineTaskLayoutMetrics.titleGap)
+        #expect(HomeInlineTaskLayoutMetrics.checkboxSize < HomeInlineTaskLayoutMetrics.actionSlotWidth)
+        #expect(HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 0) > 0)
+        #expect(
+            HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 2)
+                > HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 0)
+        )
+    }
+
+    @Test func inlineDetailCanCollapseTaskWithoutSubtasks() async {
+        let item = makeHomeFilterItem(title: "无子任务", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        await viewModel.toggleInlineDetail(item.id)
+        #expect(viewModel.expandedDetailItemID == item.id)
+
+        await viewModel.collapseInlineDetail()
+        #expect(viewModel.expandedDetailItemID == nil)
+        #expect(viewModel.inlineDetailDraft == nil)
+    }
 }
 
 private func makeTaskSubtaskApplicationService() -> DefaultTaskApplicationService {
@@ -733,6 +838,26 @@ private func makeTaskSubtaskItemRepository() -> LocalItemRepository {
     LocalItemRepository(
         container: makeTaskSubtaskModelContainer(),
         syncCoordinator: NoOpSyncCoordinator()
+    )
+}
+
+@MainActor
+private func makeInlineDetailHomeViewModel(repository: MockItemRepository) -> HomeViewModel {
+    let sessionStore = SessionStore()
+    sessionStore.seedMock(
+        currentUser: MockDataFactory.makeCurrentUser(),
+        singleSpace: MockDataFactory.makeSingleSpace()
+    )
+    let taskService = DefaultTaskApplicationService(
+        itemRepository: repository,
+        syncCoordinator: NoOpSyncCoordinator(),
+        reminderScheduler: MockReminderScheduler()
+    )
+    return HomeViewModel(
+        sessionStore: sessionStore,
+        taskApplicationService: taskService,
+        itemRepository: repository,
+        taskTemplateRepository: MockTaskTemplateRepository()
     )
 }
 

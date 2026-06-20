@@ -1277,7 +1277,7 @@ private struct HomeDetailDateMenuDetent: CustomPresentationDetent {
     }
 }
 
-private struct HomeDetailMenuSheet: View {
+struct HomeDetailMenuSheet: View {
     let context: TaskEditorMenuContext
     @Binding var activeMenu: TaskEditorMenu
     @Bindable var viewModel: HomeViewModel
@@ -1490,7 +1490,7 @@ private struct HomeDetailMenuSheet: View {
     }
 
     private var stagedDisabledMenus: Set<TaskEditorMenu> {
-        guard context == .task else { return disabledMenus }
+        guard context == .task || context == .taskInline else { return disabledMenus }
         return stagedReminderContext.isReminderMenuDisabled ? [.reminder] : []
     }
 

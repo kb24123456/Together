@@ -63,6 +63,7 @@ enum TaskEditorMenu: String, Identifiable {
 enum TaskEditorMenuContext: Equatable {
     case templates
     case task
+    case taskInline
     case project
     case periodic
 
@@ -70,6 +71,8 @@ enum TaskEditorMenuContext: Equatable {
         switch self {
         case .task:
             return [.date, .time, .reminder, .repeatRule, .subtasks]
+        case .taskInline:
+            return [.date, .time, .reminder, .repeatRule]
         case .project:
             return [.date]
         case .templates:
@@ -85,7 +88,7 @@ enum TaskEditorMenuContext: Equatable {
 
     private var unifiedPresentationHeight: CGFloat {
         switch self {
-        case .task, .project, .periodic:
+        case .task, .taskInline, .project, .periodic:
             return TaskEditorTimePickerSheet.preferredHeight(
                 showsQuickPresets: true,
                 showsPrimaryButton: false

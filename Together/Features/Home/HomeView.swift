@@ -23,6 +23,9 @@ struct HomeView: View {
     @State private var isMonthPagerSettling = false
     @State private var highlightedTaskID: UUID?
     @State private var isTimelineReorderingActive = false
+    @State private var activeInlineDetailMenu: TaskEditorMenu?
+    @State private var collapsingInlineDetailID: UUID?
+    @State private var inlineDetailAnimationBatch = 0
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -57,15 +60,6 @@ struct HomeView: View {
                     .offset(y: contentCardVerticalOffset)
                     .scaleEffect(contentCardScale, anchor: .top)
 
-                if viewModel.selectedItemID != nil {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            HomeInteractionFeedback.selection()
-                            viewModel.dismissItemDetail()
-                        }
-                }
             }
         }
         .font(AppTheme.typography.body)
@@ -77,14 +71,6 @@ struct HomeView: View {
         .task(id: viewModel.selectedDateKey) {
             await viewModel.reload(reason: .dateChange)
             updateTodayJumpButtonVisibility()
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.selectedItemID != nil },
-                set: { if !$0 { viewModel.dismissItemDetail() } }
-            )
-        ) {
-            HomeItemDetailSheet(viewModel: viewModel)
         }
         .sheet(
             isPresented: Binding(
@@ -117,6 +103,38 @@ struct HomeView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(
+            isPresented: Binding(
+                get: { activeInlineDetailMenu != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        activeInlineDetailMenu = nil
+                    }
+                }
+            )
+        ) {
+            if let menuBinding = activeInlineDetailMenuBinding {
+                HomeDetailMenuSheet(
+                    context: .taskInline,
+                    activeMenu: menuBinding,
+                    viewModel: viewModel,
+                    templates: [],
+                    isLoadingTemplates: false,
+                    onTemplatePicked: { _ in },
+                    onTemplateDeleted: { _ in },
+                    disabledMenus: inlineDetailDisabledMenus,
+                    onDismiss: {
+                        activeInlineDetailMenu = nil
+                    }
+                )
+                .presentationDetents(TaskEditorMenuContext.taskInline.detents)
+                .presentationContentInteraction(.scrolls)
+                .presentationBackgroundInteraction(.enabled)
+                .presentationDragIndicator(.hidden)
+                .interactiveDismissDisabled(false)
+                .modifier(TaskEditorMenuPresentationSizingModifier())
+            }
+        }
         .onAppear {
             isCompletedSectionVisible = true
         }
@@ -134,6 +152,18 @@ struct HomeView: View {
 
     private var backgroundView: some View {
         GradientGridBackground()
+    }
+
+    private var activeInlineDetailMenuBinding: Binding<TaskEditorMenu>? {
+        guard let activeInlineDetailMenu else { return nil }
+        return Binding(
+            get: { self.activeInlineDetailMenu ?? activeInlineDetailMenu },
+            set: { self.activeInlineDetailMenu = $0 }
+        )
+    }
+
+    private var inlineDetailDisabledMenus: Set<TaskEditorMenu> {
+        viewModel.inlineDetailDraft?.hasExplicitTime == true ? [] : [.reminder]
     }
 
     private var showsStartupRestoreStatus: Bool {
@@ -507,7 +537,7 @@ struct HomeView: View {
                 .transition(timelineTransition)
             } else {
                 ScrollViewReader { scrollProxy in
-                    timelineList
+                    timelineList(scrollProxy: scrollProxy)
                         .id("timeline-\(viewModel.selectedDateKey)")
                         .transition(timelineTransition)
                         .onReceive(NotificationCenter.default.publisher(for: .openTaskFromNudge)) { notif in
@@ -542,6 +572,46 @@ struct HomeView: View {
         }
     }
 
+    private func toggleInlineDetail(_ itemID: UUID, scrollProxy: ScrollViewProxy) {
+        HomeInteractionFeedback.soft()
+        Task { @MainActor in
+            if viewModel.expandedDetailItemID == itemID {
+                collapsingInlineDetailID = itemID
+                inlineDetailAnimationBatch += 1
+                try? await Task.sleep(for: .milliseconds(inlineCollapseDelayMilliseconds))
+                guard collapsingInlineDetailID == itemID else { return }
+                await viewModel.collapseInlineDetail()
+                collapsingInlineDetailID = nil
+                return
+            }
+
+            collapsingInlineDetailID = nil
+            await viewModel.toggleInlineDetail(itemID)
+            inlineDetailAnimationBatch += 1
+            guard viewModel.expandedDetailItemID == itemID else { return }
+            try? await Task.sleep(for: .milliseconds(90))
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                scrollProxy.scrollTo(inlineDetailAnchorID(for: itemID), anchor: .center)
+            }
+        }
+    }
+
+    private func isInlineDetailPresented(for itemID: UUID) -> Bool {
+        viewModel.expandedDetailItemID == itemID || collapsingInlineDetailID == itemID
+    }
+
+    private func isInlineDetailVisuallyExpanded(for itemID: UUID) -> Bool {
+        viewModel.expandedDetailItemID == itemID && collapsingInlineDetailID != itemID
+    }
+
+    private var inlineCollapseDelayMilliseconds: UInt64 {
+        360
+    }
+
+    private func inlineDetailAnchorID(for itemID: UUID) -> String {
+        "inline-detail-\(itemID.uuidString)"
+    }
+
     private var projectsModeContent: some View {
         ProjectsListContent(
             viewModel: projectsViewModel,
@@ -573,11 +643,11 @@ struct HomeView: View {
             .animation(calendarModeAnimation, value: viewModel.calendarDisplayMode)
     }
 
-    private var timelineList: some View {
-        standardTimelineList
+    private func timelineList(scrollProxy: ScrollViewProxy) -> some View {
+        standardTimelineList(scrollProxy: scrollProxy)
     }
 
-    private var standardTimelineList: some View {
+    private func standardTimelineList(scrollProxy: ScrollViewProxy) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if viewModel.showsOverdueCapsule {
@@ -613,7 +683,8 @@ struct HomeView: View {
 
                 timelineRows(
                     viewModel.activeTimelineEntries,
-                    rowTransition: activeRowTransition
+                    rowTransition: activeRowTransition,
+                    scrollProxy: scrollProxy
                 )
 
                 if viewModel.hasCompletedEntries {
@@ -627,7 +698,7 @@ struct HomeView: View {
                             )
                         )
 
-                    completedTimelineSection
+                    completedTimelineSection(scrollProxy: scrollProxy)
                 }
 
                 if viewModel.hasWeeklyCompletedEntries {
@@ -744,14 +815,15 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private var completedTimelineSection: some View {
+    private func completedTimelineSection(scrollProxy: ScrollViewProxy) -> some View {
         timelineRows(
             viewModel.completedTimelineEntries,
             rowTransition: completedRowTransition,
             sectionVisibility: CompletedSectionVisibility(
                 isVisible: isCompletedSectionVisible,
                 count: viewModel.completedTimelineEntries.count
-            )
+            ),
+            scrollProxy: scrollProxy
         )
     }
 
@@ -777,11 +849,14 @@ struct HomeView: View {
     private func timelineRows(
         _ entries: [HomeTimelineEntry],
         rowTransition: AnyTransition? = nil,
-        sectionVisibility: CompletedSectionVisibility? = nil
+        sectionVisibility: CompletedSectionVisibility? = nil,
+        scrollProxy: ScrollViewProxy
     ) -> some View {
         ForEach(entries) { entry in
             let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
-            Group {
+            let isDetailPresented = isInlineDetailPresented(for: entry.id)
+            let isDetailExpanded = isInlineDetailVisuallyExpanded(for: entry.id)
+            VStack(alignment: .leading, spacing: 0) {
                 if entry.isCompleted {
                     HomeTimelineRow(
                         entry: entry,
@@ -789,7 +864,9 @@ struct HomeView: View {
                         isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.id, on: viewModel.selectedDate),
                         titleLineLimit: 1,
                         titleMinimumScaleFactor: 0.72,
-                        isSubtasksExpanded: viewModel.isTaskSubtasksExpanded(entry.id),
+                        isDetailPresented: isDetailPresented,
+                        isDetailExpanded: isDetailExpanded,
+                        expandedTitle: viewModel.inlineDetailDraft?.title ?? entry.title,
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -801,14 +878,20 @@ struct HomeView: View {
                             }
                         },
                         onOpenDetail: {
-                            viewModel.presentItemDetail(entry.id)
+                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
                         },
                         onToggleSubtasks: {
-                            viewModel.toggleTimelineSubtasks(entry.id)
+                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
                         },
-                        onToggleSubtask: { subtaskID in
-                            Task {
-                                await viewModel.toggleTaskSubtask(itemID: entry.id, subtaskID: subtaskID)
+                        onCollapseDetail: {
+                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
+                        },
+                        onUpdateTitle: { title in
+                            viewModel.updateDraftTitle(title)
+                        },
+                        onInlineFocus: {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                scrollProxy.scrollTo(inlineDetailAnchorID(for: entry.id), anchor: .center)
                             }
                         }
                     )
@@ -819,7 +902,9 @@ struct HomeView: View {
                         isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.id, on: viewModel.selectedDate),
                         titleLineLimit: 2,
                         titleMinimumScaleFactor: 0.84,
-                        isSubtasksExpanded: viewModel.isTaskSubtasksExpanded(entry.id),
+                        isDetailPresented: isDetailPresented,
+                        isDetailExpanded: isDetailExpanded,
+                        expandedTitle: viewModel.inlineDetailDraft?.title ?? entry.title,
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -831,14 +916,20 @@ struct HomeView: View {
                             }
                         },
                         onOpenDetail: {
-                            viewModel.presentItemDetail(entry.id)
+                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
                         },
                         onToggleSubtasks: {
-                            viewModel.toggleTimelineSubtasks(entry.id)
+                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
                         },
-                        onToggleSubtask: { subtaskID in
-                            Task {
-                                await viewModel.toggleTaskSubtask(itemID: entry.id, subtaskID: subtaskID)
+                        onCollapseDetail: {
+                            toggleInlineDetail(entry.id, scrollProxy: scrollProxy)
+                        },
+                        onUpdateTitle: { title in
+                            viewModel.updateDraftTitle(title)
+                        },
+                        onInlineFocus: {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                scrollProxy.scrollTo(inlineDetailAnchorID(for: entry.id), anchor: .center)
                             }
                         }
                     )
@@ -870,6 +961,24 @@ struct HomeView: View {
                             Label("推迟到明天", systemImage: "calendar.badge.clock")
                         }
 
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            Task {
+                                _ = await viewModel.saveItemAsTemplateResult(entry.id)
+                            }
+                        } label: {
+                            Label("存为模板", systemImage: "bookmark")
+                        }
+
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            Task {
+                                await viewModel.convertItemToPeriodicTask(entry.id)
+                            }
+                        } label: {
+                            Label("转为例行任务", systemImage: "arrow.triangle.2.circlepath")
+                        }
+
                         if viewModel.canDeleteItem(entry.id) {
                             Button(role: .destructive) {
                                 HomeInteractionFeedback.delete()
@@ -881,6 +990,28 @@ struct HomeView: View {
                             }
                         }
                     }
+                }
+
+                if isDetailPresented {
+                    HomeInlineTaskDetailView(
+                        entry: entry,
+                        viewModel: viewModel,
+                        isExpanded: isDetailExpanded,
+                        animationBatch: inlineDetailAnimationBatch,
+                        onOpenMenu: { menu in
+                            activeInlineDetailMenu = menu
+                        },
+                        onFocus: {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                scrollProxy.scrollTo(inlineDetailAnchorID(for: entry.id), anchor: .center)
+                            }
+                        }
+                    )
+                    .id(inlineDetailAnchorID(for: entry.id))
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .move(edge: .top))
+                    ))
                 }
             }
             .id(entry.id)
@@ -1778,6 +1909,25 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
 }
 #endif
 
+enum HomeInlineTaskLayoutMetrics {
+    static let actionSlotWidth: CGFloat = 40
+    static let checkboxSize: CGFloat = 28
+    static let titleGap: CGFloat = AppTheme.spacing.md
+    static let titleLeadingInset: CGFloat = actionSlotWidth + titleGap
+    static let rowMinHeight: CGFloat = 44
+    static let detailVerticalSpacing: CGFloat = AppTheme.spacing.sm
+    static let attributeMinHeight: CGFloat = 44
+    static let detailTopPadding: CGFloat = AppTheme.spacing.sm
+    static let detailBottomPadding: CGFloat = AppTheme.spacing.xs
+
+    static func estimatedDetailHeight(subtaskCount: Int) -> CGFloat {
+        let rowCount = max(subtaskCount + 3, 1)
+        let rowHeights = CGFloat(rowCount) * rowMinHeight
+        let spacings = CGFloat(max(rowCount - 1, 0)) * detailVerticalSpacing
+        return detailTopPadding + rowHeights + spacings + detailBottomPadding
+    }
+}
+
 private struct HomeTimelineRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: HomeTimelineEntry
@@ -1785,11 +1935,16 @@ private struct HomeTimelineRow: View {
     let isAnimatingReopening: Bool
     let titleLineLimit: Int
     let titleMinimumScaleFactor: CGFloat
-    let isSubtasksExpanded: Bool
+    let isDetailPresented: Bool
+    let isDetailExpanded: Bool
+    let expandedTitle: String
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
     let onToggleSubtasks: () -> Void
-    let onToggleSubtask: (UUID) -> Void
+    let onCollapseDetail: () -> Void
+    let onUpdateTitle: (String) -> Void
+    let onInlineFocus: () -> Void
+    @FocusState private var isTitleFocused: Bool
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
@@ -1811,41 +1966,49 @@ private struct HomeTimelineRow: View {
                 .contentShape(Rectangle())
 
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                    Button {
-                        HomeInteractionFeedback.soft()
-                        onOpenDetail()
-                    } label: {
+                    if isDetailPresented {
                         HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                                Text(entry.title)
-                                    .font(AppTheme.typography.sized(19, weight: .bold))
-                                    .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-                                    .lineLimit(titleLineLimit)
-                                    .minimumScaleFactor(titleMinimumScaleFactor)
-                                    .allowsTightening(true)
-
-                                if showsStandardSubtitle {
-                                    Text(displaySubtitle)
-                                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                                        .foregroundStyle(subtitleColor)
-                                        .lineLimit(2)
-                                }
-                            }
+                            expandedTitleEditor
 
                             Spacer(minLength: 0)
 
-                            VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
-                                HomeTimelineTimeText(entry: entry)
+                            Button {
+                                HomeInteractionFeedback.selection()
+                                onCollapseDetail()
+                            } label: {
+                                Image(systemName: "chevron.up")
+                                    .font(AppTheme.typography.sized(18, weight: .bold))
+                                    .foregroundStyle(AppTheme.colors.title.opacity(0.86))
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("收起任务详情")
                         }
                         .contentShape(Rectangle())
+                    } else {
+                        Button {
+                            HomeInteractionFeedback.soft()
+                            onOpenDetail()
+                        } label: {
+                            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+                                collapsedTitleStack
+
+                                Spacer(minLength: 0)
+
+                                VStack(alignment: .trailing, spacing: AppTheme.spacing.xs) {
+                                    HomeTimelineTimeText(entry: entry)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.top, 2)
             }
 
-            if entry.subtasks.isEmpty == false {
+            if entry.subtasks.isEmpty == false && isDetailPresented == false {
                 subtaskDisclosure
             }
         }
@@ -1944,49 +2107,66 @@ private struct HomeTimelineRow: View {
         entry.subtasks.isEmpty
     }
 
+    private var collapsedTitleStack: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+            Text(entry.title)
+                .font(AppTheme.typography.sized(19, weight: .bold))
+                .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+                .lineLimit(titleLineLimit)
+                .minimumScaleFactor(titleMinimumScaleFactor)
+                .allowsTightening(true)
+
+            if showsStandardSubtitle {
+                Text(displaySubtitle)
+                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                    .foregroundStyle(subtitleColor)
+                    .lineLimit(2)
+            }
+        }
+    }
+
+    private var expandedTitleEditor: some View {
+        TextField(
+            "任务标题",
+            text: Binding(
+                get: { expandedTitle },
+                set: onUpdateTitle
+            ),
+            axis: .vertical
+        )
+        .font(AppTheme.typography.sized(19, weight: .bold))
+        .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+        .lineLimit(1...3)
+        .minimumScaleFactor(titleMinimumScaleFactor)
+        .textInputAutocapitalization(.sentences)
+        .submitLabel(.done)
+        .focused($isTitleFocused)
+        .onChange(of: isTitleFocused) { _, focused in
+            guard focused else { return }
+            onInlineFocus()
+        }
+    }
+
     @ViewBuilder
     private var subtaskDisclosure: some View {
-        HomeSubtaskDisclosureStack(
-            isExpanded: subtaskExpansionBinding,
-            labelLeadingInset: subtaskLabelLeadingInset,
-            rowCount: entry.subtasks.count,
-            animation: subtaskExpandedStateAnimation,
-            reduceMotion: reduceMotion
-        ) {
-            Text(subtaskProgressText)
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
-        } content: { isContentVisible in
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(entry.subtasks.enumerated()), id: \.element.id) { index, subtask in
-                    HomeSubtaskCascadeRow(
-                        index: index,
-                        rowCount: entry.subtasks.count,
-                        isVisible: isContentVisible,
-                        reduceMotion: reduceMotion
-                    ) {
-                        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                            SubtaskCheckbox(
-                                isCompleted: subtask.isCompleted,
-                                onToggle: { onToggleSubtask(subtask.id) }
-                            )
-                            .offset(x: 6)
-                            .frame(width: 40, height: 44)
+        Button {
+            HomeInteractionFeedback.selection()
+            onToggleSubtasks()
+        } label: {
+            HStack(alignment: .center, spacing: AppTheme.spacing.xs) {
+                Text(subtaskProgressText)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
 
-                            Text(subtask.title)
-                                .font(AppTheme.typography.sized(14, weight: .medium))
-                                .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.44 : 0.82))
-                                .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.32))
-                                .lineLimit(2)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, AppTheme.spacing.xs)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    }
-                }
+                Image(systemName: "chevron.down")
+                    .font(AppTheme.typography.sized(11, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.5))
             }
-            .padding(.top, AppTheme.spacing.xs)
+            .padding(.leading, subtaskLabelLeadingInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 
     private var subtaskProgressText: String {
@@ -1995,21 +2175,7 @@ private struct HomeTimelineRow: View {
     }
 
     private var subtaskLabelLeadingInset: CGFloat {
-        40 + AppTheme.spacing.md
-    }
-
-    private var subtaskExpansionBinding: Binding<Bool> {
-        Binding(
-            get: { isSubtasksExpanded },
-            set: { newValue in
-                guard newValue != isSubtasksExpanded else { return }
-                onToggleSubtasks()
-            }
-        )
-    }
-
-    private var subtaskExpandedStateAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .spring(response: 0.32, dampingFraction: 0.86)
+        HomeInlineTaskLayoutMetrics.titleLeadingInset
     }
 
     private var subtitleColor: Color {
@@ -2101,151 +2267,459 @@ private struct HomeTimelineRow: View {
     }
 }
 
-private struct HomeSubtaskDisclosureStack<Label: View, Content: View>: View {
-    @Binding var isExpanded: Bool
-    let labelLeadingInset: CGFloat
-    let rowCount: Int
-    let animation: Animation
-    let reduceMotion: Bool
-    @ViewBuilder let label: Label
-    let content: (Bool) -> Content
+private struct HomeInlineTaskDetailView: View {
+    let entry: HomeTimelineEntry
+    @Bindable var viewModel: HomeViewModel
+    let isExpanded: Bool
+    let animationBatch: Int
+    let onOpenMenu: (TaskEditorMenu) -> Void
+    let onFocus: () -> Void
 
-    @State private var rendersContent = false
-    @State private var isContentVisible = false
-    @State private var layoutProgress: CGFloat = 0
-    @State private var visibilityTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focusedField: InlineTaskDetailField?
+    @State private var newSubtaskTitle = ""
 
-    init(
-        isExpanded: Binding<Bool>,
-        labelLeadingInset: CGFloat,
-        rowCount: Int,
-        animation: Animation,
-        reduceMotion: Bool,
-        @ViewBuilder label: () -> Label,
-        @ViewBuilder content: @escaping (Bool) -> Content
-    ) {
-        self._isExpanded = isExpanded
-        self.labelLeadingInset = labelLeadingInset
-        self.rowCount = rowCount
-        self.animation = animation
-        self.reduceMotion = reduceMotion
-        self.label = label()
-        self.content = content
+    private enum InlineTaskDetailField: Hashable {
+        case notes
+        case newSubtask
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                HomeInteractionFeedback.selection()
-                withAnimation(animation) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(alignment: .center, spacing: AppTheme.spacing.xs) {
-                    label
+        HomeInlineCascadeStack(
+            isExpanded: isExpanded,
+            animationBatch: animationBatch,
+            reduceMotion: reduceMotion,
+            fallbackHeight: HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: subtasks.count)
+        ) {
+            VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
+                notesEditor
+                    .modifier(cascadeItem(index: 0))
 
-                    Image(systemName: "chevron.down")
-                        .font(AppTheme.typography.sized(11, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.5))
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                ForEach(Array(subtasks.enumerated()), id: \.element.id) { index, subtask in
+                    HomeInlineSubtaskRow(
+                        subtask: subtask,
+                        viewModel: viewModel,
+                        onFocus: onFocus
+                    )
+                    .modifier(cascadeItem(index: index + 1))
                 }
-                .padding(.leading, labelLeadingInset)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+
+                addSubtaskRow
+                    .modifier(cascadeItem(index: subtasks.count + 1))
+
+                attributePills
+                    .modifier(cascadeItem(index: subtasks.count + 2))
+            }
+            .padding(.top, HomeInlineTaskLayoutMetrics.detailTopPadding)
+            .padding(.bottom, HomeInlineTaskLayoutMetrics.detailBottomPadding)
+        }
+        .animation(detailAnimation, value: viewModel.inlineDetailDraft?.subtasks)
+        .onChange(of: focusedField) { _, field in
+            guard field != nil else { return }
+            onFocus()
+        }
+    }
+
+    private var subtasks: [TaskSubtaskDraft] {
+        viewModel.inlineDetailDraft?.subtasks ?? []
+    }
+
+    private var cascadeRowCount: Int {
+        subtasks.count + 3
+    }
+
+    private func cascadeItem(index: Int) -> HomeInlineCascadeItemModifier {
+        HomeInlineCascadeItemModifier(
+            index: index,
+            rowCount: cascadeRowCount,
+            isExpanded: isExpanded,
+            animationBatch: animationBatch,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    private var notesEditor: some View {
+        TextField(
+            "添加备注...",
+            text: Binding(
+                get: { viewModel.inlineDetailDraft?.notes ?? "" },
+                set: { viewModel.updateDraftNotes($0) }
+            ),
+            axis: .vertical
+        )
+        .font(AppTheme.typography.sized(16, weight: .medium))
+        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+        .lineLimit(1...4)
+        .textInputAutocapitalization(.sentences)
+        .focused($focusedField, equals: .notes)
+        .padding(.leading, HomeInlineTaskLayoutMetrics.titleLeadingInset)
+        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var addSubtaskRow: some View {
+        HStack(alignment: .center, spacing: HomeInlineTaskLayoutMetrics.titleGap) {
+            Image(systemName: "plus")
+                .font(AppTheme.typography.sized(13, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(canAddSubtask ? 0.72 : 0.38))
+                .frame(width: HomeInlineTaskLayoutMetrics.actionSlotWidth, height: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .trailing)
+
+            TextField("添加子任务", text: $newSubtaskTitle)
+                .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .focused($focusedField, equals: .newSubtask)
+                .onSubmit(addSubtask)
+
+            Button("添加") {
+                addSubtask()
             }
             .buttonStyle(.plain)
-
-            if rendersContent {
-                content(isContentVisible)
-                    .frame(height: estimatedContentHeight * layoutProgress, alignment: .top)
-                    .clipped()
-                    .allowsHitTesting(isExpanded && isContentVisible)
-            }
+            .font(AppTheme.typography.sized(14, weight: .bold))
+            .foregroundStyle(canAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
+            .disabled(!canAddSubtask)
         }
-        .onAppear {
-            guard isExpanded else { return }
-            rendersContent = true
-            isContentVisible = true
-            layoutProgress = 1
-        }
-        .onDisappear {
-            visibilityTask?.cancel()
-        }
-        .onChange(of: isExpanded) { _, expanded in
-            updateContentVisibility(expanded)
-        }
+        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .leading)
     }
 
-    private func updateContentVisibility(_ expanded: Bool) {
-        visibilityTask?.cancel()
-
-        if expanded {
-            rendersContent = true
-            isContentVisible = false
-            layoutProgress = 0
-            visibilityTask = Task { @MainActor in
-                await Task.yield()
-                guard Task.isCancelled == false else { return }
-                withAnimation(animation) {
-                    layoutProgress = 1
-                    isContentVisible = true
-                }
+    private var attributePills: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: AppTheme.spacing.sm) {
+                settingButton(title: dateTitle, systemImage: "calendar", menu: .date)
+                settingButton(title: timeTitle, systemImage: "clock", menu: .time)
+                settingButton(title: reminderTitle, systemImage: "bell", menu: .reminder)
+                settingButton(title: repeatTitle, systemImage: "arrow.triangle.2.circlepath", menu: .repeatRule)
             }
-            return
+            .padding(.leading, HomeInlineTaskLayoutMetrics.titleLeadingInset)
+            .padding(.trailing, AppTheme.spacing.xs)
         }
-
-        withAnimation(animation) {
-            layoutProgress = 0
-            isContentVisible = false
-        }
-
-        visibilityTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(collapseDelayMilliseconds))
-            guard Task.isCancelled == false else { return }
-            withAnimation(animation) {
-                rendersContent = false
-            }
-        }
+        .scrollIndicators(.hidden)
     }
 
-    private var collapseDelayMilliseconds: UInt64 {
-        guard reduceMotion == false else { return 150 }
-        let cascadeDelay = Double(max(rowCount - 1, 0)) * 34
-        return UInt64(max(cascadeDelay + 230, 340))
+    @ViewBuilder
+    private func settingButton(title: String, systemImage: String, menu: TaskEditorMenu) -> some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            focusedField = nil
+            onOpenMenu(menu)
+        } label: {
+            HStack(spacing: AppTheme.spacing.xs) {
+                Image(systemName: systemImage)
+                    .font(AppTheme.typography.sized(16, weight: .semibold))
+                    .frame(width: 19)
+
+                Text(title)
+                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+            .foregroundStyle(AppTheme.colors.title.opacity(isSettingEnabled(menu) ? 0.72 : 0.32))
+            .padding(.horizontal, AppTheme.spacing.md)
+            .frame(minWidth: 92, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AppTheme.colors.pillSurface.opacity(isSettingEnabled(menu) ? 0.78 : 0.42))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isSettingEnabled(menu))
     }
 
-    private var estimatedContentHeight: CGFloat {
-        AppTheme.spacing.xs + CGFloat(rowCount) * 44
+    private var canAddSubtask: Bool {
+        !newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func addSubtask() {
+        let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return }
+        HomeInteractionFeedback.soft()
+        withAnimation(detailAnimation) {
+            viewModel.addDetailDraftSubtask(title: trimmed)
+            newSubtaskTitle = ""
+        }
+        focusedField = .newSubtask
+    }
+
+    private var dateTitle: String {
+        guard let dueAt = viewModel.inlineDetailDraft?.dueAt else { return "日期" }
+        if Calendar.current.isDateInToday(dueAt) {
+            return "今天"
+        }
+        return dueAt.formatted(.dateTime.locale(Locale(identifier: "zh_CN")).month().day())
+    }
+
+    private var timeTitle: String {
+        guard viewModel.inlineDetailDraft?.hasExplicitTime == true,
+              let dueAt = viewModel.inlineDetailDraft?.dueAt
+        else { return "时间" }
+        return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    }
+
+    private var reminderTitle: String {
+        guard let remindAt = viewModel.inlineDetailDraft?.remindAt else { return "提醒" }
+        guard let dueAt = viewModel.inlineDetailDraft?.dueAt else {
+            return remindAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+        }
+
+        let target = viewModel.inlineDetailDraft?.hasExplicitTime == true
+            ? dueAt
+            : Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
+        let delta = target.timeIntervalSince(remindAt)
+        return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
+    }
+
+    private var repeatTitle: String {
+        guard let rule = viewModel.inlineDetailDraft?.repeatRule else { return "重复" }
+        let anchor = viewModel.inlineDetailDraft?.dueAt ?? viewModel.selectedDate
+        return rule.title(anchorDate: anchor, calendar: .current)
+    }
+
+    private func isSettingEnabled(_ menu: TaskEditorMenu) -> Bool {
+        menu != .reminder || viewModel.inlineDetailDraft?.hasExplicitTime == true
+    }
+
+    private var detailAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.16) : .spring(response: 0.34, dampingFraction: 0.86)
     }
 }
 
-private struct HomeSubtaskCascadeRow<Content: View>: View {
-    let index: Int
-    let rowCount: Int
-    let isVisible: Bool
+private struct HomeInlineCascadeStack<Content: View>: View {
+    let isExpanded: Bool
+    let animationBatch: Int
     let reduceMotion: Bool
+    let fallbackHeight: CGFloat
     @ViewBuilder let content: Content
 
+    @State private var measuredHeight: CGFloat = 0
+    @State private var heightProgress: CGFloat = 0
+
     var body: some View {
-        content
-            .opacity(isVisible ? 1 : 0)
-            .offset(y: isVisible ? 0 : 14)
-            .scaleEffect(isVisible ? 1 : 0.985, anchor: .top)
-            .animation(rowAnimation, value: isVisible)
+        ZStack(alignment: .topLeading) {
+            content
+                .fixedSize(horizontal: false, vertical: true)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: HomeInlineDetailHeightPreferenceKey.self, value: proxy.size.height)
+                    }
+                }
+        }
+        .frame(height: targetHeight * heightProgress, alignment: .top)
+        .clipped()
+        .onAppear {
+            heightProgress = isExpanded ? 1 : 0
+        }
+        .onPreferenceChange(HomeInlineDetailHeightPreferenceKey.self) { height in
+            guard height > 0 else { return }
+            measuredHeight = height
+            if isExpanded {
+                withAnimation(heightAnimation) {
+                    heightProgress = 1
+                }
+            }
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            withAnimation(heightAnimation) {
+                heightProgress = expanded ? 1 : 0
+            }
+        }
+        .onChange(of: animationBatch) { _, _ in
+            withAnimation(heightAnimation) {
+                heightProgress = isExpanded ? 1 : 0
+            }
+        }
     }
 
-    private var rowAnimation: Animation {
+    private var targetHeight: CGFloat {
+        max(measuredHeight, fallbackHeight)
+    }
+
+    private var heightAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.34, extraBounce: 0.02)
+    }
+}
+
+private struct HomeInlineDetailHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct HomeInlineCascadeItemModifier: ViewModifier {
+    let index: Int
+    let rowCount: Int
+    let isExpanded: Bool
+    let animationBatch: Int
+    let reduceMotion: Bool
+
+    @State private var isVisible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : (reduceMotion ? 0 : 14))
+            .scaleEffect(isVisible ? 1 : 0.985, anchor: .top)
+            .onAppear {
+                isVisible = false
+                guard isExpanded else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    updateVisibility(true, animated: true)
+                }
+            }
+            .onChange(of: isExpanded) { _, expanded in
+                updateVisibility(expanded, animated: true)
+            }
+            .onChange(of: animationBatch) { _, _ in
+                updateVisibility(isExpanded, animated: true)
+            }
+    }
+
+    private func updateVisibility(_ visible: Bool, animated: Bool) {
+        guard animated else {
+            isVisible = visible
+            return
+        }
+        withAnimation(rowAnimation(expanding: visible)) {
+            isVisible = visible
+        }
+    }
+
+    private func rowAnimation(expanding: Bool) -> Animation {
         if reduceMotion {
             return .easeInOut(duration: 0.14)
         }
+        let delay = expanding
+            ? Double(index) * 0.045
+            : Double(max(rowCount - index - 1, 0)) * 0.032
+        return .snappy(duration: 0.28, extraBounce: 0.02).delay(delay)
+    }
+}
 
-        let delay: TimeInterval
-        if isVisible {
-            delay = Double(index) * 0.045
-        } else {
-            delay = Double(max(rowCount - index - 1, 0)) * 0.034
+private struct HomeInlineSubtaskRow: View {
+    let subtask: TaskSubtaskDraft
+    @Bindable var viewModel: HomeViewModel
+    let onFocus: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isEditing = false
+    @State private var draftTitle = ""
+
+    var body: some View {
+        HStack(alignment: .center, spacing: HomeInlineTaskLayoutMetrics.titleGap) {
+            HomeInlineSubtaskCheckbox(
+                isCompleted: subtask.isCompleted,
+                onToggle: {
+                    HomeInteractionFeedback.selection()
+                    viewModel.toggleDetailDraftSubtask(subtask.id)
+                }
+            )
+
+            if isEditing {
+                TextField("", text: $draftTitle, prompt: Text(subtask.title))
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($isFocused)
+                    .onSubmit(commit)
+                    .onChange(of: isFocused) { _, focused in
+                        if focused {
+                            onFocus()
+                        } else if isEditing {
+                            commit()
+                        }
+                    }
+            } else {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    draftTitle = subtask.title
+                    isEditing = true
+                    isFocused = true
+                } label: {
+                    Text(subtask.title)
+                        .font(AppTheme.typography.sized(15, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 0.9))
+                        .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.36))
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                HomeInteractionFeedback.selection()
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    viewModel.deleteDetailDraftSubtask(subtask.id)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(AppTheme.typography.sized(10, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.46))
+                    .frame(width: 18, height: 18)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除子任务")
         }
-        return .spring(response: 0.28, dampingFraction: 0.86).delay(delay)
+        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .leading)
+        .onChange(of: subtask.title) { _, title in
+            guard !isEditing else { return }
+            draftTitle = title
+        }
+    }
+
+    private func commit() {
+        let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer {
+            isEditing = false
+            isFocused = false
+            draftTitle = ""
+        }
+        guard trimmed.isEmpty == false, trimmed != subtask.title else { return }
+        viewModel.updateDetailDraftSubtask(subtask.id, title: trimmed)
+    }
+}
+
+private struct HomeInlineSubtaskCheckbox: View {
+    let isCompleted: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            ZStack {
+                RoundedRectangle(cornerRadius: AppTheme.radius.xs, style: .continuous)
+                    .strokeBorder(
+                        isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.44),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [3.2, 4.0])
+                    )
+
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(13, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.coral)
+                    .opacity(isCompleted ? 1 : 0)
+                    .offset(
+                        x: AppTheme.metrics.checkmarkVisualOffset.width,
+                        y: AppTheme.metrics.checkmarkVisualOffset.height
+                    )
+            }
+            .frame(
+                width: HomeInlineTaskLayoutMetrics.checkboxSize,
+                height: HomeInlineTaskLayoutMetrics.checkboxSize
+            )
+            .frame(
+                width: HomeInlineTaskLayoutMetrics.actionSlotWidth,
+                height: HomeInlineTaskLayoutMetrics.rowMinHeight,
+                alignment: .trailing
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -2693,7 +3167,9 @@ private struct HomeOverdueSummarySheet: View {
                 isAnimatingReopening: false,
                 titleLineLimit: 1,
                 titleMinimumScaleFactor: 0.68,
-                isSubtasksExpanded: false,
+                isDetailPresented: false,
+                isDetailExpanded: false,
+                expandedTitle: entry.title,
                 onToggleCompletion: {
                     HomeInteractionFeedback.completion()
                     Task {
@@ -2701,10 +3177,12 @@ private struct HomeOverdueSummarySheet: View {
                     }
                 },
                 onOpenDetail: {
-                    viewModel.presentItemDetail(entry.id)
+                    HomeInteractionFeedback.selection()
                 },
                 onToggleSubtasks: {},
-                onToggleSubtask: { _ in }
+                onCollapseDetail: {},
+                onUpdateTitle: { _ in },
+                onInlineFocus: {}
             )
             .padding(.vertical, AppTheme.spacing.md)
         }

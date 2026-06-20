@@ -31,9 +31,11 @@
   - 2026-06-19 “已完成”归档页重构为完整历史入口：支持本周 / 本月 / 所有分段筛选、搜索标题/备注/子任务、按周几/日期/月分组，使用系统 `List` + 分页加载和任务风格 completed row；恢复任务统一走重新打开任务，不只是取消归档。
   - 2026-06-19 已完成归档页继续原生化：`本周已完成` sheet 和完整 `已完成`页都改为原生 `NavigationStack` / toolbar / `List`；完整页顶部快捷 `Menu` 只负责本周 / 本月 / 全部，底部搜索使用系统 `.searchable` + `DefaultToolbarItem(kind: .search, placement: .bottomBar)`，右侧精确筛选按钮为原生 bottom toolbar item。
   - 2026-06-20 已完成归档页精确筛选改为原生 sheet：底部 toolbar 筛选按钮显示明确 SF Symbol 图标，sheet 使用固定 detent；日期和月份两种模式放在同一固定高度内容区，避免切换时 sheet 高度跳变。
+  - 2026-06-20 首页任务详情改为内联展开编辑：`HomeView` 不再呈现 `HomeItemDetailSheet`；任务行点击后在当前任务流内展开标题、备注、子任务和日期/时间/提醒/重复设置。子任务新增、改名、勾选、删除都留在展开区内，日期/时间/提醒/重复复用现有 `TaskEditorUnifiedMenuSheet`，并新增 `.taskInline` 菜单上下文排除 `.subtasks`。
+  - 2026-06-20 首页内联详情视觉修正：展开区取消备注、子任务、属性逐项描边圆角卡片，改为平铺视觉；展开态右侧日期位置统一为收起 chevron；子任务行复用父任务 action gutter 对齐规则，属性使用浅底胶囊按钮。
   - 2026-06-14 普通任务子任务已落地：新增独立 `TaskSubtask` / `PersistentTaskSubtask`，`Item.subtasks` 与 `TaskDraft.subtasks` 走本地 SwiftData hydrate；不复用 `ProjectSubtask`，不引入 Supabase 或多人能力；删除父任务会 tombstone 普通任务子任务。
   - 普通任务子任务应用服务已接入 `TaskApplicationServiceProtocol` / `DefaultTaskApplicationService`，支持新增、勾选、改名、删除；子任务完成只更新子任务和父任务 `updatedAt`，不会自动完成父任务。
-  - 普通任务创建器、详情页和 Today Timeline 已接入子任务：创建器通过“子任务” chip 内联编辑；详情页 `.subtasks` 面板可新增/编辑/删除；Timeline 有子任务摘要，可展开后直接勾选，但卡片内不提供新增/删除输入。
+  - 普通任务创建器和首页 Timeline 已接入子任务：创建器通过“子任务” chip 内联编辑；首页任务展开区可新增/编辑/删除/勾选子任务；Timeline 折叠态保留子任务进度摘要。
   - 任务模板已保存和恢复普通任务子任务；`TaskTemplate` 用 Codable 子任务草稿数组，`PersistentTaskTemplate.subtasksData` 存储。
   - 项目子任务 UI 已调整为与项目标题左边缘对齐，保留子任务 checkbox 44pt 命中区。
   - 已删除旧 Supabase / RevenueCat / Paywall / PremiumGate / webhook 代码与 Supabase 目录。
@@ -46,11 +48,12 @@
   - 2026-06-14 普通任务子任务验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖创建 hydrate 排序、整单更新过滤空标题、勾选最后子任务不自动完成父任务、删除父任务隐藏子任务、模板保存/恢复子任务、Timeline entry 子任务数据。
   - 2026-06-14 普通任务子任务构建：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；仍有既有 Swift 6 actor isolation / Widget / Notification warning，本次新增的 `TaskSubtaskDraft` Equatable warning 已收敛。
   - 2026-06-19 已完成任务分层 focused 测试：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖 CompletedTaskRange、首页今天已完成过滤、本周 sheet 排除今天、计数失败不清空首页主任务流、已完成页子任务搜索与所有历史分页。
+  - 2026-06-20 首页内联详情验证通过：`git diff --check`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet`、XcodeBuildMCP `build_run_sim` 均通过；新增测试覆盖展开任务生成 draft、切换展开任务保存上一条、日期/时间/提醒/重复走现有 update path、子任务新增/改名/删除、`.taskInline` 不暴露 `.subtasks`、无子任务任务可收起、父子任务对齐 metrics。
   - 2026-06-19 已完成任务分层构建验证：`git diff --check` 通过；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；XcodeBuildMCP `build_run_sim` 通过并已 stop app。仍有既有 Swift 6 actor isolation / notification warning，本轮未处理。
   - XcodeBuildMCP `build_run_sim` 通过。
   - XcodeBuildMCP `test_sim` 通过，4/4 passed。
 - 已知遗留：
-  - 首页改为 `ScrollView` 后失去 `List.onMove` 和原生 swipe 行为；本轮用 context menu / 详情页承接删除、推迟等操作，排序入口后续单独评估。
+  - 首页改为 `ScrollView` 后失去 `List.onMove` 和原生 swipe 行为；本轮用 context menu / 内联详情承接删除、推迟等操作，排序入口后续单独评估。
   - 仍有既有 Swift 6 actor/concurrency warnings，主要在权限服务、repository、widget shared store 和 mock avatar uploader；本轮未扩展处理。
   - OCR 未做真机拍照与真实 iCloud 同步验收；模拟器只能验证构建、启动、照片入口和 parser 测试。
   - `SyncCoordinatorProtocol` 仍作为 repository 兼容 no-op 存在；没有手写 CloudKit 发送/拉取链路，后续可进一步删除 repository 层 `recordLocalChange` 样板。

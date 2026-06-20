@@ -272,6 +272,12 @@ final class AppContext {
         homeViewModel.onTodayDataChanged = { [weak self] in
             Task { await self?.refreshTodayWidgetSnapshot() }
         }
+        homeViewModel.onConvertToPeriodicTask = { [weak self] title in
+            guard let self else { return }
+            router.pendingComposerTitle = title
+            router.pendingPeriodicCycle = nil
+            router.activeComposer = .newPeriodicTask
+        }
         profileViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
         }

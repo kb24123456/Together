@@ -134,7 +134,6 @@ final class HomeViewModel {
     private var savedDetailDraft: TaskDraft?
     private var hasCompletedDeferredMaintenance = false
     private var insertedItemIDs: Set<UUID> = []
-    private var expandedSubtaskItemIDs: Set<UUID> = []
     private(set) var selectedDateTransitionEdge: Edge = .trailing
     private(set) var selectedDateTransitionStyle: HomeDateTransitionStyle = .sameWeek
 
@@ -295,6 +294,14 @@ final class HomeViewModel {
         return items.first(where: { $0.id == selectedItemID })
     }
 
+    var expandedDetailItemID: UUID? {
+        selectedItemID
+    }
+
+    var inlineDetailDraft: TaskDraft? {
+        detailDraft
+    }
+
     var canEditSelectedItem: Bool {
         guard let item = selectedItem, let userID = sessionStore.currentUser?.id else { return true }
         return SoloPermissionService.canEditTask(item, actorID: userID)
@@ -320,7 +327,7 @@ final class HomeViewModel {
     }
 
     var hasUnsavedDetailChanges: Bool {
-        guard detailDetent == .large, let detailDraft else { return false }
+        guard let detailDraft else { return false }
         return detailDraft != savedDetailDraft
     }
 
@@ -511,6 +518,27 @@ final class HomeViewModel {
         detailDraft = draft
         savedDetailDraft = draft
         detailDetent = .height(316)
+    }
+
+    func toggleInlineDetail(_ itemID: UUID) async {
+        if selectedItemID == itemID {
+            await collapseInlineDetail()
+            return
+        }
+
+        if selectedItemID != nil {
+            await saveDetailDraft()
+        }
+
+        presentItemDetail(itemID)
+        markDetailForExpandedEditing()
+    }
+
+    func collapseInlineDetail() async {
+        if hasUnsavedDetailChanges {
+            await saveDetailDraft()
+        }
+        dismissItemDetail()
     }
 
     func dismissItemDetail() {
@@ -707,10 +735,29 @@ final class HomeViewModel {
             return nil
         }
 
-        let trimmedTitle = detailDraft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return await saveTaskTemplate(from: detailDraft, in: spaceID)
+    }
+
+    func saveItemAsTemplateResult(_ itemID: UUID) async -> TaskTemplateSaveResult? {
+        guard let spaceID = sessionStore.currentSpace?.id else { return nil }
+
+        let draft: TaskDraft?
+        if selectedItemID == itemID {
+            await saveDetailDraft()
+            draft = detailDraft
+        } else {
+            draft = item(for: itemID).map(TaskDraft.init(item:))
+        }
+
+        guard let draft else { return nil }
+        return await saveTaskTemplate(from: draft, in: spaceID)
+    }
+
+    private func saveTaskTemplate(from draft: TaskDraft, in spaceID: UUID) async -> TaskTemplateSaveResult? {
+        let trimmedTitle = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.isEmpty == false else { return nil }
 
-        let template = TaskTemplate(spaceID: spaceID, draft: detailDraft, calendar: calendar)
+        let template = TaskTemplate(spaceID: spaceID, draft: draft, calendar: calendar)
 
         do {
             let existing = try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
@@ -855,6 +902,23 @@ final class HomeViewModel {
         guard let draft = detailDraft else { return }
         let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         await deleteSelectedItem()
+        onConvertToPeriodicTask?(title)
+    }
+
+    func convertItemToPeriodicTask(_ itemID: UUID) async {
+        let fallbackTitle = item(for: itemID)?.title.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if selectedItemID == itemID {
+            await saveDetailDraft()
+        }
+
+        let draftTitle = selectedItemID == itemID
+            ? detailDraft?.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            : nil
+        let title = [draftTitle, fallbackTitle].compactMap { $0 }.first { $0.isEmpty == false } ?? ""
+
+        await deleteItem(itemID)
+        guard title.isEmpty == false else { return }
         onConvertToPeriodicTask?(title)
     }
 
@@ -1075,46 +1139,7 @@ final class HomeViewModel {
         }
     }
 
-    func isTaskSubtasksExpanded(_ itemID: UUID) -> Bool {
-        expandedSubtaskItemIDs.contains(itemID)
-    }
-
-    func toggleTimelineSubtasks(_ itemID: UUID) {
-        if expandedSubtaskItemIDs.contains(itemID) {
-            expandedSubtaskItemIDs.remove(itemID)
-        } else {
-            expandedSubtaskItemIDs.insert(itemID)
-        }
-    }
-
-    func toggleTaskSubtask(itemID: UUID, subtaskID: UUID) async {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else { return }
-
-        do {
-            let saved = try await taskApplicationService.toggleTaskSubtask(
-                in: spaceID,
-                taskID: itemID,
-                subtaskID: subtaskID,
-                actorID: actorID
-            )
-            replaceItemPreservingOrder(saved)
-            if selectedItemID == itemID {
-                let refreshedDraft = TaskDraft(item: saved)
-                detailDraft = refreshedDraft
-                savedDetailDraft = refreshedDraft
-            }
-            emitTaskMutation(spaceID: spaceID)
-            onTodayDataChanged?()
-        } catch {
-            return
-        }
-    }
-
     private func scheduleDetailSave(immediately: Bool = false) {
-        guard detailDetent != .large else { return }
         detailSaveTask?.cancel()
         detailSaveTask = Task { [weak self] in
             guard let self else { return }

@@ -36,7 +36,6 @@ struct AppRootView: View {
                 }
         }
         .background(GradientGridBackground())
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .sheet(item: $router.activeComposer, onDismiss: {
             router.pendingComposerTitle = nil
             router.pendingPeriodicCycle = nil
