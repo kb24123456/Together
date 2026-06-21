@@ -136,8 +136,7 @@ struct CompletedHistoryView: View {
             quickFilterButton(title: "本月", filter: .month)
             quickFilterButton(title: "全部", filter: .all)
         } label: {
-            Text(quickFilterMenuTitle)
-                .font(.body)
+            ToolbarTextActionLabel(title: quickFilterMenuTitle)
         }
         .accessibilityLabel("快捷筛选")
         .accessibilityValue(viewModel.selectedFilter.navigationSubtitle)
@@ -166,7 +165,6 @@ struct CompletedHistoryView: View {
             viewModel.applyFilter(filter)
         } label: {
             Text(title)
-                .font(.body)
         }
     }
 
@@ -183,6 +181,7 @@ struct CompletedHistoryView: View {
                 : "line.3.horizontal.decrease.circle"
             )
         }
+        .font(.body)
         .tint(viewModel.selectedFilter.isPrecise ? AppTheme.colors.sky : nil)
         .accessibilityLabel("精确筛选")
         .accessibilityValue(viewModel.selectedFilter.isPrecise ? viewModel.selectedFilter.title : "未启用")

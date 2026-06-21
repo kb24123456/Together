@@ -66,11 +66,8 @@ struct ProfileView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: ProfileRoute.completedHistory) {
-                    Text("日志")
-                        .frame(minWidth: 54, minHeight: 34)
+                    ToolbarTextActionLabel(title: "日志")
                 }
-                .font(.body)
-                .controlSize(.regular)
                 .accessibilityHint("查看已完成任务")
             }
         }

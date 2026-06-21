@@ -611,6 +611,16 @@ struct HomeView: View {
         "inline-detail-\(itemID.uuidString)"
     }
 
+    private func scrollToInlineFocus(
+        _ target: HomeInlineFocusTarget,
+        itemID: UUID,
+        scrollProxy: ScrollViewProxy
+    ) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            scrollProxy.scrollTo(target.anchorID(for: itemID), anchor: target.scrollAnchor)
+        }
+    }
+
     private var projectsModeContent: some View {
         ProjectsListContent(
             viewModel: projectsViewModel,
@@ -885,10 +895,8 @@ struct HomeView: View {
                         onUpdateTitle: { title in
                             viewModel.updateDraftTitle(title)
                         },
-                        onInlineFocus: {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                scrollProxy.scrollTo(inlineDetailAnchorID(for: entry.id), anchor: .center)
-                            }
+                        onInlineFocus: { target in
+                            scrollToInlineFocus(target, itemID: entry.id, scrollProxy: scrollProxy)
                         }
                     )
                 } else {
@@ -920,10 +928,8 @@ struct HomeView: View {
                         onUpdateTitle: { title in
                             viewModel.updateDraftTitle(title)
                         },
-                        onInlineFocus: {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                scrollProxy.scrollTo(inlineDetailAnchorID(for: entry.id), anchor: .center)
-                            }
+                        onInlineFocus: { target in
+                            scrollToInlineFocus(target, itemID: entry.id, scrollProxy: scrollProxy)
                         }
                     )
                     .modifier(
@@ -994,10 +1000,8 @@ struct HomeView: View {
                         onOpenMenu: { menu in
                             activeInlineDetailMenu = menu
                         },
-                        onFocus: {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                scrollProxy.scrollTo(inlineDetailAnchorID(for: entry.id), anchor: .center)
-                            }
+                        onFocus: { target in
+                            scrollToInlineFocus(target, itemID: entry.id, scrollProxy: scrollProxy)
                         }
                     )
                     .id(inlineDetailAnchorID(for: entry.id))
@@ -1928,6 +1932,30 @@ enum HomeInlineTaskLayoutMetrics {
     }
 }
 
+private enum HomeInlineFocusTarget: Hashable {
+    case title
+    case notes
+    case newSubtask
+    case subtask(UUID)
+
+    func anchorID(for itemID: UUID) -> String {
+        switch self {
+        case .title:
+            return "inline-title-\(itemID.uuidString)"
+        case .notes:
+            return "inline-notes-\(itemID.uuidString)"
+        case .newSubtask:
+            return "inline-new-subtask-\(itemID.uuidString)"
+        case .subtask(let subtaskID):
+            return "inline-subtask-\(itemID.uuidString)-\(subtaskID.uuidString)"
+        }
+    }
+
+    var scrollAnchor: UnitPoint {
+        .center
+    }
+}
+
 enum HomeTimelineSubtitleText {
     static func text(for entry: HomeTimelineEntry) -> String {
         if entry.subtasks.isEmpty == false {
@@ -1940,6 +1968,26 @@ enum HomeTimelineSubtitleText {
         }
 
         return entry.statusText
+    }
+}
+
+private struct HomeTimelineRowShell<Symbol: View, Content: View>: View {
+    let symbol: Symbol
+    let content: Content
+
+    init(
+        @ViewBuilder symbol: () -> Symbol,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.symbol = symbol()
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+            symbol
+            content
+        }
     }
 }
 
@@ -1957,7 +2005,7 @@ private struct HomeTimelineRow: View {
     let onOpenDetail: () -> Void
     let onCollapseDetail: () -> Void
     let onUpdateTitle: (String) -> Void
-    let onInlineFocus: () -> Void
+    let onInlineFocus: (HomeInlineFocusTarget) -> Void
     @FocusState private var isTitleFocused: Bool
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
@@ -1971,14 +2019,14 @@ private struct HomeTimelineRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+            HomeTimelineRowShell {
                 Button(action: onToggleCompletion) {
                     timelineSymbol
                         .frame(width: 40, height: 40)
                 }
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
-
+            } content: {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                     if isDetailPresented {
                         titleRow(isInteractive: false)
@@ -2139,44 +2187,20 @@ private struct HomeTimelineRow: View {
         .textInputAutocapitalization(.sentences)
         .submitLabel(.done)
         .focused($isTitleFocused)
+        .id(HomeInlineFocusTarget.title.anchorID(for: entry.id))
+        .onChange(of: isTitleFocused) { _, isFocused in
+            guard isFocused else { return }
+            onInlineFocus(.title)
+        }
     }
 
     private func trailingControl(isInteractive: Bool) -> some View {
-        ZStack(alignment: .trailing) {
-            HomeTimelineTimeText(entry: entry)
-                .opacity(isDetailPresented ? 0 : 1)
-                .scaleEffect(isDetailPresented ? 0.92 : 1, anchor: .trailing)
-                .offset(y: isDetailPresented ? -5 : 0)
-
-            if isInteractive {
-                Image(systemName: "chevron.up")
-                    .font(AppTheme.typography.sized(18, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title.opacity(0.86))
-                    .frame(width: 44, height: 44)
-                    .opacity(isDetailPresented ? 1 : 0)
-                    .scaleEffect(isDetailPresented ? 1 : 0.82)
-                    .offset(y: isDetailPresented ? 0 : 6)
-            } else {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    onCollapseDetail()
-                } label: {
-                    Image(systemName: "chevron.up")
-                        .font(AppTheme.typography.sized(18, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.title.opacity(0.86))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("收起任务详情")
-                .opacity(isDetailPresented ? 1 : 0)
-                .scaleEffect(isDetailPresented ? 1 : 0.82)
-                .offset(y: isDetailPresented ? 0 : 6)
-                .allowsHitTesting(isDetailPresented)
-            }
-        }
-        .frame(width: HomeInlineTaskLayoutMetrics.trailingControlWidth, height: 44, alignment: .trailing)
-        .animation(trailingAnimation, value: isDetailPresented)
+        HomeTimelineTrailingControl(
+            entry: entry,
+            isDetailPresented: isDetailPresented,
+            isInteractive: isInteractive,
+            onCollapseDetail: onCollapseDetail
+        )
     }
 
     private var subtitleColor: Color {
@@ -2193,10 +2217,6 @@ private struct HomeTimelineRow: View {
 
     private var rowDetailAnimation: Animation {
         reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.28, extraBounce: 0.02)
-    }
-
-    private var trailingAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.24, extraBounce: 0.04)
     }
 
     @ViewBuilder
@@ -2282,7 +2302,7 @@ private struct HomeInlineTaskDetailView: View {
     let isExpanded: Bool
     let animationBatch: Int
     let onOpenMenu: (TaskEditorMenu) -> Void
-    let onFocus: () -> Void
+    let onFocus: (HomeInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedField: InlineTaskDetailField?
@@ -2291,6 +2311,15 @@ private struct HomeInlineTaskDetailView: View {
     private enum InlineTaskDetailField: Hashable {
         case notes
         case newSubtask
+
+        var focusTarget: HomeInlineFocusTarget {
+            switch self {
+            case .notes:
+                return .notes
+            case .newSubtask:
+                return .newSubtask
+            }
+        }
     }
 
     var body: some View {
@@ -2302,18 +2331,23 @@ private struct HomeInlineTaskDetailView: View {
         ) {
             VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
                 notesEditor
+                    .id(HomeInlineFocusTarget.notes.anchorID(for: entry.id))
                     .modifier(cascadeItem(index: 0))
 
                 ForEach(Array(subtasks.enumerated()), id: \.element.id) { index, subtask in
                     HomeInlineSubtaskRow(
                         subtask: subtask,
                         viewModel: viewModel,
-                        onFocus: onFocus
+                        onFocus: {
+                            onFocus(.subtask(subtask.id))
+                        }
                     )
+                    .id(HomeInlineFocusTarget.subtask(subtask.id).anchorID(for: entry.id))
                     .modifier(cascadeItem(index: index + 1))
                 }
 
                 addSubtaskRow
+                    .id(HomeInlineFocusTarget.newSubtask.anchorID(for: entry.id))
                     .modifier(cascadeItem(index: subtasks.count + 1))
 
                 attributePills
@@ -2324,8 +2358,8 @@ private struct HomeInlineTaskDetailView: View {
         }
         .animation(detailAnimation, value: viewModel.inlineDetailDraft?.subtasks)
         .onChange(of: focusedField) { _, field in
-            guard field != nil else { return }
-            onFocus()
+            guard let field else { return }
+            onFocus(field.focusTarget)
         }
     }
 
@@ -2758,6 +2792,59 @@ private struct HomeInlineSubtaskCheckbox: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct HomeTimelineTrailingControl: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let entry: HomeTimelineEntry
+    let isDetailPresented: Bool
+    let isInteractive: Bool
+    let onCollapseDetail: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            HomeTimelineTimeText(entry: entry)
+                .opacity(isDetailPresented ? 0 : 1)
+                .scaleEffect(isDetailPresented ? 0.92 : 1, anchor: .trailing)
+                .offset(y: isDetailPresented ? -5 : 0)
+
+            chevronControl
+                .opacity(isDetailPresented ? 1 : 0)
+                .scaleEffect(isDetailPresented ? 1 : 0.82)
+                .offset(y: isDetailPresented ? 0 : 6)
+                .allowsHitTesting(isDetailPresented)
+        }
+        .frame(width: HomeInlineTaskLayoutMetrics.trailingControlWidth, height: 44, alignment: .trailing)
+        .animation(trailingAnimation, value: isDetailPresented)
+    }
+
+    @ViewBuilder
+    private var chevronControl: some View {
+        if isInteractive {
+            chevronImage
+        } else {
+            Button {
+                HomeInteractionFeedback.selection()
+                onCollapseDetail()
+            } label: {
+                chevronImage
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("收起任务详情")
+        }
+    }
+
+    private var chevronImage: some View {
+        Image(systemName: "chevron.up")
+            .font(AppTheme.typography.sized(18, weight: .bold))
+            .foregroundStyle(AppTheme.colors.title.opacity(0.86))
+            .frame(width: 44, height: 44)
+    }
+
+    private var trailingAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.24, extraBounce: 0.04)
     }
 }
 
@@ -3219,7 +3306,7 @@ private struct HomeOverdueSummarySheet: View {
                 },
                 onCollapseDetail: {},
                 onUpdateTitle: { _ in },
-                onInlineFocus: {}
+                onInlineFocus: { _ in }
             )
             .padding(.vertical, AppTheme.spacing.md)
         }

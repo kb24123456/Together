@@ -121,7 +121,7 @@ struct AppRootView: View {
                 Button {
                     toggleRoutinesSurface(router: router)
                 } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    ToolbarIconActionLabel(systemImage: "arrow.triangle.2.circlepath")
                 }
                 .tint(isRoutinesModeActive ? dockSelectionTint : AppTheme.colors.title)
                 .accessibilityLabel(isRoutinesModeActive ? "关闭例行事务" : "打开例行事务")
@@ -134,19 +134,13 @@ struct AppRootView: View {
                 openProfile(router: router)
             } label: {
                 let avatar = appContext.homeViewModel.currentUserAvatar
-                UserAvatarView(
+                ToolbarAvatarActionLabel(
                     avatarAsset: avatar.avatarAsset,
                     displayName: avatar.displayName,
-                    size: 28,
-                    fillColor: AppTheme.colors.avatarWarm,
-                    symbolColor: AppTheme.colors.title.opacity(0.82),
-                    symbolFont: AppTheme.typography.sized(15, weight: .semibold),
                     overrideImage: avatar.overrideImage
                 )
             }
             .buttonStyle(.plain)
-            .frame(width: 32, height: 32)
-            .contentShape(Circle())
             .accessibilityLabel("打开个人页")
             .accessibilityHint("查看个人资料和设置")
         }
@@ -159,7 +153,7 @@ struct AppRootView: View {
                 HomeInteractionFeedback.selection()
                 rootNavigationPath.append(AppRootRoute.completedHistory(.week))
             } label: {
-                Image(systemName: "checkmark.circle")
+                ToolbarIconActionLabel(systemImage: "checkmark.circle")
             }
             .accessibilityLabel("已完成任务")
             .accessibilityHint("查看全部已完成任务")
@@ -172,7 +166,7 @@ struct AppRootView: View {
                 HomeInteractionFeedback.selection()
                 router.isOCRImportPresented = true
             } label: {
-                Image(systemName: "doc.text.viewfinder")
+                ToolbarIconActionLabel(systemImage: "doc.text.viewfinder")
             }
             .accessibilityLabel("OCR 导入")
             .accessibilityHint("拍摄或选择纸面笔记生成草稿")
@@ -181,7 +175,7 @@ struct AppRootView: View {
                 HomeInteractionFeedback.selection()
                 openContextualComposer(router: router)
             } label: {
-                Image(systemName: "plus")
+                ToolbarIconActionLabel(systemImage: "plus")
             }
             .accessibilityLabel("新建")
             .accessibilityHint("在当前视图下新建一项")
