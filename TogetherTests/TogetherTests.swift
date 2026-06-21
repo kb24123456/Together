@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
+import UIKit
 @testable import Together
 
 @MainActor
@@ -37,7 +38,6 @@ struct TogetherTests {
         """)
 
         #expect(draft.status == .needsReview)
-        #expect(draft.projectDrafts.isEmpty)
         #expect(draft.taskDrafts.map(\.title) == ["买牛奶", "整理周报", "给房东发消息"])
     }
 
@@ -48,10 +48,71 @@ struct TogetherTests {
         - 打包厨房
         """)
 
-        #expect(draft.projectDrafts.isEmpty)
         #expect(draft.taskDrafts.count == 1)
         #expect(draft.taskDrafts.first?.title == "搬家准备")
         #expect(draft.taskDrafts.first?.subtasks.map(\.title) == ["预约搬家公司", "打包厨房"])
+    }
+
+    @MainActor
+    @Test func ocrViewModelUsesSingleTaskFlowForRecognition() async throws {
+        let image = try #require(makeTestImage())
+        let viewModel = OCRImportViewModel(
+            recognizer: StubOCRTextRecognizer(result: .success("""
+            信用卡商户:
+            - 客户经理对接名单
+            - 召开线下沙龙会
+            """))
+        )
+
+        await viewModel.processImage(image)
+
+        #expect(viewModel.flowState == .review)
+        #expect(viewModel.draft.status == .needsReview)
+        #expect(viewModel.draft.taskDrafts.count == 1)
+        #expect(viewModel.draft.taskDrafts.first?.title == "信用卡商户")
+        #expect(viewModel.draft.taskDrafts.first?.subtasks.map(\.title) == ["客户经理对接名单", "召开线下沙龙会"])
+    }
+
+    @MainActor
+    @Test func ocrApplyPreservesTaskAttributes() async throws {
+        let calendar = gregorianCalendar()
+        let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 25, hour: 18, minute: 30)))
+        let remindAt = try #require(calendar.date(byAdding: .minute, value: -15, to: dueAt))
+        let taskApplicationService = CapturingTaskApplicationService()
+        taskApplicationService.capturesCreates = true
+        let appContext = makeOCRAppContext(taskApplicationService: taskApplicationService)
+        let viewModel = OCRImportViewModel(recognizer: StubOCRTextRecognizer(result: .success("信用卡商户")))
+        viewModel.draft = OCRImportDraft(
+            rawText: "信用卡商户",
+            status: .needsReview,
+            taskDrafts: [
+                OCRImportTaskDraft(
+                    title: "信用卡商户",
+                    notes: "客户名单",
+                    dueAt: dueAt,
+                    hasExplicitTime: true,
+                    remindAt: remindAt,
+                    repeatRule: ItemRepeatRule(frequency: .weekly, weekday: 5),
+                    subtasks: [
+                        OCRImportSubtaskDraft(title: "客户经理对接名单"),
+                        OCRImportSubtaskDraft(title: "召开线下沙龙会", isSelected: false)
+                    ]
+                )
+            ]
+        )
+        viewModel.flowState = .review
+
+        let applied = await viewModel.apply(to: appContext)
+
+        #expect(applied)
+        let captured = try #require(taskApplicationService.createdDrafts.first)
+        #expect(captured.title == "信用卡商户")
+        #expect(captured.notes == "客户名单")
+        #expect(captured.dueAt == dueAt)
+        #expect(captured.hasExplicitTime)
+        #expect(captured.remindAt == remindAt)
+        #expect(captured.repeatRule == ItemRepeatRule(frequency: .weekly, weekday: 5))
+        #expect(captured.subtasks.map(\.title) == ["客户经理对接名单"])
     }
 
     @Test func homeTaskDateLabelUsesCreatedDateDueDateAndExplicitTime() throws {
@@ -175,16 +236,26 @@ struct TogetherTests {
         calendar.timeZone = .current
         let todayStart = calendar.startOfDay(for: .now)
         let today = try #require(calendar.date(bySettingHour: 10, minute: 0, second: 0, of: todayStart))
-        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: today))
+        let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
+        let weeklyCompleted = weeklyRange.upperBound.flatMap { upperBound in
+            calendar.date(byAdding: .hour, value: -1, to: upperBound)
+        }.flatMap { candidate in
+            if let lowerBound = weeklyRange.lowerBound, candidate >= lowerBound {
+                return candidate
+            }
+            return nil
+        }
         let sessionStore = SessionStore()
         sessionStore.seedMock(
             currentUser: MockDataFactory.makeCurrentUser(),
             singleSpace: MockDataFactory.makeSingleSpace()
         )
-        let items = [
+        var items = [
             makeHomeFilterItem(title: "今天完成", completedAt: today, status: .completed),
-            makeHomeFilterItem(title: "昨天完成", completedAt: yesterday, status: .completed)
         ]
+        if let weeklyCompleted {
+            items.append(makeHomeFilterItem(title: "本周历史完成", completedAt: weeklyCompleted, status: .completed))
+        }
         let viewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: CapturingTaskApplicationService(),
@@ -196,7 +267,7 @@ struct TogetherTests {
 
         #expect(viewModel.completedVisibilityButtonTitle == "本周已完成")
         #expect(viewModel.completedTimelineEntries.map(\.title) == ["今天完成"])
-        #expect(viewModel.weeklyCompletedEntryCount == 1)
+        #expect(viewModel.weeklyCompletedEntryCount == (weeklyCompleted == nil ? 0 : 1))
     }
 
     @Test func homeReloadKeepsTasksWhenWeeklyCompletedCountFails() async throws {
@@ -300,18 +371,40 @@ struct TogetherTests {
         calendar.timeZone = .current
         let todayStart = calendar.startOfDay(for: .now)
         let today = try #require(calendar.date(bySettingHour: 10, minute: 0, second: 0, of: todayStart))
-        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: today))
-        let twoDaysAgo = try #require(calendar.date(byAdding: .day, value: -1, to: yesterday))
+        let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: calendar)
+        let latestHistorical = weeklyRange.upperBound.flatMap { upperBound in
+            calendar.date(byAdding: .hour, value: -1, to: upperBound)
+        }.flatMap { candidate in
+            if let lowerBound = weeklyRange.lowerBound, candidate >= lowerBound {
+                return candidate
+            }
+            return nil
+        }
+        let earlierHistorical = latestHistorical.flatMap { latest in
+            calendar.date(byAdding: .day, value: -1, to: latest)
+        }.flatMap { candidate in
+            if let lowerBound = weeklyRange.lowerBound, candidate >= lowerBound {
+                return candidate
+            }
+            return nil
+        }
         let sessionStore = SessionStore()
         sessionStore.seedMock(
             currentUser: MockDataFactory.makeCurrentUser(),
             singleSpace: MockDataFactory.makeSingleSpace()
         )
-        let items = [
-            makeHomeFilterItem(title: "今天完成", completedAt: today, status: .completed),
-            makeHomeFilterItem(title: "昨天完成", completedAt: yesterday, status: .completed),
-            makeHomeFilterItem(title: "前天完成", completedAt: twoDaysAgo, status: .completed)
+        var items = [
+            makeHomeFilterItem(title: "今天完成", completedAt: today, status: .completed)
         ]
+        var expectedTitles: [String] = []
+        if let latestHistorical {
+            items.append(makeHomeFilterItem(title: "最近历史完成", completedAt: latestHistorical, status: .completed))
+            expectedTitles.append("最近历史完成")
+        }
+        if let earlierHistorical {
+            items.append(makeHomeFilterItem(title: "更早历史完成", completedAt: earlierHistorical, status: .completed))
+            expectedTitles.append("更早历史完成")
+        }
         let viewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: CapturingTaskApplicationService(),
@@ -321,7 +414,7 @@ struct TogetherTests {
 
         await viewModel.loadWeeklyCompletedSheet()
 
-        #expect(viewModel.weeklyCompletedSheetItems.map(\.title) == ["昨天完成", "前天完成"])
+        #expect(viewModel.weeklyCompletedSheetItems.map(\.title) == expectedTitles)
     }
 
     @Test func weeklyCompletedSheetSeparatesListFailureFromCount() async throws {
@@ -1016,6 +1109,52 @@ private func makeCompletedHistoryViewModel(
     )
 }
 
+@MainActor
+private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationService) -> AppContext {
+    let syncCoordinator = NoOpSyncCoordinator()
+    let itemRepository = MockItemRepository()
+    let taskTemplateRepository = MockTaskTemplateRepository()
+    let notificationService = MockNotificationService()
+    let reminderScheduler = MockReminderScheduler()
+    let userProfileRepository = MockUserProfileRepository()
+    let periodicTaskRepository = MockPeriodicTaskRepository()
+    let periodicTaskApplicationService = DefaultPeriodicTaskApplicationService(
+        repository: periodicTaskRepository,
+        reminderScheduler: reminderScheduler,
+        syncCoordinator: syncCoordinator
+    )
+    let migrationPersistence = PersistenceController(inMemory: true)
+    let sessionStore = SessionStore()
+    sessionStore.seedMock(
+        currentUser: MockDataFactory.makeCurrentUser(),
+        singleSpace: MockDataFactory.makeSingleSpace()
+    )
+    return AppContext(
+        container: AppContainer(
+            authService: MockAuthService(),
+            spaceService: MockSpaceService(),
+            taskApplicationService: taskApplicationService,
+            syncCoordinator: syncCoordinator,
+            userProfileRepository: userProfileRepository,
+            itemRepository: itemRepository,
+            taskTemplateRepository: taskTemplateRepository,
+            taskListRepository: MockTaskListRepository(),
+            projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
+            projectToTaskMigrationService: ProjectToTaskMigrationService(container: migrationPersistence.container),
+            decisionRepository: MockDecisionRepository(),
+            notificationService: notificationService,
+            reminderScheduler: reminderScheduler,
+            periodicTaskRepository: periodicTaskRepository,
+            periodicTaskApplicationService: periodicTaskApplicationService,
+            biometricAuthService: BiometricAuthService(),
+            avatarUploader: MockAvatarStorageUploader(),
+            userProfileRemote: MockUserProfileRemoteRepository()
+        ),
+        sessionStore: sessionStore,
+        router: AppRouter()
+    )
+}
+
 private func makeTaskSubtaskModelContainer() -> ModelContainer {
     let schema = Schema([
         PersistentUserProfile.self,
@@ -1035,6 +1174,26 @@ private func makeTaskSubtaskModelContainer() -> ModelContainer {
         cloudKitDatabase: .none
     )
     return try! ModelContainer(for: schema, configurations: [configuration])
+}
+
+private actor StubOCRTextRecognizer: OCRTextRecognizing {
+    let result: Result<String, Error>
+
+    init(result: Result<String, Error>) {
+        self.result = result
+    }
+
+    func recognizeText(in image: UIImage) async throws -> String {
+        try result.get()
+    }
+}
+
+private func makeTestImage() -> UIImage? {
+    let renderer = UIGraphicsImageRenderer(size: CGSize(width: 12, height: 12))
+    return renderer.image { context in
+        UIColor.white.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 12, height: 12))
+    }
 }
 
 private func gregorianCalendar() -> Calendar {
@@ -1128,6 +1287,8 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
     var capturedSnoozeOption: TaskSnoozeOption?
     var snoozeItemToReturn: Item?
     var tasksToReturn: [Item] = []
+    var capturesCreates = false
+    var createdDrafts: [TaskDraft] = []
 
     func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] {
         tasksToReturn
@@ -1145,7 +1306,41 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
     }
 
     func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
-        throw RepositoryError.notFound
+        guard capturesCreates else {
+            throw RepositoryError.notFound
+        }
+        createdDrafts.append(draft)
+        let now = Date.now
+        return Item(
+            id: UUID(),
+            spaceID: spaceID,
+            listID: draft.listID,
+            projectID: draft.projectID,
+            creatorID: actorID,
+            title: draft.title,
+            notes: draft.notes,
+            dueAt: draft.dueAt,
+            hasExplicitTime: draft.hasExplicitTime,
+            remindAt: draft.remindAt,
+            status: draft.status,
+            lastActionByUserID: actorID,
+            lastActionAt: now,
+            createdAt: now,
+            updatedAt: now,
+            completedAt: nil,
+            subtasks: draft.subtasks.map { subtask in
+                TaskSubtask(
+                    itemID: UUID(),
+                    creatorID: actorID,
+                    title: subtask.title,
+                    isCompleted: subtask.isCompleted,
+                    sortOrder: subtask.sortOrder
+                )
+            },
+            sortOrder: now.timeIntervalSinceReferenceDate,
+            isDraft: draft.isDraft,
+            repeatRule: draft.repeatRule
+        )
     }
 
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {

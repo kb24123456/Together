@@ -1547,11 +1547,7 @@ final class HomeViewModel {
                 option: option
             )
             withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                let shouldRemainVisible = saved.appearsOnHome(
-                    for: selectedDate,
-                    includeOverdue: calendar.isDate(selectedDate, inSameDayAs: .now),
-                    calendar: calendar
-                )
+                let shouldRemainVisible = shouldDisplayInCurrentTimeline(saved)
                 if shouldRemainVisible {
                     replaceItemPreservingOrder(saved)
                 } else {

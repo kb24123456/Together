@@ -1,6 +1,10 @@
 import UIKit
 import Vision
 
+nonisolated protocol OCRTextRecognizing: Sendable {
+    func recognizeText(in image: UIImage) async throws -> String
+}
+
 enum OCRTextRecognitionError: LocalizedError {
     case missingCGImage
     case noTextFound
@@ -15,7 +19,7 @@ enum OCRTextRecognitionError: LocalizedError {
     }
 }
 
-actor OCRTextRecognizer {
+actor OCRTextRecognizer: OCRTextRecognizing {
     func recognizeText(in image: UIImage) async throws -> String {
         guard let cgImage = image.cgImage else {
             throw OCRTextRecognitionError.missingCGImage

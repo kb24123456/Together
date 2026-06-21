@@ -14,6 +14,10 @@ struct OCRImportTaskDraft: Identifiable, Hashable, Sendable, Codable {
     var id: UUID
     var title: String
     var notes: String?
+    var dueAt: Date?
+    var hasExplicitTime: Bool
+    var remindAt: Date?
+    var repeatRule: ItemRepeatRule?
     var isSelected: Bool
     var sourceText: String?
     var subtasks: [OCRImportSubtaskDraft]
@@ -22,6 +26,10 @@ struct OCRImportTaskDraft: Identifiable, Hashable, Sendable, Codable {
         id: UUID = UUID(),
         title: String,
         notes: String? = nil,
+        dueAt: Date? = nil,
+        hasExplicitTime: Bool = false,
+        remindAt: Date? = nil,
+        repeatRule: ItemRepeatRule? = nil,
         isSelected: Bool = true,
         sourceText: String? = nil,
         subtasks: [OCRImportSubtaskDraft] = []
@@ -29,6 +37,10 @@ struct OCRImportTaskDraft: Identifiable, Hashable, Sendable, Codable {
         self.id = id
         self.title = title
         self.notes = notes
+        self.dueAt = dueAt
+        self.hasExplicitTime = hasExplicitTime
+        self.remindAt = remindAt
+        self.repeatRule = repeatRule
         self.isSelected = isSelected
         self.sourceText = sourceText
         self.subtasks = subtasks
@@ -54,31 +66,6 @@ struct OCRImportSubtaskDraft: Identifiable, Hashable, Sendable, Codable {
     }
 }
 
-struct OCRImportProjectDraft: Identifiable, Hashable, Sendable, Codable {
-    var id: UUID
-    var name: String
-    var notes: String?
-    var isSelected: Bool
-    var taskDrafts: [OCRImportTaskDraft]
-    var sourceText: String?
-
-    nonisolated init(
-        id: UUID = UUID(),
-        name: String,
-        notes: String? = nil,
-        isSelected: Bool = true,
-        taskDrafts: [OCRImportTaskDraft] = [],
-        sourceText: String? = nil
-    ) {
-        self.id = id
-        self.name = name
-        self.notes = notes
-        self.isSelected = isSelected
-        self.taskDrafts = taskDrafts
-        self.sourceText = sourceText
-    }
-}
-
 struct OCRImportDraft: Identifiable, Hashable, Sendable, Codable {
     var id: UUID
     var sourceImageID: UUID?
@@ -87,7 +74,6 @@ struct OCRImportDraft: Identifiable, Hashable, Sendable, Codable {
     var updatedAt: Date
     var status: OCRDraftStatus
     var taskDrafts: [OCRImportTaskDraft]
-    var projectDrafts: [OCRImportProjectDraft]
 
     nonisolated init(
         id: UUID = UUID(),
@@ -96,8 +82,7 @@ struct OCRImportDraft: Identifiable, Hashable, Sendable, Codable {
         createdAt: Date = Date.now,
         updatedAt: Date = Date.now,
         status: OCRDraftStatus,
-        taskDrafts: [OCRImportTaskDraft] = [],
-        projectDrafts: [OCRImportProjectDraft] = []
+        taskDrafts: [OCRImportTaskDraft] = []
     ) {
         self.id = id
         self.sourceImageID = sourceImageID
@@ -106,7 +91,6 @@ struct OCRImportDraft: Identifiable, Hashable, Sendable, Codable {
         self.updatedAt = updatedAt
         self.status = status
         self.taskDrafts = taskDrafts
-        self.projectDrafts = projectDrafts
     }
 }
 
@@ -135,8 +119,7 @@ enum OCRImportDraftParser {
             createdAt: now,
             updatedAt: now,
             status: .needsReview,
-            taskDrafts: groupedTaskDrafts + taskDrafts,
-            projectDrafts: []
+            taskDrafts: groupedTaskDrafts + taskDrafts
         )
     }
 

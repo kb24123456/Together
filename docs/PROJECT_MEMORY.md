@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-06-14
+- 日期：2026-06-21
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
@@ -15,7 +15,7 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：2026-06-18 正在落地首页统一任务区与项目真合并；首页取消日历视图、顶部周视图和项目切换入口，改为原生 toolbar + ScrollView/LazyVStack 任务流。
+- 当前任务：2026-06-21 正在落地 P2 OCR 连续导入 sheet 与任务草稿统一视觉；首页统一任务区、已完成归档和内联详情已进入连续迭代阶段。
 - 已确认边界：
   - 不迁移旧 Supabase 数据，允许删除。
   - 不保留 RevenueCat、Paywall、PremiumGate、Supabase webhook。
@@ -33,6 +33,7 @@
   - 2026-06-20 已完成归档页精确筛选改为原生 sheet：底部 toolbar 筛选按钮显示明确 SF Symbol 图标，sheet 使用固定 detent；日期和月份两种模式放在同一固定高度内容区，避免切换时 sheet 高度跳变。
   - 2026-06-20 首页任务详情改为内联展开编辑：`HomeView` 不再呈现 `HomeItemDetailSheet`；任务行点击后在当前任务流内展开标题、备注、子任务和日期/时间/提醒/重复设置。子任务新增、改名、勾选、删除都留在展开区内，日期/时间/提醒/重复复用现有 `TaskEditorUnifiedMenuSheet`，并新增 `.taskInline` 菜单上下文排除 `.subtasks`。
   - 2026-06-20 首页内联详情视觉修正：展开区取消备注、子任务、属性逐项描边圆角卡片，改为平铺视觉；展开态右侧日期位置统一为收起 chevron；子任务行复用父任务 action gutter 对齐规则，属性使用浅底胶囊按钮。
+  - 2026-06-21 OCR 导入进入 P2 连续 sheet 方案：`OCRImportView` 改为原生 sheet 内状态流，先显示相机 / 照片来源选择，再在同一容器内切换相机预览、照片网格、识别中和任务草稿确认；OCR 草稿运行时删除 Project 语义，只保留任务、备注、子任务、日期、时间、提醒、重复属性。
   - 2026-06-14 普通任务子任务已落地：新增独立 `TaskSubtask` / `PersistentTaskSubtask`，`Item.subtasks` 与 `TaskDraft.subtasks` 走本地 SwiftData hydrate；不复用 `ProjectSubtask`，不引入 Supabase 或多人能力；删除父任务会 tombstone 普通任务子任务。
   - 普通任务子任务应用服务已接入 `TaskApplicationServiceProtocol` / `DefaultTaskApplicationService`，支持新增、勾选、改名、删除；子任务完成只更新子任务和父任务 `updatedAt`，不会自动完成父任务。
   - 普通任务创建器和首页 Timeline 已接入子任务：创建器通过“子任务” chip 内联编辑；首页任务展开区可新增/编辑/删除/勾选子任务；Timeline 折叠态保留子任务进度摘要。
@@ -49,6 +50,7 @@
   - 2026-06-14 普通任务子任务构建：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；仍有既有 Swift 6 actor isolation / Widget / Notification warning，本次新增的 `TaskSubtaskDraft` Equatable warning 已收敛。
   - 2026-06-19 已完成任务分层 focused 测试：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖 CompletedTaskRange、首页今天已完成过滤、本周 sheet 排除今天、计数失败不清空首页主任务流、已完成页子任务搜索与所有历史分页。
   - 2026-06-20 首页内联详情验证通过：`git diff --check`、`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet`、`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet`、XcodeBuildMCP `build_run_sim` 均通过；新增测试覆盖展开任务生成 draft、切换展开任务保存上一条、日期/时间/提醒/重复走现有 update path、子任务新增/改名/删除、`.taskInline` 不暴露 `.subtasks`、无子任务任务可收起、父子任务对齐 metrics。
+  - 2026-06-21 OCR P2 focused 测试通过：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；新增覆盖 OCR 识别成功进入 review、OCR apply 写入 title/notes/subtasks/dueAt/hasExplicitTime/remindAt/repeatRule。仍需真机验证 AVFoundation 相机预览、PhotoKit limited library 和权限空态。
   - 2026-06-19 已完成任务分层构建验证：`git diff --check` 通过；`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；XcodeBuildMCP `build_run_sim` 通过并已 stop app。仍有既有 Swift 6 actor isolation / notification warning，本轮未处理。
   - XcodeBuildMCP `build_run_sim` 通过。
   - XcodeBuildMCP `test_sim` 通过，4/4 passed。

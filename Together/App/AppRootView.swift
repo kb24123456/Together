@@ -60,9 +60,9 @@ struct AppRootView: View {
                 viewModel: OCRImportViewModel(),
                 appContext: appContext
             )
-            .presentationDetents([.large])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
-            .presentationCornerRadius(28)
+            .presentationCornerRadius(36)
         }
         .environment(\.symbolVariants, .none)
         .font(AppTheme.typography.body)
