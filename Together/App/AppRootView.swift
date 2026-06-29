@@ -1,5 +1,5 @@
+import PhotosUI
 import SwiftUI
-import UIKit
 
 private enum AppRootRoute: Hashable {
     case profile
@@ -10,6 +10,12 @@ struct AppRootView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rootNavigationPath = NavigationPath()
+    @State private var activeOCRSourceSession: OCRSourceSheetSession?
+    @State private var pendingOCRReviewSession: OCRReviewSession?
+    @State private var isPresentingDirectOCRPhotoPicker = false
+    @State private var directOCRPhotoPickerSelection: [PhotosPickerItem] = []
+    @State private var directOCRProcessingTask: Task<Void, Never>?
+    @State private var isPresentingDirectOCRCamera = false
 
     var body: some View {
         @Bindable var router = appContext.router
@@ -55,14 +61,53 @@ struct AppRootView: View {
             .interactiveDismissDisabled(false)
             .modifier(ComposerPresentationSizingModifier())
         }
-        .sheet(isPresented: $router.isOCRImportPresented) {
-            OCRImportView(
-                viewModel: OCRImportViewModel(),
+        .sheet(item: $activeOCRSourceSession, onDismiss: {
+            guard let pendingOCRReviewSession else { return }
+            router.activeOCRReviewSession = pendingOCRReviewSession
+            self.pendingOCRReviewSession = nil
+        }) { session in
+            OCRSourceSheet(
+                session: session,
+                onReviewReady: { completedSession in
+                    pendingOCRReviewSession = OCRReviewSession(
+                        viewModel: completedSession.viewModel,
+                        availableHeight: completedSession.availableHeight
+                    )
+                    activeOCRSourceSession = nil
+                },
+                onRetryCamera: {
+                    activeOCRSourceSession = nil
+                    isPresentingDirectOCRCamera = true
+                }
+            )
+        }
+        .sheet(item: $router.activeOCRReviewSession) { session in
+            OCRReviewSheet(
+                session: session,
                 appContext: appContext
             )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .presentationCornerRadius(36)
+        }
+        .photosPicker(
+            isPresented: $isPresentingDirectOCRPhotoPicker,
+            selection: $directOCRPhotoPickerSelection,
+            maxSelectionCount: 6,
+            matching: .images,
+            preferredItemEncoding: .current
+        )
+        .onChange(of: directOCRPhotoPickerSelection) { _, newValue in
+            loadDirectOCRPhotos(from: newValue)
+        }
+        .fullScreenCover(isPresented: $isPresentingDirectOCRCamera) {
+            OCRNativeCameraPicker(
+                onCapture: { image in
+                    isPresentingDirectOCRCamera = false
+                    handleDirectOCRCapture(image)
+                },
+                onCancel: {
+                    isPresentingDirectOCRCamera = false
+                }
+            )
+            .ignoresSafeArea()
         }
         .environment(\.symbolVariants, .none)
         .font(AppTheme.typography.body)
@@ -85,27 +130,26 @@ struct AppRootView: View {
 
     @ViewBuilder
     private func rootSurfaceView(router: AppRouter) -> some View {
-        switch router.currentSurface {
-        case .today, .routines:
-            HomeView(
-                viewModel: appContext.homeViewModel,
-                projectsViewModel: appContext.projectsViewModel,
-                routinesViewModel: appContext.routinesViewModel,
-                isProjectModePresented: false,
-                isRoutinesModePresented: router.isRoutinesModePresented,
-                onProfileTapped: {
-                    openProfile(router: router)
-                },
-                onCreateTaskTapped: {
-                    router.pendingComposerTitle = nil
-                    router.activeComposer = .newTask
-                },
-                onCompletedHistoryTapped: { filter in
-                    rootNavigationPath.append(AppRootRoute.completedHistory(filter))
-                }
-            )
-        case .calendar, .projects:
-            EmptyView()
+        HomeView(
+            viewModel: appContext.homeViewModel,
+            projectsViewModel: appContext.projectsViewModel,
+            routinesViewModel: appContext.routinesViewModel,
+            isProjectModePresented: false,
+            isRoutinesModePresented: router.isRoutinesModePresented,
+            onProfileTapped: {
+                openProfile(router: router)
+            },
+            onCreateTaskTapped: {
+                router.pendingComposerTitle = nil
+                router.activeComposer = .newTask
+            },
+            onCompletedHistoryTapped: { filter in
+                rootNavigationPath.append(AppRootRoute.completedHistory(filter))
+            }
+        )
+        .task(id: router.currentSurface) {
+            guard router.currentSurface == .calendar || router.currentSurface == .projects else { return }
+            router.currentSurface = .today
         }
     }
 
@@ -121,7 +165,7 @@ struct AppRootView: View {
                 Button {
                     toggleRoutinesSurface(router: router)
                 } label: {
-                    ToolbarIconActionLabel(systemImage: "arrow.triangle.2.circlepath")
+                    Image(systemName: "arrow.triangle.2.circlepath")
                 }
                 .tint(isRoutinesModeActive ? dockSelectionTint : AppTheme.colors.title)
                 .accessibilityLabel(isRoutinesModeActive ? "关闭例行事务" : "打开例行事务")
@@ -134,13 +178,17 @@ struct AppRootView: View {
                 openProfile(router: router)
             } label: {
                 let avatar = appContext.homeViewModel.currentUserAvatar
-                ToolbarAvatarActionLabel(
+                UserAvatarView(
                     avatarAsset: avatar.avatarAsset,
                     displayName: avatar.displayName,
+                    size: 32,
+                    fillColor: AppTheme.colors.avatarWarm,
+                    symbolColor: AppTheme.colors.title.opacity(0.82),
+                    symbolFont: AppTheme.typography.sized(16, weight: .semibold),
                     overrideImage: avatar.overrideImage
                 )
             }
-            .buttonStyle(.plain)
+            .buttonBorderShape(.circle)
             .accessibilityLabel("打开个人页")
             .accessibilityHint("查看个人资料和设置")
         }
@@ -149,33 +197,35 @@ struct AppRootView: View {
     @ToolbarContentBuilder
     private func dockToolbar(router: AppRouter) -> some ToolbarContent {
         ToolbarItem(placement: .bottomBar) {
-            Button {
-                HomeInteractionFeedback.selection()
-                rootNavigationPath.append(AppRootRoute.completedHistory(.week))
+            Menu {
+                Button {
+                    openDirectOCRCamera()
+                } label: {
+                    Label("相机", systemImage: "camera")
+                }
+
+                Button {
+                    openDirectOCRPhotoPicker()
+                } label: {
+                    Label("照片", systemImage: "photo.on.rectangle")
+                }
             } label: {
-                ToolbarIconActionLabel(systemImage: "checkmark.circle")
+                Image(systemName: "doc.text.viewfinder")
             }
-            .accessibilityLabel("已完成任务")
-            .accessibilityHint("查看全部已完成任务")
+            .buttonBorderShape(.circle)
+            .accessibilityIdentifier("together.toolbar.ocr")
+            .accessibilityLabel("OCR 导入")
+            .accessibilityHint("拍摄或选择纸面笔记生成草稿")
         }
 
         ToolbarSpacer(.flexible, placement: .bottomBar)
 
-        ToolbarItemGroup(placement: .bottomBar) {
-            Button {
-                HomeInteractionFeedback.selection()
-                router.isOCRImportPresented = true
-            } label: {
-                ToolbarIconActionLabel(systemImage: "doc.text.viewfinder")
-            }
-            .accessibilityLabel("OCR 导入")
-            .accessibilityHint("拍摄或选择纸面笔记生成草稿")
-
+        ToolbarItem(placement: .bottomBar) {
             Button {
                 HomeInteractionFeedback.selection()
                 openContextualComposer(router: router)
             } label: {
-                ToolbarIconActionLabel(systemImage: "plus")
+                Image(systemName: "plus")
             }
             .accessibilityLabel("新建")
             .accessibilityHint("在当前视图下新建一项")
@@ -218,6 +268,67 @@ struct AppRootView: View {
             router.activeComposer = .newTask
         case .routines:
             router.activeComposer = .newPeriodicTask
+        }
+    }
+
+    private func openDirectOCRPhotoPicker() {
+        HomeInteractionFeedback.selection()
+        directOCRProcessingTask?.cancel()
+        directOCRPhotoPickerSelection = []
+        isPresentingDirectOCRPhotoPicker = true
+    }
+
+    private func openDirectOCRCamera() {
+        HomeInteractionFeedback.selection()
+        directOCRProcessingTask?.cancel()
+        isPresentingDirectOCRCamera = true
+    }
+
+    private func handleDirectOCRCapture(_ image: UIImage) {
+        directOCRProcessingTask?.cancel()
+        directOCRProcessingTask = Task { @MainActor in
+            let viewModel = OCRImportViewModel()
+            await viewModel.processImages([image])
+            switch viewModel.flowState {
+            case .review:
+                appContext.router.activeOCRReviewSession = OCRReviewSession(
+                    viewModel: viewModel,
+                    availableHeight: OCRWindowMetrics.availableHeight
+                )
+            case .failed:
+                activeOCRSourceSession = OCRSourceSheetSession(viewModel: viewModel)
+            default:
+                break
+            }
+        }
+    }
+
+    private func loadDirectOCRPhotos(from items: [PhotosPickerItem]) {
+        guard items.isEmpty == false else { return }
+        directOCRPhotoPickerSelection = []
+        directOCRProcessingTask?.cancel()
+        directOCRProcessingTask = Task { @MainActor in
+            var images: [UIImage] = []
+            for item in items {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    images.append(image)
+                }
+            }
+            guard images.isEmpty == false else { return }
+            let viewModel = OCRImportViewModel()
+            await viewModel.processImages(images)
+            switch viewModel.flowState {
+            case .review:
+                appContext.router.activeOCRReviewSession = OCRReviewSession(
+                    viewModel: viewModel,
+                    availableHeight: OCRWindowMetrics.availableHeight
+                )
+            case .failed:
+                activeOCRSourceSession = OCRSourceSheetSession(viewModel: viewModel)
+            default:
+                break
+            }
         }
     }
 

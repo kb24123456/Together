@@ -1,0 +1,4 @@
+interface:
+  display_name: "Xcode 27 SwiftUI Modernization"
+  short_description: "Apply WWDC26 SwiftUI and Xcode 27 guidance to Together UI work."
+  default_prompt: "Use this skill when updating Together SwiftUI UI, animations, lists, drag and drop, Liquid Glass, AsyncImage, UIKit interop, or Xcode 27 verification workflows."

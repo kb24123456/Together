@@ -4,7 +4,7 @@ struct GradientGridBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private let gridSpacing: CGFloat = 36
-    private let gridLineWidth: CGFloat = 0.5
+    private let gridLineWidth: CGFloat = 0.6
 
     var body: some View {
         ZStack {

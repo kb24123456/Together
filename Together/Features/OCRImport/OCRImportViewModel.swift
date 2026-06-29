@@ -18,6 +18,92 @@ enum OCRImportFlowState: Hashable {
             return true
         }
     }
+
+    var isImmersiveMedia: Bool {
+        switch self {
+        case .camera, .photos:
+            return true
+        case .sourcePicker, .processing, .review, .failed:
+            return false
+        }
+    }
+}
+
+enum OCRReviewSheetDetent: Hashable {
+    case medium
+    case large
+}
+
+enum OCRReviewDetentPolicy {
+    private static let sheetChromeHeight: CGFloat = 72
+    private static let minimumMediumContentHeight: CGFloat = 220
+    private static let taskBaseHeight: CGFloat = 196
+    private static let subtaskHeight: CGFloat = 44
+    private static let taskSpacing: CGFloat = 16
+
+    static func initialDetent(
+        for draft: OCRImportDraft,
+        availableHeight: CGFloat
+    ) -> OCRReviewSheetDetent {
+        estimatedContentHeight(for: draft) > mediumContentCapacity(availableHeight: availableHeight)
+            ? .large
+            : .medium
+    }
+
+    static func resolvedDetent(
+        current: OCRReviewSheetDetent,
+        measuredContentHeight: CGFloat,
+        availableHeight: CGFloat,
+        keyboardIsVisible: Bool
+    ) -> OCRReviewSheetDetent {
+        guard current == .medium else { return .large }
+        guard keyboardIsVisible == false else { return .large }
+        return measuredContentHeight > mediumContentCapacity(availableHeight: availableHeight)
+            ? .large
+            : .medium
+    }
+
+    static func mediumContentCapacity(availableHeight: CGFloat) -> CGFloat {
+        max(availableHeight * 0.5 - sheetChromeHeight, minimumMediumContentHeight)
+    }
+
+    private static func estimatedContentHeight(for draft: OCRImportDraft) -> CGFloat {
+        draft.taskDrafts.enumerated().reduce(0) { total, entry in
+            let (index, task) = entry
+            let spacing = index == draft.taskDrafts.startIndex ? 0 : taskSpacing
+            return total + spacing + taskBaseHeight + CGFloat(task.subtasks.count) * subtaskHeight
+        }
+    }
+}
+
+@MainActor
+final class OCRReviewSession: Identifiable {
+    let id = UUID()
+    let viewModel: OCRImportViewModel
+    let availableHeight: CGFloat
+
+    private let initialTaskDrafts: [OCRImportTaskDraft]
+
+    init(viewModel: OCRImportViewModel, availableHeight: CGFloat) {
+        self.viewModel = viewModel
+        self.availableHeight = availableHeight
+        self.initialTaskDrafts = viewModel.draft.taskDrafts
+    }
+
+    var hasUserChanges: Bool {
+        viewModel.draft.taskDrafts != initialTaskDrafts
+    }
+
+    var initialDetent: OCRReviewSheetDetent {
+        OCRReviewDetentPolicy.initialDetent(
+            for: viewModel.draft,
+            availableHeight: availableHeight
+        )
+    }
+
+    func discard() {
+        viewModel.draft.status = .discarded
+    }
 }
 
 @MainActor
@@ -70,26 +156,45 @@ final class OCRImportViewModel {
     }
 
     func processImage(_ image: UIImage) async {
-        sourceImage = image
+        await processImages([image])
+    }
+
+    func processImages(_ images: [UIImage]) async {
+        guard images.isEmpty == false else { return }
+        let firstImage = images[0]
+        sourceImage = firstImage
         errorMessage = nil
         flowState = .processing
         draft = OCRImportDraft(rawText: "", status: .recognizing)
 
-        do {
-            let rawText = try await recognizer.recognizeText(in: image)
-            let parsed = OCRImportDraftParser.parse(rawText: rawText)
-            draft = parsed
-            if parsed.taskDrafts.isEmpty {
-                errorMessage = "没有识别到可导入的待办。"
-                draft.status = .failed
-                flowState = .failed
-            } else {
-                flowState = .review
+        var recognizedTexts: [String] = []
+        var lastError: Error?
+        for image in images {
+            do {
+                let rawText = try await recognizer.recognizeText(in: image)
+                recognizedTexts.append(rawText)
+            } catch {
+                lastError = error
             }
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+
+        if recognizedTexts.isEmpty {
+            errorMessage = lastError.map { ($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription }
+                ?? "没有识别到可导入的文字。"
             draft.status = .failed
             flowState = .failed
+            return
+        }
+
+        let combinedRawText = recognizedTexts.joined(separator: "\n")
+        let parsed = OCRImportDraftParser.parse(rawText: combinedRawText)
+        draft = parsed
+        if parsed.taskDrafts.isEmpty {
+            errorMessage = "没有识别到可导入的待办。"
+            draft.status = .failed
+            flowState = .failed
+        } else {
+            flowState = .review
         }
     }
 

@@ -247,10 +247,10 @@ struct EditProfileView: View {
                 .foregroundStyle(AppTheme.colors.title)
 
             TextField("输入你的名称", text: $viewModel.displayName)
-                .font(AppTheme.typography.textStyle(.title3, weight: .semibold))
+                .font(AppTheme.typography.sized(20, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
+                .autocorrectionDisabled()
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, AppTheme.spacing.md)
                 .background(AppTheme.colors.surfaceElevated, in: RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous))

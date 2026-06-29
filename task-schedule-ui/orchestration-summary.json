@@ -1,0 +1,64 @@
+{
+  "project": {
+    "name": "任务日程",
+    "path": "/Users/papertiger/Desktop/Together/task-schedule-ui",
+    "operation": "create",
+    "deviceType": "mobile",
+    "language": "en",
+    "dashboardMode": false,
+    "replicationMode": "high-fidelity",
+    "sourceUrl": null,
+    "visualSpecExcerpt": "Mobile task schedule day view. Background: #FFFFFF. Top nav: left arrow icon (back), right side blue pill button '+ Add Task' (#5B6BF5, radius ~20px, white bold text). Calendar strip: horizontal row of 7 day columns (Mon-Sun), dates 11-17, day names in uppercase gray 11px, dates in 14px, selected day (Thu 14) has blue circle bg (#5B6BF5) with white text, non-selected days have subtle gray text. Timeline: vertical red-pink line (#D85B6B, ~2px wide) on left side with circular nodes (~10px) at each task. Active/first task node is filled red circle; others are hollow circles with red border. Task cards: large rounded rectangles (~16px radius), each with distinct gradient/pastel background, padded ~16px, containing task title (bold dark text ~16px), time label (right-aligned, medium weight ~13px, gray), and description (regular ~12px, lighter gray). Card 1 (Wireframing, 12:00 PM): warm red-pink gradient bg (#D85B6B → #E87885). Card 2 (UI Design, 1:30 PM): light lavender bg (#E8E6F5). Card 3 (Prototyping, 3:00 PM): warm cream/yellow bg (#FDF6E3). Card 4 (Usability Testing, 3:45 PM): light mint/green bg (#E8F5F0). Card 5 (Meeting, 4:30 PM): light rose/pink bg (#F5E8E8). Typography: Inter or similar modern sans-serif. Spacing: generous padding ~20px horizontal, ~12px between calendar dates, ~16px gap between cards. Cards have subtle shadow (0 2px 8px rgba(0,0,0,0.04)). Overall clean, modern, soft UI with pastel color-coded task cards. Phone frame shown in reference with rounded corners.",
+    "styleDefinitionBrief": null,
+    "designRead": "mobile app / task management / clean modern / moderate density / avoid generic card walls",
+    "designDials": {
+      "layoutVariance": 1,
+      "motionIntensity": 1,
+      "visualDensity": 3
+    },
+    "generationTree": {
+      "root": {
+        "nodeId": "gen-page-task-schedule",
+        "kind": "page-leaf",
+        "pageIds": ["page-task-schedule"],
+        "output": "pages/task-schedule.html",
+        "sharedRegions": [],
+        "privateRegions": ["full page"],
+        "mutableSlots": [],
+        "status": "planned",
+        "children": []
+      }
+    }
+  },
+  "designSource": {
+    "operatingMode": "free-explore",
+    "libraryIdentity": {
+      "name": null,
+      "id": null,
+      "version": null,
+      "scope": null,
+      "path": null,
+      "versionSource": null
+    },
+    "brandCssPath": "/Users/papertiger/Desktop/Together/task-schedule-ui/colors_and_type.css",
+    "brandPrefix": ""
+  },
+  "pages": [
+    {
+      "nodeId": "page-task-schedule",
+      "title": "Task Schedule",
+      "htmlSrc": "pages/task-schedule.html",
+      "pageIndex": 1,
+      "visualNorthStar": "Clean mobile task day-view with color-coded timeline cards, soft pastel gradients, and generous whitespace",
+      "compositionPattern": null,
+      "continuityAnchors": [],
+      "componentPlan": [],
+      "imagePlan": [],
+      "chartsRequired": false,
+      "miniProgramStyle": false
+    }
+  ],
+  "assets": [],
+  "wiringPlan": [],
+  "hiddenInteractionPlan": []
+}

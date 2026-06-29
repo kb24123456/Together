@@ -1543,19 +1543,24 @@ private struct HomeDetailTaskSubtasksPanel: View {
             }
 
             HStack(spacing: AppTheme.spacing.md) {
-                TextField("添加子任务", text: $inputTitle)
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .textInputAutocapitalization(.sentences)
-                    .submitLabel(.done)
-                    .focused($isInputFocused)
-                    .onSubmit { addSubtask() }
+                TextField(
+                    "添加子任务",
+                    text: $inputTitle
+                )
+                .font(AppTheme.typography.sized(16, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .focused($isInputFocused)
+                .onSubmit {
+                    addSubtaskAfterFocusUpdate()
+                }
 
-                Button("添加") { addSubtask() }
+                Button("添加") { addSubtaskAfterFocusUpdate() }
                     .buttonStyle(.plain)
                     .font(AppTheme.typography.sized(15, weight: .bold))
-                    .foregroundStyle(inputTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.title)
-                    .disabled(inputTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .foregroundStyle(canAttemptAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.4))
+                    .disabled(!canAttemptAddSubtask)
             }
             .padding(.horizontal, AppTheme.spacing.md)
             .padding(.vertical, AppTheme.spacing.md)
@@ -1568,7 +1573,9 @@ private struct HomeDetailTaskSubtasksPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             if subtasks.isEmpty {
-                DispatchQueue.main.async { isInputFocused = true }
+                Task { @MainActor in
+                    isInputFocused = true
+                }
             }
         }
         .onChange(of: subtasks) { _, subtasks in
@@ -1595,18 +1602,23 @@ private struct HomeDetailTaskSubtasksPanel: View {
             .buttonStyle(.plain)
 
             if editingSubtaskID == subtask.id {
-                TextField("", text: editingBinding(for: subtask), prompt: Text(subtask.title))
-                    .font(AppTheme.typography.sized(16, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .textInputAutocapitalization(.sentences)
-                    .submitLabel(.done)
-                    .focused($focusedSubtaskID, equals: subtask.id)
-                    .onSubmit { commitSubtask(subtask) }
-                    .onChange(of: focusedSubtaskID) { _, focusedID in
-                        if focusedID != subtask.id, editingSubtaskID == subtask.id {
-                            commitSubtask(subtask)
-                        }
+                TextField(
+                    subtask.title,
+                    text: editingBinding(for: subtask)
+                )
+                .font(AppTheme.typography.sized(16, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .focused($focusedSubtaskID, equals: subtask.id)
+                .onSubmit {
+                    commitSubtaskAfterFocusUpdate(subtask)
+                }
+                .onChange(of: focusedSubtaskID) { oldValue, newValue in
+                    if oldValue == subtask.id, newValue != subtask.id, editingSubtaskID == subtask.id {
+                        commitSubtaskAfterFocusUpdate(subtask)
                     }
+                }
             } else {
                 Button {
                     HomeInteractionFeedback.selection()
@@ -1626,19 +1638,23 @@ private struct HomeDetailTaskSubtasksPanel: View {
 
             Button {
                 HomeInteractionFeedback.selection()
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
-                    viewModel.deleteDetailDraftSubtask(subtask.id)
+                if editingSubtaskID == subtask.id {
+                    commitSubtaskAfterFocusUpdate(subtask)
+                } else {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                        viewModel.deleteDetailDraftSubtask(subtask.id)
+                    }
                 }
             } label: {
-                Image(systemName: "xmark")
+                Image(systemName: editingSubtaskID == subtask.id ? "checkmark" : "xmark")
                     .font(AppTheme.typography.sized(11, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.66))
+                    .foregroundStyle(editingSubtaskID == subtask.id ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.66))
                     .frame(width: 18, height: 18)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("删除子任务")
+            .accessibilityLabel(editingSubtaskID == subtask.id ? "保存子任务" : "删除子任务")
         }
         .padding(.horizontal, AppTheme.spacing.md)
         .frame(minHeight: 54)
@@ -1664,6 +1680,15 @@ private struct HomeDetailTaskSubtasksPanel: View {
         viewModel.updateDetailDraftSubtask(subtask.id, title: trimmed)
     }
 
+    private func commitSubtaskAfterFocusUpdate(_ subtask: TaskSubtaskDraft) {
+        Task { @MainActor in
+            editingTitle = TextInputSnapshotReader.resolvedText(fallback: editingTitle)
+            focusedSubtaskID = nil
+            await Task.yield()
+            commitSubtask(subtask)
+        }
+    }
+
     private func addSubtask() {
         let trimmed = inputTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else { return }
@@ -1673,6 +1698,19 @@ private struct HomeDetailTaskSubtasksPanel: View {
             inputTitle = ""
         }
         isInputFocused = true
+    }
+
+    private var canAttemptAddSubtask: Bool {
+        inputTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false || isInputFocused
+    }
+
+    private func addSubtaskAfterFocusUpdate() {
+        Task { @MainActor in
+            inputTitle = TextInputSnapshotReader.resolvedText(fallback: inputTitle)
+            isInputFocused = false
+            await Task.yield()
+            addSubtask()
+        }
     }
 }
 

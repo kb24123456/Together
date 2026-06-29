@@ -99,8 +99,11 @@ struct ProfileAccountDeletionView: View {
                 .foregroundStyle(AppTheme.colors.body)
 
             TextField("输入昵称", text: $confirmationText)
-                .font(AppTheme.typography.textStyle(.body, weight: .medium))
+                .font(AppTheme.typography.sized(17, weight: .medium))
                 .foregroundStyle(AppTheme.colors.title)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
                 .padding(.horizontal, AppTheme.spacing.md)
                 .padding(.vertical, AppTheme.spacing.md)
                 .background(

@@ -5,10 +5,10 @@ import Observation
 @Observable
 final class AppRouter {
     var activeComposer: ComposerRoute?
+    var activeOCRReviewSession: OCRReviewSession?
     var pendingComposerTitle: String?
     var pendingPeriodicCycle: PeriodicCycle?
     var isProfilePresented = false
-    var isOCRImportPresented = false
     var currentSurface: RootSurface = .today
 
     /// When true, RoutinesListContent auto-selects the first cycle with pending tasks.

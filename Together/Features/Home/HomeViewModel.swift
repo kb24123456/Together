@@ -23,6 +23,7 @@ struct HomeAvatar: Identifiable, Hashable {
 
 struct HomeTimelineEntry: Identifiable, Hashable {
     let id: UUID
+    let presentationID: String
     let title: String
     let notes: String?
     let timeText: String
@@ -37,13 +38,17 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let lastActionAt: Date?
     let subtasks: [TaskSubtask]
     let subtaskCompletedCount: Int
+
+    var itemID: UUID { id }
 }
 
 struct HomeTimelineSection: Identifiable, Hashable {
+    let id: String
+    let dayStart: Date
     let title: String
+    let subtitle: String
+    let isUnscheduled: Bool
     let entries: [HomeTimelineEntry]
-
-    var id: String { title }
 }
 
 struct HomeOverdueEntry: Identifiable, Hashable {
@@ -351,8 +356,8 @@ final class HomeViewModel {
         return sessionStore.currentSpace?.displayName ?? "我的任务空间"
     }
 
-    var headerAvatars: [HomeAvatar] {
-        return [currentUserAvatar]
+    var headerAvatar: HomeAvatar {
+        return currentUserAvatar
     }
 
     var currentUserAvatar: HomeAvatar {
@@ -824,13 +829,13 @@ final class HomeViewModel {
                 actorID: actorID,
                 referenceDate: referenceDate
             )
-            let didCompleteOccurrence = saved.isCompleted(on: referenceDate, calendar: calendar)
+            let didCompleteTimelineItem = isTimelineCompleted(saved, on: referenceDate)
             switch trigger {
             case .inlineControl:
-                if didCompleteOccurrence {
+                if didCompleteTimelineItem {
                     animatingCompletionOccurrenceKeys.insert(occurrenceKey)
                     try? await Task.sleep(for: .milliseconds(320))
-                    withAnimation(.bouncy(duration: 0.68, extraBounce: 0.14)) {
+                    withAnimation(.smooth(duration: 0.28, extraBounce: 0)) {
                         replaceItemPreservingOrder(saved)
                     }
                     try? await Task.sleep(for: .milliseconds(140))
@@ -845,19 +850,20 @@ final class HomeViewModel {
                     try? await Task.sleep(for: .milliseconds(90))
                 }
             case .swipeAction:
-                if didCompleteOccurrence {
+                if didCompleteTimelineItem {
                     try? await Task.sleep(for: .milliseconds(220))
-                    withAnimation(.bouncy(duration: 0.58, extraBounce: 0.04)) {
+                    withAnimation(.smooth(duration: 0.26, extraBounce: 0)) {
                         replaceItemPreservingOrder(saved)
                     }
                 } else {
                     try? await Task.sleep(for: .milliseconds(220))
-                    withAnimation(.bouncy(duration: 0.56, extraBounce: 0.03)) {
+                    withAnimation(.smooth(duration: 0.26, extraBounce: 0)) {
                         replaceItemPreservingOrder(saved)
                     }
                 }
             }
             emitTaskMutation(spaceID: spaceID)
+            await reconcileHomeItems(spaceID: spaceID)
         } catch {
             #if DEBUG
             print("[HomeViewModel] completeItem failed for itemID=\(itemID): \(error)")
@@ -1032,6 +1038,28 @@ final class HomeViewModel {
         await snoozeItem(itemID, using: .tomorrow)
     }
 
+    func rescheduleOverdueItemToToday(_ itemID: UUID) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id,
+            let item = item(for: itemID)
+        else { return }
+
+        do {
+            let saved = try await taskApplicationService.rescheduleTask(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID,
+                dueAt: returnToTodayDueDate(for: item),
+                remindAt: nil
+            )
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                replaceItemPreservingOrder(saved)
+            }
+            emitTaskMutation(spaceID: spaceID)
+        } catch {}
+    }
+
     func isSelectedDate(_ date: Date) -> Bool {
         calendar.isDate(date, inSameDayAs: selectedDate)
     }
@@ -1108,6 +1136,10 @@ final class HomeViewModel {
         primaryIncompleteTimelineItems.map(makeTimelineEntry)
     }
 
+    var activeTimelineSections: [HomeTimelineSection] {
+        makeActiveTimelineSections(from: primaryIncompleteTimelineItems)
+    }
+
     var completedTimelineEntries: [HomeTimelineEntry] {
         return completedTimelineItems.map(makeTimelineEntry)
     }
@@ -1125,7 +1157,7 @@ final class HomeViewModel {
     }
 
     func reorderTimelineEntries(_ entries: [HomeTimelineEntry], fromOffsets: IndexSet, toOffset: Int) async {
-        var reorderedIDs = entries.map(\.id)
+        var reorderedIDs = entries.map(\.itemID)
         reorderedIDs.move(fromOffsets: fromOffsets, toOffset: toOffset)
 
         do {
@@ -1212,12 +1244,53 @@ final class HomeViewModel {
         }
     }
 
+    private func reconcileHomeItems(spaceID: UUID) async {
+        let completedRange = CompletedTaskRange.today.bounds(for: .now, calendar: calendar)
+        guard let fetchedItems = try? await itemRepository.fetchHomeItems(
+            spaceID: spaceID,
+            completedFrom: completedRange.lowerBound ?? .distantPast,
+            completedBefore: completedRange.upperBound ?? .distantFuture
+        ) else { return }
+
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            items = fetchedItems
+        }
+        reloadRevision += 1
+    }
+
     private func scope(for date: Date) -> TaskScope {
         .all
     }
 
     private func defaultDueDate() -> Date {
         calendar.date(bySettingHour: 18, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+    }
+
+    private func returnToTodayDueDate(for item: Item) -> Date {
+        guard item.hasExplicitTime, let dueAt = item.dueAt else {
+            return dateOnlyDueDate(for: selectedDate)
+        }
+
+        let candidate = merge(date: selectedDate, timeSource: dueAt)
+        guard candidate <= Date.now else { return candidate }
+
+        let selectedDayStart = calendar.startOfDay(for: selectedDate)
+        let nextHour = calendar.dateInterval(of: .hour, for: Date.now)?.end
+            ?? Date.now.addingTimeInterval(3_600)
+        if calendar.isDate(nextHour, inSameDayAs: selectedDate) {
+            return nextHour
+        }
+
+        let selectedDayEnd = calendar
+            .date(byAdding: .day, value: 1, to: selectedDayStart)
+            .flatMap { calendar.date(byAdding: .second, value: -1, to: $0) }
+        if let selectedDayEnd, selectedDayEnd > Date.now {
+            return selectedDayEnd
+        }
+
+        return calendar.date(byAdding: .day, value: 1, to: selectedDayStart) ?? defaultDueDate()
     }
 
     private func dateOnlyDueDate(for date: Date) -> Date {
@@ -1257,11 +1330,11 @@ final class HomeViewModel {
     }
 
     private func timelineTimeText(for item: Item, isCompleted: Bool) -> String {
-        guard isCompleted,
-              let completedAt = completionTimestamp(for: item) else {
-            return timeText(for: item)
-        }
-        return weekdayLabel(for: completedAt)
+        guard isCompleted == false,
+              item.hasExplicitTime,
+              let dueAt = item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt
+        else { return "" }
+        return hourMinuteText(for: dueAt)
     }
 
     private func completionTimestamp(for item: Item) -> Date? {
@@ -1309,6 +1382,107 @@ final class HomeViewModel {
                 return lhs.id.uuidString < rhs.id.uuidString
             }
             .prefix(6))
+    }
+
+    private struct ActiveTimelineSectionKey: Hashable {
+        let dayStart: Date
+        let isUnscheduled: Bool
+    }
+
+    private func makeActiveTimelineSections(from items: [Item]) -> [HomeTimelineSection] {
+        let grouped = Dictionary(grouping: items) { item in
+            activeTimelineSectionKey(for: item)
+        }
+
+        let keys = grouped.keys.sorted { lhs, rhs in
+            if lhs.isUnscheduled != rhs.isUnscheduled {
+                return lhs.isUnscheduled == false
+            }
+            if lhs.dayStart != rhs.dayStart {
+                return lhs.dayStart < rhs.dayStart
+            }
+            return lhs.isUnscheduled.description < rhs.isUnscheduled.description
+        }
+
+        return keys.compactMap { key in
+            guard let sectionItems = grouped[key], sectionItems.isEmpty == false else { return nil }
+            let entries = sectionItems
+                .sorted(by: timelineItemSortPrecedes)
+                .map(makeTimelineEntry)
+
+            return HomeTimelineSection(
+                id: "\(key.isUnscheduled ? "created" : "scheduled")-\(Int(key.dayStart.timeIntervalSince1970))",
+                dayStart: key.dayStart,
+                title: timelineSectionTitle(for: key.dayStart),
+                subtitle: timelineSectionSubtitle(
+                    for: key.dayStart,
+                    isUnscheduled: key.isUnscheduled,
+                    count: entries.count
+                ),
+                isUnscheduled: key.isUnscheduled,
+                entries: entries
+            )
+        }
+    }
+
+    private func activeTimelineSectionKey(for item: Item) -> ActiveTimelineSectionKey {
+        if let scheduledDate = item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt {
+            return ActiveTimelineSectionKey(
+                dayStart: calendar.startOfDay(for: scheduledDate),
+                isUnscheduled: false
+            )
+        }
+
+        return ActiveTimelineSectionKey(
+            dayStart: calendar.startOfDay(for: item.createdAt),
+            isUnscheduled: true
+        )
+    }
+
+    private func timelineSectionTitle(for dayStart: Date) -> String {
+        if calendar.isDateInToday(dayStart) {
+            return "今天"
+        }
+        if calendar.isDateInTomorrow(dayStart) {
+            return "明天"
+        }
+        if calendar.isDateInYesterday(dayStart) {
+            return "昨天"
+        }
+
+        let currentYear = calendar.component(.year, from: .now)
+        let sectionYear = calendar.component(.year, from: dayStart)
+        if currentYear != sectionYear {
+            return dayStart.formatted(.dateTime.locale(Locale(identifier: "zh_CN")).year().month().day())
+        }
+        return dayStart.formatted(.dateTime.locale(Locale(identifier: "zh_CN")).month().day())
+    }
+
+    private func timelineSectionSubtitle(for dayStart: Date, isUnscheduled: Bool, count: Int) -> String {
+        let weekday = weekdayLabel(for: dayStart)
+        let countText = "\(count) 项"
+        guard isUnscheduled else {
+            return "\(weekday) · \(countText)"
+        }
+        return "创建 · \(weekday) · \(countText)"
+    }
+
+    private func timelineItemSortPrecedes(_ lhs: Item, _ rhs: Item) -> Bool {
+        let lhsDueAt = timelineSortDate(for: lhs)
+        let rhsDueAt = timelineSortDate(for: rhs)
+        if lhsDueAt != rhsDueAt {
+            return lhsDueAt < rhsDueAt
+        }
+
+        if lhs.sortOrder != rhs.sortOrder {
+            return lhs.sortOrder < rhs.sortOrder
+        }
+
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt < rhs.createdAt
+        }
+
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 
     private var sortedItemsForTimeline: [Item] {
@@ -1411,6 +1585,7 @@ final class HomeViewModel {
         let sortedSubtasks = item.subtasks.sorted { $0.sortOrder < $1.sortOrder }
         return HomeTimelineEntry(
             id: item.id,
+            presentationID: timelinePresentationID(for: item, isCompleted: isCompleted),
             title: item.title,
             notes: item.notes,
             timeText: timelineTimeText(for: item, isCompleted: isCompleted),
@@ -1428,6 +1603,11 @@ final class HomeViewModel {
         )
     }
 
+    private func timelinePresentationID(for item: Item, isCompleted: Bool) -> String {
+        let state = isCompleted ? "completed" : "active"
+        return "\(state)-\(selectedDateKey)-\(item.id.uuidString)"
+    }
+
     private func makeOverdueEntry(for item: Item) -> HomeOverdueEntry {
         HomeOverdueEntry(
             id: item.id,
@@ -1439,6 +1619,15 @@ final class HomeViewModel {
 
     private func timelineSortDate(for item: Item) -> Date {
         item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt ?? .distantFuture
+    }
+
+    private func hourMinuteText(for date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .locale(Locale(identifier: "zh_CN"))
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+        )
     }
 
     private func overdueDetailText(for item: Item) -> String {
@@ -1509,8 +1698,12 @@ final class HomeViewModel {
         item.isCompleted(on: referenceDate, calendar: calendar) || item.status == .completed
     }
 
+    private func isTimelineCompleted(_ item: Item, on referenceDate: Date) -> Bool {
+        isCompleted(item, on: referenceDate) || item.completedAt != nil
+    }
+
     private func isTimelineCompleted(_ item: Item) -> Bool {
-        isCompleted(item, on: selectedDate) || item.completedAt != nil
+        isTimelineCompleted(item, on: selectedDate)
     }
 
     private func archiveCompletedItemsIfNeeded(in spaceID: UUID) async throws -> Bool {

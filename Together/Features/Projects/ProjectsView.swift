@@ -706,25 +706,27 @@ private struct ProjectListRow: View {
     @ViewBuilder
     private var titleRegion: some View {
         if isEditingTitle {
-            TextField("", text: $titleDraft, prompt: Text(project.name))
-                .font(titleFont)
-                .foregroundStyle(titleColor)
-                .textInputAutocapitalization(.sentences)
-                .submitLabel(.done)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .focused($isTitleFieldFocused)
-                .onSubmit {
-                    commitTitleDraft()
+            TextField(
+                project.name,
+                text: $titleDraft
+            )
+            .font(AppTheme.typography.sized(19, weight: .bold))
+            .foregroundStyle(titleColor)
+            .textInputAutocapitalization(.sentences)
+            .submitLabel(.done)
+            .focused($isTitleFieldFocused)
+            .onSubmit {
+                commitTitleDraftAfterFocusUpdate()
+            }
+            .onChange(of: isTitleFieldFocused) { _, isFocused in
+                if isFocused == false, isEditingTitle {
+                    commitTitleDraftAfterFocusUpdate()
                 }
-                .onChange(of: isTitleFieldFocused) { _, focused in
-                    if focused == false, isEditingTitle {
-                        commitTitleDraft()
-                    }
-                }
-                .onDisappear {
-                    commitTitleDraft()
-                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onDisappear {
+                commitTitleDraft()
+            }
         } else {
             Button(action: titleAction) {
                 Text(project.name)
@@ -860,6 +862,15 @@ private struct ProjectListRow: View {
         }
     }
 
+    private func commitTitleDraftAfterFocusUpdate() {
+        Task { @MainActor in
+            titleDraft = TextInputSnapshotReader.resolvedText(fallback: titleDraft)
+            isTitleFieldFocused = false
+            await Task.yield()
+            commitTitleDraft()
+        }
+    }
+
     private func deadlineAction() {
         guard canExpandInteractions else { return }
         onOpenDeadlineEditor()
@@ -925,20 +936,23 @@ private struct ProjectSubtasksSection: View {
                         )
 
                         if editingSubtaskID == subtask.id {
-                            TextField("", text: subtaskBinding(for: subtask), prompt: Text(subtask.title))
-                                .font(AppTheme.typography.sized(15, weight: .medium))
-                                .foregroundStyle(titleColor)
-                                .textInputAutocapitalization(.sentences)
-                                .submitLabel(.done)
-                                .focused($focusedSubtaskID, equals: subtask.id)
-                                .onSubmit {
-                                    commitSubtask(subtask)
+                            TextField(
+                                subtask.title,
+                                text: subtaskBinding(for: subtask)
+                            )
+                            .font(AppTheme.typography.sized(15, weight: .medium))
+                            .foregroundStyle(titleColor)
+                            .textInputAutocapitalization(.sentences)
+                            .submitLabel(.done)
+                            .focused($focusedSubtaskID, equals: subtask.id)
+                            .onSubmit {
+                                commitSubtaskAfterFocusUpdate(subtask)
+                            }
+                            .onChange(of: focusedSubtaskID) { oldValue, newValue in
+                                if oldValue == subtask.id, newValue != subtask.id, editingSubtaskID == subtask.id {
+                                    commitSubtaskAfterFocusUpdate(subtask)
                                 }
-                                .onChange(of: focusedSubtaskID) { _, focusedID in
-                                    if focusedID != subtask.id, editingSubtaskID == subtask.id {
-                                        commitSubtask(subtask)
-                                    }
-                                }
+                            }
                         } else {
                             Button {
                                 HomeInteractionFeedback.selection()
@@ -956,6 +970,22 @@ private struct ProjectSubtasksSection: View {
                             .buttonStyle(.plain)
                         }
 
+                        if editingSubtaskID == subtask.id {
+                            Button {
+                                HomeInteractionFeedback.selection()
+                                commitSubtaskAfterFocusUpdate(subtask)
+                            } label: {
+                                Image(systemName: "checkmark")
+                                    .font(AppTheme.typography.sized(10, weight: .bold))
+                                    .foregroundStyle(titleColor)
+                                    .frame(width: 18, height: 18)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("保存子任务")
+                        }
+
                         Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -969,7 +999,9 @@ private struct ProjectSubtasksSection: View {
                 reduceMotion: reduceMotion
             ) {
                 HStack(spacing: AppTheme.spacing.sm) {
-                    Button(action: addSubtask) {
+                    Button {
+                        commitDraftSubtaskAfterFocusUpdate(feedback: true)
+                    } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(AppTheme.typography.sized(17, weight: .semibold))
                             .foregroundStyle(AppTheme.colors.coral)
@@ -983,21 +1015,20 @@ private struct ProjectSubtasksSection: View {
                         }
                     )
                     .buttonStyle(.plain)
-                    .disabled(draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!canAttemptAddSubtask)
 
-                    TextField("添加子任务", text: $draftTitle)
-                        .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(titleColor)
-                        .textInputAutocapitalization(.sentences)
-                        .submitLabel(.done)
-                        .focused($isInputFocused)
-                        .onSubmit {
-                            commitDraftSubtask(feedback: true)
-                        }
-                        .onChange(of: isInputFocused) { _, isFocused in
-                            guard isFocused == false else { return }
-                            commitDraftSubtask(feedback: false)
-                        }
+                    TextField(
+                        "添加子任务",
+                        text: $draftTitle
+                    )
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(titleColor)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($isInputFocused)
+                    .onSubmit {
+                        commitDraftSubtaskAfterFocusUpdate(feedback: true)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .offset(x: -textAlignmentOffset)
@@ -1049,8 +1080,21 @@ private struct ProjectSubtasksSection: View {
         onUpdateSubtask(subtask.id, trimmed)
     }
 
+    private func commitSubtaskAfterFocusUpdate(_ subtask: ProjectSubtask) {
+        Task { @MainActor in
+            subtaskDraft = TextInputSnapshotReader.resolvedText(fallback: subtaskDraft)
+            focusedSubtaskID = nil
+            await Task.yield()
+            commitSubtask(subtask)
+        }
+    }
+
     private func addSubtask() {
         commitDraftSubtask(feedback: true)
+    }
+
+    private var canAttemptAddSubtask: Bool {
+        draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false || isInputFocused
     }
 
     private func commitDraftSubtask(feedback: Bool) {
@@ -1061,6 +1105,15 @@ private struct ProjectSubtasksSection: View {
         }
         onAddSubtask(trimmed)
         draftTitle = ""
+    }
+
+    private func commitDraftSubtaskAfterFocusUpdate(feedback: Bool) {
+        Task { @MainActor in
+            draftTitle = TextInputSnapshotReader.resolvedText(fallback: draftTitle)
+            isInputFocused = false
+            await Task.yield()
+            commitDraftSubtask(feedback: feedback)
+        }
     }
 }
 

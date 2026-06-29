@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Schedule Day View</title>
+    <style id="theme-vars">
+/* Task Schedule UI — Brand CSS (High-Fidelity Replication) */
+
+:root {
+  /* === Colors === */
+  --color-bg: #FFFFFF;
+  --color-bg-secondary: #F7F7FA;
+  --color-text-primary: #1A1A2E;
+  --color-text-secondary: #8E8EA0;
+  --color-text-tertiary: #B0B0C3;
+  --color-text-white: #FFFFFF;
+  --color-brand: #5B6BF5;
+  --color-brand-light: rgba(91, 107, 245, 0.1);
+  --color-timeline-line: #D85B6B;
+  --color-timeline-dot: #D85B6B;
+  --color-timeline-dot-fill: #D85B6B;
+
+  /* Task card backgrounds */
+  --color-card-wireframe-start: #D85B6B;
+  --color-card-wireframe-end: #E87885;
+  --color-card-ui-design: #E8E6F5;
+  --color-card-prototype: #FDF6E3;
+  --color-card-testing: #E8F5F0;
+  --color-card-meeting: #F5E8E8;
+
+  /* Border & Surface */
+  --color-border: #E8E8F0;
+  --color-surface-elevated: #FFFFFF;
+
+  /* === Typography === */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+
+  /* === Spacing === */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+
+  /* === Radius === */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* === Shadows === */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-button: 0 2px 6px rgba(91, 107, 245, 0.25);
+}
+
+/* Dark mode */
+html.dark {
+  --color-bg: #121220;
+  --color-bg-secondary: #1A1A2E;
+  --color-text-primary: #F0F0F5;
+  --color-text-secondary: #8E8EA0;
+  --color-text-tertiary: #6B6B80;
+  --color-border: #2A2A40;
+  --color-surface-elevated: #1E1E32;
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-border: var(--color-border);
+  }
+  @layer base {
+    body { background: var(--color-surface); color: var(--color-text-primary); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main class="mx-auto max-w-[375px] min-h-screen" style="background: var(--color-bg); font-family: var(--font-family);">
+
+      <!-- Top Navigation Bar -->
+      <header class="flex items-center justify-between px-5 pt-3 pb-2" style="background: var(--color-bg);">
+        <button class="inline-flex items-center justify-center w-8 h-8" aria-label="Back" data-dom-id="btn-back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button class="inline-flex items-center justify-center gap-1 whitespace-nowrap text-white font-bold" style="background: var(--color-brand); border-radius: var(--radius-xl); padding: 10px 18px; font-size: var(--font-size-md); box-shadow: var(--shadow-button);" data-dom-id="btn-add-task">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Add Task
+        </button>
+      </header>
+
+      <!-- Calendar Strip -->
+      <section class="flex items-start justify-between px-5 pt-4 pb-2">
+        <!-- MON 11 -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="font-medium uppercase" style="font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 0.5px;">MON</span>
+          <span class="font-medium" style="font-size: 15px; color: var(--color-text-secondary);">11</span>
+        </div>
+        <!-- TUE 12 -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="font-medium uppercase" style="font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 0.5px;">TUE</span>
+          <span class="font-medium" style="font-size: 15px; color: var(--color-text-secondary);">12</span>
+        </div>
+        <!-- WED 13 -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="font-medium uppercase" style="font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 0.5px;">WED</span>
+          <span class="font-medium" style="font-size: 15px; color: var(--color-text-secondary);">13</span>
+        </div>
+        <!-- THU 14 (selected) -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="font-medium uppercase" style="font-size: var(--font-size-xs); color: var(--color-brand); letter-spacing: 0.5px;">THU</span>
+          <div class="inline-flex items-center justify-center" style="width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--color-brand);">
+            <span class="font-medium text-white" style="font-size: 15px;">14</span>
+          </div>
+        </div>
+        <!-- FRI 15 -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="font-medium uppercase" style="font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 0.5px;">FRI</span>
+          <span class="font-medium" style="font-size: 15px; color: var(--color-text-secondary);">15</span>
+        </div>
+        <!-- SAT 16 -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="font-medium uppercase" style="font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 0.5px;">SAT</span>
+          <span class="font-medium" style="font-size: 15px; color: var(--color-text-secondary);">16</span>
+        </div>
+        <!-- SUN 17 -->
+        <div class="flex flex-col items-center gap-1">
+          <span class="font-medium uppercase" style="font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 0.5px;">SUN</span>
+          <span class="font-medium" style="font-size: 15px; color: var(--color-text-secondary);">17</span>
+        </div>
+      </section>
+
+      <!-- Timeline + Task Cards -->
+      <section class="relative px-5 pt-6 pb-8">
+        <!-- Timeline vertical line -->
+        <div class="absolute left-[29px] top-[24px] bottom-[24px]" style="width: 2px; background: var(--color-timeline-line);"></div>
+
+        <div class="flex flex-col gap-3">
+
+          <!-- Card 1: Wireframing (Active) -->
+          <div class="flex items-start gap-4">
+            <!-- Timeline node (filled) -->
+            <div class="relative z-10 flex-shrink-0 mt-4">
+              <div class="flex items-center justify-center" style="width: 10px; height: 10px; border-radius: var(--radius-full); background: var(--color-timeline-dot-fill);"></div>
+            </div>
+            <!-- Card -->
+            <div class="flex-1 min-w-0" style="background: linear-gradient(135deg, var(--color-card-wireframe-start), var(--color-card-wireframe-end)); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-card);">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-white truncate" style="font-size: var(--font-size-lg);">Wireframing</span>
+                <span class="text-white flex-shrink-0" style="font-size: var(--font-size-base); opacity: 0.85; font-weight: 500;">12:00 PM</span>
+              </div>
+              <p class="text-white mt-1" style="font-size: var(--font-size-sm); opacity: 0.75; line-height: 1.5;">Make some ideation from sketch and wireframes.</p>
+            </div>
+          </div>
+
+          <!-- Card 2: UI Design -->
+          <div class="flex items-start gap-4">
+            <!-- Timeline node (hollow) -->
+            <div class="relative z-10 flex-shrink-0 mt-4">
+              <div class="flex items-center justify-center" style="width: 10px; height: 10px; border-radius: var(--radius-full); background: var(--color-surface-elevated); border: 2px solid var(--color-timeline-dot);"></div>
+            </div>
+            <!-- Card -->
+            <div class="flex-1 min-w-0" style="background: var(--color-card-ui-design); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-card);">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold truncate" style="font-size: var(--font-size-lg); color: var(--color-text-primary);">UI Design</span>
+                <span class="flex-shrink-0" style="font-size: var(--font-size-base); color: var(--color-text-secondary); font-weight: 500;">1:30 PM</span>
+              </div>
+              <p class="mt-1" style="font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.5;">Visual design from the wireframe and make design system.</p>
+            </div>
+          </div>
+
+          <!-- Card 3: Prototyping -->
+          <div class="flex items-start gap-4">
+            <!-- Timeline node (hollow) -->
+            <div class="relative z-10 flex-shrink-0 mt-4">
+              <div class="flex items-center justify-center" style="width: 10px; height: 10px; border-radius: var(--radius-full); background: var(--color-surface-elevated); border: 2px solid var(--color-timeline-dot);"></div>
+            </div>
+            <!-- Card -->
+            <div class="flex-1 min-w-0" style="background: var(--color-card-prototype); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-card);">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold truncate" style="font-size: var(--font-size-lg); color: var(--color-text-primary);">Prototyping</span>
+                <span class="flex-shrink-0" style="font-size: var(--font-size-base); color: var(--color-text-secondary); font-weight: 500;">3:00 PM</span>
+              </div>
+              <p class="mt-1" style="font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.5;">Make the interactive prototype for the testing &amp; stakeholders.</p>
+            </div>
+          </div>
+
+          <!-- Card 4: Usability Testing -->
+          <div class="flex items-start gap-4">
+            <!-- Timeline node (hollow) -->
+            <div class="relative z-10 flex-shrink-0 mt-4">
+              <div class="flex items-center justify-center" style="width: 10px; height: 10px; border-radius: var(--radius-full); background: var(--color-surface-elevated); border: 2px solid var(--color-timeline-dot);"></div>
+            </div>
+            <!-- Card -->
+            <div class="flex-1 min-w-0" style="background: var(--color-card-testing); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-card);">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold truncate" style="font-size: var(--font-size-lg); color: var(--color-text-primary);">Usability Testing</span>
+                <span class="flex-shrink-0" style="font-size: var(--font-size-base); color: var(--color-text-secondary); font-weight: 500;">3:45 PM</span>
+              </div>
+              <p class="mt-1" style="font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.5;">Primary user testing and usability testing of the prototype.</p>
+            </div>
+          </div>
+
+          <!-- Card 5: Meeting -->
+          <div class="flex items-start gap-4">
+            <!-- Timeline node (hollow) -->
+            <div class="relative z-10 flex-shrink-0 mt-4">
+              <div class="flex items-center justify-center" style="width: 10px; height: 10px; border-radius: var(--radius-full); background: var(--color-surface-elevated); border: 2px solid var(--color-timeline-dot);"></div>
+            </div>
+            <!-- Card -->
+            <div class="flex-1 min-w-0" style="background: var(--color-card-meeting); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-card);">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold truncate" style="font-size: var(--font-size-lg); color: var(--color-text-primary);">Meeting</span>
+                <span class="flex-shrink-0" style="font-size: var(--font-size-base); color: var(--color-text-secondary); font-weight: 500;">4:30 PM</span>
+              </div>
+              <p class="mt-1" style="font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.5;">Sum up discussion for the new product with stakeholders.</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

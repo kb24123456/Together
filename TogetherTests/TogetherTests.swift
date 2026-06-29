@@ -7,6 +7,24 @@ import UIKit
 @MainActor
 @Suite(.serialized)
 struct TogetherTests {
+    @Test func ocrMediaControlsPreserveDeviceBottomSafeArea() {
+        #expect(
+            OCRMediaLayout.controlsBottomPadding(
+                safeAreaBottom: 34,
+                designSpacing: 16
+            ) == 50
+        )
+    }
+
+    @Test func ocrSourceSheetSessionStartsFromSelectedMenuAction() {
+        let cameraSession = OCRSourceSheetSession(source: .camera)
+        let photosSession = OCRSourceSheetSession(source: .photos)
+
+        #expect(cameraSession.viewModel.flowState == .camera)
+        #expect(photosSession.viewModel.flowState == .photos)
+        #expect(cameraSession.viewModel !== photosSession.viewModel)
+    }
+
     @Test func itemStateMachineCompletesInProgressTask() async throws {
         let next = ItemStateMachine.nextStatus(
             from: .inProgress,
@@ -71,6 +89,105 @@ struct TogetherTests {
         #expect(viewModel.draft.taskDrafts.count == 1)
         #expect(viewModel.draft.taskDrafts.first?.title == "信用卡商户")
         #expect(viewModel.draft.taskDrafts.first?.subtasks.map(\.title) == ["客户经理对接名单", "召开线下沙龙会"])
+    }
+
+    @MainActor
+    @Test func ocrViewModelCombinesMultipleSelectedImages() async throws {
+        let firstImage = try #require(makeTestImage())
+        let secondImage = try #require(makeTestImage())
+        let viewModel = OCRImportViewModel(
+            recognizer: StubOCRTextRecognizer(results: [
+                .success("买牛奶"),
+                .success("整理周报")
+            ])
+        )
+
+        await viewModel.processImages([firstImage, secondImage])
+
+        #expect(viewModel.flowState == .review)
+        #expect(viewModel.draft.status == .needsReview)
+        #expect(viewModel.draft.rawText == "买牛奶\n整理周报")
+        #expect(viewModel.draft.taskDrafts.map(\.title) == ["买牛奶", "整理周报"])
+    }
+
+    @Test func ocrReviewDetentPolicyStartsShortDraftAtMedium() {
+        let draft = OCRImportDraft(
+            rawText: "测试任务",
+            status: .needsReview,
+            taskDrafts: [OCRImportTaskDraft(title: "测试任务")]
+        )
+
+        #expect(
+            OCRReviewDetentPolicy.initialDetent(for: draft, availableHeight: 844)
+                == .medium
+        )
+    }
+
+    @Test func ocrReviewDetentPolicyStartsLongDraftAtLarge() {
+        let draft = OCRImportDraft(
+            rawText: "批量任务",
+            status: .needsReview,
+            taskDrafts: (0..<4).map { index in
+                OCRImportTaskDraft(
+                    title: "任务 \(index)",
+                    subtasks: (0..<2).map { OCRImportSubtaskDraft(title: "子任务 \($0)") }
+                )
+            }
+        )
+
+        #expect(
+            OCRReviewDetentPolicy.initialDetent(for: draft, availableHeight: 844)
+                == .large
+        )
+    }
+
+    @Test func ocrReviewDetentPolicyOnlyPromotesAutomatically() {
+        #expect(
+            OCRReviewDetentPolicy.resolvedDetent(
+                current: .medium,
+                measuredContentHeight: 500,
+                availableHeight: 844,
+                keyboardIsVisible: false
+            ) == .large
+        )
+        #expect(
+            OCRReviewDetentPolicy.resolvedDetent(
+                current: .large,
+                measuredContentHeight: 120,
+                availableHeight: 844,
+                keyboardIsVisible: false
+            ) == .large
+        )
+        #expect(
+            OCRReviewDetentPolicy.resolvedDetent(
+                current: .medium,
+                measuredContentHeight: 120,
+                availableHeight: 844,
+                keyboardIsVisible: true
+            ) == .large
+        )
+    }
+
+    @MainActor
+    @Test func ocrReviewSessionRetainsDraftAndDetectsUserChanges() {
+        let viewModel = OCRImportViewModel(recognizer: StubOCRTextRecognizer(result: .success("测试测试")))
+        viewModel.draft = OCRImportDraft(
+            rawText: "测试测试",
+            status: .needsReview,
+            taskDrafts: [OCRImportTaskDraft(title: "测试测试")]
+        )
+        let session = OCRReviewSession(viewModel: viewModel, availableHeight: 844)
+
+        #expect(session.viewModel === viewModel)
+        #expect(session.viewModel.draft.taskDrafts.first?.title == "测试测试")
+        #expect(session.hasUserChanges == false)
+
+        var updated = viewModel.draft.taskDrafts[0]
+        updated.title = "测试测试完整保存"
+        viewModel.updateTask(updated)
+
+        #expect(session.hasUserChanges)
+        #expect(session.viewModel.draft.taskDrafts.first?.title == "测试测试完整保存")
     }
 
     @MainActor
@@ -270,6 +387,71 @@ struct TogetherTests {
         #expect(viewModel.weeklyCompletedEntryCount == (weeklyCompleted == nil ? 0 : 1))
     }
 
+    @Test func completingTaskMovesToCompletedPresentationIdentity() async throws {
+        let item = makeHomeFilterItem(title: "完成后进入已完成", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        let activeEntry = try #require(viewModel.activeTimelineEntries.first)
+
+        await viewModel.completeItem(item.id)
+
+        #expect(viewModel.activeTimelineEntries.isEmpty)
+        #expect(viewModel.activeTimelineSections.isEmpty)
+        let completedEntry = try #require(viewModel.completedTimelineEntries.first)
+        #expect(activeEntry.itemID == item.id)
+        #expect(completedEntry.itemID == item.id)
+        #expect(completedEntry.isCompleted)
+        #expect(completedEntry.statusText == "已完成")
+        #expect(activeEntry.presentationID != completedEntry.presentationID)
+    }
+
+    @Test func completingFutureDatedTaskUsesCompletionAnimationBranch() async throws {
+        var item = makeHomeFilterItem(title: "提前完成未来任务", completedAt: nil, status: .inProgress)
+        item.dueAt = Date.now.addingTimeInterval(86_400)
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        let completionTask = Task { @MainActor in
+            await viewModel.completeItem(item.id)
+        }
+
+        try await Task.sleep(for: .milliseconds(80))
+
+        #expect(viewModel.isAnimatingCompletion(for: item.id, on: viewModel.selectedDate))
+        #expect(viewModel.isAnimatingReopening(for: item.id, on: viewModel.selectedDate) == false)
+
+        await completionTask.value
+        let completedEntry = try #require(viewModel.completedTimelineEntries.first { $0.itemID == item.id })
+        #expect(completedEntry.isCompleted)
+    }
+
+    @Test func recurringTaskCompletionOnlyAppliesToSelectedOccurrence() async throws {
+        var item = makeHomeFilterItem(title: "每日复盘", completedAt: nil, status: .inProgress)
+        item.repeatRule = ItemRepeatRule(frequency: .daily)
+        item.dueAt = Calendar.current.startOfDay(for: .now)
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        await viewModel.completeItem(item.id)
+
+        let todayEntry = try #require(viewModel.completedTimelineEntries.first)
+        #expect(todayEntry.itemID == item.id)
+        #expect(todayEntry.isCompleted)
+        #expect(viewModel.todayCompletedEntryCount == 1)
+
+        let tomorrow = try #require(Calendar.current.date(byAdding: .day, value: 1, to: .now))
+        viewModel.selectDate(tomorrow)
+
+        let tomorrowEntry = try #require(viewModel.activeTimelineEntries.first)
+        #expect(tomorrowEntry.itemID == item.id)
+        #expect(tomorrowEntry.isCompleted == false)
+        #expect(tomorrowEntry.statusText != "已完成")
+    }
+
     @Test func homeReloadKeepsTasksWhenWeeklyCompletedCountFails() async throws {
         let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: .current)
         var expectedWeeklyCount = 0
@@ -329,6 +511,62 @@ struct TogetherTests {
         #expect(viewModel.activeTimelineEntries.map(\.title) == ["更早截止", "更晚截止"])
     }
 
+    @Test func activeTimelineSectionsGroupByDueDateThenCreatedDate() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let yesterdayStart = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
+        let tomorrowStart = try #require(calendar.date(byAdding: .day, value: 1, to: todayStart))
+        let tomorrowTime = try #require(calendar.date(bySettingHour: 18, minute: 30, second: 0, of: tomorrowStart))
+
+        let unscheduled = makeHomeFilterItem(
+            title: "无截止按创建日",
+            completedAt: nil,
+            status: .inProgress,
+            createdAt: yesterdayStart
+        )
+
+        var scheduled = makeHomeFilterItem(title: "有截止按截止日", completedAt: nil, status: .inProgress)
+        scheduled.dueAt = tomorrowStart
+        scheduled.sortOrder = 0
+
+        var timed = makeHomeFilterItem(title: "有时间仍在截止日组", completedAt: nil, status: .inProgress)
+        timed.dueAt = tomorrowTime
+        timed.hasExplicitTime = true
+        timed.sortOrder = 1
+
+        let viewModel = makeInlineDetailHomeViewModel(
+            repository: MockItemRepository(items: [unscheduled, timed, scheduled])
+        )
+
+        await viewModel.reload()
+
+        let sections = viewModel.activeTimelineSections
+        #expect(sections.count == 2)
+        #expect(sections.map(\.isUnscheduled) == [false, true])
+        #expect(sections.map(\.dayStart) == [tomorrowStart, yesterdayStart])
+        #expect(sections[0].entries.map(\.title) == ["有截止按截止日", "有时间仍在截止日组"])
+        #expect(sections[1].entries.map(\.title) == ["无截止按创建日"])
+    }
+
+    @Test func explicitTimelineTimeMovesToSecondaryTextOnly() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let dueTime = try #require(calendar.date(bySettingHour: 18, minute: 30, second: 0, of: todayStart))
+        var timed = makeHomeFilterItem(title: "明确时间任务", completedAt: nil, status: .inProgress)
+        timed.dueAt = dueTime
+        timed.hasExplicitTime = true
+
+        let viewModel = makeInlineDetailHomeViewModel(
+            repository: MockItemRepository(items: [timed])
+        )
+
+        await viewModel.reload()
+
+        let entry = try #require(viewModel.activeTimelineEntries.first)
+        #expect(entry.timeText == "18:30")
+        #expect(HomeTimelineSubtitleText.text(for: entry) == "18:30 · 进行中")
+    }
+
     @Test func homeSnoozeUpdatesDueDateAndResortsTimelineImmediately() async throws {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
@@ -364,6 +602,44 @@ struct TogetherTests {
         #expect(taskApplicationService.capturedSnoozeOption == .tomorrow)
         #expect(viewModel.activeTimelineEntries.map(\.title) == ["后面的任务", "要推迟"])
         #expect(viewModel.item(for: snoozed.id)?.dueAt == laterDue)
+    }
+
+    @Test func overdueRescheduleToTodayMovesItemBackToPrimaryTimeline() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let yesterdayStart = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
+        var overdue = makeHomeFilterItem(title: "逾期任务", completedAt: nil, status: .inProgress)
+        overdue.dueAt = yesterdayStart
+        overdue.hasExplicitTime = false
+
+        var saved = overdue
+        saved.dueAt = todayStart
+        saved.updatedAt = .now
+
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let taskApplicationService = CapturingTaskApplicationService()
+        taskApplicationService.rescheduleItemToReturn = saved
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: taskApplicationService,
+            itemRepository: MockItemRepository(items: [overdue]),
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+        await viewModel.reload()
+
+        #expect(viewModel.overdueEntryCount == 1)
+        #expect(viewModel.activeTimelineEntries.isEmpty)
+
+        await viewModel.rescheduleOverdueItemToToday(overdue.id)
+
+        #expect(taskApplicationService.capturedRescheduleDueAt == todayStart)
+        #expect(taskApplicationService.capturedRescheduleRemindAt == nil)
+        #expect(viewModel.overdueEntryCount == 0)
+        #expect(viewModel.activeTimelineEntries.map(\.title) == ["逾期任务"])
     }
 
     @Test func weeklyCompletedSheetExcludesTodayAndSortsDescending() async throws {
@@ -996,9 +1272,10 @@ struct TogetherTests {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
+            presentationID: "active-test-\(itemID.uuidString)",
             title: "信用卡商户",
             notes: "备注不会盖过子任务",
-            timeText: "6月25日",
+            timeText: "",
             statusText: "进行中",
             accentColorName: "sky",
             isMuted: false,
@@ -1177,15 +1454,29 @@ private func makeTaskSubtaskModelContainer() -> ModelContainer {
 }
 
 private actor StubOCRTextRecognizer: OCRTextRecognizing {
-    let result: Result<String, Error>
+    private var results: [Result<String, Error>]
 
     init(result: Result<String, Error>) {
-        self.result = result
+        self.results = [result]
+    }
+
+    init(results: [Result<String, Error>]) {
+        self.results = results
     }
 
     func recognizeText(in image: UIImage) async throws -> String {
-        try result.get()
+        if results.count > 1 {
+            return try results.removeFirst().get()
+        }
+        guard let result = results.first else {
+            throw StubOCRTextRecognizerError.missingResult
+        }
+        return try result.get()
     }
+}
+
+private enum StubOCRTextRecognizerError: Error {
+    case missingResult
 }
 
 private func makeTestImage() -> UIImage? {
@@ -1230,7 +1521,12 @@ private func makeReminderTestItem(
     )
 }
 
-private func makeHomeFilterItem(title: String, completedAt: Date?, status: ItemStatus) -> Item {
+private func makeHomeFilterItem(
+    title: String,
+    completedAt: Date?,
+    status: ItemStatus,
+    createdAt: Date = Date(timeIntervalSince1970: 1_800_000_000)
+) -> Item {
     Item(
         id: UUID(),
         spaceID: MockDataFactory.singleSpaceID,
@@ -1246,14 +1542,15 @@ private func makeHomeFilterItem(title: String, completedAt: Date?, status: ItemS
         status: status,
         lastActionByUserID: MockDataFactory.currentUserID,
         lastActionAt: completedAt ?? .now,
-        createdAt: Date(timeIntervalSince1970: 1_800_000_000),
-        updatedAt: completedAt ?? Date(timeIntervalSince1970: 1_800_000_000),
+        createdAt: createdAt,
+        updatedAt: completedAt ?? createdAt,
         completedAt: completedAt,
         isDraft: false
     )
 }
 
-private actor CapturingNotificationService: NotificationServiceProtocol {
+@MainActor
+private final class CapturingNotificationService: NotificationServiceProtocol, @unchecked Sendable {
     private var scheduled: [AppNotification] = []
     private var cancelled: [String] = []
 
@@ -1286,6 +1583,9 @@ private actor CapturingNotificationService: NotificationServiceProtocol {
 private final class CapturingTaskApplicationService: TaskApplicationServiceProtocol, @unchecked Sendable {
     var capturedSnoozeOption: TaskSnoozeOption?
     var snoozeItemToReturn: Item?
+    var capturedRescheduleDueAt: Date?
+    var capturedRescheduleRemindAt: Date?
+    var rescheduleItemToReturn: Item?
     var tasksToReturn: [Item] = []
     var capturesCreates = false
     var createdDrafts: [TaskDraft] = []
@@ -1364,6 +1664,11 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
         dueAt: Date?,
         remindAt: Date?
     ) async throws -> Item {
+        capturedRescheduleDueAt = dueAt
+        capturedRescheduleRemindAt = remindAt
+        if let rescheduleItemToReturn {
+            return rescheduleItemToReturn
+        }
         throw RepositoryError.notFound
     }
 

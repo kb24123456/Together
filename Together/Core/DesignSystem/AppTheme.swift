@@ -141,8 +141,8 @@ enum AppTheme {
         static let gradientBottom = Color(light: .init(red: 0.961, green: 0.938, blue: 0.922),
                                           dark: .init(red: 0.130, green: 0.118, blue: 0.112))
 
-        static let gridLine = Color(light: .black.opacity(0.022),
-                                    dark: .white.opacity(0.02))
+        static let gridLine = Color(light: .black.opacity(0.034),
+                                    dark: .white.opacity(0.032))
     }
 
     enum spacing {

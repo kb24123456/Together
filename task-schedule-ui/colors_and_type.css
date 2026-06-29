@@ -1,0 +1,78 @@
+/* Task Schedule UI — Brand CSS (High-Fidelity Replication) */
+
+:root {
+  /* === Colors === */
+  --color-bg: #FFFFFF;
+  --color-bg-secondary: #F7F7FA;
+  --color-text-primary: #1A1A2E;
+  --color-text-secondary: #8E8EA0;
+  --color-text-tertiary: #B0B0C3;
+  --color-text-white: #FFFFFF;
+  --color-brand: #5B6BF5;
+  --color-brand-light: rgba(91, 107, 245, 0.1);
+  --color-timeline-line: #D85B6B;
+  --color-timeline-dot: #D85B6B;
+  --color-timeline-dot-fill: #D85B6B;
+
+  /* Task card backgrounds */
+  --color-card-wireframe-start: #D85B6B;
+  --color-card-wireframe-end: #E87885;
+  --color-card-ui-design: #E8E6F5;
+  --color-card-prototype: #FDF6E3;
+  --color-card-testing: #E8F5F0;
+  --color-card-meeting: #F5E8E8;
+
+  /* Border & Surface */
+  --color-border: #E8E8F0;
+  --color-surface-elevated: #FFFFFF;
+
+  /* === Typography === */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+
+  /* === Spacing === */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+
+  /* === Radius === */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* === Shadows === */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-button: 0 2px 6px rgba(91, 107, 245, 0.25);
+}
+
+/* Dark mode */
+html.dark {
+  --color-bg: #121220;
+  --color-bg-secondary: #1A1A2E;
+  --color-text-primary: #F0F0F5;
+  --color-text-secondary: #8E8EA0;
+  --color-text-tertiary: #6B6B80;
+  --color-border: #2A2A40;
+  --color-surface-elevated: #1E1E32;
+}

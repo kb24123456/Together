@@ -364,11 +364,16 @@ struct RoutinesDetailSheet: View {
                     TextField("事务名称", text: $title, axis: .vertical)
                         .font(AppTheme.typography.sized(28, weight: .bold))
                         .foregroundStyle(AppTheme.colors.title)
+                        .lineLimit(1...3)
+                        .textInputAutocapitalization(.sentences)
+                        .submitLabel(.done)
                         .focused($focusedField, equals: .title)
 
                     TextField("添加备注...", text: $notes, axis: .vertical)
                         .font(AppTheme.typography.sized(16, weight: .medium))
                         .foregroundStyle(AppTheme.colors.body.opacity(0.78))
+                        .lineLimit(1...8)
+                        .textInputAutocapitalization(.sentences)
                         .focused($focusedField, equals: .notes)
                 }
                 .padding(.horizontal, AppTheme.spacing.xl)

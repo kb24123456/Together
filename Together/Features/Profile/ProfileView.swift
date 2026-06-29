@@ -401,51 +401,6 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - Private Components
-
-private struct ProfileQuickReplyEditor: View {
-    let initialMessages: [String]
-    let onSave: ([String]) -> Void
-
-    @State private var messages: [String]
-
-    init(initialMessages: [String], onSave: @escaping ([String]) -> Void) {
-        self.initialMessages = NotificationSettings.normalizedQuickReplyMessages(initialMessages)
-        self.onSave = onSave
-        _messages = State(initialValue: NotificationSettings.normalizedQuickReplyMessages(initialMessages))
-    }
-
-    var body: some View {
-        VStack(spacing: AppTheme.spacing.xs) {
-            ForEach(messages.indices, id: \.self) { index in
-                TextField("预设留言", text: Binding(
-                    get: { messages[index] },
-                    set: { messages[index] = $0 }
-                ))
-                .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                .foregroundStyle(AppTheme.colors.title)
-                .padding(.horizontal, AppTheme.spacing.md)
-                .padding(.vertical, AppTheme.spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                        .fill(AppTheme.colors.backgroundSoft.opacity(0.92))
-                )
-            }
-
-            HStack {
-                Spacer()
-                Button("保存") {
-                    HomeInteractionFeedback.selection()
-                    onSave(messages)
-                    messages = NotificationSettings.normalizedQuickReplyMessages(messages)
-                }
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.selectionTint)
-            }
-            .padding(.top, AppTheme.spacing.xs)
-        }
-    }
-}
 
 private enum ProfileTransitionSource {
     static let profileCard = "profile-card"

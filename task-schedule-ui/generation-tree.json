@@ -1,0 +1,13 @@
+{
+  "root": {
+    "nodeId": "gen-page-task-schedule",
+    "kind": "page-leaf",
+    "pageIds": ["page-task-schedule"],
+    "output": "pages/task-schedule.html",
+    "sharedRegions": [],
+    "privateRegions": ["full page"],
+    "mutableSlots": [],
+    "status": "generated",
+    "children": []
+  }
+}

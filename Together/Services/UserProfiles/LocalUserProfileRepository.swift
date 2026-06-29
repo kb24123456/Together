@@ -21,16 +21,13 @@ enum UserProfileSaveError: LocalizedError {
 actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
     private let container: ModelContainer
     private let avatarMediaStore: UserAvatarMediaStoreProtocol
-    private let defaults: UserDefaults
 
     init(
         container: ModelContainer,
-        avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore(),
-        defaults: UserDefaults = .standard
+        avatarMediaStore: UserAvatarMediaStoreProtocol = LocalUserAvatarMediaStore()
     ) {
         self.container = container
         self.avatarMediaStore = avatarMediaStore
-        self.defaults = defaults
     }
 
     func mergedUser(_ user: User?) async -> User? {
@@ -51,13 +48,11 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
             #if DEBUG
             StartupTrace.mark("UserProfileRepository.merge.recordMissing")
             #endif
-            var recoveredUser = recoverAvatarFromCanonicalFileIfNeeded(
+            return recoverAvatarFromCanonicalFileIfNeeded(
                 user: user,
                 canonicalFileName: canonicalFileName,
                 context: context
             )
-            recoveredUser.preferences.quickReplyMessages = storedQuickReplyMessages(for: userID)
-            return recoveredUser
         }
 
         #if DEBUG
@@ -127,7 +122,6 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
             "UserProfileRepository.merge.end mergedAvatarFile=\(mergedUser.avatarPhotoFileName ?? "nil") canonicalExists=\(avatarMediaStore.fileExists(named: canonicalFileName))"
         )
         #endif
-        mergedUser.preferences.quickReplyMessages = storedQuickReplyMessages(for: userID)
         return mergedUser
     }
 
@@ -192,7 +186,6 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         }
 
         do {
-            persistQuickReplyMessages(updatedUser.preferences.quickReplyMessages, for: userID)
             if let existingRecord = try context.fetch(descriptor).first {
                 existingRecord.update(from: updatedUser)
                 applyAvatarPayload(to: existingRecord, avatarUpdate: avatarUpdate)
@@ -222,11 +215,7 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
 
         var updatedUser = user
         updatedUser.preferences = preferences
-        updatedUser.preferences.quickReplyMessages = NotificationSettings.normalizedQuickReplyMessages(
-            preferences.quickReplyMessages
-        )
         updatedUser.updatedAt = .now
-        persistQuickReplyMessages(updatedUser.preferences.quickReplyMessages, for: userID)
 
         if let existingRecord = try context.fetch(descriptor).first {
             existingRecord.update(from: updatedUser)
@@ -426,7 +415,6 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         try? avatarMediaStore.migrateAvatarIfNeeded(from: recoveryFileName, to: cacheFileName)
         recoveredUser.avatarPhotoFileName = cacheFileName
         recoveredUser.avatarAssetID = assetID
-        recoveredUser.preferences.quickReplyMessages = storedQuickReplyMessages(for: user.id)
         recoveredUser.updatedAt = .now
 
         context.insert(PersistentUserProfile(user: recoveredUser))
@@ -454,19 +442,6 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
         #endif
     }
 
-    private func quickReplyMessagesKey(for userID: UUID) -> String {
-        "profile.quickReplyMessages.\(userID.uuidString.lowercased())"
-    }
-
-    private func storedQuickReplyMessages(for userID: UUID) -> [String] {
-        let stored = defaults.stringArray(forKey: quickReplyMessagesKey(for: userID)) ?? []
-        return NotificationSettings.normalizedQuickReplyMessages(stored)
-    }
-
-    private func persistQuickReplyMessages(_ values: [String], for userID: UUID) {
-        let normalized = NotificationSettings.normalizedQuickReplyMessages(values)
-        defaults.set(normalized, forKey: quickReplyMessagesKey(for: userID))
-    }
 }
 
 private enum AvatarRollbackAction {

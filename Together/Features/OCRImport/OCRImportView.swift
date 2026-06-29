@@ -1,331 +1,122 @@
+import Combine
 import SwiftUI
 import UIKit
 
-struct OCRImportView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @Bindable var viewModel: OCRImportViewModel
+struct OCRReviewSheet: View {
+    let session: OCRReviewSession
     let appContext: AppContext
 
-    @State private var selectedDetent: PresentationDetent = .medium
-    @State private var activeDraftMenu: OCRDraftMenuSelection?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedDetent: PresentationDetent
+    @State private var activeDraftMenu: OCRReviewDraftMenuSelection?
+    @State private var showsDiscardConfirmation = false
+    @State private var showsImportError = false
+    @State private var isSubmitting = false
+
+    init(session: OCRReviewSession, appContext: AppContext) {
+        self.session = session
+        self.appContext = appContext
+        _selectedDetent = State(initialValue: session.initialDetent.presentationDetent)
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                AppTheme.colors.background
-                    .ignoresSafeArea()
-
-                flowContent
-                    .transition(flowTransition)
-                    .id(viewModel.flowState)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+                    ForEach(viewModel.draft.taskDrafts) { task in
+                        OCRTaskDraftEditor(
+                            task: taskBinding(for: task.id),
+                            onOpenMenu: { menu in
+                                activeDraftMenu = OCRReviewDraftMenuSelection(
+                                    taskID: task.id,
+                                    menu: menu
+                                )
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, AppTheme.spacing.lg)
+                .padding(.bottom, AppTheme.spacing.xl)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { contentHeight in
+                    promoteDetentIfNeeded(
+                        measuredContentHeight: contentHeight,
+                        keyboardIsVisible: false
+                    )
+                }
             }
-            .navigationTitle(navigationTitle)
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("确认任务")
+            .navigationSubtitle("识别到 \(viewModel.draft.taskDrafts.count) 条任务")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(cancelTitle) {
-                        handleCancelOrBack()
-                    }
+                    Button("取消", action: requestCancel)
+                        .disabled(isApplying)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    if viewModel.flowState == .review {
-                        Button("确认导入") {
-                            Task {
-                                if await viewModel.apply(to: appContext) {
-                                    dismiss()
-                                }
-                            }
+                    Button {
+                        applyDraft()
+                    } label: {
+                        if isApplying {
+                            ProgressView()
+                        } else {
+                            Text("导入")
                         }
-                        .disabled(viewModel.canApply == false || viewModel.draft.status == .applying)
                     }
+                    .disabled(viewModel.canApply == false || isApplying)
                 }
             }
         }
         .presentationDetents([.medium, .large], selection: $selectedDetent)
         .presentationDragIndicator(.visible)
-        .presentationCornerRadius(36)
-        .presentationBackground(AppTheme.colors.surface)
-        .presentationBackgroundInteraction(.enabled)
-        .interactiveDismissDisabled(viewModel.draft.status == .applying)
-        .sheet(
-            isPresented: Binding(
-                get: { activeDraftMenu != nil },
-                set: { isPresented in
-                    if isPresented == false {
-                        activeDraftMenu = nil
-                    }
-                }
-            )
+        .presentationContentInteraction(.scrolls)
+        .interactiveDismissDisabled(true)
+        .confirmationDialog(
+            "放弃本次 OCR 草稿？",
+            isPresented: $showsDiscardConfirmation,
+            titleVisibility: .visible
         ) {
-            if let selection = activeDraftMenu,
-               let taskBinding = taskBinding(selection.taskID),
-               let menuBinding = activeMenuBinding {
-                OCRTaskAttributeMenuSheet(
-                    task: taskBinding,
-                    activeMenu: menuBinding,
-                    quickTimePresetMinutes: quickTimePresetMinutes,
-                    onDismiss: {
-                        activeDraftMenu = nil
-                    }
-                )
-                .presentationDetents(TaskEditorMenuContext.taskInline.detents)
-                .presentationContentInteraction(.scrolls)
-                .presentationDragIndicator(.hidden)
-                .interactiveDismissDisabled(false)
-                .modifier(TaskEditorMenuPresentationSizingModifier())
-            }
+            Button("放弃草稿", role: .destructive, action: discardAndDismiss)
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("已编辑的任务、备注和子任务不会保存。")
         }
-        .onChange(of: viewModel.flowState) { _, newValue in
-            withAnimation(flowAnimation) {
-                selectedDetent = newValue.prefersLargeDetent ? .large : .medium
-            }
+        .alert("导入失败", isPresented: $showsImportError) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "无法导入任务，请稍后重试。")
         }
-    }
-
-    @ViewBuilder
-    private var flowContent: some View {
-        switch viewModel.flowState {
-        case .sourcePicker:
-            sourcePicker
-        case .camera:
-            OCRCameraCapturePanel(
-                onBack: viewModel.showSourcePicker,
-                onImageCaptured: { image in
-                    Task { await viewModel.processImage(image) }
+        .sheet(item: $activeDraftMenu) { selection in
+            OCRTaskAttributeMenuSheet(
+                task: taskBinding(for: selection.taskID),
+                activeMenu: activeDraftMenuBinding,
+                quickTimePresetMinutes: quickTimePresetMinutes,
+                onDismiss: {
+                    activeDraftMenu = nil
                 }
             )
-        case .photos:
-            OCRPhotoLibraryGridPanel(
-                onBack: viewModel.showSourcePicker,
-                onImageSelected: { image in
-                    Task { await viewModel.processImage(image) }
-                }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            promoteDetentIfNeeded(
+                measuredContentHeight: 0,
+                keyboardIsVisible: true
             )
-        case .processing:
-            processingView
-        case .review:
-            reviewView
-        case .failed:
-            failureView
         }
     }
 
-    private var sourcePicker: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xl) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                Text("导入纸面任务")
-                    .font(AppTheme.typography.textStyle(.title2, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-
-                Text("拍照或选择照片，识别后先生成可编辑草稿。")
-                    .font(AppTheme.typography.textStyle(.body, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
-            }
-
-            VStack(spacing: AppTheme.spacing.md) {
-                OCRSourceActionButton(
-                    title: "相机",
-                    subtitle: "拍摄纸面清单或白板",
-                    systemImage: "camera.fill",
-                    action: viewModel.showCamera
-                )
-
-                OCRSourceActionButton(
-                    title: "照片",
-                    subtitle: "从相册选择已有图片",
-                    systemImage: "photo.on.rectangle.angled",
-                    action: viewModel.showPhotos
-                )
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, AppTheme.spacing.xl)
-        .padding(.top, AppTheme.spacing.xl)
-        .padding(.bottom, AppTheme.spacing.lg)
+    private var viewModel: OCRImportViewModel {
+        session.viewModel
     }
 
-    private var processingView: some View {
-        VStack(spacing: AppTheme.spacing.xl) {
-            imagePreview(maxHeight: 280)
-
-            VStack(spacing: AppTheme.spacing.md) {
-                ProgressView()
-                Text("正在识别文字")
-                    .font(AppTheme.typography.textStyle(.body, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-            }
-            .frame(maxWidth: .infinity)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, AppTheme.spacing.xl)
-        .padding(.top, AppTheme.spacing.lg)
-    }
-
-    private var failureView: some View {
-        VStack(spacing: AppTheme.spacing.xl) {
-            imagePreview(maxHeight: 240)
-
-            VStack(spacing: AppTheme.spacing.md) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(AppTheme.typography.sized(30, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.coral)
-
-                Text(viewModel.errorMessage ?? "识别失败，请换一张更清晰的图片。")
-                    .font(AppTheme.typography.textStyle(.body, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-
-                HStack(spacing: AppTheme.spacing.md) {
-                    Button("重新拍照") {
-                        viewModel.showCamera()
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("选择照片") {
-                        viewModel.showPhotos()
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, AppTheme.spacing.xl)
-        .padding(.top, AppTheme.spacing.lg)
-    }
-
-    private var reviewView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                imagePreview(maxHeight: 180)
-
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                    Text("识别到 \(viewModel.draft.taskDrafts.count) 条任务")
-                        .font(AppTheme.typography.textStyle(.title3, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.title)
-
-                    Text("确认前可以编辑标题、备注、子任务和属性。")
-                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.56))
-                }
-
-                ForEach(viewModel.draft.taskDrafts) { task in
-                    OCRTaskDraftEditor(
-                        task: binding(for: task.id),
-                        onOpenMenu: { menu in
-                            activeDraftMenu = OCRDraftMenuSelection(taskID: task.id, menu: menu)
-                        }
-                    )
-                }
-
-                rawTextSection
-            }
-            .padding(.horizontal, AppTheme.spacing.xl)
-            .padding(.vertical, AppTheme.spacing.lg)
-        }
-        .scrollDismissesKeyboard(.interactively)
-    }
-
-    @ViewBuilder
-    private var rawTextSection: some View {
-        if viewModel.draft.rawText.isEmpty == false {
-            DisclosureGroup {
-                Text(viewModel.draft.rawText)
-                    .font(AppTheme.typography.textStyle(.caption1, weight: .regular))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, AppTheme.spacing.sm)
-            } label: {
-                Text("原始识别文本")
-                    .font(AppTheme.typography.textStyle(.body, weight: .semibold))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func imagePreview(maxHeight: CGFloat) -> some View {
-        if let sourceImage = viewModel.sourceImage {
-            Image(uiImage: sourceImage)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: maxHeight)
-                .clipShape(.rect(cornerRadius: 22, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.52), lineWidth: 1)
-                }
-        }
-    }
-
-    private var navigationTitle: String {
-        switch viewModel.flowState {
-        case .sourcePicker:
-            return "OCR"
-        case .camera:
-            return "拍照"
-        case .photos:
-            return "照片"
-        case .processing:
-            return "识别中"
-        case .review:
-            return "确认任务"
-        case .failed:
-            return "识别失败"
-        }
-    }
-
-    private var cancelTitle: String {
-        viewModel.flowState == .sourcePicker ? "关闭" : "返回"
-    }
-
-    private func handleCancelOrBack() {
-        if viewModel.flowState == .sourcePicker {
-            dismiss()
-        } else {
-            viewModel.showSourcePicker()
-        }
-    }
-
-    private var flowTransition: AnyTransition {
-        if reduceMotion {
-            return .opacity
-        }
-        return .asymmetric(
-            insertion: .move(edge: .bottom).combined(with: .opacity),
-            removal: .move(edge: .top).combined(with: .opacity)
-        )
-    }
-
-    private var flowAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.32, extraBounce: 0.02)
-    }
-
-    private func binding(for id: UUID) -> Binding<OCRImportTaskDraft> {
-        Binding {
-            viewModel.draft.taskDrafts.first { $0.id == id } ?? OCRImportTaskDraft(title: "")
-        } set: { updated in
-            viewModel.updateTask(updated)
-        }
-    }
-
-    private func taskBinding(_ id: UUID) -> Binding<OCRImportTaskDraft>? {
-        guard viewModel.draft.taskDrafts.contains(where: { $0.id == id }) else { return nil }
-        return binding(for: id)
-    }
-
-    private var activeMenuBinding: Binding<TaskEditorMenu>? {
-        guard let activeDraftMenu else { return nil }
-        return Binding(
-            get: { self.activeDraftMenu?.menu ?? activeDraftMenu.menu },
-            set: { self.activeDraftMenu?.menu = $0 }
-        )
+    private var isApplying: Bool {
+        isSubmitting || viewModel.draft.status == .applying
     }
 
     private var quickTimePresetMinutes: [Int] {
@@ -334,54 +125,98 @@ struct OCRImportView: View {
             ?? NotificationSettings.defaultQuickTimePresetMinutes
         )
     }
-}
 
-private struct OCRDraftMenuSelection: Identifiable, Hashable {
-    var id: String { "\(taskID.uuidString)-\(menu.rawValue)" }
-    let taskID: UUID
-    var menu: TaskEditorMenu
-}
-
-private struct OCRSourceActionButton: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: AppTheme.spacing.md) {
-                Image(systemName: systemImage)
-                    .font(AppTheme.typography.sized(22, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .frame(width: 48, height: 48)
-                    .background(AppTheme.colors.surfaceElevated, in: Circle())
-
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                    Text(title)
-                        .font(AppTheme.typography.textStyle(.title3, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.title)
-
-                    Text(subtitle)
-                        .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.58))
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(AppTheme.spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.colors.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    private var activeDraftMenuBinding: Binding<TaskEditorMenu> {
+        Binding {
+            activeDraftMenu?.menu ?? .date
+        } set: { menu in
+            activeDraftMenu?.menu = menu
         }
-        .buttonStyle(.plain)
+    }
+
+    private func taskBinding(for id: UUID) -> Binding<OCRImportTaskDraft> {
+        Binding {
+            viewModel.draft.taskDrafts.first { $0.id == id } ?? OCRImportTaskDraft(title: "")
+        } set: { updated in
+            viewModel.updateTask(updated)
+        }
+    }
+
+    private func promoteDetentIfNeeded(
+        measuredContentHeight: CGFloat,
+        keyboardIsVisible: Bool
+    ) {
+        let current = selectedDetent == .large
+            ? OCRReviewSheetDetent.large
+            : OCRReviewSheetDetent.medium
+        let resolved = OCRReviewDetentPolicy.resolvedDetent(
+            current: current,
+            measuredContentHeight: measuredContentHeight,
+            availableHeight: session.availableHeight,
+            keyboardIsVisible: keyboardIsVisible
+        )
+        guard resolved == .large, selectedDetent != .large else { return }
+
+        if reduceMotion {
+            selectedDetent = .large
+        } else {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                selectedDetent = .large
+            }
+        }
+    }
+
+    private func requestCancel() {
+        guard session.hasUserChanges else {
+            discardAndDismiss()
+            return
+        }
+        showsDiscardConfirmation = true
+    }
+
+    private func discardAndDismiss() {
+        session.discard()
+        dismiss()
+    }
+
+    private func applyDraft() {
+        guard isApplying == false else { return }
+        isSubmitting = true
+        Task {
+            defer { isSubmitting = false }
+            if await viewModel.apply(to: appContext) {
+                dismiss()
+            } else {
+                showsImportError = true
+            }
+        }
     }
 }
 
-private struct OCRTaskDraftEditor: View {
+private struct OCRReviewDraftMenuSelection: Identifiable, Hashable {
+    let taskID: UUID
+    var menu: TaskEditorMenu
+
+    var id: UUID {
+        taskID
+    }
+}
+
+private extension OCRReviewSheetDetent {
+    var presentationDetent: PresentationDetent {
+        switch self {
+        case .medium: .medium
+        case .large: .large
+        }
+    }
+}
+
+struct OCRTaskDraftEditor: View {
     @Binding var task: OCRImportTaskDraft
     let onOpenMenu: (TaskEditorMenu) -> Void
 
     @State private var newSubtaskTitle = ""
+    @FocusState private var isNewSubtaskFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
@@ -408,12 +243,14 @@ private struct OCRTaskDraftEditor: View {
             .buttonStyle(.plain)
             .frame(width: HomeInlineTaskLayoutMetrics.actionSlotWidth, height: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .trailing)
 
-            TextField("任务标题", text: $task.title, axis: .vertical)
-                .font(AppTheme.typography.sized(19, weight: .bold))
-                .foregroundStyle(AppTheme.colors.title)
-                .lineLimit(1...3)
-                .textInputAutocapitalization(.sentences)
-                .submitLabel(.done)
+            TextField(
+                "任务标题",
+                text: $task.title
+            )
+            .font(AppTheme.typography.sized(19, weight: .bold))
+            .foregroundStyle(AppTheme.colors.title)
+            .textInputAutocapitalization(.sentences)
+            .submitLabel(.done)
         }
         .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .leading)
     }
@@ -439,22 +276,28 @@ private struct OCRTaskDraftEditor: View {
         HStack(alignment: .center, spacing: HomeInlineTaskLayoutMetrics.titleGap) {
             Image(systemName: "plus")
                 .font(AppTheme.typography.sized(13, weight: .bold))
-                .foregroundStyle(AppTheme.colors.body.opacity(canAddSubtask ? 0.72 : 0.38))
+                .foregroundStyle(AppTheme.colors.body.opacity(canAttemptAddSubtask ? 0.72 : 0.38))
                 .frame(width: HomeInlineTaskLayoutMetrics.actionSlotWidth, height: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .trailing)
 
-            TextField("添加子任务", text: $newSubtaskTitle)
-                .font(AppTheme.typography.sized(15, weight: .medium))
-                .foregroundStyle(AppTheme.colors.title)
-                .textInputAutocapitalization(.sentences)
-                .submitLabel(.done)
-                .onSubmit(addSubtask)
+            TextField(
+                "添加子任务",
+                text: $newSubtaskTitle
+            )
+            .font(AppTheme.typography.sized(15, weight: .medium))
+            .foregroundStyle(AppTheme.colors.title)
+            .textInputAutocapitalization(.sentences)
+            .submitLabel(.done)
+            .focused($isNewSubtaskFocused)
+            .onSubmit {
+                addSubtaskAfterFocusUpdate()
+            }
 
             Button("添加") {
-                addSubtask()
+                addSubtaskAfterFocusUpdate()
             }
             .buttonStyle(.plain)
-            .foregroundStyle(canAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
-            .disabled(!canAddSubtask)
+            .foregroundStyle(canAttemptAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
+            .disabled(!canAttemptAddSubtask)
         }
         .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .leading)
     }
@@ -487,10 +330,6 @@ private struct OCRTaskDraftEditor: View {
             .foregroundStyle(AppTheme.colors.title.opacity(isEnabled ? 0.72 : 0.32))
             .padding(.horizontal, HomeInlineTaskLayoutMetrics.attributeHorizontalPadding)
             .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color(uiColor: .quaternarySystemFill))
-            )
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
@@ -500,11 +339,24 @@ private struct OCRTaskDraftEditor: View {
         !newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var canAttemptAddSubtask: Bool {
+        canAddSubtask || isNewSubtaskFocused
+    }
+
     private func addSubtask() {
         let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else { return }
         task.subtasks.append(OCRImportSubtaskDraft(title: trimmed))
         newSubtaskTitle = ""
+    }
+
+    private func addSubtaskAfterFocusUpdate() {
+        Task { @MainActor in
+            newSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: newSubtaskTitle)
+            isNewSubtaskFocused = false
+            await Task.yield()
+            addSubtask()
+        }
     }
 
     private var dateTitle: String {
@@ -542,11 +394,14 @@ private struct OCRSubtaskDraftRow: View {
             .buttonStyle(.plain)
             .frame(width: HomeInlineTaskLayoutMetrics.actionSlotWidth, height: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .trailing)
 
-            TextField("子任务标题", text: $subtask.title, axis: .vertical)
-                .font(AppTheme.typography.sized(15, weight: .medium))
-                .foregroundStyle(AppTheme.colors.title.opacity(0.82))
-                .lineLimit(1...3)
-                .textInputAutocapitalization(.sentences)
+            TextField(
+                "子任务标题",
+                text: $subtask.title
+            )
+            .font(AppTheme.typography.sized(15, weight: .medium))
+            .foregroundStyle(AppTheme.colors.title.opacity(0.82))
+            .textInputAutocapitalization(.sentences)
+            .submitLabel(.done)
         }
         .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .leading)
     }
@@ -573,7 +428,7 @@ private struct OCRSelectionBox: View {
     }
 }
 
-private struct OCRTaskAttributeMenuSheet: View {
+struct OCRTaskAttributeMenuSheet: View {
     @Binding var task: OCRImportTaskDraft
     @Binding var activeMenu: TaskEditorMenu
     let quickTimePresetMinutes: [Int]

@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "id": "page-task-schedule",
+      "title": "任务日程",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1782671730000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/task-schedule.html",
+        "interactions": []
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "mobile",
+    "projectName": "任务日程"
+  }
+}
