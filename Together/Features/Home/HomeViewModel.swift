@@ -27,6 +27,8 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let title: String
     let notes: String?
     let timeText: String
+    let reminderText: String
+    let repeatText: String
     let statusText: String
     let accentColorName: String
     let isMuted: Bool
@@ -532,7 +534,8 @@ final class HomeViewModel {
         }
 
         if selectedItemID != nil {
-            await saveDetailDraft()
+            await collapseInlineDetail()
+            return
         }
 
         presentItemDetail(itemID)
@@ -540,10 +543,7 @@ final class HomeViewModel {
     }
 
     func collapseInlineDetail() async {
-        if hasUnsavedDetailChanges {
-            await saveDetailDraft()
-        }
-        dismissItemDetail()
+        await saveDetailDraftAndDismiss()
     }
 
     func dismissItemDetail() {
@@ -561,12 +561,10 @@ final class HomeViewModel {
 
     func updateDraftTitle(_ title: String) {
         detailDraft?.title = title
-        scheduleDetailSave()
     }
 
     func updateDraftNotes(_ notes: String) {
         detailDraft?.notes = notes.isEmpty ? nil : notes
-        scheduleDetailSave()
     }
 
     func setDraftDueDateEnabled(_ enabled: Bool) {
@@ -588,7 +586,6 @@ final class HomeViewModel {
             draft.hasExplicitTime = false
         }
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func updateDraftDueDate(_ dueDate: Date) {
@@ -600,7 +597,6 @@ final class HomeViewModel {
             draft.dueAt = dateOnlyDueDate(for: dueDate)
         }
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func updateDraftDueTime(_ dueTime: Date) {
@@ -609,7 +605,6 @@ final class HomeViewModel {
         draft.dueAt = merge(date: existing, timeSource: dueTime)
         draft.hasExplicitTime = true
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func clearDraftDueTime() {
@@ -618,29 +613,24 @@ final class HomeViewModel {
         draft.hasExplicitTime = false
         draft.remindAt = nil
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func setDraftReminderEnabled(_ enabled: Bool) {
         guard var draft = detailDraft else { return }
         draft.remindAt = enabled ? defaultReminderDate(for: draft) : nil
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func updateDraftReminder(_ remindAt: Date) {
         detailDraft?.remindAt = remindAt
-        scheduleDetailSave(immediately: true)
     }
 
     func updateDraftPinned(_ isPinned: Bool) {
         detailDraft?.isPinned = isPinned
-        scheduleDetailSave(immediately: true)
     }
 
     func updateDraftRepeatRule(_ rule: ItemRepeatRule?) {
         detailDraft?.repeatRule = rule
-        scheduleDetailSave(immediately: true)
     }
 
     func addDetailDraftSubtask(title: String) {
@@ -648,7 +638,6 @@ final class HomeViewModel {
         guard trimmed.isEmpty == false, var draft = detailDraft else { return }
         draft.subtasks.append(TaskSubtaskDraft(title: trimmed, sortOrder: draft.subtasks.count))
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func toggleDetailDraftSubtask(_ subtaskID: UUID) {
@@ -657,7 +646,6 @@ final class HomeViewModel {
         else { return }
         draft.subtasks[index].isCompleted.toggle()
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func updateDetailDraftSubtask(_ subtaskID: UUID, title: String) {
@@ -667,7 +655,6 @@ final class HomeViewModel {
         else { return }
         draft.subtasks[index].title = trimmed
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func deleteDetailDraftSubtask(_ subtaskID: UUID) {
@@ -677,7 +664,6 @@ final class HomeViewModel {
             draft.subtasks[index].sortOrder = index
         }
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func saveDetailDraft() async {
@@ -812,7 +798,6 @@ final class HomeViewModel {
         }
 
         detailDraft = draft
-        scheduleDetailSave(immediately: true)
     }
 
     func completeItem(_ itemID: UUID, trigger: CompletionTrigger = .inlineControl) async {
@@ -1171,18 +1156,6 @@ final class HomeViewModel {
         }
     }
 
-    private func scheduleDetailSave(immediately: Bool = false) {
-        detailSaveTask?.cancel()
-        detailSaveTask = Task { [weak self] in
-            guard let self else { return }
-            if immediately == false {
-                try? await Task.sleep(for: .milliseconds(300))
-            }
-            guard Task.isCancelled == false else { return }
-            await self.persistDetailDraft()
-        }
-    }
-
     @discardableResult
     private func persistDetailDraft() async -> Bool {
         guard
@@ -1337,6 +1310,23 @@ final class HomeViewModel {
         return hourMinuteText(for: dueAt)
     }
 
+    private func timelineReminderText(for item: Item, isCompleted: Bool) -> String {
+        guard isCompleted == false,
+              item.remindAt != nil
+        else { return "" }
+        return "提醒"
+    }
+
+    private func timelineRepeatText(for item: Item, isCompleted: Bool) -> String {
+        guard isCompleted == false,
+              let repeatRule = item.repeatRule
+        else { return "" }
+        let anchor = item.occurrenceDueDate(on: selectedDate, calendar: calendar)
+            ?? item.dueAt
+            ?? selectedDate
+        return repeatRule.title(anchorDate: anchor, calendar: calendar)
+    }
+
     private func completionTimestamp(for item: Item) -> Date? {
         item.completionDate(on: selectedDate, calendar: calendar) ?? item.completedAt
     }
@@ -1460,11 +1450,11 @@ final class HomeViewModel {
 
     private func timelineSectionSubtitle(for dayStart: Date, isUnscheduled: Bool, count: Int) -> String {
         let weekday = weekdayLabel(for: dayStart)
-        let countText = "\(count) 项"
+        let countText = "\(count)项"
         guard isUnscheduled else {
-            return "\(weekday) · \(countText)"
+            return "\(weekday)·\(countText)"
         }
-        return "创建 · \(weekday) · \(countText)"
+        return "创建·\(weekday)·\(countText)"
     }
 
     private func timelineItemSortPrecedes(_ lhs: Item, _ rhs: Item) -> Bool {
@@ -1589,6 +1579,8 @@ final class HomeViewModel {
             title: item.title,
             notes: item.notes,
             timeText: timelineTimeText(for: item, isCompleted: isCompleted),
+            reminderText: timelineReminderText(for: item, isCompleted: isCompleted),
+            repeatText: timelineRepeatText(for: item, isCompleted: isCompleted),
             statusText: statusText(for: item, isCompleted: isCompleted),
             accentColorName: accentColorName(for: item),
             isMuted: isCompleted,

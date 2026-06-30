@@ -551,7 +551,8 @@ struct TogetherTests {
     @Test func explicitTimelineTimeMovesToSecondaryTextOnly() async throws {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
-        let dueTime = try #require(calendar.date(bySettingHour: 18, minute: 30, second: 0, of: todayStart))
+        let tomorrowStart = try #require(calendar.date(byAdding: .day, value: 1, to: todayStart))
+        let dueTime = try #require(calendar.date(bySettingHour: 18, minute: 30, second: 0, of: tomorrowStart))
         var timed = makeHomeFilterItem(title: "明确时间任务", completedAt: nil, status: .inProgress)
         timed.dueAt = dueTime
         timed.hasExplicitTime = true
@@ -564,7 +565,7 @@ struct TogetherTests {
 
         let entry = try #require(viewModel.activeTimelineEntries.first)
         #expect(entry.timeText == "18:30")
-        #expect(HomeTimelineSubtitleText.text(for: entry) == "18:30 · 进行中")
+        #expect(HomeTimelineSubtitleText.text(for: entry) == "18:30")
     }
 
     @Test func homeSnoozeUpdatesDueDateAndResortsTimelineImmediately() async throws {
@@ -1175,7 +1176,7 @@ struct TogetherTests {
         #expect(entry.subtaskCompletedCount == 1)
     }
 
-    @Test func inlineDetailExpansionCreatesDraftAndSavesWhenSwitchingTasks() async throws {
+    @Test func inlineDetailExpansionCollapsesBeforeSwitchingTasks() async throws {
         let first = makeHomeFilterItem(title: "第一条", completedAt: nil, status: .inProgress)
         let second = makeHomeFilterItem(title: "第二条", completedAt: nil, status: .inProgress)
         let repository = MockItemRepository(items: [first, second])
@@ -1190,11 +1191,12 @@ struct TogetherTests {
         viewModel.updateDraftTitle("第一条已编辑")
         await viewModel.toggleInlineDetail(second.id)
 
-        #expect(viewModel.expandedDetailItemID == second.id)
+        #expect(viewModel.expandedDetailItemID == nil)
         #expect(try await repository.fetchItem(itemID: first.id)?.title == "第一条已编辑")
+        #expect(try await repository.fetchItem(itemID: second.id)?.title == "第二条")
     }
 
-    @Test func inlineDetailSettingsPersistThroughExistingUpdatePath() async throws {
+    @Test func inlineDetailSettingsPersistOnlyAfterCollapse() async throws {
         let calendar = Calendar.current
         let item = makeHomeFilterItem(title: "设置任务", completedAt: nil, status: .inProgress)
         let repository = MockItemRepository(items: [item])
@@ -1210,7 +1212,13 @@ struct TogetherTests {
         viewModel.updateDraftDueTime(dueTime)
         viewModel.updateDraftReminder(remindAt)
         viewModel.updateDraftRepeatRule(repeatRule)
-        await viewModel.saveDetailDraft()
+
+        let beforeCollapse = try #require(try await repository.fetchItem(itemID: item.id))
+        #expect(beforeCollapse.dueAt == item.dueAt)
+        #expect(beforeCollapse.remindAt == item.remindAt)
+        #expect(beforeCollapse.repeatRule == item.repeatRule)
+
+        await viewModel.collapseInlineDetail()
 
         let saved = try #require(try await repository.fetchItem(itemID: item.id))
         #expect(saved.dueAt == dueTime)
@@ -1242,7 +1250,11 @@ struct TogetherTests {
         let secondSubtaskID = try #require(viewModel.inlineDetailDraft?.subtasks.last?.id)
         viewModel.toggleDetailDraftSubtask(secondSubtaskID)
         viewModel.deleteDetailDraftSubtask(firstSubtaskID)
-        await viewModel.saveDetailDraft()
+
+        let beforeCollapse = try #require(try await repository.fetchItem(itemID: item.id))
+        #expect(beforeCollapse.subtasks.map(\.title) == ["旧子任务"])
+
+        await viewModel.collapseInlineDetail()
 
         let saved = try #require(try await repository.fetchItem(itemID: item.id))
         #expect(saved.subtasks.map(\.title) == ["补充子任务"])
@@ -1276,6 +1288,8 @@ struct TogetherTests {
             title: "信用卡商户",
             notes: "备注不会盖过子任务",
             timeText: "",
+            reminderText: "",
+            repeatText: "",
             statusText: "进行中",
             accentColorName: "sky",
             isMuted: false,
@@ -1305,6 +1319,170 @@ struct TogetherTests {
         )
 
         #expect(HomeTimelineSubtitleText.text(for: entry) == "1/2 子任务")
+    }
+
+    @Test func timelineRowDisplayUsesSubtaskProgressInSubtitle() {
+        let itemID = UUID()
+        let entry = HomeTimelineEntry(
+            id: itemID,
+            presentationID: "active-test-\(itemID.uuidString)",
+            title: "对公联动名单",
+            notes: nil,
+            timeText: "",
+            reminderText: "",
+            repeatText: "",
+            statusText: "进行中",
+            accentColorName: "sky",
+            isMuted: false,
+            isCompleted: false,
+            urgency: .normal,
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: nil,
+            subtasks: [
+                TaskSubtask(
+                    itemID: itemID,
+                    creatorID: MockDataFactory.currentUserID,
+                    title: "客户经理对接名单",
+                    isCompleted: true,
+                    sortOrder: 0
+                ),
+                TaskSubtask(
+                    itemID: itemID,
+                    creatorID: MockDataFactory.currentUserID,
+                    title: "打标匹配",
+                    isCompleted: false,
+                    sortOrder: 1
+                )
+            ],
+            subtaskCompletedCount: 1
+        )
+
+        let display = HomeTimelineRowDisplayText.text(for: entry)
+        #expect(display.propertySubtitle == "1/2 子任务")
+        #expect(display.noteText == nil)
+    }
+
+    @Test func timelineRowDisplayKeepsExplicitTimeInSubtitle() {
+        let itemID = UUID()
+        let entry = HomeTimelineEntry(
+            id: itemID,
+            presentationID: "active-test-\(itemID.uuidString)",
+            title: "信用卡商户",
+            notes: nil,
+            timeText: "18:30",
+            reminderText: "",
+            repeatText: "",
+            statusText: "进行中",
+            accentColorName: "sky",
+            isMuted: false,
+            isCompleted: false,
+            urgency: .normal,
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: nil,
+            subtasks: [],
+            subtaskCompletedCount: 0
+        )
+
+        let display = HomeTimelineRowDisplayText.text(for: entry)
+        #expect(display.propertySubtitle == "18:30")
+        #expect(display.noteText == nil)
+    }
+
+    @Test func timelineRowDisplaySeparatesNotesBelowProperties() {
+        let itemID = UUID()
+        let entry = HomeTimelineEntry(
+            id: itemID,
+            presentationID: "active-test-\(itemID.uuidString)",
+            title: "有备注任务",
+            notes: "  跟进客户反馈  ",
+            timeText: "18:30",
+            reminderText: "提醒",
+            repeatText: "",
+            statusText: "进行中",
+            accentColorName: "sky",
+            isMuted: false,
+            isCompleted: false,
+            urgency: .normal,
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: nil,
+            subtasks: [],
+            subtaskCompletedCount: 0
+        )
+
+        let display = HomeTimelineRowDisplayText.text(for: entry)
+        #expect(display.propertySubtitle == "18:30 · 提醒")
+        #expect(display.noteText == "跟进客户反馈")
+    }
+
+    @Test func timelineRowDisplayFallsBackToStatusWithoutProperties() {
+        let itemID = UUID()
+        let entry = HomeTimelineEntry(
+            id: itemID,
+            presentationID: "active-test-\(itemID.uuidString)",
+            title: "网点通实时数据",
+            notes: nil,
+            timeText: "",
+            reminderText: "",
+            repeatText: "",
+            statusText: "进行中",
+            accentColorName: "sky",
+            isMuted: false,
+            isCompleted: false,
+            urgency: .normal,
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: nil,
+            subtasks: [],
+            subtaskCompletedCount: 0
+        )
+
+        let display = HomeTimelineRowDisplayText.text(for: entry)
+        #expect(display.propertySubtitle == "进行中")
+        #expect(display.noteText == nil)
+
+        let orderedSections = [
+            HomeTimelineStickySection(id: "today", title: "今天", subtitle: "周二 · 7项"),
+            HomeTimelineStickySection(id: "tomorrow", title: "明天", subtitle: "周三 · 3项")
+        ]
+        let activePresentation = HomeTimelineStickySectionTracker.presentation(
+            from: [
+                HomeTimelineSectionHeaderOffset(
+                    id: "tomorrow",
+                    title: "明天",
+                    subtitle: "周三 · 3项",
+                    minY: 72,
+                    height: 44
+                )
+            ],
+            orderedSections: orderedSections,
+            threshold: 0
+        )
+
+        #expect(activePresentation?.section.id == "today")
+        #expect(activePresentation?.progress == 1)
+
+        let approachingPresentation = HomeTimelineStickySectionTracker.presentation(
+            from: [
+                HomeTimelineSectionHeaderOffset(
+                    id: "today",
+                    title: "今天",
+                    subtitle: "周二 · 7项",
+                    minY: 6,
+                    height: 44
+                )
+            ],
+            orderedSections: orderedSections,
+            threshold: 0
+        )
+
+        #expect(approachingPresentation == nil)
     }
 
     @Test func inlineDetailCanCollapseTaskWithoutSubtasks() async {

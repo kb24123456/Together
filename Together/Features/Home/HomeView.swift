@@ -27,6 +27,8 @@ struct HomeView: View {
     @State private var visualFocusItemID: UUID?
     @State private var collapsingInlineDetailID: UUID?
     @State private var inlineDetailAnimationBatch = 0
+    @State private var activeTimelineStickyPresentation: HomeTimelineStickyPresentation?
+    @State private var timelineSectionHeaderOffsets: [HomeTimelineSectionHeaderOffset] = []
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -37,6 +39,8 @@ struct HomeView: View {
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineBottomInset: CGFloat = 24
+    private let timelineStickyHeaderHeight: CGFloat = 44
+    private let timelineStickyHeaderFadeHeight: CGFloat = 10
     private let monthGridSpacing: CGFloat = 8
     private let monthCompressedGridSpacing: CGFloat = 4
     private let monthDayCellHeight: CGFloat = 46
@@ -70,6 +74,8 @@ struct HomeView: View {
             await viewModel.performDeferredMaintenanceIfNeeded()
         }
         .task(id: viewModel.selectedDateKey) {
+            activeTimelineStickyPresentation = nil
+            timelineSectionHeaderOffsets = []
             visualFocusItemID = nil
             collapsingInlineDetailID = nil
             await viewModel.reload(reason: .dateChange)
@@ -697,96 +703,202 @@ struct HomeView: View {
     }
 
     private func standardTimelineList(scrollProxy: ScrollViewProxy) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                if viewModel.showsOverdueCapsule {
-                    overdueReminderCapsule
+        ZStack(alignment: .topLeading) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if viewModel.showsOverdueCapsule {
+                        overdueReminderCapsule
+                            .padding(
+                                EdgeInsets(
+                                    top: 10,
+                                    leading: timelineRowHorizontalInset,
+                                    bottom: 8,
+                                    trailing: timelineRowHorizontalInset
+                                )
+                            )
+                    }
+
+                    if appContext.sessionStore.activeMode == .single,
+                       appContext.routinesViewModel.hasPendingTasks {
+                        RoutinesSummaryCard(
+                            viewModel: appContext.routinesViewModel,
+                            onNavigateToRoutines: {
+                                appContext.router.shouldAutoSelectPendingCycle = true
+                                appContext.router.currentSurface = .routines
+                            }
+                        )
                         .padding(
                             EdgeInsets(
-                                top: 10,
+                                top: 6,
                                 leading: timelineRowHorizontalInset,
                                 bottom: 8,
                                 trailing: timelineRowHorizontalInset
                             )
                         )
-                }
+                    }
 
-                if appContext.sessionStore.activeMode == .single,
-                   appContext.routinesViewModel.hasPendingTasks {
-                    RoutinesSummaryCard(
-                        viewModel: appContext.routinesViewModel,
-                        onNavigateToRoutines: {
-                            appContext.router.shouldAutoSelectPendingCycle = true
-                            appContext.router.currentSurface = .routines
+                    ForEach(viewModel.activeTimelineSections) { section in
+                        Section {
+                            timelineRows(
+                                section.entries,
+                                rowTransition: activeRowTransition,
+                                scrollProxy: scrollProxy
+                            )
+                        } header: {
+                            HomeTimelineDateSectionHeader(section: section)
+                                .opacity(0)
+                                .accessibilityHidden(true)
+                                .background {
+                                    HomeTimelineSectionHeaderOffsetReader(section: section)
+                                }
+                                .padding(.horizontal, timelineRowHorizontalInset)
+                                .padding(.top, 12)
+                                .padding(.bottom, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                    )
-                    .padding(
-                        EdgeInsets(
-                            top: 6,
-                            leading: timelineRowHorizontalInset,
-                            bottom: 8,
-                            trailing: timelineRowHorizontalInset
-                        )
-                    )
-                }
+                    }
 
-                ForEach(viewModel.activeTimelineSections) { section in
-                    Section {
-                        timelineRows(
-                            section.entries,
-                            rowTransition: activeRowTransition,
-                            scrollProxy: scrollProxy
-                        )
-                    } header: {
-                        HomeTimelineDateSectionHeader(section: section)
-                            .padding(.horizontal, timelineRowHorizontalInset)
-                            .padding(.top, 8)
-                            .padding(.bottom, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(AppTheme.colors.homeBackground.opacity(0.96))
+                    if viewModel.hasCompletedEntries {
+                        todayCompletedHeader
+                            .padding(
+                                EdgeInsets(
+                                    top: 12,
+                                    leading: timelineRowHorizontalInset,
+                                    bottom: 10,
+                                    trailing: timelineRowHorizontalInset
+                                )
+                            )
+
+                        completedTimelineSection(scrollProxy: scrollProxy)
+                    }
+
+                    if viewModel.hasWeeklyCompletedEntries {
+                        completedVisibilityButton
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(
+                                EdgeInsets(
+                                    top: viewModel.hasCompletedEntries ? 4 : 12,
+                                    leading: timelineRowHorizontalInset,
+                                    bottom: timelineBottomInset,
+                                    trailing: timelineRowHorizontalInset
+                                )
+                            )
+                    } else if viewModel.hasCompletedEntries == false {
+                        Color.clear.frame(height: timelineBottomInset)
                     }
                 }
-
-                if viewModel.hasCompletedEntries {
-                    todayCompletedHeader
-                        .padding(
-                            EdgeInsets(
-                                top: 12,
-                                leading: timelineRowHorizontalInset,
-                                bottom: 10,
-                                trailing: timelineRowHorizontalInset
-                            )
-                        )
-
-                    completedTimelineSection(scrollProxy: scrollProxy)
+                .onPreferenceChange(HomeTimelineSectionHeaderOffsetPreferenceKey.self) { offsets in
+                    updateTimelineSectionHeaderOffsets(offsets)
                 }
-
-                if viewModel.hasWeeklyCompletedEntries {
-                    completedVisibilityButton
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(
-                            EdgeInsets(
-                                top: viewModel.hasCompletedEntries ? 4 : 12,
-                                leading: timelineRowHorizontalInset,
-                                bottom: timelineBottomInset,
-                                trailing: timelineRowHorizontalInset
-                            )
-                        )
-                } else if viewModel.hasCompletedEntries == false {
-                    Color.clear.frame(height: timelineBottomInset)
+                .background {
+                    timelineFocusDismissBackground
                 }
             }
-            .background {
-                timelineFocusDismissBackground
+            .coordinateSpace(name: HomeTimelineScrollCoordinateSpace.name)
+            .mask(alignment: .top) {
+                timelineStickyScrollMask
+            }
+            .scrollIndicators(.hidden)
+            .scrollDisabled(isOverlayModeActive)
+            .safeAreaPadding(.top, 0)
+            .applyScrollEdgeProtection()
+            .refreshable {
+                await viewModel.reload()
+            }
+
+            timelineSectionHeadersOverlay
+        }
+    }
+
+    @ViewBuilder
+    private var timelineStickyScrollMask: some View {
+        VStack(spacing: 0) {
+            if let activeTimelineStickyPresentation {
+                Color.clear
+                    .frame(height: timelineStickyHeaderHeight * activeTimelineStickyPresentation.progress)
+
+                LinearGradient(
+                    colors: [.clear, .black],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: timelineStickyHeaderFadeHeight * activeTimelineStickyPresentation.progress)
+            }
+
+            Color.black
+        }
+    }
+
+    private var timelineSectionHeadersOverlay: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(timelineSectionHeaderOffsets.enumerated()), id: \.element.id) { index, offset in
+                let nextOffset = timelineSectionHeaderOffset(after: index)
+                HomeTimelineDateSectionHeader(section: offset.stickySection)
+                    .padding(.horizontal, timelineRowHorizontalInset)
+                    .padding(.top, 12)
+                    .padding(.bottom, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .opacity(timelineStickyFocusOpacity)
+                    .offset(y: timelineHeaderVisualY(for: offset, nextOffset: nextOffset))
+                    .saturation(timelineStickyFocusSaturation)
+                    .brightness(timelineStickyFocusBrightness)
+                    .blur(radius: timelineStickyFocusBlurRadius)
+                    .scaleEffect(timelineStickyFocusScale, anchor: .topLeading)
+                    .zIndex(timelineHeaderZIndex(for: offset, at: index))
+                    .animation(timelineFocusAnimation, value: visualFocusItemID)
             }
         }
-        .scrollIndicators(.hidden)
-        .scrollDisabled(isOverlayModeActive)
-        .safeAreaPadding(.top, 0)
-        .applyScrollEdgeProtection()
-        .refreshable {
-            await viewModel.reload()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func timelineSectionHeaderOffset(after index: Int) -> HomeTimelineSectionHeaderOffset? {
+        let nextIndex = index + 1
+        guard timelineSectionHeaderOffsets.indices.contains(nextIndex) else { return nil }
+        return timelineSectionHeaderOffsets[nextIndex]
+    }
+
+    private func updateTimelineSectionHeaderOffsets(_ offsets: [HomeTimelineSectionHeaderOffset]) {
+        let orderedSections = viewModel.activeTimelineSections.map { section in
+            HomeTimelineStickySection(
+                id: section.id,
+                title: section.title,
+                subtitle: section.subtitle
+            )
         }
+        let offsetsByID = Dictionary(grouping: offsets, by: \.id).compactMapValues { $0.last }
+        let orderedOffsets = orderedSections.compactMap { offsetsByID[$0.id] }
+        if timelineSectionHeaderOffsets != orderedOffsets {
+            timelineSectionHeaderOffsets = orderedOffsets
+        }
+
+        let presentation = HomeTimelineStickySectionTracker.presentation(
+            from: orderedOffsets,
+            orderedSections: orderedSections,
+            threshold: 0
+        )
+        guard activeTimelineStickyPresentation != presentation else { return }
+        activeTimelineStickyPresentation = presentation
+    }
+
+    private func timelineHeaderVisualY(
+        for offset: HomeTimelineSectionHeaderOffset,
+        nextOffset: HomeTimelineSectionHeaderOffset?
+    ) -> CGFloat {
+        guard offset.minY <= 0 else { return offset.minY }
+
+        let pinnedY: CGFloat = 0
+        guard let nextOffset else { return pinnedY }
+
+        return min(pinnedY, nextOffset.minY - offset.height)
+    }
+
+    private func timelineHeaderZIndex(for offset: HomeTimelineSectionHeaderOffset, at index: Int) -> Double {
+        if offset.minY <= 0 {
+            return 1_000 + Double(index)
+        }
+
+        return Double(index)
     }
 
     private var timelineFocusDismissBackground: some View {
@@ -951,6 +1063,9 @@ struct HomeView: View {
                         onOpenDetail: {
                             toggleInlineDetail(entry.itemID, scrollProxy: scrollProxy)
                         },
+                        onCollapseDetail: {
+                            beginInlineDetailCollapse(itemID: entry.itemID)
+                        },
                         onUpdateTitle: { title in
                             viewModel.updateDraftTitle(title)
                         },
@@ -980,6 +1095,9 @@ struct HomeView: View {
                         },
                         onOpenDetail: {
                             toggleInlineDetail(entry.itemID, scrollProxy: scrollProxy)
+                        },
+                        onCollapseDetail: {
+                            beginInlineDetailCollapse(itemID: entry.itemID)
                         },
                         onUpdateTitle: { title in
                             viewModel.updateDraftTitle(title)
@@ -1132,6 +1250,28 @@ struct HomeView: View {
     private func timelineFocusZIndex(for entry: HomeTimelineEntry) -> Double {
         guard let focusedItemID = visualFocusItemID else { return 0 }
         return focusedItemID == entry.itemID ? 3 : 0
+    }
+
+    private var timelineStickyFocusOpacity: Double {
+        visualFocusItemID == nil ? 1 : 0.34
+    }
+
+    private var timelineStickyFocusSaturation: Double {
+        visualFocusItemID == nil ? 1 : 0.82
+    }
+
+    private var timelineStickyFocusBrightness: Double {
+        visualFocusItemID == nil ? 0 : 0.02
+    }
+
+    private var timelineStickyFocusBlurRadius: CGFloat {
+        guard reduceMotion == false, visualFocusItemID != nil else { return 0 }
+        return 2.4
+    }
+
+    private var timelineStickyFocusScale: CGFloat {
+        guard reduceMotion == false, visualFocusItemID != nil else { return 1 }
+        return 0.99
     }
 
     private var timelineFocusAnimation: Animation? {
@@ -1984,12 +2124,6 @@ private struct HomeInlineFocusChromeModifier: ViewModifier {
                 x: 0,
                 y: isFocused ? 14 : 0
             )
-            .shadow(
-                color: focusSurfaceColor.opacity(isFocused ? 0.34 : 0),
-                radius: isFocused ? (reduceMotion ? 6 : 10) : 0,
-                x: 0,
-                y: isFocused ? -3 : 0
-            )
     }
 
     private var primaryShadowColor: Color {
@@ -2001,11 +2135,8 @@ private struct HomeInlineFocusChromeModifier: ViewModifier {
     }
 
     private var focusBackground: some View {
-        ZStack {
-            topAmbientDimming
-            focusPlate
-        }
-        .allowsHitTesting(false)
+        focusPlate
+            .allowsHitTesting(false)
     }
 
     private var focusPlate: some View {
@@ -2015,55 +2146,15 @@ private struct HomeInlineFocusChromeModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: 44, style: .continuous)
                     .strokeBorder(focusSurfaceColor.opacity(isFocused ? 1 : 0), lineWidth: 0.8)
             }
-            .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: 44, style: .continuous)
-                    .strokeBorder(
-                        AppTheme.colors.outline.opacity(isFocused ? 0.5 : 0),
-                        lineWidth: 0.6
-                    )
-            }
             .shadow(
                 color: primaryShadowColor.opacity(isFocused ? primaryShadowOpacity : 0),
                 radius: isFocused ? (reduceMotion ? 14 : 28) : 0,
                 x: 0,
                 y: isFocused ? 14 : 0
             )
-            .shadow(
-                color: AppTheme.colors.surface.opacity(isFocused ? 0.88 : 0),
-                radius: isFocused ? (reduceMotion ? 12 : 22) : 0,
-                x: 0,
-                y: isFocused ? -10 : 0
-            )
             .padding(.horizontal, 14)
             .padding(.vertical, -16)
             .allowsHitTesting(false)
-    }
-
-    private var topAmbientDimming: some View {
-        VStack(spacing: 0) {
-            LinearGradient(
-                colors: [
-                    .clear,
-                    ambientDimColor.opacity(isFocused ? 0.06 : 0),
-                    ambientDimColor.opacity(isFocused ? 0.03 : 0),
-                    .clear
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: reduceMotion ? 48 : 74)
-            .blur(radius: reduceMotion ? 3 : 8)
-            .offset(y: reduceMotion ? -34 : -48)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(false)
-    }
-
-    private var ambientDimColor: Color {
-        colorScheme == .dark ? .black : AppTheme.colors.title
     }
 
     private var focusSurfaceColor: Color {
@@ -2120,17 +2211,17 @@ enum HomeInlineTaskLayoutMetrics {
     static let titleGap: CGFloat = AppTheme.spacing.md
     static let titleLeadingInset: CGFloat = actionSlotWidth + titleGap
     static let rowMinHeight: CGFloat = 44
-    static let compactRowMinHeight: CGFloat = 34
-    static let detailVerticalSpacing: CGFloat = AppTheme.spacing.xxs
+    static let compactRowMinHeight: CGFloat = 32
+    static let detailVerticalSpacing: CGFloat = 2
     static let attributeLeadingInset: CGFloat = 0
-    static let attributeSpacing: CGFloat = 6
-    static let attributeMinHeight: CGFloat = 36
-    static let attributeHorizontalPadding: CGFloat = 7
-    static let attributeIconSize: CGFloat = 13
-    static let attributeIconWidth: CGFloat = 15
-    static let attributeTextSize: CGFloat = 13
-    static let detailTopPadding: CGFloat = AppTheme.spacing.xs
-    static let detailBottomPadding: CGFloat = AppTheme.spacing.xs
+    static let attributeSpacing: CGFloat = 18
+    static let attributeMinHeight: CGFloat = 34
+    static let attributeHorizontalPadding: CGFloat = 2
+    static let attributeIconSize: CGFloat = 14
+    static let attributeIconWidth: CGFloat = 16
+    static let attributeTextSize: CGFloat = 14
+    static let detailTopPadding: CGFloat = AppTheme.spacing.xxs
+    static let detailBottomPadding: CGFloat = AppTheme.spacing.xxs
 
     static func estimatedDetailHeight(subtaskCount: Int) -> CGFloat {
         let rowCount = max(subtaskCount + 3, 1)
@@ -2173,49 +2264,183 @@ enum HomeTimelineSubtitleText {
             components.append(entry.timeText)
         }
 
+        if entry.reminderText.isEmpty == false {
+            components.append(entry.reminderText)
+        }
+
+        if entry.repeatText.isEmpty == false {
+            components.append(entry.repeatText)
+        }
+
         if entry.subtasks.isEmpty == false {
             let total = entry.subtasks.count
             components.append("\(entry.subtaskCompletedCount)/\(total) 子任务")
-            return components.joined(separator: " · ")
         }
 
-        if let notes = entry.notes, notes.isEmpty == false {
-            components.append(notes)
-            return components.joined(separator: " · ")
+        if components.isEmpty {
+            components.append(entry.statusText)
         }
 
-        components.append(entry.statusText)
         return components.joined(separator: " · ")
     }
 }
 
-private struct HomeTimelineDateSectionHeader: View {
+struct HomeTimelineRowDisplayText: Equatable {
+    let propertySubtitle: String
+    let noteText: String?
+
+    static func text(for entry: HomeTimelineEntry) -> HomeTimelineRowDisplayText {
+        let trimmedNotes = entry.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noteText: String? = if let trimmedNotes, trimmedNotes.isEmpty == false {
+            trimmedNotes
+        } else {
+            nil
+        }
+
+        return HomeTimelineRowDisplayText(
+            propertySubtitle: HomeTimelineSubtitleText.text(for: entry),
+            noteText: noteText
+        )
+    }
+}
+
+struct HomeTimelineStickySection: Equatable, Hashable {
+    let id: String
+    let title: String
+    let subtitle: String
+
+    init(id: String, title: String, subtitle: String) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+    }
+}
+
+struct HomeTimelineStickyPresentation: Equatable {
+    let section: HomeTimelineStickySection
+    let minY: CGFloat
+    let progress: Double
+}
+
+struct HomeTimelineSectionHeaderOffset: Equatable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let minY: CGFloat
+    let height: CGFloat
+
+    var stickySection: HomeTimelineStickySection {
+        HomeTimelineStickySection(id: id, title: title, subtitle: subtitle)
+    }
+}
+
+enum HomeTimelineStickySectionTracker {
+    static func presentation(
+        from offsets: [HomeTimelineSectionHeaderOffset],
+        orderedSections: [HomeTimelineStickySection],
+        threshold: CGFloat
+    ) -> HomeTimelineStickyPresentation? {
+        guard offsets.isEmpty == false else { return nil }
+
+        if let crossed = offsets
+            .filter({ $0.minY <= threshold })
+            .max(by: { lhs, rhs in
+                if lhs.minY != rhs.minY {
+                    return lhs.minY < rhs.minY
+                }
+                return lhs.id < rhs.id
+            }) {
+            return HomeTimelineStickyPresentation(
+                section: crossed.stickySection,
+                minY: crossed.minY,
+                progress: 1
+            )
+        }
+
+        guard let topmostVisible = offsets.min(by: { lhs, rhs in
+            if lhs.minY != rhs.minY {
+                return lhs.minY < rhs.minY
+            }
+            return lhs.id < rhs.id
+        }) else { return nil }
+
+        guard let visibleIndex = orderedSections.firstIndex(where: { $0.id == topmostVisible.id }),
+              visibleIndex > 0
+        else { return nil }
+
+        return HomeTimelineStickyPresentation(
+            section: orderedSections[visibleIndex - 1],
+            minY: threshold,
+            progress: 1
+        )
+    }
+}
+
+private enum HomeTimelineScrollCoordinateSpace {
+    static let name = "home-timeline-scroll-coordinate-space"
+}
+
+private struct HomeTimelineSectionHeaderOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: [HomeTimelineSectionHeaderOffset] = []
+
+    static func reduce(
+        value: inout [HomeTimelineSectionHeaderOffset],
+        nextValue: () -> [HomeTimelineSectionHeaderOffset]
+    ) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+private struct HomeTimelineSectionHeaderOffsetReader: View {
     let section: HomeTimelineSection
 
     var body: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: HomeTimelineSectionHeaderOffsetPreferenceKey.self,
+                value: [
+                    HomeTimelineSectionHeaderOffset(
+                        id: section.id,
+                        title: section.title,
+                        subtitle: section.subtitle,
+                        minY: proxy.frame(in: .named(HomeTimelineScrollCoordinateSpace.name)).minY,
+                        height: proxy.size.height
+                    )
+                ]
+            )
+        }
+    }
+}
+
+private struct HomeTimelineDateSectionHeader: View {
+    let title: String
+    let subtitle: String
+
+    init(section: HomeTimelineSection) {
+        self.title = section.title
+        self.subtitle = section.subtitle
+    }
+
+    init(section: HomeTimelineStickySection) {
+        self.title = section.title
+        self.subtitle = section.subtitle
+    }
+
+    var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: AppTheme.spacing.xs) {
-            Text(section.title)
-                .font(AppTheme.typography.sized(14, weight: .bold))
-                .foregroundStyle(AppTheme.colors.title.opacity(0.82))
+            Text(title)
+                .font(AppTheme.typography.sized(13, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title.opacity(0.68))
                 .lineLimit(1)
 
-            Text(section.subtitle)
-                .font(AppTheme.typography.sized(11, weight: .semibold))
+            Text(subtitle)
+                .font(AppTheme.typography.sized(12, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.textTertiary)
                 .lineLimit(1)
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, AppTheme.spacing.sm)
-        .padding(.vertical, 7)
-        .background(
-            Capsule(style: .continuous)
-                .fill(AppTheme.colors.surfaceElevated.opacity(section.isUnscheduled ? 0.58 : 0.74))
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .strokeBorder(AppTheme.colors.outline.opacity(0.36), lineWidth: 0.6)
-        )
+        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 }
@@ -2236,7 +2461,9 @@ private struct HomeTimelineRowShell<Symbol: View, Content: View>: View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
             symbol
             content
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -2252,6 +2479,7 @@ private struct HomeTimelineRow: View {
     let expandedTitle: String
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
+    let onCollapseDetail: () -> Void
     let onUpdateTitle: (String) -> Void
     let onInlineFocus: (HomeInlineFocusTarget) -> Void
     @FocusState private var isTitleFocused: Bool
@@ -2285,6 +2513,7 @@ private struct HomeTimelineRow: View {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                     if isDetailPresented {
                         titleRow(isInteractive: false)
+                            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
                             .contentShape(Rectangle())
                     } else {
                         Button {
@@ -2292,10 +2521,13 @@ private struct HomeTimelineRow: View {
                             onOpenDetail()
                         } label: {
                             titleRow(isInteractive: true)
+                                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 2)
             }
         }
@@ -2423,16 +2655,24 @@ private struct HomeTimelineRow: View {
     }
 
     private var displaySubtitle: String {
-        HomeTimelineSubtitleText.text(for: entry)
+        rowDisplayText.propertySubtitle
+    }
+
+    private var displayNote: String? {
+        rowDisplayText.noteText
+    }
+
+    private var rowDisplayText: HomeTimelineRowDisplayText {
+        HomeTimelineRowDisplayText.text(for: entry)
     }
 
     private var showsSubtitle: Bool {
         displaySubtitle.isEmpty == false
     }
 
+    @ViewBuilder
     private func titleRow(isInteractive: Bool) -> some View {
         titleStack
-        .contentShape(Rectangle())
     }
 
     private var titleStack: some View {
@@ -2449,6 +2689,13 @@ private struct HomeTimelineRow: View {
                 Text(displaySubtitle)
                     .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
                     .foregroundStyle(subtitleColor)
+                    .lineLimit(2)
+            }
+
+            if let displayNote {
+                Text(displayNote)
+                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(entry.isMuted ? 0.36 : 0.5))
                     .lineLimit(2)
             }
         }
@@ -2486,34 +2733,53 @@ private struct HomeTimelineRow: View {
     }
 
     private var expandedTitleEditor: some View {
-        TextField(
-            "任务标题",
-            text: $titleDraft
-        )
-        .font(AppTheme.typography.sized(19, weight: .bold))
-        .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-        .textInputAutocapitalization(.sentences)
-        .submitLabel(.done)
-        .lineLimit(1)
-        .minimumScaleFactor(titleMinimumScaleFactor)
-        .allowsTightening(true)
-        .focused($isTitleFocused)
-        .onSubmit {
-            commitTitleAfterFocusUpdate()
-        }
-        .id(HomeInlineFocusTarget.title.anchorID(for: entry.itemID))
-        .onAppear {
-            titleDraft = expandedTitle
-        }
-        .onChange(of: isTitleFocused) { _, isFocused in
-            if isFocused {
-                isEditingTitle = true
+        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
+            TextField(
+                "任务标题",
+                text: $titleDraft
+            )
+            .font(AppTheme.typography.sized(19, weight: .bold))
+            .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+            .textInputAutocapitalization(.sentences)
+            .submitLabel(.done)
+            .lineLimit(1)
+            .minimumScaleFactor(titleMinimumScaleFactor)
+            .allowsTightening(true)
+            .focused($isTitleFocused)
+            .onSubmit {
+                commitTitleAfterFocusUpdate()
+            }
+            .id(HomeInlineFocusTarget.title.anchorID(for: entry.itemID))
+            .onAppear {
                 titleDraft = expandedTitle
-                onInlineFocus(.title)
-            } else if isCommittingTitle == false, isEditingTitle {
+            }
+            .onChange(of: isTitleFocused) { _, isFocused in
+                if isFocused {
+                    isEditingTitle = true
+                    titleDraft = expandedTitle
+                    onInlineFocus(.title)
+                } else if isCommittingTitle == false, isEditingTitle {
+                    commitTitleAfterFocusUpdate()
+                }
+            }
+
+            inlineSaveButton {
                 commitTitleAfterFocusUpdate()
             }
         }
+    }
+
+    private func inlineSaveButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label("保存", systemImage: "checkmark")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .foregroundStyle(AppTheme.colors.sky)
+                .labelStyle(.titleAndIcon)
+                .frame(minWidth: 54, minHeight: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("保存文本")
     }
 
     private func commitTitleAfterFocusUpdate(then action: (() -> Void)? = nil) {
@@ -2655,6 +2921,7 @@ private struct HomeInlineTaskDetailView: View {
     @FocusState private var focusedField: InlineTaskDetailField?
     @State private var newSubtaskTitle = ""
     @State private var notesDraft = ""
+    @State private var notesEditorRequested = false
 
     private enum InlineTaskDetailField: Hashable {
         case notes
@@ -2707,6 +2974,7 @@ private struct HomeInlineTaskDetailView: View {
         .animation(detailAnimation, value: viewModel.inlineDetailDraft?.subtasks)
         .onAppear {
             notesDraft = viewModel.inlineDetailDraft?.notes ?? ""
+            notesEditorRequested = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         }
         .onChange(of: viewModel.inlineDetailDraft?.notes) { _, notes in
             guard focusedField != .notes else { return }
@@ -2743,28 +3011,89 @@ private struct HomeInlineTaskDetailView: View {
         )
     }
 
+    @ViewBuilder
     private var notesEditor: some View {
-        TextField(
-            "添加备注...",
-            text: $notesDraft,
-            axis: .vertical
-        )
-        .font(AppTheme.typography.sized(16, weight: .medium))
-        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-        .lineLimit(1...4)
-        .textInputAutocapitalization(.sentences)
-        .focused($focusedField, equals: .notes)
-        .padding(.leading, HomeInlineTaskLayoutMetrics.titleLeadingInset)
-        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
-        .contentShape(Rectangle())
+        if showsNotesEditor {
+            HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
+                TextField(
+                    "添加备注",
+                    text: $notesDraft,
+                    axis: .vertical
+                )
+                .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.74))
+                .lineLimit(1...4)
+                .textInputAutocapitalization(.sentences)
+                .focused($focusedField, equals: .notes)
+                .padding(.leading, HomeInlineTaskLayoutMetrics.titleLeadingInset)
+                .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
+                .contentShape(Rectangle())
+
+                inlineSaveButton {
+                    commitNotesAfterFocusUpdate()
+                }
+            }
+        } else {
+            notesPlaceholderButton
+        }
+    }
+
+    private var notesPlaceholderButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            notesEditorRequested = true
+            Task { @MainActor in
+                await Task.yield()
+                focusedField = .notes
+            }
+        } label: {
+            HStack(spacing: HomeInlineTaskLayoutMetrics.titleGap) {
+                Image(systemName: "plus")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
+                    .frame(
+                        width: HomeInlineTaskLayoutMetrics.actionSlotWidth,
+                        height: HomeInlineTaskLayoutMetrics.compactRowMinHeight,
+                        alignment: .trailing
+                    )
+
+                Text("添加备注")
+                    .font(AppTheme.typography.sized(14, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("添加备注")
+    }
+
+    private var showsNotesEditor: Bool {
+        notesEditorRequested || focusedField == .notes || notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
 
     private func commitNotesAfterFocusUpdate() {
         Task { @MainActor in
             notesDraft = TextInputSnapshotReader.resolvedText(fallback: notesDraft)
+            focusedField = nil
             await Task.yield()
             viewModel.updateDraftNotes(notesDraft)
+            notesEditorRequested = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         }
+    }
+
+    private func inlineSaveButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label("保存", systemImage: "checkmark")
+                .font(AppTheme.typography.sized(12, weight: .bold))
+                .foregroundStyle(AppTheme.colors.sky)
+                .labelStyle(.titleAndIcon)
+                .frame(minWidth: 54, minHeight: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("保存备注")
     }
 
     private var addSubtaskRow: some View {
@@ -2787,23 +3116,35 @@ private struct HomeInlineTaskDetailView: View {
                 addSubtaskAfterFocusUpdate()
             }
 
+            addSubtaskButton
+        }
+        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var addSubtaskButton: some View {
+        if showsAddSubtaskButton {
             Button("添加") {
                 addSubtaskAfterFocusUpdate()
             }
             .buttonStyle(.plain)
             .font(AppTheme.typography.sized(14, weight: .bold))
-            .foregroundStyle(canAttemptAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
-            .disabled(!canAttemptAddSubtask)
+            .foregroundStyle(canAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
+            .disabled(!canAddSubtask)
+            .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
-        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
     }
 
     private var attributePills: some View {
-        HStack(spacing: HomeInlineTaskLayoutMetrics.attributeSpacing) {
+        HStack(spacing: 0) {
             settingButton(title: dateTitle, systemImage: "calendar", menu: .date)
+                .frame(maxWidth: .infinity)
             settingButton(title: timeTitle, systemImage: "clock", menu: .time)
+                .frame(maxWidth: .infinity)
             settingButton(title: reminderTitle, systemImage: "bell", menu: .reminder)
+                .frame(maxWidth: .infinity)
             settingButton(title: repeatTitle, systemImage: "arrow.triangle.2.circlepath", menu: .repeatRule)
+                .frame(maxWidth: .infinity)
         }
         .padding(.leading, HomeInlineTaskLayoutMetrics.attributeLeadingInset)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2826,17 +3167,14 @@ private struct HomeInlineTaskDetailView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
-            .foregroundStyle(AppTheme.colors.title.opacity(isSettingEnabled(menu) ? 0.72 : 0.32))
+            .foregroundStyle(settingForegroundColor(for: menu))
             .padding(.horizontal, HomeInlineTaskLayoutMetrics.attributeHorizontalPadding)
-            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemFill).opacity(isSettingEnabled(menu) ? 0.72 : 0.46))
-            )
+            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight, alignment: .center)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .allowsHitTesting(isSettingEnabled(menu))
+        .accessibilityHint(settingAccessibilityHint(for: menu))
     }
 
     private var canAddSubtask: Bool {
@@ -2845,6 +3183,10 @@ private struct HomeInlineTaskDetailView: View {
 
     private var canAttemptAddSubtask: Bool {
         canAddSubtask || focusedField == .newSubtask
+    }
+
+    private var showsAddSubtaskButton: Bool {
+        focusedField == .newSubtask || canAddSubtask
     }
 
     private func addSubtask() {
@@ -2905,6 +3247,37 @@ private struct HomeInlineTaskDetailView: View {
         menu != .reminder || viewModel.inlineDetailDraft?.hasExplicitTime == true
     }
 
+    private func isSettingConfigured(_ menu: TaskEditorMenu) -> Bool {
+        switch menu {
+        case .date:
+            return viewModel.inlineDetailDraft?.dueAt != nil
+        case .time:
+            return viewModel.inlineDetailDraft?.hasExplicitTime == true
+        case .reminder:
+            return viewModel.inlineDetailDraft?.remindAt != nil
+        case .repeatRule:
+            return viewModel.inlineDetailDraft?.repeatRule != nil
+        case .subtasks, .template, .periodicReminder, .periodicCycle:
+            return false
+        }
+    }
+
+    private func settingForegroundColor(for menu: TaskEditorMenu) -> Color {
+        guard isSettingEnabled(menu) else {
+            return AppTheme.colors.body.opacity(0.36)
+        }
+        return isSettingConfigured(menu)
+            ? AppTheme.colors.title.opacity(0.74)
+            : AppTheme.colors.body.opacity(0.56)
+    }
+
+    private func settingAccessibilityHint(for menu: TaskEditorMenu) -> String {
+        if menu == .reminder, isSettingEnabled(menu) == false {
+            return "设置具体时间后可添加提醒"
+        }
+        return "打开设置"
+    }
+
     private var detailAnimation: Animation {
         reduceMotion ? .easeInOut(duration: 0.16) : .spring(response: 0.34, dampingFraction: 0.86)
     }
@@ -2960,7 +3333,7 @@ private struct HomeInlineCascadeStack<Content: View>: View {
     }
 
     private var targetHeight: CGFloat {
-        max(measuredHeight, fallbackHeight)
+        measuredHeight > 0 ? measuredHeight : fallbackHeight
     }
 
     private func updateHeightProgress(_ expanded: Bool, animated: Bool) {
@@ -3018,7 +3391,7 @@ private struct HomeInlineCascadeItemModifier: ViewModifier {
         content
             .opacity(isVisible ? 1 : 0)
             .offset(y: isVisible ? 0 : (reduceMotion ? 0 : 14))
-            .scaleEffect(isVisible ? 1 : 0.985, anchor: .top)
+            .scaleEffect(isVisible ? 1 : (reduceMotion ? 1 : 0.985), anchor: .top)
             .onAppear {
                 isVisible = false
                 guard isExpanded else { return }
@@ -3085,6 +3458,7 @@ private struct HomeInlineSubtaskRow: View {
                 .textInputAutocapitalization(.sentences)
                 .submitLabel(.done)
                 .focused($isFocused)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .onSubmit {
                     commitAfterFocusUpdate()
                 }
@@ -3104,8 +3478,8 @@ private struct HomeInlineSubtaskRow: View {
                 } label: {
                     Text(subtask.title)
                         .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 0.9))
-                        .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.36))
+                        .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.54 : 0.9))
+                        .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.42))
                         .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
@@ -3113,30 +3487,54 @@ private struct HomeInlineSubtaskRow: View {
                 .buttonStyle(.plain)
             }
 
-            Button {
-                HomeInteractionFeedback.selection()
-                if isEditing {
-                    commitAfterFocusUpdate()
-                } else {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                        viewModel.deleteDetailDraftSubtask(subtask.id)
-                    }
-                }
-            } label: {
-                Image(systemName: isEditing ? "checkmark" : "xmark")
-                    .font(AppTheme.typography.sized(10, weight: .bold))
-                    .foregroundStyle(isEditing ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.46))
-                    .frame(width: 18, height: 18)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+            if isEditing {
+                editingActionButtons
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isEditing ? "保存子任务" : "删除子任务")
         }
         .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
+        .contextMenu {
+            if !isEditing {
+                Button(role: .destructive) {
+                    deleteSubtask()
+                } label: {
+                    Label("删除子任务", systemImage: "trash")
+                }
+            }
+        }
         .onChange(of: subtask.title) { _, title in
             guard !isEditing else { return }
             draftTitle = title
+        }
+    }
+
+    private var editingActionButtons: some View {
+        HStack(spacing: 0) {
+            Button {
+                HomeInteractionFeedback.selection()
+                commitAfterFocusUpdate()
+            } label: {
+                Label("保存", systemImage: "checkmark")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.sky)
+                    .labelStyle(.titleAndIcon)
+                    .frame(minWidth: 54, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("保存子任务")
+
+            Button {
+                deleteSubtask()
+            } label: {
+                Image(systemName: "trash")
+                    .font(AppTheme.typography.sized(11, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.44))
+                    .frame(width: 18, height: 18)
+                    .frame(minWidth: 36, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除子任务")
         }
     }
 
@@ -3158,6 +3556,16 @@ private struct HomeInlineSubtaskRow: View {
             await Task.yield()
             guard isEditing else { return }
             commit()
+        }
+    }
+
+    private func deleteSubtask() {
+        HomeInteractionFeedback.selection()
+        isEditing = false
+        isFocused = false
+        draftTitle = ""
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+            viewModel.deleteDetailDraftSubtask(subtask.id)
         }
     }
 }
@@ -3545,6 +3953,8 @@ private struct HomeOverdueSummarySheet: View {
                         title: entry.title,
                         notes: entry.detailText,
                         timeText: entry.timeText,
+                        reminderText: "",
+                        repeatText: "",
                         statusText: "已逾期",
                         accentColorName: "coral",
                         isMuted: false,
@@ -3573,6 +3983,7 @@ private struct HomeOverdueSummarySheet: View {
                     onOpenDetail: {
                         HomeInteractionFeedback.selection()
                     },
+                    onCollapseDetail: {},
                     onUpdateTitle: { _ in },
                     onInlineFocus: { _ in }
                 )
