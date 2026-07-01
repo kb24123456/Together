@@ -789,7 +789,7 @@ private struct ComposerDraftState: Hashable {
     var taskSubtaskInput = ""
     var projectSubtasks: [ProjectSubtaskDraft] = []
     var projectSubtaskInput = ""
-    var periodicCycle: PeriodicCycle = .monthly
+    var periodicCycle: PeriodicCycle = .daily
     var periodicReminderRules: [PeriodicReminderRule] = []
     var periodicReminderEnabled: Bool { !periodicReminderRules.isEmpty }
 
@@ -2809,12 +2809,7 @@ private struct ComposerPeriodicReminderPanel: View {
     }
 
     private func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
-        switch cycle {
-        case .weekly:  PeriodicReminderRule(timing: .dayOfPeriod(3))
-        case .monthly: PeriodicReminderRule(timing: .dayOfPeriod(20))
-        case .quarterly: PeriodicReminderRule(timing: .daysBeforeEnd(14))
-        case .yearly:  PeriodicReminderRule(timing: .daysBeforeEnd(30))
-        }
+        RoutinesViewModel.defaultRule(for: cycle)
     }
 }
 

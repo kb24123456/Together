@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-06-27
+- 日期：2026-07-01
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
@@ -15,7 +15,7 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：2026-06-25 已修复中文输入法提交架构问题；首页统一任务区、已完成归档、OCR Popover 和内联详情继续迭代。
+- 当前任务：2026-07-01 已完成例行任务列表与首页任务流的交互架构同构；首页统一任务区、已完成归档、OCR 和例行任务工作区继续迭代。
 - 已确认边界：
   - 不迁移旧 Supabase 数据，允许删除。
   - 不保留 RevenueCat、Paywall、PremiumGate、Supabase webhook。
@@ -38,6 +38,9 @@
   - 2026-06-21 OCR 入口改为 UIKit 原生 Popover：底部 OCR 按钮由 `OCRAttachmentBarButtonItem` 提供 UIKit source item，`OCRAttachmentPopoverPresenter` 只 present 一次 `UIHostingController`，附件菜单、AVFoundation 相机、inline PhotosPicker、识别中、失败和草稿确认通过 `OCRAttachmentPage` 状态机在同一个 popover 内切换，并用 `preferredContentSize` 驱动系统几何形变；旧 OCR sheet 不再从 `AppRootView` 呈现。
   - 2026-06-21 OCR Popover 质感修正：附件菜单文案改为“导入纸面内容 / 拍照或选择照片 / 直接识别成可编辑的任务草稿”；媒体页尺寸降低并在 page 变化时通过 presenter 更新 popover source 到当前 view 中心以稳定左右间距；相机和照片页控制按钮优先使用 iOS 26 Liquid Glass；照片页“全部照片”关闭自定义 Popover 后打开系统 `PHPickerViewController` 大屏 sheet，选图后回到 OCR 识别与草稿确认。
   - 2026-06-27 OCR 确认编辑改为根层原生自适应 Sheet：附件菜单、相机、照片、识别中和失败状态继续使用同一个 UIKit popover；识别成功后先完成 popover dismiss，再通过 `AppRouter.activeOCRReviewSession` 把同一个 `OCRImportViewModel` 移交给 `AppRootView.sheet(item:)`。确认页支持 `.medium/.large` detent，按草稿内容初始选高，内容增长或键盘出现时单向升级到 large；禁止拖拽直接关闭，取消统一处理编辑草稿放弃确认，导入失败保留输入。
+  - 2026-06-30 例行任务视图重设计第一阶段落地：`PeriodicCycle` 新增 `.daily`，默认维度为每天/每周/每月，季度/年度通过用户偏好或已有任务自动显示；例行任务主页改为总览卡 + 横向维度 rail + 当前周期页头 + 同源任务行，任务点击不再打开 `RoutinesDetailSheet`，改为列表内大圆角白卡展开编辑。目标文案统一为“目标时间/目标日”节奏语言，首页 `RoutinesSummaryCard` 只在存在临期或已过目标时间的未完成例行任务时显示。
+  - 2026-07-01 例行任务列表完成第二阶段同构重构：删除总览大卡、线性进度条、旧 `RoutinesDetailSheet` 和未使用的 `RoutinesCycleSection`；维度名称选择与当前周期摘要固定在任务流上方，选中态为 baby blue 短线，完成进度使用原生圆形 `Gauge`。任务主体改为单一 `ScrollViewReader + ScrollView + LazyVStack`，折叠行与首页共用“完成框 / 标题 / 属性副标题 / 备注”层级；展开态使用相同焦点白卡、背景模糊、稳定高度、级联动画、行内文本保存和收起后 draft 持久化语义，只保留维度、目标日、目标时间等例行任务属性。展开期间业务层拒绝切换维度，点击其他任务只收起当前项。
+  - 2026-07-01 首页日期分组标题切换为 `LazyVStack(pinnedViews: [.sectionHeaders])` 原生单视图吸附：标题随列表滑到导航栏下方后直接停止，不再使用 GeometryReader / PreferenceKey 驱动的透明副本接管，从根因上移除交接帧跳动。标题继续无可见背景容器；真机确认 pinned header 会被提升到独立渲染层，跨层 `destinationOut` 会把黑色源矩形直接显示，因此遮挡改为仅吸附时按全局坐标续接页面网格的 Canvas，并保留展开态模糊与降噪表现。
   - 2026-06-25 中文输入法提交修复：删除 `CompositionAwareTextField` / `TextInputCommitter` 的 UIKit TextField 桥接和经验延迟提交路径；首页展开态标题、备注、子任务新增/编辑、任务详情子任务、OCR 草稿、项目子任务和快速创建子任务统一回到 SwiftUI 原生 `TextField` + `@FocusState` + 本地编辑 buffer；针对微信输入法 marked text 不落入 SwiftUI binding 的真机现象，新增 `TextInputSnapshotReader`，在保存/添加瞬间读取当前 UIKit 第一响应者的可见文本，再结束焦点并提交。
   - 2026-06-14 普通任务子任务已落地：新增独立 `TaskSubtask` / `PersistentTaskSubtask`，`Item.subtasks` 与 `TaskDraft.subtasks` 走本地 SwiftData hydrate；不复用 `ProjectSubtask`，不引入 Supabase 或多人能力；删除父任务会 tombstone 普通任务子任务。
   - 普通任务子任务应用服务已接入 `TaskApplicationServiceProtocol` / `DefaultTaskApplicationService`，支持新增、勾选、改名、删除；子任务完成只更新子任务和父任务 `updatedAt`，不会自动完成父任务。
@@ -58,6 +61,9 @@
   - 2026-06-21 OCR Popover focused 测试通过：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；新增覆盖 OCR 识别成功进入 review、多图 OCR 合并解析、OCR apply 写入 title/notes/subtasks/dueAt/hasExplicitTime/remindAt/repeatRule。`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；XcodeBuildMCP `build_run_sim` / `stop_app_sim` 通过。仍需真机验证 UIKit sourceItem Popover 形变、AVFoundation 相机预览、inline PhotosPicker、limited library 和权限空态。
   - 2026-06-25 中文输入法提交修复验证：`rg -n "CompositionAwareTextField|TextInputCommitter|AfterInputCommits|AfterInputSettles|waitForFocusedInputToCommit|inputFocusBinding|subtaskFocusBinding|titleFocusBinding" Together TogetherTests -S` 无残留；`git diff --check` 通过；`DEVELOPER_DIR=/Users/papertiger/Downloads/Xcode-beta.app/Contents/Developer xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；`DEVELOPER_DIR=/Users/papertiger/Downloads/Xcode-beta.app/Contents/Developer xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过。仍需真机验证微信输入法一次输入/分两次输入中文后直接保存。
   - 2026-06-27 OCR 原生确认 Sheet 验证：新增测试覆盖短草稿 medium、长草稿 large、内容/键盘单向升级、session 保留同一 ViewModel 与中文草稿、编辑变更检测；完整 `TogetherTests/TogetherTests` 通过。仍需真机验证 popover 退场到 sheet 入场、系统 detent 手感、微信输入法和属性子 sheet。
+  - 2026-06-30 例行任务重设计验证：`git diff --check` 通过；`DEVELOPER_DIR=/Users/papertiger/Downloads/Xcode-beta.app/Contents/Developer xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO` 通过；新增 focused tests 曾在 iPhone 17 / iOS 27 simulator 通过，覆盖 daily 周期 key/range、目标节奏文案、默认/自动可见维度、临期摘要、内联编辑收起后持久化；随后修正每周目标文案按 `calendar.firstWeekday` 推导，最终代码已通过测试编译，复跑 focused tests 卡在 Xcode runner `waiting for workers to materialize` 后手动中断。仍需真机验证维度切换动效、展开编辑键盘避让、动态字体、深色模式和临期卡入口。
+  - 2026-07-01 例行任务同构重构验证：新增 Swift Testing 覆盖维度摘要完成比例、展开期间禁止切维度、维度与目标时间只在收起后持久化、点击第二条只收起当前项、已完成例行任务仍可展开；先验证旧行为对应测试失败，再完成修复。`DEVELOPER_DIR=/Users/papertiger/Downloads/Xcode-beta.app/Contents/Developer xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,id=F77C3721-9F5D-4BDC-A880-2DC0E0429B7B' -only-testing:TogetherTests/TogetherTests -quiet` 通过；generic iOS `build-for-testing` 通过。仍需真机验证固定维度区、圆形 Gauge、中文输入、键盘避让、深色模式、动态字体和 Reduce Motion。
+  - 2026-07-01 首页原生日期标题吸附验证：旧 `HomeTimelineSticky*`、GeometryReader / PreferenceKey 偏移追踪和顶部 mask 无残留；首次真机验证发现 `destinationOut` 在独立 pinned 渲染层中失效并显示黑色标题带，已改为普通 Canvas 网格切片。修复后 `git diff --check`、完整 `TogetherTests/TogetherTests`、generic iOS `build-for-testing` 均通过；仍需真机复验网格连续性、标题推挤和展开态模糊效果。
   - 2026-06-27 OCR 底部入口与媒体 Popover 收敛：首页底部 toolbar 改为左侧 OCR、右侧新建，完整已完成归档统一由 Profile“日志”进入；OCR 菜单锚定左下图标，相机/相册/处理中/失败页在同一 popover 内切换为距屏幕左、右、底各 12pt 的媒体 frame，外框不避让 Home Indicator，内部控件单独叠加设备底部安全区；所有关闭路径恢复 OCR source item 后退场。`git diff --check`、Xcode 27 generic iOS build 和 build-for-testing 通过；新增几何与安全 padding 测试已编译，但模拟器 Test Runner 在建立连接前异常退出，仍需真机验证连续形变、实际边距和缩回锚点。
   - 2026-06-28 OCR 呈现层回归系统原生 popover：删除透明 `.overFullScreen` overlay presenter、source frame、手工同心圆角、固定 12pt 外框和自定义 `GlassEffectContainer`。首页底部原生 SwiftUI OCR `Button` 直接持有 `.popover`，菜单、相机、照片、处理中和失败状态复用同一 `OCRAttachmentPopoverSession`，由系统负责 Liquid Glass 外壳、source item 替换、圆角、边距与缩回动画；识别成功仍在 popover 关闭后移交根层确认 Sheet。Xcode 27 generic iOS 无签名 build 通过。
   - 2026-06-28 OCR 原生 popover 真机问题修正：确认 SwiftUI `.presentationSizing(.fitted)` 对运行中内容换页只重新测量并直接提交 frame，不能提供所需的原生连续 resize；已删除人为延迟和内容空白淡出，改用零尺寸 `UIViewControllerRepresentable` 定位同一系统 popover 的 hosting controller，并仅更新 `preferredContentSize`，由 `UIPopoverPresentationController` 执行菜单、相机和照片之间的双向系统几何过渡。确认 Sheet 改为在 popover 根内容 `onDisappear` 后等待根 presentation controller 释放再呈现；确认列表使用 `LazyVStack`，避免大量 OCR 草稿一次性构建编辑器阻塞主线程。Xcode 27 generic iOS 无签名 build 通过，仍需真机复验动画和确认页交接。

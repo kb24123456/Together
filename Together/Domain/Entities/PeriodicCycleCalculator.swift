@@ -10,6 +10,12 @@ enum PeriodicCycleCalculator {
         calendar: Calendar = .current
     ) -> String {
         switch cycle {
+        case .daily:
+            let year = calendar.component(.year, from: date)
+            let month = calendar.component(.month, from: date)
+            let day = calendar.component(.day, from: date)
+            return String(format: "%04d-%02d-%02d", year, month, day)
+
         case .weekly:
             let week = calendar.component(.weekOfYear, from: date)
             let year = calendar.component(.yearForWeekOfYear, from: date)
@@ -40,6 +46,11 @@ enum PeriodicCycleCalculator {
         calendar: Calendar = .current
     ) -> (start: Date, end: Date) {
         switch cycle {
+        case .daily:
+            let startOfDay = calendar.startOfDay(for: date)
+            let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+            return (startOfDay, endOfDay)
+
         case .weekly:
             let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: date)!.start
             let endOfWeek = calendar.date(byAdding: .day, value: 7, to: startOfWeek)!
@@ -131,6 +142,9 @@ enum PeriodicCycleCalculator {
         switch rule.timing {
         case .dayOfPeriod(let day):
             baseDate = calendar.date(byAdding: .day, value: day - 1, to: periodStart)
+            if let candidate = baseDate, candidate >= periodEnd {
+                baseDate = calendar.date(byAdding: .day, value: -1, to: periodEnd)
+            }
 
         case .businessDayOfPeriod(let n):
             baseDate = nthBusinessDay(n, from: periodStart, calendar: calendar)

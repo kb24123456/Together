@@ -474,6 +474,20 @@ enum MockDataFactory {
     static func makePeriodicTasks() -> [PeriodicTask] {
         [
             PeriodicTask(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAA9")!,
+                spaceID: singleSpaceID,
+                creatorID: currentUserID,
+                title: "每日复盘",
+                notes: "简单记录今天完成了什么",
+                cycle: .daily,
+                reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 21, minute: 30)],
+                completions: [],
+                sortOrder: 0,
+                isActive: true,
+                createdAt: now.addingTimeInterval(-86_400 * 12),
+                updatedAt: now
+            ),
+            PeriodicTask(
                 id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
                 spaceID: singleSpaceID,
                 creatorID: currentUserID,

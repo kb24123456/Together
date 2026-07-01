@@ -27,8 +27,6 @@ struct HomeView: View {
     @State private var visualFocusItemID: UUID?
     @State private var collapsingInlineDetailID: UUID?
     @State private var inlineDetailAnimationBatch = 0
-    @State private var activeTimelineStickyPresentation: HomeTimelineStickyPresentation?
-    @State private var timelineSectionHeaderOffsets: [HomeTimelineSectionHeaderOffset] = []
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -39,8 +37,6 @@ struct HomeView: View {
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineBottomInset: CGFloat = 24
-    private let timelineStickyHeaderHeight: CGFloat = 44
-    private let timelineStickyHeaderFadeHeight: CGFloat = 10
     private let monthGridSpacing: CGFloat = 8
     private let monthCompressedGridSpacing: CGFloat = 4
     private let monthDayCellHeight: CGFloat = 46
@@ -74,8 +70,6 @@ struct HomeView: View {
             await viewModel.performDeferredMaintenanceIfNeeded()
         }
         .task(id: viewModel.selectedDateKey) {
-            activeTimelineStickyPresentation = nil
-            timelineSectionHeaderOffsets = []
             visualFocusItemID = nil
             collapsingInlineDetailID = nil
             await viewModel.reload(reason: .dateChange)
@@ -524,7 +518,7 @@ struct HomeView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
                         if appContext.sessionStore.activeMode == .single,
-                           appContext.routinesViewModel.hasPendingTasks {
+                           appContext.routinesViewModel.hasAttentionTasks {
                             RoutinesSummaryCard(
                                 viewModel: appContext.routinesViewModel,
                                 onNavigateToRoutines: {
@@ -705,7 +699,7 @@ struct HomeView: View {
     private func standardTimelineList(scrollProxy: ScrollViewProxy) -> some View {
         ZStack(alignment: .topLeading) {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     if viewModel.showsOverdueCapsule {
                         overdueReminderCapsule
                             .padding(
@@ -719,7 +713,7 @@ struct HomeView: View {
                     }
 
                     if appContext.sessionStore.activeMode == .single,
-                       appContext.routinesViewModel.hasPendingTasks {
+                       appContext.routinesViewModel.hasAttentionTasks {
                         RoutinesSummaryCard(
                             viewModel: appContext.routinesViewModel,
                             onNavigateToRoutines: {
@@ -745,16 +739,7 @@ struct HomeView: View {
                                 scrollProxy: scrollProxy
                             )
                         } header: {
-                            HomeTimelineDateSectionHeader(section: section)
-                                .opacity(0)
-                                .accessibilityHidden(true)
-                                .background {
-                                    HomeTimelineSectionHeaderOffsetReader(section: section)
-                                }
-                                .padding(.horizontal, timelineRowHorizontalInset)
-                                .padding(.top, 12)
-                                .padding(.bottom, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            timelinePinnedSectionHeader(section)
                         }
                     }
 
@@ -787,17 +772,11 @@ struct HomeView: View {
                         Color.clear.frame(height: timelineBottomInset)
                     }
                 }
-                .onPreferenceChange(HomeTimelineSectionHeaderOffsetPreferenceKey.self) { offsets in
-                    updateTimelineSectionHeaderOffsets(offsets)
-                }
                 .background {
                     timelineFocusDismissBackground
                 }
             }
             .coordinateSpace(name: HomeTimelineScrollCoordinateSpace.name)
-            .mask(alignment: .top) {
-                timelineStickyScrollMask
-            }
             .scrollIndicators(.hidden)
             .scrollDisabled(isOverlayModeActive)
             .safeAreaPadding(.top, 0)
@@ -805,100 +784,27 @@ struct HomeView: View {
             .refreshable {
                 await viewModel.reload()
             }
-
-            timelineSectionHeadersOverlay
         }
     }
 
-    @ViewBuilder
-    private var timelineStickyScrollMask: some View {
-        VStack(spacing: 0) {
-            if let activeTimelineStickyPresentation {
-                Color.clear
-                    .frame(height: timelineStickyHeaderHeight * activeTimelineStickyPresentation.progress)
+    private func timelinePinnedSectionHeader(_ section: HomeTimelineSection) -> some View {
+        ZStack(alignment: .leading) {
+            HomeTimelinePinnedHeaderBackdrop()
 
-                LinearGradient(
-                    colors: [.clear, .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: timelineStickyHeaderFadeHeight * activeTimelineStickyPresentation.progress)
-            }
-
-            Color.black
+            HomeTimelineDateSectionHeader(section: section)
+                .padding(.horizontal, timelineRowHorizontalInset)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(timelineStickyFocusOpacity)
+                .saturation(timelineStickyFocusSaturation)
+                .brightness(timelineStickyFocusBrightness)
+                .blur(radius: timelineStickyFocusBlurRadius)
+                .scaleEffect(timelineStickyFocusScale, anchor: .topLeading)
+                .animation(timelineFocusAnimation, value: visualFocusItemID)
         }
-    }
-
-    private var timelineSectionHeadersOverlay: some View {
-        ZStack(alignment: .topLeading) {
-            ForEach(Array(timelineSectionHeaderOffsets.enumerated()), id: \.element.id) { index, offset in
-                let nextOffset = timelineSectionHeaderOffset(after: index)
-                HomeTimelineDateSectionHeader(section: offset.stickySection)
-                    .padding(.horizontal, timelineRowHorizontalInset)
-                    .padding(.top, 12)
-                    .padding(.bottom, 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .opacity(timelineStickyFocusOpacity)
-                    .offset(y: timelineHeaderVisualY(for: offset, nextOffset: nextOffset))
-                    .saturation(timelineStickyFocusSaturation)
-                    .brightness(timelineStickyFocusBrightness)
-                    .blur(radius: timelineStickyFocusBlurRadius)
-                    .scaleEffect(timelineStickyFocusScale, anchor: .topLeading)
-                    .zIndex(timelineHeaderZIndex(for: offset, at: index))
-                    .animation(timelineFocusAnimation, value: visualFocusItemID)
-            }
-        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    private func timelineSectionHeaderOffset(after index: Int) -> HomeTimelineSectionHeaderOffset? {
-        let nextIndex = index + 1
-        guard timelineSectionHeaderOffsets.indices.contains(nextIndex) else { return nil }
-        return timelineSectionHeaderOffsets[nextIndex]
-    }
-
-    private func updateTimelineSectionHeaderOffsets(_ offsets: [HomeTimelineSectionHeaderOffset]) {
-        let orderedSections = viewModel.activeTimelineSections.map { section in
-            HomeTimelineStickySection(
-                id: section.id,
-                title: section.title,
-                subtitle: section.subtitle
-            )
-        }
-        let offsetsByID = Dictionary(grouping: offsets, by: \.id).compactMapValues { $0.last }
-        let orderedOffsets = orderedSections.compactMap { offsetsByID[$0.id] }
-        if timelineSectionHeaderOffsets != orderedOffsets {
-            timelineSectionHeaderOffsets = orderedOffsets
-        }
-
-        let presentation = HomeTimelineStickySectionTracker.presentation(
-            from: orderedOffsets,
-            orderedSections: orderedSections,
-            threshold: 0
-        )
-        guard activeTimelineStickyPresentation != presentation else { return }
-        activeTimelineStickyPresentation = presentation
-    }
-
-    private func timelineHeaderVisualY(
-        for offset: HomeTimelineSectionHeaderOffset,
-        nextOffset: HomeTimelineSectionHeaderOffset?
-    ) -> CGFloat {
-        guard offset.minY <= 0 else { return offset.minY }
-
-        let pinnedY: CGFloat = 0
-        guard let nextOffset else { return pinnedY }
-
-        return min(pinnedY, nextOffset.minY - offset.height)
-    }
-
-    private func timelineHeaderZIndex(for offset: HomeTimelineSectionHeaderOffset, at index: Int) -> Double {
-        if offset.minY <= 0 {
-            return 1_000 + Double(index)
-        }
-
-        return Double(index)
     }
 
     private var timelineFocusDismissBackground: some View {
@@ -2304,124 +2210,11 @@ struct HomeTimelineRowDisplayText: Equatable {
     }
 }
 
-struct HomeTimelineStickySection: Equatable, Hashable {
-    let id: String
-    let title: String
-    let subtitle: String
-
-    init(id: String, title: String, subtitle: String) {
-        self.id = id
-        self.title = title
-        self.subtitle = subtitle
-    }
-}
-
-struct HomeTimelineStickyPresentation: Equatable {
-    let section: HomeTimelineStickySection
-    let minY: CGFloat
-    let progress: Double
-}
-
-struct HomeTimelineSectionHeaderOffset: Equatable {
-    let id: String
-    let title: String
-    let subtitle: String
-    let minY: CGFloat
-    let height: CGFloat
-
-    var stickySection: HomeTimelineStickySection {
-        HomeTimelineStickySection(id: id, title: title, subtitle: subtitle)
-    }
-}
-
-enum HomeTimelineStickySectionTracker {
-    static func presentation(
-        from offsets: [HomeTimelineSectionHeaderOffset],
-        orderedSections: [HomeTimelineStickySection],
-        threshold: CGFloat
-    ) -> HomeTimelineStickyPresentation? {
-        guard offsets.isEmpty == false else { return nil }
-
-        if let crossed = offsets
-            .filter({ $0.minY <= threshold })
-            .max(by: { lhs, rhs in
-                if lhs.minY != rhs.minY {
-                    return lhs.minY < rhs.minY
-                }
-                return lhs.id < rhs.id
-            }) {
-            return HomeTimelineStickyPresentation(
-                section: crossed.stickySection,
-                minY: crossed.minY,
-                progress: 1
-            )
-        }
-
-        guard let topmostVisible = offsets.min(by: { lhs, rhs in
-            if lhs.minY != rhs.minY {
-                return lhs.minY < rhs.minY
-            }
-            return lhs.id < rhs.id
-        }) else { return nil }
-
-        guard let visibleIndex = orderedSections.firstIndex(where: { $0.id == topmostVisible.id }),
-              visibleIndex > 0
-        else { return nil }
-
-        return HomeTimelineStickyPresentation(
-            section: orderedSections[visibleIndex - 1],
-            minY: threshold,
-            progress: 1
-        )
-    }
-}
-
-private enum HomeTimelineScrollCoordinateSpace {
-    static let name = "home-timeline-scroll-coordinate-space"
-}
-
-private struct HomeTimelineSectionHeaderOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: [HomeTimelineSectionHeaderOffset] = []
-
-    static func reduce(
-        value: inout [HomeTimelineSectionHeaderOffset],
-        nextValue: () -> [HomeTimelineSectionHeaderOffset]
-    ) {
-        value.append(contentsOf: nextValue())
-    }
-}
-
-private struct HomeTimelineSectionHeaderOffsetReader: View {
-    let section: HomeTimelineSection
-
-    var body: some View {
-        GeometryReader { proxy in
-            Color.clear.preference(
-                key: HomeTimelineSectionHeaderOffsetPreferenceKey.self,
-                value: [
-                    HomeTimelineSectionHeaderOffset(
-                        id: section.id,
-                        title: section.title,
-                        subtitle: section.subtitle,
-                        minY: proxy.frame(in: .named(HomeTimelineScrollCoordinateSpace.name)).minY,
-                        height: proxy.size.height
-                    )
-                ]
-            )
-        }
-    }
-}
-
 private struct HomeTimelineDateSectionHeader: View {
     let title: String
     let subtitle: String
 
     init(section: HomeTimelineSection) {
-        self.title = section.title
-        self.subtitle = section.subtitle
-    }
-
-    init(section: HomeTimelineStickySection) {
         self.title = section.title
         self.subtitle = section.subtitle
     }
@@ -2442,6 +2235,55 @@ private struct HomeTimelineDateSectionHeader: View {
         }
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+}
+
+private enum HomeTimelineScrollCoordinateSpace {
+    static let name = "home-timeline-scroll"
+}
+
+private struct HomeTimelinePinnedHeaderBackdrop: View {
+    private let gridSpacing: CGFloat = 36
+    private let gridLineWidth: CGFloat = 0.6
+
+    var body: some View {
+        GeometryReader { proxy in
+            let scrollMinY = proxy.frame(in: .named(HomeTimelineScrollCoordinateSpace.name)).minY
+            let globalOrigin = proxy.frame(in: .global).origin
+
+            if scrollMinY <= 0.5 {
+                Canvas { context, size in
+                    let bounds = Path(CGRect(origin: .zero, size: size))
+                    context.fill(bounds, with: .color(AppTheme.colors.background))
+
+                    let gridShading = GraphicsContext.Shading.color(AppTheme.colors.gridLine)
+                    var x = firstGridLineOffset(for: globalOrigin.x)
+                    while x <= size.width {
+                        var path = Path()
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x, y: size.height))
+                        context.stroke(path, with: gridShading, lineWidth: gridLineWidth)
+                        x += gridSpacing
+                    }
+
+                    var y = firstGridLineOffset(for: globalOrigin.y)
+                    while y <= size.height {
+                        var path = Path()
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: size.width, y: y))
+                        context.stroke(path, with: gridShading, lineWidth: gridLineWidth)
+                        y += gridSpacing
+                    }
+                }
+                .accessibilityHidden(true)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func firstGridLineOffset(for globalOrigin: CGFloat) -> CGFloat {
+        let remainder = (-globalOrigin).truncatingRemainder(dividingBy: gridSpacing)
+        return remainder >= 0 ? remainder : remainder + gridSpacing
     }
 }
 

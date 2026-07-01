@@ -16,7 +16,7 @@ struct RoutinesEditorSheet: View {
     @FocusState private var focusedField: Field?
     @Namespace private var chipRowNamespace
 
-    init(viewModel: RoutinesViewModel, initialCycle: PeriodicCycle = .monthly) {
+    init(viewModel: RoutinesViewModel, initialCycle: PeriodicCycle = .daily) {
         self.viewModel = viewModel
         _cycle = State(initialValue: initialCycle)
     }
@@ -90,6 +90,9 @@ struct RoutinesEditorSheet: View {
         .presentationDragIndicator(.hidden)
         .presentationBackground(AppTheme.colors.surface)
         .onAppear {
+            if reminderRules.isEmpty {
+                reminderRules = [RoutinesViewModel.defaultRule(for: cycle)]
+            }
             DispatchQueue.main.async {
                 focusedField = .title
             }
@@ -314,6 +317,11 @@ private struct RoutinesEditorMenuSheet: View {
                     Button {
                         HomeInteractionFeedback.selection()
                         cycle = c
+                        if reminderRules.isEmpty {
+                            reminderRules = [RoutinesViewModel.defaultRule(for: c)]
+                        } else if let first = reminderRules.first {
+                            reminderRules = [RoutinesViewModel.normalizedRule(first, for: c)]
+                        }
                     } label: {
                         HStack {
                             Text(c.title)
@@ -377,11 +385,6 @@ private struct RoutinesEditorMenuSheet: View {
     }
 
     private func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
-        switch cycle {
-        case .weekly: PeriodicReminderRule(timing: .dayOfPeriod(3))
-        case .monthly: PeriodicReminderRule(timing: .dayOfPeriod(20))
-        case .quarterly: PeriodicReminderRule(timing: .daysBeforeEnd(14))
-        case .yearly: PeriodicReminderRule(timing: .daysBeforeEnd(30))
-        }
+        RoutinesViewModel.defaultRule(for: cycle)
     }
 }

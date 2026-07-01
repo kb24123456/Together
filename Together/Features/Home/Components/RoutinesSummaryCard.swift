@@ -5,10 +5,10 @@ struct RoutinesSummaryCard: View {
     let onNavigateToRoutines: () -> Void
 
     private var summary: [(PeriodicCycle, Int)] {
-        viewModel.pendingSummary(referenceDate: viewModel.referenceDate)
+        viewModel.attentionSummary(referenceDate: viewModel.referenceDate)
     }
 
-    private var totalPending: Int {
+    private var totalAttention: Int {
         summary.reduce(0) { $0 + $1.1 }
     }
 
@@ -18,15 +18,15 @@ struct RoutinesSummaryCard: View {
                 onNavigateToRoutines()
             } label: {
                 HStack(spacing: AppTheme.spacing.sm) {
-                    Image(systemName: "square.stack")
+                    Image(systemName: "bell.badge")
                         .font(AppTheme.typography.sized(16, weight: .semibold))
 
-                    Text("\(totalPending) 项例行事务待完成")
+                    Text("\(totalAttention) 项例行任务临近")
                         .font(AppTheme.typography.sized(14, weight: .semibold))
 
                     Spacer(minLength: 0)
 
-                    Text("查看全部")
+                    Text("去处理")
                         .font(AppTheme.typography.sized(12, weight: .semibold))
                         .foregroundStyle(AppTheme.colors.sky.opacity(0.8))
                 }

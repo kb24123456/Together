@@ -9,6 +9,113 @@ enum PeriodicTaskUrgency: Hashable, Sendable {
     case completed
 }
 
+struct RoutineDimensionSummary: Equatable {
+    let cycle: PeriodicCycle
+    let totalCount: Int
+    let completedCount: Int
+    let pendingCount: Int
+    let attentionCount: Int
+    let periodProgress: Double
+    let daysRemaining: Int
+
+    var completionProgress: Double {
+        guard totalCount > 0 else { return 0 }
+        return Double(completedCount) / Double(totalCount)
+    }
+
+}
+
+struct RoutineTaskDisplayText: Equatable {
+    let propertySubtitle: String
+    let noteText: String?
+
+    static func text(for task: PeriodicTask, calendar: Calendar = .current) -> RoutineTaskDisplayText {
+        let trimmedNotes = task.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return RoutineTaskDisplayText(
+            propertySubtitle: RoutineTargetText.text(for: task, calendar: calendar),
+            noteText: trimmedNotes?.isEmpty == false ? trimmedNotes : nil
+        )
+    }
+}
+
+struct RoutineInlineDraft: Equatable {
+    var title: String
+    var notes: String
+    var cycle: PeriodicCycle
+    var reminderRules: [PeriodicReminderRule]
+
+    init(task: PeriodicTask) {
+        title = task.title
+        notes = task.notes ?? ""
+        cycle = task.cycle
+        reminderRules = task.reminderRules
+    }
+
+    var periodicTaskDraft: PeriodicTaskDraft {
+        PeriodicTaskDraft(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
+            cycle: cycle,
+            reminderRules: reminderRules
+        )
+    }
+}
+
+struct RoutinesTemplateSaveResult: Sendable, Equatable {
+    let templateID: UUID
+    let isNewlyCreated: Bool
+}
+
+enum RoutineTargetText {
+    static func text(for task: PeriodicTask, calendar: Calendar = .current) -> String {
+        guard let rule = task.reminderRules.first else {
+            return "未设置目标时间"
+        }
+
+        return text(for: rule, cycle: task.cycle, calendar: calendar)
+    }
+
+    static func text(for rule: PeriodicReminderRule, cycle: PeriodicCycle, calendar: Calendar = .current) -> String {
+        let time = String(format: "%02d:%02d", rule.hour, rule.minute)
+        switch cycle {
+        case .daily:
+            return "目标 \(time)"
+        case .weekly:
+            if case .dayOfPeriod(let day) = rule.timing {
+                return "\(weekdayText(for: day, calendar: calendar)) \(time)"
+            }
+            return "\(cycle.title) · 目标 \(time)"
+        case .monthly:
+            switch rule.timing {
+            case .dayOfPeriod(let day) where day >= 31:
+                return "每月最后一天 \(time)"
+            case .dayOfPeriod(let day):
+                return "每月 \(day) 号 \(time)"
+            case .businessDayOfPeriod(let day):
+                return "每月第 \(day) 个工作日 \(time)"
+            case .daysBeforeEnd(let days):
+                return "月底前 \(days) 天 \(time)"
+            }
+        case .quarterly, .yearly:
+            switch rule.timing {
+            case .dayOfPeriod(let day):
+                return "第 \(day) 天 \(time)"
+            case .businessDayOfPeriod(let day):
+                return "第 \(day) 个工作日 \(time)"
+            case .daysBeforeEnd(let days):
+                return "周期结束前 \(days) 天 \(time)"
+            }
+        }
+    }
+
+    static func weekdayText(for dayOfPeriod: Int, calendar: Calendar = .current) -> String {
+        let names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+        let clamped = max(1, min(7, dayOfPeriod))
+        let weekday = ((calendar.firstWeekday - 1 + clamped - 1) % 7) + 1
+        return names[weekday - 1]
+    }
+}
+
 @MainActor
 @Observable
 final class RoutinesViewModel {
@@ -22,14 +129,15 @@ final class RoutinesViewModel {
     var referenceDate: Date = .now
     var isEditorPresented = false
     var editingTask: PeriodicTask?
-    var editorDefaultCycle: PeriodicCycle = .monthly
+    var editorDefaultCycle: PeriodicCycle = .daily
+    var selectedCycle: PeriodicCycle = .daily
+    var expandedTaskID: UUID?
+    var detailDraft: RoutineInlineDraft?
 
-    // Detail sheet (two-stage: compact → expanded)
-    var isDetailPresented = false
-    var detailTask: PeriodicTask?
-    var detailDetent: PresentationDetent = .height(316)
     private var loadedSpaceID: UUID?
     private var tasksBySpaceID: [UUID: [PeriodicTask]] = [:]
+    private let optionalCyclesStorageKey = "together.routines.visibleOptionalCycles"
+    @ObservationIgnored private var userEnabledOptionalCycles: Set<PeriodicCycle> = []
 
     init(
         sessionStore: SessionStore,
@@ -39,6 +147,7 @@ final class RoutinesViewModel {
         self.sessionStore = sessionStore
         self.periodicTaskApplicationService = periodicTaskApplicationService
         self.taskTemplateRepository = taskTemplateRepository
+        self.userEnabledOptionalCycles = Self.loadUserEnabledOptionalCycles(storageKey: optionalCyclesStorageKey)
     }
 
     private func replaceTask(_ updated: PeriodicTask) {
@@ -56,6 +165,10 @@ final class RoutinesViewModel {
         tasks.filter { $0.cycle == .weekly }
     }
 
+    var dailyTasks: [PeriodicTask] {
+        tasks.filter { $0.cycle == .daily }
+    }
+
     var monthlyTasks: [PeriodicTask] {
         tasks.filter { $0.cycle == .monthly }
     }
@@ -68,10 +181,31 @@ final class RoutinesViewModel {
         tasks.filter { $0.cycle == .yearly }
     }
 
+    var visibleCycles: [PeriodicCycle] {
+        let cyclesWithTasks = Set(tasks.map(\.cycle))
+        return PeriodicCycle.allCases.filter { cycle in
+            PeriodicCycle.defaultVisibleCases.contains(cycle)
+                || userEnabledOptionalCycles.contains(cycle)
+                || cyclesWithTasks.contains(cycle)
+        }
+    }
+
+    var optionalHiddenCycles: [PeriodicCycle] {
+        PeriodicCycle.optionalVisibleCases.filter { visibleCycles.contains($0) == false }
+    }
+
+    var currentTasks: [PeriodicTask] {
+        sortedTasks(for: selectedCycle)
+    }
+
     // MARK: - Summary
 
     var hasPendingTasks: Bool {
         !pendingSummary(referenceDate: referenceDate).isEmpty
+    }
+
+    var hasAttentionTasks: Bool {
+        !attentionSummary(referenceDate: referenceDate).isEmpty
     }
 
     func pendingSummary(referenceDate: Date) -> [(PeriodicCycle, Int)] {
@@ -81,6 +215,50 @@ final class RoutinesViewModel {
             let pendingCount = cycleTasks.filter { !$0.isCompleted(forPeriodKey: periodKey) }.count
             return pendingCount > 0 ? (cycle, pendingCount) : nil
         }
+    }
+
+    func attentionSummary(referenceDate: Date) -> [(PeriodicCycle, Int)] {
+        PeriodicCycle.allCases.compactMap { cycle in
+            let count = tasks.filter { task in
+                guard task.cycle == cycle else { return false }
+                let periodKey = PeriodicCycleCalculator.periodKey(for: task.cycle, date: referenceDate, calendar: calendar)
+                guard task.isCompleted(forPeriodKey: periodKey) == false else { return false }
+                let urgency = urgencyState(task)
+                return urgency == .approaching || urgency == .pastReminder
+            }.count
+            return count > 0 ? (cycle, count) : nil
+        }
+    }
+
+    func summary(for cycle: PeriodicCycle) -> RoutineDimensionSummary {
+        let cycleTasks = tasks.filter { $0.cycle == cycle }
+        let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
+        let completedCount = cycleTasks.filter { $0.isCompleted(forPeriodKey: periodKey) }.count
+        let attentionCount = cycleTasks.filter { task in
+            let urgency = urgencyState(task)
+            return task.isCompleted(forPeriodKey: periodKey) == false
+                && (urgency == .approaching || urgency == .pastReminder)
+        }.count
+        return RoutineDimensionSummary(
+            cycle: cycle,
+            totalCount: cycleTasks.count,
+            completedCount: completedCount,
+            pendingCount: max(0, cycleTasks.count - completedCount),
+            attentionCount: attentionCount,
+            periodProgress: periodProgress(for: cycle),
+            daysRemaining: daysRemaining(for: cycle)
+        )
+    }
+
+    func sortedTasks(for cycle: PeriodicCycle) -> [PeriodicTask] {
+        tasks
+            .filter { $0.cycle == cycle }
+            .sorted { lhs, rhs in
+                let lhsCompleted = isCompleted(lhs)
+                let rhsCompleted = isCompleted(rhs)
+                if lhsCompleted != rhsCompleted { return !lhsCompleted }
+                return lhs.sortOrder < rhs.sortOrder
+            }
     }
 
     func pendingCount(for cycle: PeriodicCycle) -> Int {
@@ -118,6 +296,19 @@ final class RoutinesViewModel {
 
     func periodProgress(for cycle: PeriodicCycle) -> Double {
         PeriodicCycleCalculator.periodProgress(for: cycle, date: referenceDate, calendar: calendar)
+    }
+
+    func selectCycle(_ cycle: PeriodicCycle) {
+        guard expandedTaskID == nil else { return }
+        selectedCycle = cycle
+    }
+
+    func addOptionalCycle(_ cycle: PeriodicCycle) {
+        guard expandedTaskID == nil else { return }
+        guard PeriodicCycle.optionalVisibleCases.contains(cycle) else { return }
+        userEnabledOptionalCycles.insert(cycle)
+        Self.saveUserEnabledOptionalCycles(userEnabledOptionalCycles, storageKey: optionalCyclesStorageKey)
+        selectedCycle = cycle
     }
 
     // MARK: - Task State
@@ -249,6 +440,67 @@ final class RoutinesViewModel {
         }
     }
 
+    func toggleInlineDetail(_ taskID: UUID) async {
+        if expandedTaskID == taskID {
+            await collapseInlineDetail()
+            return
+        }
+
+        if expandedTaskID != nil {
+            await collapseInlineDetail()
+            return
+        }
+
+        guard let task = tasks.first(where: { $0.id == taskID }) else { return }
+        expandedTaskID = taskID
+        detailDraft = RoutineInlineDraft(task: task)
+    }
+
+    func updateDraftTitle(_ title: String) {
+        detailDraft?.title = title
+    }
+
+    func updateDraftNotes(_ notes: String) {
+        detailDraft?.notes = notes
+    }
+
+    func updateDraftCycle(_ cycle: PeriodicCycle) {
+        detailDraft?.cycle = cycle
+        if detailDraft?.reminderRules.isEmpty == true {
+            detailDraft?.reminderRules = [Self.defaultRule(for: cycle)]
+        } else if let first = detailDraft?.reminderRules.first {
+            detailDraft?.reminderRules = [Self.normalizedRule(first, for: cycle)]
+        }
+    }
+
+    func updateDraftReminderRule(_ rule: PeriodicReminderRule) {
+        detailDraft?.reminderRules = [rule]
+    }
+
+    func hasUnsavedInlineChanges(for task: PeriodicTask) -> Bool {
+        guard expandedTaskID == task.id, let detailDraft else { return false }
+        return detailDraft != RoutineInlineDraft(task: task)
+    }
+
+    func clearDraftReminderRule() {
+        detailDraft?.reminderRules = []
+    }
+
+    func collapseInlineDetail() async {
+        guard let expandedTaskID, let draft = detailDraft else {
+            expandedTaskID = nil
+            detailDraft = nil
+            return
+        }
+        let originalTask = tasks.first { $0.id == expandedTaskID }
+        if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+           originalTask.map({ RoutineInlineDraft(task: $0) }) != draft {
+            await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft)
+        }
+        self.expandedTaskID = nil
+        detailDraft = nil
+    }
+
     func createTask(draft: PeriodicTaskDraft) async {
         guard let spaceID = sessionStore.currentSpace?.id,
               let actorID = sessionStore.currentUser?.id else { return }
@@ -300,6 +552,10 @@ final class RoutinesViewModel {
         do {
             try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID, actorID: actorID)
             tasks.removeAll { $0.id == taskID }
+            if expandedTaskID == taskID {
+                expandedTaskID = nil
+                detailDraft = nil
+            }
             cacheCurrentTasks()
         } catch {
             await load()
@@ -308,30 +564,39 @@ final class RoutinesViewModel {
 
     func presentEditor(for task: PeriodicTask? = nil, defaultCycle: PeriodicCycle? = nil) {
         editingTask = task
-        editorDefaultCycle = task?.cycle ?? defaultCycle ?? .monthly
+        editorDefaultCycle = task?.cycle ?? defaultCycle ?? selectedCycle
         isEditorPresented = true
     }
 
     func dismissEditor() {
         isEditorPresented = false
         editingTask = nil
-        editorDefaultCycle = .monthly
+        editorDefaultCycle = .daily
     }
 
-    func presentDetail(for task: PeriodicTask) {
-        detailTask = task
-        detailDetent = .height(316)
-        isDetailPresented = true
+    static func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
+        switch cycle {
+        case .daily: PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 9, minute: 0)
+        case .weekly: PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 9, minute: 0)
+        case .monthly: PeriodicReminderRule(timing: .dayOfPeriod(20), hour: 9, minute: 0)
+        case .quarterly: PeriodicReminderRule(timing: .daysBeforeEnd(14), hour: 9, minute: 0)
+        case .yearly: PeriodicReminderRule(timing: .daysBeforeEnd(30), hour: 9, minute: 0)
+        }
     }
 
-    func dismissDetail() {
-        isDetailPresented = false
-        detailTask = nil
-        detailDetent = .height(316)
-    }
-
-    func expandDetailToEdit() {
-        detailDetent = .large
+    static func normalizedRule(_ rule: PeriodicReminderRule, for cycle: PeriodicCycle) -> PeriodicReminderRule {
+        switch cycle {
+        case .daily:
+            PeriodicReminderRule(timing: .dayOfPeriod(1), hour: rule.hour, minute: rule.minute)
+        case .weekly:
+            PeriodicReminderRule(timing: .dayOfPeriod(3), hour: rule.hour, minute: rule.minute)
+        case .monthly:
+            PeriodicReminderRule(timing: .dayOfPeriod(20), hour: rule.hour, minute: rule.minute)
+        case .quarterly:
+            PeriodicReminderRule(timing: .daysBeforeEnd(14), hour: rule.hour, minute: rule.minute)
+        case .yearly:
+            PeriodicReminderRule(timing: .daysBeforeEnd(30), hour: rule.hour, minute: rule.minute)
+        }
     }
 
     // MARK: - Templates
@@ -368,5 +633,14 @@ final class RoutinesViewModel {
         } catch {
             // silently ignore
         }
+    }
+
+    private static func loadUserEnabledOptionalCycles(storageKey: String) -> Set<PeriodicCycle> {
+        let rawValues = UserDefaults.standard.stringArray(forKey: storageKey) ?? []
+        return Set(rawValues.compactMap(PeriodicCycle.init(rawValue:)))
+    }
+
+    private static func saveUserEnabledOptionalCycles(_ cycles: Set<PeriodicCycle>, storageKey: String) {
+        UserDefaults.standard.set(cycles.map(\.rawValue), forKey: storageKey)
     }
 }

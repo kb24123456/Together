@@ -3,13 +3,18 @@ import Foundation
 // MARK: - Periodic Cycle
 
 enum PeriodicCycle: String, CaseIterable, Hashable, Sendable, Codable {
+    case daily
     case weekly
     case monthly
     case quarterly
     case yearly
 
+    static let defaultVisibleCases: [PeriodicCycle] = [.daily, .weekly, .monthly]
+    static let optionalVisibleCases: [PeriodicCycle] = [.quarterly, .yearly]
+
     var title: String {
         switch self {
+        case .daily: "每天"
         case .weekly: "每周"
         case .monthly: "每月"
         case .quarterly: "每季"
@@ -19,6 +24,7 @@ enum PeriodicCycle: String, CaseIterable, Hashable, Sendable, Codable {
 
     var currentPeriodPrefix: String {
         switch self {
+        case .daily: "今天"
         case .weekly: "本周"
         case .monthly: "本月"
         case .quarterly: "本季度"

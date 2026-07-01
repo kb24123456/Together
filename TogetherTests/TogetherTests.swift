@@ -452,6 +452,187 @@ struct TogetherTests {
         #expect(tomorrowEntry.statusText != "已完成")
     }
 
+    @Test func dailyPeriodicCycleUsesCalendarDayAsPeriod() throws {
+        let calendar = gregorianCalendar()
+        let date = try #require(calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 15, minute: 45)))
+
+        let key = PeriodicCycleCalculator.periodKey(for: .daily, date: date, calendar: calendar)
+        let range = PeriodicCycleCalculator.periodDateRange(for: .daily, date: date, calendar: calendar)
+
+        #expect(key == "2026-06-30")
+        #expect(range.start == calendar.date(from: DateComponents(year: 2026, month: 6, day: 30)))
+        #expect(range.end == calendar.date(from: DateComponents(year: 2026, month: 7, day: 1)))
+        #expect(PeriodicCycleCalculator.totalDaysInPeriod(for: .daily, date: date, calendar: calendar) == 1)
+    }
+
+    @Test func routineTargetTextUsesGoalRhythmLanguage() {
+        var calendar = gregorianCalendar()
+        calendar.firstWeekday = 2
+
+        #expect(
+            RoutineTargetText.text(
+                for: PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 8, minute: 30),
+                cycle: .daily,
+                calendar: calendar
+            ) == "目标 08:30"
+        )
+        #expect(
+            RoutineTargetText.text(
+                for: PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 0),
+                cycle: .weekly,
+                calendar: calendar
+            ) == "周三 18:00"
+        )
+        #expect(
+            RoutineTargetText.text(
+                for: PeriodicReminderRule(timing: .dayOfPeriod(31), hour: 9, minute: 0),
+                cycle: .monthly,
+                calendar: calendar
+            ) == "每月最后一天 09:00"
+        )
+    }
+
+    @Test func routinesVisibleCyclesDefaultToDayWeekMonthAndAutoIncludeExistingOptionalCycles() {
+        UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
+        let viewModel = makeRoutinesViewModel()
+        viewModel.tasks = [
+            makePeriodicTask(title: "每日", cycle: .daily),
+            makePeriodicTask(title: "季度", cycle: .quarterly)
+        ]
+
+        #expect(viewModel.visibleCycles == [.daily, .weekly, .monthly, .quarterly])
+        #expect(viewModel.optionalHiddenCycles == [.yearly])
+        UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
+    }
+
+    @Test func routinesAttentionSummaryOnlyIncludesUnfinishedApproachingTasks() {
+        let viewModel = makeRoutinesViewModel()
+        let referenceDate = Date.now
+        let todayKey = PeriodicCycleCalculator.periodKey(for: .daily, date: referenceDate)
+        viewModel.referenceDate = referenceDate
+        viewModel.tasks = [
+            makePeriodicTask(
+                title: "已临期",
+                cycle: .daily,
+                reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 0, minute: 0)]
+            ),
+            makePeriodicTask(
+                title: "已完成不提醒",
+                cycle: .daily,
+                reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 0, minute: 0)],
+                completions: [PeriodicCompletion(periodKey: todayKey, completedAt: referenceDate)]
+            ),
+            makePeriodicTask(title: "无目标不提醒", cycle: .daily, reminderRules: [])
+        ]
+
+        #expect(viewModel.attentionSummary(referenceDate: referenceDate).map(\.0) == [.daily])
+        #expect(viewModel.attentionSummary(referenceDate: referenceDate).first?.1 == 1)
+        #expect(viewModel.hasAttentionTasks)
+    }
+
+    @Test func routineInlineEditingPersistsOnlyWhenCollapsed() async throws {
+        let task = makePeriodicTask(title: "旧标题", cycle: .daily)
+        let service = CapturingPeriodicTaskApplicationService(tasks: [task])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.updateDraftTitle("新标题")
+
+        #expect(service.updatedDrafts.isEmpty)
+        await viewModel.collapseInlineDetail()
+
+        #expect(service.updatedDrafts.map(\.title) == ["新标题"])
+        #expect(viewModel.tasks.first?.title == "新标题")
+    }
+
+    @Test func routineDimensionSummaryReportsCompletionProgress() {
+        let viewModel = makeRoutinesViewModel()
+        let periodKey = PeriodicCycleCalculator.periodKey(
+            for: .daily,
+            date: viewModel.referenceDate
+        )
+        viewModel.tasks = [
+            makePeriodicTask(
+                title: "已完成",
+                cycle: .daily,
+                completions: [PeriodicCompletion(periodKey: periodKey, completedAt: viewModel.referenceDate)]
+            ),
+            makePeriodicTask(title: "未完成", cycle: .daily)
+        ]
+
+        let summary = viewModel.summary(for: .daily)
+
+        #expect(summary.completedCount == 1)
+        #expect(summary.pendingCount == 1)
+        #expect(summary.totalCount == 2)
+        #expect(summary.completionProgress == 0.5)
+    }
+
+    @Test func routineCycleSelectionIsBlockedWhileInlineDetailIsExpanded() async {
+        let task = makePeriodicTask(title: "每日复盘", cycle: .daily)
+        let viewModel = makeRoutinesViewModel()
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.selectCycle(.weekly)
+
+        #expect(viewModel.selectedCycle == .daily)
+        #expect(viewModel.expandedTaskID == task.id)
+    }
+
+    @Test func routineDraftCycleAndTargetPersistOnlyAfterCollapse() async throws {
+        let task = makePeriodicTask(title: "每日复盘", cycle: .daily)
+        let service = CapturingPeriodicTaskApplicationService(tasks: [task])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.tasks = [task]
+        let weeklyRule = PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.updateDraftCycle(.weekly)
+        viewModel.updateDraftReminderRule(weeklyRule)
+
+        #expect(service.updatedDrafts.isEmpty)
+        #expect(viewModel.currentTasks.map(\.id) == [task.id])
+
+        await viewModel.collapseInlineDetail()
+
+        let savedDraft = try #require(service.updatedDrafts.last)
+        #expect(savedDraft.cycle == .weekly)
+        #expect(savedDraft.reminderRules == [weeklyRule])
+        #expect(viewModel.currentTasks.isEmpty)
+    }
+
+    @Test func routineTappingAnotherTaskOnlyCollapsesCurrentDetail() async {
+        let first = makePeriodicTask(title: "第一项", cycle: .daily)
+        let second = makePeriodicTask(title: "第二项", cycle: .daily)
+        let service = CapturingPeriodicTaskApplicationService(tasks: [first, second])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.tasks = [first, second]
+
+        await viewModel.toggleInlineDetail(first.id)
+        await viewModel.toggleInlineDetail(second.id)
+
+        #expect(viewModel.expandedTaskID == nil)
+        #expect(viewModel.detailDraft == nil)
+    }
+
+    @Test func completedRoutineCanStillOpenInlineDetail() async {
+        let periodKey = PeriodicCycleCalculator.periodKey(for: .daily, date: .now)
+        let task = makePeriodicTask(
+            title: "已经打卡",
+            cycle: .daily,
+            completions: [PeriodicCompletion(periodKey: periodKey, completedAt: .now)]
+        )
+        let viewModel = makeRoutinesViewModel()
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+
+        #expect(viewModel.expandedTaskID == task.id)
+        #expect(viewModel.detailDraft?.title == task.title)
+    }
+
     @Test func homeReloadKeepsTasksWhenWeeklyCompletedCountFails() async throws {
         let weeklyRange = CompletedTaskRange.workweekExcludingToday.bounds(for: .now, calendar: .current)
         var expectedWeeklyCount = 0
@@ -1447,42 +1628,6 @@ struct TogetherTests {
         #expect(display.propertySubtitle == "进行中")
         #expect(display.noteText == nil)
 
-        let orderedSections = [
-            HomeTimelineStickySection(id: "today", title: "今天", subtitle: "周二 · 7项"),
-            HomeTimelineStickySection(id: "tomorrow", title: "明天", subtitle: "周三 · 3项")
-        ]
-        let activePresentation = HomeTimelineStickySectionTracker.presentation(
-            from: [
-                HomeTimelineSectionHeaderOffset(
-                    id: "tomorrow",
-                    title: "明天",
-                    subtitle: "周三 · 3项",
-                    minY: 72,
-                    height: 44
-                )
-            ],
-            orderedSections: orderedSections,
-            threshold: 0
-        )
-
-        #expect(activePresentation?.section.id == "today")
-        #expect(activePresentation?.progress == 1)
-
-        let approachingPresentation = HomeTimelineStickySectionTracker.presentation(
-            from: [
-                HomeTimelineSectionHeaderOffset(
-                    id: "today",
-                    title: "今天",
-                    subtitle: "周二 · 7项",
-                    minY: 6,
-                    height: 44
-                )
-            ],
-            orderedSections: orderedSections,
-            threshold: 0
-        )
-
-        #expect(approachingPresentation == nil)
     }
 
     @Test func inlineDetailCanCollapseTaskWithoutSubtasks() async {
@@ -1725,6 +1870,106 @@ private func makeHomeFilterItem(
         completedAt: completedAt,
         isDraft: false
     )
+}
+
+@MainActor
+private func makeRoutinesViewModel(
+    periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol? = nil
+) -> RoutinesViewModel {
+    let sessionStore = SessionStore()
+    sessionStore.seedMock(
+        currentUser: MockDataFactory.makeCurrentUser(),
+        singleSpace: MockDataFactory.makeSingleSpace()
+    )
+    let service = periodicTaskApplicationService ?? CapturingPeriodicTaskApplicationService(tasks: [])
+    return RoutinesViewModel(
+        sessionStore: sessionStore,
+        periodicTaskApplicationService: service,
+        taskTemplateRepository: MockTaskTemplateRepository()
+    )
+}
+
+private func makePeriodicTask(
+    title: String,
+    cycle: PeriodicCycle,
+    reminderRules: [PeriodicReminderRule] = [PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 9, minute: 0)],
+    completions: [PeriodicCompletion] = []
+) -> PeriodicTask {
+    PeriodicTask(
+        id: UUID(),
+        spaceID: MockDataFactory.singleSpaceID,
+        creatorID: MockDataFactory.currentUserID,
+        title: title,
+        notes: nil,
+        cycle: cycle,
+        reminderRules: reminderRules,
+        completions: completions,
+        sortOrder: 0,
+        isActive: true,
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+        updatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+    )
+}
+
+@MainActor
+private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol, @unchecked Sendable {
+    private(set) var tasks: [PeriodicTask]
+    private(set) var updatedDrafts: [PeriodicTaskDraft] = []
+
+    init(tasks: [PeriodicTask]) {
+        self.tasks = tasks
+    }
+
+    func fetchTasks(in spaceID: UUID) async throws -> [PeriodicTask] {
+        tasks
+    }
+
+    func createTask(in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
+        let task = PeriodicTask(
+            spaceID: spaceID,
+            creatorID: actorID,
+            title: draft.title,
+            notes: draft.notes,
+            cycle: draft.cycle,
+            reminderRules: draft.reminderRules
+        )
+        tasks.append(task)
+        return task
+    }
+
+    func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
+        updatedDrafts.append(draft)
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw PeriodicTaskError.notFound
+        }
+        tasks[index].title = draft.title
+        tasks[index].notes = draft.notes
+        tasks[index].cycle = draft.cycle
+        tasks[index].reminderRules = draft.reminderRules
+        tasks[index].updatedAt = .now
+        return tasks[index]
+    }
+
+    func reorderTasks(in spaceID: UUID, taskIDs: [UUID]) async throws -> [PeriodicTask] {
+        taskIDs.compactMap { taskID in tasks.first { $0.id == taskID } }
+    }
+
+    func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw PeriodicTaskError.notFound
+        }
+        let periodKey = PeriodicCycleCalculator.periodKey(for: tasks[index].cycle, date: referenceDate)
+        if tasks[index].isCompleted(forPeriodKey: periodKey) {
+            tasks[index].completions.removeAll { $0.periodKey == periodKey }
+        } else {
+            tasks[index].completions.append(PeriodicCompletion(periodKey: periodKey, completedAt: referenceDate))
+        }
+        return tasks[index]
+    }
+
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {
+        tasks.removeAll { $0.id == taskID }
+    }
 }
 
 @MainActor
