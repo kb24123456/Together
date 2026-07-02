@@ -11,7 +11,10 @@ struct RoutinesReminderRulePicker: View {
     @State private var dayMode: DayMode = .beforeEnd
     @State private var dayType: DayType = .natural
     @State private var dayValue: Int = 3
-    @State private var targetTime: Date = Calendar.current.date(from: DateComponents(hour: 9, minute: 0)) ?? Date()
+    @State private var targetTime: Date = .now
+    @State private var isTargetDayConfigured = false
+    @State private var isTargetTimeConfigured = false
+    @State private var isLoadingRule = false
 
     enum DayMode: String, CaseIterable {
         case absoluteDay
@@ -65,6 +68,18 @@ struct RoutinesReminderRulePicker: View {
                         .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
                         .padding(.top, AppTheme.spacing.md)
                 } else {
+                    if isTargetDayConfigured {
+                        HStack {
+                            Spacer()
+                            Button("清除目标日", role: .destructive) {
+                                rule.timing = nil
+                                isTargetDayConfigured = false
+                            }
+                            .font(AppTheme.typography.sized(13, weight: .semibold))
+                        }
+                        .padding(.horizontal, TaskEditorMenuOptionMetrics.outerInset)
+                    }
+
                     // Row 1: 自然日 / 工作日 — always visible when supported, disabled in beforeEnd mode
                     if supportsBusinessDay {
                         dayTypeRow
@@ -98,10 +113,26 @@ struct RoutinesReminderRulePicker: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .onAppear { loadFromRule() }
-        .onChange(of: dayMode) { _, _ in clampDayValue(); syncToRule() }
-        .onChange(of: dayType) { _, _ in syncToRule() }
-        .onChange(of: dayValue) { _, _ in syncToRule() }
-        .onChange(of: targetTime) { _, _ in syncToRule() }
+        .onChange(of: dayMode) { _, _ in
+            guard isLoadingRule == false else { return }
+            isTargetDayConfigured = true
+            clampDayValue()
+            syncDayToRule()
+        }
+        .onChange(of: dayType) { _, _ in
+            guard isLoadingRule == false else { return }
+            isTargetDayConfigured = true
+            syncDayToRule()
+        }
+        .onChange(of: dayValue) { _, _ in
+            guard isLoadingRule == false else { return }
+            isTargetDayConfigured = true
+            syncDayToRule()
+        }
+        .onChange(of: targetTime) { _, _ in
+            guard isLoadingRule == false, isTargetTimeConfigured else { return }
+            syncTimeToRule()
+        }
     }
 
     // MARK: - Option rows
@@ -162,12 +193,38 @@ struct RoutinesReminderRulePicker: View {
 
             Spacer(minLength: AppTheme.spacing.sm)
 
-            DatePicker(
-                "",
-                selection: $targetTime,
-                displayedComponents: .hourAndMinute
-            )
-            .labelsHidden()
+            if isTargetTimeConfigured {
+                DatePicker(
+                    "",
+                    selection: $targetTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .datePickerStyle(.compact)
+
+                Button {
+                    rule.hour = nil
+                    rule.minute = nil
+                    isTargetTimeConfigured = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("清除目标时间")
+            } else {
+                Button("设置时间") {
+                    isTargetTimeConfigured = true
+                    syncTimeToRule()
+                }
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.52))
+                .frame(minWidth: 72, minHeight: 44)
+                .buttonStyle(.plain)
+            }
         }
         .frame(minHeight: Self.optionRowHeight)
     }
@@ -213,18 +270,33 @@ struct RoutinesReminderRulePicker: View {
     }
 
     private func loadFromRule() {
-        targetTime = Self.timeDate(hour: rule.hour, minute: rule.minute)
+        isLoadingRule = true
+        isTargetDayConfigured = rule.hasTargetDay
+        isTargetTimeConfigured = rule.hasTargetTime
+        if let hour = rule.hour, let minute = rule.minute {
+            targetTime = Self.timeDate(hour: hour, minute: minute)
+        } else {
+            targetTime = .now
+        }
         switch rule.timing {
-        case .dayOfPeriod(let day):
+        case .dayOfPeriod(let day)?:
             dayMode = .absoluteDay; dayType = .natural; dayValue = day
-        case .businessDayOfPeriod(let day):
+        case .businessDayOfPeriod(let day)?:
             dayMode = .absoluteDay; dayType = .business; dayValue = day
-        case .daysBeforeEnd(let days):
+        case .daysBeforeEnd(let days)?:
             dayMode = .beforeEnd; dayValue = days
+        case nil:
+            dayMode = .absoluteDay
+            dayType = .natural
+            dayValue = 1
+        }
+        Task { @MainActor in
+            await Task.yield()
+            isLoadingRule = false
         }
     }
 
-    private func syncToRule() {
+    private func syncDayToRule() {
         let timing: PeriodicReminderRule.Timing
         if cycle == .daily {
             timing = .dayOfPeriod(1)
@@ -236,12 +308,13 @@ struct RoutinesReminderRulePicker: View {
                 timing = .daysBeforeEnd(dayValue)
             }
         }
+        rule.timing = timing
+    }
+
+    private func syncTimeToRule() {
         let components = Calendar.current.dateComponents([.hour, .minute], from: targetTime)
-        rule = PeriodicReminderRule(
-            timing: timing,
-            hour: components.hour ?? rule.hour,
-            minute: components.minute ?? rule.minute
-        )
+        rule.hour = components.hour ?? 0
+        rule.minute = components.minute ?? 0
     }
 
     private func adaptiveWheelHeight(available: CGFloat) -> CGFloat {

@@ -232,7 +232,7 @@ final class OCRImportViewModel {
                         dueAt: task.dueAt,
                         hasExplicitTime: task.hasExplicitTime,
                         remindAt: task.remindAt,
-                        repeatRule: task.repeatRule,
+                        isUrgent: task.isUrgent,
                         subtasks: task.subtasks.enumerated().map { index, subtask in
                             TaskSubtaskDraft(
                                 title: subtask.title.trimmedForOCR,

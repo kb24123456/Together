@@ -123,8 +123,12 @@ enum PeriodicCycleCalculator {
         calendar: Calendar = .current
     ) -> Date? {
         let range = periodDateRange(for: cycle, date: date, calendar: calendar)
+        var normalizedRule = rule
+        if cycle == .daily, case nil = normalizedRule.timing, normalizedRule.hasTargetTime {
+            normalizedRule.timing = .dayOfPeriod(1)
+        }
         return reminderTriggerDate(
-            rule: rule,
+            rule: normalizedRule,
             periodStart: range.start,
             periodEnd: range.end,
             calendar: calendar
@@ -137,9 +141,14 @@ enum PeriodicCycleCalculator {
         periodEnd: Date,
         calendar: Calendar = .current
     ) -> Date? {
+        guard let timing = rule.timing,
+              let hour = rule.hour,
+              let minute = rule.minute
+        else { return nil }
+
         var baseDate: Date?
 
-        switch rule.timing {
+        switch timing {
         case .dayOfPeriod(let day):
             baseDate = calendar.date(byAdding: .day, value: day - 1, to: periodStart)
             if let candidate = baseDate, candidate >= periodEnd {
@@ -155,7 +164,7 @@ enum PeriodicCycleCalculator {
 
         guard let base = baseDate else { return nil }
 
-        return calendar.date(bySettingHour: rule.hour, minute: rule.minute, second: 0, of: base)
+        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: base)
     }
 
     // MARK: - Business Day Calculation

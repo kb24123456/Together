@@ -209,7 +209,7 @@ struct TogetherTests {
                     dueAt: dueAt,
                     hasExplicitTime: true,
                     remindAt: remindAt,
-                    repeatRule: ItemRepeatRule(frequency: .weekly, weekday: 5),
+                    isUrgent: true,
                     subtasks: [
                         OCRImportSubtaskDraft(title: "客户经理对接名单"),
                         OCRImportSubtaskDraft(title: "召开线下沙龙会", isSelected: false)
@@ -228,7 +228,7 @@ struct TogetherTests {
         #expect(captured.dueAt == dueAt)
         #expect(captured.hasExplicitTime)
         #expect(captured.remindAt == remindAt)
-        #expect(captured.repeatRule == ItemRepeatRule(frequency: .weekly, weekday: 5))
+        #expect(captured.isUrgent)
         #expect(captured.subtasks.map(\.title) == ["客户经理对接名单"])
     }
 
@@ -492,6 +492,173 @@ struct TogetherTests {
         )
     }
 
+    @Test func routineTargetTextSupportsPartialTargetConfiguration() {
+        var calendar = gregorianCalendar()
+        calendar.firstWeekday = 2
+
+        #expect(
+            RoutineTargetText.text(
+                for: PeriodicReminderRule(timing: .dayOfPeriod(3)),
+                cycle: .weekly,
+                calendar: calendar
+            ) == "周三"
+        )
+        #expect(
+            RoutineTargetText.text(
+                for: PeriodicReminderRule(hour: 18, minute: 30),
+                cycle: .weekly,
+                calendar: calendar
+            ) == "目标 18:30"
+        )
+        #expect(
+            RoutineTargetText.text(
+                for: PeriodicReminderRule(),
+                cycle: .weekly,
+                calendar: calendar
+            ).isEmpty
+        )
+    }
+
+    @Test func periodicReminderRuleDecodesLegacyCompleteValues() throws {
+        struct LegacyRule: Encodable {
+            let timing: PeriodicReminderRule.Timing
+            let hour: Int
+            let minute: Int
+        }
+
+        let data = try JSONEncoder().encode(
+            LegacyRule(timing: .dayOfPeriod(3), hour: 9, minute: 15)
+        )
+        let decoded = try JSONDecoder().decode(PeriodicReminderRule.self, from: data)
+
+        #expect(decoded.timing == .dayOfPeriod(3))
+        #expect(decoded.hour == 9)
+        #expect(decoded.minute == 15)
+        #expect(decoded.hasTargetDay)
+        #expect(decoded.hasTargetTime)
+    }
+
+    @Test func dailyTimeOnlyRuleProducesReminderOnCurrentDay() throws {
+        var calendar = gregorianCalendar()
+        calendar.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+        let referenceDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 18, hour: 12))
+        )
+
+        let trigger = try #require(
+            PeriodicCycleCalculator.reminderTriggerDate(
+                rule: PeriodicReminderRule(hour: 18, minute: 30),
+                cycle: .daily,
+                date: referenceDate,
+                calendar: calendar
+            )
+        )
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: trigger)
+
+        #expect(components.year == 2030)
+        #expect(components.month == 6)
+        #expect(components.day == 18)
+        #expect(components.hour == 18)
+        #expect(components.minute == 30)
+    }
+
+    @Test func routineDraftDoesNotAddDefaultDayOrTimeWhenCycleChanges() async {
+        let task = makePeriodicTask(title: "未设置目标", cycle: .daily, reminderRules: [])
+        let viewModel = makeRoutinesViewModel()
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.updateDraftCycle(.weekly)
+
+        #expect(viewModel.detailDraft?.reminderRules.isEmpty == true)
+        #expect(RoutinesViewModel.defaultRule(for: .weekly).isEmpty)
+    }
+
+    @Test func routineDraftClearsTargetDayAndTimeIndependently() async {
+        let task = makePeriodicTask(
+            title: "分别清空",
+            cycle: .weekly,
+            reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)]
+        )
+        let viewModel = makeRoutinesViewModel()
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.clearDraftTargetDay()
+        #expect(viewModel.detailDraft?.reminderRules.first?.timing == nil)
+        #expect(viewModel.detailDraft?.reminderRules.first?.hour == 18)
+        #expect(viewModel.detailDraft?.reminderRules.first?.minute == 30)
+
+        viewModel.updateDraftTargetDay(.dayOfPeriod(5))
+        viewModel.clearDraftTargetTime()
+        #expect(viewModel.detailDraft?.reminderRules.first?.timing == .dayOfPeriod(5))
+        #expect(viewModel.detailDraft?.reminderRules.first?.hour == nil)
+        #expect(viewModel.detailDraft?.reminderRules.first?.minute == nil)
+    }
+
+    @Test func routineIndependentTargetClearsPersistOnlyAfterCollapse() async throws {
+        let task = makePeriodicTask(
+            title: "持久化分别清空",
+            cycle: .weekly,
+            reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)]
+        )
+        let service = CapturingPeriodicTaskApplicationService(tasks: [task])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.clearDraftTargetDay()
+        #expect(service.updatedDrafts.isEmpty)
+        #expect(await viewModel.collapseInlineDetail())
+
+        let dayCleared = try #require(service.updatedDrafts.last?.reminderRules.first)
+        #expect(dayCleared.timing == nil)
+        #expect(dayCleared.hour == 18)
+        #expect(dayCleared.minute == 30)
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.updateDraftTargetDay(.dayOfPeriod(5))
+        viewModel.clearDraftTargetTime()
+        #expect(await viewModel.collapseInlineDetail())
+
+        let timeCleared = try #require(service.updatedDrafts.last?.reminderRules.first)
+        #expect(timeCleared.timing == .dayOfPeriod(5))
+        #expect(timeCleared.hour == nil)
+        #expect(timeCleared.minute == nil)
+    }
+
+    @Test func routineDisplayPlacesPropertiesBelowNotes() {
+        var calendar = gregorianCalendar()
+        calendar.firstWeekday = 2
+        let task = makePeriodicTask(
+            title: "回访",
+            cycle: .weekly,
+            reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)]
+        )
+        var notedTask = task
+        notedTask.notes = "等待客户回复"
+
+        let display = RoutineTaskDisplayText.text(
+            for: notedTask,
+            isCompleted: false,
+            calendar: calendar
+        )
+        #expect(display.primarySubtitle == "等待客户回复")
+        #expect(display.propertyText == "周三 18:30")
+    }
+
+    @Test func routineDisplayFallsBackToStatusWithoutNoteOrTarget() {
+        let task = makePeriodicTask(title: "无目标", cycle: .weekly, reminderRules: [])
+
+        let active = RoutineTaskDisplayText.text(for: task, isCompleted: false)
+        let completed = RoutineTaskDisplayText.text(for: task, isCompleted: true)
+
+        #expect(active.primarySubtitle == "进行中")
+        #expect(active.propertyText == nil)
+        #expect(completed.primarySubtitle == "已完成")
+        #expect(completed.propertyText == nil)
+    }
+
     @Test func routinesVisibleCyclesDefaultToDayWeekMonthAndAutoIncludeExistingOptionalCycles() {
         UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
         let viewModel = makeRoutinesViewModel()
@@ -601,6 +768,68 @@ struct TogetherTests {
         #expect(savedDraft.cycle == .weekly)
         #expect(savedDraft.reminderRules == [weeklyRule])
         #expect(viewModel.currentTasks.isEmpty)
+    }
+
+    @Test func routineAttributesPersistForLegacyCreatorInCurrentSingleSpace() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let context = ModelContext(container)
+        let task = PeriodicTask(
+            id: UUID(),
+            spaceID: MockDataFactory.singleSpaceID,
+            creatorID: UUID(),
+            title: "旧身份例行任务",
+            notes: nil,
+            cycle: .daily,
+            reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 9, minute: 0)],
+            completions: [],
+            sortOrder: 0,
+            isActive: true,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        context.insert(PersistentSpace(space: MockDataFactory.makeSingleSpace()))
+        context.insert(PersistentPeriodicTask(task: task))
+        try context.save()
+
+        let repository = LocalPeriodicTaskRepository(container: container)
+        let service = DefaultPeriodicTaskApplicationService(
+            repository: repository,
+            reminderScheduler: MockReminderScheduler(),
+            syncCoordinator: NoOpSyncCoordinator()
+        )
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+
+        await viewModel.load()
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.updateDraftNotes("收起后保存")
+        viewModel.updateDraftCycle(.weekly)
+        viewModel.updateDraftReminderRule(
+            PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)
+        )
+        await viewModel.collapseInlineDetail()
+
+        let saved = try #require(try await repository.fetchTask(taskID: task.id))
+        #expect(saved.notes == "收起后保存")
+        #expect(saved.cycle == .weekly)
+        #expect(saved.reminderRules == [
+            PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)
+        ])
+    }
+
+    @Test func routineCollapseKeepsDraftOpenWhenPersistenceFails() async throws {
+        let task = makePeriodicTask(title: "保存失败时保留", cycle: .daily)
+        let service = CapturingPeriodicTaskApplicationService(tasks: [task], shouldFailUpdates: true)
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+        viewModel.updateDraftCycle(.monthly)
+        let didCollapse = await viewModel.collapseInlineDetail()
+
+        #expect(didCollapse == false)
+        #expect(viewModel.expandedTaskID == task.id)
+        #expect(viewModel.detailDraft?.cycle == .monthly)
+        #expect(viewModel.loadState != .loaded)
     }
 
     @Test func routineTappingAnotherTaskOnlyCollapsesCurrentDetail() async {
@@ -727,6 +956,73 @@ struct TogetherTests {
         #expect(sections.map(\.dayStart) == [tomorrowStart, yesterdayStart])
         #expect(sections[0].entries.map(\.title) == ["有截止按截止日", "有时间仍在截止日组"])
         #expect(sections[1].entries.map(\.title) == ["无截止按创建日"])
+    }
+
+    @Test func urgentTasksLeadEachDateGroupInCreationOrder() async throws {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: .now)
+        let firstCreatedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let secondCreatedAt = firstCreatedAt.addingTimeInterval(60)
+
+        var regular = makeHomeFilterItem(title: "普通任务", completedAt: nil, status: .inProgress)
+        regular.dueAt = day
+        regular.sortOrder = -100
+
+        var laterUrgent = makeHomeFilterItem(
+            title: "后创建紧急",
+            completedAt: nil,
+            status: .inProgress,
+            createdAt: secondCreatedAt
+        )
+        laterUrgent.dueAt = day
+        laterUrgent.isUrgent = true
+
+        var earlierUrgent = makeHomeFilterItem(
+            title: "先创建紧急",
+            completedAt: nil,
+            status: .inProgress,
+            createdAt: firstCreatedAt
+        )
+        earlierUrgent.dueAt = day
+        earlierUrgent.isUrgent = true
+
+        let viewModel = makeInlineDetailHomeViewModel(
+            repository: MockItemRepository(items: [regular, laterUrgent, earlierUrgent])
+        )
+
+        await viewModel.reload()
+
+        #expect(viewModel.activeTimelineSections.first?.entries.map(\.title) == [
+            "先创建紧急", "后创建紧急", "普通任务"
+        ])
+    }
+
+    @Test func repositoryAllowsMultipleUrgentTasks() async throws {
+        var first = makeHomeFilterItem(title: "紧急一", completedAt: nil, status: .inProgress)
+        var second = makeHomeFilterItem(title: "紧急二", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [first, second])
+
+        first.isUrgent = true
+        second.isUrgent = true
+        _ = try await repository.saveItem(first)
+        _ = try await repository.saveItem(second)
+
+        #expect(try await repository.fetchItem(itemID: first.id)?.isUrgent == true)
+        #expect(try await repository.fetchItem(itemID: second.id)?.isUrgent == true)
+    }
+
+    @Test func localRepositoryKeepsMultipleUrgentTasks() async throws {
+        let repository = makeTaskSubtaskItemRepository()
+        var first = makeHomeFilterItem(title: "本地紧急一", completedAt: nil, status: .inProgress)
+        var second = makeHomeFilterItem(title: "本地紧急二", completedAt: nil, status: .inProgress)
+        first.isUrgent = true
+        second.isUrgent = true
+
+        _ = try await repository.saveItem(first)
+        _ = try await repository.saveItem(second)
+
+        #expect(try await repository.fetchItem(itemID: first.id)?.isUrgent == true)
+        #expect(try await repository.fetchItem(itemID: second.id)?.isUrgent == true)
     }
 
     @Test func explicitTimelineTimeMovesToSecondaryTextOnly() async throws {
@@ -1385,19 +1681,18 @@ struct TogetherTests {
         let dueDate = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
         let dueTime = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 18, minute: 30)))
         let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 18)))
-        let repeatRule = ItemRepeatRule(frequency: .weekly, weekday: 5)
 
         await viewModel.reload()
         await viewModel.toggleInlineDetail(item.id)
         viewModel.updateDraftDueDate(dueDate)
         viewModel.updateDraftDueTime(dueTime)
         viewModel.updateDraftReminder(remindAt)
-        viewModel.updateDraftRepeatRule(repeatRule)
+        viewModel.updateDraftUrgent(true)
 
         let beforeCollapse = try #require(try await repository.fetchItem(itemID: item.id))
         #expect(beforeCollapse.dueAt == item.dueAt)
         #expect(beforeCollapse.remindAt == item.remindAt)
-        #expect(beforeCollapse.repeatRule == item.repeatRule)
+        #expect(beforeCollapse.isUrgent == item.isUrgent)
 
         await viewModel.collapseInlineDetail()
 
@@ -1405,7 +1700,20 @@ struct TogetherTests {
         #expect(saved.dueAt == dueTime)
         #expect(saved.hasExplicitTime)
         #expect(saved.remindAt == remindAt)
-        #expect(saved.repeatRule == repeatRule)
+        #expect(saved.isUrgent)
+    }
+
+    @Test func collapsedUrgentFlagCanDisableUrgentImmediately() async throws {
+        var item = makeHomeFilterItem(title: "立即取消紧急", completedAt: nil, status: .inProgress)
+        item.isUrgent = true
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        await viewModel.setItemUrgent(item.id, isUrgent: false)
+
+        #expect(try await repository.fetchItem(itemID: item.id)?.isUrgent == false)
+        #expect(viewModel.item(for: item.id)?.isUrgent == false)
     }
 
     @Test func inlineDetailSubtaskEditingPersistsAndReorders() async throws {
@@ -1444,8 +1752,20 @@ struct TogetherTests {
     }
 
     @Test func inlineDetailMenuDoesNotExposeSubtasks() {
-        #expect(TaskEditorMenuContext.taskInline.menus == [.date, .time, .reminder, .repeatRule])
+        #expect(TaskEditorMenuContext.taskInline.menus == [.date, .time, .reminder, .urgent])
         #expect(TaskEditorMenuContext.taskInline.menus.contains(.subtasks) == false)
+    }
+
+    @Test func taskPropertyChipTitleVisibilityTracksConfiguredValue() {
+        #expect(TaskEditorChipSemanticValue.date(.now).hasConfiguredValue)
+        #expect(TaskEditorChipSemanticValue.time(nil).hasConfiguredValue == false)
+        #expect(TaskEditorChipSemanticValue.reminder(nil).hasConfiguredValue == false)
+        #expect(TaskEditorChipSemanticValue.urgent(false).hasConfiguredValue == false)
+        #expect(TaskEditorChipSemanticValue.subtasks(0).hasConfiguredValue == false)
+        #expect(TaskEditorChipSemanticValue.time(.now).hasConfiguredValue)
+        #expect(TaskEditorChipSemanticValue.reminder(900).hasConfiguredValue)
+        #expect(TaskEditorChipSemanticValue.urgent(true).hasConfiguredValue)
+        #expect(TaskEditorChipSemanticValue.subtasks(2).hasConfiguredValue)
     }
 
     @Test func inlineDetailLayoutMetricsAlignSubtasksWithParentTitle() {
@@ -1470,12 +1790,11 @@ struct TogetherTests {
             notes: "备注不会盖过子任务",
             timeText: "",
             reminderText: "",
-            repeatText: "",
             statusText: "进行中",
-            accentColorName: "sky",
+            isUrgent: false,
             isMuted: false,
             isCompleted: false,
-            urgency: .normal,
+            timingUrgency: .normal,
             relationText: nil,
             primaryAvatar: nil,
             secondaryAvatar: nil,
@@ -1511,12 +1830,11 @@ struct TogetherTests {
             notes: nil,
             timeText: "",
             reminderText: "",
-            repeatText: "",
             statusText: "进行中",
-            accentColorName: "sky",
+            isUrgent: false,
             isMuted: false,
             isCompleted: false,
-            urgency: .normal,
+            timingUrgency: .normal,
             relationText: nil,
             primaryAvatar: nil,
             secondaryAvatar: nil,
@@ -1541,8 +1859,8 @@ struct TogetherTests {
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
-        #expect(display.propertySubtitle == "1/2 子任务")
-        #expect(display.noteText == nil)
+        #expect(display.primarySubtitle == "1/2 子任务")
+        #expect(display.propertyText == nil)
     }
 
     @Test func timelineRowDisplayKeepsExplicitTimeInSubtitle() {
@@ -1554,12 +1872,11 @@ struct TogetherTests {
             notes: nil,
             timeText: "18:30",
             reminderText: "",
-            repeatText: "",
             statusText: "进行中",
-            accentColorName: "sky",
+            isUrgent: false,
             isMuted: false,
             isCompleted: false,
-            urgency: .normal,
+            timingUrgency: .normal,
             relationText: nil,
             primaryAvatar: nil,
             secondaryAvatar: nil,
@@ -1569,11 +1886,11 @@ struct TogetherTests {
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
-        #expect(display.propertySubtitle == "18:30")
-        #expect(display.noteText == nil)
+        #expect(display.primarySubtitle == "18:30")
+        #expect(display.propertyText == nil)
     }
 
-    @Test func timelineRowDisplaySeparatesNotesBelowProperties() {
+    @Test func timelineRowDisplayPlacesPropertiesBelowNotes() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -1582,12 +1899,11 @@ struct TogetherTests {
             notes: "  跟进客户反馈  ",
             timeText: "18:30",
             reminderText: "提醒",
-            repeatText: "",
             statusText: "进行中",
-            accentColorName: "sky",
+            isUrgent: false,
             isMuted: false,
             isCompleted: false,
-            urgency: .normal,
+            timingUrgency: .normal,
             relationText: nil,
             primaryAvatar: nil,
             secondaryAvatar: nil,
@@ -1597,8 +1913,8 @@ struct TogetherTests {
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
-        #expect(display.propertySubtitle == "18:30 · 提醒")
-        #expect(display.noteText == "跟进客户反馈")
+        #expect(display.primarySubtitle == "跟进客户反馈")
+        #expect(display.propertyText == "18:30 · 提醒")
     }
 
     @Test func timelineRowDisplayFallsBackToStatusWithoutProperties() {
@@ -1610,12 +1926,11 @@ struct TogetherTests {
             notes: nil,
             timeText: "",
             reminderText: "",
-            repeatText: "",
             statusText: "进行中",
-            accentColorName: "sky",
+            isUrgent: false,
             isMuted: false,
             isCompleted: false,
-            urgency: .normal,
+            timingUrgency: .normal,
             relationText: nil,
             primaryAvatar: nil,
             secondaryAvatar: nil,
@@ -1625,8 +1940,8 @@ struct TogetherTests {
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
-        #expect(display.propertySubtitle == "进行中")
-        #expect(display.noteText == nil)
+        #expect(display.primarySubtitle == "进行中")
+        #expect(display.propertyText == nil)
 
     }
 
@@ -1915,9 +2230,11 @@ private func makePeriodicTask(
 private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol, @unchecked Sendable {
     private(set) var tasks: [PeriodicTask]
     private(set) var updatedDrafts: [PeriodicTaskDraft] = []
+    private let shouldFailUpdates: Bool
 
-    init(tasks: [PeriodicTask]) {
+    init(tasks: [PeriodicTask], shouldFailUpdates: Bool = false) {
         self.tasks = tasks
+        self.shouldFailUpdates = shouldFailUpdates
     }
 
     func fetchTasks(in spaceID: UUID) async throws -> [PeriodicTask] {
@@ -1938,6 +2255,9 @@ private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplica
     }
 
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
+        if shouldFailUpdates {
+            throw PeriodicTaskError.notSupported
+        }
         updatedDrafts.append(draft)
         guard let index = tasks.firstIndex(where: { $0.id == taskID }) else {
             throw PeriodicTaskError.notFound
@@ -2024,7 +2344,7 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
             overdueCount: 0,
             dueTodayCount: 0,
             completedTodayCount: 0,
-            pinnedCount: 0
+            urgentCount: 0
         )
     }
 
@@ -2061,8 +2381,9 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
                 )
             },
             sortOrder: now.timeIntervalSinceReferenceDate,
+            isUrgent: draft.isUrgent,
             isDraft: draft.isDraft,
-            repeatRule: draft.repeatRule
+            repeatRule: nil
         )
     }
 

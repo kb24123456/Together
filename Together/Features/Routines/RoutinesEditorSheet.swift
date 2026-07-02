@@ -90,9 +90,6 @@ struct RoutinesEditorSheet: View {
         .presentationDragIndicator(.hidden)
         .presentationBackground(AppTheme.colors.surface)
         .onAppear {
-            if reminderRules.isEmpty {
-                reminderRules = [RoutinesViewModel.defaultRule(for: cycle)]
-            }
             DispatchQueue.main.async {
                 focusedField = .title
             }
@@ -156,7 +153,7 @@ struct RoutinesEditorSheet: View {
                 title: reminderChipTitle,
                 systemImage: "bell",
                 menu: .periodicReminder,
-                semanticValue: .periodicReminder(!reminderRules.isEmpty)
+                semanticValue: .periodicReminder(reminderRules.contains { $0.isEmpty == false })
             )
         ]
         return snapshots.map { snapshot in
@@ -174,15 +171,8 @@ struct RoutinesEditorSheet: View {
 
     private var reminderChipTitle: String {
         guard let rule = reminderRules.first else { return "提醒" }
-        let timeString = String(format: "%02d:%02d", rule.hour, rule.minute)
-        switch rule.timing {
-        case .dayOfPeriod(let day):
-            return "第\(day)天 \(timeString)"
-        case .businessDayOfPeriod(let day):
-            return "第\(day)工作日"
-        case .daysBeforeEnd(let days):
-            return "前\(days)天 \(timeString)"
-        }
+        let text = RoutineTargetText.text(for: rule, cycle: cycle)
+        return text.isEmpty ? "提醒" : text
     }
 
     // MARK: - Primary Action Button
@@ -266,7 +256,7 @@ struct RoutinesEditorSheet: View {
             title: trimmedTitle,
             notes: notes.isEmpty ? nil : notes,
             cycle: cycle,
-            reminderRules: reminderRules
+            reminderRules: reminderRules.filter { $0.isEmpty == false }
         )
 
         Task {
@@ -317,10 +307,9 @@ private struct RoutinesEditorMenuSheet: View {
                     Button {
                         HomeInteractionFeedback.selection()
                         cycle = c
-                        if reminderRules.isEmpty {
-                            reminderRules = [RoutinesViewModel.defaultRule(for: c)]
-                        } else if let first = reminderRules.first {
-                            reminderRules = [RoutinesViewModel.normalizedRule(first, for: c)]
+                        if let first = reminderRules.first {
+                            let normalized = RoutinesViewModel.normalizedRule(first, for: c)
+                            reminderRules = normalized.isEmpty ? [] : [normalized]
                         }
                     } label: {
                         HStack {
@@ -379,12 +368,8 @@ private struct RoutinesEditorMenuSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             if reminderRules.isEmpty {
-                reminderRules = [defaultRule(for: cycle)]
+                reminderRules = [PeriodicReminderRule()]
             }
         }
-    }
-
-    private func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
-        RoutinesViewModel.defaultRule(for: cycle)
     }
 }

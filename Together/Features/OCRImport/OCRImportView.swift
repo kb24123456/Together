@@ -307,7 +307,7 @@ struct OCRTaskDraftEditor: View {
             settingButton(title: dateTitle, systemImage: "calendar", menu: .date, isEnabled: true)
             settingButton(title: timeTitle, systemImage: "clock", menu: .time, isEnabled: true)
             settingButton(title: reminderTitle, systemImage: "bell", menu: .reminder, isEnabled: task.hasExplicitTime)
-            settingButton(title: repeatTitle, systemImage: "arrow.triangle.2.circlepath", menu: .repeatRule, isEnabled: true)
+            urgentButton
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -375,8 +375,23 @@ struct OCRTaskDraftEditor: View {
         return TaskEditorReminderPreset.preset(for: offset)?.chipTitle ?? "提醒"
     }
 
-    private var repeatTitle: String {
-        task.repeatRule?.title(anchorDate: task.dueAt ?? .now, calendar: .current) ?? "重复"
+    private var urgentButton: some View {
+        Button {
+            task.isUrgent.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: task.isUrgent ? "flag.fill" : "flag")
+                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeIconSize, weight: .semibold))
+                    .frame(width: HomeInlineTaskLayoutMetrics.attributeIconWidth)
+                Text("紧急")
+                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeTextSize, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(task.isUrgent ? AppTheme.colors.coral : AppTheme.colors.title.opacity(0.72))
+            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -437,7 +452,6 @@ struct OCRTaskAttributeMenuSheet: View {
     @State private var stagedDate: Date
     @State private var stagedTime: Date?
     @State private var stagedReminderOffset: TimeInterval?
-    @State private var stagedRepeatRule: ItemRepeatRule?
 
     init(
         task: Binding<OCRImportTaskDraft>,
@@ -459,7 +473,6 @@ struct OCRTaskAttributeMenuSheet: View {
         _stagedDate = State(initialValue: initialDate)
         _stagedTime = State(initialValue: initialTime)
         _stagedReminderOffset = State(initialValue: initialReminder)
-        _stagedRepeatRule = State(initialValue: draft.repeatRule)
     }
 
     var body: some View {
@@ -467,6 +480,12 @@ struct OCRTaskAttributeMenuSheet: View {
             context: .taskInline,
             activeMenu: $activeMenu,
             disabledMenus: stagedTime == nil ? [.reminder] : [],
+            actionMenus: [.urgent],
+            emphasizedMenus: task.isUrgent ? [.urgent] : [],
+            onMenuAction: { menu in
+                guard menu == .urgent else { return }
+                task.isUrgent.toggle()
+            },
             selectionFeedback: HomeInteractionFeedback.selection,
             switcherPlacement: .bottom,
             onClose: onDismiss,
@@ -506,27 +525,10 @@ struct OCRTaskAttributeMenuSheet: View {
                     stagedReminderOffset = offset
                 }
             )
-        case .repeatRule:
-            TaskEditorOptionList(
-                options: repeatOptions,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
+        case .urgent:
+            EmptyView()
         case .subtasks, .template, .periodicReminder, .periodicCycle:
             EmptyView()
-        }
-    }
-
-    private var repeatOptions: [TaskEditorOptionRow] {
-        [TaskEditorOptionRow(title: "不重复", isSelected: stagedRepeatRule == nil) {
-            stagedRepeatRule = nil
-        }] + TaskEditorRepeatPreset.allCases.map { preset in
-            let title = preset.title(anchorDate: stagedDate)
-            return TaskEditorOptionRow(
-                title: title,
-                isSelected: title == stagedRepeatRule?.title(anchorDate: stagedDate, calendar: .current)
-            ) {
-                stagedRepeatRule = preset.makeRule(anchorDate: stagedDate)
-            }
         }
     }
 
@@ -537,7 +539,6 @@ struct OCRTaskAttributeMenuSheet: View {
         task.remindAt = stagedReminderOffset.map {
             Self.reminderTargetDate(dueAt: dueAt, hasExplicitTime: stagedTime != nil).addingTimeInterval(-$0)
         }
-        task.repeatRule = stagedRepeatRule
         onDismiss()
     }
 

@@ -172,7 +172,7 @@ final class ProjectToTaskMigrationService {
             updatedAt: project.updatedAt,
             completedAt: project.completedAt,
             sortOrder: project.sortOrder,
-            isPinned: false,
+            isUrgent: false,
             isDraft: false,
             isArchived: project.statusRawValue == ProjectStatus.archived.rawValue,
             archivedAt: project.statusRawValue == ProjectStatus.archived.rawValue ? now : nil

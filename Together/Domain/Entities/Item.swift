@@ -33,7 +33,7 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     var occurrenceCompletions: [ItemOccurrenceCompletion] = []
     var subtasks: [TaskSubtask] = []
     var sortOrder: Double = 0
-    var isPinned: Bool = false
+    var isUrgent: Bool = false
     var isDraft: Bool
     var isArchived: Bool = false
     var archivedAt: Date? = nil

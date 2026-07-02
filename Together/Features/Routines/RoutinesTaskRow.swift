@@ -45,9 +45,13 @@ struct RoutinesTaskRow: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isNotesFocused: Bool
     @State private var titleDraft = ""
+    @State private var notesDraft = ""
     @State private var isEditingTitle = false
     @State private var isCommittingTitle = false
+    @State private var isEditingNotes = false
+    @State private var isCommittingNotes = false
     @State private var isAnimatingCompletion = false
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
@@ -72,6 +76,8 @@ struct RoutinesTaskRow: View {
                     viewModel: viewModel,
                     isExpanded: isDetailExpanded,
                     animationBatch: animationBatch,
+                    showsAddNote: visibleNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isEditingNotes == false,
+                    onAddNote: beginNotesEditing,
                     onFocus: onInlineFocus
                 )
                 .id(RoutineInlineFocusTarget.detail.anchorID(for: task.id))
@@ -80,14 +86,24 @@ struct RoutinesTaskRow: View {
         .animation(detailAnimation, value: isDetailPresented)
         .onAppear {
             titleDraft = draftTitle
+            notesDraft = visibleNotes
         }
         .onChange(of: draftTitle) { _, title in
             guard isTitleFocused == false, isEditingTitle == false else { return }
             titleDraft = title
         }
+        .onChange(of: visibleNotes) { _, notes in
+            guard isNotesFocused == false, isEditingNotes == false else { return }
+            notesDraft = notes
+        }
         .onChange(of: isDetailExpanded) { _, expanded in
-            guard expanded == false, isEditingTitle || isTitleFocused else { return }
-            commitTitleAfterFocusUpdate()
+            guard expanded == false else { return }
+            if isEditingTitle || isTitleFocused {
+                commitTitleAfterFocusUpdate()
+            }
+            if isEditingNotes || isNotesFocused {
+                commitNotesAfterFocusUpdate()
+            }
         }
         .onChange(of: isCompleted) { _, completed in
             guard completed else { return }
@@ -99,17 +115,19 @@ struct RoutinesTaskRow: View {
         HStack(alignment: .top, spacing: AppTheme.spacing.md) {
             completionButton
 
-            Group {
-                if isDetailPresented {
-                    expandedTitleStack
-                } else {
+            ZStack(alignment: .topLeading) {
+                stableTitleStack
+
+                if isDetailPresented == false {
                     Button {
                         onOpenDetail()
                     } label: {
-                        collapsedTitleStack
+                        Color.clear
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("展开例行任务")
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
@@ -137,16 +155,12 @@ struct RoutinesTaskRow: View {
         .accessibilityLabel(isCompleted ? "标记为未完成" : "完成例行任务")
     }
 
-    private var collapsedTitleStack: some View {
-        titleStack(title: task.title, includesNote: true)
-    }
-
     @ViewBuilder
-    private var expandedTitleStack: some View {
+    private var stableTitleStack: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-            if isEditingTitle {
+            if isDetailPresented, isEditingTitle {
                 expandedTitleEditor
-            } else {
+            } else if isDetailPresented {
                 Button {
                     beginTitleEditing()
                 } label: {
@@ -156,33 +170,86 @@ struct RoutinesTaskRow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("编辑例行任务标题")
+            } else {
+                titleText(task.title)
             }
 
-            Text(displayTargetText)
-                .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                .foregroundStyle(subtitleColor)
-                .lineLimit(2)
+            if isDetailPresented {
+                subtitleContent
+            } else {
+                subtitleText(rowDisplayText.primarySubtitle)
+            }
+
+            if let propertyText = rowDisplayText.propertyText {
+                subtitleText(propertyText)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func titleStack(title: String, includesNote: Bool) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-            titleText(title)
+    @ViewBuilder
+    private var subtitleContent: some View {
+        if isEditingNotes {
+            HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
+                TextField("添加备注", text: $notesDraft, axis: .vertical)
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(subtitleColor)
+                    .lineLimit(1...4)
+                    .textInputAutocapitalization(.sentences)
+                    .focused($isNotesFocused)
+                    .id(RoutineInlineFocusTarget.notes.anchorID(for: task.id))
+                    .onChange(of: isNotesFocused) { _, focused in
+                        if focused {
+                            onInlineFocus(.notes)
+                        } else if isEditingNotes, isCommittingNotes == false {
+                            commitNotesAfterFocusUpdate()
+                        }
+                    }
 
-            Text(displayTargetText)
-                .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                .foregroundStyle(subtitleColor)
-                .lineLimit(2)
-
-            if includesNote, let note = RoutineTaskDisplayText.text(for: task).noteText {
-                Text(note)
-                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(isCompleted ? 0.34 : 0.5))
-                    .lineLimit(2)
+                inlineSaveButton(accessibilityLabel: "保存例行任务备注") {
+                    commitNotesAfterFocusUpdate()
+                }
             }
+        } else if visibleNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            Button(action: beginNotesEditing) {
+                subtitleText(rowDisplayText.primarySubtitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("编辑例行任务备注")
+        } else {
+            subtitleText(rowDisplayText.primarySubtitle)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func subtitleText(_ text: String) -> some View {
+        Text(text)
+            .font(AppTheme.typography.sized(15, weight: .medium))
+            .foregroundStyle(subtitleColor)
+            .lineLimit(2)
+    }
+
+    private var rowDisplayText: RoutineTaskDisplayText {
+        let trimmedNotes = visibleNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = trimmedNotes.isEmpty ? nil : trimmedNotes
+        let target = visibleTargetText
+        return RoutineTaskDisplayText(
+            primarySubtitle: note ?? (target.isEmpty ? (isCompleted ? "已完成" : "进行中") : target),
+            propertyText: note != nil && target.isEmpty == false ? target : nil
+        )
+    }
+
+    private var visibleNotes: String {
+        isDetailPresented ? (viewModel.detailDraft?.notes ?? "") : (task.notes ?? "")
+    }
+
+    private var visibleTargetText: String {
+        guard isDetailPresented, let draft = viewModel.detailDraft else {
+            return RoutineTargetText.text(for: task)
+        }
+        guard let rule = draft.reminderRules.first else { return "" }
+        return RoutineTargetText.text(for: rule, cycle: draft.cycle)
     }
 
     private func titleText(_ title: String) -> some View {
@@ -252,6 +319,30 @@ struct RoutinesTaskRow: View {
         }
     }
 
+    private func beginNotesEditing() {
+        notesDraft = visibleNotes
+        isEditingNotes = true
+        onInlineFocus(.notes)
+        Task { @MainActor in
+            await Task.yield()
+            isNotesFocused = true
+        }
+    }
+
+    private func commitNotesAfterFocusUpdate() {
+        guard isEditingNotes || isNotesFocused else { return }
+        guard isCommittingNotes == false else { return }
+        isCommittingNotes = true
+        Task { @MainActor in
+            notesDraft = TextInputSnapshotReader.resolvedText(fallback: notesDraft)
+            isNotesFocused = false
+            await Task.yield()
+            viewModel.updateDraftNotes(notesDraft)
+            isEditingNotes = false
+            isCommittingNotes = false
+        }
+    }
+
     private func inlineSaveButton(
         accessibilityLabel: String,
         action: @escaping () -> Void
@@ -271,24 +362,8 @@ struct RoutinesTaskRow: View {
         isDetailPresented ? (viewModel.detailDraft?.title ?? task.title) : task.title
     }
 
-    private var displayTargetText: String {
-        guard isDetailPresented, let draft = viewModel.detailDraft else {
-            return RoutineTargetText.text(for: task)
-        }
-        guard let rule = draft.reminderRules.first else {
-            return "未设置目标时间"
-        }
-        return RoutineTargetText.text(for: rule, cycle: draft.cycle)
-    }
-
     private var subtitleColor: Color {
-        if urgency == .pastReminder {
-            return AppTheme.colors.coral.opacity(isCompleted ? 0.5 : 1)
-        }
-        if urgency == .approaching {
-            return AppTheme.colors.warning.opacity(isCompleted ? 0.5 : 0.9)
-        }
-        return isCompleted ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.textTertiary
+        AppTheme.colors.body.opacity(isCompleted ? 0.4 : 0.74)
     }
 
     private var detailAnimation: Animation {
@@ -334,11 +409,7 @@ struct RoutinesTaskRow: View {
         if isAnimatingCompletion {
             return AppTheme.colors.body.opacity(0.32)
         }
-        switch urgency {
-        case .pastReminder: return AppTheme.colors.coral.opacity(0.58)
-        case .approaching: return AppTheme.colors.warning.opacity(0.58)
-        default: return AppTheme.colors.body.opacity(0.44)
-        }
+        return AppTheme.colors.body.opacity(0.44)
     }
 
     private func triggerCompletionAnimation() {
@@ -380,13 +451,11 @@ private struct RoutinesInlineDetailView: View {
     @Bindable var viewModel: RoutinesViewModel
     let isExpanded: Bool
     let animationBatch: Int
+    let showsAddNote: Bool
+    let onAddNote: () -> Void
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var notesFocused: Bool
-    @State private var notesDraft = ""
-    @State private var notesEditorRequested = false
-    @State private var isCommittingNotes = false
 
     var body: some View {
         RoutineInlineCascadeStack(
@@ -396,126 +465,58 @@ private struct RoutinesInlineDetailView: View {
             fallbackHeight: RoutineInlineLayoutMetrics.estimatedDetailHeight
         ) {
             VStack(alignment: .leading, spacing: RoutineInlineLayoutMetrics.detailVerticalSpacing) {
-                notesEditor
-                    .id(RoutineInlineFocusTarget.notes.anchorID(for: task.id))
-                    .modifier(cascadeItem(index: 0))
+                if showsAddNote {
+                    notesPlaceholderButton
+                        .modifier(cascadeItem(index: 0))
+                }
 
                 attributeToolbar
-                    .modifier(cascadeItem(index: 1))
+                    .modifier(cascadeItem(index: showsAddNote ? 1 : 0))
             }
             .padding(.top, RoutineInlineLayoutMetrics.detailTopPadding)
             .padding(.bottom, RoutineInlineLayoutMetrics.detailBottomPadding)
-        }
-        .onAppear {
-            notesDraft = viewModel.detailDraft?.notes ?? task.notes ?? ""
-            notesEditorRequested = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        }
-        .onChange(of: notesFocused) { _, focused in
-            if focused {
-                onFocus(.notes)
-            } else if notesEditorRequested, isCommittingNotes == false {
-                commitNotesAfterFocusUpdate()
-            }
-        }
-        .onChange(of: isExpanded) { _, expanded in
-            guard expanded == false else { return }
-            commitNotesAfterFocusUpdate()
         }
     }
 
     private func cascadeItem(index: Int) -> RoutineInlineCascadeItemModifier {
         RoutineInlineCascadeItemModifier(
             index: index,
-            rowCount: 2,
+            rowCount: showsAddNote ? 2 : 1,
             isExpanded: isExpanded,
             animationBatch: animationBatch,
             reduceMotion: reduceMotion
         )
     }
 
-    @ViewBuilder
-    private var notesEditor: some View {
-        if showsNotesEditor {
-            HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
-                TextField("添加备注", text: $notesDraft, axis: .vertical)
-                    .font(AppTheme.typography.sized(15, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.74))
-                    .lineLimit(1...4)
-                    .textInputAutocapitalization(.sentences)
-                    .focused($notesFocused)
-                    .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
+    private var notesPlaceholderButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            onAddNote()
+        } label: {
+            HStack(spacing: RoutineInlineLayoutMetrics.titleGap) {
+                Image(systemName: "plus")
+                    .font(AppTheme.typography.sized(12, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
                     .frame(
-                        maxWidth: .infinity,
-                        minHeight: RoutineInlineLayoutMetrics.compactRowMinHeight,
-                        alignment: .leading
+                        width: RoutineInlineLayoutMetrics.actionSlotWidth,
+                        height: RoutineInlineLayoutMetrics.compactRowMinHeight,
+                        alignment: .trailing
                     )
 
-                Button {
-                    commitNotesAfterFocusUpdate()
-                } label: {
-                    Label("保存", systemImage: "checkmark")
-                        .font(AppTheme.typography.sized(12, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.sky)
-                        .frame(minWidth: 54, minHeight: 36)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("保存例行任务备注")
+                Text("添加备注")
+                    .font(AppTheme.typography.sized(14, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } else {
-            Button {
-                HomeInteractionFeedback.selection()
-                notesEditorRequested = true
-                Task { @MainActor in
-                    await Task.yield()
-                    notesFocused = true
-                }
-            } label: {
-                HStack(spacing: RoutineInlineLayoutMetrics.titleGap) {
-                    Image(systemName: "plus")
-                        .font(AppTheme.typography.sized(12, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.34))
-                        .frame(
-                            width: RoutineInlineLayoutMetrics.actionSlotWidth,
-                            height: RoutineInlineLayoutMetrics.compactRowMinHeight,
-                            alignment: .trailing
-                        )
-
-                    Text("添加备注")
-                        .font(AppTheme.typography.sized(14, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.34))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: RoutineInlineLayoutMetrics.compactRowMinHeight,
-                    alignment: .leading
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("添加备注")
+            .frame(
+                maxWidth: .infinity,
+                minHeight: RoutineInlineLayoutMetrics.compactRowMinHeight,
+                alignment: .leading
+            )
+            .contentShape(Rectangle())
         }
-    }
-
-    private var showsNotesEditor: Bool {
-        notesEditorRequested || notesFocused || notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
-
-    private func commitNotesAfterFocusUpdate() {
-        guard isCommittingNotes == false else { return }
-        guard notesEditorRequested || notesFocused else { return }
-        let shouldReadFocusedInput = notesFocused
-        isCommittingNotes = true
-        Task { @MainActor in
-            if shouldReadFocusedInput {
-                notesDraft = TextInputSnapshotReader.resolvedText(fallback: notesDraft)
-            }
-            notesFocused = false
-            await Task.yield()
-            viewModel.updateDraftNotes(notesDraft)
-            notesEditorRequested = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            isCommittingNotes = false
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("添加备注")
     }
 
     private var attributeToolbar: some View {
@@ -550,48 +551,63 @@ private struct RoutinesInlineDetailView: View {
     @ViewBuilder
     private var targetDayControl: some View {
         if draftCycle == .daily {
-            settingLabel(icon: "calendar", title: "每天", isConfigured: currentRule != nil)
-        } else if let rule = currentRule {
-            Menu {
-                targetDayOptions(for: draftCycle, rule: rule)
-            } label: {
-                settingLabel(icon: "calendar", title: targetDayTitle(rule: rule), isConfigured: true)
-            }
-            .accessibilityLabel("目标日期，当前为\(targetDayTitle(rule: rule))")
+            settingLabel(icon: "calendar", title: "每天", isConfigured: true)
         } else {
-            Button {
-                viewModel.updateDraftReminderRule(RoutinesViewModel.defaultRule(for: draftCycle))
+            Menu {
+                targetDayOptions(for: draftCycle)
+                if currentRule?.hasTargetDay == true {
+                    Divider()
+                    Button("清除目标日", role: .destructive) {
+                        viewModel.clearDraftTargetDay()
+                    }
+                }
             } label: {
-                settingLabel(icon: "calendar", title: "目标日", isConfigured: false)
+                settingLabel(
+                    icon: "calendar",
+                    title: targetDayTitle,
+                    isConfigured: currentRule?.hasTargetDay == true
+                )
             }
-            .buttonStyle(.plain)
+            .accessibilityLabel("目标日期，当前为\(targetDayTitle)")
         }
     }
 
     @ViewBuilder
     private var targetTimeControl: some View {
-        if let rule = currentRule {
-            HStack(spacing: 4) {
-                Image(systemName: "clock")
-                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.title.opacity(0.74))
-
+        if currentRule?.hasTargetTime == true {
+            HStack(spacing: 0) {
                 DatePicker(
                     "目标时间",
                     selection: Binding(
-                        get: { timeDate(for: rule) },
-                        set: { updateDraftTime($0, rule: rule) }
+                        get: { timeDate },
+                        set: { updateDraftTime($0) }
                     ),
                     displayedComponents: .hourAndMinute
                 )
                 .labelsHidden()
                 .datePickerStyle(.compact)
                 .fixedSize()
+
+                Button {
+                    viewModel.clearDraftTargetTime()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("清除目标时间")
             }
             .frame(maxWidth: .infinity, minHeight: RoutineInlineLayoutMetrics.attributeMinHeight)
         } else {
             Button {
-                viewModel.updateDraftReminderRule(RoutinesViewModel.defaultRule(for: draftCycle))
+                let components = Calendar.current.dateComponents([.hour, .minute], from: .now)
+                viewModel.updateDraftTargetTime(
+                    hour: components.hour ?? 0,
+                    minute: components.minute ?? 0
+                )
             } label: {
                 settingLabel(icon: "clock", title: "时间", isConfigured: false)
             }
@@ -617,32 +633,32 @@ private struct RoutinesInlineDetailView: View {
     }
 
     @ViewBuilder
-    private func targetDayOptions(for cycle: PeriodicCycle, rule: PeriodicReminderRule) -> some View {
+    private func targetDayOptions(for cycle: PeriodicCycle) -> some View {
         switch cycle {
         case .daily:
             Button("每天") {
-                updateRuleTiming(.dayOfPeriod(1), rule: rule)
+                viewModel.updateDraftTargetDay(.dayOfPeriod(1))
             }
         case .weekly:
             ForEach(1...7, id: \.self) { day in
                 Button(RoutineTargetText.weekdayText(for: day)) {
-                    updateRuleTiming(.dayOfPeriod(day), rule: rule)
+                    viewModel.updateDraftTargetDay(.dayOfPeriod(day))
                 }
             }
         case .monthly:
             ForEach([1, 5, 10, 15, 20, 25, 31], id: \.self) { day in
                 Button(day == 31 ? "最后一天" : "\(day) 号") {
-                    updateRuleTiming(.dayOfPeriod(day), rule: rule)
+                    viewModel.updateDraftTargetDay(.dayOfPeriod(day))
                 }
             }
         case .quarterly:
-            Button("第 1 天") { updateRuleTiming(.dayOfPeriod(1), rule: rule) }
-            Button("第 30 天") { updateRuleTiming(.dayOfPeriod(30), rule: rule) }
-            Button("结束前 14 天") { updateRuleTiming(.daysBeforeEnd(14), rule: rule) }
+            Button("第 1 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(1)) }
+            Button("第 30 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(30)) }
+            Button("结束前 14 天") { viewModel.updateDraftTargetDay(.daysBeforeEnd(14)) }
         case .yearly:
-            Button("第 1 天") { updateRuleTiming(.dayOfPeriod(1), rule: rule) }
-            Button("第 180 天") { updateRuleTiming(.dayOfPeriod(180), rule: rule) }
-            Button("结束前 30 天") { updateRuleTiming(.daysBeforeEnd(30), rule: rule) }
+            Button("第 1 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(1)) }
+            Button("第 180 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(180)) }
+            Button("结束前 30 天") { viewModel.updateDraftTargetDay(.daysBeforeEnd(30)) }
         }
     }
 
@@ -654,24 +670,25 @@ private struct RoutinesInlineDetailView: View {
         viewModel.detailDraft?.reminderRules.first
     }
 
-    private func targetDayTitle(rule: PeriodicReminderRule) -> String {
+    private var targetDayTitle: String {
+        guard let timing = currentRule?.timing else { return "目标日" }
         switch draftCycle {
         case .daily:
             return "每天"
         case .weekly:
-            if case .dayOfPeriod(let day) = rule.timing {
+            if case .dayOfPeriod(let day) = timing {
                 return RoutineTargetText.weekdayText(for: day)
             }
             return "目标日"
         case .monthly:
-            switch rule.timing {
+            switch timing {
             case .dayOfPeriod(let day) where day >= 31: return "最后一天"
             case .dayOfPeriod(let day): return "\(day)号"
             case .businessDayOfPeriod(let day): return "第\(day)工作日"
             case .daysBeforeEnd(let days): return "提前\(days)天"
             }
         case .quarterly, .yearly:
-            switch rule.timing {
+            switch timing {
             case .dayOfPeriod(let day): return "第\(day)天"
             case .businessDayOfPeriod(let day): return "第\(day)工作日"
             case .daysBeforeEnd(let days): return "提前\(days)天"
@@ -679,25 +696,16 @@ private struct RoutinesInlineDetailView: View {
         }
     }
 
-    private func updateRuleTiming(_ timing: PeriodicReminderRule.Timing, rule: PeriodicReminderRule) {
-        viewModel.updateDraftReminderRule(
-            PeriodicReminderRule(timing: timing, hour: rule.hour, minute: rule.minute)
-        )
+    private var timeDate: Date {
+        Calendar.current.date(
+            from: DateComponents(hour: currentRule?.hour, minute: currentRule?.minute)
+        ) ?? .now
     }
 
-    private func timeDate(for rule: PeriodicReminderRule) -> Date {
-        Calendar.current.date(from: DateComponents(hour: rule.hour, minute: rule.minute)) ?? .now
-    }
-
-    private func updateDraftTime(_ date: Date, rule: PeriodicReminderRule) {
+    private func updateDraftTime(_ date: Date) {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-        viewModel.updateDraftReminderRule(
-            PeriodicReminderRule(
-                timing: rule.timing,
-                hour: components.hour ?? rule.hour,
-                minute: components.minute ?? rule.minute
-            )
-        )
+        guard let hour = components.hour, let minute = components.minute else { return }
+        viewModel.updateDraftTargetTime(hour: hour, minute: minute)
     }
 }
 

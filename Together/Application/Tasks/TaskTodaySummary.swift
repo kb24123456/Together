@@ -6,5 +6,5 @@ struct TaskTodaySummary: Hashable, Sendable {
     let overdueCount: Int
     let dueTodayCount: Int
     let completedTodayCount: Int
-    let pinnedCount: Int
+    let urgentCount: Int
 }

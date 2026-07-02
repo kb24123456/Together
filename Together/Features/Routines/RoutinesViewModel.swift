@@ -26,14 +26,20 @@ struct RoutineDimensionSummary: Equatable {
 }
 
 struct RoutineTaskDisplayText: Equatable {
-    let propertySubtitle: String
-    let noteText: String?
+    let primarySubtitle: String
+    let propertyText: String?
 
-    static func text(for task: PeriodicTask, calendar: Calendar = .current) -> RoutineTaskDisplayText {
+    static func text(
+        for task: PeriodicTask,
+        isCompleted: Bool,
+        calendar: Calendar = .current
+    ) -> RoutineTaskDisplayText {
         let trimmedNotes = task.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noteText = trimmedNotes?.isEmpty == false ? trimmedNotes : nil
+        let targetText = RoutineTargetText.text(for: task, calendar: calendar)
         return RoutineTaskDisplayText(
-            propertySubtitle: RoutineTargetText.text(for: task, calendar: calendar),
-            noteText: trimmedNotes?.isEmpty == false ? trimmedNotes : nil
+            primarySubtitle: noteText ?? (targetText.isEmpty ? (isCompleted ? "已完成" : "进行中") : targetText),
+            propertyText: noteText != nil && targetText.isEmpty == false ? targetText : nil
         )
     }
 }
@@ -69,42 +75,55 @@ struct RoutinesTemplateSaveResult: Sendable, Equatable {
 enum RoutineTargetText {
     static func text(for task: PeriodicTask, calendar: Calendar = .current) -> String {
         guard let rule = task.reminderRules.first else {
-            return "未设置目标时间"
+            return ""
         }
 
         return text(for: rule, cycle: task.cycle, calendar: calendar)
     }
 
     static func text(for rule: PeriodicReminderRule, cycle: PeriodicCycle, calendar: Calendar = .current) -> String {
-        let time = String(format: "%02d:%02d", rule.hour, rule.minute)
+        let time: String? = if let hour = rule.hour, let minute = rule.minute {
+            String(format: "%02d:%02d", hour, minute)
+        } else {
+            nil
+        }
+
         switch cycle {
         case .daily:
-            return "目标 \(time)"
+            return time.map { "目标 \($0)" } ?? ""
         case .weekly:
-            if case .dayOfPeriod(let day) = rule.timing {
-                return "\(weekdayText(for: day, calendar: calendar)) \(time)"
+            let dayText: String? = if case .dayOfPeriod(let day)? = rule.timing {
+                weekdayText(for: day, calendar: calendar)
+            } else {
+                nil
             }
-            return "\(cycle.title) · 目标 \(time)"
+            return combinedTargetText(dayText: dayText, timeText: time)
         case .monthly:
-            switch rule.timing {
-            case .dayOfPeriod(let day) where day >= 31:
-                return "每月最后一天 \(time)"
-            case .dayOfPeriod(let day):
-                return "每月 \(day) 号 \(time)"
-            case .businessDayOfPeriod(let day):
-                return "每月第 \(day) 个工作日 \(time)"
-            case .daysBeforeEnd(let days):
-                return "月底前 \(days) 天 \(time)"
+            let dayText: String? = switch rule.timing {
+            case .dayOfPeriod(let day)? where day >= 31: "每月最后一天"
+            case .dayOfPeriod(let day)?: "每月 \(day) 号"
+            case .businessDayOfPeriod(let day)?: "每月第 \(day) 个工作日"
+            case .daysBeforeEnd(let days)?: "月底前 \(days) 天"
+            case nil: nil
             }
+            return combinedTargetText(dayText: dayText, timeText: time)
         case .quarterly, .yearly:
-            switch rule.timing {
-            case .dayOfPeriod(let day):
-                return "第 \(day) 天 \(time)"
-            case .businessDayOfPeriod(let day):
-                return "第 \(day) 个工作日 \(time)"
-            case .daysBeforeEnd(let days):
-                return "周期结束前 \(days) 天 \(time)"
+            let dayText: String? = switch rule.timing {
+            case .dayOfPeriod(let day)?: "第 \(day) 天"
+            case .businessDayOfPeriod(let day)?: "第 \(day) 个工作日"
+            case .daysBeforeEnd(let days)?: "周期结束前 \(days) 天"
+            case nil: nil
             }
+            return combinedTargetText(dayText: dayText, timeText: time)
+        }
+    }
+
+    private static func combinedTargetText(dayText: String?, timeText: String?) -> String {
+        switch (dayText, timeText) {
+        case let (.some(day), .some(time)): "\(day) \(time)"
+        case let (.some(day), nil): day
+        case let (nil, .some(time)): "目标 \(time)"
+        case (nil, nil): ""
         }
     }
 
@@ -466,15 +485,36 @@ final class RoutinesViewModel {
 
     func updateDraftCycle(_ cycle: PeriodicCycle) {
         detailDraft?.cycle = cycle
-        if detailDraft?.reminderRules.isEmpty == true {
-            detailDraft?.reminderRules = [Self.defaultRule(for: cycle)]
-        } else if let first = detailDraft?.reminderRules.first {
-            detailDraft?.reminderRules = [Self.normalizedRule(first, for: cycle)]
+        if let first = detailDraft?.reminderRules.first {
+            let normalized = Self.normalizedRule(first, for: cycle)
+            detailDraft?.reminderRules = normalized.isEmpty ? [] : [normalized]
         }
     }
 
     func updateDraftReminderRule(_ rule: PeriodicReminderRule) {
-        detailDraft?.reminderRules = [rule]
+        detailDraft?.reminderRules = rule.isEmpty ? [] : [rule]
+    }
+
+    func updateDraftTargetDay(_ timing: PeriodicReminderRule.Timing) {
+        mutateDraftRule { $0.timing = timing }
+    }
+
+    func clearDraftTargetDay() {
+        mutateDraftRule { $0.timing = nil }
+    }
+
+    func updateDraftTargetTime(hour: Int, minute: Int) {
+        mutateDraftRule {
+            $0.hour = hour
+            $0.minute = minute
+        }
+    }
+
+    func clearDraftTargetTime() {
+        mutateDraftRule {
+            $0.hour = nil
+            $0.minute = nil
+        }
     }
 
     func hasUnsavedInlineChanges(for task: PeriodicTask) -> Bool {
@@ -486,19 +526,29 @@ final class RoutinesViewModel {
         detailDraft?.reminderRules = []
     }
 
-    func collapseInlineDetail() async {
+    private func mutateDraftRule(_ mutation: (inout PeriodicReminderRule) -> Void) {
+        var rule = detailDraft?.reminderRules.first ?? PeriodicReminderRule()
+        mutation(&rule)
+        detailDraft?.reminderRules = rule.isEmpty ? [] : [rule]
+    }
+
+    @discardableResult
+    func collapseInlineDetail() async -> Bool {
         guard let expandedTaskID, let draft = detailDraft else {
             expandedTaskID = nil
             detailDraft = nil
-            return
+            return true
         }
         let originalTask = tasks.first { $0.id == expandedTaskID }
         if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
            originalTask.map({ RoutineInlineDraft(task: $0) }) != draft {
-            await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft)
+            guard await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft) else {
+                return false
+            }
         }
         self.expandedTaskID = nil
         detailDraft = nil
+        return true
     }
 
     func createTask(draft: PeriodicTaskDraft) async {
@@ -517,9 +567,10 @@ final class RoutinesViewModel {
         }
     }
 
-    func updateTask(taskID: UUID, draft: PeriodicTaskDraft) async {
+    @discardableResult
+    func updateTask(taskID: UUID, draft: PeriodicTaskDraft) async -> Bool {
         guard let spaceID = sessionStore.currentSpace?.id,
-              let actorID = sessionStore.currentUser?.id else { return }
+              let actorID = sessionStore.currentUser?.id else { return false }
         do {
             let updated = try await periodicTaskApplicationService.updateTask(
                 in: spaceID,
@@ -531,8 +582,11 @@ final class RoutinesViewModel {
                 tasks[index] = updated
             }
             cacheCurrentTasks()
+            loadState = .loaded
+            return true
         } catch {
-            await load()
+            loadState = .failed(error.localizedDescription)
+            return false
         }
     }
 
@@ -575,27 +629,34 @@ final class RoutinesViewModel {
     }
 
     static func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
-        switch cycle {
-        case .daily: PeriodicReminderRule(timing: .dayOfPeriod(1), hour: 9, minute: 0)
-        case .weekly: PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 9, minute: 0)
-        case .monthly: PeriodicReminderRule(timing: .dayOfPeriod(20), hour: 9, minute: 0)
-        case .quarterly: PeriodicReminderRule(timing: .daysBeforeEnd(14), hour: 9, minute: 0)
-        case .yearly: PeriodicReminderRule(timing: .daysBeforeEnd(30), hour: 9, minute: 0)
-        }
+        _ = cycle
+        return PeriodicReminderRule()
     }
 
     static func normalizedRule(_ rule: PeriodicReminderRule, for cycle: PeriodicCycle) -> PeriodicReminderRule {
-        switch cycle {
-        case .daily:
-            PeriodicReminderRule(timing: .dayOfPeriod(1), hour: rule.hour, minute: rule.minute)
-        case .weekly:
-            PeriodicReminderRule(timing: .dayOfPeriod(3), hour: rule.hour, minute: rule.minute)
-        case .monthly:
-            PeriodicReminderRule(timing: .dayOfPeriod(20), hour: rule.hour, minute: rule.minute)
-        case .quarterly:
-            PeriodicReminderRule(timing: .daysBeforeEnd(14), hour: rule.hour, minute: rule.minute)
-        case .yearly:
-            PeriodicReminderRule(timing: .daysBeforeEnd(30), hour: rule.hour, minute: rule.minute)
+        var normalized = rule
+        normalized.timing = normalizedTiming(rule.timing, for: cycle)
+        return normalized
+    }
+
+    private static func normalizedTiming(
+        _ timing: PeriodicReminderRule.Timing?,
+        for cycle: PeriodicCycle
+    ) -> PeriodicReminderRule.Timing? {
+        guard let timing else { return nil }
+        switch (cycle, timing) {
+        case (.daily, _): return nil
+        case let (.weekly, .dayOfPeriod(day)): return .dayOfPeriod(max(1, min(7, day)))
+        case let (.monthly, .dayOfPeriod(day)): return .dayOfPeriod(max(1, min(31, day)))
+        case let (.monthly, .businessDayOfPeriod(day)): return .businessDayOfPeriod(max(1, min(20, day)))
+        case let (.monthly, .daysBeforeEnd(days)): return .daysBeforeEnd(max(1, min(30, days)))
+        case let (.quarterly, .dayOfPeriod(day)): return .dayOfPeriod(max(1, min(90, day)))
+        case let (.quarterly, .businessDayOfPeriod(day)): return .businessDayOfPeriod(max(1, min(20, day)))
+        case let (.quarterly, .daysBeforeEnd(days)): return .daysBeforeEnd(max(1, min(89, days)))
+        case let (.yearly, .dayOfPeriod(day)): return .dayOfPeriod(max(1, min(365, day)))
+        case let (.yearly, .businessDayOfPeriod(day)): return .businessDayOfPeriod(max(1, min(260, day)))
+        case let (.yearly, .daysBeforeEnd(days)): return .daysBeforeEnd(max(1, min(364, days)))
+        default: return nil
         }
     }
 

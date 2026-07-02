@@ -36,7 +36,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         }.count
         let overdueCount = actionableItems.filter { isOverdue($0, on: referenceDate) }.count
         let dueTodayCount = actionableItems.filter { isDueOnReferenceDay($0, referenceDate: referenceDate) }.count
-        let pinnedCount = actionableItems.filter(\.isPinned).count
+        let urgentCount = actionableItems.filter(\.isUrgent).count
 
         return TaskTodaySummary(
             referenceDate: referenceDate,
@@ -44,7 +44,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             overdueCount: overdueCount,
             dueTodayCount: dueTodayCount,
             completedTodayCount: completedTodayCount,
-            pinnedCount: pinnedCount
+            urgentCount: urgentCount
         )
     }
 
@@ -75,9 +75,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
                 drafts: draft.subtasks
             ),
             sortOrder: now.timeIntervalSinceReferenceDate,
-            isPinned: draft.isPinned,
+            isUrgent: draft.isUrgent,
             isDraft: draft.isDraft,
-            repeatRule: draft.repeatRule
+            repeatRule: nil
         )
 
         let saved = try await itemRepository.saveItem(item)
@@ -106,9 +106,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.remindAt = draft.remindAt
         item.status = draft.status
         item.hasExplicitTime = draft.hasExplicitTime
-        item.isPinned = draft.isPinned
+        item.isUrgent = draft.isUrgent
         item.isDraft = draft.isDraft
-        item.repeatRule = draft.repeatRule
+        item.repeatRule = nil
         item.subtasks = makeTaskSubtasks(
             itemID: item.id,
             creatorID: item.creatorID,
@@ -332,7 +332,7 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         }
         item.isArchived = true
         item.archivedAt = .now
-        item.isPinned = false
+        item.isUrgent = false
         item.updatedAt = .now
 
         let saved = try await itemRepository.saveItem(item)
@@ -461,8 +461,8 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         switch scope {
         case .all:
             return true
-        case .pinned:
-            return item.isPinned
+        case .urgent:
+            return item.isUrgent
         case let .list(listID):
             return item.listID == listID
         case let .project(projectID):
@@ -475,14 +475,18 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     }
 
     private func compareItems(lhs: Item, rhs: Item, referenceDate: Date) -> Bool {
-        if lhs.isPinned != rhs.isPinned {
-            return lhs.isPinned && rhs.isPinned == false
-        }
-
         let lhsCompleted = lhs.isCompleted(on: referenceDate, calendar: calendar)
         let rhsCompleted = rhs.isCompleted(on: referenceDate, calendar: calendar)
         if lhsCompleted != rhsCompleted {
             return rhsCompleted
+        }
+
+        if lhsCompleted == false, lhs.isUrgent != rhs.isUrgent {
+            return lhs.isUrgent && rhs.isUrgent == false
+        }
+
+        if lhsCompleted == false, lhs.isUrgent, rhs.isUrgent, lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt < rhs.createdAt
         }
 
         let lhsOverdue = isOverdue(lhs, on: referenceDate)
@@ -522,7 +526,7 @@ private extension TaskScope {
             return referenceDate
         case let .scheduled(on: date):
             return date
-        case .all, .pinned, .list, .project:
+        case .all, .urgent, .list, .project:
             return nil
         }
     }

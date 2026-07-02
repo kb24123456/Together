@@ -9,7 +9,7 @@ enum TaskEditorMenu: String, Identifiable {
     case date
     case time
     case reminder
-    case repeatRule
+    case urgent
     case subtasks
     case template
     case periodicReminder
@@ -25,8 +25,8 @@ enum TaskEditorMenu: String, Identifiable {
             return "clock"
         case .reminder:
             return "bell"
-        case .repeatRule:
-            return "arrow.triangle.2.circlepath"
+        case .urgent:
+            return "flag"
         case .subtasks:
             return "checklist"
         case .template:
@@ -46,8 +46,8 @@ enum TaskEditorMenu: String, Identifiable {
             return "时间"
         case .reminder:
             return "提醒"
-        case .repeatRule:
-            return "重复"
+        case .urgent:
+            return "紧急"
         case .subtasks:
             return "子任务"
         case .template:
@@ -70,9 +70,9 @@ enum TaskEditorMenuContext: Equatable {
     var menus: [TaskEditorMenu] {
         switch self {
         case .task:
-            return [.date, .time, .reminder, .repeatRule, .subtasks]
+            return [.date, .time, .reminder, .urgent, .subtasks]
         case .taskInline:
-            return [.date, .time, .reminder, .repeatRule]
+            return [.date, .time, .reminder, .urgent]
         case .project:
             return [.date]
         case .templates:
@@ -111,6 +111,7 @@ struct TaskEditorChipSnapshot: Identifiable, Equatable {
     let systemImage: String
     let menu: TaskEditorMenu
     let semanticValue: TaskEditorChipSemanticValue
+    let showsTitle: Bool
     let showsTrailingClear: Bool
 
     init(
@@ -119,6 +120,7 @@ struct TaskEditorChipSnapshot: Identifiable, Equatable {
         systemImage: String,
         menu: TaskEditorMenu,
         semanticValue: TaskEditorChipSemanticValue,
+        showsTitle: Bool = true,
         showsTrailingClear: Bool = false
     ) {
         self.id = id
@@ -126,6 +128,7 @@ struct TaskEditorChipSnapshot: Identifiable, Equatable {
         self.systemImage = systemImage
         self.menu = menu
         self.semanticValue = semanticValue
+        self.showsTitle = showsTitle
         self.showsTrailingClear = showsTrailingClear
     }
 }
@@ -135,9 +138,30 @@ struct TaskEditorRenderedChip: Identifiable {
     let title: String
     let systemImage: String
     let menu: TaskEditorMenu
+    let showsTitle: Bool
     let showsTrailingClear: Bool
     let transitionDirection: TaskEditorChipTextTransitionDirection
     let semanticValue: TaskEditorChipSemanticValue
+
+    init(
+        id: String,
+        title: String,
+        systemImage: String,
+        menu: TaskEditorMenu,
+        showsTitle: Bool = true,
+        showsTrailingClear: Bool,
+        transitionDirection: TaskEditorChipTextTransitionDirection,
+        semanticValue: TaskEditorChipSemanticValue
+    ) {
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.menu = menu
+        self.showsTitle = showsTitle
+        self.showsTrailingClear = showsTrailingClear
+        self.transitionDirection = transitionDirection
+        self.semanticValue = semanticValue
+    }
 }
 
 enum TaskEditorChipSemanticValue: Equatable {
@@ -145,10 +169,31 @@ enum TaskEditorChipSemanticValue: Equatable {
     case optionalDate(Date?)
     case time(Date?)
     case reminder(TimeInterval?)
-    case repeatRule(title: String, rank: Int)
+    case urgent(Bool)
     case subtasks(Int)
     case periodicReminder(Bool)
     case periodicCycle(PeriodicCycle)
+
+    var hasConfiguredValue: Bool {
+        switch self {
+        case .date:
+            return true
+        case let .optionalDate(value):
+            return value != nil
+        case let .time(value):
+            return value != nil
+        case let .reminder(value):
+            return value != nil
+        case let .urgent(value):
+            return value
+        case let .subtasks(count):
+            return count > 0
+        case let .periodicReminder(value):
+            return value
+        case .periodicCycle:
+            return true
+        }
+    }
 
     static func direction(
         from previousValue: TaskEditorChipSemanticValue,
@@ -167,8 +212,8 @@ enum TaskEditorChipSemanticValue: Equatable {
             return compare(date: oldDate, with: newDate)
         case let (.reminder(oldOffset), .reminder(newOffset)):
             return compare(value: oldOffset, with: newOffset)
-        case let (.repeatRule(_, oldRank), .repeatRule(_, newRank)):
-            return newRank >= oldRank ? .up : .down
+        case let (.urgent(oldValue), .urgent(newValue)):
+            return newValue && oldValue == false ? .up : .down
         case let (.subtasks(oldCount), .subtasks(newCount)):
             return newCount >= oldCount ? .up : .down
         default:
@@ -250,81 +295,126 @@ struct TaskEditorChipRow: View {
     let chips: [TaskEditorRenderedChip]
     let namespace: Namespace.ID
     let trailingInset: CGFloat
+    var allowsHorizontalScrolling = true
     let onChipTap: (TaskEditorMenu) -> Void
     let onClearTap: (TaskEditorRenderedChip) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: AppTheme.spacing.sm) {
-                ForEach(chips) { chip in
-                    HStack(spacing: chip.showsTrailingClear ? AppTheme.spacing.xs : AppTheme.spacing.xxs) {
-                        Button {
-                            onChipTap(chip.menu)
-                        } label: {
-                            HStack(spacing: AppTheme.spacing.xxs) {
-                                TaskEditorAnimatedChipIcon(
-                                    systemImage: chip.systemImage,
-                                    menu: chip.menu,
-                                    semanticValue: chip.semanticValue,
-                                    font: AppTheme.typography.sized(14, weight: .semibold)
-                                )
-
-                                TaskEditorAnimatedChipTitle(
-                                    text: chip.title,
-                                    semanticValue: chip.semanticValue,
-                                    direction: chip.transitionDirection,
-                                    font: AppTheme.typography.sized(14, weight: .semibold),
-                                    uiFont: AppTheme.typography.sizedUIFont(14, weight: .semibold)
-                                )
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(TaskEditorChipButtonStyle())
-
-                        if chip.showsTrailingClear {
-                            Image(systemName: "xmark")
-                                .font(AppTheme.typography.sized(11, weight: .bold))
-                                .frame(width: 16, height: 16)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.84))
-                    .padding(.horizontal, 13) // intentional — between sm(10) and md(16)
-                    .padding(.vertical, AppTheme.spacing.xs)
-                    .modifier(
-                        TaskEditorChipSurfaceModifier(
-                            animationID: chip.id,
-                            namespace: namespace
-                        )
-                    )
-                    .overlay(alignment: .trailing) {
-                        if chip.showsTrailingClear {
-                            Button {
-                                onClearTap(chip)
-                            } label: {
-                                Color.clear
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .offset(x: 14)
-                            .accessibilityLabel("清除")
-                        }
-                    }
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .offset(x: 10)),
-                            removal: .opacity.combined(with: .offset(x: -10))
-                        )
-                    )
+        Group {
+            if allowsHorizontalScrolling {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    chipStack
                 }
+                .scrollIndicators(.hidden)
+            } else {
+                chipStack
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.trailing, trailingInset)
-            .padding(.vertical, AppTheme.spacing.xxs) // 2→4
-            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: chips.map(\.id).joined(separator: "|"))
         }
-        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var chipStack: some View {
+        HStack(spacing: AppTheme.spacing.sm) {
+            ForEach(chips) { chip in
+                chipView(chip)
+            }
+        }
+        .padding(.trailing, trailingInset)
+        .padding(.vertical, AppTheme.spacing.xxs)
+        .animation(.spring(response: 0.3, dampingFraction: 0.86), value: chipLayoutKey)
+    }
+
+    private func chipView(_ chip: TaskEditorRenderedChip) -> some View {
+        HStack(spacing: chip.showsTrailingClear ? AppTheme.spacing.xs : AppTheme.spacing.xxs) {
+            Button {
+                onChipTap(chip.menu)
+            } label: {
+                HStack(spacing: AppTheme.spacing.xxs) {
+                    TaskEditorAnimatedChipIcon(
+                        systemImage: chip.systemImage,
+                        menu: chip.menu,
+                        semanticValue: chip.semanticValue,
+                        font: AppTheme.typography.sized(14, weight: .semibold)
+                    )
+
+                    if chip.showsTitle {
+                        chipTitle(chip)
+                            .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .leading)))
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(TaskEditorChipButtonStyle())
+            .accessibilityLabel(chip.showsTitle ? chip.title : chip.menu.accessibilityTitle)
+
+            if chip.showsTrailingClear {
+                Image(systemName: "xmark")
+                    .font(AppTheme.typography.sized(11, weight: .bold))
+                    .frame(width: 16, height: 16)
+                    .accessibilityHidden(true)
+            }
+        }
+        .foregroundStyle(foregroundColor(for: chip))
+        .padding(.horizontal, 13)
+        .frame(minWidth: 44, minHeight: 44)
+        .modifier(
+            TaskEditorChipSurfaceModifier(
+                animationID: chip.id,
+                namespace: namespace
+            )
+        )
+        .overlay(alignment: .trailing) {
+            if chip.showsTrailingClear {
+                Button {
+                    onClearTap(chip)
+                } label: {
+                    Color.clear
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .offset(x: 14)
+                .accessibilityLabel("清除")
+            }
+        }
+        .layoutPriority(chip.showsTitle ? 1 : 0)
+        .transition(
+            .asymmetric(
+                insertion: .opacity.combined(with: .offset(x: 10)),
+                removal: .opacity.combined(with: .offset(x: -10))
+            )
+        )
+    }
+
+    @ViewBuilder
+    private func chipTitle(_ chip: TaskEditorRenderedChip) -> some View {
+        if allowsHorizontalScrolling {
+            TaskEditorAnimatedChipTitle(
+                text: chip.title,
+                semanticValue: chip.semanticValue,
+                direction: chip.transitionDirection,
+                font: AppTheme.typography.sized(14, weight: .semibold),
+                uiFont: AppTheme.typography.sizedUIFont(14, weight: .semibold)
+            )
+        } else {
+            Text(chip.title)
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .allowsTightening(true)
+        }
+    }
+
+    private func foregroundColor(for chip: TaskEditorRenderedChip) -> Color {
+        if case .urgent(true) = chip.semanticValue {
+            return AppTheme.colors.coral
+        }
+        return AppTheme.colors.body.opacity(0.84)
+    }
+
+    private var chipLayoutKey: String {
+        chips.map { "\($0.id):\($0.showsTitle)" }.joined(separator: "|")
     }
 }
 
@@ -637,6 +727,7 @@ struct TaskEditorSettingsSheet<Content: View>: View {
     let onCancel: () -> Void
     let onConfirm: () -> Void
     let onMenuTap: ((TaskEditorMenu) -> Bool)?
+    let emphasizedMenus: Set<TaskEditorMenu>
     let titleTrailingAccessory: AnyView?
     let menuPresentation: (TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation
     @ViewBuilder let content: (TaskEditorMenu) -> Content
@@ -653,6 +744,7 @@ struct TaskEditorSettingsSheet<Content: View>: View {
         onCancel: @escaping () -> Void,
         onConfirm: @escaping () -> Void,
         onMenuTap: ((TaskEditorMenu) -> Bool)? = nil,
+        emphasizedMenus: Set<TaskEditorMenu> = [],
         titleTrailingAccessory: AnyView? = nil,
         menuPresentation: @escaping (TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation = {
             .icon(systemImage: $0.systemImage, accessibilityTitle: $0.accessibilityTitle)
@@ -667,6 +759,7 @@ struct TaskEditorSettingsSheet<Content: View>: View {
         self.onCancel = onCancel
         self.onConfirm = onConfirm
         self.onMenuTap = onMenuTap
+        self.emphasizedMenus = emphasizedMenus
         self.titleTrailingAccessory = titleTrailingAccessory
         self.menuPresentation = menuPresentation
         self.content = content
@@ -693,6 +786,7 @@ struct TaskEditorSettingsSheet<Content: View>: View {
                 menus: menus,
                 activeMenu: activeMenu,
                 disabledMenus: disabledMenus,
+                emphasizedMenus: emphasizedMenus,
                 presentation: menuPresentation
             ) { nextMenu in
                 if onMenuTap?(nextMenu) == true { return }
@@ -802,6 +896,9 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
     let context: TaskEditorMenuContext
     @Binding var activeMenu: TaskEditorMenu
     let disabledMenus: Set<TaskEditorMenu>
+    let actionMenus: Set<TaskEditorMenu>
+    let emphasizedMenus: Set<TaskEditorMenu>
+    let onMenuAction: ((TaskEditorMenu) -> Void)?
     let selectionFeedback: () -> Void
     let headerTitle: String?
     let switcherPlacement: TaskEditorMenuSwitcherPlacement
@@ -816,6 +913,9 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
         context: TaskEditorMenuContext,
         activeMenu: Binding<TaskEditorMenu>,
         disabledMenus: Set<TaskEditorMenu> = [],
+        actionMenus: Set<TaskEditorMenu> = [],
+        emphasizedMenus: Set<TaskEditorMenu> = [],
+        onMenuAction: ((TaskEditorMenu) -> Void)? = nil,
         selectionFeedback: @escaping () -> Void,
         headerTitle: String? = nil,
         switcherPlacement: TaskEditorMenuSwitcherPlacement = .top,
@@ -826,6 +926,9 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
         self.context = context
         _activeMenu = activeMenu
         self.disabledMenus = disabledMenus
+        self.actionMenus = actionMenus
+        self.emphasizedMenus = emphasizedMenus
+        self.onMenuAction = onMenuAction
         self.selectionFeedback = selectionFeedback
         self.headerTitle = headerTitle
         self.switcherPlacement = switcherPlacement
@@ -884,10 +987,17 @@ struct TaskEditorUnifiedMenuSheet<Content: View>: View {
             menus: context.menus,
             activeMenu: activeMenu,
             disabledMenus: disabledMenus,
+            emphasizedMenus: emphasizedMenus,
             presentation: { menu in
                 .icon(systemImage: menu.systemImage, accessibilityTitle: menu.accessibilityTitle)
             },
             onSelect: { nextMenu in
+                if actionMenus.contains(nextMenu) {
+                    guard disabledMenus.contains(nextMenu) == false else { return }
+                    selectionFeedback()
+                    onMenuAction?(nextMenu)
+                    return
+                }
                 guard nextMenu != activeMenu else { return }
                 guard disabledMenus.contains(nextMenu) == false else { return }
                 transitionDirection = transitionDirectionForMenuChange(to: nextMenu)
@@ -1005,6 +1115,7 @@ private struct TaskEditorMenuSwitcher: View {
     let menus: [TaskEditorMenu]
     let activeMenu: TaskEditorMenu
     let disabledMenus: Set<TaskEditorMenu>
+    let emphasizedMenus: Set<TaskEditorMenu>
     let presentation: (TaskEditorMenu) -> TaskEditorMenuSwitcherPresentation
     let onSelect: (TaskEditorMenu) -> Void
 
@@ -1016,12 +1127,15 @@ private struct TaskEditorMenuSwitcher: View {
         HStack(spacing: AppTheme.spacing.sm) {
             ForEach(menus) { menu in
                 let itemPresentation = presentation(menu)
+                let displayedSystemImage = menu == .urgent && emphasizedMenus.contains(menu)
+                    ? "flag.fill"
+                    : itemPresentation.systemImage
                 Button {
                     triggerSymbolEffect(for: menu)
                     onSelect(menu)
                 } label: {
                     ZStack {
-                        if let systemImage = itemPresentation.systemImage {
+                        if let systemImage = displayedSystemImage {
                             Image(systemName: systemImage)
                                 .font(AppTheme.typography.sized(18, weight: .semibold))
                                 .transition(.opacity.combined(with: .scale(scale: 0.88)))
@@ -1049,13 +1163,7 @@ private struct TaskEditorMenuSwitcher: View {
                     .background {
                         if activeMenu == menu {
                             Capsule(style: .continuous)
-                                .fill(AppTheme.colors.pillSurface)
-                        }
-                    }
-                    .overlay {
-                        if activeMenu == menu {
-                            Capsule(style: .continuous)
-                                .stroke(AppTheme.colors.pillOutline, lineWidth: 1)
+                                .fill(AppTheme.colors.surfaceElevated.opacity(0.72))
                         }
                     }
                     .contentShape(Capsule(style: .continuous))
@@ -1071,7 +1179,7 @@ private struct TaskEditorMenuSwitcher: View {
 
     private func triggerSymbolEffect(for menu: TaskEditorMenu) {
         switch menu {
-        case .time, .repeatRule, .periodicCycle:
+        case .time, .periodicCycle:
             lastRotatedMenu = menu
             rotateTrigger += 1
         case .reminder, .periodicReminder:
@@ -1085,7 +1193,10 @@ private struct TaskEditorMenuSwitcher: View {
         if disabledMenus.contains(menu) {
             return AppTheme.colors.body.opacity(0.35)
         }
-        return activeMenu == menu ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.72)
+        if emphasizedMenus.contains(menu) {
+            return AppTheme.colors.coral
+        }
+        return activeMenu == menu ? AppTheme.colors.sky : AppTheme.colors.body.opacity(0.72)
     }
 }
 
@@ -2454,63 +2565,6 @@ enum TaskEditorReminderPreset: CaseIterable, Identifiable {
     }
 }
 
-enum TaskEditorRepeatPreset: CaseIterable, Identifiable {
-    case daily
-    case weekly
-    case monthly
-    case weekdays
-    case biweekly
-    case quarterly
-    case halfYear
-
-    var id: String { String(describing: self) }
-
-    func title(anchorDate: Date) -> String {
-        makeRule(anchorDate: anchorDate).title(anchorDate: anchorDate)
-    }
-
-    func makeRule(anchorDate: Date) -> ItemRepeatRule {
-        let calendar = Calendar.current
-        switch self {
-        case .daily:
-            return ItemRepeatRule(frequency: .daily)
-        case .weekly:
-            return ItemRepeatRule(
-                frequency: .weekly,
-                weekday: calendar.component(.weekday, from: anchorDate)
-            )
-        case .monthly:
-            return ItemRepeatRule(
-                frequency: .monthly,
-                dayOfMonth: calendar.component(.day, from: anchorDate)
-            )
-        case .weekdays:
-            return ItemRepeatRule(
-                frequency: .weekly,
-                weekdays: [2, 3, 4, 5, 6]
-            )
-        case .biweekly:
-            return ItemRepeatRule(
-                frequency: .weekly,
-                interval: 2,
-                weekday: calendar.component(.weekday, from: anchorDate)
-            )
-        case .quarterly:
-            return ItemRepeatRule(
-                frequency: .monthly,
-                interval: 3,
-                dayOfMonth: calendar.component(.day, from: anchorDate)
-            )
-        case .halfYear:
-            return ItemRepeatRule(
-                frequency: .monthly,
-                interval: 6,
-                dayOfMonth: calendar.component(.day, from: anchorDate)
-            )
-        }
-    }
-}
-
 struct TaskEditorMenuPresentationSizingModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
@@ -2846,7 +2900,7 @@ private struct TaskEditorChipTextLayout: Equatable {
             }
         case let .time(date):
             segments = Self.timeSegments(for: date, placeholder: text)
-        case .reminder, .periodicReminder, .periodicCycle, .repeatRule, .subtasks:
+        case .reminder, .urgent, .periodicReminder, .periodicCycle, .subtasks:
             segments = [TaskEditorChipTextSegment(id: "main", text: text, kind: .text)]
         }
     }
@@ -3044,9 +3098,7 @@ private struct TaskEditorAnimatedChipTitle: View {
         switch semanticValue {
         case .date, .optionalDate, .time, .reminder, .periodicReminder:
             return .numeric
-        case .repeatRule:
-            return .numeric
-        case .subtasks:
+        case .urgent, .subtasks:
             return .interpolated
         case .periodicCycle:
             return .interpolated
@@ -3087,9 +3139,9 @@ private struct TaskEditorAnimatedChipTitle: View {
 
     private static func usesNumericTransition(for semanticValue: TaskEditorChipSemanticValue) -> Bool {
         switch semanticValue {
-        case .date, .optionalDate, .time, .reminder, .periodicReminder, .repeatRule:
+        case .date, .optionalDate, .time, .reminder, .periodicReminder:
             return true
-        case .subtasks, .periodicCycle:
+        case .urgent, .subtasks, .periodicCycle:
             return false
         }
     }
@@ -3140,11 +3192,11 @@ private struct TaskEditorAnimatedChipIcon: View {
 
     private var effectKind: TaskEditorChipIconEffectKind {
         switch menu {
-        case .time, .repeatRule, .periodicCycle:
+        case .time, .periodicCycle:
             return .rotate
         case .reminder, .periodicReminder:
             return .wiggle
-        case .date, .subtasks, .template:
+        case .date, .urgent, .subtasks, .template:
             return .none
         }
     }

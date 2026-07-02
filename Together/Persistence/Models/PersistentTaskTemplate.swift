@@ -60,11 +60,11 @@ extension PersistentTaskTemplate {
             notes: template.notes,
             listID: template.listID,
             projectID: template.projectID,
-            isPinned: template.isPinned,
+            isPinned: template.isUrgent,
             hasExplicitTime: template.hasExplicitTime,
             timeData: Self.encode(template.time),
             reminderOffset: template.reminderOffset,
-            repeatRuleData: Self.encode(template.repeatRule),
+            repeatRuleData: nil,
             subtasksData: Self.encode(template.subtasks),
             createdAt: template.createdAt,
             updatedAt: template.updatedAt
@@ -79,11 +79,10 @@ extension PersistentTaskTemplate {
             notes: notes,
             listID: listID,
             projectID: projectID,
-            isPinned: isPinned,
+            isUrgent: isPinned,
             hasExplicitTime: hasExplicitTime,
             time: Self.decode(timeData, defaultValue: nil),
             reminderOffset: reminderOffset,
-            repeatRule: Self.decode(repeatRuleData, defaultValue: nil),
             subtasks: Self.decode(subtasksData, defaultValue: []),
             createdAt: createdAt,
             updatedAt: updatedAt
@@ -96,11 +95,11 @@ extension PersistentTaskTemplate {
         notes = template.notes
         listID = template.listID
         projectID = template.projectID
-        isPinned = template.isPinned
+        isPinned = template.isUrgent
         hasExplicitTime = template.hasExplicitTime
         timeData = Self.encode(template.time)
         reminderOffset = template.reminderOffset
-        repeatRuleData = Self.encode(template.repeatRule)
+        repeatRuleData = nil
         subtasksData = Self.encode(template.subtasks)
         updatedAt = template.updatedAt
     }

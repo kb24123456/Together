@@ -327,19 +327,6 @@ actor LocalItemRepository: ItemRepositoryProtocol {
     func saveItem(_ item: Item) async throws -> Item {
         let context = ModelContext(container)
 
-        if item.isPinned, let spaceID = item.spaceID {
-            let pinnedDescriptor = FetchDescriptor<PersistentItem>(
-                predicate: #Predicate<PersistentItem> { $0.spaceID == spaceID },
-                sortBy: [SortDescriptor(\PersistentItem.updatedAt, order: .reverse)]
-            )
-            let records = try context.fetch(pinnedDescriptor)
-            for record in records {
-                if record.id != item.id {
-                    record.isPinned = false
-                }
-            }
-        }
-
         var savedItem = item
         savedItem.updatedAt = .now
 

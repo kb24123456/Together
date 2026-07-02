@@ -80,9 +80,6 @@ struct CalendarView: View {
     private func trailingText(for item: Item) -> String? {
         guard let dueAt = item.dueAt else { return nil }
         guard item.hasExplicitTime else {
-            if let repeatRule = item.repeatRule {
-                return repeatRule.title(anchorDate: item.anchorDateForRepeatRule, calendar: .current)
-            }
             return "未设时间"
         }
         return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))

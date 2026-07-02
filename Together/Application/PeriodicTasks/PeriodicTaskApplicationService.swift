@@ -58,9 +58,12 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
             throw PeriodicTaskError.notFound
         }
 
-        guard SoloPermissionService.canEditPeriodicTask(task, actorID: actorID) else {
-            throw PermissionError.notCreator
-        }
+        // Periodic tasks are personal data in the current single-user model. Older
+        // records can retain a previous local identity after account restoration,
+        // so creatorID is not a valid authorization boundary here. The active
+        // space remains the boundary and prevents cross-space mutation.
+        guard task.spaceID == spaceID else { throw PeriodicTaskError.notFound }
+        _ = actorID
 
         task.title = draft.title
         task.notes = draft.notes

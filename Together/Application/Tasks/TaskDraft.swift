@@ -9,9 +9,8 @@ struct TaskDraft: Hashable, Sendable {
     var hasExplicitTime: Bool
     var remindAt: Date?
     var status: ItemStatus
-    var isPinned: Bool
+    var isUrgent: Bool
     var isDraft: Bool
-    var repeatRule: ItemRepeatRule?
     var subtasks: [TaskSubtaskDraft]
 
     nonisolated init(
@@ -23,9 +22,8 @@ struct TaskDraft: Hashable, Sendable {
         hasExplicitTime: Bool = false,
         remindAt: Date? = nil,
         status: ItemStatus = .inProgress,
-        isPinned: Bool = false,
+        isUrgent: Bool = false,
         isDraft: Bool = false,
-        repeatRule: ItemRepeatRule? = nil,
         subtasks: [TaskSubtaskDraft] = []
     ) {
         self.title = title
@@ -36,9 +34,8 @@ struct TaskDraft: Hashable, Sendable {
         self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
         self.status = status
-        self.isPinned = isPinned
+        self.isUrgent = isUrgent
         self.isDraft = isDraft
-        self.repeatRule = repeatRule
         self.subtasks = subtasks
     }
 }
@@ -54,9 +51,8 @@ extension TaskDraft {
             hasExplicitTime: item.hasExplicitTime,
             remindAt: item.remindAt,
             status: item.status,
-            isPinned: item.isPinned,
+            isUrgent: item.isUrgent,
             isDraft: item.isDraft,
-            repeatRule: item.repeatRule,
             subtasks: item.subtasks.map {
                 TaskSubtaskDraft(
                     id: $0.id,

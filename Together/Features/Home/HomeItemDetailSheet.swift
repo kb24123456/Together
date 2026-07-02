@@ -689,14 +689,11 @@ struct HomeItemDetailSheet: View {
                 semanticValue: .reminder(reminderOffset)
             ),
             TaskEditorChipSnapshot(
-                id: TaskEditorMenu.repeatRule.rawValue,
-                title: repeatTitle,
-                systemImage: "arrow.triangle.2.circlepath",
-                menu: .repeatRule,
-                semanticValue: .repeatRule(
-                    title: repeatTitle,
-                    rank: viewModel.detailDraft?.repeatRule?.animationRank ?? 0
-                )
+                id: TaskEditorMenu.urgent.rawValue,
+                title: "紧急",
+                systemImage: viewModel.detailDraft?.isUrgent == true ? "flag.fill" : "flag",
+                menu: .urgent,
+                semanticValue: .urgent(viewModel.detailDraft?.isUrgent == true)
             ),
             TaskEditorChipSnapshot(
                 id: TaskEditorMenu.subtasks.rawValue,
@@ -731,16 +728,6 @@ struct HomeItemDetailSheet: View {
 
         let delta = dueAt.timeIntervalSince(remindAt)
         return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
-    }
-
-    private var repeatTitle: String {
-        guard
-            let rule = viewModel.detailDraft?.repeatRule,
-            let dueAt = viewModel.detailDraft?.dueAt
-        else {
-            return "不重复"
-        }
-        return rule.title(anchorDate: dueAt, calendar: .current)
     }
 
     private var subtaskTitle: String {
@@ -822,7 +809,7 @@ struct HomeItemDetailSheet: View {
 
     private var statusDateText: String {
         if
-            let rule = viewModel.detailDraft?.repeatRule,
+            let rule = viewModel.selectedItem?.repeatRule,
             let dueAt = viewModel.detailDraft?.dueAt
         {
             return rule.title(anchorDate: dueAt, calendar: .current)
@@ -853,7 +840,7 @@ struct HomeItemDetailSheet: View {
            item.isCompleted(on: viewModel.selectedDate, calendar: .current) || item.status == .completed {
             return "已完成"
         }
-        if viewModel.detailDraft?.repeatRule != nil {
+        if viewModel.selectedItem?.repeatRule != nil {
             return recurringStatusLabelText
         }
         if
@@ -1252,7 +1239,7 @@ private enum HomeDetailMenu: String, Identifiable {
     case date
     case time
     case reminder
-    case repeatRule
+    case urgent
 
     var id: String { rawValue }
 
@@ -1262,7 +1249,7 @@ private enum HomeDetailMenu: String, Identifiable {
             return [.custom(HomeDetailDateMenuDetent.self)]
         case .time:
             return [.custom(TaskEditorTaskMenuDetent.self)]
-        case .reminder, .repeatRule:
+        case .reminder, .urgent:
             return [.custom(TaskEditorTaskMenuDetent.self)]
         }
     }
@@ -1291,12 +1278,10 @@ struct HomeDetailMenuSheet: View {
     @State private var stagedDate: Date
     @State private var stagedTime: Date?
     @State private var stagedReminderOffset: TimeInterval?
-    @State private var stagedRepeatRule: ItemRepeatRule?
 
     @State private var didEditDate = false
     @State private var didEditTime = false
     @State private var didEditReminder = false
-    @State private var didEditRepeatRule = false
 
     init(
         context: TaskEditorMenuContext,
@@ -1327,7 +1312,6 @@ struct HomeDetailMenuSheet: View {
         _stagedDate = State(initialValue: initialDate)
         _stagedTime = State(initialValue: initialTime)
         _stagedReminderOffset = State(initialValue: Self.reminderOffset(for: draft, fallbackDate: initialDate))
-        _stagedRepeatRule = State(initialValue: draft?.repeatRule)
     }
 
     var body: some View {
@@ -1335,6 +1319,12 @@ struct HomeDetailMenuSheet: View {
             context: context,
             activeMenu: $activeMenu,
             disabledMenus: stagedDisabledMenus,
+            actionMenus: context == .task || context == .taskInline ? [.urgent] : [],
+            emphasizedMenus: viewModel.detailDraft?.isUrgent == true ? [.urgent] : [],
+            onMenuAction: { menu in
+                guard menu == .urgent else { return }
+                viewModel.updateDraftUrgent(viewModel.detailDraft?.isUrgent != true)
+            },
             selectionFeedback: HomeInteractionFeedback.selection,
             switcherPlacement: .bottom,
             onClose: onDismiss,
@@ -1375,11 +1365,8 @@ struct HomeDetailMenuSheet: View {
                     didEditReminder = true
                 }
             )
-        case .repeatRule:
-            TaskEditorOptionList(
-                options: repeatOptions,
-                selectionFeedback: HomeInteractionFeedback.selection
-            )
+        case .urgent:
+            EmptyView()
         case .subtasks:
             HomeDetailTaskSubtasksPanel(viewModel: viewModel)
         case .template:
@@ -1409,21 +1396,6 @@ struct HomeDetailMenuSheet: View {
             ) {
                 stagedReminderOffset = preset.secondsBeforeTarget
                 didEditReminder = true
-            }
-        }
-    }
-
-    private var repeatOptions: [TaskEditorOptionRow] {
-        let anchorDate = stagedDate
-        let selectedTitle = stagedRepeatRule?.title(anchorDate: anchorDate, calendar: .current) ?? "不重复"
-        return [TaskEditorOptionRow(title: "不重复", isSelected: stagedRepeatRule == nil) {
-            stagedRepeatRule = nil
-            didEditRepeatRule = true
-        }] + TaskEditorRepeatPreset.allCases.map { preset in
-            let title = preset.title(anchorDate: anchorDate)
-            return TaskEditorOptionRow(title: title, isSelected: selectedTitle == title) {
-                stagedRepeatRule = preset.makeRule(anchorDate: anchorDate)
-                didEditRepeatRule = true
             }
         }
     }
@@ -1469,13 +1441,6 @@ struct HomeDetailMenuSheet: View {
             } else {
                 viewModel.setDraftReminderEnabled(false)
             }
-        }
-
-        if didEditRepeatRule {
-            if stagedRepeatRule != nil, viewModel.detailDraft?.dueAt == nil, didEditDate == false, didEditTime == false {
-                ensureDueDateExists()
-            }
-            viewModel.updateDraftRepeatRule(stagedRepeatRule)
         }
 
         onDismiss()
@@ -2287,65 +2252,6 @@ private enum HomeDetailReminderPreset: CaseIterable, Identifiable {
         allCases.first { $0.secondsBeforeTarget == secondsBeforeTarget }
     }
 }
-
-private enum HomeDetailRepeatPreset: CaseIterable, Identifiable {
-    case daily
-    case weekly
-    case monthly
-    case weekdays
-    case biweekly
-    case quarterly
-    case halfYear
-
-    var id: String { String(describing: self) }
-
-    func title(anchorDate: Date) -> String {
-        makeRule(anchorDate: anchorDate).title(anchorDate: anchorDate)
-    }
-
-    func makeRule(anchorDate: Date) -> ItemRepeatRule {
-        let calendar = Calendar.current
-        switch self {
-        case .daily:
-            return ItemRepeatRule(frequency: .daily)
-        case .weekly:
-            return ItemRepeatRule(
-                frequency: .weekly,
-                weekday: calendar.component(.weekday, from: anchorDate)
-            )
-        case .monthly:
-            return ItemRepeatRule(
-                frequency: .monthly,
-                dayOfMonth: calendar.component(.day, from: anchorDate)
-            )
-        case .weekdays:
-            return ItemRepeatRule(
-                frequency: .weekly,
-                weekdays: [2, 3, 4, 5, 6]
-            )
-        case .biweekly:
-            return ItemRepeatRule(
-                frequency: .weekly,
-                interval: 2,
-                weekday: calendar.component(.weekday, from: anchorDate)
-            )
-        case .quarterly:
-            return ItemRepeatRule(
-                frequency: .monthly,
-                interval: 3,
-                dayOfMonth: calendar.component(.day, from: anchorDate)
-            )
-        case .halfYear:
-            return ItemRepeatRule(
-                frequency: .monthly,
-                interval: 6,
-                dayOfMonth: calendar.component(.day, from: anchorDate)
-            )
-        }
-    }
-}
-
-
 
 private struct HomeDetailMenuOptionGlassModifier: ViewModifier {
     func body(content: Content) -> some View {

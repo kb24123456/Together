@@ -196,7 +196,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
             var copy = item
             copy.isArchived = true
             copy.archivedAt = referenceDate
-            copy.isPinned = false
+            copy.isUrgent = false
             didArchiveItems = true
             return copy
         }
@@ -285,16 +285,6 @@ final class MockItemRepository: ItemRepositoryProtocol {
     }
 
     func saveItem(_ item: Item) async throws -> Item {
-        if item.isPinned {
-            items = items.map { existing in
-                var copy = existing
-                if existing.spaceID == item.spaceID {
-                    copy.isPinned = existing.id == item.id
-                }
-                return copy
-            }
-        }
-
         var updatedItem = item
         updatedItem.updatedAt = MockDataFactory.now
         if let index = items.firstIndex(where: { $0.id == item.id }) {

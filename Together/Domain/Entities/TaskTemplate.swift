@@ -56,11 +56,10 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
     var notes: String?
     var listID: UUID?
     var projectID: UUID?
-    var isPinned: Bool
+    var isUrgent: Bool
     var hasExplicitTime: Bool
     var time: TaskTemplateClockTime?
     var reminderOffset: TimeInterval?
-    var repeatRule: ItemRepeatRule?
     var subtasks: [TaskSubtaskDraft]
     let createdAt: Date
     var updatedAt: Date
@@ -72,11 +71,10 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         notes: String? = nil,
         listID: UUID? = nil,
         projectID: UUID? = nil,
-        isPinned: Bool = false,
+        isUrgent: Bool = false,
         hasExplicitTime: Bool = false,
         time: TaskTemplateClockTime? = nil,
         reminderOffset: TimeInterval? = nil,
-        repeatRule: ItemRepeatRule? = nil,
         subtasks: [TaskSubtaskDraft] = [],
         createdAt: Date = .now,
         updatedAt: Date = .now
@@ -87,11 +85,10 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         self.notes = notes
         self.listID = listID
         self.projectID = projectID
-        self.isPinned = isPinned
+        self.isUrgent = isUrgent
         self.hasExplicitTime = hasExplicitTime
         self.time = time
         self.reminderOffset = reminderOffset
-        self.repeatRule = repeatRule
         self.subtasks = subtasks
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -126,11 +123,10 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
             notes: trimmedNotes?.isEmpty == true ? nil : trimmedNotes,
             listID: draft.listID,
             projectID: draft.projectID,
-            isPinned: draft.isPinned,
+            isUrgent: draft.isUrgent,
             hasExplicitTime: draft.hasExplicitTime,
             time: resolvedTime,
             reminderOffset: reminderOffset,
-            repeatRule: draft.repeatRule,
             subtasks: draft.subtasks,
             createdAt: createdAt,
             updatedAt: createdAt
@@ -157,8 +153,7 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
             dueAt: dueAt,
             hasExplicitTime: hasExplicitTime,
             remindAt: remindAt,
-            isPinned: isPinned,
-            repeatRule: repeatRule,
+            isUrgent: isUrgent,
             subtasks: subtasks
         )
     }
@@ -168,11 +163,10 @@ struct TaskTemplate: Identifiable, Hashable, Sendable, Codable {
         && notes == other.notes
         && listID == other.listID
         && projectID == other.projectID
-        && isPinned == other.isPinned
+        && isUrgent == other.isUrgent
         && hasExplicitTime == other.hasExplicitTime
         && time == other.time
         && reminderOffset == other.reminderOffset
-        && repeatRule == other.repeatRule
         && subtasks == other.subtasks
     }
 

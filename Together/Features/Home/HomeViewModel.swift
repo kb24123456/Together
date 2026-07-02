@@ -28,12 +28,11 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let notes: String?
     let timeText: String
     let reminderText: String
-    let repeatText: String
     let statusText: String
-    let accentColorName: String
+    let isUrgent: Bool
     let isMuted: Bool
     let isCompleted: Bool
-    let urgency: HomeTimelineUrgency
+    let timingUrgency: HomeTimelineTimingUrgency
     let relationText: String?
     let primaryAvatar: HomeAvatar?
     let secondaryAvatar: HomeAvatar?
@@ -60,7 +59,7 @@ struct HomeOverdueEntry: Identifiable, Hashable {
     let timeText: String
 }
 
-enum HomeTimelineUrgency: Hashable {
+enum HomeTimelineTimingUrgency: Hashable {
     case normal
     case imminent
     case overdue
@@ -625,12 +624,8 @@ final class HomeViewModel {
         detailDraft?.remindAt = remindAt
     }
 
-    func updateDraftPinned(_ isPinned: Bool) {
-        detailDraft?.isPinned = isPinned
-    }
-
-    func updateDraftRepeatRule(_ rule: ItemRepeatRule?) {
-        detailDraft?.repeatRule = rule
+    func updateDraftUrgent(_ isUrgent: Bool) {
+        detailDraft?.isUrgent = isUrgent
     }
 
     func addDetailDraftSubtask(title: String) {
@@ -774,30 +769,28 @@ final class HomeViewModel {
         }
     }
 
-    func updateDraftRepeatRule(_ frequency: ItemRepeatFrequency?) {
-        guard var draft = detailDraft else { return }
-        guard let frequency else {
-            updateDraftRepeatRule(nil as ItemRepeatRule?)
-            return
-        }
+    func setItemUrgent(_ itemID: UUID, isUrgent: Bool) async {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id,
+            let item = item(for: itemID)
+        else { return }
 
-        let anchor = draft.dueAt ?? selectedDate
-        switch frequency {
-        case .daily:
-            draft.repeatRule = ItemRepeatRule(frequency: .daily)
-        case .weekly:
-            draft.repeatRule = ItemRepeatRule(
-                frequency: .weekly,
-                weekday: calendar.component(.weekday, from: anchor)
-            )
-        case .monthly:
-            draft.repeatRule = ItemRepeatRule(
-                frequency: .monthly,
-                dayOfMonth: calendar.component(.day, from: anchor)
-            )
-        }
+        var draft = TaskDraft(item: item)
+        draft.isUrgent = isUrgent
 
-        detailDraft = draft
+        do {
+            let saved = try await taskApplicationService.updateTask(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID,
+                draft: draft
+            )
+            withAnimation(.smooth(duration: 0.2)) {
+                replaceItemPreservingOrder(saved)
+            }
+            emitTaskMutation(spaceID: spaceID)
+        } catch {}
     }
 
     func completeItem(_ itemID: UUID, trigger: CompletionTrigger = .inlineControl) async {
@@ -1317,26 +1310,8 @@ final class HomeViewModel {
         return "提醒"
     }
 
-    private func timelineRepeatText(for item: Item, isCompleted: Bool) -> String {
-        guard isCompleted == false,
-              let repeatRule = item.repeatRule
-        else { return "" }
-        let anchor = item.occurrenceDueDate(on: selectedDate, calendar: calendar)
-            ?? item.dueAt
-            ?? selectedDate
-        return repeatRule.title(anchorDate: anchor, calendar: calendar)
-    }
-
     private func completionTimestamp(for item: Item) -> Date? {
         item.completionDate(on: selectedDate, calendar: calendar) ?? item.completedAt
-    }
-
-    private func accentColorName(for item: Item) -> String {
-        if item.isPinned {
-            return "coral"
-        }
-
-        return "neutral"
     }
 
     private var visibleTimelineItems: [Item] {
@@ -1458,6 +1433,17 @@ final class HomeViewModel {
     }
 
     private func timelineItemSortPrecedes(_ lhs: Item, _ rhs: Item) -> Bool {
+        if lhs.isUrgent != rhs.isUrgent {
+            return lhs.isUrgent && rhs.isUrgent == false
+        }
+
+        if lhs.isUrgent, rhs.isUrgent {
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt < rhs.createdAt
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
         let lhsDueAt = timelineSortDate(for: lhs)
         let rhsDueAt = timelineSortDate(for: rhs)
         if lhsDueAt != rhsDueAt {
@@ -1514,7 +1500,7 @@ final class HomeViewModel {
         return true
     }
 
-    private func urgency(for item: Item, isCompleted: Bool) -> HomeTimelineUrgency {
+    private func timingUrgency(for item: Item, isCompleted: Bool) -> HomeTimelineTimingUrgency {
         guard isCompleted == false else { return .normal }
         guard sessionStore.currentUser?.preferences.taskReminderEnabled ?? true else {
             return .normal
@@ -1580,12 +1566,11 @@ final class HomeViewModel {
             notes: item.notes,
             timeText: timelineTimeText(for: item, isCompleted: isCompleted),
             reminderText: timelineReminderText(for: item, isCompleted: isCompleted),
-            repeatText: timelineRepeatText(for: item, isCompleted: isCompleted),
             statusText: statusText(for: item, isCompleted: isCompleted),
-            accentColorName: accentColorName(for: item),
+            isUrgent: item.isUrgent,
             isMuted: isCompleted,
             isCompleted: isCompleted,
-            urgency: urgency(for: item, isCompleted: isCompleted),
+            timingUrgency: timingUrgency(for: item, isCompleted: isCompleted),
             relationText: nil,
             primaryAvatar: nil,
             secondaryAvatar: nil,

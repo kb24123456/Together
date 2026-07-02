@@ -65,7 +65,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-3_600 * 4),
                 updatedAt: dayStart.addingTimeInterval(-3_600 * 4),
                 completedAt: nil,
-                isPinned: true,
+                isUrgent: true,
                 isDraft: false
             ),
             Item(
@@ -84,7 +84,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-86_400),
                 updatedAt: dayStart.addingTimeInterval(3_600 * 7 + 900),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             ),
             Item(
@@ -103,7 +103,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-43_200),
                 updatedAt: dayStart.addingTimeInterval(3_600 * 9 + 600),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             ),
             Item(
@@ -122,7 +122,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-21_600),
                 updatedAt: dayStart.addingTimeInterval(-18_000),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             ),
             Item(
@@ -141,7 +141,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-3_600),
                 updatedAt: dayStart.addingTimeInterval(-3_600),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             ),
             Item(
@@ -160,7 +160,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-7_200),
                 updatedAt: dayStart.addingTimeInterval(-7_200),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             ),
             Item(
@@ -179,7 +179,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-86_400 * 2),
                 updatedAt: dayStart.addingTimeInterval(-86_400),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             ),
             Item(
@@ -198,7 +198,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-86_400 * 55),
                 updatedAt: dayStart.addingTimeInterval(-86_400 * 35),
                 completedAt: dayStart.addingTimeInterval(-86_400 * 35),
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false,
                 isArchived: true,
                 archivedAt: dayStart.addingTimeInterval(-86_400 * 5)
@@ -221,7 +221,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-18_000),
                 updatedAt: dayStart.addingTimeInterval(3_600 * 11),
                 completedAt: nil,
-                isPinned: true,
+                isUrgent: true,
                 isDraft: false
             ),
             Item(
@@ -242,7 +242,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-12_000),
                 updatedAt: dayStart.addingTimeInterval(3_600 * 9),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             ),
             Item(
@@ -263,7 +263,7 @@ enum MockDataFactory {
                 createdAt: dayStart.addingTimeInterval(-20_000),
                 updatedAt: dayStart.addingTimeInterval(3_600 * 10),
                 completedAt: nil,
-                isPinned: false,
+                isUrgent: false,
                 isDraft: false
             )
         ]

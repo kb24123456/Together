@@ -353,8 +353,14 @@ struct RoutinesListContent: View {
                 try? await Task.sleep(for: .milliseconds(360))
             }
             guard collapsingTaskID == taskID else { return }
-            await viewModel.collapseInlineDetail()
+            let didCollapse = await viewModel.collapseInlineDetail()
             collapsingTaskID = nil
+            guard didCollapse == false else { return }
+
+            detailAnimationBatch += 1
+            withAnimation(focusAnimation) {
+                visualFocusTaskID = taskID
+            }
         }
     }
 

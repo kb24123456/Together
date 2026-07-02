@@ -109,7 +109,7 @@ extension PersistentItem {
             completedAt: item.completedAt,
             completedByUserID: item.completedByUserID,
             sortOrder: item.sortOrder,
-            isPinned: item.isPinned,
+            isPinned: item.isUrgent,
             isDraft: item.isDraft,
             isArchived: item.isArchived,
             archivedAt: item.archivedAt,
@@ -143,7 +143,7 @@ extension PersistentItem {
             occurrenceCompletions: occurrenceCompletions,
             subtasks: subtasks,
             sortOrder: sortOrder,
-            isPinned: isPinned,
+            isUrgent: isPinned,
             isDraft: isDraft,
             isArchived: isArchived,
             archivedAt: archivedAt,
@@ -168,7 +168,7 @@ extension PersistentItem {
         completedAt = item.repeatRule == nil ? item.completedAt : nil
         completedByUserID = item.completedByUserID
         sortOrder = item.sortOrder
-        isPinned = item.isPinned
+        isPinned = item.isUrgent
         isDraft = item.isDraft
         isArchived = item.isArchived
         archivedAt = item.archivedAt

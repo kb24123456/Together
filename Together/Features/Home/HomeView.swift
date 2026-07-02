@@ -27,6 +27,7 @@ struct HomeView: View {
     @State private var visualFocusItemID: UUID?
     @State private var collapsingInlineDetailID: UUID?
     @State private var inlineDetailAnimationBatch = 0
+    @State private var inlineNoteEditingItemID: UUID?
 
     private let weekPageBreathingGap: CGFloat = 0
     private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
@@ -78,6 +79,7 @@ struct HomeView: View {
         .onChange(of: viewModel.expandedDetailItemID) { _, expandedItemID in
             guard expandedItemID == nil else { return }
             visualFocusItemID = nil
+            inlineNoteEditingItemID = nil
             collapsingInlineDetailID = nil
         }
         .sheet(
@@ -955,7 +957,10 @@ struct HomeView: View {
                         titleMinimumScaleFactor: 0.68,
                         isDetailPresented: isDetailPresented,
                         isDetailExpanded: isDetailExpanded,
+                        isUrgent: isDetailPresented ? (viewModel.inlineDetailDraft?.isUrgent ?? entry.isUrgent) : entry.isUrgent,
                         expandedTitle: viewModel.inlineDetailDraft?.title ?? entry.title,
+                        expandedNotes: viewModel.inlineDetailDraft?.notes,
+                        isEditingNotes: inlineNoteEditingItemID == entry.itemID,
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -974,6 +979,24 @@ struct HomeView: View {
                         },
                         onUpdateTitle: { title in
                             viewModel.updateDraftTitle(title)
+                        },
+                        onUpdateNotes: { notes in
+                            viewModel.updateDraftNotes(notes)
+                        },
+                        onBeginNoteEditing: {
+                            inlineNoteEditingItemID = entry.itemID
+                        },
+                        onEndNoteEditing: {
+                            if inlineNoteEditingItemID == entry.itemID {
+                                inlineNoteEditingItemID = nil
+                            }
+                        },
+                        onToggleUrgent: {
+                            if isDetailPresented {
+                                viewModel.updateDraftUrgent(false)
+                            } else {
+                                Task { await viewModel.setItemUrgent(entry.itemID, isUrgent: false) }
+                            }
                         },
                         onInlineFocus: { target in
                             scrollToInlineFocus(target, itemID: entry.itemID, scrollProxy: scrollProxy)
@@ -988,7 +1011,10 @@ struct HomeView: View {
                         titleMinimumScaleFactor: 0.68,
                         isDetailPresented: isDetailPresented,
                         isDetailExpanded: isDetailExpanded,
+                        isUrgent: isDetailPresented ? (viewModel.inlineDetailDraft?.isUrgent ?? entry.isUrgent) : entry.isUrgent,
                         expandedTitle: viewModel.inlineDetailDraft?.title ?? entry.title,
+                        expandedNotes: viewModel.inlineDetailDraft?.notes,
+                        isEditingNotes: inlineNoteEditingItemID == entry.itemID,
                         onToggleCompletion: {
                             if entry.isCompleted {
                                 HomeInteractionFeedback.selection()
@@ -1007,6 +1033,24 @@ struct HomeView: View {
                         },
                         onUpdateTitle: { title in
                             viewModel.updateDraftTitle(title)
+                        },
+                        onUpdateNotes: { notes in
+                            viewModel.updateDraftNotes(notes)
+                        },
+                        onBeginNoteEditing: {
+                            inlineNoteEditingItemID = entry.itemID
+                        },
+                        onEndNoteEditing: {
+                            if inlineNoteEditingItemID == entry.itemID {
+                                inlineNoteEditingItemID = nil
+                            }
+                        },
+                        onToggleUrgent: {
+                            if isDetailPresented {
+                                viewModel.updateDraftUrgent(false)
+                            } else {
+                                Task { await viewModel.setItemUrgent(entry.itemID, isUrgent: false) }
+                            }
                         },
                         onInlineFocus: { target in
                             scrollToInlineFocus(target, itemID: entry.itemID, scrollProxy: scrollProxy)
@@ -1077,6 +1121,12 @@ struct HomeView: View {
                         viewModel: viewModel,
                         isExpanded: isDetailExpanded,
                         animationBatch: inlineDetailAnimationBatch,
+                        showsAddNote: (viewModel.inlineDetailDraft?.notes ?? "")
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .isEmpty && inlineNoteEditingItemID != entry.itemID,
+                        onAddNote: {
+                            inlineNoteEditingItemID = entry.itemID
+                        },
                         onOpenMenu: { menu in
                             activeInlineDetailMenu = menu
                         },
@@ -2164,7 +2214,7 @@ private enum HomeInlineFocusTarget: Hashable {
 }
 
 enum HomeTimelineSubtitleText {
-    static func text(for entry: HomeTimelineEntry) -> String {
+    static func propertyText(for entry: HomeTimelineEntry) -> String {
         var components: [String] = []
         if entry.timeText.isEmpty == false {
             components.append(entry.timeText)
@@ -2174,38 +2224,40 @@ enum HomeTimelineSubtitleText {
             components.append(entry.reminderText)
         }
 
-        if entry.repeatText.isEmpty == false {
-            components.append(entry.repeatText)
-        }
-
         if entry.subtasks.isEmpty == false {
             let total = entry.subtasks.count
             components.append("\(entry.subtaskCompletedCount)/\(total) 子任务")
         }
 
-        if components.isEmpty {
-            components.append(entry.statusText)
-        }
-
         return components.joined(separator: " · ")
+    }
+
+    static func text(for entry: HomeTimelineEntry) -> String {
+        let properties = propertyText(for: entry)
+        return properties.isEmpty ? entry.statusText : properties
     }
 }
 
 struct HomeTimelineRowDisplayText: Equatable {
-    let propertySubtitle: String
-    let noteText: String?
+    let primarySubtitle: String
+    let propertyText: String?
 
     static func text(for entry: HomeTimelineEntry) -> HomeTimelineRowDisplayText {
-        let trimmedNotes = entry.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        text(for: entry, notes: entry.notes)
+    }
+
+    static func text(for entry: HomeTimelineEntry, notes: String?) -> HomeTimelineRowDisplayText {
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         let noteText: String? = if let trimmedNotes, trimmedNotes.isEmpty == false {
             trimmedNotes
         } else {
             nil
         }
 
+        let properties = HomeTimelineSubtitleText.propertyText(for: entry)
         return HomeTimelineRowDisplayText(
-            propertySubtitle: HomeTimelineSubtitleText.text(for: entry),
-            noteText: noteText
+            primarySubtitle: noteText ?? (properties.isEmpty ? entry.statusText : properties),
+            propertyText: noteText != nil && properties.isEmpty == false ? properties : nil
         )
     }
 }
@@ -2318,13 +2370,21 @@ private struct HomeTimelineRow: View {
     let titleMinimumScaleFactor: CGFloat
     let isDetailPresented: Bool
     let isDetailExpanded: Bool
+    let isUrgent: Bool
     let expandedTitle: String
+    let expandedNotes: String?
+    let isEditingNotes: Bool
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
     let onCollapseDetail: () -> Void
     let onUpdateTitle: (String) -> Void
+    let onUpdateNotes: (String) -> Void
+    let onBeginNoteEditing: () -> Void
+    let onEndNoteEditing: () -> Void
+    let onToggleUrgent: () -> Void
     let onInlineFocus: (HomeInlineFocusTarget) -> Void
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isNotesFocused: Bool
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
@@ -2339,8 +2399,10 @@ private struct HomeTimelineRow: View {
     @State private var rowOpacity: Double = 1
     @State private var reopeningCheckmarkOpacity: Double = 1
     @State private var titleDraft = ""
+    @State private var notesDraft = ""
     @State private var isEditingTitle = false
     @State private var isCommittingTitle = false
+    @State private var isCommittingNotes = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -2354,19 +2416,9 @@ private struct HomeTimelineRow: View {
             } content: {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
                     if isDetailPresented {
-                        titleRow(isInteractive: false)
-                            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-                            .contentShape(Rectangle())
+                        titleContent(isInteractive: false)
                     } else {
-                        Button {
-                            HomeInteractionFeedback.soft()
-                            onOpenDetail()
-                        } label: {
-                            titleRow(isInteractive: true)
-                                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+                        titleContent(isInteractive: true)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -2378,6 +2430,8 @@ private struct HomeTimelineRow: View {
         .opacity(rowOpacity)
         .animation(rowDetailAnimation, value: isDetailPresented)
         .onAppear {
+            titleDraft = expandedTitle
+            notesDraft = expandedNotes ?? ""
             guard shouldPlayCompletionAnimation else { return }
             startCompletionAnimation()
         }
@@ -2418,11 +2472,34 @@ private struct HomeTimelineRow: View {
             guard isTitleFocused == false, isEditingTitle == false else { return }
             titleDraft = title
         }
+        .onChange(of: expandedNotes) { _, notes in
+            guard isNotesFocused == false, isEditingNotes == false else { return }
+            notesDraft = notes ?? ""
+        }
+        .onChange(of: isEditingNotes) { _, isEditing in
+            if isEditing {
+                notesDraft = expandedNotes ?? ""
+                onInlineFocus(.notes)
+                Task { @MainActor in
+                    await Task.yield()
+                    isNotesFocused = true
+                }
+            } else {
+                isNotesFocused = false
+            }
+        }
+        .onChange(of: isDetailExpanded) { _, isExpanded in
+            guard isExpanded == false, isEditingNotes || isNotesFocused else { return }
+            commitNotesAfterFocusUpdate()
+        }
         .onChange(of: isDetailPresented) { _, isPresented in
             guard isPresented == false else { return }
             isEditingTitle = false
             isCommittingTitle = false
             isTitleFocused = false
+            isCommittingNotes = false
+            isNotesFocused = false
+            onEndNoteEditing()
         }
     }
 
@@ -2497,24 +2574,67 @@ private struct HomeTimelineRow: View {
     }
 
     private var displaySubtitle: String {
-        rowDisplayText.propertySubtitle
+        rowDisplayText.primarySubtitle
     }
 
-    private var displayNote: String? {
-        rowDisplayText.noteText
+    private var displayPropertyText: String? {
+        rowDisplayText.propertyText
     }
 
     private var rowDisplayText: HomeTimelineRowDisplayText {
-        HomeTimelineRowDisplayText.text(for: entry)
+        HomeTimelineRowDisplayText.text(for: entry, notes: visibleNotes)
+    }
+
+    private var visibleNotes: String? {
+        isDetailPresented ? expandedNotes : entry.notes
     }
 
     private var showsSubtitle: Bool {
         displaySubtitle.isEmpty == false
     }
 
-    @ViewBuilder
-    private func titleRow(isInteractive: Bool) -> some View {
-        titleStack
+    private func titleContent(isInteractive: Bool) -> some View {
+        HStack(alignment: .top, spacing: AppTheme.spacing.xs) {
+            ZStack(alignment: .topLeading) {
+                titleStack
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+
+                if isInteractive {
+                    Button {
+                        HomeInteractionFeedback.soft()
+                        onOpenDetail()
+                    } label: {
+                        Color.clear
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("展开任务")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isUrgent, entry.isCompleted == false {
+                urgentFlagButton
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var urgentFlagButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            onToggleUrgent()
+        } label: {
+            Image(systemName: "flag.fill")
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.coral)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("取消紧急")
+        .accessibilityHint("关闭此任务的紧急属性")
     }
 
     private var titleStack: some View {
@@ -2528,20 +2648,65 @@ private struct HomeTimelineRow: View {
             }
 
             if showsSubtitle {
-                Text(displaySubtitle)
-                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                    .foregroundStyle(subtitleColor)
-                    .lineLimit(2)
+                subtitleContent
             }
 
-            if let displayNote {
-                Text(displayNote)
-                    .font(AppTheme.typography.textStyle(.caption1, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(entry.isMuted ? 0.36 : 0.5))
+            if let displayPropertyText {
+                Text(displayPropertyText)
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(subtitleColor)
                     .lineLimit(2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var subtitleContent: some View {
+        if isDetailPresented, isEditingNotes {
+            HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
+                TextField("添加备注", text: $notesDraft, axis: .vertical)
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(subtitleColor)
+                    .lineLimit(1...4)
+                    .textInputAutocapitalization(.sentences)
+                    .focused($isNotesFocused)
+                    .id(HomeInlineFocusTarget.notes.anchorID(for: entry.itemID))
+                    .onSubmit {
+                        commitNotesAfterFocusUpdate()
+                    }
+                    .onChange(of: isNotesFocused) { _, focused in
+                        if focused {
+                            onInlineFocus(.notes)
+                        } else if isEditingNotes, isCommittingNotes == false {
+                            commitNotesAfterFocusUpdate()
+                        }
+                    }
+
+                inlineSaveButton {
+                    commitNotesAfterFocusUpdate()
+                }
+            }
+        } else if isDetailPresented, visibleNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            Button {
+                onBeginNoteEditing()
+            } label: {
+                subtitleText(displaySubtitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("编辑备注")
+        } else {
+            subtitleText(displaySubtitle)
+        }
+    }
+
+    private func subtitleText(_ text: String) -> some View {
+        Text(text)
+            .font(AppTheme.typography.sized(15, weight: .medium))
+            .foregroundStyle(subtitleColor)
+            .lineLimit(2)
     }
 
     private var expandedTitleDisplay: some View {
@@ -2648,20 +2813,22 @@ private struct HomeTimelineRow: View {
         onUpdateTitle(trimmed)
     }
 
+    private func commitNotesAfterFocusUpdate() {
+        guard isEditingNotes || isNotesFocused else { return }
+        guard isCommittingNotes == false else { return }
+        isCommittingNotes = true
+        Task { @MainActor in
+            notesDraft = TextInputSnapshotReader.resolvedText(fallback: notesDraft)
+            isNotesFocused = false
+            await Task.yield()
+            onUpdateNotes(notesDraft)
+            onEndNoteEditing()
+            isCommittingNotes = false
+        }
+    }
+
     private var subtitleColor: Color {
-        // Use textTertiary (dedicated tier) for default state to avoid
-        // compound opacity regressing dark-mode contrast below WCAG AA.
-        if entry.timeText.isEmpty == false,
-           entry.urgency == .imminent || entry.urgency == .overdue {
-            return AppTheme.colors.coral.opacity(entry.isMuted ? 0.5 : 1)
-        }
-        guard entry.notes?.isEmpty != false else {
-            return entry.isMuted ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.textTertiary
-        }
-        if entry.statusText == "已逾期" {
-            return AppTheme.colors.coral.opacity(entry.isMuted ? 0.5 : 1)
-        }
-        return entry.isMuted ? AppTheme.colors.body.opacity(0.4) : AppTheme.colors.textTertiary
+        AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.74)
     }
 
     private var rowDetailAnimation: Animation {
@@ -2714,12 +2881,7 @@ private struct HomeTimelineRow: View {
 
     private var ringColor: Color {
         if isAnimatingReopening {
-            switch entry.accentColorName {
-            case "coral":
-                return AppTheme.colors.coral.opacity(0.58)
-            default:
-                return AppTheme.colors.body.opacity(0.44)
-            }
+            return AppTheme.colors.body.opacity(0.44)
         }
 
         if entry.isCompleted {
@@ -2730,12 +2892,7 @@ private struct HomeTimelineRow: View {
             return AppTheme.colors.body.opacity(0.32)
         }
 
-        switch entry.accentColorName {
-        case "coral":
-            return AppTheme.colors.coral.opacity(0.58)
-        default:
-            return AppTheme.colors.body.opacity(0.44)
-        }
+        return AppTheme.colors.body.opacity(0.44)
     }
 
     private var outlineOpacity: Double {
@@ -2756,23 +2913,20 @@ private struct HomeInlineTaskDetailView: View {
     @Bindable var viewModel: HomeViewModel
     let isExpanded: Bool
     let animationBatch: Int
+    let showsAddNote: Bool
+    let onAddNote: () -> Void
     let onOpenMenu: (TaskEditorMenu) -> Void
     let onFocus: (HomeInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedField: InlineTaskDetailField?
     @State private var newSubtaskTitle = ""
-    @State private var notesDraft = ""
-    @State private var notesEditorRequested = false
 
     private enum InlineTaskDetailField: Hashable {
-        case notes
         case newSubtask
 
         var focusTarget: HomeInlineFocusTarget {
             switch self {
-            case .notes:
-                return .notes
             case .newSubtask:
                 return .newSubtask
             }
@@ -2787,9 +2941,10 @@ private struct HomeInlineTaskDetailView: View {
             fallbackHeight: HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: subtasks.count)
         ) {
             VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
-                notesEditor
-                    .id(HomeInlineFocusTarget.notes.anchorID(for: entry.itemID))
-                    .modifier(cascadeItem(index: 0))
+                if showsAddNote {
+                    notesPlaceholderButton
+                        .modifier(cascadeItem(index: 0))
+                }
 
                 ForEach(Array(subtasks.enumerated()), id: \.element.id) { index, subtask in
                     HomeInlineSubtaskRow(
@@ -2800,38 +2955,24 @@ private struct HomeInlineTaskDetailView: View {
                         }
                     )
                     .id(HomeInlineFocusTarget.subtask(subtask.id).anchorID(for: entry.itemID))
-                    .modifier(cascadeItem(index: index + 1))
+                    .modifier(cascadeItem(index: index + detailLeadingRowCount))
                 }
 
                 addSubtaskRow
                     .id(HomeInlineFocusTarget.newSubtask.anchorID(for: entry.itemID))
-                    .modifier(cascadeItem(index: subtasks.count + 1))
+                    .modifier(cascadeItem(index: subtasks.count + detailLeadingRowCount))
 
                 attributePills
-                    .modifier(cascadeItem(index: subtasks.count + 2))
+                    .modifier(cascadeItem(index: subtasks.count + detailLeadingRowCount + 1))
             }
             .padding(.top, HomeInlineTaskLayoutMetrics.detailTopPadding)
             .padding(.bottom, HomeInlineTaskLayoutMetrics.detailBottomPadding)
         }
         .animation(detailAnimation, value: viewModel.inlineDetailDraft?.subtasks)
-        .onAppear {
-            notesDraft = viewModel.inlineDetailDraft?.notes ?? ""
-            notesEditorRequested = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        }
-        .onChange(of: viewModel.inlineDetailDraft?.notes) { _, notes in
-            guard focusedField != .notes else { return }
-            notesDraft = notes ?? ""
-        }
-        .onChange(of: focusedField) { oldField, field in
-            if oldField == .notes, field != .notes {
-                commitNotesAfterFocusUpdate()
-            }
+        .onChange(of: focusedField) { _, field in
             if let field {
                 onFocus(field.focusTarget)
             }
-        }
-        .onDisappear {
-            viewModel.updateDraftNotes(notesDraft)
         }
     }
 
@@ -2840,7 +2981,11 @@ private struct HomeInlineTaskDetailView: View {
     }
 
     private var cascadeRowCount: Int {
-        subtasks.count + 3
+        subtasks.count + detailLeadingRowCount + 2
+    }
+
+    private var detailLeadingRowCount: Int {
+        showsAddNote ? 1 : 0
     }
 
     private func cascadeItem(index: Int) -> HomeInlineCascadeItemModifier {
@@ -2853,41 +2998,10 @@ private struct HomeInlineTaskDetailView: View {
         )
     }
 
-    @ViewBuilder
-    private var notesEditor: some View {
-        if showsNotesEditor {
-            HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
-                TextField(
-                    "添加备注",
-                    text: $notesDraft,
-                    axis: .vertical
-                )
-                .font(AppTheme.typography.sized(15, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.74))
-                .lineLimit(1...4)
-                .textInputAutocapitalization(.sentences)
-                .focused($focusedField, equals: .notes)
-                .padding(.leading, HomeInlineTaskLayoutMetrics.titleLeadingInset)
-                .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
-                .contentShape(Rectangle())
-
-                inlineSaveButton {
-                    commitNotesAfterFocusUpdate()
-                }
-            }
-        } else {
-            notesPlaceholderButton
-        }
-    }
-
     private var notesPlaceholderButton: some View {
         Button {
             HomeInteractionFeedback.selection()
-            notesEditorRequested = true
-            Task { @MainActor in
-                await Task.yield()
-                focusedField = .notes
-            }
+            onAddNote()
         } label: {
             HStack(spacing: HomeInlineTaskLayoutMetrics.titleGap) {
                 Image(systemName: "plus")
@@ -2909,33 +3023,6 @@ private struct HomeInlineTaskDetailView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("添加备注")
-    }
-
-    private var showsNotesEditor: Bool {
-        notesEditorRequested || focusedField == .notes || notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
-
-    private func commitNotesAfterFocusUpdate() {
-        Task { @MainActor in
-            notesDraft = TextInputSnapshotReader.resolvedText(fallback: notesDraft)
-            focusedField = nil
-            await Task.yield()
-            viewModel.updateDraftNotes(notesDraft)
-            notesEditorRequested = notesDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        }
-    }
-
-    private func inlineSaveButton(action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label("保存", systemImage: "checkmark")
-                .font(AppTheme.typography.sized(12, weight: .bold))
-                .foregroundStyle(AppTheme.colors.sky)
-                .labelStyle(.titleAndIcon)
-                .frame(minWidth: 54, minHeight: 36)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("保存备注")
     }
 
     private var addSubtaskRow: some View {
@@ -2985,7 +3072,7 @@ private struct HomeInlineTaskDetailView: View {
                 .frame(maxWidth: .infinity)
             settingButton(title: reminderTitle, systemImage: "bell", menu: .reminder)
                 .frame(maxWidth: .infinity)
-            settingButton(title: repeatTitle, systemImage: "arrow.triangle.2.circlepath", menu: .repeatRule)
+            urgentSettingButton
                 .frame(maxWidth: .infinity)
         }
         .padding(.leading, HomeInlineTaskLayoutMetrics.attributeLeadingInset)
@@ -3079,10 +3166,27 @@ private struct HomeInlineTaskDetailView: View {
         return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
     }
 
-    private var repeatTitle: String {
-        guard let rule = viewModel.inlineDetailDraft?.repeatRule else { return "重复" }
-        let anchor = viewModel.inlineDetailDraft?.dueAt ?? viewModel.selectedDate
-        return rule.title(anchorDate: anchor, calendar: .current)
+    private var urgentSettingButton: some View {
+        let isUrgent = viewModel.inlineDetailDraft?.isUrgent == true
+        return Button {
+            HomeInteractionFeedback.selection()
+            focusedField = nil
+            viewModel.updateDraftUrgent(!isUrgent)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: isUrgent ? "flag.fill" : "flag")
+                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeIconSize, weight: .semibold))
+                    .frame(width: HomeInlineTaskLayoutMetrics.attributeIconWidth)
+                Text("紧急")
+                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeTextSize, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isUrgent ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.56))
+            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isUrgent ? "关闭紧急" : "设为紧急")
     }
 
     private func isSettingEnabled(_ menu: TaskEditorMenu) -> Bool {
@@ -3097,8 +3201,8 @@ private struct HomeInlineTaskDetailView: View {
             return viewModel.inlineDetailDraft?.hasExplicitTime == true
         case .reminder:
             return viewModel.inlineDetailDraft?.remindAt != nil
-        case .repeatRule:
-            return viewModel.inlineDetailDraft?.repeatRule != nil
+        case .urgent:
+            return viewModel.inlineDetailDraft?.isUrgent == true
         case .subtasks, .template, .periodicReminder, .periodicCycle:
             return false
         }
@@ -3796,12 +3900,11 @@ private struct HomeOverdueSummarySheet: View {
                         notes: entry.detailText,
                         timeText: entry.timeText,
                         reminderText: "",
-                        repeatText: "",
                         statusText: "已逾期",
-                        accentColorName: "coral",
+                        isUrgent: false,
                         isMuted: false,
                         isCompleted: false,
-                        urgency: .overdue,
+                        timingUrgency: .overdue,
                         relationText: nil,
                         primaryAvatar: nil,
                         secondaryAvatar: nil,
@@ -3815,7 +3918,10 @@ private struct HomeOverdueSummarySheet: View {
                     titleMinimumScaleFactor: 0.68,
                     isDetailPresented: false,
                     isDetailExpanded: false,
+                    isUrgent: false,
                     expandedTitle: entry.title,
+                    expandedNotes: entry.detailText,
+                    isEditingNotes: false,
                     onToggleCompletion: {
                         HomeInteractionFeedback.completion()
                         Task {
@@ -3827,6 +3933,10 @@ private struct HomeOverdueSummarySheet: View {
                     },
                     onCollapseDetail: {},
                     onUpdateTitle: { _ in },
+                    onUpdateNotes: { _ in },
+                    onBeginNoteEditing: {},
+                    onEndNoteEditing: {},
+                    onToggleUrgent: {},
                     onInlineFocus: { _ in }
                 )
 

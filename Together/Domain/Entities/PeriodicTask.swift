@@ -42,15 +42,21 @@ struct PeriodicReminderRule: Codable, Hashable, Sendable {
         case daysBeforeEnd(Int)
     }
 
-    var timing: Timing
-    var hour: Int
-    var minute: Int
+    var timing: Timing?
+    var hour: Int?
+    var minute: Int?
 
-    nonisolated init(timing: Timing, hour: Int = 9, minute: Int = 0) {
+    nonisolated init(timing: Timing? = nil, hour: Int? = nil, minute: Int? = nil) {
         self.timing = timing
         self.hour = hour
         self.minute = minute
     }
+
+    nonisolated var hasTargetDay: Bool { timing != nil }
+
+    nonisolated var hasTargetTime: Bool { hour != nil && minute != nil }
+
+    nonisolated var isEmpty: Bool { hasTargetDay == false && hasTargetTime == false }
 }
 
 // MARK: - Completion Record

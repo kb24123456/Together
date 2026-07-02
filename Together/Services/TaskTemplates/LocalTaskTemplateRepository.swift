@@ -35,11 +35,10 @@ actor LocalTaskTemplateRepository: TaskTemplateRepositoryProtocol {
             notes: template.notes,
             listID: template.listID,
             projectID: template.projectID,
-            isPinned: template.isPinned,
+            isUrgent: template.isUrgent,
             hasExplicitTime: template.hasExplicitTime,
             time: template.time,
             reminderOffset: template.reminderOffset,
-            repeatRule: template.repeatRule,
             subtasks: template.subtasks,
             createdAt: template.createdAt,
             updatedAt: .now

@@ -17,7 +17,7 @@ struct OCRImportTaskDraft: Identifiable, Hashable, Sendable, Codable {
     var dueAt: Date?
     var hasExplicitTime: Bool
     var remindAt: Date?
-    var repeatRule: ItemRepeatRule?
+    var isUrgent: Bool
     var isSelected: Bool
     var sourceText: String?
     var subtasks: [OCRImportSubtaskDraft]
@@ -29,7 +29,7 @@ struct OCRImportTaskDraft: Identifiable, Hashable, Sendable, Codable {
         dueAt: Date? = nil,
         hasExplicitTime: Bool = false,
         remindAt: Date? = nil,
-        repeatRule: ItemRepeatRule? = nil,
+        isUrgent: Bool = false,
         isSelected: Bool = true,
         sourceText: String? = nil,
         subtasks: [OCRImportSubtaskDraft] = []
@@ -40,7 +40,7 @@ struct OCRImportTaskDraft: Identifiable, Hashable, Sendable, Codable {
         self.dueAt = dueAt
         self.hasExplicitTime = hasExplicitTime
         self.remindAt = remindAt
-        self.repeatRule = repeatRule
+        self.isUrgent = isUrgent
         self.isSelected = isSelected
         self.sourceText = sourceText
         self.subtasks = subtasks
