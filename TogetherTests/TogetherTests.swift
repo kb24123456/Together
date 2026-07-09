@@ -1934,6 +1934,37 @@ struct TogetherTests {
         #expect(saved.isUrgent)
     }
 
+    @Test func inlineDetailMovingDateGroupGetsFreshPresentationIdentityAndCanReopen() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let tomorrowStart = try #require(calendar.date(byAdding: .day, value: 1, to: todayStart))
+        let item = makeHomeFilterItem(
+            title: "移动日期后可再展开",
+            completedAt: nil,
+            status: .inProgress,
+            createdAt: todayStart
+        )
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        let initialEntry = try #require(viewModel.activeTimelineSections.flatMap(\.entries).first)
+
+        await viewModel.toggleInlineDetail(item.id)
+        viewModel.updateDraftDueDate(tomorrowStart)
+        #expect(await viewModel.collapseInlineDetail())
+
+        let movedEntry = try #require(
+            viewModel.activeTimelineSections.flatMap(\.entries).first { $0.itemID == item.id }
+        )
+        #expect(movedEntry.presentationID != initialEntry.presentationID)
+        #expect(viewModel.expandedDetailItemID == nil)
+
+        await viewModel.toggleInlineDetail(item.id)
+        #expect(viewModel.expandedDetailItemID == item.id)
+        #expect(viewModel.inlineDetailDraft?.dueAt == tomorrowStart)
+    }
+
     @Test func inlineDetailCollapseKeepsDraftOpenWhenPersistenceFails() async throws {
         let item = makeHomeFilterItem(title: "保存失败时保留", completedAt: nil, status: .inProgress)
         let repository = MockItemRepository(items: [item])

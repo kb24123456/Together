@@ -1376,7 +1376,10 @@ final class HomeViewModel {
 
     private func timelinePresentationID(for item: Item, isCompleted: Bool) -> String {
         let state = isCompleted ? "completed" : "active"
-        return "\(state)-\(selectedDateKey)-\(item.id.uuidString)"
+        let sectionKey = activeTimelineSectionKey(for: item)
+        let sectionKind = sectionKey.isUnscheduled ? "created" : "scheduled"
+        let sectionTimestamp = Int(sectionKey.dayStart.timeIntervalSince1970)
+        return "\(state)-\(sectionKind)-\(sectionTimestamp)-\(item.id.uuidString)"
     }
 
     private func makeOverdueEntry(for item: Item) -> HomeOverdueEntry {
