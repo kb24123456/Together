@@ -5,6 +5,210 @@ import UIKit
 import CoreText
 #endif
 
+enum InlineAttributeEditor: String, Identifiable, Hashable {
+    case date
+    case time
+
+    var id: String { rawValue }
+}
+
+struct TaskAttributeButton: View {
+    let icon: String
+    let title: String
+    let isConfigured: Bool
+    var tint: Color? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            TaskAttributeLabel(
+                icon: icon,
+                title: title,
+                isConfigured: isConfigured,
+                tint: tint
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct TaskAttributeLabel: View {
+    let icon: String
+    let title: String
+    let isConfigured: Bool
+    var tint: Color? = nil
+
+    var body: some View {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                    .frame(width: 16)
+
+                if title.isEmpty == false {
+                    Text(title)
+                        .font(AppTheme.typography.sized(14, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+            }
+            .foregroundStyle(
+                tint ?? (isConfigured ? AppTheme.colors.title.opacity(0.74) : AppTheme.colors.body.opacity(0.48))
+            )
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+    }
+}
+
+struct InlineDateTimePickerPanel: View {
+    let editor: InlineAttributeEditor
+    let title: String
+    @Binding var selection: Date
+    let allowsClearing: Bool
+    let onClear: () -> Void
+    let onDone: () -> Void
+
+    var body: some View {
+        VStack(spacing: AppTheme.spacing.xs) {
+            HStack(spacing: AppTheme.spacing.md) {
+                Text(title)
+                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+
+                Spacer(minLength: 0)
+
+                if allowsClearing {
+                    Button("清除", role: .destructive, action: onClear)
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                }
+
+                Button("完成", action: onDone)
+                    .font(AppTheme.typography.sized(13, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.sky)
+            }
+            .frame(minHeight: 36)
+
+            picker
+        }
+        .padding(.horizontal, AppTheme.spacing.lg)
+        .padding(.bottom, AppTheme.spacing.md)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .presentationDetents(editor == .date ? [.medium] : [.height(320)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(AppTheme.colors.surface)
+    }
+
+    @ViewBuilder
+    private var picker: some View {
+        switch editor {
+        case .date:
+            DatePicker(
+                title,
+                selection: $selection,
+                displayedComponents: .date
+            )
+            .labelsHidden()
+            .datePickerStyle(.graphical)
+            .frame(maxWidth: .infinity)
+
+        case .time:
+            DatePicker(
+                title,
+                selection: $selection,
+                displayedComponents: .hourAndMinute
+            )
+            .labelsHidden()
+            .datePickerStyle(.wheel)
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+enum TaskAttributeValueText {
+    nonisolated static func date(_ date: Date, calendar: Calendar = .current) -> String {
+        if calendar.isDateInToday(date) {
+            return "今天"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "明天"
+        }
+        return date.formatted(
+            .dateTime
+                .locale(Locale(identifier: "zh_CN"))
+                .month()
+                .day()
+        )
+    }
+
+    nonisolated static func time(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+        )
+    }
+}
+
+struct AdaptiveTaskAttributeToolbarLayout: Layout {
+    nonisolated static let rowHeight: CGFloat = 44
+    var horizontalSpacing: CGFloat = 0
+    var verticalSpacing: CGFloat = AppTheme.spacing.xxs
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard subviews.isEmpty == false else { return .zero }
+        let width = proposal.width ?? idealSingleRowWidth(subviews)
+        let columns = columnCount(for: width, subviews: subviews)
+        let rows = Int(ceil(Double(subviews.count) / Double(columns)))
+
+        return CGSize(
+            width: width,
+            height: CGFloat(rows) * Self.rowHeight + CGFloat(max(rows - 1, 0)) * verticalSpacing
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard subviews.isEmpty == false else { return }
+        let columns = columnCount(for: bounds.width, subviews: subviews)
+        let itemWidth = max(0, (bounds.width - CGFloat(columns - 1) * horizontalSpacing) / CGFloat(columns))
+
+        for (index, subview) in subviews.enumerated() {
+            let row = index / columns
+            let column = index % columns
+            let x = bounds.minX + CGFloat(column) * (itemWidth + horizontalSpacing)
+            let y = bounds.minY + CGFloat(row) * (Self.rowHeight + verticalSpacing)
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: itemWidth, height: Self.rowHeight)
+            )
+        }
+    }
+
+    private func columnCount(for width: CGFloat, subviews: Subviews) -> Int {
+        let singleRowWidth = idealSingleRowWidth(subviews)
+        if singleRowWidth <= width {
+            return subviews.count
+        }
+        return max(2, Int(ceil(Double(subviews.count) / 2)))
+    }
+
+    private func idealSingleRowWidth(_ subviews: Subviews) -> CGFloat {
+        let contentWidth = subviews.reduce(CGFloat.zero) { partial, subview in
+            partial + max(44, subview.sizeThatFits(.unspecified).width)
+        }
+        return contentWidth + CGFloat(max(subviews.count - 1, 0)) * horizontalSpacing
+    }
+}
+
 enum TaskEditorMenu: String, Identifiable {
     case date
     case time

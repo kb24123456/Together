@@ -12,7 +12,8 @@ struct RoutinesView: View {
             viewModel: viewModel,
             isPresented: true,
             contentTopPadding: AppTheme.spacing.xs,
-            contentBottomPadding: 120
+            contentBottomPadding: 120,
+            showsCanvasBackground: true
         )
     }
 }

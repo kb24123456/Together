@@ -7,6 +7,46 @@ import UIKit
 @MainActor
 @Suite(.serialized)
 struct TogetherTests {
+    private func clearRoutineCycleVisibilityPreferences() {
+        UserDefaults.standard.removeObject(forKey: "together.routines.visibleCycles.v2")
+        UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
+    }
+
+    @Test func routineInlineDetailFallbackHeightMatchesVisibleRows() {
+        #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) == 86)
+        #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: false) == 52)
+    }
+
+    @Test func routineModeTransitionCascadeIsOrderedAndReversible() {
+        let entryDelays = (0..<7).map {
+            RoutineModeTransitionTiming.delay(
+                for: $0,
+                taskCount: 7,
+                isPresented: true,
+                reduceMotion: false
+            )
+        }
+        let exitDelays = (0..<5).map {
+            RoutineModeTransitionTiming.delay(
+                for: $0,
+                taskCount: 7,
+                isPresented: false,
+                reduceMotion: false
+            )
+        }
+
+        #expect(entryDelays == [0, 0.02, 0.04, 0.06, 0.08, 0.08, 0.08])
+        #expect(exitDelays == [0.08, 0.06, 0.04, 0.02, 0])
+        #expect(
+            RoutineModeTransitionTiming.delay(
+                for: 3,
+                taskCount: 7,
+                isPresented: true,
+                reduceMotion: true
+            ) == 0
+        )
+    }
+
     @Test func ocrMediaControlsPreserveDeviceBottomSafeArea() {
         #expect(
             OCRMediaLayout.controlsBottomPadding(
@@ -536,6 +576,25 @@ struct TogetherTests {
         #expect(decoded.minute == 15)
         #expect(decoded.hasTargetDay)
         #expect(decoded.hasTargetTime)
+        #expect(decoded.reminderLeadMinutes == 0)
+        #expect(decoded.reminderDelivery == .notification)
+    }
+
+    @Test func periodicTargetOnlyRuleRoundTripsWithoutEnablingReminder() throws {
+        let original = PeriodicReminderRule(
+            timing: .dayOfPeriod(3),
+            hour: 9,
+            minute: 15
+        )
+
+        let decoded = try JSONDecoder().decode(
+            PeriodicReminderRule.self,
+            from: JSONEncoder().encode(original)
+        )
+
+        #expect(decoded.hasReminder == false)
+        #expect(decoded.reminderLeadMinutes == nil)
+        #expect(decoded.reminderDelivery == nil)
     }
 
     @Test func dailyTimeOnlyRuleProducesReminderOnCurrentDay() throws {
@@ -560,6 +619,32 @@ struct TogetherTests {
         #expect(components.day == 18)
         #expect(components.hour == 18)
         #expect(components.minute == 30)
+    }
+
+    @Test func periodicReminderDateAppliesLeadMinutes() throws {
+        var calendar = gregorianCalendar()
+        calendar.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+        let referenceDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 18, hour: 8))
+        )
+        let rule = PeriodicReminderRule(
+            hour: 18,
+            minute: 30,
+            reminderLeadMinutes: 30,
+            reminderDelivery: .notification
+        )
+
+        let trigger = try #require(
+            PeriodicCycleCalculator.periodicReminderDate(
+                rule: rule,
+                cycle: .daily,
+                date: referenceDate,
+                calendar: calendar
+            )
+        )
+        let components = calendar.dateComponents([.hour, .minute], from: trigger)
+        #expect(components.hour == 18)
+        #expect(components.minute == 0)
     }
 
     @Test func routineDraftDoesNotAddDefaultDayOrTimeWhenCycleChanges() async {
@@ -659,17 +744,77 @@ struct TogetherTests {
         #expect(completed.propertyText == nil)
     }
 
-    @Test func routinesVisibleCyclesDefaultToDayWeekMonthAndAutoIncludeExistingOptionalCycles() {
-        UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
+    @Test func routinesVisibleCyclesDefaultToDayWeekMonthWithoutForcingTaskDimensions() {
+        clearRoutineCycleVisibilityPreferences()
+        defer { clearRoutineCycleVisibilityPreferences() }
         let viewModel = makeRoutinesViewModel()
         viewModel.tasks = [
             makePeriodicTask(title: "每日", cycle: .daily),
             makePeriodicTask(title: "季度", cycle: .quarterly)
         ]
 
+        #expect(viewModel.persistedVisibleCycles == Set([.daily, .weekly, .monthly]))
+        #expect(viewModel.visibleCycles == [.daily, .weekly, .monthly])
+        #expect(viewModel.hiddenCycles == [.quarterly, .yearly])
+        #expect(viewModel.tasks.count == 2)
+    }
+
+    @Test func routinesVisibleCyclesMigrateLegacyOptionalCycles() {
+        clearRoutineCycleVisibilityPreferences()
+        defer { clearRoutineCycleVisibilityPreferences() }
+        UserDefaults.standard.set(
+            [PeriodicCycle.quarterly.rawValue],
+            forKey: "together.routines.visibleOptionalCycles"
+        )
+
+        let viewModel = makeRoutinesViewModel()
+
+        #expect(viewModel.persistedVisibleCycles == Set([.daily, .weekly, .monthly, .quarterly]))
         #expect(viewModel.visibleCycles == [.daily, .weekly, .monthly, .quarterly])
-        #expect(viewModel.optionalHiddenCycles == [.yearly])
-        UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
+    }
+
+    @Test func routinesCycleVisibilityKeepsAtLeastOneAndMovesSelection() {
+        clearRoutineCycleVisibilityPreferences()
+        defer { clearRoutineCycleVisibilityPreferences() }
+        let viewModel = makeRoutinesViewModel()
+        viewModel.selectCycle(.weekly)
+
+        viewModel.setCycle(.weekly, isVisible: false)
+        #expect(viewModel.selectedCycle == .daily)
+        #expect(viewModel.visibleCycles == [.daily, .monthly])
+
+        viewModel.setCycle(.daily, isVisible: false)
+        viewModel.setCycle(.monthly, isVisible: false)
+        #expect(viewModel.persistedVisibleCycles == Set([.monthly]))
+        #expect(viewModel.visibleCycles == [.monthly])
+
+        let restoredViewModel = makeRoutinesViewModel()
+        #expect(restoredViewModel.selectedCycle == .monthly)
+        #expect(restoredViewModel.visibleCycles == [.monthly])
+    }
+
+    @Test func routinesHiddenAttentionCycleIsTemporaryUntilSelectionChanges() {
+        clearRoutineCycleVisibilityPreferences()
+        defer { clearRoutineCycleVisibilityPreferences() }
+        let viewModel = makeRoutinesViewModel()
+
+        viewModel.selectCycleTemporarily(.yearly)
+        #expect(viewModel.selectedCycle == .yearly)
+        #expect(viewModel.visibleCycles == [.daily, .weekly, .monthly, .yearly])
+        #expect(viewModel.persistedVisibleCycles.contains(.yearly) == false)
+
+        viewModel.selectCycle(.weekly)
+        #expect(viewModel.selectedCycle == .weekly)
+        #expect(viewModel.visibleCycles == [.daily, .weekly, .monthly])
+        #expect(viewModel.persistedVisibleCycles.contains(.yearly) == false)
+    }
+
+    @Test func routineFocusTapPolicyOnlyCollapsesOutsideFocusedCard() {
+        let frame = CGRect(x: 20, y: 100, width: 320, height: 240)
+
+        #expect(RoutineFocusTapPolicy.shouldCollapse(tapLocation: CGPoint(x: 100, y: 180), focusedRowFrame: frame) == false)
+        #expect(RoutineFocusTapPolicy.shouldCollapse(tapLocation: CGPoint(x: 100, y: 370), focusedRowFrame: frame))
+        #expect(RoutineFocusTapPolicy.shouldCollapse(tapLocation: CGPoint(x: 100, y: 180), focusedRowFrame: nil) == false)
     }
 
     @Test func routinesAttentionSummaryOnlyIncludesUnfinishedApproachingTasks() {
@@ -1492,6 +1637,68 @@ struct TogetherTests {
         #expect(components.minute == 0)
     }
 
+    @Test func periodicAlarmDeliveryUsesAlarmServiceInsteadOfNotification() async throws {
+        let calendar = gregorianCalendar()
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .authorized)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: calendar
+        )
+        let referenceDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 18, hour: 8))
+        )
+        let task = makePeriodicTask(
+            title: "原生闹钟",
+            cycle: .daily,
+            reminderRules: [
+                PeriodicReminderRule(
+                    hour: 18,
+                    minute: 30,
+                    reminderLeadMinutes: 15,
+                    reminderDelivery: .alarm
+                )
+            ]
+        )
+
+        await scheduler.syncPeriodicTaskReminder(for: task, referenceDate: referenceDate)
+
+        let scheduledAlarm = await alarmService.scheduled[task.id]
+        #expect(scheduledAlarm != nil)
+        #expect(notificationService.scheduledNotifications().isEmpty)
+    }
+
+    @Test func deniedPeriodicAlarmFallsBackToNotification() async throws {
+        let calendar = gregorianCalendar()
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .denied)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: calendar
+        )
+        let referenceDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 18, hour: 8))
+        )
+        let task = makePeriodicTask(
+            title: "降级通知",
+            cycle: .daily,
+            reminderRules: [
+                PeriodicReminderRule(
+                    hour: 18,
+                    minute: 30,
+                    reminderLeadMinutes: 0,
+                    reminderDelivery: .alarm
+                )
+            ]
+        )
+
+        await scheduler.syncPeriodicTaskReminder(for: task, referenceDate: referenceDate)
+
+        #expect(notificationService.scheduledNotifications().count == 1)
+    }
+
     @Test func localTaskRepositoryCreatesAndHydratesTaskSubtasksInSortOrder() async throws {
         let service = makeTaskSubtaskApplicationService()
         let created = try await service.createTask(
@@ -1539,6 +1746,30 @@ struct TogetherTests {
 
         #expect(updated.subtasks.map(\.title) == ["确认口径"])
         #expect(updated.subtasks.map(\.isCompleted) == [true])
+    }
+
+    @Test func restoredSingleSpaceTaskCanBeUpdatedWithHistoricalCreatorIdentity() async throws {
+        let item = makeHomeFilterItem(
+            title: "恢复后的旧任务",
+            completedAt: nil,
+            status: .inProgress,
+            creatorID: UUID()
+        )
+        let repository = MockItemRepository(items: [item])
+        let service = DefaultTaskApplicationService(
+            itemRepository: repository,
+            syncCoordinator: NoOpSyncCoordinator(),
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let updated = try await service.updateTask(
+            in: MockDataFactory.singleSpaceID,
+            taskID: item.id,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(title: "恢复后可编辑")
+        )
+
+        #expect(updated.title == "恢复后可编辑")
     }
 
     @Test func togglingLastTaskSubtaskDoesNotCompleteParentTask() async throws {
@@ -1701,6 +1932,34 @@ struct TogetherTests {
         #expect(saved.hasExplicitTime)
         #expect(saved.remindAt == remindAt)
         #expect(saved.isUrgent)
+    }
+
+    @Test func inlineDetailCollapseKeepsDraftOpenWhenPersistenceFails() async throws {
+        let item = makeHomeFilterItem(title: "保存失败时保留", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [item])
+        let service = CapturingTaskApplicationService()
+        service.tasksToReturn = [item]
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: service,
+            itemRepository: repository,
+            taskTemplateRepository: MockTaskTemplateRepository()
+        )
+
+        await viewModel.reload()
+        await viewModel.toggleInlineDetail(item.id)
+        viewModel.updateDraftTitle("尚未保存的标题")
+        let didCollapse = await viewModel.collapseInlineDetail()
+
+        #expect(didCollapse == false)
+        #expect(viewModel.expandedDetailItemID == item.id)
+        #expect(viewModel.inlineDetailDraft?.title == "尚未保存的标题")
+        #expect(try await repository.fetchItem(itemID: item.id)?.title == item.title)
     }
 
     @Test func collapsedUrgentFlagCanDisableUrgentImmediately() async throws {
@@ -2163,14 +2422,15 @@ private func makeHomeFilterItem(
     title: String,
     completedAt: Date?,
     status: ItemStatus,
-    createdAt: Date = Date(timeIntervalSince1970: 1_800_000_000)
+    createdAt: Date = Date(timeIntervalSince1970: 1_800_000_000),
+    creatorID: UUID = MockDataFactory.currentUserID
 ) -> Item {
     Item(
         id: UUID(),
         spaceID: MockDataFactory.singleSpaceID,
         listID: nil,
         projectID: nil,
-        creatorID: MockDataFactory.currentUserID,
+        creatorID: creatorID,
         title: title,
         notes: nil,
         locationText: nil,
@@ -2269,6 +2529,10 @@ private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplica
         tasks[index].updatedAt = .now
         return tasks[index]
     }
+
+    func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
+
+    func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus { .authorized }
 
     func reorderTasks(in spaceID: UUID, taskIDs: [UUID]) async throws -> [PeriodicTask] {
         taskIDs.compactMap { taskID in tasks.first { $0.id == taskID } }

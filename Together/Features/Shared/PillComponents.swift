@@ -60,7 +60,7 @@ struct ModeIndicator: View {
 }
 
 /// 双态切换按钮（capsule 风）。
-/// CalendarView filter 按钮原本重复定义，可以泛用到任何 segmented-like 按钮组。
+/// 可用于任何 segmented-like 双态切换场景。
 struct PillToggleButton: View {
     let title: String
     let isActive: Bool

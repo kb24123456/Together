@@ -279,7 +279,7 @@ struct HomeItemDetailSheet: View {
             HomeInteractionFeedback.soft()
             triggerSaveButtonAnimation()
             Task {
-                await viewModel.saveDetailDraftAndDismiss()
+                _ = await viewModel.saveDetailDraftAndDismiss()
             }
         } label: {
             HStack(spacing: AppTheme.spacing.xs) {

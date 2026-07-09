@@ -65,16 +65,6 @@ enum HomeTimelineTimingUrgency: Hashable {
     case overdue
 }
 
-enum HomeDateTransitionStyle: Hashable {
-    case sameWeek
-    case crossWeek
-}
-
-enum HomeCalendarDisplayMode: Hashable {
-    case week
-    case month
-}
-
 enum HomeReloadReason {
     case userInitiated
     case dateChange
@@ -93,15 +83,6 @@ enum HomeReloadReason {
     }
 }
 
-struct HomeMonthDay: Identifiable, Hashable {
-    let date: Date
-    let isInDisplayedMonth: Bool
-
-    var id: TimeInterval {
-        date.timeIntervalSince1970
-    }
-}
-
 private struct HomeItemOccurrenceKey: Hashable {
     let itemID: UUID
     let dayStart: Date
@@ -115,14 +96,7 @@ struct TaskTemplateSaveResult: Sendable, Equatable {
 @MainActor
 @Observable
 final class HomeViewModel {
-    private let calendar: Calendar = {
-        // 强制周日首日：weekdaySymbols 是 ["日","一",...,"六"]，view 渲染依赖同一约定。
-        // 切换 development region 到 zh-Hans 会让 Calendar.current.firstWeekday=2（周一），
-        // 此时列头和日期 cell 错位 1 列，故显式锁定。
-        var cal = Calendar.current
-        cal.firstWeekday = 1
-        return cal
-    }()
+    private let calendar = Calendar.current
     private let sessionStore: SessionStore
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
@@ -140,12 +114,7 @@ final class HomeViewModel {
     private var savedDetailDraft: TaskDraft?
     private var hasCompletedDeferredMaintenance = false
     private var insertedItemIDs: Set<UUID> = []
-    private(set) var selectedDateTransitionEdge: Edge = .trailing
-    private(set) var selectedDateTransitionStyle: HomeDateTransitionStyle = .sameWeek
-
-    var calendarDisplayMode: HomeCalendarDisplayMode = .week
     var selectedDate: Date = Date()
-    var displayedMonth: Date = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     var items: [Item] = []
     private(set) var reloadRevision = 0
     var selectedItemID: UUID?
@@ -175,120 +144,8 @@ final class HomeViewModel {
         self.taskTemplateRepository = taskTemplateRepository
     }
 
-    var currentUserRevision: UUID {
-        sessionStore.userProfileRevision
-    }
-
     var currentUserID: UUID? {
         sessionStore.currentUser?.id
-    }
-
-    var headerDateText: String {
-        if isViewingToday {
-            return "Today"
-        }
-
-        let components = calendar.dateComponents([.month, .day], from: selectedDate)
-        let month = components.month ?? 1
-        let day = components.day ?? 1
-        return "\(month)月\(day)日"
-    }
-
-    var selectedDayNumberText: String {
-        let day = calendar.component(.day, from: selectedDate)
-        return "\(day)"
-    }
-
-    var selectedWeekdayAndDateText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "EEEE\nM月d日"
-        return formatter.string(from: selectedDate)
-    }
-
-    var weekDates: [Date] {
-        weekDates(shiftedByWeeks: 0)
-    }
-
-    var isMonthMode: Bool {
-        calendarDisplayMode == .month
-    }
-
-    var weekdaySymbols: [String] {
-        ["日", "一", "二", "三", "四", "五", "六"]
-    }
-
-    var displayedMonthTitle: String {
-        displayedMonth.formatted(
-            .dateTime
-            .locale(Locale(identifier: "zh_CN"))
-            .month(.wide)
-        )
-    }
-
-    var displayedMonthKey: String {
-        let components = calendar.dateComponents([.year, .month], from: displayedMonth)
-        return "\(components.year ?? 0)-\(components.month ?? 0)"
-    }
-
-    var monthDays: [HomeMonthDay] {
-        monthDays(shiftedByMonths: 0)
-    }
-
-    var monthRowCount: Int {
-        monthRowCount(shiftedByMonths: 0)
-    }
-
-    func monthDays(shiftedByMonths offset: Int) -> [HomeMonthDay] {
-        let targetMonth = monthDate(shiftedByMonths: offset)
-
-        guard
-            let monthInterval = calendar.dateInterval(of: .month, for: targetMonth),
-            let firstWeek = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.start),
-            let lastWeek = calendar.dateInterval(
-                of: .weekOfMonth,
-                for: monthInterval.end.addingTimeInterval(-1)
-            )
-        else {
-            return []
-        }
-
-        var days: [HomeMonthDay] = []
-        var current = firstWeek.start
-
-        while current < lastWeek.end {
-            days.append(
-                HomeMonthDay(
-                    date: current,
-                    isInDisplayedMonth: calendar.isDate(current, equalTo: targetMonth, toGranularity: .month)
-                )
-            )
-
-            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: current) else { break }
-            current = nextDay
-        }
-
-        return days
-    }
-
-    func monthRowCount(shiftedByMonths offset: Int) -> Int {
-        max(monthDays(shiftedByMonths: offset).count / 7, 1)
-    }
-
-    func weekDates(shiftedByWeeks offset: Int) -> [Date] {
-        let anchorDate: Date
-        if offset == 0 {
-            anchorDate = selectedDate
-        } else {
-            anchorDate = calendar.date(byAdding: .day, value: offset * 7, to: selectedDate) ?? selectedDate
-        }
-
-        let interval = calendar.dateInterval(of: .weekOfYear, for: anchorDate)
-            ?? DateInterval(start: anchorDate, duration: 86_400 * 7)
-
-        return (0..<7).compactMap {
-            calendar.date(byAdding: .day, value: $0, to: interval.start)
-        }
     }
 
     var selectedDateKey: String {
@@ -348,19 +205,6 @@ final class HomeViewModel {
         calendar.isDate(selectedDate, inSameDayAs: .now)
     }
 
-    var spaceDisplayName: String {
-        if let displayName = sessionStore.currentUser?.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-           displayName.isEmpty == false {
-            return displayName
-        }
-
-        return sessionStore.currentSpace?.displayName ?? "我的任务空间"
-    }
-
-    var headerAvatar: HomeAvatar {
-        return currentUserAvatar
-    }
-
     var currentUserAvatar: HomeAvatar {
         let currentUser = sessionStore.currentUser ?? MockDataFactory.makeCurrentUser()
         return HomeAvatar(
@@ -372,61 +216,8 @@ final class HomeViewModel {
     }
 
     func selectDate(_ date: Date) {
-        let oldDay = calendar.startOfDay(for: selectedDate)
-        let newDay = calendar.startOfDay(for: date)
-        selectedDateTransitionEdge = newDay >= oldDay ? .trailing : .leading
-        selectedDateTransitionStyle = calendar.isDate(oldDay, equalTo: newDay, toGranularity: .weekOfYear)
-            ? .sameWeek
-            : .crossWeek
         selectedDate = date
-        syncDisplayedMonthToSelectedDate()
         isOverdueSheetPresented = false
-    }
-
-    func shiftSelectedWeek(by offset: Int) {
-        guard offset != 0 else { return }
-        let shiftedWeekDates = weekDates(shiftedByWeeks: offset)
-        let middleIndex = shiftedWeekDates.count / 2
-        guard shiftedWeekDates.indices.contains(middleIndex) else {
-            return
-        }
-        selectDate(shiftedWeekDates[middleIndex])
-    }
-
-    func toggleAvatarPreview() {
-        return
-    }
-
-    func toggleCalendarDisplayMode() {
-        if isMonthMode {
-            calendarDisplayMode = .week
-        } else {
-            syncDisplayedMonthToSelectedDate()
-            calendarDisplayMode = .month
-        }
-    }
-
-    func setCalendarDisplayMode(_ mode: HomeCalendarDisplayMode) {
-        guard calendarDisplayMode != mode else { return }
-        if mode == .month {
-            syncDisplayedMonthToSelectedDate()
-        }
-        calendarDisplayMode = mode
-    }
-
-    func shiftDisplayedMonth(by offset: Int) {
-        guard offset != 0 else { return }
-        guard let nextMonth = calendar.date(byAdding: .month, value: offset, to: displayedMonth) else { return }
-        let nextStart = startOfMonth(for: nextMonth)
-        displayedMonth = nextStart
-        selectedDateTransitionEdge = offset > 0 ? .trailing : .leading
-        selectedDateTransitionStyle = .crossWeek
-        selectedDate = nextStart
-        isOverdueSheetPresented = false
-    }
-
-    func returnToToday() {
-        selectDate(Date())
     }
 
     func presentOverdueSheet() {
@@ -528,12 +319,12 @@ final class HomeViewModel {
 
     func toggleInlineDetail(_ itemID: UUID) async {
         if selectedItemID == itemID {
-            await collapseInlineDetail()
+            _ = await collapseInlineDetail()
             return
         }
 
         if selectedItemID != nil {
-            await collapseInlineDetail()
+            _ = await collapseInlineDetail()
             return
         }
 
@@ -541,7 +332,8 @@ final class HomeViewModel {
         markDetailForExpandedEditing()
     }
 
-    func collapseInlineDetail() async {
+    @discardableResult
+    func collapseInlineDetail() async -> Bool {
         await saveDetailDraftAndDismiss()
     }
 
@@ -666,15 +458,23 @@ final class HomeViewModel {
         _ = await persistDetailDraft()
     }
 
-    func saveDetailDraftAndDismiss() async {
+    func saveInlineDetailDraft() async -> Bool {
+        detailSaveTask?.cancel()
+        guard hasUnsavedDetailChanges else { return true }
+        return await persistDetailDraft()
+    }
+
+    @discardableResult
+    func saveDetailDraftAndDismiss() async -> Bool {
         detailSaveTask?.cancel()
 
         if hasUnsavedDetailChanges {
             let didPersist = await persistDetailDraft()
-            guard didPersist else { return }
+            guard didPersist else { return false }
         }
 
         dismissItemDetail()
+        return true
     }
 
     func saveCurrentDraftAsTemplate() async -> Bool {
@@ -826,6 +626,22 @@ final class HomeViewModel {
                         replaceItemPreservingOrder(saved)
                     }
                     try? await Task.sleep(for: .milliseconds(90))
+                }
+            case .expandedControl:
+                if didCompleteTimelineItem {
+                    animatingCompletionOccurrenceKeys.insert(occurrenceKey)
+                    try? await Task.sleep(for: .milliseconds(680))
+                    withAnimation(.smooth(duration: 0.28, extraBounce: 0)) {
+                        replaceItemPreservingOrder(saved)
+                    }
+                } else {
+                    animatingReopeningOccurrenceKeys.insert(occurrenceKey)
+                    try? await Task.sleep(for: .milliseconds(580))
+                    var transaction = Transaction()
+                    transaction.animation = nil
+                    withTransaction(transaction) {
+                        replaceItemPreservingOrder(saved)
+                    }
                 }
             case .swipeAction:
                 if didCompleteTimelineItem {
@@ -1036,28 +852,6 @@ final class HomeViewModel {
             }
             emitTaskMutation(spaceID: spaceID)
         } catch {}
-    }
-
-    func isSelectedDate(_ date: Date) -> Bool {
-        calendar.isDate(date, inSameDayAs: selectedDate)
-    }
-
-    func hasItems(on date: Date) -> Bool {
-        items.contains { item in
-            guard shouldDisplayInCurrentTimeline(item) else { return false }
-            return item.appearsOnHome(
-                for: date,
-                includeOverdue: calendar.isDate(date, inSameDayAs: .now),
-                calendar: calendar
-            )
-        }
-    }
-
-    func hasNonRecurringItems(on date: Date) -> Bool {
-        items.contains { item in
-            guard item.repeatRule == nil, let dueAt = item.dueAt else { return false }
-            return calendar.isDate(dueAt, inSameDayAs: date)
-        }
     }
 
     func weekdayLabel(for date: Date) -> String {
@@ -1655,22 +1449,6 @@ final class HomeViewModel {
         )
     }
 
-    private func syncDisplayedMonthToSelectedDate() {
-        displayedMonth = startOfMonth(for: selectedDate)
-    }
-
-    private func startOfMonth(for date: Date) -> Date {
-        calendar.dateInterval(of: .month, for: date)?.start ?? date
-    }
-
-    private func monthDate(shiftedByMonths offset: Int) -> Date {
-        guard offset != 0 else { return displayedMonth }
-        guard let date = calendar.date(byAdding: .month, value: offset, to: displayedMonth) else {
-            return displayedMonth
-        }
-        return startOfMonth(for: date)
-    }
-
     private func isCompleted(_ item: Item, on referenceDate: Date) -> Bool {
         item.isCompleted(on: referenceDate, calendar: calendar) || item.status == .completed
     }
@@ -1737,6 +1515,7 @@ final class HomeViewModel {
 extension HomeViewModel {
     enum CompletionTrigger {
         case inlineControl
+        case expandedControl
         case swipeAction
     }
 }

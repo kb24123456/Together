@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct RoutinesEditorSheet: View {
     let viewModel: RoutinesViewModel
@@ -8,13 +11,12 @@ struct RoutinesEditorSheet: View {
     @State private var cycle: PeriodicCycle
     @State private var reminderRules: [PeriodicReminderRule] = []
 
-    @State private var activeMenu: TaskEditorMenu?
     @State private var primaryActionFeedbackNonce = 0
     @State private var isPrimaryActionAnimating = false
+    @State private var activeInlineAttributeEditor: InlineAttributeEditor?
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: Field?
-    @Namespace private var chipRowNamespace
 
     init(viewModel: RoutinesViewModel, initialCycle: PeriodicCycle = .daily) {
         self.viewModel = viewModel
@@ -61,34 +63,26 @@ struct RoutinesEditorSheet: View {
             .overlay(alignment: .bottom) {
                 bottomActionArea(bottomInset: max(proxy.safeAreaInsets.bottom, AppTheme.spacing.xs))
             }
-            .overlay {
-                if activeMenu != nil {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { dismissActiveMenu() }
-                }
-            }
             .ignoresSafeArea(edges: .bottom)
-        }
-        .sheet(isPresented: isMenuSheetPresented) {
-            if let menuBinding = activeMenuBinding {
-                RoutinesEditorMenuSheet(
-                    activeMenu: menuBinding,
-                    cycle: $cycle,
-                    reminderRules: $reminderRules,
-                    onDismiss: dismissActiveMenu
-                )
-                .presentationDetents(TaskEditorMenuContext.periodic.detents)
-                .presentationContentInteraction(.scrolls)
-                .presentationBackgroundInteraction(.enabled)
-                .presentationDragIndicator(.hidden)
-                .interactiveDismissDisabled(false)
-                .modifier(TaskEditorMenuPresentationSizingModifier())
-            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .presentationBackground(AppTheme.colors.surface)
+        .alert(
+            "无法使用原生闹钟",
+            isPresented: Binding(
+                get: { viewModel.showsAlarmAuthorizationDeniedAlert },
+                set: { viewModel.showsAlarmAuthorizationDeniedAlert = $0 }
+            )
+        ) {
+            Button("取消", role: .cancel) {}
+            Button("打开设置") {
+                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                UIApplication.shared.open(url)
+            }
+        } message: {
+            Text("请在系统设置中允许 Together 使用闹钟；当前提醒方式保持不变。")
+        }
         .onAppear {
             DispatchQueue.main.async {
                 focusedField = .title
@@ -103,10 +97,7 @@ struct RoutinesEditorSheet: View {
             Spacer(minLength: 0)
 
             VStack(alignment: .leading, spacing: hasMeaningfulContent ? AppTheme.spacing.md : 0) {
-                chipRow { menu in
-                    HomeInteractionFeedback.selection()
-                    openMenu(menu)
-                }
+                attributeToolbar
 
                 if hasMeaningfulContent {
                     primaryActionButton
@@ -127,52 +118,191 @@ struct RoutinesEditorSheet: View {
         .animation(.interpolatingSpring(mass: 1.08, stiffness: 168, damping: 23, initialVelocity: 0.1), value: hasMeaningfulContent)
     }
 
-    // MARK: - Chip Row
+    // MARK: - Inline Attributes
 
-    private func chipRow(action: @escaping (TaskEditorMenu) -> Void) -> some View {
-        TaskEditorChipRow(
-            chips: chips,
-            namespace: chipRowNamespace,
-            trailingInset: 0,
-            onChipTap: action,
-            onClearTap: { _ in }
-        )
-    }
-
-    private var chips: [TaskEditorRenderedChip] {
-        let snapshots: [TaskEditorChipSnapshot] = [
-            TaskEditorChipSnapshot(
-                id: TaskEditorMenu.periodicCycle.rawValue,
-                title: cycle.title,
-                systemImage: "arrow.clockwise",
-                menu: .periodicCycle,
-                semanticValue: .periodicCycle(cycle)
-            ),
-            TaskEditorChipSnapshot(
-                id: TaskEditorMenu.periodicReminder.rawValue,
-                title: reminderChipTitle,
-                systemImage: "bell",
-                menu: .periodicReminder,
-                semanticValue: .periodicReminder(reminderRules.contains { $0.isEmpty == false })
-            )
-        ]
-        return snapshots.map { snapshot in
-            TaskEditorRenderedChip(
-                id: snapshot.id,
-                title: snapshot.title,
-                systemImage: snapshot.systemImage,
-                menu: snapshot.menu,
-                showsTrailingClear: false,
-                transitionDirection: .up,
-                semanticValue: snapshot.semanticValue
-            )
+    private var attributeToolbar: some View {
+        AdaptiveTaskAttributeToolbarLayout() {
+            cycleMenu.frame(maxWidth: .infinity)
+            targetDayMenu.frame(maxWidth: .infinity)
+            targetTimeControl.frame(maxWidth: .infinity)
+            reminderMenu.frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+        .sheet(item: $activeInlineAttributeEditor) { editor in
+            inlineAttributeEditor(editor)
         }
     }
 
-    private var reminderChipTitle: String {
-        guard let rule = reminderRules.first else { return "提醒" }
-        let text = RoutineTargetText.text(for: rule, cycle: cycle)
-        return text.isEmpty ? "提醒" : text
+    private var cycleMenu: some View {
+        Menu {
+            ForEach(PeriodicCycle.allCases, id: \.self) { value in
+                Button(value.title) {
+                    cycle = value
+                    if let rule = reminderRules.first {
+                        setRule(RoutinesViewModel.normalizedRule(rule, for: value))
+                    }
+                }
+            }
+        } label: {
+            attributeLabel(icon: "arrow.triangle.2.circlepath", title: cycle.title, configured: true)
+        }
+    }
+
+    @ViewBuilder
+    private var targetDayMenu: some View {
+        if cycle == .daily {
+            attributeLabel(icon: "calendar", title: "每天", configured: true)
+        } else {
+            Menu {
+                targetDayOptions
+                if currentRule?.hasTargetDay == true {
+                    Divider()
+                    Button("清除目标日", role: .destructive) { mutateRule { $0.timing = nil } }
+                }
+            } label: {
+                attributeLabel(icon: "calendar", title: targetDayTitle, configured: currentRule?.hasTargetDay == true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var targetTimeControl: some View {
+        TaskAttributeButton(
+            icon: "clock",
+            title: currentRule?.hasTargetTime == true ? TaskAttributeValueText.time(targetTimeDate) : "时间",
+            isConfigured: currentRule?.hasTargetTime == true
+        ) {
+            if currentRule?.hasTargetTime != true {
+                updateTargetTime(.now)
+            }
+            focusedField = nil
+            withAnimation(.snappy(duration: 0.28, extraBounce: 0.01)) {
+                activeInlineAttributeEditor = activeInlineAttributeEditor == .time ? nil : .time
+            }
+        }
+    }
+
+    private var reminderMenu: some View {
+        Menu {
+            Button("关闭提醒") { mutateRule { $0.reminderLeadMinutes = nil; $0.reminderDelivery = nil } }
+            Divider()
+            reminderOption("目标时刻", minutes: 0)
+            reminderOption("提前 5 分钟", minutes: 5)
+            reminderOption("提前 15 分钟", minutes: 15)
+            reminderOption("提前 30 分钟", minutes: 30)
+            reminderOption("提前 1 小时", minutes: 60)
+            reminderOption("提前 1 天", minutes: 1_440)
+            if currentRule?.hasReminder == true {
+                Divider()
+                Button("普通通知") { mutateRule { $0.reminderDelivery = .notification } }
+                if #available(iOS 26.0, *) {
+                    Button("原生闹钟") {
+                        Task {
+                            let accepted = await viewModel.canUseAlarmDelivery()
+                            guard accepted else { return }
+                            mutateRule { $0.reminderDelivery = .alarm }
+                        }
+                    }
+                }
+            }
+        } label: {
+            attributeLabel(
+                icon: currentRule?.reminderDelivery == .alarm ? "alarm" : "bell",
+                title: currentRule?.hasReminder == true ? "提醒" : "提醒",
+                configured: currentRule?.hasReminder == true
+            )
+        }
+        .disabled(currentRule?.hasCompleteTarget(for: cycle) != true)
+    }
+
+    private func reminderOption(_ title: String, minutes: Int) -> some View {
+        Button(title) {
+            mutateRule {
+                $0.reminderLeadMinutes = minutes
+                if $0.reminderDelivery == nil { $0.reminderDelivery = .notification }
+            }
+        }
+    }
+
+    private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
+        InlineDateTimePickerPanel(
+            editor: editor,
+            title: "目标时间",
+            selection: Binding(get: { targetTimeDate }, set: updateTargetTime),
+            allowsClearing: currentRule?.hasTargetTime == true,
+            onClear: {
+                mutateRule {
+                    $0.hour = nil
+                    $0.minute = nil
+                    $0.reminderLeadMinutes = nil
+                    $0.reminderDelivery = nil
+                }
+                withAnimation { activeInlineAttributeEditor = nil }
+            },
+            onDone: { withAnimation { activeInlineAttributeEditor = nil } }
+        )
+    }
+
+    private func attributeLabel(icon: String, title: String, configured: Bool) -> some View {
+        TaskAttributeLabel(
+            icon: icon,
+            title: title,
+            isConfigured: configured
+        )
+    }
+
+    @ViewBuilder
+    private var targetDayOptions: some View {
+        switch cycle {
+        case .daily:
+            EmptyView()
+        case .weekly:
+            ForEach(1...7, id: \.self) { day in
+                Button(RoutineTargetText.weekdayText(for: day)) { mutateRule { $0.timing = .dayOfPeriod(day) } }
+            }
+        case .monthly:
+            ForEach([1, 5, 10, 15, 20, 25, 31], id: \.self) { day in
+                Button(day == 31 ? "最后一天" : "\(day) 号") { mutateRule { $0.timing = .dayOfPeriod(day) } }
+            }
+        case .quarterly:
+            Button("第 1 天") { mutateRule { $0.timing = .dayOfPeriod(1) } }
+            Button("第 30 天") { mutateRule { $0.timing = .dayOfPeriod(30) } }
+            Button("结束前 14 天") { mutateRule { $0.timing = .daysBeforeEnd(14) } }
+        case .yearly:
+            Button("第 1 天") { mutateRule { $0.timing = .dayOfPeriod(1) } }
+            Button("第 180 天") { mutateRule { $0.timing = .dayOfPeriod(180) } }
+            Button("结束前 30 天") { mutateRule { $0.timing = .daysBeforeEnd(30) } }
+        }
+    }
+
+    private var currentRule: PeriodicReminderRule? { reminderRules.first }
+
+    private var targetDayTitle: String {
+        guard let rule = currentRule else { return "目标日" }
+        let text = RoutineTargetText.text(
+            for: PeriodicReminderRule(timing: rule.timing),
+            cycle: cycle
+        )
+        return text.isEmpty ? "目标日" : text
+    }
+
+    private var targetTimeDate: Date {
+        Calendar.current.date(from: DateComponents(hour: currentRule?.hour, minute: currentRule?.minute)) ?? .now
+    }
+
+    private func updateTargetTime(_ date: Date) {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        mutateRule { $0.hour = components.hour; $0.minute = components.minute }
+    }
+
+    private func mutateRule(_ mutation: (inout PeriodicReminderRule) -> Void) {
+        var rule = currentRule ?? PeriodicReminderRule()
+        mutation(&rule)
+        setRule(rule)
+    }
+
+    private func setRule(_ rule: PeriodicReminderRule) {
+        reminderRules = rule.isEmpty ? [] : [rule]
     }
 
     // MARK: - Primary Action Button
@@ -218,32 +348,6 @@ struct RoutinesEditorSheet: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             isPrimaryActionAnimating = false
         }
-    }
-
-    // MARK: - Menu Management
-
-    private var isMenuSheetPresented: Binding<Bool> {
-        Binding(
-            get: { activeMenu != nil },
-            set: { if !$0 { dismissActiveMenu() } }
-        )
-    }
-
-    private var activeMenuBinding: Binding<TaskEditorMenu>? {
-        guard let activeMenu else { return nil }
-        return Binding(
-            get: { self.activeMenu ?? activeMenu },
-            set: { self.activeMenu = $0 }
-        )
-    }
-
-    private func openMenu(_ menu: TaskEditorMenu) {
-        focusedField = nil
-        activeMenu = menu
-    }
-
-    private func dismissActiveMenu() {
-        activeMenu = nil
     }
 
     // MARK: - Save

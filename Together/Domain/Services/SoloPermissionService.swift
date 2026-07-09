@@ -3,7 +3,8 @@ import Foundation
 /// Centralized permission checks for single-user data mutations.
 ///
 /// Rules:
-/// - The current user can edit/delete their own tasks, lists, projects, periodic tasks
+/// - Tasks in the active personal space can be edited/deleted by the current user
+/// - Lists, projects, and periodic tasks retain their existing ownership checks
 /// - The space owner can rename the space
 /// - Completion and restore actions stay local to the active user
 ///
@@ -13,11 +14,19 @@ enum SoloPermissionService {
     // MARK: - Task
 
     nonisolated static func canEditTask(_ task: Item, actorID: UUID) -> Bool {
-        task.creatorID == actorID
+        // `creatorID` was a device-local identity in older builds and can differ
+        // after account restoration. Task services establish the active-space
+        // boundary before calling this policy, so it must not reject personal
+        // tasks solely because that historical identity changed.
+        _ = task
+        _ = actorID
+        return true
     }
 
     nonisolated static func canDeleteTask(_ task: Item, actorID: UUID) -> Bool {
-        task.creatorID == actorID
+        _ = task
+        _ = actorID
+        return true
     }
 
     // MARK: - TaskList

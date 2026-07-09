@@ -36,11 +36,49 @@ struct RoutineTaskDisplayText: Equatable {
     ) -> RoutineTaskDisplayText {
         let trimmedNotes = task.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         let noteText = trimmedNotes?.isEmpty == false ? trimmedNotes : nil
-        let targetText = RoutineTargetText.text(for: task, calendar: calendar)
+        let targetText = RoutineTaskPropertyText.text(for: task, calendar: calendar)
         return RoutineTaskDisplayText(
             primarySubtitle: noteText ?? (targetText.isEmpty ? (isCompleted ? "已完成" : "进行中") : targetText),
             propertyText: noteText != nil && targetText.isEmpty == false ? targetText : nil
         )
+    }
+}
+
+enum RoutineReminderText {
+    static func text(for rule: PeriodicReminderRule) -> String {
+        guard let leadMinutes = rule.reminderLeadMinutes else { return "" }
+        let timing: String
+        switch leadMinutes {
+        case 0: timing = "目标时刻"
+        case 5: timing = "提前 5 分钟"
+        case 15: timing = "提前 15 分钟"
+        case 30: timing = "提前 30 分钟"
+        case 60: timing = "提前 1 小时"
+        case 1_440: timing = "提前 1 天"
+        default: timing = "提前 \(leadMinutes) 分钟"
+        }
+        let delivery = rule.reminderDelivery == .alarm ? "闹钟" : "提醒"
+        return "\(timing) · \(delivery)"
+    }
+}
+
+enum RoutineTaskPropertyText {
+    static func text(for task: PeriodicTask, calendar: Calendar = .current) -> String {
+        guard let rule = task.reminderRules.first else { return "" }
+        return text(for: rule, cycle: task.cycle, calendar: calendar)
+    }
+
+    static func text(
+        for rule: PeriodicReminderRule,
+        cycle: PeriodicCycle,
+        calendar: Calendar = .current
+    ) -> String {
+        [
+            RoutineTargetText.text(for: rule, cycle: cycle, calendar: calendar),
+            RoutineReminderText.text(for: rule)
+        ]
+        .filter { $0.isEmpty == false }
+        .joined(separator: " · ")
     }
 }
 
@@ -152,11 +190,15 @@ final class RoutinesViewModel {
     var selectedCycle: PeriodicCycle = .daily
     var expandedTaskID: UUID?
     var detailDraft: RoutineInlineDraft?
+    var showsAlarmAuthorizationDeniedAlert = false
+    private(set) var persistedVisibleCycles: Set<PeriodicCycle>
+    private var pendingCompletedTask: PeriodicTask?
+    private var temporaryVisibleCycle: PeriodicCycle?
 
     private var loadedSpaceID: UUID?
     private var tasksBySpaceID: [UUID: [PeriodicTask]] = [:]
-    private let optionalCyclesStorageKey = "together.routines.visibleOptionalCycles"
-    @ObservationIgnored private var userEnabledOptionalCycles: Set<PeriodicCycle> = []
+    private static let visibleCyclesStorageKey = "together.routines.visibleCycles.v2"
+    private static let legacyOptionalCyclesStorageKey = "together.routines.visibleOptionalCycles"
 
     init(
         sessionStore: SessionStore,
@@ -166,7 +208,14 @@ final class RoutinesViewModel {
         self.sessionStore = sessionStore
         self.periodicTaskApplicationService = periodicTaskApplicationService
         self.taskTemplateRepository = taskTemplateRepository
-        self.userEnabledOptionalCycles = Self.loadUserEnabledOptionalCycles(storageKey: optionalCyclesStorageKey)
+        self.persistedVisibleCycles = Self.loadPersistedVisibleCycles(
+            storageKey: Self.visibleCyclesStorageKey,
+            legacyStorageKey: Self.legacyOptionalCyclesStorageKey
+        )
+        if persistedVisibleCycles.contains(selectedCycle) == false,
+           let firstVisibleCycle = PeriodicCycle.allCases.first(where: persistedVisibleCycles.contains) {
+            selectedCycle = firstVisibleCycle
+        }
     }
 
     private func replaceTask(_ updated: PeriodicTask) {
@@ -201,16 +250,13 @@ final class RoutinesViewModel {
     }
 
     var visibleCycles: [PeriodicCycle] {
-        let cyclesWithTasks = Set(tasks.map(\.cycle))
         return PeriodicCycle.allCases.filter { cycle in
-            PeriodicCycle.defaultVisibleCases.contains(cycle)
-                || userEnabledOptionalCycles.contains(cycle)
-                || cyclesWithTasks.contains(cycle)
+            persistedVisibleCycles.contains(cycle) || temporaryVisibleCycle == cycle
         }
     }
 
-    var optionalHiddenCycles: [PeriodicCycle] {
-        PeriodicCycle.optionalVisibleCases.filter { visibleCycles.contains($0) == false }
+    var hiddenCycles: [PeriodicCycle] {
+        PeriodicCycle.allCases.filter { persistedVisibleCycles.contains($0) == false }
     }
 
     var currentTasks: [PeriodicTask] {
@@ -319,15 +365,48 @@ final class RoutinesViewModel {
 
     func selectCycle(_ cycle: PeriodicCycle) {
         guard expandedTaskID == nil else { return }
+        guard visibleCycles.contains(cycle) else { return }
+        if temporaryVisibleCycle != cycle {
+            temporaryVisibleCycle = nil
+        }
         selectedCycle = cycle
     }
 
-    func addOptionalCycle(_ cycle: PeriodicCycle) {
+    func setCycle(_ cycle: PeriodicCycle, isVisible: Bool) {
         guard expandedTaskID == nil else { return }
-        guard PeriodicCycle.optionalVisibleCases.contains(cycle) else { return }
-        userEnabledOptionalCycles.insert(cycle)
-        Self.saveUserEnabledOptionalCycles(userEnabledOptionalCycles, storageKey: optionalCyclesStorageKey)
+        if isVisible {
+            persistedVisibleCycles.insert(cycle)
+            if temporaryVisibleCycle == cycle {
+                temporaryVisibleCycle = nil
+            }
+        } else {
+            guard persistedVisibleCycles.contains(cycle), persistedVisibleCycles.count > 1 else { return }
+            persistedVisibleCycles.remove(cycle)
+            if selectedCycle == cycle,
+               let fallback = PeriodicCycle.allCases.first(where: persistedVisibleCycles.contains) {
+                selectedCycle = fallback
+            }
+        }
+        Self.savePersistedVisibleCycles(persistedVisibleCycles, storageKey: Self.visibleCyclesStorageKey)
+    }
+
+    func canHideCycle(_ cycle: PeriodicCycle) -> Bool {
+        persistedVisibleCycles.contains(cycle) && persistedVisibleCycles.count > 1
+    }
+
+    func selectCycleTemporarily(_ cycle: PeriodicCycle) {
+        guard expandedTaskID == nil else { return }
+        temporaryVisibleCycle = persistedVisibleCycles.contains(cycle) ? nil : cycle
         selectedCycle = cycle
+    }
+
+    func clearTemporaryCycleIfNeeded() {
+        guard let temporaryVisibleCycle else { return }
+        self.temporaryVisibleCycle = nil
+        if selectedCycle == temporaryVisibleCycle,
+           let fallback = PeriodicCycle.allCases.first(where: persistedVisibleCycles.contains) {
+            selectedCycle = fallback
+        }
     }
 
     // MARK: - Task State
@@ -459,6 +538,31 @@ final class RoutinesViewModel {
         }
     }
 
+    func prepareExpandedCompletion(taskID: UUID) async -> Bool {
+        guard await saveInlineDetailDraft() else { return false }
+        guard let spaceID = sessionStore.currentSpace?.id else { return false }
+        do {
+            pendingCompletedTask = try await periodicTaskApplicationService.toggleCompletion(
+                in: spaceID,
+                taskID: taskID,
+                referenceDate: referenceDate
+            )
+            return true
+        } catch {
+            pendingCompletedTask = nil
+            return false
+        }
+    }
+
+    func finishExpandedCompletion(taskID: UUID) {
+        guard let pendingCompletedTask, pendingCompletedTask.id == taskID else { return }
+        if let index = tasks.firstIndex(where: { $0.id == taskID }) {
+            tasks[index] = pendingCompletedTask
+        }
+        self.pendingCompletedTask = nil
+        cacheCurrentTasks()
+    }
+
     func toggleInlineDetail(_ taskID: UUID) async {
         if expandedTaskID == taskID {
             await collapseInlineDetail()
@@ -517,6 +621,45 @@ final class RoutinesViewModel {
         }
     }
 
+    func updateDraftReminder(leadMinutes: Int?) {
+        mutateDraftRule {
+            $0.reminderLeadMinutes = leadMinutes
+            if leadMinutes == nil {
+                $0.reminderDelivery = nil
+            } else if $0.reminderDelivery == nil {
+                $0.reminderDelivery = .notification
+            }
+        }
+    }
+
+    func updateDraftReminderDelivery(_ delivery: PeriodicReminderDelivery) async {
+        if delivery == .alarm {
+            guard await canUseAlarmDelivery() else { return }
+        }
+
+        mutateDraftRule {
+            guard $0.reminderLeadMinutes != nil else { return }
+            $0.reminderDelivery = delivery
+        }
+    }
+
+    func canUseAlarmDelivery() async -> Bool {
+        do {
+            let status = await periodicTaskApplicationService.alarmAuthorizationStatus()
+            let resolvedStatus = status == .notDetermined
+                ? try await periodicTaskApplicationService.requestAlarmAuthorization()
+                : status
+            guard resolvedStatus == .authorized else {
+                showsAlarmAuthorizationDeniedAlert = true
+                return false
+            }
+            return true
+        } catch {
+            showsAlarmAuthorizationDeniedAlert = true
+            return false
+        }
+    }
+
     func hasUnsavedInlineChanges(for task: PeriodicTask) -> Bool {
         guard expandedTaskID == task.id, let detailDraft else { return false }
         return detailDraft != RoutineInlineDraft(task: task)
@@ -549,6 +692,16 @@ final class RoutinesViewModel {
         self.expandedTaskID = nil
         detailDraft = nil
         return true
+    }
+
+    func saveInlineDetailDraft() async -> Bool {
+        guard let expandedTaskID, let draft = detailDraft else { return true }
+        guard draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            return false
+        }
+        let originalTask = tasks.first { $0.id == expandedTaskID }
+        guard originalTask.map({ RoutineInlineDraft(task: $0) }) != draft else { return true }
+        return await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft)
     }
 
     func createTask(draft: PeriodicTaskDraft) async {
@@ -696,12 +849,33 @@ final class RoutinesViewModel {
         }
     }
 
-    private static func loadUserEnabledOptionalCycles(storageKey: String) -> Set<PeriodicCycle> {
-        let rawValues = UserDefaults.standard.stringArray(forKey: storageKey) ?? []
-        return Set(rawValues.compactMap(PeriodicCycle.init(rawValue:)))
+    private static func loadPersistedVisibleCycles(
+        storageKey: String,
+        legacyStorageKey: String
+    ) -> Set<PeriodicCycle> {
+        if UserDefaults.standard.object(forKey: storageKey) != nil {
+            let stored = Set(
+                (UserDefaults.standard.stringArray(forKey: storageKey) ?? [])
+                    .compactMap(PeriodicCycle.init(rawValue:))
+            )
+            if stored.isEmpty == false {
+                return stored
+            }
+        }
+
+        let legacyOptionalCycles = Set(
+            (UserDefaults.standard.stringArray(forKey: legacyStorageKey) ?? [])
+                .compactMap(PeriodicCycle.init(rawValue:))
+        )
+        let migrated = Set(PeriodicCycle.defaultVisibleCases).union(legacyOptionalCycles)
+        savePersistedVisibleCycles(migrated, storageKey: storageKey)
+        return migrated
     }
 
-    private static func saveUserEnabledOptionalCycles(_ cycles: Set<PeriodicCycle>, storageKey: String) {
-        UserDefaults.standard.set(cycles.map(\.rawValue), forKey: storageKey)
+    private static func savePersistedVisibleCycles(_ cycles: Set<PeriodicCycle>, storageKey: String) {
+        let orderedRawValues = PeriodicCycle.allCases
+            .filter(cycles.contains)
+            .map(\.rawValue)
+        UserDefaults.standard.set(orderedRawValues, forKey: storageKey)
     }
 }

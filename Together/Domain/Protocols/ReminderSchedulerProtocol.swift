@@ -10,4 +10,6 @@ protocol ReminderSchedulerProtocol: Sendable {
     func resync(tasks: [Item], projects: [Project]) async
     func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async
     func removePeriodicTaskReminder(for taskID: UUID) async
+    func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus
+    func requestPeriodicAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus
 }

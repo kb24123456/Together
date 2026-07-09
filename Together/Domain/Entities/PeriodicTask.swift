@@ -12,7 +12,7 @@ enum PeriodicCycle: String, CaseIterable, Hashable, Sendable, Codable {
     static let defaultVisibleCases: [PeriodicCycle] = [.daily, .weekly, .monthly]
     static let optionalVisibleCases: [PeriodicCycle] = [.quarterly, .yearly]
 
-    var title: String {
+    nonisolated var title: String {
         switch self {
         case .daily: "每天"
         case .weekly: "每周"
@@ -22,7 +22,7 @@ enum PeriodicCycle: String, CaseIterable, Hashable, Sendable, Codable {
         }
     }
 
-    var currentPeriodPrefix: String {
+    nonisolated var currentPeriodPrefix: String {
         switch self {
         case .daily: "今天"
         case .weekly: "本周"
@@ -35,6 +35,11 @@ enum PeriodicCycle: String, CaseIterable, Hashable, Sendable, Codable {
 
 // MARK: - Reminder Rule
 
+enum PeriodicReminderDelivery: String, Codable, Hashable, Sendable {
+    case notification
+    case alarm
+}
+
 struct PeriodicReminderRule: Codable, Hashable, Sendable {
     enum Timing: Codable, Hashable, Sendable {
         case dayOfPeriod(Int)
@@ -45,18 +50,79 @@ struct PeriodicReminderRule: Codable, Hashable, Sendable {
     var timing: Timing?
     var hour: Int?
     var minute: Int?
+    var reminderLeadMinutes: Int?
+    var reminderDelivery: PeriodicReminderDelivery?
 
-    nonisolated init(timing: Timing? = nil, hour: Int? = nil, minute: Int? = nil) {
+    nonisolated init(
+        timing: Timing? = nil,
+        hour: Int? = nil,
+        minute: Int? = nil,
+        reminderLeadMinutes: Int? = nil,
+        reminderDelivery: PeriodicReminderDelivery? = nil
+    ) {
         self.timing = timing
         self.hour = hour
         self.minute = minute
+        self.reminderLeadMinutes = reminderLeadMinutes
+        self.reminderDelivery = reminderLeadMinutes == nil ? nil : (reminderDelivery ?? .notification)
     }
 
     nonisolated var hasTargetDay: Bool { timing != nil }
 
     nonisolated var hasTargetTime: Bool { hour != nil && minute != nil }
 
-    nonisolated var isEmpty: Bool { hasTargetDay == false && hasTargetTime == false }
+    nonisolated var hasReminder: Bool { reminderLeadMinutes != nil }
+
+    nonisolated var isEmpty: Bool {
+        hasTargetDay == false && hasTargetTime == false && hasReminder == false
+    }
+
+    nonisolated func hasCompleteTarget(for cycle: PeriodicCycle) -> Bool {
+        hasTargetTime && (cycle == .daily || hasTargetDay)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case timing
+        case hour
+        case minute
+        case reminderLeadMinutes
+        case reminderDelivery
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        timing = try container.decodeIfPresent(Timing.self, forKey: .timing)
+        hour = try container.decodeIfPresent(Int.self, forKey: .hour)
+        minute = try container.decodeIfPresent(Int.self, forKey: .minute)
+
+        if container.contains(.reminderLeadMinutes) {
+            reminderLeadMinutes = try container.decodeIfPresent(Int.self, forKey: .reminderLeadMinutes)
+        } else {
+            // Legacy rules scheduled a notification automatically whenever a target
+            // time existed. Preserve that behavior without changing SwiftData schema.
+            reminderLeadMinutes = hour != nil && minute != nil ? 0 : nil
+        }
+
+        if container.contains(.reminderDelivery) {
+            reminderDelivery = try container.decodeIfPresent(
+                PeriodicReminderDelivery.self,
+                forKey: .reminderDelivery
+            )
+        } else {
+            reminderDelivery = reminderLeadMinutes == nil ? nil : .notification
+        }
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(timing, forKey: .timing)
+        try container.encodeIfPresent(hour, forKey: .hour)
+        try container.encodeIfPresent(minute, forKey: .minute)
+        // Encode nil explicitly so newly-created target-only rules are not mistaken
+        // for legacy auto-reminder rules when decoded later.
+        try container.encode(reminderLeadMinutes, forKey: .reminderLeadMinutes)
+        try container.encode(reminderDelivery, forKey: .reminderDelivery)
+    }
 }
 
 // MARK: - Completion Record

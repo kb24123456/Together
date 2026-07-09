@@ -2,14 +2,17 @@ import Foundation
 
 actor LocalReminderScheduler: ReminderSchedulerProtocol {
     private let notificationService: NotificationServiceProtocol
+    private let routineAlarmService: RoutineAlarmServiceProtocol
     private let calendar: Calendar
     private let searchWindowDays = 730
 
     init(
         notificationService: NotificationServiceProtocol,
+        routineAlarmService: RoutineAlarmServiceProtocol = LocalRoutineAlarmService(),
         calendar: Calendar = .current
     ) {
         self.notificationService = notificationService
+        self.routineAlarmService = routineAlarmService
         self.calendar = calendar
     }
 
@@ -249,36 +252,69 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
 
         guard task.isActive, !task.isCompleted(forPeriodKey: periodKey) else {
             await notificationService.cancel([notificationID])
+            await routineAlarmService.cancel(id: task.id)
             return
         }
 
-        guard let notification = makePeriodicTaskNotification(for: task, referenceDate: referenceDate, periodKey: periodKey) else {
+        guard let schedule = nextPeriodicReminderSchedule(for: task, referenceDate: referenceDate) else {
             await notificationService.cancel([notificationID])
+            await routineAlarmService.cancel(id: task.id)
             return
+        }
+
+        let notification = makePeriodicTaskNotification(
+            for: task,
+            periodKey: periodKey,
+            scheduledAt: schedule.date
+        )
+
+        if schedule.delivery == .alarm {
+            await notificationService.cancel([notificationID])
+            do {
+                try await routineAlarmService.schedule(id: task.id, title: task.title, at: schedule.date)
+                return
+            } catch {
+                // AlarmKit is unavailable before iOS 26 and can also be denied.
+                // Preserve the reminder by falling back to the existing notification.
+            }
+        } else {
+            await routineAlarmService.cancel(id: task.id)
         }
 
         try? await notificationService.schedule([notification])
     }
 
     func removePeriodicTaskReminder(for taskID: UUID) async {
-        let periodKey = PeriodicCycleCalculator.periodKey(for: .weekly, date: .now, calendar: calendar)
         let ids = PeriodicCycle.allCases.map { cycle in
             let key = PeriodicCycleCalculator.periodKey(for: cycle, date: .now, calendar: calendar)
             return periodicTaskNotificationID(taskID: taskID, periodKey: key)
         }
         await notificationService.cancel(ids)
+        await routineAlarmService.cancel(id: taskID)
     }
 
-    private func makePeriodicTaskNotification(
+    func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus {
+        await routineAlarmService.authorizationStatus()
+    }
+
+    func requestPeriodicAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus {
+        try await routineAlarmService.requestAuthorization()
+    }
+
+    private struct PeriodicReminderSchedule {
+        let date: Date
+        let delivery: PeriodicReminderDelivery
+    }
+
+    private func nextPeriodicReminderSchedule(
         for task: PeriodicTask,
-        referenceDate: Date,
-        periodKey: String
-    ) -> AppNotification? {
+        referenceDate: Date
+    ) -> PeriodicReminderSchedule? {
         let now = Date.now
-        var earliestTrigger: Date?
+        var earliest: PeriodicReminderSchedule?
 
         for rule in task.reminderRules {
-            guard let triggerDate = PeriodicCycleCalculator.reminderTriggerDate(
+            guard let triggerDate = PeriodicCycleCalculator.periodicReminderDate(
                 rule: rule,
                 cycle: task.cycle,
                 date: referenceDate,
@@ -286,14 +322,23 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
             ) else { continue }
 
             if triggerDate > now {
-                if earliestTrigger == nil || triggerDate < earliestTrigger! {
-                    earliestTrigger = triggerDate
+                if earliest == nil || triggerDate < earliest!.date {
+                    earliest = PeriodicReminderSchedule(
+                        date: triggerDate,
+                        delivery: rule.reminderDelivery ?? .notification
+                    )
                 }
             }
         }
 
-        guard let scheduledAt = earliestTrigger else { return nil }
+        return earliest
+    }
 
+    private func makePeriodicTaskNotification(
+        for task: PeriodicTask,
+        periodKey: String,
+        scheduledAt: Date
+    ) -> AppNotification {
         return AppNotification(
             id: UUID(),
             spaceID: task.spaceID,

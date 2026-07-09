@@ -9,78 +9,51 @@ struct HomeView: View {
     @Bindable var routinesViewModel: RoutinesViewModel
     let isProjectModePresented: Bool
     let isRoutinesModePresented: Bool
-    let onProfileTapped: () -> Void
     let onCreateTaskTapped: () -> Void
     let onCompletedHistoryTapped: (CompletedHistoryFilter) -> Void
-    @State private var weekPagerOffset: CGFloat = 0
     @State private var isRequestStackExpanded = false
-    @State private var isWeekPagerSettling = false
-    @State private var isTodayJumpButtonVisible = false
-    @State private var todayJumpRevealTask: Task<Void, Never>?
     @State private var isCompletedVisibilityButtonCompressed = false
     @State private var isCompletedSectionVisible = true
-    @State private var monthPagerOffset: CGFloat = 0
-    @State private var isMonthPagerSettling = false
     @State private var highlightedTaskID: UUID?
     @State private var isTimelineReorderingActive = false
-    @State private var activeInlineDetailMenu: TaskEditorMenu?
     @State private var visualFocusItemID: UUID?
     @State private var collapsingInlineDetailID: UUID?
     @State private var inlineDetailAnimationBatch = 0
     @State private var inlineNoteEditingItemID: UUID?
 
-    private let weekPageBreathingGap: CGFloat = 0
-    private let calendarColumnSpacing: CGFloat = AppTheme.spacing.sm
-    private let calendarGridHorizontalInset: CGFloat = 4
-    private let calendarWeekdayHeight: CGFloat = 20
-    private let weekMiddleIndex = 3
-    private let contentCardCornerRadius: CGFloat = 40
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
     private let timelineBottomInset: CGFloat = 24
-    private let monthGridSpacing: CGFloat = 8
-    private let monthCompressedGridSpacing: CGFloat = 4
-    private let monthDayCellHeight: CGFloat = 46
-    private let monthCompressedDayCellHeight: CGFloat = 37
-    private let monthDayCircleSize: CGFloat = 34
-    private let monthCompressedDayCircleSize: CGFloat = 28
-    private let monthIndicatorSize: CGFloat = 4
-    private let monthIndicatorSpacing: CGFloat = 6
-    private let monthCompressedTopPadding: CGFloat = 6
-    private let monthDayTextVerticalOffset: CGFloat = 0
-    private let calendarTopSpacing: CGFloat = 10
-    private let homeCanvasColor = AppTheme.colors.background
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .top) {
-                backgroundView
+        ZStack(alignment: .top) {
+            backgroundView
 
-                contentCard
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.top, contentTopInset(safeAreaTop: proxy.safeAreaInsets.top))
-                    .offset(y: contentCardVerticalOffset)
-                    .scaleEffect(contentCardScale, anchor: .top)
-
-            }
+            contentCard
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .font(AppTheme.typography.body)
         .task {
             await viewModel.loadIfNeeded()
-            updateTodayJumpButtonVisibility()
             await viewModel.performDeferredMaintenanceIfNeeded()
         }
         .task(id: viewModel.selectedDateKey) {
             visualFocusItemID = nil
             collapsingInlineDetailID = nil
             await viewModel.reload(reason: .dateChange)
-            updateTodayJumpButtonVisibility()
+            restoreVisualFocusIfNeeded()
         }
         .onChange(of: viewModel.expandedDetailItemID) { _, expandedItemID in
-            guard expandedItemID == nil else { return }
-            visualFocusItemID = nil
-            inlineNoteEditingItemID = nil
-            collapsingInlineDetailID = nil
+            if let expandedItemID {
+                guard collapsingInlineDetailID != expandedItemID else { return }
+                withAnimation(timelineFocusAnimation) {
+                    visualFocusItemID = expandedItemID
+                }
+            } else {
+                visualFocusItemID = nil
+                inlineNoteEditingItemID = nil
+                collapsingInlineDetailID = nil
+            }
         }
         .sheet(
             isPresented: Binding(
@@ -113,66 +86,19 @@ struct HomeView: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
-        .sheet(
-            isPresented: Binding(
-                get: { activeInlineDetailMenu != nil },
-                set: { isPresented in
-                    if isPresented == false {
-                        activeInlineDetailMenu = nil
-                    }
-                }
-            )
-        ) {
-            if let menuBinding = activeInlineDetailMenuBinding {
-                HomeDetailMenuSheet(
-                    context: .taskInline,
-                    activeMenu: menuBinding,
-                    viewModel: viewModel,
-                    templates: [],
-                    isLoadingTemplates: false,
-                    onTemplatePicked: { _ in },
-                    onTemplateDeleted: { _ in },
-                    disabledMenus: inlineDetailDisabledMenus,
-                    onDismiss: {
-                        activeInlineDetailMenu = nil
-                    }
-                )
-                .presentationDetents(TaskEditorMenuContext.taskInline.detents)
-                .presentationContentInteraction(.scrolls)
-                .presentationDragIndicator(.hidden)
-                .interactiveDismissDisabled(false)
-                .modifier(TaskEditorMenuPresentationSizingModifier())
-            }
-        }
         .onAppear {
             isCompletedSectionVisible = true
-        }
-        .onDisappear {
-            todayJumpRevealTask?.cancel()
         }
         .onChange(of: appContext.startupRestorePresentationState) { oldValue, newValue in
             guard oldValue.isVisible, newValue == .idle else { return }
             Task {
                 await viewModel.reload(reason: .startupRestore)
-                updateTodayJumpButtonVisibility()
             }
         }
     }
 
     private var backgroundView: some View {
         GradientGridBackground()
-    }
-
-    private var activeInlineDetailMenuBinding: Binding<TaskEditorMenu>? {
-        guard let activeInlineDetailMenu else { return nil }
-        return Binding(
-            get: { self.activeInlineDetailMenu ?? activeInlineDetailMenu },
-            set: { self.activeInlineDetailMenu = $0 }
-        )
-    }
-
-    private var inlineDetailDisabledMenus: Set<TaskEditorMenu> {
-        viewModel.inlineDetailDraft?.hasExplicitTime == true ? [] : [.reminder]
     }
 
     private var showsStartupRestoreStatus: Bool {
@@ -187,57 +113,6 @@ struct HomeView: View {
             return true
         }
         return false
-    }
-
-    private var startupRestoreStatusPill: some View {
-        HStack(spacing: AppTheme.spacing.xs) {
-            restoreStatusGlyph
-
-            Text(startupRestoreStatusText)
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-        }
-        .padding(.horizontal, AppTheme.spacing.md)
-        .padding(.vertical, AppTheme.spacing.xs)
-        .background(
-            Capsule(style: .continuous)
-                .fill(AppTheme.colors.surfaceElevated.opacity(0.92))
-        )
-        .overlay {
-            Capsule(style: .continuous)
-                .stroke(AppTheme.colors.outline.opacity(0.62), lineWidth: 1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder
-    private var restoreStatusGlyph: some View {
-        switch appContext.startupRestorePresentationState {
-        case .failed:
-            Image(systemName: "wifi.exclamationmark")
-                .font(AppTheme.typography.sized(12, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.warning)
-        case .restoring:
-            ProgressView()
-                .controlSize(.small)
-                .tint(AppTheme.colors.body.opacity(0.62))
-        case .idle:
-            EmptyView()
-        }
-    }
-
-    private var startupRestoreStatusText: String {
-        switch appContext.startupRestorePresentationState {
-        case .idle:
-            return ""
-        case .restoring(let isSlow):
-            return isSlow ? "仍在同步，请稍候" : "正在恢复你的任务"
-        case .failed:
-            return "网络暂时不可用，稍后会自动重试"
-        }
     }
 
     private var startupRestorePlaceholder: some View {
@@ -289,202 +164,17 @@ struct HomeView: View {
         reduceMotion ? .easeInOut(duration: 0.18) : AppTheme.motion.smooth
     }
 
-    private func topChrome(safeAreaTop: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                headerSection
-                    .padding(.horizontal, horizontalContentPadding)
-                    .padding(.top, headerTopPadding(safeAreaTop: safeAreaTop))
-                    .offset(y: headerVerticalOffset)
-
-                weekCalendarContainer
-                    .padding(.horizontal, horizontalContentPadding)
-                    .padding(.top, calendarTopSpacing)
-
-                if showsStartupRestoreStatus {
-                    startupRestoreStatusPill
-                        .padding(.horizontal, horizontalContentPadding)
-                        .padding(.top, AppTheme.spacing.sm)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-            .padding(.bottom, isOverlayModeActive ? 4 : 0)
-            .background(homeCanvasColor)
-            .animation(restoreTransitionAnimation, value: appContext.startupRestorePresentationState)
-
-            Spacer(minLength: 0)
-        }
-        .ignoresSafeArea(edges: .top)
-    }
-
-    private var headerSection: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                HStack(alignment: .center, spacing: AppTheme.spacing.xs) { // normalized 8→6
-                    headerTitle(compact: isOverlayModeActive)
-
-                    if !isOverlayModeActive, isTodayJumpButtonVisible {
-                        todayJumpButton
-                            .transition(todayJumpTransition)
-                    }
-                }
-
-                if !isOverlayModeActive {
-                    spaceModeLine
-                }
-
-                if isProjectModePresented {
-                    projectModeHeaderMeta
-                }
-
-                if isRoutinesModePresented {
-                    routinesModeHeaderMeta
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer(minLength: 0)
-
-            headerAvatarButton(compact: isOverlayModeActive)
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.84), value: viewModel.selectedDateKey)
-        .animation(.spring(response: 0.42, dampingFraction: 0.78), value: viewModel.isViewingToday)
-    }
-
-    private var spaceModeLine: some View {
-        HStack(spacing: AppTheme.spacing.xs) { // normalized 8→6
-            ModeIndicator(label: currentViewLabel)
-
-            Text(viewModel.spaceDisplayName)
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(headerSecondaryColor)
-                .lineLimit(1)
-
-        }
-    }
-
-    private func headerTopRow(compact: Bool) -> some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            headerTitle(compact: compact)
-
-            if !compact, isTodayJumpButtonVisible {
-                todayJumpButton
-                    .transition(todayJumpTransition)
-            }
-
-            Spacer(minLength: 0)
-
-            headerAvatarButton(compact: compact)
-        }
-        .frame(minHeight: compact ? 40 : 52, alignment: .center)
-    }
-
-    private var projectModeHeaderMeta: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            projectModeIndicator
-                .layoutPriority(2)
-
-            Text(projectModeProjectsSummary)
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(headerSecondaryColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .multilineTextAlignment(.leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(isProjectModePresented ? 1 : 0)
-        .offset(y: isProjectModePresented ? 0 : projectModeContentTransitionOffset)
-        .allowsHitTesting(false)
-        .animation(projectModeAnimation, value: isProjectModePresented)
-    }
-
-    private var projectModeIndicator: some View {
-        ModeIndicator(label: "项目视图")
-    }
-
-    private var routinesModeHeaderMeta: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-            ModeIndicator(label: "例行任务")
-            .layoutPriority(2)
-
-            Text(routinesModeSummary)
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(headerSecondaryColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(isRoutinesModePresented ? 1 : 0)
-        .offset(y: isRoutinesModePresented ? 0 : projectModeContentTransitionOffset)
-        .allowsHitTesting(false)
-        .animation(projectModeAnimation, value: isRoutinesModePresented)
-    }
-
-    private var routinesModeSummary: String {
-        let summary = routinesViewModel.pendingSummary(referenceDate: routinesViewModel.referenceDate)
-        let totalPending = summary.reduce(0) { $0 + $1.1 }
-        if totalPending > 0 {
-            return "还有 \(totalPending) 项待完成"
-        }
-        return "全部完成"
-    }
-
-    private var currentViewLabel: String {
-        if isProjectModePresented {
-            return "项目视图"
-        }
-
-        if isRoutinesModePresented {
-            return "例行任务"
-        }
-
-        if viewModel.isMonthMode {
-            return "日历视图"
-        }
-
-        return "今日视图"
-    }
-
-    private func headerTitle(compact: Bool) -> some View {
-        Text(viewModel.headerDateText)
-            .font(AppTheme.typography.sized(36, weight: .bold))
-            .tracking(-0.9)
-            .lineLimit(1)
-            .minimumScaleFactor(0.84)
-            .foregroundStyle(headerPrimaryColor)
-            .contentTransition(.numericText())
-            .scaleEffect(compact ? 0.78 : 1, anchor: .leading)
-            .frame(height: 44, alignment: .leading)
-            .compositingGroup()
-    }
-
-    private func headerAvatarButton(compact: Bool) -> some View {
-        HomeAvatarToggleButton(
-            avatar: viewModel.headerAvatar,
-            foregroundColor: headerPrimaryColor,
-            secondaryForegroundColor: headerSecondaryColor,
-            compact: compact,
-            showsRestorePlaceholder: showsStartupRestorePlaceholder,
-            action: {
-                HomeInteractionFeedback.selection()
-                onProfileTapped()
-            }
-        )
-        .padding(.top, compact ? 0 : 2)
-        .id(appContext.sessionStore.userProfileRevision)
-        .compositingGroup()
-        .accessibilityLabel("打开个人页")
-        .accessibilityHint("查看个人资料和设置")
-    }
-
     private var contentCard: some View {
         ZStack(alignment: .top) {
             tasksContent
                 .opacity(isOverlayModeActive ? 0 : 1)
+                .offset(y: routinesTaskSurfaceOffset)
+                .scaleEffect(routinesTaskSurfaceScale, anchor: .top)
+                .blur(radius: routinesTaskSurfaceBlur)
                 .allowsHitTesting(!isOverlayModeActive)
-                .animation(modeFadeAnimation, value: isOverlayModeActive)
+                .accessibilityHidden(isOverlayModeActive)
+                .animation(taskSurfaceModeAnimation, value: isRoutinesModePresented)
+                .animation(modeFadeAnimation, value: isProjectModePresented)
 
             if isProjectModePresented {
                 projectsModeContent
@@ -492,14 +182,16 @@ struct HomeView: View {
                     .allowsHitTesting(true)
             }
 
-            if isRoutinesModePresented {
-                routinesModeContent
-                    .transition(.opacity.combined(with: .offset(y: 10)))
-                    .allowsHitTesting(true)
-            }
+            routinesModeContent
+                .opacity(isRoutinesModePresented ? 1 : 0)
+                .offset(y: routinesSurfaceOffset)
+                .scaleEffect(routinesSurfaceScale, anchor: .top)
+                .blur(radius: routinesSurfaceBlur)
+                .allowsHitTesting(isRoutinesModePresented)
+                .accessibilityHidden(isRoutinesModePresented == false)
+                .animation(routinesSurfaceModeAnimation, value: isRoutinesModePresented)
         }
         .animation(projectModeAnimation, value: isProjectModePresented)
-        .animation(projectModeAnimation, value: isRoutinesModePresented)
     }
 
     private var tasksContent: some View {
@@ -525,7 +217,6 @@ struct HomeView: View {
                                 viewModel: appContext.routinesViewModel,
                                 onNavigateToRoutines: {
                                     withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
-                                        viewModel.setCalendarDisplayMode(.week)
                                         appContext.router.shouldAutoSelectPendingCycle = true
                                         appContext.router.currentSurface = .routines
                                     }
@@ -614,11 +305,16 @@ struct HomeView: View {
         }
     }
 
-    private func beginInlineDetailCollapse(itemID: UUID) {
+    private func beginInlineDetailCollapse(
+        itemID: UUID,
+        preservesFocusUntilCompletion: Bool = false
+    ) {
         guard collapsingInlineDetailID != itemID else { return }
 
-        withAnimation(timelineFocusAnimation) {
-            visualFocusItemID = nil
+        if preservesFocusUntilCompletion == false {
+            withAnimation(timelineFocusAnimation) {
+                visualFocusItemID = nil
+            }
         }
 
         Task { @MainActor in
@@ -626,8 +322,52 @@ struct HomeView: View {
             inlineDetailAnimationBatch += 1
             try? await Task.sleep(for: .milliseconds(inlineCollapseDelayMilliseconds))
             guard collapsingInlineDetailID == itemID else { return }
-            await viewModel.collapseInlineDetail()
+            let didCollapse = await viewModel.collapseInlineDetail()
             collapsingInlineDetailID = nil
+            if didCollapse == false, viewModel.expandedDetailItemID == itemID {
+                inlineDetailAnimationBatch += 1
+                withAnimation(timelineFocusAnimation) {
+                    visualFocusItemID = itemID
+                }
+            } else if preservesFocusUntilCompletion {
+                withAnimation(timelineFocusAnimation) {
+                    visualFocusItemID = nil
+                }
+            }
+        }
+    }
+
+    private func restoreVisualFocusIfNeeded() {
+        guard
+            let expandedItemID = viewModel.expandedDetailItemID,
+            collapsingInlineDetailID != expandedItemID
+        else { return }
+
+        withAnimation(timelineFocusAnimation) {
+            visualFocusItemID = expandedItemID
+        }
+    }
+
+    private func completeTimelineEntry(
+        _ entry: HomeTimelineEntry,
+        isDetailPresented: Bool
+    ) {
+        Task { @MainActor in
+            guard isDetailPresented else {
+                await viewModel.completeItem(entry.itemID)
+                return
+            }
+
+            guard await viewModel.saveInlineDetailDraft() else { return }
+            let completionTask = Task {
+                await viewModel.completeItem(entry.itemID, trigger: .expandedControl)
+            }
+            try? await Task.sleep(for: .milliseconds(320))
+            beginInlineDetailCollapse(
+                itemID: entry.itemID,
+                preservesFocusUntilCompletion: true
+            )
+            await completionTask.value
         }
     }
 
@@ -679,19 +419,9 @@ struct HomeView: View {
             viewModel: routinesViewModel,
             isPresented: isRoutinesModePresented,
             contentTopPadding: 0,
-            contentBottomPadding: 104
+            contentBottomPadding: 104,
+            showsCanvasBackground: false
         )
-    }
-
-    private var weekCalendarContainer: some View {
-        calendarSection
-            .frame(height: isOverlayModeActive ? 0 : calendarContainerHeight, alignment: .top)
-            .offset(y: weekSectionVerticalOffset)
-            .opacity(isOverlayModeActive ? 0 : 1)
-            .clipped()
-            .allowsHitTesting(!isOverlayModeActive)
-            .animation(projectModeAnimation, value: isOverlayModeActive)
-            .animation(calendarModeAnimation, value: viewModel.calendarDisplayMode)
     }
 
     private func timelineList(scrollProxy: ScrollViewProxy) -> some View {
@@ -817,30 +547,6 @@ struct HomeView: View {
             }
     }
 
-    private var todayJumpButton: some View {
-        Button {
-            withAnimation(.smooth(duration: 0.18)) {
-                isTodayJumpButtonVisible = false
-                viewModel.returnToToday()
-            }
-            HomeInteractionFeedback.selection()
-        } label: {
-            Text("今天")
-                .font(AppTheme.typography.sized(12, weight: .bold))
-                .padding(.horizontal, AppTheme.spacing.sm)
-                .padding(.vertical, AppTheme.spacing.xxs)
-        }
-        .foregroundStyle(AppTheme.colors.title)
-        .frame(minWidth: 44, minHeight: 44)
-        .contentShape(Capsule(style: .continuous))
-        .background(
-            Capsule(style: .continuous)
-                .fill(AppTheme.colors.surfaceElevated)
-        )
-        .buttonStyle(.plain)
-        .accessibilityLabel("返回今天")
-    }
-
     private var timelineReorderingControl: some View {
         Button {
             HomeInteractionFeedback.selection()
@@ -864,45 +570,6 @@ struct HomeView: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("退出任务排序模式")
-    }
-
-    private var todayJumpTransition: some Transition {
-        .blurReplace
-    }
-
-    private func updateTodayJumpButtonVisibility() {
-        todayJumpRevealTask?.cancel()
-
-        guard shouldShowTodayJumpButton else {
-            withAnimation(.smooth(duration: 0.18)) {
-                isTodayJumpButtonVisible = false
-            }
-            return
-        }
-
-        guard isTodayJumpButtonVisible == false else { return }
-
-        todayJumpRevealTask = Task {
-            try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                guard shouldShowTodayJumpButton else { return }
-                withAnimation(.smooth(duration: 0.22)) {
-                    isTodayJumpButtonVisible = true
-                }
-            }
-        }
-    }
-
-    private var shouldShowTodayJumpButton: Bool {
-        guard !viewModel.isViewingToday, !isOverlayModeActive else {
-            return false
-        }
-
-        var calendar = Calendar.current
-        calendar.firstWeekday = 1  // 与 HomeViewModel 周日首日约定对齐
-        return !calendar.isDate(viewModel.selectedDate, equalTo: .now, toGranularity: .weekOfYear)
     }
 
     @ViewBuilder
@@ -967,9 +634,7 @@ struct HomeView: View {
                             } else {
                                 HomeInteractionFeedback.completion()
                             }
-                            Task {
-                                await viewModel.completeItem(entry.itemID)
-                            }
+                            completeTimelineEntry(entry, isDetailPresented: isDetailPresented)
                         },
                         onOpenDetail: {
                             toggleInlineDetail(entry.itemID, scrollProxy: scrollProxy)
@@ -1021,9 +686,7 @@ struct HomeView: View {
                             } else {
                                 HomeInteractionFeedback.completion()
                             }
-                            Task {
-                                await viewModel.completeItem(entry.itemID)
-                            }
+                            completeTimelineEntry(entry, isDetailPresented: isDetailPresented)
                         },
                         onOpenDetail: {
                             toggleInlineDetail(entry.itemID, scrollProxy: scrollProxy)
@@ -1127,9 +790,6 @@ struct HomeView: View {
                         onAddNote: {
                             inlineNoteEditingItemID = entry.itemID
                         },
-                        onOpenMenu: { menu in
-                            activeInlineDetailMenu = menu
-                        },
                         onFocus: { target in
                             scrollToInlineFocus(target, itemID: entry.itemID, scrollProxy: scrollProxy)
                         }
@@ -1151,6 +811,7 @@ struct HomeView: View {
                 )
             )
             .frame(maxWidth: .infinity, alignment: .leading)
+            .allowsHitTesting(isDetailPresented == false || isDetailExpanded)
             .modifier(
                 HomeInlineFocusChromeModifier(
                     isFocused: visualFocusItemID == entry.itemID && isDetailPresented,
@@ -1379,44 +1040,54 @@ struct HomeView: View {
         .accessibilityLabel(viewModel.overdueCapsuleTitle)
     }
 
-    private var headerPrimaryColor: Color { AppTheme.colors.title }
-
-    private var headerSecondaryColor: Color { AppTheme.colors.body.opacity(0.62) }
-
-    private var headerVerticalOffset: CGFloat {
-        isOverlayModeActive ? -6 : 0
-    }
-
-    private var weekSectionVerticalOffset: CGFloat {
-        if isOverlayModeActive {
-            return 0
-        }
-
-        return viewModel.isMonthMode ? 2 : 0
-    }
-
-    private var contentCardVerticalOffset: CGFloat {
-        0
-    }
-
-    private var projectModeContentTransitionOffset: CGFloat {
-        30
-    }
-
-    private var contentCardScale: CGFloat {
-        1
-    }
-
     private var modeFadeAnimation: Animation {
         reduceMotion
             ? .easeOut(duration: 0.14)
             : .easeOut(duration: 0.16)
     }
 
-    private var calendarModeAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: 0.18)
-            : .spring(response: 0.42, dampingFraction: 0.84)
+    private var taskSurfaceModeAnimation: Animation {
+        guard reduceMotion == false else { return .easeInOut(duration: 0.18) }
+        return isRoutinesModePresented
+            ? .smooth(duration: 0.24, extraBounce: 0)
+            : .smooth(duration: 0.34, extraBounce: 0).delay(0.06)
+    }
+
+    private var routinesSurfaceModeAnimation: Animation {
+        guard reduceMotion == false else { return .easeInOut(duration: 0.18) }
+        return isRoutinesModePresented
+            ? .smooth(duration: 0.36, extraBounce: 0).delay(0.04)
+            : .smooth(duration: 0.38, extraBounce: 0)
+    }
+
+    private var routinesTaskSurfaceOffset: CGFloat {
+        guard reduceMotion == false, isRoutinesModePresented else { return 0 }
+        return -8
+    }
+
+    private var routinesTaskSurfaceScale: CGFloat {
+        guard reduceMotion == false, isRoutinesModePresented else { return 1 }
+        return 0.985
+    }
+
+    private var routinesTaskSurfaceBlur: CGFloat {
+        guard reduceMotion == false, isRoutinesModePresented else { return 0 }
+        return 2
+    }
+
+    private var routinesSurfaceOffset: CGFloat {
+        guard reduceMotion == false, isRoutinesModePresented == false else { return 0 }
+        return 12
+    }
+
+    private var routinesSurfaceScale: CGFloat {
+        guard reduceMotion == false, isRoutinesModePresented == false else { return 1 }
+        return 0.992
+    }
+
+    private var routinesSurfaceBlur: CGFloat {
+        guard reduceMotion == false, isRoutinesModePresented == false else { return 0 }
+        return 3
     }
 
     private var projectModeAnimation: Animation {
@@ -1429,352 +1100,8 @@ struct HomeView: View {
         isProjectModePresented || isRoutinesModePresented
     }
 
-    private func headerTopPadding(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + (isOverlayModeActive ? 16 : AppTheme.spacing.sm)
-    }
-
-    private var horizontalContentPadding: CGFloat {
-        AppTheme.spacing.xl
-    }
-
-    private func contentTopInset(safeAreaTop: CGFloat) -> CGFloat {
-        0
-    }
-
-    private var topChromeReservedHeight: CGFloat {
-        if isOverlayModeActive {
-            return 86
-        }
-
-        return 90
-    }
-
-    private var visibleCalendarContainerHeight: CGFloat {
-        isOverlayModeActive ? 0 : calendarContainerHeight
-    }
-
-    private var startupRestoreStatusReservedHeight: CGFloat {
-        showsStartupRestoreStatus ? 40 : 0
-    }
-
-    private var calendarContainerHeight: CGFloat {
-        viewModel.isMonthMode ? monthCalendarExpandedHeight : 76
-    }
-
-    private var monthCalendarExpandedHeight: CGFloat {
-        20 + monthGridContainerHeight
-    }
-
-    private var monthGridContainerHeight: CGFloat {
-        (5 * monthDayCellHeight) + (4 * monthGridSpacing)
-    }
-
-    private var calendarSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            calendarWeekdayHeader
-                .padding(.bottom, AppTheme.spacing.xs)
-
-            if viewModel.isMonthMode {
-                monthCalendarGrid
-                    .transition(monthCalendarTransition)
-            } else {
-                weekCalendarSection
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity,
-                            removal: .opacity
-                        )
-                    )
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-    }
-
-    private var weekCalendarSection: some View {
-        GeometryReader { proxy in
-            let pageWidth = max(proxy.size.width, 1)
-
-            HStack(spacing: 0) {
-                ForEach([-1, 0, 1], id: \.self) { offset in
-                    weekPage(for: offset)
-                        .frame(width: pageWidth - weekPageBreathingGap)
-                        .frame(width: pageWidth)
-                        .opacity(weekPageOpacity(for: offset, pageWidth: pageWidth))
-                }
-            }
-            .frame(width: pageWidth * 3, alignment: .leading)
-            .offset(x: -pageWidth + weekPagerOffset)
-            .contentShape(Rectangle())
-            .highPriorityGesture(weekPagerDragGesture(pageWidth: pageWidth))
-        }
-        .frame(height: 76)
-        .clipped()
-    }
-
-    private func weekPage(for offset: Int) -> some View {
-        let dates = viewModel.weekDates(shiftedByWeeks: offset)
-
-        return LazyVGrid(columns: calendarColumns, spacing: 0) {
-            ForEach(Array(dates.enumerated()), id: \.element) { index, date in
-                let isSelected = weekDateIsSelected(date, index: index)
-                Button {
-                    guard !isWeekPagerInteracting else { return }
-                    guard !isSelected else { return }
-                    withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
-                        viewModel.selectDate(date)
-                    }
-                    triggerSoftDateFeedback()
-                } label: {
-                    VStack(spacing: 0) {
-                        Text("\(Calendar.current.component(.day, from: date))")
-                            .font(
-                                AppTheme.typography.sized(
-                                    isOverlayModeActive ? 18 : 22,
-                                    weight: isSelected ? .bold : .semibold
-                                )
-                            )
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .foregroundStyle(
-                                isSelected
-                                ? AppTheme.colors.title
-                                : AppTheme.colors.textTertiary
-                            )
-                    }
-                    .scaleEffect(isSelected ? 1.16 : 1.0)
-                    .scaleEffect(isOverlayModeActive ? 0.92 : 1, anchor: .center)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: isOverlayModeActive ? 40 : 48)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, calendarGridHorizontalInset)
-    }
-
-    private var calendarWeekdayHeader: some View {
-        let symbols = viewModel.weekdaySymbols
-
-        return LazyVGrid(columns: calendarColumns, spacing: 0) {
-            ForEach(symbols, id: \.self) { symbol in
-                Text(symbol)
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .foregroundStyle(headerSecondaryColor)
-                    .frame(maxWidth: .infinity, minHeight: calendarWeekdayHeight)
-            }
-        }
-        .padding(.horizontal, calendarGridHorizontalInset)
-    }
-
-    private var monthCalendarGrid: some View {
-        GeometryReader { proxy in
-            let pageWidth = max(proxy.size.width, 1)
-
-            HStack(spacing: 0) {
-                ForEach([-1, 0, 1], id: \.self) { offset in
-                    monthPage(for: offset)
-                        .frame(width: pageWidth)
-                        .overlay(alignment: .trailing) {
-                            monthPageDividerOverlay
-                        }
-                        .opacity(monthPageOpacity(for: offset, pageWidth: pageWidth))
-                }
-            }
-            .frame(width: pageWidth * 3, alignment: .leading)
-            .offset(x: -pageWidth + monthPagerOffset)
-            .contentShape(Rectangle())
-            .highPriorityGesture(monthPagerDragGesture(pageWidth: pageWidth))
-        }
-        .frame(height: monthGridContainerHeight)
-        .clipped()
-    }
-
-    private func monthPage(for offset: Int) -> some View {
-        let days = viewModel.monthDays(shiftedByMonths: offset)
-        let rowCount = viewModel.monthRowCount(shiftedByMonths: offset)
-        let layout = monthLayoutMetrics(for: rowCount)
-
-        return LazyVGrid(
-            columns: calendarColumns,
-            spacing: layout.rowSpacing
-        ) {
-            ForEach(days) { day in
-                monthDayButton(day, metrics: layout)
-            }
-        }
-        .padding(.horizontal, calendarGridHorizontalInset)
-        .padding(.top, layout.topPadding)
-        .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private func monthDayButton(_ day: HomeMonthDay, metrics: MonthLayoutMetrics) -> some View {
-        let isSelected = viewModel.isSelectedDate(day.date)
-        let isToday = Calendar.current.isDateInToday(day.date)
-        let hasIndicator = viewModel.hasNonRecurringItems(on: day.date)
-        let showsSelectedRing = isSelected && !isToday
-        let showsIndicator = hasIndicator && !isSelected
-        let textColor = monthDayForegroundColor(day, isSelected: isSelected)
-        let dayNumber = "\(Calendar.current.component(.day, from: day.date))"
-
-        return Button {
-            guard !isMonthPagerInteracting else { return }
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                viewModel.selectDate(day.date)
-            }
-            triggerSoftDateFeedback()
-        } label: {
-            VStack(spacing: monthIndicatorSpacing) {
-                ZStack {
-                    if isToday {
-                        Circle()
-                            .fill(AppTheme.colors.coral)
-                            .frame(width: metrics.circleSize, height: metrics.circleSize)
-                    }
-
-                    if showsSelectedRing {
-                        Circle()
-                            .stroke(AppTheme.colors.coral, lineWidth: 1.6)
-                            .frame(width: metrics.circleSize, height: metrics.circleSize)
-                            .blurReplaceTransition(value: showsSelectedRing)
-                    }
-
-                    monthDayNumberLabel(
-                        dayNumber,
-                        isToday: isToday,
-                        isSelected: isSelected,
-                        metrics: metrics,
-                        textColor: textColor
-                    )
-                }
-                .compositingGroup()
-                .frame(width: metrics.circleSize, height: metrics.circleSize)
-                .frame(maxWidth: .infinity)
-
-                if showsIndicator {
-                    Circle()
-                        .fill(AppTheme.colors.coral.opacity(0.8))
-                        .frame(width: monthIndicatorSize, height: monthIndicatorSize)
-                        .transition(.opacity)
-                } else {
-                    Color.clear
-                        .frame(width: monthIndicatorSize, height: monthIndicatorSize)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: metrics.cellHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(day.date.formatted(.dateTime.year().month().day().weekday()))
-    }
-
-    private func monthDayNumberLabel(
-        _ dayNumber: String,
-        isToday: Bool,
-        isSelected: Bool,
-        metrics: MonthLayoutMetrics,
-        textColor: Color
-    ) -> some View {
-        if isToday {
-            return AnyView(
-                todayMonthDayNumberLabel(
-                    dayNumber,
-                    metrics: metrics,
-                    textColor: textColor
-                )
-            )
-        }
-
-        return AnyView(
-            Text(dayNumber)
-                .font(AppTheme.typography.sized(metrics.fontSize, weight: isSelected ? .bold : .semibold))
-                .foregroundStyle(textColor)
-                .frame(width: metrics.circleSize, height: metrics.circleSize, alignment: .center)
-                .offset(y: monthDayTextVerticalOffset)
-        )
-    }
-
-    private func todayMonthDayNumberLabel(
-        _ dayNumber: String,
-        metrics: MonthLayoutMetrics,
-        textColor: Color
-    ) -> some View {
-        Text(dayNumber)
-            .font(AppTheme.typography.sized(metrics.fontSize - 1, weight: .bold))
-            .monospacedDigit()
-            .foregroundStyle(textColor)
-            .frame(width: metrics.circleSize, height: metrics.circleSize, alignment: .center)
-            .offset(y: monthDayTextVerticalOffset)
-    }
-
-    private func monthDayForegroundColor(_ day: HomeMonthDay, isSelected: Bool) -> Color {
-        if Calendar.current.isDateInToday(day.date) {
-            return .white
-        }
-
-        if isSelected {
-            return AppTheme.colors.title
-        }
-
-        if day.isInDisplayedMonth {
-            return AppTheme.colors.title.opacity(Calendar.current.isDateInToday(day.date) ? 0.94 : 0.84)
-        }
-
-        return AppTheme.colors.textTertiary.opacity(0.5)
-    }
-
-    private var monthPageDividerOverlay: some View {
-        Rectangle()
-            .fill(homeCanvasColor.opacity(0.14))
-            .frame(width: 1)
-            .overlay {
-                Rectangle()
-                    .fill(homeCanvasColor.opacity(0.08))
-                    .frame(width: 3)
-                    .blur(radius: 1.4)
-            }
-        .allowsHitTesting(false)
-    }
-
-    private var calendarColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: calendarColumnSpacing), count: 7)
-    }
-
-    private var projectModeDateLine: String {
-        viewModel.selectedWeekdayAndDateText.replacingOccurrences(of: "\n", with: " · ")
-    }
-
-    private var projectModeProjectsSummary: String {
-        "当前 \(projectsViewModel.activeProjects.count) 条项目进行中"
-    }
-
-    private func triggerSoftDateFeedback() {
-        HomeInteractionFeedback.soft()
-    }
-
     private var timelineTransition: AnyTransition {
-        if viewModel.isMonthMode {
-            return .asymmetric(
-                insertion: .offset(y: 14).combined(with: .opacity),
-                removal: .offset(y: -12).combined(with: .opacity)
-            )
-        }
-
-        let direction: CGFloat = viewModel.selectedDateTransitionEdge == .trailing ? 1 : -1
-
-        switch viewModel.selectedDateTransitionStyle {
-        case .sameWeek:
-            return .asymmetric(
-                insertion: .offset(x: 12 * direction).combined(with: .opacity),
-                removal: .offset(x: -10 * direction).combined(with: .opacity)
-            )
-        case .crossWeek:
-            return .asymmetric(
-                insertion: .offset(x: 18 * direction).combined(with: .opacity),
-                removal: .offset(x: -14 * direction).combined(with: .opacity)
-            )
-        }
+        .opacity
     }
 
     private var activeRowTransition: AnyTransition {
@@ -1797,271 +1124,6 @@ struct HomeView: View {
         )
     }
 
-    private var monthCalendarTransition: AnyTransition {
-        .asymmetric(
-            insertion: .modifier(
-                active: TopRevealMotionModifier(scaleY: 0.84, opacity: 0),
-                identity: TopRevealMotionModifier(scaleY: 1, opacity: 1)
-            ),
-            removal: .opacity
-        )
-    }
-
-    private func monthPagerDragGesture(pageWidth: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .local)
-            .onChanged { value in
-                guard viewModel.isMonthMode else { return }
-                guard !isMonthPagerSettling else { return }
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                monthPagerOffset = resistedMonthPagerOffset(for: value.translation.width, pageWidth: pageWidth)
-            }
-            .onEnded { value in
-                guard viewModel.isMonthMode else { return }
-                guard !isMonthPagerSettling else { return }
-                let horizontalTravel = value.translation.width
-                guard abs(horizontalTravel) > abs(value.translation.height) else {
-                    settleMonthPager(to: 0, pageWidth: pageWidth)
-                    return
-                }
-
-                let projectedTravel = value.predictedEndTranslation.width
-                let targetDirection = monthPagerTargetDirection(
-                    translation: horizontalTravel,
-                    predictedTranslation: projectedTravel,
-                    pageWidth: pageWidth
-                )
-
-                settleMonthPager(to: targetDirection, pageWidth: pageWidth)
-            }
-    }
-
-    private func monthPagerTargetDirection(
-        translation: CGFloat,
-        predictedTranslation: CGFloat,
-        pageWidth: CGFloat
-    ) -> Int {
-        let distanceThreshold = pageWidth * 0.16
-        let projectedThreshold = pageWidth * 0.3
-
-        if translation <= -distanceThreshold || predictedTranslation <= -projectedThreshold {
-            return -1
-        }
-
-        if translation >= distanceThreshold || predictedTranslation >= projectedThreshold {
-            return 1
-        }
-
-        return 0
-    }
-
-    private func settleMonthPager(to direction: Int, pageWidth: CGFloat) {
-        isMonthPagerSettling = true
-
-        withAnimation(calendarModeAnimation) {
-            monthPagerOffset = CGFloat(direction) * pageWidth
-        }
-
-        let settleDelay = direction == 0 ? 0.2 : 0.28
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(settleDelay))
-
-            if direction != 0 {
-                var resetTransaction = Transaction()
-                resetTransaction.animation = nil
-                withTransaction(resetTransaction) {
-                    viewModel.shiftDisplayedMonth(by: -direction)
-                    monthPagerOffset = 0
-                    isMonthPagerSettling = false
-                }
-                triggerSoftDateFeedback()
-                return
-            }
-
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                monthPagerOffset = 0
-                isMonthPagerSettling = false
-            }
-        }
-    }
-
-    private func monthPageOpacity(for offset: Int, pageWidth: CGFloat) -> Double {
-        let distance = monthPageDistance(for: offset, pageWidth: pageWidth)
-        return 1 - (distance * 0.06)
-    }
-
-    private func monthPageDistance(for offset: Int, pageWidth: CGFloat) -> CGFloat {
-        guard pageWidth > 0 else { return 0 }
-        let relativeOffset = (CGFloat(offset) * pageWidth + monthPagerOffset) / pageWidth
-        return min(abs(relativeOffset), 1)
-    }
-
-    private var isMonthPagerInteracting: Bool {
-        isMonthPagerSettling || abs(monthPagerOffset) > 0.5
-    }
-
-    private func resistedMonthPagerOffset(for translation: CGFloat, pageWidth: CGFloat) -> CGFloat {
-        let limit = pageWidth * 0.92
-        guard abs(translation) > limit else { return translation }
-
-        let overflow = abs(translation) - limit
-        let resistedOverflow = overflow * 0.24
-        return translation.sign == .minus
-            ? -(limit + resistedOverflow)
-            : limit + resistedOverflow
-    }
-
-    private func monthLayoutMetrics(for rowCount: Int) -> MonthLayoutMetrics {
-        if rowCount >= 6 {
-            return MonthLayoutMetrics(
-                cellHeight: monthCompressedDayCellHeight,
-                rowSpacing: monthCompressedGridSpacing,
-                fontSize: 17,
-                circleSize: monthCompressedDayCircleSize,
-                topPadding: monthCompressedTopPadding
-            )
-        }
-
-        return MonthLayoutMetrics(
-            cellHeight: monthDayCellHeight,
-            rowSpacing: monthGridSpacing,
-            fontSize: 19,
-            circleSize: monthDayCircleSize,
-            topPadding: 0
-        )
-    }
-
-    private func weekPagerDragGesture(pageWidth: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .local)
-            .onChanged { value in
-                guard !isWeekPagerSettling else { return }
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                weekPagerOffset = resistedWeekPagerOffset(
-                    for: value.translation.width,
-                    pageWidth: pageWidth
-                )
-            }
-            .onEnded { value in
-                guard !isWeekPagerSettling else { return }
-
-                let horizontalTravel = value.translation.width
-                guard abs(horizontalTravel) > abs(value.translation.height) else {
-                    settleWeekPager(to: 0, pageWidth: pageWidth)
-                    return
-                }
-
-                let projectedTravel = value.predictedEndTranslation.width
-                let targetDirection = weekPagerTargetDirection(
-                    translation: horizontalTravel,
-                    predictedTranslation: projectedTravel,
-                    pageWidth: pageWidth
-                )
-
-                settleWeekPager(to: targetDirection, pageWidth: pageWidth)
-            }
-    }
-
-    private func weekPagerTargetDirection(
-        translation: CGFloat,
-        predictedTranslation: CGFloat,
-        pageWidth: CGFloat
-    ) -> Int {
-        let distanceThreshold = pageWidth * 0.24
-        let projectedDistanceThreshold = pageWidth * 0.42
-
-        if translation <= -distanceThreshold || predictedTranslation <= -projectedDistanceThreshold {
-            return -1
-        }
-
-        if translation >= distanceThreshold || predictedTranslation >= projectedDistanceThreshold {
-            return 1
-        }
-
-        return 0
-    }
-
-    private func settleWeekPager(to direction: Int, pageWidth: CGFloat) {
-        isWeekPagerSettling = true
-
-        let targetOffset = CGFloat(direction) * pageWidth
-        let animation = direction == 0
-            ? Animation.spring(response: 0.34, dampingFraction: 0.88)
-            : Animation.spring(response: 0.42, dampingFraction: 0.86, blendDuration: 0.12)
-
-        withAnimation(animation) {
-            weekPagerOffset = targetOffset
-        }
-
-        let settleDelay = direction == 0 ? 0.22 : 0.30
-        DispatchQueue.main.asyncAfter(deadline: .now() + settleDelay) {
-            if direction != 0 {
-                viewModel.shiftSelectedWeek(by: -direction)
-                triggerSoftDateFeedback()
-            }
-
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                weekPagerOffset = 0
-                isWeekPagerSettling = false
-            }
-        }
-    }
-
-    private func resistedWeekPagerOffset(for translation: CGFloat, pageWidth: CGFloat) -> CGFloat {
-        let limit = pageWidth * 0.92
-        guard abs(translation) > limit else { return translation }
-
-        let overflow = abs(translation) - limit
-        let resistedOverflow = overflow * 0.24
-        return translation.sign == .minus
-            ? -(limit + resistedOverflow)
-            : limit + resistedOverflow
-    }
-
-    private func weekPageOpacity(for offset: Int, pageWidth: CGFloat) -> Double {
-        let distance = weekPageDistance(for: offset, pageWidth: pageWidth)
-        return 1 - (distance * 0.025)
-    }
-
-    private func weekPageDistance(for offset: Int, pageWidth: CGFloat) -> CGFloat {
-        guard pageWidth > 0 else { return 0 }
-        let relativeOffset = (CGFloat(offset) * pageWidth + weekPagerOffset) / pageWidth
-        return min(abs(relativeOffset), 1)
-    }
-
-    private var isWeekPagerInteracting: Bool {
-        isWeekPagerSettling || abs(weekPagerOffset) > 0.5
-    }
-
-    private func weekDateIsSelected(_ date: Date, index: Int) -> Bool {
-        if isWeekPagerInteracting {
-            return index == weekMiddleIndex
-        }
-
-        return viewModel.isSelectedDate(date)
-    }
-
-}
-
-private struct MonthLayoutMetrics {
-    let cellHeight: CGFloat
-    let rowSpacing: CGFloat
-    let fontSize: CGFloat
-    let circleSize: CGFloat
-    let topPadding: CGFloat
-}
-
-private struct TopRevealMotionModifier: ViewModifier {
-    let scaleY: CGFloat
-    let opacity: Double
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(x: 1, y: scaleY, anchor: .top)
-            .opacity(opacity)
-    }
 }
 
 private struct HomeInlineFocusChromeModifier: ViewModifier {
@@ -2118,14 +1180,6 @@ private struct HomeInlineFocusChromeModifier: ViewModifier {
     }
 }
 
-private extension View {
-    func blurReplaceTransition<T: Equatable>(value: T) -> some View {
-        self
-            .transition(.blurReplace)
-            .animation(.easeInOut(duration: 0.2), value: value)
-    }
-}
-
 #if DEBUG
 #Preview("Home Default") {
     makeHomePreview()
@@ -2154,7 +1208,6 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
         routinesViewModel: context.routinesViewModel,
         isProjectModePresented: false,
         isRoutinesModePresented: false,
-        onProfileTapped: {},
         onCreateTaskTapped: {},
         onCompletedHistoryTapped: { _ in }
     )
@@ -2915,12 +1968,12 @@ private struct HomeInlineTaskDetailView: View {
     let animationBatch: Int
     let showsAddNote: Bool
     let onAddNote: () -> Void
-    let onOpenMenu: (TaskEditorMenu) -> Void
     let onFocus: (HomeInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedField: InlineTaskDetailField?
     @State private var newSubtaskTitle = ""
+    @State private var activeAttributeEditor: InlineAttributeEditor?
 
     private enum InlineTaskDetailField: Hashable {
         case newSubtask
@@ -2964,6 +2017,7 @@ private struct HomeInlineTaskDetailView: View {
 
                 attributePills
                     .modifier(cascadeItem(index: subtasks.count + detailLeadingRowCount + 1))
+
             }
             .padding(.top, HomeInlineTaskLayoutMetrics.detailTopPadding)
             .padding(.bottom, HomeInlineTaskLayoutMetrics.detailBottomPadding)
@@ -3065,45 +2119,104 @@ private struct HomeInlineTaskDetailView: View {
     }
 
     private var attributePills: some View {
-        HStack(spacing: 0) {
-            settingButton(title: dateTitle, systemImage: "calendar", menu: .date)
-                .frame(maxWidth: .infinity)
-            settingButton(title: timeTitle, systemImage: "clock", menu: .time)
-                .frame(maxWidth: .infinity)
-            settingButton(title: reminderTitle, systemImage: "bell", menu: .reminder)
-                .frame(maxWidth: .infinity)
+        AdaptiveTaskAttributeToolbarLayout() {
+            dateControl.frame(maxWidth: .infinity)
+            timeControl.frame(maxWidth: .infinity)
+            reminderMenu.frame(maxWidth: .infinity)
             urgentSettingButton
                 .frame(maxWidth: .infinity)
         }
         .padding(.leading, HomeInlineTaskLayoutMetrics.attributeLeadingInset)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(item: $activeAttributeEditor) { editor in
+            inlineAttributeEditor(editor)
+        }
     }
 
     @ViewBuilder
-    private func settingButton(title: String, systemImage: String, menu: TaskEditorMenu) -> some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            focusedField = nil
-            onOpenMenu(menu)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage)
-                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeIconSize, weight: .semibold))
-                    .frame(width: HomeInlineTaskLayoutMetrics.attributeIconWidth)
-
-                Text(title)
-                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeTextSize, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.62)
+    private var dateControl: some View {
+        TaskAttributeButton(
+            icon: "calendar",
+            title: dateTitle,
+            isConfigured: viewModel.inlineDetailDraft?.dueAt != nil
+        ) {
+            if viewModel.inlineDetailDraft?.dueAt == nil {
+                viewModel.setDraftDueDateEnabled(true)
             }
-            .foregroundStyle(settingForegroundColor(for: menu))
-            .padding(.horizontal, HomeInlineTaskLayoutMetrics.attributeHorizontalPadding)
-            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight, alignment: .center)
-            .contentShape(Rectangle())
+            toggleAttributeEditor(.date)
         }
-        .buttonStyle(.plain)
-        .allowsHitTesting(isSettingEnabled(menu))
-        .accessibilityHint(settingAccessibilityHint(for: menu))
+    }
+
+    @ViewBuilder
+    private var timeControl: some View {
+        TaskAttributeButton(
+            icon: "clock",
+            title: timeTitle,
+            isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true
+        ) {
+            if viewModel.inlineDetailDraft?.hasExplicitTime != true {
+                viewModel.updateDraftDueTime(.now)
+            }
+            toggleAttributeEditor(.time)
+        }
+    }
+
+    private var reminderMenu: some View {
+        Menu {
+            Button("不提醒") { viewModel.setDraftReminderEnabled(false) }
+            Divider()
+            ForEach(TaskEditorReminderPreset.allCases, id: \.self) { preset in
+                Button(preset.title) {
+                    guard let target = reminderTargetDate else { return }
+                    viewModel.updateDraftReminder(target.addingTimeInterval(-preset.secondsBeforeTarget))
+                }
+            }
+        } label: {
+            TaskAttributeLabel(
+                icon: "bell",
+                title: reminderTitle,
+                isConfigured: viewModel.inlineDetailDraft?.remindAt != nil
+            )
+        }
+        .disabled(viewModel.inlineDetailDraft?.hasExplicitTime != true)
+    }
+
+    private func toggleAttributeEditor(_ editor: InlineAttributeEditor) {
+        focusedField = nil
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.28, extraBounce: 0.01)) {
+            activeAttributeEditor = activeAttributeEditor == editor ? nil : editor
+        }
+    }
+
+    private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
+        InlineDateTimePickerPanel(
+            editor: editor,
+            title: editor == .date ? "日期" : "时间",
+            selection: Binding(
+                get: { viewModel.inlineDetailDraft?.dueAt ?? .now },
+                set: { value in
+                    if editor == .date {
+                        viewModel.updateDraftDueDate(value)
+                    } else {
+                        viewModel.updateDraftDueTime(value)
+                    }
+                }
+            ),
+            allowsClearing: editor == .date
+                ? viewModel.inlineDetailDraft?.dueAt != nil
+                : viewModel.inlineDetailDraft?.hasExplicitTime == true,
+            onClear: {
+                if editor == .date {
+                    viewModel.setDraftDueDateEnabled(false)
+                } else {
+                    viewModel.clearDraftDueTime()
+                }
+                withAnimation { activeAttributeEditor = nil }
+            },
+            onDone: {
+                withAnimation { activeAttributeEditor = nil }
+            }
+        )
     }
 
     private var canAddSubtask: Bool {
@@ -3166,62 +2279,24 @@ private struct HomeInlineTaskDetailView: View {
         return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
     }
 
+    private var reminderTargetDate: Date? {
+        guard viewModel.inlineDetailDraft?.hasExplicitTime == true else { return nil }
+        return viewModel.inlineDetailDraft?.dueAt
+    }
+
     private var urgentSettingButton: some View {
         let isUrgent = viewModel.inlineDetailDraft?.isUrgent == true
-        return Button {
+        return TaskAttributeButton(
+            icon: isUrgent ? "flag.fill" : "flag",
+            title: "紧急",
+            isConfigured: isUrgent,
+            tint: isUrgent ? AppTheme.colors.coral : nil
+        ) {
             HomeInteractionFeedback.selection()
             focusedField = nil
             viewModel.updateDraftUrgent(!isUrgent)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: isUrgent ? "flag.fill" : "flag")
-                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeIconSize, weight: .semibold))
-                    .frame(width: HomeInlineTaskLayoutMetrics.attributeIconWidth)
-                Text("紧急")
-                    .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeTextSize, weight: .semibold))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(isUrgent ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.56))
-            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.attributeMinHeight)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .accessibilityLabel(isUrgent ? "关闭紧急" : "设为紧急")
-    }
-
-    private func isSettingEnabled(_ menu: TaskEditorMenu) -> Bool {
-        menu != .reminder || viewModel.inlineDetailDraft?.hasExplicitTime == true
-    }
-
-    private func isSettingConfigured(_ menu: TaskEditorMenu) -> Bool {
-        switch menu {
-        case .date:
-            return viewModel.inlineDetailDraft?.dueAt != nil
-        case .time:
-            return viewModel.inlineDetailDraft?.hasExplicitTime == true
-        case .reminder:
-            return viewModel.inlineDetailDraft?.remindAt != nil
-        case .urgent:
-            return viewModel.inlineDetailDraft?.isUrgent == true
-        case .subtasks, .template, .periodicReminder, .periodicCycle:
-            return false
-        }
-    }
-
-    private func settingForegroundColor(for menu: TaskEditorMenu) -> Color {
-        guard isSettingEnabled(menu) else {
-            return AppTheme.colors.body.opacity(0.36)
-        }
-        return isSettingConfigured(menu)
-            ? AppTheme.colors.title.opacity(0.74)
-            : AppTheme.colors.body.opacity(0.56)
-    }
-
-    private func settingAccessibilityHint(for menu: TaskEditorMenu) -> String {
-        if menu == .reminder, isSettingEnabled(menu) == false {
-            return "设置具体时间后可添加提醒"
-        }
-        return "打开设置"
     }
 
     private var detailAnimation: Animation {
@@ -3550,68 +2625,6 @@ private struct HomeInlineSubtaskCheckbox: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct HomeAvatarToggleButton: View {
-    private let compactAvatarSize: CGFloat = 32
-    private let regularAvatarSize: CGFloat = 46
-    let avatar: HomeAvatar
-    let foregroundColor: Color
-    let secondaryForegroundColor: Color
-    let compact: Bool
-    let showsRestorePlaceholder: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(AppTheme.colors.surfaceElevated.opacity(0.82))
-
-                avatarBadge(avatar)
-            }
-            .frame(width: controlSize, height: controlSize)
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .scaleEffect(compact ? 0.86 : 1, anchor: .trailing)
-        .frame(width: controlSize, height: controlSize)
-    }
-
-    private var controlSize: CGFloat {
-        avatarSize + 2
-    }
-
-    private var avatarSize: CGFloat {
-        compact ? compactAvatarSize : regularAvatarSize
-    }
-
-    @ViewBuilder
-    private func avatarBadge(_ avatar: HomeAvatar) -> some View {
-        Group {
-            if showsRestorePlaceholder {
-                Circle()
-                    .fill(AppTheme.colors.surfaceElevated)
-                    .overlay {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(AppTheme.typography.sized(16, weight: .semibold))
-                            .foregroundStyle(secondaryForegroundColor.opacity(0.58))
-                    }
-            } else {
-                UserAvatarView(
-                    avatarAsset: avatar.avatarAsset,
-                    displayName: avatar.displayName,
-                    size: avatarSize,
-                    fillColor: AppTheme.colors.surfaceElevated,
-                    symbolColor: foregroundColor,
-                    symbolFont: AppTheme.typography.sized(16, weight: .semibold),
-                    overrideImage: avatar.overrideImage
-                )
-            }
-        }
-            .frame(width: avatarSize, height: avatarSize)
-            .shadow(color: AppTheme.colors.shadow.opacity(0.65), radius: 6, y: 4)
     }
 }
 

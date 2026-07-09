@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-07-01
+- 日期：2026-07-03
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
@@ -44,6 +44,13 @@
   - 2026-07-01 普通任务下线重复属性并新增“紧急”：领域层统一使用 `isUrgent` / `.urgent` / `urgentCount`，持久层继续由 `PersistentItem.isPinned` 与 `PersistentTaskTemplate.isPinned` 承载，未改 SwiftData / CloudKit schema。普通任务创建、OCR、模板、首页展开态与组合设置不再写入重复规则；legacy `repeatRuleData`、occurrence 与最低限度解码链路继续保留。允许多个紧急任务；同一日期组内未完成紧急任务优先并按 `createdAt` 升序。列表用独立 44pt 命中区的珊瑚色 `flag.fill`（无文字/背景）关闭紧急，完成后隐藏但保留属性；展开态和组合设置中的紧急只改 draft，收起后统一持久化。主要文件：`TaskDraft.swift`、`DefaultTaskApplicationService.swift`、`HomeViewModel.swift`、`HomeView.swift`、`TaskEditorSharedComponents.swift`、`ComposerPlaceholderSheet.swift`、`OCRImportView.swift`。
   - 2026-07-01 新建任务属性行改为单行自适应：`TaskEditorChipSnapshot` / `TaskEditorRenderedChip` 增加显式 `showsTitle`，`TaskEditorChipSemanticValue.hasConfiguredValue` 统一判断配置状态；创建器日期保留“图标 + 日期”，未设置的时间、提醒、紧急、子任务只显示图标，配置后再展开文字。`TaskEditorChipRow` 新增可选非滚动模式，创建器禁用横向滚动并保留五个至少 44pt 高的入口；其他共享消费者保持原滚动行为。紧急开启态使用珊瑚色 `flag.fill`。
   - 2026-07-02 普通任务与例行任务标题区完成稳定化：折叠/展开复用同一标题区外层树和“标题 → 主副标题 → 可选属性摘要”层级；有备注时备注优先、属性位于下一行，无备注时属性优先、无属性回退状态。备注在副标题原位编辑，详情区不再重复渲染编辑器；无备注时“添加备注”将焦点移回标题区。两类副标题统一为 15pt Medium 与 body 74% 中性色。例行规则的目标日、小时、分钟改为可选并保持旧 JSON 兼容，不改持久化 schema；目标日/时间可独立清除，新建和切换维度不再自动生成周二或 09:00，每天时间-only 规则由计算器映射到当天通知，展开态继续使用 Compact DatePicker。
+  - 2026-07-02 任务属性与例行提醒统一：普通任务新建和首页展开态移除活跃组合属性 Sheet，日期/时间改为 Compact DatePicker、提醒改为 Menu；新建子任务 UI 对齐展开态的虚线完成框、行内保存与按需删除。例行创建和展开工具条增加独立提醒提前量与通知/AlarmKit 投递方式；提醒字段继续编码在 `reminderRulesData`，旧完整规则解码为目标时刻通知，不改 SwiftData schema。展开态完成新增延迟列表提交路径，使草稿保存、完成反馈、详情收起、背景恢复和重排按顺序发生。验证：`plutil -lint Together/Info.plist`、`git diff --check` 和 Xcode 27 beta generic iOS `build-for-testing` 通过；focused tests 已完成编译，但模拟器测试 runner 长时间无结果后人工终止，不能视为测试通过。AlarmKit 权限、静音/专注模式与锁屏呈现仍需 iOS 26+ 真机验收。
+  - 2026-07-02 日期/时间属性入口统一：普通任务与例行任务的新建、展开态不再把 Compact DatePicker 和独立清除小叉直接塞入等分工具条；入口统一为图标 + 简短值按钮，日期使用原生 `.medium` Sheet + Graphical DatePicker，时间使用约 320pt 紧凑 Sheet + Wheel DatePicker，清除与完成位于 Sheet 内。属性工具条使用自适应 Layout，标准宽度单行、空间不足时两行；紧急入口同步复用 44pt 共享属性按钮。验证：Swift parse、`git diff --check`、Xcode 27 beta generic iOS `build-for-testing` 通过；仍需真机确认日期/时间 Sheet 高度与动态字体换行。
+  - 2026-07-03 例行首行展开卡高度修复：真机底部大留白的根因是 `AdaptiveTaskAttributeToolbarLayout` 采纳了 `Menu` 返回的异常理想高度，进而让详情高度膨胀并让聚焦滚动误判为超高卡片、采用顶部对齐。属性 Layout 改为每行固定 44pt，只用内容理想宽度决定单行/双行；例行焦点白卡同时取消负向顶部扩展，仅保留下方 16pt 品牌延伸，避免顶部对齐时被 ScrollView 裁切。验证：Swift parse、`git diff --check`、独立 DerivedData generic iOS `build-for-testing` 通过；仍需真机复测首项完整圆角与卡片底部节奏。
+  - 2026-07-03 例行首次展开大位移修复：前一版动态 focus runway 会在首次测量时先插入约半屏透明占位，滚动定位尚未完成便把首项推到下方，而且透明占位没有命中响应；第二次因测量缓存存在才恢复。现已删除 viewport / focused-row 测量、上下透明 runway 和延迟二次定位，恢复为展开后直接滚动到详情锚点；焦点卡已无负向顶部扩展，因此首项停在列表顶部也不会裁切。
+  - 2026-07-03 例行展开卡节奏对齐：例行详情旧固定 `126pt` fallback 与实际“添加备注 + 属性栏”两行不匹配，导致卡片被撑到接近普通任务高度并在属性栏下方留下空白。`RoutineInlineLayoutMetrics` 改为按可见行计算 fallback，统一使用 32pt 紧凑行、2pt 行距和 44pt 属性栏；有添加备注时为 86pt，无入口时为 52pt，不伪造普通任务的子任务空间。
+  - 2026-07-03 例行维度栏与卡外交互完善：维度栏改为名称与末尾管理入口全宽等分，Gauge 中心数字提升为 12pt 等宽粗体；每天至每年均可通过 UserDefaults 偏好显示或隐藏且至少保留一个，旧季度/年度偏好自动迁移，隐藏维度任务与提醒不删除，首页临期跳转可临时显示隐藏维度。展开态使用命名坐标空间记录聚焦卡 frame，`SpatialTapGesture` 仅在卡外收起，修复 ScrollView 背景手势无法命中空白区域；长按菜单提供编辑/收起与删除。focused tests、`git diff --check`、generic iOS `build-for-testing` 通过；仍需真机确认等分栏、大字体和空白点击手感。
+  - 2026-07-03 首页进入例行任务改为同画布模式转场：`HomeView` 常驻普通任务层与例行任务层，网格画布不参与切换；普通任务轻微缩小 / 上移 / 模糊淡出，例行维度区与任务层从下方进入，前五行以 20ms 间隔级联，返回按反向顺序播放。根标题使用稳定 principal 容器做 2pt blur / opacity 替换，不缩放，时长为 0.42 秒无回弹 `.smooth`；Reduce Motion 仅保留 180ms 淡变。隐藏例行层禁止命中与辅助功能访问，但预加载数据；退出模式会收起草稿并清理临时维度。历史 Calendar 页面、ViewModel、路由以及首页不可达的周/月日历与翻页手势已删除；Foundation `Calendar` 仍服务任务日期分组、DatePicker、提醒和周期计算。主 App 全量 iPhoneOS SDK typecheck 与 `git diff --check` 通过；标准 `build-for-testing` 因本机 Xcode 将已有 iOS 26.5 SDK 判定为 platform 未安装而在 destination 阶段阻塞，仍需真机确认转场节奏与快速连续点击。
   - 2026-06-25 中文输入法提交修复：删除 `CompositionAwareTextField` / `TextInputCommitter` 的 UIKit TextField 桥接和经验延迟提交路径；首页展开态标题、备注、子任务新增/编辑、任务详情子任务、OCR 草稿、项目子任务和快速创建子任务统一回到 SwiftUI 原生 `TextField` + `@FocusState` + 本地编辑 buffer；针对微信输入法 marked text 不落入 SwiftUI binding 的真机现象，新增 `TextInputSnapshotReader`，在保存/添加瞬间读取当前 UIKit 第一响应者的可见文本，再结束焦点并提交。
   - 2026-06-14 普通任务子任务已落地：新增独立 `TaskSubtask` / `PersistentTaskSubtask`，`Item.subtasks` 与 `TaskDraft.subtasks` 走本地 SwiftData hydrate；不复用 `ProjectSubtask`，不引入 Supabase 或多人能力；删除父任务会 tombstone 普通任务子任务。
   - 普通任务子任务应用服务已接入 `TaskApplicationServiceProtocol` / `DefaultTaskApplicationService`，支持新增、勾选、改名、删除；子任务完成只更新子任务和父任务 `updatedAt`，不会自动完成父任务。

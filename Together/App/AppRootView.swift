@@ -6,6 +6,17 @@ private enum AppRootRoute: Hashable {
     case completedHistory(CompletedHistoryFilter)
 }
 
+private struct RootTitleBlurTransitionModifier: ViewModifier {
+    let blurRadius: CGFloat
+    let opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .blur(radius: blurRadius)
+            .opacity(opacity)
+    }
+}
+
 struct AppRootView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -26,7 +37,6 @@ struct AppRootView: View {
                     topToolbar(router: router)
                     dockToolbar(router: router)
                 }
-                .navigationTitle(navigationTitle(for: router))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackgroundVisibility(.hidden, for: .bottomBar)
                 .toolbarVisibility(appContext.homeViewModel.isDockHidden ? .hidden : .visible, for: .bottomBar)
@@ -136,9 +146,6 @@ struct AppRootView: View {
             routinesViewModel: appContext.routinesViewModel,
             isProjectModePresented: false,
             isRoutinesModePresented: router.isRoutinesModePresented,
-            onProfileTapped: {
-                openProfile(router: router)
-            },
             onCreateTaskTapped: {
                 router.pendingComposerTitle = nil
                 router.activeComposer = .newTask
@@ -148,7 +155,7 @@ struct AppRootView: View {
             }
         )
         .task(id: router.currentSurface) {
-            guard router.currentSurface == .calendar || router.currentSurface == .projects else { return }
+            guard router.currentSurface == .projects else { return }
             router.currentSurface = .today
         }
     }
@@ -166,10 +173,29 @@ struct AppRootView: View {
                     toggleRoutinesSurface(router: router)
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath")
+                        .rotationEffect(.degrees(isRoutinesModeActive ? 180 : 0))
+                        .scaleEffect(isRoutinesModeActive ? 1.08 : 1)
+                        .animation(projectModeAnimation, value: isRoutinesModeActive)
                 }
                 .tint(isRoutinesModeActive ? dockSelectionTint : AppTheme.colors.title)
                 .accessibilityLabel(isRoutinesModeActive ? "关闭例行事务" : "打开例行事务")
             }
+        }
+
+        ToolbarItem(placement: .principal) {
+            ZStack {
+                if isRoutinesModeActive {
+                    Text("例行任务")
+                        .transition(rootTitleTransition)
+                } else {
+                    Text("任务")
+                        .transition(rootTitleTransition)
+                }
+            }
+            .font(AppTheme.typography.sized(17, weight: .semibold))
+            .foregroundStyle(AppTheme.colors.title)
+            .animation(rootTitleAnimation, value: isRoutinesModeActive)
+            .accessibilityAddTraits(.isHeader)
         }
 
         ToolbarItem(placement: .topBarTrailing) {
@@ -244,12 +270,32 @@ struct AppRootView: View {
             : .spring(response: 0.38, dampingFraction: 0.88)
     }
 
+    private var rootTitleTransition: AnyTransition {
+        guard reduceMotion == false else { return .opacity }
+        return .modifier(
+            active: RootTitleBlurTransitionModifier(
+                blurRadius: 2,
+                opacity: 0
+            ),
+            identity: RootTitleBlurTransitionModifier(
+                blurRadius: 0,
+                opacity: 1
+            )
+        )
+    }
+
+    private var rootTitleAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.18)
+            : .smooth(duration: 0.42, extraBounce: 0)
+    }
+
     private func returnToToday(router: AppRouter) {
         let surface = router.currentSurface
         switch surface {
         case .routines:
             toggleRoutinesSurface(router: router)
-        case .calendar, .projects:
+        case .projects:
             router.currentSurface = .today
         case .today:
             break
@@ -264,7 +310,7 @@ struct AppRootView: View {
     private func openContextualComposer(router: AppRouter) {
         router.pendingComposerTitle = nil
         switch router.currentSurface {
-        case .today, .calendar, .projects:
+        case .today, .projects:
             router.activeComposer = .newTask
         case .routines:
             router.activeComposer = .newPeriodicTask
@@ -347,14 +393,6 @@ struct AppRootView: View {
         }
     }
 
-    private func navigationTitle(for router: AppRouter) -> String {
-        switch router.currentSurface {
-        case .routines:
-            return "例行任务"
-        case .today, .calendar, .projects:
-            return "任务"
-        }
-    }
 }
 
 

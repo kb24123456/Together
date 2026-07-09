@@ -7,6 +7,8 @@ protocol PeriodicTaskApplicationServiceProtocol: Sendable {
     func reorderTasks(in spaceID: UUID, taskIDs: [UUID]) async throws -> [PeriodicTask]
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws
+    func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus
+    func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus
 }
 
 actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol {
@@ -123,5 +125,13 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         await syncCoordinator.recordLocalChange(
             SyncChange(entityKind: .periodicTask, operation: .delete, recordID: taskID, spaceID: spaceID)
         )
+    }
+
+    func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus {
+        await reminderScheduler.periodicAlarmAuthorizationStatus()
+    }
+
+    func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus {
+        try await reminderScheduler.requestPeriodicAlarmAuthorization()
     }
 }

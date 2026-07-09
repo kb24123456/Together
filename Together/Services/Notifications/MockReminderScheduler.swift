@@ -18,4 +18,8 @@ actor MockReminderScheduler: ReminderSchedulerProtocol {
     func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async {}
 
     func removePeriodicTaskReminder(for taskID: UUID) async {}
+
+    func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
+
+    func requestPeriodicAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus { .authorized }
 }

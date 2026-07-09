@@ -30,6 +30,7 @@ struct ComposerPlaceholderSheet: View {
     @State private var taskTemplates: [TaskTemplate] = []
     @State private var isTaskSubtaskMode: Bool = false
     @State private var isProjectSubtaskMode: Bool = false
+    @State private var activeInlineAttributeEditor: InlineAttributeEditor?
 
     init(
         route: ComposerRoute,
@@ -154,6 +155,21 @@ struct ComposerPlaceholderSheet: View {
         } message: {
             Text(validationMessage ?? "")
         }
+        .alert(
+            "无法使用原生闹钟",
+            isPresented: Binding(
+                get: { appContext.routinesViewModel.showsAlarmAuthorizationDeniedAlert },
+                set: { appContext.routinesViewModel.showsAlarmAuthorizationDeniedAlert = $0 }
+            )
+        ) {
+            Button("取消", role: .cancel) {}
+            Button("打开设置") {
+                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                UIApplication.shared.open(url)
+            }
+        } message: {
+            Text("请在系统设置中允许 Together 使用闹钟；当前提醒方式保持不变。")
+        }
         .onAppear {
             guard !hasScheduledInitialTitleFocus else { return }
             hasScheduledInitialTitleFocus = true
@@ -172,6 +188,7 @@ struct ComposerPlaceholderSheet: View {
         .onChange(of: draftState.category) { _, newCategory in
             if isTaskSubtaskMode { isTaskSubtaskMode = false }
             if isProjectSubtaskMode { isProjectSubtaskMode = false }
+            activeInlineAttributeEditor = nil
             guard newCategory == .template else { return }
             Task {
                 await loadTemplates()
@@ -351,8 +368,14 @@ struct ComposerPlaceholderSheet: View {
         }
     }
 
+    @ViewBuilder
     private func chipRow(trailingInset: CGFloat) -> some View {
-        TaskEditorChipRow(
+        if draftState.category == .task {
+            taskAttributeToolbar
+        } else if draftState.category == .periodic {
+            composerPeriodicAttributeToolbar
+        } else {
+            TaskEditorChipRow(
             chips: chipsForCurrentCategory,
             namespace: chipRowNamespace,
             trailingInset: trailingInset,
@@ -360,17 +383,9 @@ struct ComposerPlaceholderSheet: View {
             onChipTap: { menu in
                 guard disabledMenus.contains(menu) == false else { return }
                 ComposerButtonHaptics.selection()
-                if menu == .subtasks && draftState.category == .task {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                        isTaskSubtaskMode.toggle()
-                    }
-                } else if menu == .subtasks && draftState.category == .project {
+                if menu == .subtasks && draftState.category == .project {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
                         isProjectSubtaskMode.toggle()
-                    }
-                } else if menu == .urgent && draftState.category == .task {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-                        draftState.isUrgent.toggle()
                     }
                 } else {
                     openMenu(menu)
@@ -380,14 +395,334 @@ struct ComposerPlaceholderSheet: View {
                 ComposerButtonHaptics.selection()
                 if chip.menu == .subtasks {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
-                        isTaskSubtaskMode = false
                         isProjectSubtaskMode = false
                     }
                 } else {
                     clearChipValue(chip)
                 }
             }
+            )
+        }
+    }
+
+    private var taskAttributeToolbar: some View {
+        AdaptiveTaskAttributeToolbarLayout() {
+            TaskAttributeButton(
+                icon: "calendar",
+                title: TaskAttributeValueText.date(draftState.taskDate),
+                isConfigured: true
+            ) {
+                toggleInlineAttributeEditor(.date)
+            }
+            .frame(maxWidth: .infinity)
+
+            composerTaskTimeControl.frame(maxWidth: .infinity)
+            composerTaskReminderMenu.frame(maxWidth: .infinity)
+
+            Button { draftState.isUrgent.toggle() } label: {
+                composerAttributeLabel(
+                    icon: draftState.isUrgent ? "flag.fill" : "flag",
+                    title: "",
+                    configured: draftState.isUrgent,
+                    tint: draftState.isUrgent ? AppTheme.colors.coral : nil
+                )
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                    isTaskSubtaskMode.toggle()
+                }
+            } label: {
+                composerAttributeLabel(
+                    icon: "checklist",
+                    title: draftState.taskSubtasks.isEmpty ? "" : "\(draftState.taskSubtasks.count)",
+                    configured: draftState.taskSubtasks.isEmpty == false
+                )
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+        .sheet(item: $activeInlineAttributeEditor) { editor in
+            composerInlineAttributeEditor(editor)
+        }
+    }
+
+    @ViewBuilder
+    private var composerTaskTimeControl: some View {
+        TaskAttributeButton(
+            icon: "clock",
+            title: draftState.taskTime.map(TaskAttributeValueText.time) ?? "",
+            isConfigured: draftState.taskTime != nil
+        ) {
+            if draftState.taskTime == nil {
+                draftState.taskTime = .now
+            }
+            toggleInlineAttributeEditor(.time)
+        }
+    }
+
+    private var composerTaskReminderMenu: some View {
+        Menu {
+            Button("不提醒") { draftState.taskReminderOffset = nil }
+            Divider()
+            ForEach(TaskEditorReminderPreset.allCases, id: \.self) { preset in
+                Button(preset.title) { draftState.taskReminderOffset = preset.secondsBeforeTarget }
+            }
+        } label: {
+            composerAttributeLabel(
+                icon: "bell",
+                title: draftState.taskReminderOffset.flatMap {
+                    TaskEditorReminderPreset.preset(for: $0)?.chipTitle
+                } ?? "",
+                configured: draftState.taskReminderOffset != nil
+            )
+        }
+        .disabled(draftState.taskTime == nil)
+    }
+
+    private func composerAttributeLabel(
+        icon: String,
+        title: String,
+        configured: Bool,
+        tint: Color? = nil
+    ) -> some View {
+        TaskAttributeLabel(
+            icon: icon,
+            title: title,
+            isConfigured: configured,
+            tint: tint
         )
+    }
+
+    private var composerPeriodicAttributeToolbar: some View {
+        AdaptiveTaskAttributeToolbarLayout() {
+            Menu {
+                ForEach(PeriodicCycle.allCases, id: \.self) { cycle in
+                    Button(cycle.title) {
+                        draftState.periodicCycle = cycle
+                        if let rule = composerPeriodicRule {
+                            setComposerPeriodicRule(RoutinesViewModel.normalizedRule(rule, for: cycle))
+                        }
+                    }
+                }
+            } label: {
+                composerAttributeLabel(
+                    icon: "arrow.triangle.2.circlepath",
+                    title: draftState.periodicCycle.title,
+                    configured: true
+                )
+            }
+            .frame(maxWidth: .infinity)
+
+            composerPeriodicTargetDayControl.frame(maxWidth: .infinity)
+            composerPeriodicTimeControl.frame(maxWidth: .infinity)
+            composerPeriodicReminderMenu.frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+        .sheet(item: $activeInlineAttributeEditor) { editor in
+            composerInlineAttributeEditor(editor)
+        }
+    }
+
+    @ViewBuilder
+    private var composerPeriodicTargetDayControl: some View {
+        if draftState.periodicCycle == .daily {
+            composerAttributeLabel(icon: "calendar", title: "每天", configured: true)
+        } else {
+            Menu {
+                composerPeriodicTargetDayOptions
+                if composerPeriodicRule?.hasTargetDay == true {
+                    Divider()
+                    Button("清除目标日", role: .destructive) {
+                        mutateComposerPeriodicRule { $0.timing = nil }
+                    }
+                }
+            } label: {
+                composerAttributeLabel(
+                    icon: "calendar",
+                    title: composerPeriodicRule?.hasTargetDay == true ? "目标日" : "日期",
+                    configured: composerPeriodicRule?.hasTargetDay == true
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var composerPeriodicTimeControl: some View {
+        TaskAttributeButton(
+            icon: "clock",
+            title: composerPeriodicTimeTitle,
+            isConfigured: composerPeriodicRule?.hasTargetTime == true
+        ) {
+            if composerPeriodicRule?.hasTargetTime != true {
+                let components = Calendar.current.dateComponents([.hour, .minute], from: .now)
+                mutateComposerPeriodicRule {
+                    $0.hour = components.hour
+                    $0.minute = components.minute
+                }
+            }
+            toggleInlineAttributeEditor(.time)
+        }
+    }
+
+    private var composerPeriodicTimeTitle: String {
+        guard let rule = composerPeriodicRule, rule.hasTargetTime else { return "" }
+        let date = Calendar.current.date(
+            from: DateComponents(hour: rule.hour, minute: rule.minute)
+        ) ?? .now
+        return TaskAttributeValueText.time(date)
+    }
+
+    private func toggleInlineAttributeEditor(_ editor: InlineAttributeEditor) {
+        focusCoordinator.resignCurrentResponder()
+        focusedField = nil
+        withAnimation(.snappy(duration: 0.28, extraBounce: 0.01)) {
+            activeInlineAttributeEditor = activeInlineAttributeEditor == editor ? nil : editor
+        }
+    }
+
+    @ViewBuilder
+    private func composerInlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
+        if draftState.category == .task {
+            InlineDateTimePickerPanel(
+                editor: editor,
+                title: editor == .date ? "日期" : "时间",
+                selection: Binding(
+                    get: { editor == .date ? draftState.taskDate : (draftState.taskTime ?? .now) },
+                    set: { value in
+                        if editor == .date {
+                            draftState.taskDate = value
+                        } else {
+                            draftState.taskTime = value
+                        }
+                    }
+                ),
+                allowsClearing: editor == .time && draftState.taskTime != nil,
+                onClear: {
+                    draftState.taskTime = nil
+                    draftState.taskReminderOffset = nil
+                    withAnimation { activeInlineAttributeEditor = nil }
+                },
+                onDone: { withAnimation { activeInlineAttributeEditor = nil } }
+            )
+        } else if draftState.category == .periodic, editor == .time {
+            InlineDateTimePickerPanel(
+                editor: .time,
+                title: "目标时间",
+                selection: Binding(
+                    get: {
+                        guard let rule = composerPeriodicRule else { return .now }
+                        return Calendar.current.date(
+                            from: DateComponents(hour: rule.hour, minute: rule.minute)
+                        ) ?? .now
+                    },
+                    set: { value in
+                        let components = Calendar.current.dateComponents([.hour, .minute], from: value)
+                        mutateComposerPeriodicRule {
+                            $0.hour = components.hour
+                            $0.minute = components.minute
+                        }
+                    }
+                ),
+                allowsClearing: composerPeriodicRule?.hasTargetTime == true,
+                onClear: {
+                    mutateComposerPeriodicRule {
+                        $0.hour = nil
+                        $0.minute = nil
+                        $0.reminderLeadMinutes = nil
+                        $0.reminderDelivery = nil
+                    }
+                    withAnimation { activeInlineAttributeEditor = nil }
+                },
+                onDone: { withAnimation { activeInlineAttributeEditor = nil } }
+            )
+        }
+    }
+
+    private var composerPeriodicReminderMenu: some View {
+        Menu {
+            Button("关闭提醒") {
+                mutateComposerPeriodicRule { $0.reminderLeadMinutes = nil; $0.reminderDelivery = nil }
+            }
+            Divider()
+            ForEach([0, 5, 15, 30, 60, 1_440], id: \.self) { minutes in
+                Button(RoutineReminderText.text(
+                    for: PeriodicReminderRule(
+                        reminderLeadMinutes: minutes,
+                        reminderDelivery: .notification
+                    )
+                )) {
+                    mutateComposerPeriodicRule {
+                        $0.reminderLeadMinutes = minutes
+                        if $0.reminderDelivery == nil { $0.reminderDelivery = .notification }
+                    }
+                }
+            }
+            if composerPeriodicRule?.hasReminder == true {
+                Divider()
+                Button("普通通知") { mutateComposerPeriodicRule { $0.reminderDelivery = .notification } }
+                if #available(iOS 26.0, *) {
+                    Button("原生闹钟") {
+                        Task {
+                            guard await appContext.routinesViewModel.canUseAlarmDelivery() else { return }
+                            mutateComposerPeriodicRule { $0.reminderDelivery = .alarm }
+                        }
+                    }
+                }
+            }
+        } label: {
+            composerAttributeLabel(
+                icon: composerPeriodicRule?.reminderDelivery == .alarm ? "alarm" : "bell",
+                title: "",
+                configured: composerPeriodicRule?.hasReminder == true
+            )
+        }
+        .disabled(
+            composerPeriodicRule?.hasCompleteTarget(for: draftState.periodicCycle) != true
+        )
+    }
+
+    @ViewBuilder
+    private var composerPeriodicTargetDayOptions: some View {
+        switch draftState.periodicCycle {
+        case .daily:
+            EmptyView()
+        case .weekly:
+            ForEach(1...7, id: \.self) { day in
+                Button(RoutineTargetText.weekdayText(for: day)) {
+                    mutateComposerPeriodicRule { $0.timing = .dayOfPeriod(day) }
+                }
+            }
+        case .monthly:
+            ForEach([1, 5, 10, 15, 20, 25, 31], id: \.self) { day in
+                Button(day == 31 ? "最后一天" : "\(day) 号") {
+                    mutateComposerPeriodicRule { $0.timing = .dayOfPeriod(day) }
+                }
+            }
+        case .quarterly:
+            Button("第 1 天") { mutateComposerPeriodicRule { $0.timing = .dayOfPeriod(1) } }
+            Button("第 30 天") { mutateComposerPeriodicRule { $0.timing = .dayOfPeriod(30) } }
+        case .yearly:
+            Button("第 1 天") { mutateComposerPeriodicRule { $0.timing = .dayOfPeriod(1) } }
+            Button("第 180 天") { mutateComposerPeriodicRule { $0.timing = .dayOfPeriod(180) } }
+        }
+    }
+
+    private var composerPeriodicRule: PeriodicReminderRule? {
+        draftState.periodicReminderRules.first
+    }
+
+    private func mutateComposerPeriodicRule(_ mutation: (inout PeriodicReminderRule) -> Void) {
+        var rule = composerPeriodicRule ?? PeriodicReminderRule()
+        mutation(&rule)
+        setComposerPeriodicRule(rule)
+    }
+
+    private func setComposerPeriodicRule(_ rule: PeriodicReminderRule) {
+        draftState.periodicReminderRules = rule.isEmpty ? [] : [rule]
     }
 
     private var chipAnimationKey: String {
@@ -2383,16 +2718,26 @@ private struct ComposerTaskSubtasksInline: View {
 
     @ViewBuilder
     private func subtaskRow(_ subtask: TaskSubtaskDraft) -> some View {
-        HStack(spacing: AppTheme.spacing.sm) {
+        HStack(spacing: AppTheme.spacing.md) {
             Button {
                 ComposerButtonHaptics.selection()
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
                     draftState.toggleTaskSubtask(subtask.id)
                 }
             } label: {
-                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(AppTheme.typography.sized(17, weight: .semibold))
-                    .foregroundStyle(subtask.isCompleted ? AppTheme.colors.coral : AppTheme.colors.body.opacity(0.42))
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppTheme.radius.xs, style: .continuous)
+                        .strokeBorder(
+                            subtask.isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.44),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [3.2, 4])
+                        )
+                    if subtask.isCompleted {
+                        Image(systemName: "checkmark")
+                            .font(AppTheme.typography.sized(13, weight: .bold))
+                            .foregroundStyle(AppTheme.colors.coral)
+                    }
+                }
+                .frame(width: 40, height: 40)
             }
             .buttonStyle(.plain)
 
@@ -2431,24 +2776,38 @@ private struct ComposerTaskSubtasksInline: View {
                 .buttonStyle(.plain)
             }
 
-            Button {
-                ComposerButtonHaptics.selection()
-                if editingSubtaskID == subtask.id {
-                    commitSubtaskAfterFocusUpdate(subtask)
-                } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
-                        draftState.removeTaskSubtask(subtask.id)
+            if editingSubtaskID == subtask.id {
+                HStack(spacing: 0) {
+                    Button {
+                        commitSubtaskAfterFocusUpdate(subtask)
+                    } label: {
+                        Label("保存", systemImage: "checkmark")
+                            .font(AppTheme.typography.sized(12, weight: .bold))
+                            .foregroundStyle(AppTheme.colors.sky)
+                            .frame(minWidth: 54, minHeight: 44)
                     }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        draftState.removeTaskSubtask(subtask.id)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(AppTheme.typography.sized(11, weight: .semibold))
+                            .foregroundStyle(AppTheme.colors.body.opacity(0.44))
+                            .frame(minWidth: 36, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
                 }
-            } label: {
-                Image(systemName: editingSubtaskID == subtask.id ? "checkmark" : "xmark")
-                    .font(AppTheme.typography.sized(10, weight: .bold))
-                    .foregroundStyle(editingSubtaskID == subtask.id ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.46))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(editingSubtaskID == subtask.id ? "保存子任务" : "移除子任务")
         }
-        .padding(.vertical, AppTheme.spacing.xs)
+        .frame(maxWidth: .infinity, minHeight: 40)
+        .contextMenu {
+            if editingSubtaskID != subtask.id {
+                Button("删除子任务", systemImage: "trash", role: .destructive) {
+                    draftState.removeTaskSubtask(subtask.id)
+                }
+            }
+        }
     }
 
     private func subtaskBinding(for subtask: TaskSubtaskDraft) -> Binding<String> {
@@ -2479,12 +2838,11 @@ private struct ComposerTaskSubtasksInline: View {
     }
 
     private var addInputRow: some View {
-        HStack(spacing: AppTheme.spacing.sm) {
-            Image(systemName: "plus.circle.fill")
-                .font(AppTheme.typography.sized(17, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.coral.opacity(
-                    draftState.taskSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1
-                ))
+        HStack(spacing: AppTheme.spacing.md) {
+            Image(systemName: "plus")
+                .font(AppTheme.typography.sized(13, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(canAddSubtask ? 0.72 : 0.38))
+                .frame(width: 40, height: 34, alignment: .trailing)
 
             TextField(
                 "添加子任务",
@@ -2498,8 +2856,19 @@ private struct ComposerTaskSubtasksInline: View {
             .onSubmit {
                 addSubtaskAfterFocusUpdate()
             }
+
+            if isInputFocused || canAddSubtask {
+                Button("添加") { addSubtaskAfterFocusUpdate() }
+                    .font(AppTheme.typography.sized(14, weight: .bold))
+                    .foregroundStyle(canAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
+                    .disabled(canAddSubtask == false)
+            }
         }
-        .padding(.vertical, AppTheme.spacing.xs)
+        .frame(maxWidth: .infinity, minHeight: 34)
+    }
+
+    private var canAddSubtask: Bool {
+        draftState.taskSubtaskInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
 
     private func addSubtask() {

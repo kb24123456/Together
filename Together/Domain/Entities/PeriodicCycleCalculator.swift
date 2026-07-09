@@ -135,6 +135,25 @@ enum PeriodicCycleCalculator {
         )
     }
 
+    nonisolated static func periodicReminderDate(
+        rule: PeriodicReminderRule,
+        cycle: PeriodicCycle,
+        date: Date,
+        calendar: Calendar = .current
+    ) -> Date? {
+        guard let leadMinutes = rule.reminderLeadMinutes,
+              rule.hasCompleteTarget(for: cycle),
+              let targetDate = reminderTriggerDate(
+                  rule: rule,
+                  cycle: cycle,
+                  date: date,
+                  calendar: calendar
+              )
+        else { return nil }
+
+        return calendar.date(byAdding: .minute, value: -leadMinutes, to: targetDate)
+    }
+
     nonisolated static func reminderTriggerDate(
         rule: PeriodicReminderRule,
         periodStart: Date,

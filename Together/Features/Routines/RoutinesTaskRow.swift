@@ -21,17 +21,23 @@ enum RoutineInlineFocusTarget: Hashable {
     }
 }
 
-private enum RoutineInlineLayoutMetrics {
+enum RoutineInlineLayoutMetrics {
     static let actionSlotWidth: CGFloat = 40
     static let titleGap: CGFloat = AppTheme.spacing.md
     static let titleLeadingInset = actionSlotWidth + titleGap
     static let rowMinHeight: CGFloat = 44
-    static let compactRowMinHeight: CGFloat = 34
-    static let detailVerticalSpacing: CGFloat = AppTheme.spacing.xs
-    static let attributeMinHeight: CGFloat = 40
+    static let compactRowMinHeight: CGFloat = 32
+    static let detailVerticalSpacing: CGFloat = 2
+    static let attributeMinHeight: CGFloat = AdaptiveTaskAttributeToolbarLayout.rowHeight
     static let detailTopPadding: CGFloat = AppTheme.spacing.xxs
     static let detailBottomPadding: CGFloat = AppTheme.spacing.xxs
-    static let estimatedDetailHeight: CGFloat = 126
+
+    static func estimatedDetailHeight(showsAddNote: Bool) -> CGFloat {
+        let visibleRowCount = showsAddNote ? 2 : 1
+        let rowHeights = attributeMinHeight + (showsAddNote ? compactRowMinHeight : 0)
+        let spacings = CGFloat(max(visibleRowCount - 1, 0)) * detailVerticalSpacing
+        return detailTopPadding + rowHeights + spacings + detailBottomPadding
+    }
 }
 
 struct RoutinesTaskRow: View {
@@ -41,6 +47,7 @@ struct RoutinesTaskRow: View {
     let isDetailExpanded: Bool
     let animationBatch: Int
     let onOpenDetail: () -> Void
+    let onToggleCompletion: () -> Void
     let onInlineFocus: (RoutineInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -142,10 +149,11 @@ struct RoutinesTaskRow: View {
                 HomeInteractionFeedback.selection()
             } else {
                 HomeInteractionFeedback.completion()
+                if isDetailPresented {
+                    triggerCompletionAnimation()
+                }
             }
-            Task {
-                await viewModel.toggleCompletion(taskID: task.id)
-            }
+            onToggleCompletion()
         } label: {
             completionBadge
                 .frame(width: 40, height: 40)
@@ -160,18 +168,22 @@ struct RoutinesTaskRow: View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
             if isDetailPresented, isEditingTitle {
                 expandedTitleEditor
-            } else if isDetailPresented {
+            } else {
                 Button {
-                    beginTitleEditing()
+                    if isDetailPresented {
+                        beginTitleEditing()
+                    } else {
+                        onOpenDetail()
+                    }
                 } label: {
-                    titleText(draftTitle)
+                    titleText(isDetailPresented ? draftTitle : task.title)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .allowsHitTesting(isDetailPresented)
+                .accessibilityHidden(isDetailPresented == false)
                 .accessibilityLabel("编辑例行任务标题")
-            } else {
-                titleText(task.title)
             }
 
             if isDetailPresented {
@@ -246,10 +258,10 @@ struct RoutinesTaskRow: View {
 
     private var visibleTargetText: String {
         guard isDetailPresented, let draft = viewModel.detailDraft else {
-            return RoutineTargetText.text(for: task)
+            return RoutineTaskPropertyText.text(for: task)
         }
         guard let rule = draft.reminderRules.first else { return "" }
-        return RoutineTargetText.text(for: rule, cycle: draft.cycle)
+        return RoutineTaskPropertyText.text(for: rule, cycle: draft.cycle)
     }
 
     private func titleText(_ title: String) -> some View {
@@ -456,13 +468,14 @@ private struct RoutinesInlineDetailView: View {
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var activeAttributeEditor: InlineAttributeEditor?
 
     var body: some View {
         RoutineInlineCascadeStack(
             isExpanded: isExpanded,
             animationBatch: animationBatch,
             reduceMotion: reduceMotion,
-            fallbackHeight: RoutineInlineLayoutMetrics.estimatedDetailHeight
+            fallbackHeight: RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: showsAddNote)
         ) {
             VStack(alignment: .leading, spacing: RoutineInlineLayoutMetrics.detailVerticalSpacing) {
                 if showsAddNote {
@@ -472,6 +485,7 @@ private struct RoutinesInlineDetailView: View {
 
                 attributeToolbar
                     .modifier(cascadeItem(index: showsAddNote ? 1 : 0))
+
             }
             .padding(.top, RoutineInlineLayoutMetrics.detailTopPadding)
             .padding(.bottom, RoutineInlineLayoutMetrics.detailBottomPadding)
@@ -520,15 +534,72 @@ private struct RoutinesInlineDetailView: View {
     }
 
     private var attributeToolbar: some View {
-        HStack(spacing: 0) {
+        AdaptiveTaskAttributeToolbarLayout() {
             cycleMenu
                 .frame(maxWidth: .infinity)
             targetDayControl
                 .frame(maxWidth: .infinity)
             targetTimeControl
                 .frame(maxWidth: .infinity)
+            reminderMenu
+                .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
+        .sheet(item: $activeAttributeEditor) { editor in
+            inlineAttributeEditor(editor)
+        }
+    }
+
+    private var reminderMenu: some View {
+        Menu {
+            Button("关闭提醒") {
+                viewModel.updateDraftReminder(leadMinutes: nil)
+            }
+
+            Divider()
+            reminderOption("目标时刻", minutes: 0)
+            reminderOption("提前 5 分钟", minutes: 5)
+            reminderOption("提前 15 分钟", minutes: 15)
+            reminderOption("提前 30 分钟", minutes: 30)
+            reminderOption("提前 1 小时", minutes: 60)
+            reminderOption("提前 1 天", minutes: 1_440)
+
+            if currentRule?.hasReminder == true {
+                Divider()
+                Button {
+                    Task { await viewModel.updateDraftReminderDelivery(.notification) }
+                } label: {
+                    Label("普通通知", systemImage: currentRule?.reminderDelivery == .alarm ? "bell" : "checkmark")
+                }
+                if #available(iOS 26.0, *) {
+                    Button {
+                        Task { await viewModel.updateDraftReminderDelivery(.alarm) }
+                    } label: {
+                        Label("原生闹钟", systemImage: currentRule?.reminderDelivery == .alarm ? "checkmark" : "alarm")
+                    }
+                }
+            }
+        } label: {
+            settingLabel(
+                icon: currentRule?.reminderDelivery == .alarm ? "alarm" : "bell",
+                title: reminderTitle,
+                isConfigured: currentRule?.hasReminder == true
+            )
+        }
+        .disabled(currentRule?.hasCompleteTarget(for: draftCycle) != true)
+        .accessibilityLabel("例行任务提醒，当前为\(reminderTitle)")
+    }
+
+    private func reminderOption(_ title: String, minutes: Int) -> some View {
+        Button {
+            viewModel.updateDraftReminder(leadMinutes: minutes)
+        } label: {
+            if currentRule?.reminderLeadMinutes == minutes {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     private var cycleMenu: some View {
@@ -574,62 +645,50 @@ private struct RoutinesInlineDetailView: View {
 
     @ViewBuilder
     private var targetTimeControl: some View {
-        if currentRule?.hasTargetTime == true {
-            HStack(spacing: 0) {
-                DatePicker(
-                    "目标时间",
-                    selection: Binding(
-                        get: { timeDate },
-                        set: { updateDraftTime($0) }
-                    ),
-                    displayedComponents: .hourAndMinute
-                )
-                .labelsHidden()
-                .datePickerStyle(.compact)
-                .fixedSize()
-
-                Button {
-                    viewModel.clearDraftTargetTime()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(AppTheme.typography.sized(13, weight: .semibold))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.42))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("清除目标时间")
-            }
-            .frame(maxWidth: .infinity, minHeight: RoutineInlineLayoutMetrics.attributeMinHeight)
-        } else {
-            Button {
+        TaskAttributeButton(
+            icon: "clock",
+            title: currentRule?.hasTargetTime == true ? TaskAttributeValueText.time(timeDate) : "时间",
+            isConfigured: currentRule?.hasTargetTime == true
+        ) {
+            if currentRule?.hasTargetTime != true {
                 let components = Calendar.current.dateComponents([.hour, .minute], from: .now)
                 viewModel.updateDraftTargetTime(
                     hour: components.hour ?? 0,
                     minute: components.minute ?? 0
                 )
-            } label: {
-                settingLabel(icon: "clock", title: "时间", isConfigured: false)
             }
-            .buttonStyle(.plain)
+            toggleAttributeEditor(.time)
         }
     }
 
     private func settingLabel(icon: String, title: String, isConfigured: Bool) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .frame(width: 16)
+        TaskAttributeLabel(
+            icon: icon,
+            title: title,
+            isConfigured: isConfigured
+        )
+    }
 
-            Text(title)
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.62)
+    private func toggleAttributeEditor(_ editor: InlineAttributeEditor) {
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.28, extraBounce: 0.01)) {
+            activeAttributeEditor = activeAttributeEditor == editor ? nil : editor
         }
-        .foregroundStyle(isConfigured ? AppTheme.colors.title.opacity(0.74) : AppTheme.colors.body.opacity(0.42))
-        .padding(.horizontal, 2)
-        .frame(maxWidth: .infinity, minHeight: RoutineInlineLayoutMetrics.attributeMinHeight)
-        .contentShape(Rectangle())
+    }
+
+    private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
+        InlineDateTimePickerPanel(
+            editor: editor,
+            title: "目标时间",
+            selection: Binding(get: { timeDate }, set: updateDraftTime),
+            allowsClearing: currentRule?.hasTargetTime == true,
+            onClear: {
+                viewModel.clearDraftTargetTime()
+                withAnimation { activeAttributeEditor = nil }
+            },
+            onDone: {
+                withAnimation { activeAttributeEditor = nil }
+            }
+        )
     }
 
     @ViewBuilder
@@ -693,6 +752,21 @@ private struct RoutinesInlineDetailView: View {
             case .businessDayOfPeriod(let day): return "第\(day)工作日"
             case .daysBeforeEnd(let days): return "提前\(days)天"
             }
+        }
+    }
+
+    private var reminderTitle: String {
+        guard let rule = currentRule, rule.hasReminder else { return "提醒" }
+        if rule.reminderDelivery == .alarm { return "闹钟" }
+        guard let minutes = rule.reminderLeadMinutes else { return "提醒" }
+        switch minutes {
+        case 0: return "准时"
+        case 5: return "提前5分"
+        case 15: return "提前15分"
+        case 30: return "提前30分"
+        case 60: return "提前1时"
+        case 1_440: return "提前1天"
+        default: return "提醒"
         }
     }
 

@@ -28,7 +28,6 @@ final class AppContext {
     let homeViewModel: HomeViewModel
     let listsViewModel: ListsViewModel
     let projectsViewModel: ProjectsViewModel
-    let calendarViewModel: CalendarViewModel
     let profileViewModel: ProfileViewModel
     let routinesViewModel: RoutinesViewModel
 
@@ -78,10 +77,6 @@ final class AppContext {
         self.projectsViewModel = ProjectsViewModel(
             sessionStore: sessionStore,
             projectRepository: container.projectRepository
-        )
-        self.calendarViewModel = CalendarViewModel(
-            sessionStore: sessionStore,
-            itemRepository: container.itemRepository
         )
         self.routinesViewModel = RoutinesViewModel(
             sessionStore: sessionStore,
@@ -318,7 +313,6 @@ final class AppContext {
         await homeViewModel.reload(reason: .sync)
         await listsViewModel.load()
         await projectsViewModel.load()
-        await calendarViewModel.load()
         await routinesViewModel.loadIfNeeded()
         await refreshTodayWidgetSnapshot()
         reloadAfterSyncTask = nil
