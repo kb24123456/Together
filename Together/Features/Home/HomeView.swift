@@ -195,7 +195,7 @@ struct HomeView: View {
     }
 
     private var tasksContent: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             if showsStartupRestorePlaceholder {
                 ScrollView {
                     startupRestorePlaceholder
@@ -208,6 +208,10 @@ struct HomeView: View {
                 .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
                 .transition(timelineTransition)
+            } else if viewModel.items.isEmpty, viewModel.loadState == .loading || viewModel.loadState == .idle {
+                homeLoadingState
+            } else if viewModel.items.isEmpty, case .failed = viewModel.loadState {
+                homeLoadFailureState
             } else if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
@@ -254,9 +258,93 @@ struct HomeView: View {
                         }
                 }
             }
+
+            if let statusMessage = nonBlockingStatusMessage {
+                homeStatusBanner(message: statusMessage, retriesLoad: hasNonBlockingLoadFailure)
+                    .padding(.horizontal, AppTheme.spacing.xl)
+                    .padding(.top, AppTheme.spacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(4)
+            }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: viewModel.selectedDateKey)
         .animation(restoreTransitionAnimation, value: appContext.startupRestorePresentationState)
+    }
+
+    private var hasNonBlockingLoadFailure: Bool {
+        guard viewModel.items.isEmpty == false else { return false }
+        if case .failed = viewModel.loadState { return true }
+        return false
+    }
+
+    private var nonBlockingStatusMessage: String? {
+        if hasNonBlockingLoadFailure, case let .failed(message) = viewModel.loadState {
+            return message
+        }
+        return viewModel.operationErrorMessage
+    }
+
+    private var homeLoadingState: some View {
+        VStack(spacing: AppTheme.spacing.md) {
+            ProgressView()
+            Text("正在加载任务")
+                .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.64))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 96)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var homeLoadFailureState: some View {
+        VStack(spacing: AppTheme.spacing.md) {
+            EmptyStateCard(
+                title: "任务加载失败",
+                message: "本地数据仍然保留，点击重试后会重新读取。",
+                systemImage: "exclamationmark.arrow.triangle.2.circlepath",
+                usesNeutralBackground: true
+            )
+
+            Button("重试") {
+                Task { await viewModel.reload() }
+            }
+            .font(AppTheme.typography.sized(15, weight: .semibold))
+        }
+        .padding(.horizontal, AppTheme.spacing.xl)
+        .padding(.top, 52)
+    }
+
+    private func homeStatusBanner(message: String, retriesLoad: Bool) -> some View {
+        HStack(spacing: AppTheme.spacing.sm) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
+            Text(message)
+                .font(AppTheme.typography.sized(13, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.78))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if retriesLoad {
+                Button("重试") {
+                    Task { await viewModel.reload() }
+                }
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+            } else {
+                Button {
+                    viewModel.dismissOperationError()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel("关闭错误提示")
+            }
+        }
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.sm)
+        .background(
+            Capsule(style: .continuous)
+                .fill(AppTheme.colors.surfaceElevated)
+                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+        )
     }
 
     /// Scroll to and briefly highlight a task row. Called from both the hot path

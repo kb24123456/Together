@@ -451,6 +451,22 @@ struct TogetherTests {
         #expect(activeEntry.presentationID != completedEntry.presentationID)
     }
 
+    @Test func homeReloadFailurePreservesLastSuccessfulItems() async throws {
+        let item = makeHomeFilterItem(title: "保留的任务", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        repository.throwsOnFetchHomeItems = true
+        await viewModel.reload()
+
+        #expect(viewModel.items.map(\.id) == [item.id])
+        guard case .failed = viewModel.loadState else {
+            Issue.record("刷新失败后应保留数据并暴露失败状态")
+            return
+        }
+    }
+
     @Test func completingFutureDatedTaskUsesCompletionAnimationBranch() async throws {
         var item = makeHomeFilterItem(title: "提前完成未来任务", completedAt: nil, status: .inProgress)
         item.dueAt = Date.now.addingTimeInterval(86_400)
@@ -661,6 +677,20 @@ struct TogetherTests {
 
         #expect(viewModel.detailDraft?.reminderRules.isEmpty == true)
         #expect(RoutinesViewModel.defaultRule(for: .weekly).isEmpty)
+    }
+
+    @Test func routinesFailureIsNotPresentedAsEmptyState() async {
+        let service = CapturingPeriodicTaskApplicationService(tasks: [], shouldFailFetch: true)
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+
+        await viewModel.load()
+
+        #expect(viewModel.tasks.isEmpty)
+        guard case .failed = viewModel.loadState else {
+            Issue.record("首次读取失败应暴露失败状态")
+            return
+        }
+        #expect(viewModel.taskStreamPresentation == .failure)
     }
 
     @Test func routineDraftClearsTargetDayAndTimeIndependently() async {
@@ -2526,14 +2556,23 @@ private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplica
     private(set) var tasks: [PeriodicTask]
     private(set) var updatedDrafts: [PeriodicTaskDraft] = []
     private let shouldFailUpdates: Bool
+    private let shouldFailFetch: Bool
 
-    init(tasks: [PeriodicTask], shouldFailUpdates: Bool = false) {
+    init(
+        tasks: [PeriodicTask],
+        shouldFailUpdates: Bool = false,
+        shouldFailFetch: Bool = false
+    ) {
         self.tasks = tasks
         self.shouldFailUpdates = shouldFailUpdates
+        self.shouldFailFetch = shouldFailFetch
     }
 
     func fetchTasks(in spaceID: UUID) async throws -> [PeriodicTask] {
-        tasks
+        if shouldFailFetch {
+            throw PeriodicTaskError.notSupported
+        }
+        return tasks
     }
 
     func createTask(in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {

@@ -116,6 +116,8 @@ final class HomeViewModel {
     private var insertedItemIDs: Set<UUID> = []
     var selectedDate: Date = Date()
     var items: [Item] = []
+    var loadState: LoadableState = .idle
+    var operationErrorMessage: String?
     private(set) var reloadRevision = 0
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
@@ -230,7 +232,7 @@ final class HomeViewModel {
     }
 
     func loadIfNeeded() async {
-        guard items.isEmpty else { return }
+        guard loadState == .idle else { return }
         await reload()
     }
 
@@ -261,10 +263,12 @@ final class HomeViewModel {
             weeklyCompletedSheetItems = []
             weeklyCompletedEntryCount = 0
             insertedItemIDs = []
+            loadState = .loaded
             reloadRevision += 1
             return
         }
 
+        loadState = .loading
         do {
             // 记录刷新前的 ID 集合，用于检测同步到达的新任务
             let previousIDs = Set(items.map(\.id))
@@ -291,17 +295,23 @@ final class HomeViewModel {
                 items = fetchedItems
             }
             insertedItemIDs = persistedInsertedIDs.union(nextInsertedIDs).union(arrivedIDs)
+            loadState = .loaded
             reloadRevision += 1
             if overdueEntryCount == 0 {
                 isOverdueSheetPresented = false
             }
         } catch {
-            items = []
-            weeklyCompletedSheetItems = []
-            weeklyCompletedEntryCount = 0
-            insertedItemIDs = []
+            loadState = .failed("任务加载失败，请重试。")
             reloadRevision += 1
         }
+    }
+
+    func dismissOperationError() {
+        operationErrorMessage = nil
+    }
+
+    private func presentOperationError(_ message: String) {
+        operationErrorMessage = message
     }
 
     func item(for itemID: UUID) -> Item? {
@@ -487,6 +497,7 @@ final class HomeViewModel {
         do {
             return try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
         } catch {
+            presentOperationError("模板加载失败，请稍后重试。")
             return []
         }
     }
@@ -509,6 +520,7 @@ final class HomeViewModel {
             emitTaskMutation(spaceID: spaceID)
             return true
         } catch {
+            presentOperationError("无法从模板创建任务，请重试。")
             return false
         }
     }
@@ -556,6 +568,7 @@ final class HomeViewModel {
             let saved = try await taskTemplateRepository.saveTaskTemplate(template)
             return TaskTemplateSaveResult(templateID: saved.id, isNewlyCreated: true)
         } catch {
+            presentOperationError("模板保存失败，请重试。")
             return nil
         }
     }
@@ -565,6 +578,7 @@ final class HomeViewModel {
             try await taskTemplateRepository.deleteTaskTemplate(templateID: templateID)
             return true
         } catch {
+            presentOperationError("模板删除失败，请重试。")
             return false
         }
     }
@@ -590,7 +604,9 @@ final class HomeViewModel {
                 replaceItemPreservingOrder(saved)
             }
             emitTaskMutation(spaceID: spaceID)
-        } catch {}
+        } catch {
+            presentOperationError("任务更新失败，请重试。")
+        }
     }
 
     func completeItem(_ itemID: UUID, trigger: CompletionTrigger = .inlineControl) async {
@@ -659,9 +675,7 @@ final class HomeViewModel {
             emitTaskMutation(spaceID: spaceID)
             await reconcileHomeItems(spaceID: spaceID)
         } catch {
-            #if DEBUG
-            print("[HomeViewModel] completeItem failed for itemID=\(itemID): \(error)")
-            #endif
+            presentOperationError("任务状态更新失败，请重试。")
         }
 
         completingOccurrenceKeys.remove(occurrenceKey)
@@ -694,6 +708,7 @@ final class HomeViewModel {
             dismissItemDetail()
             emitTaskMutation(spaceID: spaceID)
         } catch {
+            presentOperationError("任务删除失败，请重试。")
             return
         }
     }
@@ -750,6 +765,7 @@ final class HomeViewModel {
             }
             emitTaskMutation(spaceID: spaceID)
         } catch {
+            presentOperationError("任务删除失败，请重试。")
             return
         }
     }
@@ -851,7 +867,9 @@ final class HomeViewModel {
                 replaceItemPreservingOrder(saved)
             }
             emitTaskMutation(spaceID: spaceID)
-        } catch {}
+        } catch {
+            presentOperationError("任务时间调整失败，请重试。")
+        }
     }
 
     func weekdayLabel(for date: Date) -> String {
@@ -939,6 +957,7 @@ final class HomeViewModel {
             }
             onTodayDataChanged?()
         } catch {
+            presentOperationError("任务排序保存失败，请重试。")
             await reload()
         }
     }
@@ -973,6 +992,7 @@ final class HomeViewModel {
             }
             return true
         } catch {
+            presentOperationError("任务保存失败，请重试。")
             return false
         }
     }
@@ -1506,7 +1526,9 @@ final class HomeViewModel {
                 }
             }
             emitTaskMutation(spaceID: spaceID)
-        } catch {}
+        } catch {
+            presentOperationError("任务推迟失败，请重试。")
+        }
     }
 
     private func emitTaskMutation(spaceID: UUID) {

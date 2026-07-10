@@ -183,6 +183,7 @@ final class RoutinesViewModel {
 
     var tasks: [PeriodicTask] = []
     var loadState: LoadableState = .idle
+    var operationErrorMessage: String?
     var referenceDate: Date = .now
     var isEditorPresented = false
     var editingTask: PeriodicTask?
@@ -199,6 +200,32 @@ final class RoutinesViewModel {
     private var tasksBySpaceID: [UUID: [PeriodicTask]] = [:]
     private static let visibleCyclesStorageKey = "together.routines.visibleCycles.v2"
     private static let legacyOptionalCyclesStorageKey = "together.routines.visibleOptionalCycles"
+
+    enum TaskStreamPresentation: Equatable {
+        case loading
+        case failure
+        case allEmpty
+        case cycleEmpty
+        case content
+    }
+
+    var taskStreamPresentation: TaskStreamPresentation {
+        if tasks.isEmpty {
+            switch loadState {
+            case .idle, .loading:
+                return .loading
+            case .failed:
+                return .failure
+            case .loaded:
+                return .allEmpty
+            }
+        }
+        return currentTasks.isEmpty ? .cycleEmpty : .content
+    }
+
+    func dismissOperationError() {
+        operationErrorMessage = nil
+    }
 
     init(
         sessionStore: SessionStore,
@@ -351,7 +378,7 @@ final class RoutinesViewModel {
                 replaceTask(task)
             }
         } catch {
-            loadState = .failed(error.localizedDescription)
+            operationErrorMessage = "例行任务排序失败，请重试。"
         }
     }
 
@@ -533,7 +560,7 @@ final class RoutinesViewModel {
             }
             cacheCurrentTasks()
         } catch {
-            // Reload to ensure consistency
+            operationErrorMessage = "例行任务状态更新失败，请重试。"
             await load()
         }
     }
@@ -550,6 +577,7 @@ final class RoutinesViewModel {
             return true
         } catch {
             pendingCompletedTask = nil
+            operationErrorMessage = "例行任务状态更新失败，请重试。"
             return false
         }
     }
@@ -716,6 +744,7 @@ final class RoutinesViewModel {
             tasks.append(created)
             cacheCurrentTasks()
         } catch {
+            operationErrorMessage = "例行任务创建失败，请重试。"
             await load()
         }
     }
@@ -738,7 +767,7 @@ final class RoutinesViewModel {
             loadState = .loaded
             return true
         } catch {
-            loadState = .failed(error.localizedDescription)
+            operationErrorMessage = "例行任务保存失败，请重试。"
             return false
         }
     }
@@ -765,6 +794,7 @@ final class RoutinesViewModel {
             }
             cacheCurrentTasks()
         } catch {
+            operationErrorMessage = "例行任务删除失败，请重试。"
             await load()
         }
     }
@@ -837,6 +867,7 @@ final class RoutinesViewModel {
             let saved = try await taskTemplateRepository.saveTaskTemplate(template)
             return RoutinesTemplateSaveResult(templateID: saved.id, isNewlyCreated: true)
         } catch {
+            operationErrorMessage = "模板保存失败，请重试。"
             return nil
         }
     }
@@ -845,7 +876,7 @@ final class RoutinesViewModel {
         do {
             try await taskTemplateRepository.deleteTaskTemplate(templateID: templateID)
         } catch {
-            // silently ignore
+            operationErrorMessage = "模板删除失败，请重试。"
         }
     }
 

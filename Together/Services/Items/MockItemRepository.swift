@@ -7,6 +7,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
     private let calendar = Calendar.current
     private let throwsOnCompletedItemCount: Bool
     private let throwsOnFetchCompletedItems: Bool
+    var throwsOnFetchHomeItems = false
 
     init(throwsOnCompletedItemCount: Bool = false, throwsOnFetchCompletedItems: Bool = false) {
         self.items = MockDataFactory.makeItems()
@@ -25,14 +26,18 @@ final class MockItemRepository: ItemRepositoryProtocol {
     }
 
     func fetchActiveItems(spaceID: UUID?) async throws -> [Item] {
-        items
+        return items
             .filter { $0.spaceID == spaceID && $0.isArchived == false }
             .map(hydratedItem)
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
     func fetchHomeItems(spaceID: UUID?, completedFrom: Date, completedBefore: Date) async throws -> [Item] {
-        items
+        if throwsOnFetchHomeItems {
+            throw RepositoryError.invalidInput("home items failed")
+        }
+
+        return items
             .filter { item in
                 guard item.spaceID == spaceID && item.isArchived == false else { return false }
                 guard item.status == .completed || item.completedAt != nil else { return true }

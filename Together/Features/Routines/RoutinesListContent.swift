@@ -294,6 +294,15 @@ struct RoutinesListContent: View {
                         .frame(height: 1)
                         .id(listTopAnchor)
 
+                    if let statusMessage = nonBlockingStatusMessage {
+                        routinesStatusBanner(
+                            message: statusMessage,
+                            retriesLoad: hasNonBlockingLoadFailure
+                        )
+                        .padding(.horizontal, AppTheme.spacing.xl)
+                        .padding(.top, AppTheme.spacing.sm)
+                    }
+
                     taskStream(scrollProxy: scrollProxy)
                         .id(viewModel.selectedCycle)
                         .transition(cycleContentTransition)
@@ -323,11 +332,16 @@ struct RoutinesListContent: View {
 
     @ViewBuilder
     private func taskStream(scrollProxy: ScrollViewProxy) -> some View {
-        if viewModel.tasks.isEmpty && viewModel.loadState == .loaded {
+        switch viewModel.taskStreamPresentation {
+        case .loading:
+            routinesLoadingState
+        case .failure:
+            routinesFailureState
+        case .allEmpty:
             routinesEmptyState
-        } else if currentTasks.isEmpty {
+        case .cycleEmpty:
             emptyTabState
-        } else {
+        case .content:
             ForEach(Array(currentTasks.enumerated()), id: \.element.id) { index, task in
                 routineRow(
                     task,
@@ -337,6 +351,82 @@ struct RoutinesListContent: View {
                 )
             }
         }
+    }
+
+    private var hasNonBlockingLoadFailure: Bool {
+        guard viewModel.tasks.isEmpty == false else { return false }
+        if case .failed = viewModel.loadState { return true }
+        return false
+    }
+
+    private var nonBlockingStatusMessage: String? {
+        if hasNonBlockingLoadFailure, case let .failed(message) = viewModel.loadState {
+            return message
+        }
+        return viewModel.operationErrorMessage
+    }
+
+    private var routinesLoadingState: some View {
+        VStack(spacing: AppTheme.spacing.md) {
+            ProgressView()
+            Text("正在加载例行任务")
+                .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.64))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 96)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var routinesFailureState: some View {
+        VStack(spacing: AppTheme.spacing.md) {
+            EmptyStateCard(
+                title: "例行任务加载失败",
+                message: "已有数据不会被清空，点击重试后会重新读取。",
+                systemImage: "exclamationmark.arrow.triangle.2.circlepath",
+                usesNeutralBackground: true
+            )
+
+            Button("重试") {
+                Task { await viewModel.reload(showsLoading: true) }
+            }
+            .font(AppTheme.typography.sized(15, weight: .semibold))
+        }
+        .padding(.horizontal, AppTheme.spacing.xl)
+        .padding(.top, 52)
+    }
+
+    private func routinesStatusBanner(message: String, retriesLoad: Bool) -> some View {
+        HStack(spacing: AppTheme.spacing.sm) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+
+            Text(message)
+                .font(AppTheme.typography.sized(13, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.78))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if retriesLoad {
+                Button("重试") {
+                    Task { await viewModel.reload() }
+                }
+                .font(AppTheme.typography.sized(13, weight: .semibold))
+            } else {
+                Button {
+                    viewModel.dismissOperationError()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel("关闭错误提示")
+            }
+        }
+        .padding(.horizontal, AppTheme.spacing.md)
+        .padding(.vertical, AppTheme.spacing.sm)
+        .background(
+            Capsule(style: .continuous)
+                .fill(AppTheme.colors.surfaceElevated)
+                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
+        )
     }
 
     private func routineRow(
