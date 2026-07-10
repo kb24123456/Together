@@ -2,9 +2,9 @@ import Foundation
 
 enum LocalServiceFactory {
     @MainActor
-    static func makeContainer() -> AppContainer {
+    static func makeContainer() throws -> AppContainer {
         StartupTrace.mark("LocalServiceFactory.makeContainer.begin")
-        return makeContainer(persistence: .shared)
+        return makeContainer(persistence: try PersistenceController())
     }
 
     @MainActor

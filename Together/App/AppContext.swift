@@ -98,9 +98,9 @@ final class AppContext {
         configureCallbacks()
     }
 
-    static func makeContext() -> AppContext {
+    static func makeContext() throws -> AppContext {
         StartupTrace.mark("AppContext.make.begin")
-        let container = LocalServiceFactory.makeContainer()
+        let container = try LocalServiceFactory.makeContainer()
         StartupTrace.mark("AppContext.make.containerReady")
         let context = AppContext(
             container: container,
@@ -113,7 +113,12 @@ final class AppContext {
 
     #if DEBUG
     static func makeBootstrappedContext() -> AppContext {
-        let context = AppContext.makeContext()
+        let context: AppContext
+        do {
+            context = try AppContext.makeContext()
+        } catch {
+            preconditionFailure("[AppContext] Preview bootstrap failed: \(error)")
+        }
         context.seedMockSession()
         context.hasBootstrapped = true
         return context

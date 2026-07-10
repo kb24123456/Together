@@ -49,6 +49,15 @@ struct TogetherApp: App {
                     }
                 case .idle, .bootstrapping:
                     AppLaunchView()
+                case .persistenceFailed(let failure):
+                    AppPersistenceFailureView(
+                        failure: failure,
+                        onRetry: {
+                            Task {
+                                await appBootstrapper.retryPersistenceBootstrap()
+                            }
+                        }
+                    )
                 }
             }
             .animation(.easeInOut(duration: 0.30), value: appBootstrapper.phase)

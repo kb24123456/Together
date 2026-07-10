@@ -20,7 +20,12 @@ enum MockServiceFactory {
             reminderScheduler: reminderScheduler,
             syncCoordinator: syncCoordinator
         )
-        let migrationPersistence = PersistenceController(inMemory: true)
+        let migrationPersistence: PersistenceController
+        do {
+            migrationPersistence = try PersistenceController(inMemory: true)
+        } catch {
+            preconditionFailure("[MockServiceFactory] In-memory persistence failed: \(error)")
+        }
         return AppContainer(
             authService: MockAuthService(),
             spaceService: MockSpaceService(),

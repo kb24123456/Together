@@ -12,6 +12,10 @@ struct TogetherTests {
         UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
     }
 
+    @Test func persistenceFailurePolicyNeverDeletesStoreAutomatically() {
+        #expect(PersistenceFailurePolicy.shouldDeleteStoreAfterOpenFailure == false)
+    }
+
     @Test func routineInlineDetailFallbackHeightMatchesVisibleRows() {
         #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) == 86)
         #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: false) == 52)
@@ -237,7 +241,7 @@ struct TogetherTests {
         let remindAt = try #require(calendar.date(byAdding: .minute, value: -15, to: dueAt))
         let taskApplicationService = CapturingTaskApplicationService()
         taskApplicationService.capturesCreates = true
-        let appContext = makeOCRAppContext(taskApplicationService: taskApplicationService)
+        let appContext = try makeOCRAppContext(taskApplicationService: taskApplicationService)
         let viewModel = OCRImportViewModel(recognizer: StubOCRTextRecognizer(result: .success("信用卡商户")))
         viewModel.draft = OCRImportDraft(
             rawText: "信用卡商户",
@@ -2315,7 +2319,7 @@ private func makeCompletedHistoryViewModel(
 }
 
 @MainActor
-private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationService) -> AppContext {
+private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationService) throws -> AppContext {
     let syncCoordinator = NoOpSyncCoordinator()
     let itemRepository = MockItemRepository()
     let taskTemplateRepository = MockTaskTemplateRepository()
@@ -2328,7 +2332,7 @@ private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationS
         reminderScheduler: reminderScheduler,
         syncCoordinator: syncCoordinator
     )
-    let migrationPersistence = PersistenceController(inMemory: true)
+    let migrationPersistence = try PersistenceController(inMemory: true)
     let sessionStore = SessionStore()
     sessionStore.seedMock(
         currentUser: MockDataFactory.makeCurrentUser(),

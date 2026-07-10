@@ -1,13 +1,30 @@
 import Foundation
 import SwiftData
 
+enum PersistenceFailurePolicy {
+    nonisolated static let shouldDeleteStoreAfterOpenFailure = false
+}
+
+struct PersistenceStartupFailure: LocalizedError, Equatable, Sendable {
+    let summary: String
+
+    var errorDescription: String? {
+        "无法安全打开本地数据，请重试。"
+    }
+}
+
 struct PersistenceController {
     let container: ModelContainer
 
-    static let shared = PersistenceController()
-    static let preview = PersistenceController(inMemory: true)
+    static let preview: PersistenceController = {
+        do {
+            return try PersistenceController(inMemory: true)
+        } catch {
+            preconditionFailure("[Persistence] Preview store failed: \(error)")
+        }
+    }()
 
-    init(inMemory: Bool = false) {
+    init(inMemory: Bool = false) throws {
         StartupTrace.mark("PersistenceController.init.begin inMemory=\(inMemory)")
 
         var firstError = ""
@@ -21,20 +38,10 @@ struct PersistenceController {
 
         StartupTrace.mark("PersistenceController.firstAttemptFailed=\(firstError)")
 
-        guard inMemory == false else {
-            fatalError("[Persistence] In-memory store failed: \(firstError)")
-        }
-
-        Self.deleteStoreFiles()
-        var resetError = ""
-        if let reset = Self.attemptFullInit(inMemory: false, errorOut: &resetError) {
-            self.container = reset
-            StartupTrace.mark("PersistenceController.init.end.afterStoreReset")
-            return
-        }
-
         let storePath = Self.persistentStoreURL.path(percentEncoded: false)
-        fatalError("[Persistence] Store reset failed.\npath: \(storePath)\n1st: \(firstError)\nreset: \(resetError)")
+        throw PersistenceStartupFailure(
+            summary: "path: \(storePath); open: \(firstError)"
+        )
     }
 
     /// Creates the container AND exercises it (seed + cleanup) so that any lazy-load
@@ -66,7 +73,8 @@ struct PersistenceController {
         return container
     }
 
-    /// Removes all SQLite artefacts for the persistent store.
+    /// Removes all SQLite artefacts for an explicit developer-requested reset.
+    /// Ordinary startup failures must never call this method.
     static func deleteStoreFiles() {
         let storeURL = persistentStoreURL
         let base = storeURL.deletingLastPathComponent()

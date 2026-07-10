@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 @MainActor
@@ -8,6 +9,7 @@ final class AppBootstrapper {
         case bootstrapping
         case needsAuth
         case ready
+        case persistenceFailed(PersistenceStartupFailure)
     }
 
     private(set) var phase: Phase = .idle
@@ -28,8 +30,22 @@ final class AppBootstrapper {
         await Task.yield()
         StartupTrace.mark("AppBootstrapper.bootstrap.afterYield")
 
-        let appContext = AppContext.makeContext()
-        self.appContext = appContext
+        let appContext: AppContext
+        do {
+            appContext = try AppContext.makeContext()
+            self.appContext = appContext
+        } catch let failure as PersistenceStartupFailure {
+            self.appContext = nil
+            phase = .persistenceFailed(failure)
+            StartupTrace.mark("AppBootstrapper.bootstrap.persistenceFailed=\(failure.summary)")
+            return
+        } catch {
+            let failure = PersistenceStartupFailure(summary: error.localizedDescription)
+            self.appContext = nil
+            phase = .persistenceFailed(failure)
+            StartupTrace.mark("AppBootstrapper.bootstrap.persistenceFailed=\(failure.summary)")
+            return
+        }
 
         await appContext.bootstrapIfNeeded()
 
@@ -62,5 +78,12 @@ final class AppBootstrapper {
 
     func handleSignOut() {
         phase = .needsAuth
+    }
+
+    func retryPersistenceBootstrap() async {
+        guard case .persistenceFailed = phase else { return }
+        appContext = nil
+        phase = .idle
+        await bootstrapIfNeeded()
     }
 }
