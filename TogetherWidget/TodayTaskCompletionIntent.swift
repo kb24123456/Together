@@ -19,21 +19,27 @@ struct TodayTaskCompletionIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         guard let taskUUID = UUID(uuidString: taskID) else {
-            throw TodayWidgetCompletionError.invalidTaskID
+            return .result(opensIntent: OpenURLIntent(TodayWidgetConstants.todayDeepLink))
         }
 
-        let completedAt = Date.now
-        try TodayWidgetCompletionStore().complete(taskID: taskUUID, referenceDate: completedAt)
-        try? TodayWidgetSnapshotStore().markTaskCompletedForAnimation(taskID: taskUUID, completedAt: completedAt)
-
-        WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.focusWidgetKind)
-        WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.listWidgetKind)
-        return .result()
+        do {
+            let completedAt = Date.now
+            try TodayWidgetCompletionStore().complete(taskID: taskUUID, referenceDate: completedAt)
+            try? TodayWidgetSnapshotStore().markTaskCompletedForAnimation(
+                taskID: taskUUID,
+                completedAt: completedAt
+            )
+            WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.listWidgetKind)
+            return .result()
+        } catch {
+            return .result(
+                opensIntent: OpenURLIntent(TodayWidgetConstants.taskDeepLink(taskID: taskUUID))
+            )
+        }
     }
 }
 
 private enum TodayWidgetCompletionError: Error {
-    case invalidTaskID
     case missingContext
     case missingStore
     case taskNotFound

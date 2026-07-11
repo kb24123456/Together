@@ -116,6 +116,100 @@ struct TogetherTests {
         #expect(withoutExistingNote - withExistingNote == HomeInlineTaskLayoutMetrics.compactRowMinHeight + HomeInlineTaskLayoutMetrics.detailVerticalSpacing)
     }
 
+    @Test func todayWidgetSnapshotUsesOnlyOverdueAndTodayTasksForOverview() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let referenceDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 12))
+        )
+        let overdueDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 19))
+        )
+        let todayDueDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 16))
+        )
+        let todayCompletionDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 10))
+        )
+        let todayDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 20))
+        )
+        let futureDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 21))
+        )
+        let repeatingAnchorDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 18, hour: 9))
+        )
+
+        var overdue = makeHomeFilterItem(title: "已逾期", completedAt: nil, status: .inProgress)
+        overdue.dueAt = overdueDate
+
+        var today = makeHomeFilterItem(title: "今天处理", completedAt: nil, status: .inProgress)
+        today.dueAt = todayDueDate
+        today.hasExplicitTime = true
+
+        var completed = makeHomeFilterItem(
+            title: "今天已完成",
+            completedAt: todayCompletionDate,
+            status: .completed
+        )
+        completed.dueAt = todayDate
+
+        var future = makeHomeFilterItem(title: "明天处理", completedAt: nil, status: .inProgress)
+        future.dueAt = futureDate
+        var repeatingLater = makeHomeFilterItem(title: "下周例行", completedAt: nil, status: .inProgress)
+        repeatingLater.dueAt = repeatingAnchorDate
+        repeatingLater.repeatRule = ItemRepeatRule(
+            frequency: .weekly,
+            weekday: calendar.component(.weekday, from: repeatingAnchorDate)
+        )
+        let noDate = makeHomeFilterItem(title: "无日期", completedAt: nil, status: .inProgress)
+
+        let snapshot = TodayWidgetSnapshotBuilder(calendar: calendar).build(
+            items: [future, noDate, repeatingLater, today, completed, overdue],
+            referenceDate: referenceDate,
+            limit: .max
+        )
+
+        #expect(snapshot.tasks.map(\.title) == ["已逾期", "今天处理"])
+        #expect(snapshot.remainingCount == 2)
+        #expect(snapshot.completedTodayCount == 1)
+        #expect(snapshot.totalTodayCount == 3)
+        #expect(snapshot.overdueCount == 1)
+        #expect(snapshot.nextUpcomingTask?.title == "明天处理")
+        #expect(snapshot.nextUpcomingTask?.dueTimeText == "明天")
+    }
+
+    @Test func todayWidgetSnapshotDecodesLegacyCacheWithoutOverviewFields() throws {
+        let taskID = UUID()
+        let data = try #require(
+            """
+            {
+              "generatedAt": "2030-06-20T10:00:00Z",
+              "referenceDate": "2030-06-20T10:00:00Z",
+              "remainingCount": 1,
+              "tasks": [
+                {
+                  "id": "\(taskID.uuidString)",
+                  "title": "旧缓存任务",
+                  "dueTimeText": "12:00",
+                  "sortIndex": 0
+                }
+              ]
+            }
+            """.data(using: .utf8)
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let snapshot = try decoder.decode(TodayWidgetSnapshot.self, from: data)
+
+        #expect(snapshot.completedTodayCount == 0)
+        #expect(snapshot.overdueCount == 0)
+        #expect(snapshot.nextUpcomingTask == nil)
+        #expect(snapshot.tasks.first?.isOverdue == false)
+    }
+
     @Test func routineModeTransitionCascadeIsOrderedAndReversible() {
         let entryDelays = (0..<7).map {
             RoutineModeTransitionTiming.delay(

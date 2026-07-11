@@ -62,7 +62,7 @@
 - OCR Import：拍照/扫描、文字识别、结构化草稿、用户确认后入库。
 - Profile：个人资料、通知、主题、默认首页、隐私与数据设置。
 - Sync/Restore：SwiftData 本地存储 + CloudKit private database。
-- Widget：展示个人 Today 待办，并允许安全完成个人任务。
+- Widget：统一提供小、中、大号“今日概览”；今日范围只包含逾期与今天到期任务。小号只展示完成进度和下一项，中号与大号同时提供任务列表与安全完成操作。
 - Legacy Project Migration：历史 Project 在运行时一次性迁移为普通 Task；legacy model 暂留一版作为迁移来源，不再有新写入入口。
 
 ### 当前明确不做

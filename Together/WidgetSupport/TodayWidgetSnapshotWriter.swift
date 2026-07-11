@@ -24,8 +24,15 @@ actor TodayWidgetSnapshotWriter: TodayWidgetSnapshotWriting {
             return
         }
 
-        let items = try await itemRepository.fetchActiveItems(spaceID: context.spaceID)
-        let snapshot = builder.build(items: items, referenceDate: .now, limit: .max)
+        let referenceDate = Date.now
+        let completedFrom = Calendar.current.startOfDay(for: referenceDate)
+        let completedBefore = Calendar.current.date(byAdding: .day, value: 1, to: completedFrom) ?? referenceDate
+        let items = try await itemRepository.fetchHomeItems(
+            spaceID: context.spaceID,
+            completedFrom: completedFrom,
+            completedBefore: completedBefore
+        )
+        let snapshot = builder.build(items: items, referenceDate: referenceDate, limit: .max)
         try snapshotStore.write(snapshot)
     }
 }

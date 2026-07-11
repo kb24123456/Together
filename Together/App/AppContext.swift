@@ -196,7 +196,6 @@ final class AppContext {
             } catch {
                 appContextLogger.error("[WidgetSnapshot] clear failed: \(error.localizedDescription, privacy: .public)")
             }
-            WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.focusWidgetKind)
             WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.listWidgetKind)
             return
         }
@@ -207,7 +206,6 @@ final class AppContext {
         } catch {
             appContextLogger.error("[WidgetSnapshot] today write failed: \(error.localizedDescription, privacy: .public)")
         }
-        WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.focusWidgetKind)
         WidgetCenter.shared.reloadTimelines(ofKind: TodayWidgetConstants.listWidgetKind)
     }
 
