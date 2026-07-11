@@ -314,7 +314,13 @@ final class AppContext {
         profileViewModel.onPersonalDataDeleted = { [weak self] _, _ in
             guard let self else { return }
             router.currentSurface = .today
-            Task { await self.homeViewModel.reload(reason: .sync) }
+            routinesViewModel.restoreCachedTasksForCurrentSpace()
+            projectsViewModel.projects = []
+            Task {
+                await self.homeViewModel.reload(reason: .sync)
+                await self.routinesViewModel.reload()
+                await self.projectsViewModel.load()
+            }
         }
         homeViewModel.onRetryExternalTaskRoute = { [weak self] taskID in
             Task { await self?.handleDeepLink(.task(taskID)) }
