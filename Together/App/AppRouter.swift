@@ -10,6 +10,7 @@ final class AppRouter {
     var pendingPeriodicCycle: PeriodicCycle?
     var isProfilePresented = false
     var currentSurface: RootSurface = .today
+    private(set) var rootResetRevision = 0
 
     /// When true, RoutinesListContent auto-selects the first cycle with pending tasks.
     /// Consumed (reset to false) after being read.
@@ -21,5 +22,12 @@ final class AppRouter {
 
     var isRoutinesModePresented: Bool {
         currentSurface == .routines
+    }
+
+    func resetToToday() {
+        activeComposer = nil
+        isProfilePresented = false
+        currentSurface = .today
+        rootResetRevision += 1
     }
 }

@@ -219,10 +219,7 @@ final class AppContext {
     func updateSyncPolling() {}
 
     func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
-        if let taskIDString = userInfo["task_id"] as? String,
-           let taskID = UUID(uuidString: taskIDString) {
-            rememberDeepLinkTaskID(taskID)
-        }
+        _ = userInfo
         await reloadAfterSync()
     }
 
@@ -237,28 +234,59 @@ final class AppContext {
             if let delay = NotificationActionCatalog.snoozeInterval(for: response.actionIdentifier) {
                 await snoozeTaskFromNotification(taskID, delay: delay)
             } else {
-                rememberDeepLinkTaskID(taskID)
-                await consumeDeepLinkTaskIDIfAny()
+                await handleDeepLink(.task(taskID))
             }
         }
     }
 
     func handleDeepLink(url: URL) {
-        guard let taskID = UUID(uuidString: url.lastPathComponent) else { return }
-        rememberDeepLinkTaskID(taskID)
-        Task { await consumeDeepLinkTaskIDIfAny() }
+        guard let deepLink = AppDeepLink(url: url) else {
+            homeViewModel.externalRouteErrorMessage = "无法打开这个 Together 链接。"
+            return
+        }
+        Task { await handleDeepLink(deepLink) }
+    }
+
+    func handleDeepLink(_ deepLink: AppDeepLink) async {
+        switch deepLink {
+        case .today:
+            pendingDeepLinkTaskID = nil
+            pendingHighlightTaskID = nil
+            homeViewModel.clearExternalRouteFailure()
+            homeViewModel.clearTaskFilters()
+            router.resetToToday()
+        case .task(let taskID):
+            if homeViewModel.expandedDetailItemID != nil {
+                guard await homeViewModel.collapseInlineDetail() else { return }
+            }
+            homeViewModel.clearTaskFilters()
+            router.resetToToday()
+            await homeViewModel.reload(reason: .sync)
+
+            guard homeViewModel.item(for: taskID) != nil else {
+                pendingHighlightTaskID = nil
+                homeViewModel.presentExternalRouteFailure(taskID: taskID)
+                return
+            }
+
+            homeViewModel.clearExternalRouteFailure()
+            pendingHighlightTaskID = taskID
+            NotificationCenter.default.post(
+                name: .openTaskFromNudge,
+                object: nil,
+                userInfo: ["task_id": taskID]
+            )
+        }
     }
 
     func rememberDeepLinkTaskID(_ id: UUID) {
         pendingDeepLinkTaskID = id
-        pendingHighlightTaskID = id
     }
 
     func consumeDeepLinkTaskIDIfAny() async {
         guard let taskID = pendingDeepLinkTaskID else { return }
         pendingDeepLinkTaskID = nil
-        pendingHighlightTaskID = taskID
-        router.currentSurface = .today
+        await handleDeepLink(.task(taskID))
     }
 
     func consumePendingHighlightTaskID() -> UUID? {
@@ -292,6 +320,9 @@ final class AppContext {
             guard let self else { return }
             router.currentSurface = .today
             Task { await self.homeViewModel.reload(reason: .sync) }
+        }
+        homeViewModel.onRetryExternalTaskRoute = { [weak self] taskID in
+            Task { await self?.handleDeepLink(.task(taskID)) }
         }
     }
 

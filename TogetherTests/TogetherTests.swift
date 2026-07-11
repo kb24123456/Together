@@ -123,6 +123,31 @@ struct TogetherTests {
         #expect(viewModel.draft.rawText == "主任务\n待合并任务\n- 已有子项")
     }
 
+    @Test func appDeepLinkParsesOnlySupportedRoutes() {
+        let taskID = UUID()
+
+        #expect(AppDeepLink(url: URL(string: "together://today")!) == .today)
+        #expect(AppDeepLink(url: URL(string: "together://task/\(taskID.uuidString)")!) == .task(taskID))
+        #expect(AppDeepLink(url: URL(string: "together://task/not-a-uuid")!) == nil)
+        #expect(AppDeepLink(url: URL(string: "together://unknown")!) == nil)
+        #expect(AppDeepLink(url: URL(string: "together://task")!) == nil)
+        #expect(AppDeepLink.task(taskID).url == URL(string: "together://task/\(taskID.uuidString)"))
+    }
+
+    @Test func missingTaskDeepLinkProducesRetryableFeedback() async throws {
+        let appContext = try makeOCRAppContext(
+            taskApplicationService: CapturingTaskApplicationService()
+        )
+        let missingTaskID = UUID()
+
+        await appContext.handleDeepLink(.task(missingTaskID))
+
+        #expect(appContext.router.currentSurface == .today)
+        #expect(appContext.homeViewModel.failedExternalRouteTaskID == missingTaskID)
+        #expect(appContext.homeViewModel.externalRouteErrorMessage != nil)
+        #expect(appContext.consumePendingHighlightTaskID() == nil)
+    }
+
     @Test func routineInlineDetailFallbackHeightMatchesVisibleRows() {
         #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) == 86)
         #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: false) == 52)

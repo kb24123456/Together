@@ -197,21 +197,24 @@ private struct TodayWidgetView: View {
                     .buttonStyle(.plain)
                     .frame(width: 34, height: 34)
 
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(task.title)
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.primary)
-                            .lineLimit(3)
-                            .minimumScaleFactor(0.78)
+                    Link(destination: TodayWidgetConstants.taskDeepLink(taskID: task.id)) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(task.title)
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary)
+                                .lineLimit(3)
+                                .minimumScaleFactor(0.78)
 
-                        if let dueTimeText = task.dueTimeText {
-                            Text(dueTimeText)
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(WidgetTheme.accent(for: colorScheme))
-                                .lineLimit(1)
+                            if let dueTimeText = task.dueTimeText {
+                                Text(dueTimeText)
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(WidgetTheme.accent(for: colorScheme))
+                                    .lineLimit(1)
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(.plain)
                 }
 
                 Spacer(minLength: 0)
@@ -312,21 +315,27 @@ private struct TodayWidgetTaskRow: View {
             .buttonStyle(.plain)
             .frame(width: 28, height: 28)
 
-            Text(task.title)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+            Link(destination: TodayWidgetConstants.taskDeepLink(taskID: task.id)) {
+                HStack(spacing: 4) {
+                    Text(task.title)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
 
-            Spacer(minLength: 4)
+                    Spacer(minLength: 4)
 
-            if let dueTimeText = task.dueTimeText {
-                Text(dueTimeText)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(WidgetTheme.accent(for: colorScheme))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    if let dueTimeText = task.dueTimeText {
+                        Text(dueTimeText)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(WidgetTheme.accent(for: colorScheme))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.plain)
         }
         .frame(height: rowHeight)
         .opacity(isAppearing ? 0 : 1)

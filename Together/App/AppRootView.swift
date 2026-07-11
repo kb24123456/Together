@@ -133,6 +133,9 @@ struct AppRootView: View {
                 router.isProfilePresented = false
             }
         }
+        .onChange(of: router.rootResetRevision) { _, _ in
+            rootNavigationPath = NavigationPath()
+        }
         .task {
             StartupTrace.mark("AppRootView.visible")
         }

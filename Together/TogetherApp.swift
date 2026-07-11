@@ -6,6 +6,7 @@ struct TogetherApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var notificationDelegate = AppNotificationDelegate()
     @State private var appBootstrapper = AppBootstrapper()
+    @State private var pendingDeepLinkURL: URL?
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -103,11 +104,17 @@ struct TogetherApp: App {
                     StartupTrace.mark("TogetherApp.ready.task.start")
                     notificationDelegate.configure(appContext: appContext)
                     await appContext.performPostLaunchWorkIfNeeded()
+                    if let pendingDeepLinkURL {
+                        self.pendingDeepLinkURL = nil
+                        appContext.handleDeepLink(url: pendingDeepLinkURL)
+                    }
                     StartupTrace.mark("TogetherApp.ready.task.end")
                 }
                 .onOpenURL { url in
                     if let appContext = appBootstrapper.appContext {
                         appContext.handleDeepLink(url: url)
+                    } else {
+                        pendingDeepLinkURL = url
                     }
                 }
                 .onChange(of: scenePhase) { _, newPhase in

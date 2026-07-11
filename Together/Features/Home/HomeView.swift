@@ -269,7 +269,11 @@ struct HomeView: View {
             }
 
             if let statusMessage = nonBlockingStatusMessage {
-                homeStatusBanner(message: statusMessage, retriesLoad: hasNonBlockingLoadFailure)
+                homeStatusBanner(
+                    message: statusMessage,
+                    retriesLoad: hasNonBlockingLoadFailure,
+                    retriesExternalRoute: viewModel.failedExternalRouteTaskID != nil
+                )
                     .padding(.horizontal, AppTheme.spacing.xl)
                     .padding(.top, AppTheme.spacing.sm)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -287,6 +291,9 @@ struct HomeView: View {
     }
 
     private var nonBlockingStatusMessage: String? {
+        if let externalRouteErrorMessage = viewModel.externalRouteErrorMessage {
+            return externalRouteErrorMessage
+        }
         if hasNonBlockingLoadFailure, case let .failed(message) = viewModel.loadState {
             return message
         }
@@ -346,7 +353,11 @@ struct HomeView: View {
         .applyScrollEdgeProtection()
     }
 
-    private func homeStatusBanner(message: String, retriesLoad: Bool) -> some View {
+    private func homeStatusBanner(
+        message: String,
+        retriesLoad: Bool,
+        retriesExternalRoute: Bool
+    ) -> some View {
         HStack(spacing: AppTheme.spacing.sm) {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(AppTheme.colors.body.opacity(0.72))
@@ -356,14 +367,22 @@ struct HomeView: View {
                 .foregroundStyle(AppTheme.colors.body.opacity(0.78))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if retriesLoad {
+            if retriesLoad || retriesExternalRoute {
                 Button("重试") {
-                    Task { await viewModel.reload() }
+                    if retriesLoad {
+                        Task { await viewModel.reload() }
+                    } else {
+                        viewModel.retryExternalTaskRoute()
+                    }
                 }
                 .font(AppTheme.typography.sized(13, weight: .semibold))
             } else {
                 Button {
-                    viewModel.dismissOperationError()
+                    if viewModel.externalRouteErrorMessage != nil {
+                        viewModel.clearExternalRouteFailure()
+                    } else {
+                        viewModel.dismissOperationError()
+                    }
                 } label: {
                     Image(systemName: "xmark")
                 }

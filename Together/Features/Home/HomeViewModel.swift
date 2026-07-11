@@ -119,6 +119,9 @@ final class HomeViewModel {
     var items: [Item] = []
     var loadState: LoadableState = .idle
     var operationErrorMessage: String?
+    var externalRouteErrorMessage: String?
+    var failedExternalRouteTaskID: UUID?
+    var onRetryExternalTaskRoute: ((UUID) -> Void)?
     private(set) var reloadRevision = 0
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
@@ -365,6 +368,21 @@ final class HomeViewModel {
 
     func dismissOperationError() {
         operationErrorMessage = nil
+    }
+
+    func presentExternalRouteFailure(taskID: UUID) {
+        failedExternalRouteTaskID = taskID
+        externalRouteErrorMessage = "未找到该任务，可能已删除或已归档。你可以重试刷新。"
+    }
+
+    func clearExternalRouteFailure() {
+        failedExternalRouteTaskID = nil
+        externalRouteErrorMessage = nil
+    }
+
+    func retryExternalTaskRoute() {
+        guard let failedExternalRouteTaskID else { return }
+        onRetryExternalTaskRoute?(failedExternalRouteTaskID)
     }
 
     private func presentOperationError(_ message: String) {

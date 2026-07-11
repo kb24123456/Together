@@ -10,6 +10,10 @@ enum TodayWidgetConstants {
     nonisolated static var todayDeepLink: URL {
         URL(string: "together://today")!
     }
+
+    nonisolated static func taskDeepLink(taskID: UUID) -> URL {
+        URL(string: "together://task/\(taskID.uuidString)")!
+    }
 }
 
 struct TodayWidgetSnapshot: Codable, Equatable {
