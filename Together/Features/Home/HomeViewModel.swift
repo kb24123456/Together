@@ -111,6 +111,7 @@ final class HomeViewModel {
     var onConvertToProject: ((String) -> Void)?
 
     private var detailSaveTask: Task<Void, Never>?
+    private var searchPreparationTask: Task<Void, Never>?
     private var savedDetailDraft: TaskDraft?
     private var hasCompletedDeferredMaintenance = false
     private var insertedItemIDs: Set<UUID> = []
@@ -133,6 +134,9 @@ final class HomeViewModel {
     var isPerformingSnooze = false
     var isOverdueSheetPresented = false
     var isDockHidden = false
+    var searchText = ""
+    var selectedTaskFilters: Set<HomeTaskFilterOption> = []
+    private var appliedSearchText = ""
 
     init(
         sessionStore: SessionStore,
@@ -194,6 +198,59 @@ final class HomeViewModel {
     var hasUnsavedDetailChanges: Bool {
         guard let detailDraft else { return false }
         return detailDraft != savedDetailDraft
+    }
+
+    var isTaskFilterActive: Bool {
+        taskFilter.isActive
+    }
+
+    var selectedTaskFilterCount: Int {
+        selectedTaskFilters.count
+    }
+
+    func updateSearchText(_ text: String) {
+        searchText = text
+
+        let startsSearch = appliedSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            && selectedItemID != nil
+
+        guard startsSearch else {
+            appliedSearchText = text
+            return
+        }
+
+        guard searchPreparationTask == nil else { return }
+        searchPreparationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let didCollapse = await collapseInlineDetail()
+            if didCollapse {
+                appliedSearchText = searchText
+            } else {
+                searchText = appliedSearchText
+            }
+            searchPreparationTask = nil
+        }
+    }
+
+    func toggleTaskFilter(_ option: HomeTaskFilterOption) async {
+        if selectedItemID != nil {
+            guard await collapseInlineDetail() else { return }
+        }
+
+        if selectedTaskFilters.contains(option) {
+            selectedTaskFilters.remove(option)
+        } else {
+            selectedTaskFilters.insert(option)
+        }
+    }
+
+    func clearTaskFilters() {
+        searchPreparationTask?.cancel()
+        searchPreparationTask = nil
+        searchText = ""
+        appliedSearchText = ""
+        selectedTaskFilters = []
     }
 
     var quickTimePresetMinutes: [Int] {
@@ -902,7 +959,7 @@ final class HomeViewModel {
     }
 
     var showsOverdueCapsule: Bool {
-        isViewingToday && overdueEntryCount > 0
+        isViewingToday && overdueEntryCount > 0 && isTaskFilterActive == false
     }
 
     var overdueCapsuleTitle: String {
@@ -939,7 +996,11 @@ final class HomeViewModel {
     }
 
     var hasAnyTimelineEntriesForSelectedDate: Bool {
-        sortedItemsForTimeline.isEmpty == false
+        visibleTimelineItems.isEmpty == false
+    }
+
+    var isFilteredTimelineEmpty: Bool {
+        taskFilter.isActive && visibleTimelineItems.isEmpty
     }
 
     var timelineEntryIDs: [UUID] {
@@ -1129,7 +1190,22 @@ final class HomeViewModel {
     }
 
     private var visibleTimelineItems: [Item] {
-        sortedItemsForTimeline.filter(shouldDisplayInCurrentTimeline)
+        sortedItemsForTimeline
+            .filter(shouldDisplayInCurrentTimeline)
+            .filter {
+                taskFilter.matches(
+                    $0,
+                    referenceDate: selectedDate,
+                    calendar: calendar
+                )
+            }
+    }
+
+    private var taskFilter: HomeTaskFilter {
+        HomeTaskFilter(
+            searchText: appliedSearchText,
+            selectedOptions: selectedTaskFilters
+        )
     }
 
     private var incompleteTimelineItems: [Item] {

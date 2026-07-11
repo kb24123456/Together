@@ -33,6 +33,13 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .font(AppTheme.typography.body)
+        .searchable(
+            text: Binding(
+                get: { viewModel.searchText },
+                set: { viewModel.updateSearchText($0) }
+            ),
+            prompt: "搜索标题、备注或子任务"
+        )
         .task {
             await viewModel.loadIfNeeded()
             await viewModel.performDeferredMaintenanceIfNeeded()
@@ -212,6 +219,8 @@ struct HomeView: View {
                 homeLoadingState
             } else if viewModel.items.isEmpty, case .failed = viewModel.loadState {
                 homeLoadFailureState
+            } else if viewModel.isFilteredTimelineEmpty {
+                filteredEmptyState
             } else if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
@@ -312,6 +321,29 @@ struct HomeView: View {
         }
         .padding(.horizontal, AppTheme.spacing.xl)
         .padding(.top, 52)
+    }
+
+    private var filteredEmptyState: some View {
+        ScrollView {
+            VStack(spacing: AppTheme.spacing.md) {
+                EmptyStateCard(
+                    title: "没有匹配的任务",
+                    message: "可以换个关键词，或减少筛选条件。",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    usesNeutralBackground: true
+                )
+
+                Button("清除搜索和筛选") {
+                    viewModel.clearTaskFilters()
+                }
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+            }
+            .padding(.horizontal, AppTheme.spacing.xl)
+            .padding(.top, 52)
+            .padding(.bottom, AppTheme.spacing.lg)
+        }
+        .scrollIndicators(.hidden)
+        .applyScrollEdgeProtection()
     }
 
     private func homeStatusBanner(message: String, retriesLoad: Bool) -> some View {
