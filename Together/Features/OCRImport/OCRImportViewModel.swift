@@ -201,7 +201,85 @@ final class OCRImportViewModel {
     func updateTask(_ task: OCRImportTaskDraft) {
         guard let index = draft.taskDrafts.firstIndex(where: { $0.id == task.id }) else { return }
         draft.taskDrafts[index] = task
-        draft.updatedAt = Date.now
+        touchDraft()
+    }
+
+    @discardableResult
+    func addTask(after taskID: UUID? = nil) -> UUID {
+        let task = OCRImportTaskDraft(title: "")
+        if let taskID,
+           let index = draft.taskDrafts.firstIndex(where: { $0.id == taskID }) {
+            draft.taskDrafts.insert(task, at: index + 1)
+        } else {
+            draft.taskDrafts.append(task)
+        }
+        touchDraft()
+        return task.id
+    }
+
+    func deleteTask(id: UUID) {
+        guard let index = draft.taskDrafts.firstIndex(where: { $0.id == id }) else { return }
+        draft.taskDrafts.remove(at: index)
+        touchDraft()
+    }
+
+    func moveTasks(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        let validOffsets = offsets.filter { draft.taskDrafts.indices.contains($0) }
+        guard validOffsets.isEmpty == false else { return }
+
+        let movingTasks = validOffsets.map { draft.taskDrafts[$0] }
+        for index in validOffsets.sorted(by: >) {
+            draft.taskDrafts.remove(at: index)
+        }
+        let removedBeforeDestination = validOffsets.filter { $0 < destination }.count
+        let insertionIndex = min(
+            max(0, destination - removedBeforeDestination),
+            draft.taskDrafts.count
+        )
+        draft.taskDrafts.insert(contentsOf: movingTasks, at: insertionIndex)
+        touchDraft()
+    }
+
+    @discardableResult
+    func mergeTaskWithPrevious(id: UUID) -> Bool {
+        guard
+            let index = draft.taskDrafts.firstIndex(where: { $0.id == id }),
+            index > draft.taskDrafts.startIndex
+        else { return false }
+
+        let current = draft.taskDrafts[index]
+        let previousIndex = index - 1
+        let mergedSubtask = OCRImportSubtaskDraft(
+            title: current.title,
+            isSelected: current.isSelected,
+            sourceText: current.sourceText
+        )
+        draft.taskDrafts[previousIndex].isSelected = draft.taskDrafts[previousIndex].isSelected || current.isSelected
+        if current.title.trimmedForOCR.isEmpty == false {
+            draft.taskDrafts[previousIndex].subtasks.append(mergedSubtask)
+        }
+        draft.taskDrafts[previousIndex].subtasks.append(contentsOf: current.subtasks)
+        draft.taskDrafts.remove(at: index)
+        touchDraft()
+        return true
+    }
+
+    @discardableResult
+    func splitSubtask(taskID: UUID, subtaskID: UUID) -> Bool {
+        guard
+            let taskIndex = draft.taskDrafts.firstIndex(where: { $0.id == taskID }),
+            let subtaskIndex = draft.taskDrafts[taskIndex].subtasks.firstIndex(where: { $0.id == subtaskID })
+        else { return false }
+
+        let subtask = draft.taskDrafts[taskIndex].subtasks.remove(at: subtaskIndex)
+        let newTask = OCRImportTaskDraft(
+            title: subtask.title,
+            isSelected: subtask.isSelected,
+            sourceText: subtask.sourceText
+        )
+        draft.taskDrafts.insert(newTask, at: taskIndex + 1)
+        touchDraft()
+        return true
     }
 
     func apply(to appContext: AppContext) async -> Bool {
@@ -265,6 +343,10 @@ final class OCRImportViewModel {
         flowState = .sourcePicker
         sourceImage = nil
         errorMessage = nil
+    }
+
+    private func touchDraft() {
+        draft.updatedAt = Date.now
     }
 }
 

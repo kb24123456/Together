@@ -14,6 +14,7 @@ struct OCRReviewSheet: View {
     @State private var showsDiscardConfirmation = false
     @State private var showsImportError = false
     @State private var isSubmitting = false
+    @State private var showsRecognizedText = false
 
     init(session: OCRReviewSession, appContext: AppContext) {
         self.session = session
@@ -23,8 +24,19 @@ struct OCRReviewSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
+            List {
+                DisclosureGroup("识别原文", isExpanded: $showsRecognizedText) {
+                    Text(viewModel.draft.rawText)
+                        .font(AppTheme.typography.sized(14, weight: .regular))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.72))
+                        .textSelection(.enabled)
+                        .padding(.vertical, AppTheme.spacing.sm)
+                }
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+
+                Section {
                     ForEach(viewModel.draft.taskDrafts) { task in
                         OCRTaskDraftEditor(
                             task: taskBinding(for: task.id),
@@ -33,21 +45,71 @@ struct OCRReviewSheet: View {
                                     taskID: task.id,
                                     menu: menu
                                 )
+                            },
+                            onSplitSubtask: { subtaskID in
+                                if viewModel.splitSubtask(taskID: task.id, subtaskID: subtaskID) {
+                                    promoteToLargeDetent()
+                                }
                             }
                         )
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: AppTheme.spacing.sm,
+                                leading: AppTheme.spacing.lg,
+                                bottom: AppTheme.spacing.sm,
+                                trailing: AppTheme.spacing.lg
+                            )
+                        )
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .contextMenu {
+                            if viewModel.draft.taskDrafts.first?.id != task.id {
+                                Button {
+                                    _ = viewModel.mergeTaskWithPrevious(id: task.id)
+                                } label: {
+                                    Label("合并到上一条", systemImage: "arrow.turn.up.left")
+                                }
+                            }
+
+                            Button(role: .destructive) {
+                                deleteTask(task.id)
+                            } label: {
+                                Label("删除任务", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                deleteTask(task.id)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+
+                            if viewModel.draft.taskDrafts.first?.id != task.id {
+                                Button {
+                                    _ = viewModel.mergeTaskWithPrevious(id: task.id)
+                                } label: {
+                                    Label("合并", systemImage: "arrow.turn.up.left")
+                                }
+                                .tint(AppTheme.colors.sky)
+                            }
+                        }
                     }
-                }
-                .padding(.horizontal, AppTheme.spacing.lg)
-                .padding(.bottom, AppTheme.spacing.xl)
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { contentHeight in
-                    promoteDetentIfNeeded(
-                        measuredContentHeight: contentHeight,
-                        keyboardIsVisible: false
-                    )
+                    .onMove(perform: viewModel.moveTasks)
+
+                    Button {
+                        _ = viewModel.addTask()
+                        promoteToLargeDetent()
+                    } label: {
+                        Label("添加任务", systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .font(AppTheme.typography.sized(15, weight: .semibold))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle("确认任务")
             .navigationSubtitle("识别到 \(viewModel.draft.taskDrafts.count) 条任务")
@@ -69,6 +131,11 @@ struct OCRReviewSheet: View {
                         }
                     }
                     .disabled(viewModel.canApply == false || isApplying)
+                }
+
+                ToolbarItem(placement: .secondaryAction) {
+                    EditButton()
+                        .disabled(viewModel.draft.taskDrafts.count < 2 || isApplying)
                 }
             }
         }
@@ -142,6 +209,13 @@ struct OCRReviewSheet: View {
         }
     }
 
+    private func deleteTask(_ id: UUID) {
+        if activeDraftMenu?.taskID == id {
+            activeDraftMenu = nil
+        }
+        viewModel.deleteTask(id: id)
+    }
+
     private func promoteDetentIfNeeded(
         measuredContentHeight: CGFloat,
         keyboardIsVisible: Bool
@@ -157,6 +231,17 @@ struct OCRReviewSheet: View {
         )
         guard resolved == .large, selectedDetent != .large else { return }
 
+        if reduceMotion {
+            selectedDetent = .large
+        } else {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                selectedDetent = .large
+            }
+        }
+    }
+
+    private func promoteToLargeDetent() {
+        guard selectedDetent != .large else { return }
         if reduceMotion {
             selectedDetent = .large
         } else {
@@ -214,6 +299,7 @@ private extension OCRReviewSheetDetent {
 struct OCRTaskDraftEditor: View {
     @Binding var task: OCRImportTaskDraft
     let onOpenMenu: (TaskEditorMenu) -> Void
+    let onSplitSubtask: (UUID) -> Void
 
     @State private var newSubtaskTitle = ""
     @FocusState private var isNewSubtaskFocused: Bool
@@ -224,7 +310,10 @@ struct OCRTaskDraftEditor: View {
             notesEditor
 
             ForEach($task.subtasks) { $subtask in
-                OCRSubtaskDraftRow(subtask: $subtask)
+                OCRSubtaskDraftRow(
+                    subtask: $subtask,
+                    onSplit: { onSplitSubtask(subtask.id) }
+                )
             }
 
             addSubtaskRow
@@ -397,6 +486,7 @@ struct OCRTaskDraftEditor: View {
 
 private struct OCRSubtaskDraftRow: View {
     @Binding var subtask: OCRImportSubtaskDraft
+    let onSplit: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: HomeInlineTaskLayoutMetrics.titleGap) {
@@ -419,6 +509,11 @@ private struct OCRSubtaskDraftRow: View {
             .submitLabel(.done)
         }
         .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.rowMinHeight, alignment: .leading)
+        .contextMenu {
+            Button(action: onSplit) {
+                Label("拆分为任务", systemImage: "arrow.up.right.square")
+            }
+        }
     }
 }
 

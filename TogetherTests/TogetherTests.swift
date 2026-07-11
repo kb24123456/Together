@@ -66,6 +66,63 @@ struct TogetherTests {
         )
     }
 
+    @Test func ocrStructuralOperationsAddDeleteAndMoveTopLevelTasks() {
+        let first = OCRImportTaskDraft(title: "第一条")
+        let second = OCRImportTaskDraft(title: "第二条")
+        let viewModel = OCRImportViewModel()
+        viewModel.draft = OCRImportDraft(
+            rawText: "第一条\n第二条",
+            updatedAt: Date(timeIntervalSince1970: 1),
+            status: .needsReview,
+            taskDrafts: [first, second]
+        )
+
+        let addedID = viewModel.addTask(after: first.id)
+        #expect(viewModel.draft.taskDrafts.map(\.id) == [first.id, addedID, second.id])
+
+        viewModel.deleteTask(id: addedID)
+        #expect(viewModel.draft.taskDrafts.map(\.id) == [first.id, second.id])
+
+        viewModel.moveTasks(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+        #expect(viewModel.draft.taskDrafts.map(\.id) == [second.id, first.id])
+        #expect(viewModel.draft.rawText == "第一条\n第二条")
+        #expect(viewModel.draft.updatedAt > Date(timeIntervalSince1970: 1))
+    }
+
+    @Test func ocrMergeAndSplitPreserveRawTextAndSelection() {
+        let child = OCRImportSubtaskDraft(
+            title: "已有子项",
+            isSelected: false,
+            sourceText: "- 已有子项"
+        )
+        let first = OCRImportTaskDraft(title: "主任务", isSelected: false, sourceText: "主任务")
+        let second = OCRImportTaskDraft(
+            title: "待合并任务",
+            isSelected: true,
+            sourceText: "待合并任务",
+            subtasks: [child]
+        )
+        let viewModel = OCRImportViewModel()
+        viewModel.draft = OCRImportDraft(
+            rawText: "主任务\n待合并任务\n- 已有子项",
+            status: .needsReview,
+            taskDrafts: [first, second]
+        )
+
+        #expect(viewModel.mergeTaskWithPrevious(id: second.id))
+        #expect(viewModel.draft.taskDrafts.count == 1)
+        #expect(viewModel.draft.taskDrafts[0].id == first.id)
+        #expect(viewModel.draft.taskDrafts[0].isSelected)
+        #expect(viewModel.draft.taskDrafts[0].subtasks.map(\.isSelected) == [true, false])
+
+        #expect(viewModel.splitSubtask(taskID: first.id, subtaskID: child.id))
+        #expect(viewModel.draft.taskDrafts.count == 2)
+        #expect(viewModel.draft.taskDrafts[1].title == child.title)
+        #expect(viewModel.draft.taskDrafts[1].isSelected == false)
+        #expect(viewModel.draft.taskDrafts[1].sourceText == child.sourceText)
+        #expect(viewModel.draft.rawText == "主任务\n待合并任务\n- 已有子项")
+    }
+
     @Test func routineInlineDetailFallbackHeightMatchesVisibleRows() {
         #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) == 86)
         #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: false) == 52)
