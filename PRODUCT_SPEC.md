@@ -17,7 +17,7 @@
 
 ### 结论
 - 当前版本只服务单人任务管理，不再承诺双人协作、多人空间、情侣关系运营或订阅会员能力。
-- `PairSpace / Invite / BindingState / relationshipID / TaskMessage / partner` 等双人语义属于旧实现，后续应删除，而不是继续兼容扩展。
+- `PairSpace / Invite / BindingState / relationshipID / TaskMessage / partner` 等双人语义属于旧实现，已从当前运行时删除，不再兼容扩展。
 - Supabase 不再作为后端、恢复源、同步源、头像存储、邀请服务、推送触发或付费 webhook 承载方。
 - RevenueCat、Paywall、Pro gate、premium entitlement、订阅恢复等能力不再保留。
 - 跨设备同步与恢复只依赖 Apple 体系：本地 SwiftData + CloudKit private database。
@@ -233,7 +233,7 @@
 ## 11. 当前实现结论
 - 当前首页改为统一任务区：首页不再区分任务与项目，不再展示顶部周视图、月历或项目切换入口。
 - 项目是 legacy 数据迁移来源，不再是新增或展示对象。
-- `Decisions / Anniversaries / Pairing / TaskChat / Paywall / Supabase Sync` 属于旧实现或旧业务能力，后续应删除或替换。
+- `Decisions / Anniversaries / Pairing / TaskChat / Paywall / Supabase Sync` 属于旧实现或旧业务能力，已从当前运行时与导航删除。
 - 当前单人模式下不展示协作信息、订阅信息或第三方后端状态。
 
 ## 12. 版本路线
