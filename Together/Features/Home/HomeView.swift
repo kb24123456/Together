@@ -1339,9 +1339,10 @@ enum HomeInlineTaskLayoutMetrics {
     static let detailTopPadding: CGFloat = AppTheme.spacing.xxs
     static let detailBottomPadding: CGFloat = AppTheme.spacing.xxs
 
-    static func estimatedDetailHeight(subtaskCount: Int) -> CGFloat {
-        let rowCount = max(subtaskCount + 3, 1)
-        let compactRows = CGFloat(2) * compactRowMinHeight
+    static func estimatedDetailHeight(subtaskCount: Int, showsAddNote: Bool = true) -> CGFloat {
+        let leadingRowCount = showsAddNote ? 1 : 0
+        let rowCount = max(subtaskCount + leadingRowCount + 2, 1)
+        let compactRows = CGFloat(leadingRowCount + 1) * compactRowMinHeight
         let subtaskRows = CGFloat(subtaskCount) * rowMinHeight
         let rowHeights = compactRows + subtaskRows + attributeMinHeight
         let spacings = CGFloat(max(rowCount - 1, 0)) * detailVerticalSpacing
@@ -2098,7 +2099,10 @@ private struct HomeInlineTaskDetailView: View {
             isExpanded: isExpanded,
             animationBatch: animationBatch,
             reduceMotion: reduceMotion,
-            fallbackHeight: HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: subtasks.count)
+            fallbackHeight: HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
+                subtaskCount: subtasks.count,
+                showsAddNote: showsAddNote
+            )
         ) {
             VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
                 if showsAddNote {

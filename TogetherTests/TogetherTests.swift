@@ -103,6 +103,19 @@ struct TogetherTests {
         #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: false) == 52)
     }
 
+    @Test func homeInlineDetailFallbackHeightExcludesHiddenAddNoteRow() {
+        let withoutExistingNote = HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
+            subtaskCount: 0,
+            showsAddNote: true
+        )
+        let withExistingNote = HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
+            subtaskCount: 0,
+            showsAddNote: false
+        )
+
+        #expect(withoutExistingNote - withExistingNote == HomeInlineTaskLayoutMetrics.compactRowMinHeight + HomeInlineTaskLayoutMetrics.detailVerticalSpacing)
+    }
+
     @Test func routineModeTransitionCascadeIsOrderedAndReversible() {
         let entryDelays = (0..<7).map {
             RoutineModeTransitionTiming.delay(
