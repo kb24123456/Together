@@ -16,56 +16,6 @@ struct TogetherTests {
         #expect(PersistenceFailurePolicy.shouldDeleteStoreAfterOpenFailure == false)
     }
 
-    @Test func homeTaskFilterSearchesContentAndComposesOptions() {
-        let calendar = gregorianCalendar()
-        let now = Date.now
-
-        var titleMatch = makeReminderTestItem(
-            title: "Write Weekly Report",
-            dueAt: nil,
-            remindAt: now.addingTimeInterval(3_600)
-        )
-        titleMatch.isUrgent = true
-
-        var notesMatch = makeReminderTestItem(title: "整理材料", dueAt: now, remindAt: nil)
-        notesMatch.notes = "准备发布说明"
-
-        var subtaskMatch = makeReminderTestItem(title: "采购", dueAt: nil, remindAt: nil)
-        subtaskMatch.subtasks = [
-            TaskSubtask(
-                itemID: subtaskMatch.id,
-                creatorID: subtaskMatch.creatorID,
-                title: "购买燕麦奶",
-                sortOrder: 0
-            )
-        ]
-
-        #expect(HomeTaskFilter(searchText: "report").matches(titleMatch, referenceDate: now, calendar: calendar))
-        #expect(HomeTaskFilter(searchText: "发布").matches(notesMatch, referenceDate: now, calendar: calendar))
-        #expect(HomeTaskFilter(searchText: "燕麦").matches(subtaskMatch, referenceDate: now, calendar: calendar))
-        #expect(HomeTaskFilter(selectedOptions: [.urgent]).matches(titleMatch, referenceDate: now, calendar: calendar))
-        #expect(HomeTaskFilter(selectedOptions: [.unscheduled]).matches(subtaskMatch, referenceDate: now, calendar: calendar))
-        #expect(HomeTaskFilter(selectedOptions: [.hasReminder]).matches(titleMatch, referenceDate: now, calendar: calendar))
-
-        var overdue = makeReminderTestItem(
-            title: "逾期事项",
-            dueAt: calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now)),
-            remindAt: nil
-        )
-        overdue.isUrgent = true
-        #expect(HomeTaskFilter(selectedOptions: [.overdue]).matches(overdue, referenceDate: now, calendar: calendar))
-        #expect(
-            HomeTaskFilter(
-                searchText: "weekly",
-                selectedOptions: [.urgent, .unscheduled, .hasReminder]
-            ).matches(titleMatch, referenceDate: now, calendar: calendar)
-        )
-        #expect(
-            HomeTaskFilter(selectedOptions: [.urgent, .hasReminder])
-                .matches(overdue, referenceDate: now, calendar: calendar) == false
-        )
-    }
-
     @Test func ocrStructuralOperationsAddDeleteAndMoveTopLevelTasks() {
         let first = OCRImportTaskDraft(title: "第一条")
         let second = OCRImportTaskDraft(title: "第二条")

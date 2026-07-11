@@ -247,44 +247,6 @@ struct AppRootView: View {
             .accessibilityHint("拍摄或选择纸面笔记生成草稿")
         }
 
-        if router.currentSurface == .today {
-            ToolbarItem(placement: .bottomBar) {
-                Menu {
-                    ForEach(HomeTaskFilterOption.allCases, id: \.self) { option in
-                        Button {
-                            Task { await appContext.homeViewModel.toggleTaskFilter(option) }
-                        } label: {
-                            Label(
-                                option.title,
-                                systemImage: appContext.homeViewModel.selectedTaskFilters.contains(option)
-                                    ? "checkmark"
-                                    : option.systemImage
-                            )
-                        }
-                    }
-
-                    if appContext.homeViewModel.isTaskFilterActive {
-                        Divider()
-                        Button("清除搜索和筛选", role: .destructive) {
-                            appContext.homeViewModel.clearTaskFilters()
-                        }
-                    }
-                } label: {
-                    Image(
-                        systemName: appContext.homeViewModel.selectedTaskFilterCount > 0
-                            ? "line.3.horizontal.decrease.circle.fill"
-                            : "line.3.horizontal.decrease.circle"
-                    )
-                }
-                .accessibilityLabel("筛选任务")
-                .accessibilityValue(
-                    appContext.homeViewModel.selectedTaskFilterCount == 0
-                        ? "未筛选"
-                        : "已选择 \(appContext.homeViewModel.selectedTaskFilterCount) 项"
-                )
-            }
-        }
-
         ToolbarSpacer(.flexible, placement: .bottomBar)
 
         ToolbarItem(placement: .bottomBar) {

@@ -249,7 +249,7 @@
 ## 近期优先级
 
 1. 把单人模式语义落到代码层：Task / List / Project / Calendar 为主，弱化旧双人优先命名。
-2. 在当前首页 UI 基础上完成 Today 主链路：任务创建、完成、详情展开、日期切换、筛选与排序。
+2. 在当前首页 UI 基础上完成 Today 主链路：任务创建、完成、详情展开、日期切换与排序。
 3. 明确并实现 `TaskStatus`、`ProjectStatus`、提醒策略单测。
 4. 补齐清单页、项目页、周/月日历切换、本地持久化与高质量原生动效。
 
@@ -327,7 +327,7 @@
 - 2026-05-07：打包上传 TestFlight widget build。首次使用 build 44 归档 `build/TestFlight-20260507-1518-build44/Together.xcarchive` 上传时，App Store Connect 返回 90360：`TogetherWidget.appex` 缺少 `CFBundleDisplayName`。处理：`TogetherWidget/Info.plist` 新增 `CFBundleDisplayName=Together`，所有 target 构建号提升到 45；重新归档 `build/TestFlight-20260507-1531-build45/Together.xcarchive` 并使用 `build/exportOptions-TestFlight-upload.plist` 上传。验证：`plutil -lint TogetherWidget/Info.plist Together/Info.plist`、`git diff --check`、Release archive、归档内 Widget App Group entitlement 与 `CFBundleDisplayName` 检查通过；App Store Connect 返回 `Upload succeeded` / `Uploaded package is processing`。仍需 TestFlight processing 完成后安装 build 45 真机验收所有 widget 的真实数据、深色模式和桌面缓存刷新。
 
 - 2026-07-11：完成“可靠性与核心流程”收敛。持久化启动失败不再自动删除 store，而是进入可重试错误页；移除 Apple 登录门槛，`PersonalIdentityService` 优先复用既有 profile / space，禁止改写历史 user、space、creator ID，空库只在用户明确开始后创建本地身份，CloudKit 初次导入后可合并临时空身份。个人数据删除改由 `PersonalDataDeletionService` 按完整 manifest 删除全部 10 类 SwiftData 对象、提醒、头像、Widget 快照和个人偏好，验证为空后才创建新身份；删除失败留在页面并提供重试。SwiftData schema、store URL 和 CloudKit private container 均未改变，`PersistentTaskList`、`listID`、legacy Project 模型继续保留用于旧数据/schema 兼容。
-- 2026-07-11：首页新增标题/备注/子任务本地搜索，以及紧急、已逾期、无日期、有提醒四类组合筛选；OCR 确认页支持查看可复制原文、任务新增/删除/移动/相邻合并和子任务拆分，所有结构操作只改内存草稿，仍需用户确认后入库。Widget 与通知统一使用 `AppDeepLink`：`together://today` 回到根首页，`together://task/<uuid>` 刷新并验证任务后只发布一次高亮，缺失任务显示可重试错误；Widget 完成框继续只执行 AppIntent，任务文字打开详情。纪念日 Widget、不可达 Decisions 运行时、Lists 页面/ViewModel 已删除；Lists 持久化模型和 repository 未删除。验证：残留搜索仅保留产品规格中的历史/禁止项、隐私政策“数据共享”和 DEBUG 显式 reset；`git diff --check`、四个 plist/entitlements `plutil -lint`、Xcode 27 beta generic iOS `build-for-testing` 通过。按用户要求未再等待模拟器测试守护进程；升级保留、同 iCloud 多设备恢复、重装恢复、离线合并、远端删除传播、Widget 点击和 OCR 相机/输入仍需真机验收。
+- 2026-07-11：OCR 确认页支持查看可复制原文、任务新增/删除/移动/相邻合并和子任务拆分，所有结构操作只改内存草稿，仍需用户确认后入库。Widget 与通知统一使用 `AppDeepLink`：`together://today` 回到根首页，`together://task/<uuid>` 刷新并验证任务后只发布一次高亮，缺失任务显示可重试错误；Widget 完成框继续只执行 AppIntent，任务文字打开详情。纪念日 Widget、不可达 Decisions 运行时、Lists 页面/ViewModel 已删除；Lists 持久化模型和 repository 未删除。首页搜索及紧急/逾期/无日期/有提醒组合筛选按用户最终决定彻底移除，首页恢复原有日期分组、紧急排序和逾期汇总。验证：残留搜索仅保留产品规格中的历史/禁止项、隐私政策“数据共享”和 DEBUG 显式 reset；`git diff --check`、四个 plist/entitlements `plutil -lint`、Xcode 27 beta generic iOS `build-for-testing` 通过。按用户要求未再等待模拟器测试守护进程；升级保留、同 iCloud 多设备恢复、重装恢复、离线合并、远端删除传播、Widget 点击和 OCR 相机/输入仍需真机验收。
 
 ## Open Questions
 
