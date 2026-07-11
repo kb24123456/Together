@@ -17,22 +17,6 @@ enum WidgetTheme {
         )
     }
 
-    static func anniversaryBackground(for colorScheme: ColorScheme) -> LinearGradient {
-        LinearGradient(
-            colors: colorScheme == .dark
-                ? [
-                    Color(red: 0.13, green: 0.11, blue: 0.11),
-                    Color(red: 0.15, green: 0.13, blue: 0.18)
-                ]
-                : [
-                    Color(red: 1.0, green: 0.96, blue: 0.92),
-                    Color(red: 1.0, green: 0.95, blue: 0.98)
-                ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
     static func accent(for colorScheme: ColorScheme) -> Color {
         colorScheme == .dark
             ? Color(red: 1.0, green: 0.47, blue: 0.41)

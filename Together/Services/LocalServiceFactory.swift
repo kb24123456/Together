@@ -55,6 +55,10 @@ enum LocalServiceFactory {
             decisionRepository: MockDecisionRepository(),
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,
+            personalDataDeletionService: PersonalDataDeletionService(
+                container: modelContainer,
+                reminderScheduler: reminderScheduler
+            ),
             periodicTaskRepository: periodicTaskRepository,
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),

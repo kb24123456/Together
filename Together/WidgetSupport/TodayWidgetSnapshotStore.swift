@@ -37,6 +37,12 @@ struct TodayWidgetSnapshotStore: Sendable {
         try data.write(to: fileURL, options: [.atomic])
     }
 
+    nonisolated func clear() throws {
+        guard let fileURL else { return }
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        try FileManager.default.removeItem(at: fileURL)
+    }
+
     private nonisolated var fileURL: URL? {
         containerURL?.appending(path: TodayWidgetConstants.snapshotFileName)
     }

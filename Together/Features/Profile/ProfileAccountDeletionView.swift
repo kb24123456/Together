@@ -26,6 +26,10 @@ struct ProfileAccountDeletionView: View {
                 // 输入确认
                 confirmationInputSection
 
+                if let errorMessage = viewModel.deletionErrorMessage {
+                    deletionFailureSection(message: errorMessage)
+                }
+
                 // 注销按钮
                 deleteButton
             }
@@ -34,18 +38,20 @@ struct ProfileAccountDeletionView: View {
             .padding(.bottom, AppTheme.spacing.xxl)
         }
         .background(AppTheme.colors.background.ignoresSafeArea())
-        .navigationTitle("账号注销")
+        .navigationTitle("删除数据")
         .navigationBarTitleDisplayMode(.inline)
-        .alert("确认注销账号", isPresented: $showsFinalConfirmation) {
+        .alert("确认删除所有数据", isPresented: $showsFinalConfirmation) {
             Button("取消", role: .cancel) {}
-            Button("确认注销", role: .destructive) {
+            Button("确认删除", role: .destructive) {
                 HomeInteractionFeedback.delete()
                 Task {
-                    await viewModel.requestAccountDeletion()
+                    if await viewModel.requestAccountDeletion() {
+                        dismiss()
+                    }
                 }
             }
         } message: {
-            Text("此操作不可撤销，您的所有数据将被永久删除。")
+            Text("此操作不可撤销，将删除 Together 中的个人任务数据。")
         }
     }
 
@@ -61,7 +67,7 @@ struct ProfileAccountDeletionView: View {
                     .foregroundStyle(AppTheme.colors.title)
             }
 
-            Text("注销账号后，以下数据将被永久删除且无法恢复。云端数据将在 14 天内完全清除。")
+            Text("本机删除完成后，iCloud 会继续同步删除。同步完成时间取决于系统和网络状态。")
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .regular))
                 .foregroundStyle(AppTheme.colors.body)
                 .lineSpacing(4)
@@ -74,8 +80,33 @@ struct ProfileAccountDeletionView: View {
             deletionItem(icon: "checkmark.circle", text: "所有任务数据（待办、已完成、已归档）")
             deletionItem(icon: "square.stack", text: "例行事务和模板")
             deletionItem(icon: "folder", text: "项目和清单")
-            deletionItem(icon: "icloud", text: "iCloud 云端同步数据")
+            deletionItem(icon: "icloud", text: "对应的 iCloud 私有同步记录")
         }
+    }
+
+    private func deletionFailureSection(message: String) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
+            Label("删除未完成", systemImage: "exclamationmark.circle.fill")
+                .font(AppTheme.typography.sized(15, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.danger)
+            Text(message)
+                .font(AppTheme.typography.sized(14, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body)
+            Button("重试") {
+                Task {
+                    if await viewModel.requestAccountDeletion() {
+                        dismiss()
+                    }
+                }
+            }
+            .font(AppTheme.typography.sized(15, weight: .semibold))
+            .disabled(viewModel.isAccountDeletionInProgress)
+        }
+        .padding(AppTheme.spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.radius.md, style: .continuous)
+                .fill(AppTheme.colors.surfaceElevated)
+        )
     }
 
     private func deletionItem(icon: String, text: String) -> some View {
@@ -94,7 +125,7 @@ struct ProfileAccountDeletionView: View {
 
     private var confirmationInputSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            Text("请输入你的昵称「\(expectedName)」以确认注销")
+            Text("请输入你的昵称「\(expectedName)」以确认删除")
                 .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
                 .foregroundStyle(AppTheme.colors.body)
 
@@ -127,7 +158,7 @@ struct ProfileAccountDeletionView: View {
                     ProgressView()
                         .tint(.white)
                 }
-                Text("注销账号")
+                Text("删除数据")
                     .font(AppTheme.typography.sized(16, weight: .bold))
             }
             .foregroundStyle(.white)

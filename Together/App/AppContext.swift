@@ -92,6 +92,7 @@ final class AppContext {
             taskListRepository: container.taskListRepository,
             projectRepository: container.projectRepository,
             reminderScheduler: container.reminderScheduler,
+            personalDataDeletionService: container.personalDataDeletionService,
             biometricAuthService: container.biometricAuthService
         )
         configureCallbacks()
@@ -286,6 +287,11 @@ final class AppContext {
         profileViewModel.onProfileSaved = { [weak self] user in
             self?.sessionStore.currentUser = user
             Task { await self?.refreshTodayWidgetSnapshot() }
+        }
+        profileViewModel.onPersonalDataDeleted = { [weak self] _, _ in
+            guard let self else { return }
+            router.currentSurface = .today
+            Task { await self.homeViewModel.reload(reason: .sync) }
         }
     }
 

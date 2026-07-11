@@ -258,6 +258,69 @@ struct TogetherTests {
         #expect(defaults.string(forKey: PersonalIdentityService.provisionalSpaceIDKey) == nil)
     }
 
+    @Test func personalDataDeletionRemovesManifestAndCreatesFreshIdentity() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let seeded = try seedPersonalDataDeletionStore(container: container)
+        let suiteName = "TogetherDeletionTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(true, forKey: "together.appLockEnabled")
+        defaults.set(seeded.spaceID.uuidString, forKey: PersonalIdentityService.provisionalSpaceIDKey)
+        let fileCleaner = DeletionTestFileCleaner()
+        let reminderScheduler = DeletionTestReminderScheduler()
+        let service = PersonalDataDeletionService(
+            container: container,
+            reminderScheduler: reminderScheduler,
+            fileCleaner: fileCleaner,
+            defaults: defaults
+        )
+
+        let result = await service.deleteAllData()
+
+        guard case let .completed(newUser, newSpace) = result else {
+            Issue.record("完整清理后应重建空身份")
+            return
+        }
+        #expect(newUser.id != seeded.userID)
+        #expect(newSpace.id != seeded.spaceID)
+        #expect(newSpace.ownerUserID == newUser.id)
+        #expect(fileCleaner.clearCallCount == 1)
+        #expect(defaults.object(forKey: "together.appLockEnabled") == nil)
+
+        let context = ModelContext(container)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentItem>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentTaskSubtask>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentItemOccurrenceCompletion>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentPeriodicTask>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentTaskTemplate>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentTaskList>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentProject>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentProjectSubtask>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentUserProfile>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentSpace>()) == 1)
+        #expect(reminderScheduler.removedTaskIDs.contains(seeded.itemID))
+        #expect(reminderScheduler.removedPeriodicTaskIDs.contains(seeded.periodicTaskID))
+    }
+
+    @Test func personalDataDeletionFailureIsNotReportedAsCompleted() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        _ = try seedPersonalDataDeletionStore(container: container)
+        let cleaner = DeletionTestFileCleaner(shouldFail: true)
+        let service = PersonalDataDeletionService(
+            container: container,
+            reminderScheduler: DeletionTestReminderScheduler(),
+            fileCleaner: cleaner,
+            defaults: try #require(UserDefaults(suiteName: "TogetherDeletionFailure-\(UUID().uuidString)"))
+        )
+
+        let result = await service.deleteAllData()
+
+        guard case .failed = result else {
+            Issue.record("文件清理失败时不得报告删除完成")
+            return
+        }
+    }
+
     @Test func ocrParserCreatesTaskDraftsFromPlainLines() {
         let draft = OCRImportDraftParser.parse(rawText: """
         - 买牛奶
@@ -2548,6 +2611,10 @@ private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationS
             decisionRepository: MockDecisionRepository(),
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,
+            personalDataDeletionService: PersonalDataDeletionService(
+                container: migrationPersistence.container,
+                reminderScheduler: reminderScheduler
+            ),
             periodicTaskRepository: periodicTaskRepository,
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),
@@ -2593,6 +2660,174 @@ private func makeIdentityTestUser(id: UUID) -> User {
             calendarReminderEnabled: true
         )
     )
+}
+
+private struct PersonalDataDeletionSeed {
+    let userID: UUID
+    let spaceID: UUID
+    let itemID: UUID
+    let periodicTaskID: UUID
+}
+
+private func seedPersonalDataDeletionStore(container: ModelContainer) throws -> PersonalDataDeletionSeed {
+    let context = ModelContext(container)
+    let userID = UUID()
+    let spaceID = UUID()
+    let itemID = UUID()
+    let projectID = UUID()
+    let listID = UUID()
+    let periodicTaskID = UUID()
+    let now = Date.now
+    let user = makeIdentityTestUser(id: userID)
+    context.insert(PersistentUserProfile(user: user))
+    context.insert(PersistentSpace(space: Space(
+        id: spaceID,
+        type: .single,
+        displayName: "待删除空间",
+        ownerUserID: userID,
+        status: .active,
+        createdAt: now,
+        updatedAt: now
+    )))
+    context.insert(PersistentTaskList(
+        id: listID,
+        spaceID: spaceID,
+        creatorID: userID,
+        name: "待删除清单",
+        kindRawValue: TaskListKind.custom.rawValue,
+        colorToken: nil,
+        sortOrder: 0,
+        isArchived: false,
+        createdAt: now,
+        updatedAt: now
+    ))
+    context.insert(PersistentProject(
+        id: projectID,
+        spaceID: spaceID,
+        creatorID: userID,
+        name: "待删除项目",
+        notes: nil,
+        colorToken: nil,
+        statusRawValue: ProjectStatus.active.rawValue,
+        targetDate: nil,
+        remindAt: nil,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: nil
+    ))
+    context.insert(PersistentProjectSubtask(
+        id: UUID(),
+        projectID: projectID,
+        creatorID: userID,
+        title: "项目子任务",
+        isCompleted: false,
+        sortOrder: 0
+    ))
+    context.insert(PersistentItem(item: Item(
+        id: itemID,
+        spaceID: spaceID,
+        listID: listID,
+        projectID: projectID,
+        creatorID: userID,
+        title: "待删除任务",
+        notes: nil,
+        dueAt: nil,
+        status: .inProgress,
+        lastActionByUserID: userID,
+        lastActionAt: now,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: nil,
+        isDraft: false
+    )))
+    context.insert(PersistentTaskSubtask(
+        id: UUID(),
+        itemID: itemID,
+        creatorID: userID,
+        title: "普通任务子任务",
+        isCompleted: false,
+        sortOrder: 0
+    ))
+    context.insert(PersistentItemOccurrenceCompletion(
+        itemID: itemID,
+        occurrenceDate: now,
+        completedAt: now,
+        createdAt: now,
+        updatedAt: now
+    ))
+    context.insert(PersistentTaskTemplate(
+        id: UUID(),
+        spaceID: spaceID,
+        title: "待删除模板",
+        notes: nil,
+        listID: listID,
+        projectID: projectID,
+        isPinned: false,
+        hasExplicitTime: false,
+        timeData: nil,
+        reminderOffset: nil,
+        repeatRuleData: nil,
+        subtasksData: nil,
+        createdAt: now,
+        updatedAt: now
+    ))
+    context.insert(PersistentPeriodicTask(
+        id: periodicTaskID,
+        spaceID: spaceID,
+        creatorID: userID,
+        title: "待删除例行任务",
+        notes: nil,
+        cycleRawValue: PeriodicCycle.daily.rawValue,
+        reminderRulesData: nil,
+        completionsData: Data(),
+        sortOrder: 0,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now
+    ))
+    try context.save()
+    return PersonalDataDeletionSeed(
+        userID: userID,
+        spaceID: spaceID,
+        itemID: itemID,
+        periodicTaskID: periodicTaskID
+    )
+}
+
+@MainActor
+private final class DeletionTestFileCleaner: PersonalDataFileCleaning {
+    private(set) var clearCallCount = 0
+    private let shouldFail: Bool
+
+    init(shouldFail: Bool = false) {
+        self.shouldFail = shouldFail
+    }
+
+    func clearPersonalFiles() throws {
+        clearCallCount += 1
+        if shouldFail {
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+}
+
+@MainActor
+private final class DeletionTestReminderScheduler: ReminderSchedulerProtocol {
+    private(set) var removedTaskIDs = Set<UUID>()
+    private(set) var removedPeriodicTaskIDs = Set<UUID>()
+    func syncTaskReminder(for item: Item) async {}
+    func removeTaskReminder(for itemID: UUID) async { removedTaskIDs.insert(itemID) }
+    func snoozeTaskReminder(itemID: UUID, title: String, body: String, delay: TimeInterval) async {}
+    func syncProjectReminder(for project: Project) async {}
+    func removeProjectReminder(for projectID: UUID) async {}
+    func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {}
+    func resync(tasks: [Item], projects: [Project], includeDailySummary: Bool) async {}
+    func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async {}
+    func removePeriodicTaskReminder(for taskID: UUID) async { removedPeriodicTaskIDs.insert(taskID) }
+    func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
+    func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus { .authorized }
+    func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
+    func requestPeriodicAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus { .authorized }
 }
 
 private actor StubOCRTextRecognizer: OCRTextRecognizing {

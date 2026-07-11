@@ -3,10 +3,6 @@ import Foundation
 enum ReminderTargetType: String, Hashable, Sendable {
     case item
     case project
-    case decision
-    case anniversary
-    case invite
-    case binding
     case periodicTask
     case dailySummary
 }

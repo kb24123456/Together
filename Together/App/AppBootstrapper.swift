@@ -125,6 +125,17 @@ final class AppBootstrapper {
 
                 guard let self else { return }
                 didObserveSuccessfulInitialImport = true
+                let isWaitingForIdentity: Bool
+                switch phase {
+                case .restoringIdentity, .requiresLocalStart:
+                    isWaitingForIdentity = true
+                default:
+                    isWaitingForIdentity = false
+                }
+                let hasProvisionalIdentity = UserDefaults.standard.string(
+                    forKey: PersonalIdentityService.provisionalSpaceIDKey
+                ) != nil
+                guard isWaitingForIdentity || hasProvisionalIdentity else { continue }
                 guard let appContext else { continue }
                 apply(await appContext.bootstrapIfNeeded(afterInitialCloudImport: true))
             }

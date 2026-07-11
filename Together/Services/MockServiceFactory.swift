@@ -39,6 +39,10 @@ enum MockServiceFactory {
             decisionRepository: MockDecisionRepository(),
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,
+            personalDataDeletionService: PersonalDataDeletionService(
+                container: migrationPersistence.container,
+                reminderScheduler: reminderScheduler
+            ),
             periodicTaskRepository: periodicTaskRepository,
             periodicTaskApplicationService: periodicTaskApplicationService,
             biometricAuthService: BiometricAuthService(),

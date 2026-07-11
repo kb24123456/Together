@@ -32,6 +32,7 @@ final class ProfileViewModel {
     private let taskListRepository: TaskListRepositoryProtocol
     private let projectRepository: ProjectRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
+    private let personalDataDeletionService: PersonalDataDeletionService
     private let biometricAuthService: BiometricAuthServiceProtocol
 
     var onTaskMutated: ((_ spaceID: UUID) -> Void)?
@@ -41,7 +42,9 @@ final class ProfileViewModel {
     var customDurationSheet: ProfileCustomDurationKind?
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
+    var deletionErrorMessage: String?
     var onProfileSaved: ((_ user: User) -> Void)?
+    var onPersonalDataDeleted: ((_ user: User, _ space: Space) -> Void)?
 
     init(
         sessionStore: SessionStore,
@@ -52,6 +55,7 @@ final class ProfileViewModel {
         taskListRepository: TaskListRepositoryProtocol,
         projectRepository: ProjectRepositoryProtocol,
         reminderScheduler: ReminderSchedulerProtocol,
+        personalDataDeletionService: PersonalDataDeletionService,
         biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService()
     ) {
         self.sessionStore = sessionStore
@@ -62,6 +66,7 @@ final class ProfileViewModel {
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
         self.reminderScheduler = reminderScheduler
+        self.personalDataDeletionService = personalDataDeletionService
         self.biometricAuthService = biometricAuthService
     }
 
@@ -152,7 +157,7 @@ final class ProfileViewModel {
 
     var iCloudStatusSummary: String {
         switch iCloudStatus {
-        case .available: return "已连接"
+        case .available: return "iCloud 已登录"
         case .noAccount: return "未登录 iCloud"
         case .restricted: return "受限"
         case .couldNotDetermine: return "检查中…"
@@ -218,33 +223,21 @@ final class ProfileViewModel {
         URLCache.shared.removeAllCachedResponses()
     }
 
-    func requestAccountDeletion() async {
+    @discardableResult
+    func requestAccountDeletion() async -> Bool {
         isAccountDeletionInProgress = true
-        let spaceID = currentSpace?.id
+        deletionErrorMessage = nil
+        defer { isAccountDeletionInProgress = false }
 
-        // 1. 删除所有任务数据
-        if let spaceID {
-            let allItems = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
-            let archivedItems = (try? await itemRepository.fetchCompletedItems(
-                spaceID: spaceID, searchText: nil, before: nil, limit: 10000
-            )) ?? []
-            for item in allItems + archivedItems {
-                try? await itemRepository.deleteItem(itemID: item.id)
-            }
+        switch await personalDataDeletionService.deleteAllData() {
+        case let .completed(newUser, newSpace):
+            sessionStore.applyPersonalIdentity(user: newUser, space: newSpace)
+            onPersonalDataDeleted?(newUser, newSpace)
+            return true
+        case let .failed(message):
+            deletionErrorMessage = message
+            return false
         }
-
-        // 2. 删除所有项目
-        if let spaceID {
-            let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
-            for project in projects {
-                try? await projectRepository.deleteProject(projectID: project.id, actorID: project.creatorID)
-            }
-        }
-
-        // 3. 取消所有本地通知
-        await reminderScheduler.resync(tasks: [], projects: [])
-
-        isAccountDeletionInProgress = false
     }
 
     func requestNotifications() async {

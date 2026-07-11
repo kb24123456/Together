@@ -37,7 +37,6 @@ private enum TodayWidgetCompletionError: Error {
     case missingContext
     case missingStore
     case taskNotFound
-    case permissionDenied
     case storeOpenFailed(String)
     case storeWriteFailed(String)
     case schemaMismatch(String)
@@ -101,8 +100,6 @@ private struct TodayWidgetCompletionStore {
 
     private struct TaskRecord {
         let primaryKey: Int64
-        let creatorIDData: Data?
-        let assigneeModeRawValue: String
         let hasRepeatRule: Bool
     }
 
@@ -118,10 +115,6 @@ private struct TodayWidgetCompletionStore {
             database: database
         ) else {
             throw TodayWidgetCompletionError.taskNotFound
-        }
-
-        guard canComplete(record: record, actorID: sharedContext.actorID) else {
-            throw TodayWidgetCompletionError.permissionDenied
         }
 
         let completedAt = Date.now
@@ -161,7 +154,7 @@ private struct TodayWidgetCompletionStore {
         database: OpaquePointer
     ) throws -> TaskRecord? {
         let sql = """
-        SELECT Z_PK, ZCREATORID, ZASSIGNEEMODERAWVALUE, ZREPEATRULEDATA
+        SELECT Z_PK, ZREPEATRULEDATA
         FROM ZPERSISTENTITEM
         WHERE ZID = ?
           AND ZSPACEID = ?
@@ -182,18 +175,9 @@ private struct TodayWidgetCompletionStore {
 
             return TaskRecord(
                 primaryKey: sqlite3_column_int64(statement, 0),
-                creatorIDData: columnData(statement, 1),
-                assigneeModeRawValue: columnText(statement, 2) ?? "",
-                hasRepeatRule: sqlite3_column_type(statement, 3) != SQLITE_NULL
+                hasRepeatRule: sqlite3_column_type(statement, 1) != SQLITE_NULL
             )
         }
-    }
-
-    private nonisolated func canComplete(record: TaskRecord, actorID: UUID) -> Bool {
-        if record.assigneeModeRawValue == "partner" {
-            return record.creatorIDData != uuidData(actorID)
-        }
-        return true
     }
 
     private nonisolated func markSingleTaskCompleted(
@@ -587,12 +571,6 @@ private struct TodayWidgetCompletionStore {
 
     private nonisolated func bind(date: Date, at index: Int32, statement: OpaquePointer) {
         sqlite3_bind_double(statement, index, date.timeIntervalSinceReferenceDate)
-    }
-
-    private nonisolated func columnData(_ statement: OpaquePointer, _ index: Int32) -> Data? {
-        guard sqlite3_column_type(statement, index) != SQLITE_NULL else { return nil }
-        guard let bytes = sqlite3_column_blob(statement, index) else { return nil }
-        return Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, index)))
     }
 
     private nonisolated func columnText(_ statement: OpaquePointer, _ index: Int32) -> String? {

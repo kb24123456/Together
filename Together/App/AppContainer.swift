@@ -13,6 +13,7 @@ struct AppContainer {
     let decisionRepository: DecisionRepositoryProtocol
     let notificationService: NotificationServiceProtocol
     let reminderScheduler: ReminderSchedulerProtocol
+    let personalDataDeletionService: PersonalDataDeletionService
     let periodicTaskRepository: PeriodicTaskRepositoryProtocol
     let periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
     let biometricAuthService: BiometricAuthServiceProtocol
