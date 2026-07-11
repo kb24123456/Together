@@ -85,7 +85,6 @@ final class AppContext {
         )
         self.profileViewModel = ProfileViewModel(
             sessionStore: sessionStore,
-            authService: container.authService,
             userProfileRepository: container.userProfileRepository,
             notificationService: container.notificationService,
             itemRepository: container.itemRepository,
@@ -125,33 +124,36 @@ final class AppContext {
     }
     #endif
 
-    func bootstrapIfNeeded() async {
-        guard hasBootstrapped == false else { return }
-        await sessionStore.bootstrap(
-            authService: container.authService,
-            spaceService: container.spaceService
-        )
-        if sessionStore.authState == .signedIn {
-            if sessionStore.singleSpace == nil {
-                await setupSpacesForCurrentUserIfNeeded()
-            }
-            await migrateLegacyProjectsIfNeeded()
-            await restorePersistedUserProfileIfNeeded()
+    func bootstrapIfNeeded(afterInitialCloudImport: Bool = false) async -> PersonalIdentityResolution {
+        if hasBootstrapped,
+           afterInitialCloudImport == false,
+           let user = sessionStore.currentUser,
+           let space = sessionStore.currentSpace {
+            return .ready(user: user, space: space)
         }
-        hasBootstrapped = true
+
+        let resolution = container.personalIdentityService.resolve(
+            afterInitialCloudImport: afterInitialCloudImport
+        )
+        if case let .ready(user, space) = resolution {
+            await finishIdentityBootstrap(user: user, space: space)
+        }
+        return resolution
     }
 
-    func setupSpacesForCurrentUserIfNeeded() async {
-        guard let userID = sessionStore.currentUser?.id else { return }
-
-        var spaceContext = await container.spaceService.currentSpaceContext(for: userID)
-        if spaceContext.singleSpace == nil {
-            if let newSpace = try? await container.spaceService.createSingleSpace(for: userID) {
-                spaceContext.singleSpace = newSpace
-            }
+    func startLocally() async throws -> PersonalIdentityResolution {
+        let resolution = try container.personalIdentityService.startLocally()
+        if case let .ready(user, space) = resolution {
+            await finishIdentityBootstrap(user: user, space: space)
         }
-        sessionStore.applySpaceContext(spaceContext)
-        sessionStore.activeMode = .single
+        return resolution
+    }
+
+    private func finishIdentityBootstrap(user: User, space: Space) async {
+        sessionStore.applyPersonalIdentity(user: user, space: space)
+        await migrateLegacyProjectsIfNeeded()
+        await restorePersistedUserProfileIfNeeded()
+        hasBootstrapped = true
     }
 
     func migrateLegacyProjectsIfNeeded() async {

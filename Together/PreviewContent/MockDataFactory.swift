@@ -15,7 +15,6 @@ enum MockDataFactory {
     static func makeCurrentUser() -> User {
         User(
             id: currentUserID,
-            appleUserID: "apple-user-demo",
             displayName: "云丰",
             avatarSystemName: "person.crop.circle.fill",
             createdAt: now.addingTimeInterval(-86_400 * 120),

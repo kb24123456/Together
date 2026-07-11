@@ -25,10 +25,6 @@ actor LocalSpaceService: SpaceServiceProtocol {
             }
             ?? activeSingleSpaceRecords.first
 
-        if let selectedSingleSpaceRecord, let userID {
-            Self.claimSingleSpaceIfNeeded(selectedSingleSpaceRecord, for: userID, context: context)
-        }
-
         let singleSpace = selectedSingleSpaceRecord?.domainModel
 
         return SpaceContext(
@@ -85,46 +81,4 @@ actor LocalSpaceService: SpaceServiceProtocol {
         return spaceIDs
     }
 
-    private static func claimSingleSpaceIfNeeded(
-        _ space: PersistentSpace,
-        for userID: UUID,
-        context: ModelContext
-    ) {
-        let oldOwnerID = space.ownerUserID
-        guard oldOwnerID != userID else { return }
-
-        space.ownerUserID = userID
-        space.updatedAt = .now
-
-        let items = (try? context.fetch(FetchDescriptor<PersistentItem>())) ?? []
-        for item in items where item.spaceID == space.id && item.creatorID == oldOwnerID {
-            item.creatorID = userID
-        }
-
-        let lists = (try? context.fetch(FetchDescriptor<PersistentTaskList>())) ?? []
-        for list in lists where list.spaceID == space.id && list.creatorID == oldOwnerID {
-            list.creatorID = userID
-        }
-
-        let projects = (try? context.fetch(FetchDescriptor<PersistentProject>())) ?? []
-        var projectIDs = Set<UUID>()
-        for project in projects where project.spaceID == space.id {
-            projectIDs.insert(project.id)
-            if project.creatorID == oldOwnerID {
-                project.creatorID = userID
-            }
-        }
-
-        let subtasks = (try? context.fetch(FetchDescriptor<PersistentProjectSubtask>())) ?? []
-        for subtask in subtasks where projectIDs.contains(subtask.projectID) && subtask.creatorID == oldOwnerID {
-            subtask.creatorID = userID
-        }
-
-        let periodicTasks = (try? context.fetch(FetchDescriptor<PersistentPeriodicTask>())) ?? []
-        for task in periodicTasks where task.spaceID == space.id && task.creatorID == oldOwnerID {
-            task.creatorID = userID
-        }
-
-        try? context.save()
-    }
 }

@@ -13,7 +13,7 @@ enum BrandLogoMetrics {
 
 /// 品牌 logo（入场 spring + 持续呼吸）。
 /// 直接复用 app icon transparent PNG（已抠白底），保留原设计的 checkmark + 红蓝光晕。
-/// splash / 登录页 / 设置页等所有稳态场景共用。
+/// splash / 数据恢复页 / 设置页等所有稳态场景共用。
 struct BrandLogoStatic: View {
     @State private var hasAppeared = false
     @State private var isBreathing = false

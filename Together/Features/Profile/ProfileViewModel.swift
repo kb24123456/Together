@@ -25,7 +25,6 @@ enum ProfileCustomDurationKind: Hashable, Identifiable {
 @Observable
 final class ProfileViewModel {
     private let sessionStore: SessionStore
-    private let authService: AuthServiceProtocol
     private let userProfileRepository: UserProfileRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
@@ -46,7 +45,6 @@ final class ProfileViewModel {
 
     init(
         sessionStore: SessionStore,
-        authService: AuthServiceProtocol,
         userProfileRepository: UserProfileRepositoryProtocol,
         notificationService: NotificationServiceProtocol,
         itemRepository: ItemRepositoryProtocol,
@@ -57,7 +55,6 @@ final class ProfileViewModel {
         biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService()
     ) {
         self.sessionStore = sessionStore
-        self.authService = authService
         self.userProfileRepository = userProfileRepository
         self.notificationService = notificationService
         self.itemRepository = itemRepository
@@ -247,8 +244,6 @@ final class ProfileViewModel {
         // 3. 取消所有本地通知
         await reminderScheduler.resync(tasks: [], projects: [])
 
-        // 4. 签出（清除 Keychain + Session）
-        await signOut()
         isAccountDeletionInProgress = false
     }
 
@@ -326,11 +321,6 @@ final class ProfileViewModel {
         )
         viewModel.onTaskMutated = onTaskMutated
         return viewModel
-    }
-
-    func signOut() async {
-        await authService.signOut()
-        sessionStore.clearForSignOut()
     }
 
     func taskUrgencyLabel(minutes: Int) -> String {

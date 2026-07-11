@@ -27,8 +27,7 @@ enum MockServiceFactory {
             preconditionFailure("[MockServiceFactory] In-memory persistence failed: \(error)")
         }
         return AppContainer(
-            authService: MockAuthService(),
-            spaceService: MockSpaceService(),
+            personalIdentityService: PersonalIdentityService(container: migrationPersistence.container),
             taskApplicationService: taskApplicationService,
             syncCoordinator: syncCoordinator,
             userProfileRepository: userProfileRepository,

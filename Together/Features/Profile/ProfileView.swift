@@ -6,7 +6,6 @@ struct ProfileView: View {
     @Environment(\.openURL) private var openURL
     @Bindable var viewModel: ProfileViewModel
     @State private var topChromeProgress: CGFloat = 0
-    @State private var showsSignOutAlert: Bool = false
     @State private var showsClearCacheAlert: Bool = false
     @Namespace private var profileTransition
 
@@ -44,9 +43,6 @@ struct ProfileView: View {
                     executionPreferencesSection
                     systemSettingsSection
                     aboutRow
-
-                    // MARK: - 退出登录
-                    signOutFooter
 
                 }
                 .padding(.horizontal, AppTheme.spacing.md)
@@ -113,15 +109,6 @@ struct ProfileView: View {
             topChromeProgress = progress
         }
         .animation(.easeOut(duration: 0.18), value: topChromeProgress)
-        .alert("确认退出", isPresented: $showsSignOutAlert) {
-            Button("取消", role: .cancel) {}
-            Button("退出登录", role: .destructive) {
-                HomeInteractionFeedback.warning()
-                Task { await viewModel.signOut() }
-            }
-        } message: {
-            Text("退出后需要重新登录才能使用。")
-        }
         .alert("清除缓存", isPresented: $showsClearCacheAlert) {
             Button("取消", role: .cancel) {}
             Button("清除", role: .destructive) {
@@ -300,24 +287,6 @@ struct ProfileView: View {
                 TapGesture().onEnded { HomeInteractionFeedback.selection() }
             )
         }
-    }
-
-    // MARK: - 退出登录
-
-    private var signOutFooter: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            showsSignOutAlert = true
-        } label: {
-            Text("退出登录")
-                .font(AppTheme.typography.sized(15, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.danger)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.top, AppTheme.spacing.lg)
-        .accessibilityHint("退出后需要重新登录")
     }
 
     // MARK: - Helpers

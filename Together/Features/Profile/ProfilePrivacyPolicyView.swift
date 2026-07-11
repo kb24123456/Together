@@ -9,8 +9,8 @@ struct ProfilePrivacyPolicyView: View {
                 policySection(
                     title: "一、我们收集的信息",
                     content: """
-                    1. Apple Sign In 身份信息：用于账号识别和登录。
-                    2. 昵称、头像、用户 ID：用于个人资料展示和数据归属。
+                    1. 本机生成的用户 ID：用于个人资料展示和数据归属。
+                    2. 昵称与头像：用于个人资料展示。
                     3. 应用内创建的内容：任务、清单、项目、备注等，用于核心功能、同步与恢复。
 
                     当前版本不集成第三方广告、行为分析或崩溃分析 SDK；必要技术日志仅用于服务运行与安全，不用于广告追踪。
@@ -45,13 +45,13 @@ struct ProfilePrivacyPolicyView: View {
                 policySection(
                     title: "五、您的权利",
                     content: """
-                    您可以在应用内查看、修改个人资料或删除本地数据。iCloud/CloudKit 数据由您的 Apple ID 与 iCloud 设置管理，Apple 平台数据按 Apple 政策处理。
+                    您可以在应用内查看、修改个人资料或删除全部数据。iCloud/CloudKit 数据由您的 Apple ID 与 iCloud 设置管理，Apple 平台数据按 Apple 政策处理。
                     """
                 )
 
                 legalLinks
 
-                Text("更新日期：2026 年 5 月 4 日")
+                Text("更新日期：2026 年 7 月 11 日")
                     .font(AppTheme.typography.sized(13, weight: .medium))
                     .foregroundStyle(AppTheme.colors.textTertiary)
                     .padding(.top, AppTheme.spacing.sm)

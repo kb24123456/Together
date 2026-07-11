@@ -7,7 +7,6 @@ enum UserAvatarAsset: Hashable, Sendable {
 
 struct User: Identifiable, Hashable, Sendable {
     let id: UUID
-    var appleUserID: String?
     var displayName: String
     var avatarSystemName: String?
     var avatarPhotoFileName: String? = nil

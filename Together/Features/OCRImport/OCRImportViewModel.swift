@@ -209,7 +209,7 @@ final class OCRImportViewModel {
             let spaceID = appContext.sessionStore.currentSpace?.id,
             let actorID = appContext.sessionStore.currentUser?.id
         else {
-            errorMessage = "请先完成登录。"
+            errorMessage = "个人空间尚未准备好，请稍后重试。"
             return false
         }
 

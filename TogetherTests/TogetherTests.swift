@@ -78,18 +78,184 @@ struct TogetherTests {
         #expect(next == .completed)
     }
 
-    @Test func sessionStoreBootstrapsSingleSpaceOnly() async throws {
+    @Test func sessionStoreAppliesPersonalIdentityToSingleSpace() {
         let sessionStore = SessionStore()
+        let user = MockDataFactory.makeCurrentUser()
+        let space = MockDataFactory.makeSingleSpace()
 
-        await sessionStore.bootstrap(
-            authService: MockAuthService(),
-            spaceService: MockSpaceService()
-        )
+        sessionStore.applyPersonalIdentity(user: user, space: space)
 
-        #expect(sessionStore.authState == .signedIn)
+        #expect(sessionStore.currentUser?.id == user.id)
         #expect(sessionStore.currentSpace?.type == .single)
         #expect(sessionStore.availableModeStates == [.single])
         #expect(sessionStore.activeMode == .single)
+    }
+
+    @Test func identityResolutionPreservesExistingProfileAndSpaceIDs() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let context = ModelContext(container)
+        let userID = UUID()
+        let spaceID = UUID()
+        let user = makeIdentityTestUser(id: userID)
+        let space = Space(
+            id: spaceID,
+            type: .single,
+            displayName: "原有空间",
+            ownerUserID: userID,
+            status: .active,
+            createdAt: .now,
+            updatedAt: .now
+        )
+        context.insert(PersistentUserProfile(user: user))
+        context.insert(PersistentSpace(space: space))
+        context.insert(PersistentItem(item: Item(
+            id: UUID(),
+            spaceID: spaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: userID,
+            title: "原有任务",
+            notes: nil,
+            dueAt: nil,
+            status: .inProgress,
+            lastActionByUserID: userID,
+            lastActionAt: .now,
+            createdAt: .now,
+            updatedAt: .now,
+            completedAt: nil,
+            isDraft: false
+        )))
+        try context.save()
+
+        let resolution = PersonalIdentityService(container: container).resolve(afterInitialCloudImport: false)
+
+        guard case let .ready(resolvedUser, resolvedSpace) = resolution else {
+            Issue.record("已有身份和数据空间应直接进入应用")
+            return
+        }
+        #expect(resolvedUser.id == userID)
+        #expect(resolvedSpace.id == spaceID)
+        #expect(resolvedSpace.ownerUserID == userID)
+    }
+
+    @Test func spaceLookupDoesNotClaimOrRewriteCreatorIDs() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let context = ModelContext(container)
+        let originalOwnerID = UUID()
+        let temporaryUserID = UUID()
+        let spaceID = UUID()
+        let itemID = UUID()
+        context.insert(PersistentSpace(space: Space(
+            id: spaceID,
+            type: .single,
+            displayName: "待恢复空间",
+            ownerUserID: originalOwnerID,
+            status: .active,
+            createdAt: .now,
+            updatedAt: .now
+        )))
+        context.insert(PersistentItem(item: Item(
+            id: itemID,
+            spaceID: spaceID,
+            listID: nil,
+            projectID: nil,
+            creatorID: originalOwnerID,
+            title: "不可改写",
+            notes: nil,
+            dueAt: nil,
+            status: .inProgress,
+            lastActionByUserID: originalOwnerID,
+            lastActionAt: .now,
+            createdAt: .now,
+            updatedAt: .now,
+            completedAt: nil,
+            isDraft: false
+        )))
+        try context.save()
+
+        _ = await LocalSpaceService(container: container).currentSpaceContext(for: temporaryUserID)
+
+        let storedSpace = try #require(context.fetch(FetchDescriptor<PersistentSpace>()).first)
+        let storedItem = try #require(context.fetch(FetchDescriptor<PersistentItem>()).first)
+        #expect(storedSpace.ownerUserID == originalOwnerID)
+        #expect(storedItem.creatorID == originalOwnerID)
+    }
+
+    @Test func emptyIdentityRequiresExplicitLocalStart() throws {
+        let container = makeTaskSubtaskModelContainer()
+        let service = PersonalIdentityService(container: container)
+
+        #expect(service.resolve(afterInitialCloudImport: false) == .waitingForCloudRestore)
+        #expect(service.resolve(afterInitialCloudImport: true) == .requiresLocalStart)
+
+        let resolution = try service.startLocally()
+        guard case let .ready(user, space) = resolution else {
+            Issue.record("用户明确选择后应创建本机身份")
+            return
+        }
+        #expect(space.ownerUserID == user.id)
+        #expect(service.resolve(afterInitialCloudImport: false) == resolution)
+    }
+
+    @Test func provisionalIdentityMergesIntoRestoredRemoteSpace() throws {
+        let container = makeTaskSubtaskModelContainer()
+        let suiteName = "TogetherIdentityTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let service = PersonalIdentityService(container: container, defaults: defaults)
+        let localResolution = try service.startLocally()
+        guard case let .ready(localUser, localSpace) = localResolution else {
+            Issue.record("应先创建 provisional 本机空间")
+            return
+        }
+
+        let context = ModelContext(container)
+        let localItemID = UUID()
+        context.insert(PersistentItem(item: Item(
+            id: localItemID,
+            spaceID: localSpace.id,
+            listID: nil,
+            projectID: nil,
+            creatorID: localUser.id,
+            title: "离线创建的任务",
+            notes: nil,
+            dueAt: nil,
+            status: .inProgress,
+            lastActionByUserID: localUser.id,
+            lastActionAt: .now,
+            createdAt: .now,
+            updatedAt: .now,
+            completedAt: nil,
+            isDraft: false
+        )))
+        let remoteUser = makeIdentityTestUser(id: UUID())
+        let remoteSpace = Space(
+            id: UUID(),
+            type: .single,
+            displayName: "iCloud 空间",
+            ownerUserID: remoteUser.id,
+            status: .active,
+            createdAt: .now,
+            updatedAt: .now.addingTimeInterval(10)
+        )
+        context.insert(PersistentUserProfile(user: remoteUser))
+        context.insert(PersistentSpace(space: remoteSpace))
+        try context.save()
+
+        let resolution = service.resolve(afterInitialCloudImport: true)
+
+        guard case let .ready(resolvedUser, resolvedSpace) = resolution else {
+            Issue.record("远端身份恢复后应切换到远端空间")
+            return
+        }
+        #expect(resolvedUser.id == remoteUser.id)
+        #expect(resolvedSpace.id == remoteSpace.id)
+        let storedItem = try #require(
+            context.fetch(FetchDescriptor<PersistentItem>()).first { $0.id == localItemID }
+        )
+        #expect(storedItem.spaceID == remoteSpace.id)
+        #expect(storedItem.creatorID == remoteUser.id)
+        #expect(defaults.string(forKey: PersonalIdentityService.provisionalSpaceIDKey) == nil)
     }
 
     @Test func ocrParserCreatesTaskDraftsFromPlainLines() {
@@ -2370,8 +2536,7 @@ private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationS
     )
     return AppContext(
         container: AppContainer(
-            authService: MockAuthService(),
-            spaceService: MockSpaceService(),
+            personalIdentityService: PersonalIdentityService(container: migrationPersistence.container),
             taskApplicationService: taskApplicationService,
             syncCoordinator: syncCoordinator,
             userProfileRepository: userProfileRepository,
@@ -2413,6 +2578,21 @@ private func makeTaskSubtaskModelContainer() -> ModelContainer {
         cloudKitDatabase: .none
     )
     return try! ModelContainer(for: schema, configurations: [configuration])
+}
+
+private func makeIdentityTestUser(id: UUID) -> User {
+    User(
+        id: id,
+        displayName: "原有用户",
+        avatarSystemName: "person.crop.circle.fill",
+        createdAt: .now,
+        updatedAt: .now,
+        preferences: NotificationSettings(
+            taskReminderEnabled: true,
+            dailySummaryEnabled: false,
+            calendarReminderEnabled: true
+        )
+    )
 }
 
 private actor StubOCRTextRecognizer: OCRTextRecognizing {

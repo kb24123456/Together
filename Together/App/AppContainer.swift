@@ -1,8 +1,7 @@
 import Foundation
 
 struct AppContainer {
-    let authService: AuthServiceProtocol
-    let spaceService: SpaceServiceProtocol
+    let personalIdentityService: PersonalIdentityService
     let taskApplicationService: TaskApplicationServiceProtocol
     let syncCoordinator: SyncCoordinatorProtocol
     let userProfileRepository: UserProfileRepositoryProtocol

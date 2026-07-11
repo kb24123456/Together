@@ -4,7 +4,6 @@ import Observation
 @MainActor
 @Observable
 final class SessionStore {
-    var authState: AuthState = .signedOut
     var isAppLocked: Bool = false
     var currentUser: User? {
         didSet {
@@ -30,20 +29,6 @@ final class SessionStore {
         [singleSpace].compactMap { $0 }
     }
 
-    func bootstrap(
-        authService: AuthServiceProtocol,
-        spaceService: SpaceServiceProtocol
-    ) async {
-        let session = await authService.currentSession()
-        let spaceContext = await spaceService.currentSpaceContext(for: session.user?.id)
-        applyBootstrap(session: session, spaceContext: spaceContext)
-    }
-
-    func handleSignIn(session: AuthSession) {
-        authState = session.state
-        currentUser = session.user
-    }
-
     func switchWorkspace(to selection: WorkspaceSelection) {
         selectedWorkspace = .single
     }
@@ -56,10 +41,9 @@ final class SessionStore {
         applySpace(spaceContext)
     }
 
-    func applyBootstrap(session: AuthSession, spaceContext: SpaceContext) {
-        authState = session.state
-        currentUser = session.user
-        applySpace(spaceContext)
+    func applyPersonalIdentity(user: User, space: Space) {
+        currentUser = user
+        applySpace(SpaceContext(singleSpace: space, activeMode: .single, availableModes: [.single]))
         selectedWorkspace = .single
     }
 
@@ -67,16 +51,7 @@ final class SessionStore {
         applySpace(spaceContext)
     }
 
-    func clearForSignOut() {
-        authState = .signedOut
-        currentUser = nil
-        singleSpace = nil
-        availableModeStates = [.single]
-        selectedWorkspace = .single
-    }
-
     func seedMock(currentUser: User, singleSpace: Space) {
-        authState = .signedIn
         self.currentUser = currentUser
         self.singleSpace = singleSpace
         availableModeStates = [.single]

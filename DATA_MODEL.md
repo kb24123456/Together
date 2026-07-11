@@ -16,7 +16,6 @@
 
 ## 2. UserProfile
 - `id: UUID`
-- `appleUserID: String?`
 - `displayName: String`
 - `avatarSystemName: String?`
 - `avatarPhotoFileName: String?`

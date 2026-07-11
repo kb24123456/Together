@@ -12,11 +12,6 @@ enum WorkspaceSelection: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-struct AuthSession: Hashable, Sendable {
-    var state: AuthState
-    var user: User?
-}
-
 struct SpaceContext: Hashable, Sendable {
     var singleSpace: Space?
     var activeMode: AppMode

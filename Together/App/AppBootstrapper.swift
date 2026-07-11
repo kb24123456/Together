@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import Observation
 
@@ -7,13 +8,18 @@ final class AppBootstrapper {
     enum Phase: Equatable {
         case idle
         case bootstrapping
-        case needsAuth
+        case restoringIdentity(isSlow: Bool)
+        case requiresLocalStart
+        case identityFailed(String)
         case ready
         case persistenceFailed(PersistenceStartupFailure)
     }
 
     private(set) var phase: Phase = .idle
     private(set) var appContext: AppContext?
+    private var identityRestoreSlowTask: Task<Void, Never>?
+    private var cloudImportObservationTask: Task<Void, Never>?
+    private var didObserveSuccessfulInitialImport = false
 
     var isReady: Bool {
         phase == .ready && appContext != nil
@@ -34,6 +40,7 @@ final class AppBootstrapper {
         do {
             appContext = try AppContext.makeContext()
             self.appContext = appContext
+            startObservingCloudImports()
         } catch let failure as PersistenceStartupFailure {
             self.appContext = nil
             phase = .persistenceFailed(failure)
@@ -47,7 +54,9 @@ final class AppBootstrapper {
             return
         }
 
-        await appContext.bootstrapIfNeeded()
+        let identityResolution = await appContext.bootstrapIfNeeded(
+            afterInitialCloudImport: didObserveSuccessfulInitialImport
+        )
 
         // Ensure the launch animation has time to play out.
         let minLaunchDuration: Duration = .milliseconds(1200)
@@ -56,28 +65,17 @@ final class AppBootstrapper {
             try? await Task.sleep(for: minLaunchDuration - elapsed)
         }
 
-        if appContext.sessionStore.authState == .signedIn {
-            phase = .ready
-        } else {
-            phase = .needsAuth
-        }
+        apply(identityResolution)
         StartupTrace.mark("AppBootstrapper.bootstrap.phaseResolved=\(phase)")
     }
 
-    func handleSignIn(session: AuthSession) async {
+    func startLocally() async {
         guard let appContext else { return }
-        appContext.sessionStore.handleSignIn(session: session)
-
-        // Set up spaces for a newly signed-in user
-        await appContext.setupSpacesForCurrentUserIfNeeded()
-        await appContext.migrateLegacyProjectsIfNeeded()
-        await appContext.restorePersistedUserProfileIfNeeded()
-        phase = .ready
-        StartupTrace.mark("AppBootstrapper.handleSignIn.ready")
-    }
-
-    func handleSignOut() {
-        phase = .needsAuth
+        do {
+            apply(try await appContext.startLocally())
+        } catch {
+            phase = .identityFailed("无法创建本机空间，请重试。")
+        }
     }
 
     func retryPersistenceBootstrap() async {
@@ -85,5 +83,51 @@ final class AppBootstrapper {
         appContext = nil
         phase = .idle
         await bootstrapIfNeeded()
+    }
+
+    func retryIdentityResolution() async {
+        guard let appContext else { return }
+        phase = .bootstrapping
+        apply(await appContext.bootstrapIfNeeded(afterInitialCloudImport: didObserveSuccessfulInitialImport))
+    }
+
+    private func apply(_ resolution: PersonalIdentityResolution) {
+        identityRestoreSlowTask?.cancel()
+        switch resolution {
+        case .ready:
+            phase = .ready
+        case .waitingForCloudRestore:
+            phase = .restoringIdentity(isSlow: false)
+            identityRestoreSlowTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(10))
+                guard Task.isCancelled == false,
+                      let self,
+                      case .restoringIdentity = phase else { return }
+                phase = .restoringIdentity(isSlow: true)
+            }
+        case .requiresLocalStart:
+            phase = .requiresLocalStart
+        }
+    }
+
+    private func startObservingCloudImports() {
+        guard cloudImportObservationTask == nil else { return }
+        cloudImportObservationTask = Task { @MainActor [weak self] in
+            for await notification in NotificationCenter.default.notifications(
+                named: NSPersistentCloudKitContainer.eventChangedNotification
+            ) {
+                guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                    as? NSPersistentCloudKitContainer.Event,
+                      event.type == .import,
+                      event.endDate != nil,
+                      event.succeeded
+                else { continue }
+
+                guard let self else { return }
+                didObserveSuccessfulInitialImport = true
+                guard let appContext else { continue }
+                apply(await appContext.bootstrapIfNeeded(afterInitialCloudImport: true))
+            }
+        }
     }
 }

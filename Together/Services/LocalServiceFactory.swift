@@ -39,8 +39,7 @@ enum LocalServiceFactory {
         let userProfileRemote = UserProfileRemoteRepository()
 
         let container = AppContainer(
-            authService: AppleAuthService(container: modelContainer),
-            spaceService: LocalSpaceService(container: modelContainer),
+            personalIdentityService: PersonalIdentityService(container: modelContainer),
             taskApplicationService: taskApplicationService,
             syncCoordinator: syncCoordinator,
             userProfileRepository: userProfileRepository,

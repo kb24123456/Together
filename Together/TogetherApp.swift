@@ -36,17 +36,38 @@ struct TogetherApp: App {
                             }
                             .animation(.easeInOut(duration: 0.3), value: appContext.sessionStore.isAppLocked)
                     }
-                case .needsAuth:
-                    if let appContext = appBootstrapper.appContext {
-                        SignInView(
-                            authService: appContext.container.authService,
-                            onSignedIn: { session in
-                                Task {
-                                    await appBootstrapper.handleSignIn(session: session)
-                                }
-                            }
-                        )
-                    }
+                case .restoringIdentity(let isSlow):
+                    PersonalIdentityBootstrapView(
+                        title: isSlow ? "数据恢复时间较长" : "正在恢复你的数据",
+                        message: isSlow
+                            ? "请保持网络连接；Together 不会在恢复完成前创建第二个空间。"
+                            : "正在从你的私人 iCloud 数据库恢复。",
+                        primaryButtonTitle: nil,
+                        onPrimaryAction: nil,
+                        onUseLocally: {
+                            Task { await appBootstrapper.startLocally() }
+                        }
+                    )
+                case .requiresLocalStart:
+                    PersonalIdentityBootstrapView(
+                        title: "开始使用 Together",
+                        message: "iCloud 中没有发现已有数据。确认后将创建你的个人空间。",
+                        primaryButtonTitle: "开始使用",
+                        onPrimaryAction: {
+                            Task { await appBootstrapper.startLocally() }
+                        },
+                        onUseLocally: nil
+                    )
+                case .identityFailed(let message):
+                    PersonalIdentityBootstrapView(
+                        title: "个人空间暂时不可用",
+                        message: message,
+                        primaryButtonTitle: "重试",
+                        onPrimaryAction: {
+                            Task { await appBootstrapper.retryIdentityResolution() }
+                        },
+                        onUseLocally: nil
+                    )
                 case .idle, .bootstrapping:
                     AppLaunchView()
                 case .persistenceFailed(let failure):
@@ -83,11 +104,6 @@ struct TogetherApp: App {
                     notificationDelegate.configure(appContext: appContext)
                     await appContext.performPostLaunchWorkIfNeeded()
                     StartupTrace.mark("TogetherApp.ready.task.end")
-                }
-                .onChange(of: appBootstrapper.appContext?.sessionStore.authState) { _, newValue in
-                    if newValue == .signedOut, appBootstrapper.phase == .ready {
-                        appBootstrapper.handleSignOut()
-                    }
                 }
                 .onOpenURL { url in
                     if let appContext = appBootstrapper.appContext {
