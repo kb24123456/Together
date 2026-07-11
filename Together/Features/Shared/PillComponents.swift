@@ -4,7 +4,7 @@ import SwiftUI
 /// 替代散落各页面的 Capsule + Text + tint 组合。
 struct Badge: View {
     enum Size {
-        case small  // 11pt 字 / sm 水平 padding（"共享" 标签）
+        case small  // 11pt 字 / sm 水平 padding（紧凑标签）
         case regular  // 12pt 字 / md 水平 padding（status chip）
     }
 
@@ -87,7 +87,7 @@ struct PillToggleButton: View {
 #if DEBUG
 #Preview("Badges") {
     VStack(spacing: AppTheme.spacing.md) {
-        Badge(text: "共享", tint: AppTheme.colors.coral, size: .small)
+        Badge(text: "紧急", tint: AppTheme.colors.coral, size: .small)
         Badge(text: "已完成", tint: AppTheme.colors.success)
         Badge(text: "超期", tint: AppTheme.colors.danger, size: .regular)
         ModeIndicator()

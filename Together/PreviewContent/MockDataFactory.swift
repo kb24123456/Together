@@ -268,68 +268,6 @@ enum MockDataFactory {
         ]
     }
 
-    static func makeDecisions() -> [Decision] {
-        [
-            Decision(
-                id: UUID(uuidString: "77777777-7777-7777-7777-777777777771")!,
-                spaceID: singleSpaceID,
-                creatorID: currentUserID,
-                template: .eat,
-                title: "今晚试试新开的潮汕牛肉火锅？",
-                notes: "离家 15 分钟，排队可能要 20 分钟",
-                referenceLink: URL(string: "https://example.com/hotpot"),
-                proposedTime: now.addingTimeInterval(3_600 * 5),
-                status: .pendingResponse,
-                votes: [
-                    DecisionVote(voterID: currentUserID, value: .agree, respondedAt: now.addingTimeInterval(-1_800))
-                ],
-                createdAt: now.addingTimeInterval(-3_600),
-                updatedAt: now.addingTimeInterval(-1_800),
-                archivedAt: nil,
-                convertedItemID: nil,
-                isDraft: false
-            ),
-            Decision(
-                id: UUID(uuidString: "77777777-7777-7777-7777-777777777772")!,
-                spaceID: singleSpaceID,
-                creatorID: currentUserID,
-                template: .go,
-                title: "五一去杭州吗？",
-                notes: "预算先控制在 4k 内",
-                referenceLink: nil,
-                proposedTime: now.addingTimeInterval(86_400 * 50),
-                status: .noConsensusYet,
-                votes: [
-                    DecisionVote(voterID: currentUserID, value: .neutral, respondedAt: now.addingTimeInterval(-43_200))
-                ],
-                createdAt: now.addingTimeInterval(-86_400 * 2),
-                updatedAt: now.addingTimeInterval(-43_200),
-                archivedAt: nil,
-                convertedItemID: nil,
-                isDraft: false
-            ),
-            Decision(
-                id: UUID(uuidString: "77777777-7777-7777-7777-777777777773")!,
-                spaceID: singleSpaceID,
-                creatorID: currentUserID,
-                template: .buy,
-                title: "要不要买空气炸锅？",
-                notes: "厨房收纳尺寸够放一台小号",
-                referenceLink: nil,
-                proposedTime: nil,
-                status: .consensusReached,
-                votes: [
-                    DecisionVote(voterID: currentUserID, value: .agree, respondedAt: now.addingTimeInterval(-86_400 * 3 + 600))
-                ],
-                createdAt: now.addingTimeInterval(-86_400 * 3),
-                updatedAt: now.addingTimeInterval(-86_400 * 3 + 600),
-                archivedAt: nil,
-                convertedItemID: nil,
-                isDraft: false
-            )
-        ]
-    }
-
     static func makeTaskLists() -> [TaskList] {
         [
             TaskList(

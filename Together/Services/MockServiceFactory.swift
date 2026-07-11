@@ -36,7 +36,6 @@ enum MockServiceFactory {
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
             projectToTaskMigrationService: ProjectToTaskMigrationService(container: migrationPersistence.container),
-            decisionRepository: MockDecisionRepository(),
             notificationService: notificationService,
             reminderScheduler: reminderScheduler,
             personalDataDeletionService: PersonalDataDeletionService(

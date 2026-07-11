@@ -26,7 +26,6 @@ final class AppContext {
     let router: AppRouter
     let appearanceManager: AppearanceManager
     let homeViewModel: HomeViewModel
-    let listsViewModel: ListsViewModel
     let projectsViewModel: ProjectsViewModel
     let profileViewModel: ProfileViewModel
     let routinesViewModel: RoutinesViewModel
@@ -69,10 +68,6 @@ final class AppContext {
             taskApplicationService: container.taskApplicationService,
             itemRepository: container.itemRepository,
             taskTemplateRepository: container.taskTemplateRepository
-        )
-        self.listsViewModel = ListsViewModel(
-            sessionStore: sessionStore,
-            taskListRepository: container.taskListRepository
         )
         self.projectsViewModel = ProjectsViewModel(
             sessionStore: sessionStore,
@@ -355,7 +350,6 @@ final class AppContext {
     private func performCoalescedReloadAfterSync() async {
         try? await Task.sleep(for: Self.reloadAfterSyncCoalescingDelay)
         await homeViewModel.reload(reason: .sync)
-        await listsViewModel.load()
         await projectsViewModel.load()
         await routinesViewModel.loadIfNeeded()
         await refreshTodayWidgetSnapshot()
