@@ -2,6 +2,12 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
+/// Keep widget emphasis aligned with `AppTheme.colors.sky` in the main app.
+/// Widget extensions do not link the app target's design-system source directly.
+private enum TodayWidgetTheme {
+    static let babyBlue = Color(red: 0.42, green: 0.70, blue: 0.98)
+}
+
 struct TodayOverviewWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(
@@ -264,7 +270,7 @@ private struct TodayWidgetDashboardHeader: View {
                 Text(verbatim: "\(snapshot.completedTodayCount) / \(snapshot.totalTodayCount)")
                     .font(.system(.title3, design: .rounded, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(TodayWidgetTheme.babyBlue)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
@@ -291,7 +297,7 @@ private struct TodayWidgetAddTaskLink: View {
         Link(destination: TodayWidgetConstants.newTaskDeepLink) {
             Image(systemName: "plus")
                 .font(.title3.weight(.semibold))
-                .foregroundStyle(.tint)
+                .foregroundStyle(TodayWidgetTheme.babyBlue)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
@@ -313,7 +319,7 @@ private struct TodayWidgetLinearProgress: View {
                 .lineLimit(1)
 
             ProgressView(value: snapshot.completionProgress)
-                .tint(.accentColor)
+                .tint(TodayWidgetTheme.babyBlue)
                 .widgetAccentable()
         }
         .accessibilityElement(children: .combine)
@@ -336,7 +342,7 @@ private struct TodayWidgetSectionHeader: View {
                 .monospacedDigit()
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(isOverdue ? Color.red : Color.accentColor)
+        .foregroundStyle(isOverdue ? Color.red : TodayWidgetTheme.babyBlue)
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(count) 项")
@@ -411,16 +417,16 @@ private struct TodayWidgetCheckbox: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isCompleting ? Color.accentColor.opacity(0.16) : .clear)
+                .fill(isCompleting ? TodayWidgetTheme.babyBlue.opacity(0.16) : .clear)
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(
-                    isCompleting ? Color.accentColor : Color.secondary.opacity(0.58),
+                    isCompleting ? TodayWidgetTheme.babyBlue : Color.secondary.opacity(0.58),
                     style: StrokeStyle(lineWidth: 1.4, dash: isCompleting ? [] : [3.2, 3.2])
                 )
             if isCompleting {
                 Image(systemName: "checkmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(TodayWidgetTheme.babyBlue)
                     .widgetAccentable()
             }
         }
@@ -473,7 +479,7 @@ private struct TodayWidgetClearedRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.tint)
+                .foregroundStyle(TodayWidgetTheme.babyBlue)
                 .widgetAccentable()
                 .frame(width: 44, height: 44)
             Text("今日已清空")
