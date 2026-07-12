@@ -77,11 +77,24 @@ struct TogetherTests {
         let taskID = UUID()
 
         #expect(AppDeepLink(url: URL(string: "together://today")!) == .today)
+        #expect(AppDeepLink(url: URL(string: "together://new-task")!) == .newTask)
         #expect(AppDeepLink(url: URL(string: "together://task/\(taskID.uuidString)")!) == .task(taskID))
         #expect(AppDeepLink(url: URL(string: "together://task/not-a-uuid")!) == nil)
         #expect(AppDeepLink(url: URL(string: "together://unknown")!) == nil)
         #expect(AppDeepLink(url: URL(string: "together://task")!) == nil)
         #expect(AppDeepLink.task(taskID).url == URL(string: "together://task/\(taskID.uuidString)"))
+        #expect(AppDeepLink.newTask.url == URL(string: "together://new-task"))
+    }
+
+    @Test func newTaskDeepLinkOpensComposerFromToday() async throws {
+        let appContext = try makeOCRAppContext(
+            taskApplicationService: CapturingTaskApplicationService()
+        )
+
+        await appContext.handleDeepLink(.newTask)
+
+        #expect(appContext.router.currentSurface == .today)
+        #expect(appContext.router.activeComposer == .newTask)
     }
 
     @Test func missingTaskDeepLinkProducesRetryableFeedback() async throws {

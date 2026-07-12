@@ -247,6 +247,12 @@ final class AppContext {
             pendingHighlightTaskID = nil
             homeViewModel.clearExternalRouteFailure()
             router.resetToToday()
+        case .newTask:
+            pendingDeepLinkTaskID = nil
+            pendingHighlightTaskID = nil
+            homeViewModel.clearExternalRouteFailure()
+            router.resetToToday()
+            router.activeComposer = .newTask
         case .task(let taskID):
             if homeViewModel.expandedDetailItemID != nil {
                 guard await homeViewModel.collapseInlineDetail() else { return }

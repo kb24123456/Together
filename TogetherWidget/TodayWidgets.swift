@@ -12,9 +12,8 @@ struct TodayOverviewWidget: Widget {
                 .widgetURL(TodayWidgetConstants.todayDeepLink)
         }
         .configurationDisplayName("今日概览")
-        .description("快速查看今日进度，并在中号或大号组件中完成任务。")
+        .description("查看今日进度，并在中号或大号组件中完成任务。")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
-        .contentMarginsDisabled()
     }
 }
 
@@ -65,7 +64,6 @@ private struct TodayWidgetProvider: TimelineProvider {
 
 private struct TodayWidgetView: View {
     @Environment(\.widgetFamily) private var family
-    @Environment(\.widgetContentMargins) private var widgetContentMargins
 
     let entry: TodayWidgetEntry
 
@@ -80,118 +78,139 @@ private struct TodayWidgetView: View {
                 smallOverview
             }
         }
-        .padding(contentInsets)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .containerBackground(.background, for: .widget)
     }
 
-    private var contentInsets: EdgeInsets {
-        let minimum: CGFloat = family == .systemLarge ? 20 : 16
-        return EdgeInsets(
-            top: max(widgetContentMargins.top, minimum),
-            leading: max(widgetContentMargins.leading, minimum),
-            bottom: max(widgetContentMargins.bottom, minimum),
-            trailing: max(widgetContentMargins.trailing, minimum)
-        )
+    private var smallOverview: some View {
+        ViewThatFits(in: .vertical) {
+            smallOverviewContent(countSize: 48, verticalSpacing: 8)
+            smallOverviewContent(countSize: 38, verticalSpacing: 3)
+        }
     }
 
-    private var smallOverview: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TodayWidgetHeader(snapshot: entry.snapshot, showsDate: false)
+    private func smallOverviewContent(
+        countSize: CGFloat,
+        verticalSpacing: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                Text("今天")
+                    .font(.headline.weight(.semibold))
 
-            HStack(spacing: 12) {
-                TodayWidgetProgressRing(snapshot: entry.snapshot, diameter: 58)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(verbatim: "已完成 \(entry.snapshot.completedTodayCount) / 共 \(entry.snapshot.totalTodayCount) 项")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-
-                    Text(smallSummaryText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
+                Spacer(minLength: 8)
+                TodayWidgetAddTaskLink()
             }
 
-            Spacer(minLength: 0)
-            smallAttentionRow
+            Spacer(minLength: verticalSpacing)
+
+            Text(verbatim: "\(entry.snapshot.remainingCount)")
+                .font(.system(size: countSize, weight: .medium, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .contentTransition(.numericText())
+
+            Text("项待办")
+                .font(.subheadline.weight(.medium))
+
+            Spacer(minLength: verticalSpacing)
+
+            TodayWidgetLinearProgress(snapshot: entry.snapshot)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(smallAccessibilityLabel)
     }
 
     private var mediumOverview: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("今日")
-                    .font(.headline)
-
-                TodayWidgetProgressRing(snapshot: entry.snapshot, diameter: 58)
-
-                Text(verbatim: "\(entry.snapshot.completedTodayCount) / \(entry.snapshot.totalTodayCount) 已完成")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Text(verbatim: "剩余 \(entry.snapshot.remainingCount)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 82, alignment: .leading)
+        VStack(alignment: .leading, spacing: 0) {
+            TodayWidgetDashboardHeader(
+                snapshot: entry.snapshot,
+                title: "今天",
+                showsDate: false
+            )
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 4) {
-                if visibleTasks.isEmpty {
-                    TodayWidgetClearedState(snapshot: entry.snapshot, compact: true)
-                } else {
-                    taskRows(visibleTasks)
-                }
+            mediumContent
+        }
+    }
+
+    @ViewBuilder
+    private var mediumContent: some View {
+        let tasks = Array(entry.snapshot.tasks.prefix(2))
+        VStack(spacing: 0) {
+            ForEach(tasks) { task in
+                TodayWidgetTaskRow(
+                    task: task,
+                    isCompleting: entry.snapshot.animatingCompletionTaskIDs.contains(task.id),
+                    isAppearing: entry.snapshot.appearingTaskIDs.contains(task.id),
+                    showsDivider: true
+                )
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            if tasks.isEmpty {
+                TodayWidgetClearedRow()
+            }
+
+            if tasks.count < 2, let nextTask = entry.snapshot.nextUpcomingTask {
+                TodayWidgetUpcomingRow(task: nextTask)
+            }
         }
     }
 
     private var largeOverview: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
-                TodayWidgetHeader(snapshot: entry.snapshot, showsDate: true)
-                Spacer(minLength: 8)
-                TodayWidgetProgressRing(snapshot: entry.snapshot, diameter: 54)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            TodayWidgetDashboardHeader(
+                snapshot: entry.snapshot,
+                title: "今日看板",
+                showsDate: true
+            )
 
-            HStack(spacing: 10) {
-                TodayWidgetMetric(
-                    title: "今日剩余",
-                    value: entry.snapshot.remainingCount,
-                    systemImage: "circle.dotted"
-                )
-                TodayWidgetMetric(
-                    title: "逾期",
-                    value: entry.snapshot.overdueCount,
-                    systemImage: "exclamationmark.circle",
-                    emphasizesValue: entry.snapshot.overdueCount > 0
-                )
-            }
+            Divider()
 
-            if visibleTasks.isEmpty {
-                TodayWidgetClearedState(snapshot: entry.snapshot, compact: false)
-            } else {
-                ViewThatFits(in: .vertical) {
-                    taskRows(Array(visibleTasks.prefix(6)))
-                    taskRows(Array(visibleTasks.prefix(5)))
-                    taskRows(Array(visibleTasks.prefix(4)))
-                    taskRows(Array(visibleTasks.prefix(3)))
-                }
+            ViewThatFits(in: .vertical) {
+                largeBoard(rowLimit: 5)
+                largeBoard(rowLimit: 4)
+                largeBoard(rowLimit: 3)
             }
         }
     }
 
-    private var visibleTasks: [TodayWidgetTaskSnapshot] {
-        tasksVisibleInWidget(from: entry.snapshot, family: family)
+    private func largeBoard(rowLimit: Int) -> some View {
+        let visibleTasks = Array(entry.snapshot.tasks.prefix(rowLimit))
+        let overdueTasks = visibleTasks.filter(\.isOverdue)
+        let todayTasks = visibleTasks.filter { $0.isOverdue == false }
+
+        return VStack(spacing: 0) {
+            if overdueTasks.isEmpty == false {
+                TodayWidgetSectionHeader(
+                    title: "逾期",
+                    count: entry.snapshot.overdueCount,
+                    isOverdue: true
+                )
+                taskRows(overdueTasks)
+            }
+
+            if todayTasks.isEmpty == false {
+                TodayWidgetSectionHeader(
+                    title: "今天",
+                    count: max(0, entry.snapshot.remainingCount - entry.snapshot.overdueCount),
+                    isOverdue: false
+                )
+                taskRows(todayTasks)
+            }
+
+            if visibleTasks.isEmpty {
+                TodayWidgetClearedRow()
+            }
+
+            if visibleTasks.count < rowLimit,
+               visibleTasks.count >= entry.snapshot.remainingCount,
+               let nextTask = entry.snapshot.nextUpcomingTask {
+                TodayWidgetUpcomingRow(task: nextTask)
+            }
+        }
     }
 
     private func taskRows(_ tasks: [TodayWidgetTaskSnapshot]) -> some View {
@@ -207,81 +226,59 @@ private struct TodayWidgetView: View {
         }
     }
 
-    private var smallSummaryText: String {
-        if entry.snapshot.remainingCount == 0 { return "今日已清空" }
-        if entry.snapshot.overdueCount > 0 { return "含 \(entry.snapshot.overdueCount) 项逾期" }
-        return "按计划推进中"
-    }
-
-    @ViewBuilder
-    private var smallAttentionRow: some View {
-        if let task = entry.snapshot.tasks.first {
-            HStack(spacing: 6) {
-                Image(systemName: task.isOverdue ? "exclamationmark.circle.fill" : "arrow.right.circle.fill")
-                    .foregroundStyle(task.isOverdue ? Color.red : Color.accentColor)
-                    .widgetAccentable()
-                Text(task.title)
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if let dueTimeText = task.dueTimeText {
-                    Text(dueTimeText)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(task.isOverdue ? .red : .secondary)
-                        .lineLimit(1)
-                }
-            }
-        } else if let nextTask = entry.snapshot.nextUpcomingTask {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("下一项")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    Text(nextTask.title)
-                        .font(.caption.weight(.medium))
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    if let dueTimeText = nextTask.dueTimeText {
-                        Text(dueTimeText)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-        } else {
-            Label("今天没有待办事项", systemImage: "checkmark.circle.fill")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private var smallAccessibilityLabel: String {
-        var parts = ["今日概览", "已完成 \(entry.snapshot.completedTodayCount) 项，共 \(entry.snapshot.totalTodayCount) 项"]
+        var parts = [
+            "今天",
+            "剩余 \(entry.snapshot.remainingCount) 项",
+            "已完成 \(entry.snapshot.completedTodayCount) 项，共 \(entry.snapshot.totalTodayCount) 项"
+        ]
         if entry.snapshot.overdueCount > 0 {
             parts.append("逾期 \(entry.snapshot.overdueCount) 项")
-        }
-        if let task = entry.snapshot.tasks.first {
-            parts.append("下一项，\(task.title)")
         }
         return parts.joined(separator: "，")
     }
 }
 
-private struct TodayWidgetHeader: View {
+private struct TodayWidgetDashboardHeader: View {
     let snapshot: TodayWidgetSnapshot
+    let title: String
     let showsDate: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("今日概览")
-                .font(.headline)
-            if showsDate {
-                Text(referenceDateText)
-                    .font(.caption)
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                    .lineLimit(1)
+
+                Text(showsDate ? referenceDateText : "还剩 \(snapshot.remainingCount) 项")
+                    .font(.system(.caption, design: .rounded, weight: .regular))
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+
+            Spacer(minLength: 6)
+
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(verbatim: "\(snapshot.completedTodayCount) / \(snapshot.totalTodayCount)")
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                if showsDate {
+                    Text("已完成")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            TodayWidgetAddTaskLink()
         }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .contain)
     }
 
     private var referenceDateText: String {
@@ -289,65 +286,60 @@ private struct TodayWidgetHeader: View {
     }
 }
 
-private struct TodayWidgetProgressRing: View {
-    let snapshot: TodayWidgetSnapshot
-    let diameter: CGFloat
-
+private struct TodayWidgetAddTaskLink: View {
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.secondary.opacity(0.16), lineWidth: 7)
-            Circle()
-                .trim(from: 0, to: snapshot.completionProgress)
-                .stroke(.tint, style: StrokeStyle(lineWidth: 7, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .widgetAccentable()
-
-            if snapshot.totalTodayCount == 0 || snapshot.remainingCount == 0 {
-                Image(systemName: "checkmark")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.tint)
-                    .widgetAccentable()
-            } else {
-                Text(verbatim: "\(Int((snapshot.completionProgress * 100).rounded()))%")
-                    .font(.caption.weight(.bold))
-                    .monospacedDigit()
-            }
+        Link(destination: TodayWidgetConstants.newTaskDeepLink) {
+            Image(systemName: "plus")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.tint)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
-        .frame(width: diameter, height: diameter)
-        .accessibilityElement()
-        .accessibilityLabel("今日完成进度")
-        .accessibilityValue("百分之 \(Int((snapshot.completionProgress * 100).rounded()))")
+        .buttonStyle(.plain)
+        .accessibilityLabel("新建任务")
+        .accessibilityHint("打开 Together 的任务创建页")
     }
 }
 
-private struct TodayWidgetMetric: View {
-    let title: String
-    let value: Int
-    let systemImage: String
-    var emphasizesValue = false
+private struct TodayWidgetLinearProgress: View {
+    let snapshot: TodayWidgetSnapshot
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.subheadline)
-                .foregroundStyle(emphasizesValue ? .red : .secondary)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: "\(value)")
-                    .font(.title3.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(emphasizesValue ? .red : .primary)
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 5) {
+            Text(verbatim: "\(snapshot.completedTodayCount) / \(snapshot.totalTodayCount) 已完成")
+                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            ProgressView(value: snapshot.completionProgress)
+                .tint(.accentColor)
+                .widgetAccentable()
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: 52)
-        .background(.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title) \(value) 项")
+        .accessibilityLabel("今日完成进度")
+        .accessibilityValue("已完成 \(snapshot.completedTodayCount) 项，共 \(snapshot.totalTodayCount) 项")
+    }
+}
+
+private struct TodayWidgetSectionHeader: View {
+    let title: String
+    let count: Int
+    let isOverdue: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: isOverdue ? "exclamationmark.circle" : "calendar")
+            Text(title)
+            Text(verbatim: "\(count)")
+                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .monospacedDigit()
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(isOverdue ? Color.red : Color.accentColor)
+        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) \(count) 项")
     }
 }
 
@@ -363,7 +355,7 @@ private struct TodayWidgetTaskRow: View {
         HStack(spacing: 8) {
             Button(intent: TodayTaskCompletionIntent(taskID: task.id.uuidString)) {
                 TodayWidgetCheckbox(isCompleting: isCompleting)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 22, height: 22)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
@@ -383,7 +375,8 @@ private struct TodayWidgetTaskRow: View {
 
                     if let dueTimeText = task.dueTimeText {
                         Text(dueTimeText)
-                            .font(.caption.weight(task.isOverdue ? .semibold : .regular))
+                            .font(.system(.caption, design: .rounded, weight: task.isOverdue ? .semibold : .regular))
+                            .monospacedDigit()
                             .foregroundStyle(task.isOverdue ? .red : .secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.78)
@@ -397,8 +390,8 @@ private struct TodayWidgetTaskRow: View {
         }
         .frame(minHeight: 44)
         .opacity(isAppearing ? 0 : 1)
-        .offset(y: reduceMotion || isAppearing == false ? 0 : 5)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.26), value: isAppearing)
+        .offset(y: reduceMotion || isAppearing == false ? 0 : 4)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.24), value: isAppearing)
         .overlay(alignment: .bottom) {
             if showsDivider {
                 Divider()
@@ -417,12 +410,12 @@ private struct TodayWidgetCheckbox: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isCompleting ? Color.accentColor.opacity(0.18) : .clear)
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isCompleting ? Color.accentColor.opacity(0.16) : .clear)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(
-                    isCompleting ? Color.accentColor : Color.secondary.opacity(0.55),
-                    style: StrokeStyle(lineWidth: 1.5, dash: isCompleting ? [] : [3.5, 3.5])
+                    isCompleting ? Color.accentColor : Color.secondary.opacity(0.58),
+                    style: StrokeStyle(lineWidth: 1.4, dash: isCompleting ? [] : [3.2, 3.2])
                 )
             if isCompleting {
                 Image(systemName: "checkmark")
@@ -434,37 +427,61 @@ private struct TodayWidgetCheckbox: View {
     }
 }
 
-private struct TodayWidgetClearedState: View {
-    let snapshot: TodayWidgetSnapshot
-    let compact: Bool
+private struct TodayWidgetUpcomingRow: View {
+    let task: TodayWidgetTaskSnapshot
 
     var body: some View {
-        VStack(alignment: compact ? .leading : .center, spacing: 5) {
-            Spacer(minLength: 0)
-            Label("今日已清空", systemImage: "checkmark.circle.fill")
-                .font((compact ? Font.subheadline : .headline).weight(.semibold))
-                .foregroundStyle(.secondary)
+        Link(destination: TodayWidgetConstants.taskDeepLink(taskID: task.id)) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.forward.circle")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
 
-            if let nextTask = snapshot.nextUpcomingTask {
-                Text(nextTaskText(nextTask))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(compact ? 1 : 2)
-                    .multilineTextAlignment(compact ? .leading : .center)
-            } else {
-                Text("享受当下，或规划新任务")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("下一项")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(task.title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                if let dueTimeText = task.dueTimeText {
+                    Text(dueTimeText)
+                        .font(.system(.caption, design: .rounded, weight: .regular))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: compact ? .leading : .center)
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
+        .accessibilityLabel(nextTaskAccessibilityLabel)
     }
 
-    private func nextTaskText(_ task: TodayWidgetTaskSnapshot) -> String {
-        let schedule = task.dueTimeText.map { " · \($0)" } ?? ""
-        return "下一项：\(task.title)\(schedule)"
+    private var nextTaskAccessibilityLabel: String {
+        ["下一项", task.title, task.dueTimeText].compactMap { $0 }.joined(separator: "，")
+    }
+}
+
+private struct TodayWidgetClearedRow: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.tint)
+                .widgetAccentable()
+                .frame(width: 44, height: 44)
+            Text("今日已清空")
+                .font(.subheadline.weight(.semibold))
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -472,7 +489,7 @@ private func tasksVisibleInWidget(
     from snapshot: TodayWidgetSnapshot,
     family: WidgetFamily
 ) -> [TodayWidgetTaskSnapshot] {
-    let limit = family == .systemLarge ? 6 : family == .systemMedium ? 3 : 0
+    let limit = family == .systemLarge ? 5 : family == .systemMedium ? 2 : 0
     return Array(snapshot.tasks.prefix(limit))
 }
 
@@ -497,19 +514,27 @@ private extension TodayWidgetSnapshot {
         TodayWidgetSnapshot(
             generatedAt: .now,
             referenceDate: .now,
-            remainingCount: 3,
-            completedTodayCount: 2,
-            overdueCount: 1,
+            remainingCount: 5,
+            completedTodayCount: 3,
+            overdueCount: 2,
             tasks: [
                 TodayWidgetTaskSnapshot(
                     id: UUID(),
-                    title: "确认信用卡账单",
+                    title: "小微闪续贷情况反馈",
                     dueTimeText: "逾期",
                     sortIndex: 0,
                     isOverdue: true
                 ),
-                TodayWidgetTaskSnapshot(id: UUID(), title: "整理会议记录", dueTimeText: "14:30", sortIndex: 1),
-                TodayWidgetTaskSnapshot(id: UUID(), title: "提交本周总结", dueTimeText: nil, sortIndex: 2)
+                TodayWidgetTaskSnapshot(
+                    id: UUID(),
+                    title: "培训班内容",
+                    dueTimeText: "逾期",
+                    sortIndex: 1,
+                    isOverdue: true
+                ),
+                TodayWidgetTaskSnapshot(id: UUID(), title: "信用卡商户", dueTimeText: "14:00", sortIndex: 2),
+                TodayWidgetTaskSnapshot(id: UUID(), title: "生意会对账发计财", dueTimeText: "16:30", sortIndex: 3),
+                TodayWidgetTaskSnapshot(id: UUID(), title: "联系毛文君电商贷", dueTimeText: nil, sortIndex: 4)
             ],
             nextUpcomingTask: TodayWidgetTaskSnapshot(
                 id: UUID(),
