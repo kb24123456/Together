@@ -5,6 +5,7 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     private let routineAlarmService: RoutineAlarmServiceProtocol
     private let calendar: Calendar
     private let searchWindowDays = 730
+    private var taskRemindersEnabled = true
 
     init(
         notificationService: NotificationServiceProtocol,
@@ -17,18 +18,44 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     }
 
     func syncTaskReminder(for item: Item) async {
-        if let notification = makeTaskNotification(for: item) {
-            try? await notificationService.schedule([notification])
-        } else {
-            await notificationService.cancel([AppNotification.identifier(for: .item, targetID: item.id)])
+        let notificationID = AppNotification.identifier(for: .item, targetID: item.id)
+
+        guard taskRemindersEnabled else {
+            await notificationService.cancel([notificationID])
+            await routineAlarmService.cancel(id: item.id)
+            return
         }
+
+        guard let notification = makeTaskNotification(for: item) else {
+            await notificationService.cancel([notificationID])
+            await routineAlarmService.cancel(id: item.id)
+            return
+        }
+
+        if shouldPreferAlarm(for: item) {
+            if await scheduleAlarmIfPossible(for: item, at: notification.scheduledAt) {
+                await notificationService.cancel([notificationID])
+                return
+            }
+        } else {
+            await routineAlarmService.cancel(id: item.id)
+        }
+
+        await routineAlarmService.cancel(id: item.id)
+        try? await notificationService.schedule([notification])
     }
 
     func removeTaskReminder(for itemID: UUID) async {
         await notificationService.cancel([AppNotification.identifier(for: .item, targetID: itemID)])
+        await routineAlarmService.cancel(id: itemID)
     }
 
     func snoozeTaskReminder(itemID: UUID, title: String, body: String, delay: TimeInterval) async {
+        guard taskRemindersEnabled else {
+            await removeTaskReminder(for: itemID)
+            return
+        }
+
         let notification = AppNotification(
             id: UUID(),
             spaceID: nil,
@@ -46,6 +73,11 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     }
 
     func syncProjectReminder(for project: Project) async {
+        guard taskRemindersEnabled else {
+            await removeProjectReminder(for: project.id)
+            return
+        }
+
         if let notification = makeProjectNotification(for: project) {
             try? await notificationService.schedule([notification])
         } else {
@@ -58,6 +90,11 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     }
 
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {
+        guard taskRemindersEnabled else {
+            await notificationService.cancel([AppNotification.identifier(for: .dailySummary, targetID: spaceID)])
+            return
+        }
+
         if let notification = makeDailySummaryNotification(spaceID: spaceID, tasks: tasks, now: .now) {
             try? await notificationService.schedule([notification])
         } else {
@@ -65,20 +102,36 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         }
     }
 
-    func resync(tasks: [Item], projects: [Project]) async {
-        let taskNotifications = tasks.compactMap(makeTaskNotification(for:))
-        let projectNotifications = projects.compactMap(makeProjectNotification(for:))
+    func resync(
+        tasks: [Item],
+        projects: [Project],
+        includeTaskReminders: Bool,
+        includeDailySummary: Bool
+    ) async {
+        taskRemindersEnabled = includeTaskReminders
+        let projectNotifications = includeTaskReminders
+            ? projects.compactMap(makeProjectNotification(for:))
+            : []
         let spaceIDs = Set(tasks.compactMap(\.spaceID) + projects.compactMap(\.spaceID))
-        let dailySummaryNotifications = spaceIDs.compactMap { spaceID in
-            makeDailySummaryNotification(spaceID: spaceID, tasks: tasks, now: .now)
+        let dailySummaryNotifications = includeDailySummary
+            ? spaceIDs.compactMap { spaceID in
+                makeDailySummaryNotification(spaceID: spaceID, tasks: tasks, now: .now)
+            }
+            : []
+
+        try? await notificationService.schedule(projectNotifications + dailySummaryNotifications)
+
+        for task in tasks {
+            if includeTaskReminders {
+                await syncTaskReminder(for: task)
+            } else {
+                await removeTaskReminder(for: task.id)
+            }
         }
 
-        try? await notificationService.schedule(taskNotifications + projectNotifications + dailySummaryNotifications)
-
-        let desiredIdentifiers = Set((taskNotifications + projectNotifications + dailySummaryNotifications).map(\.identifier))
+        let desiredIdentifiers = Set((projectNotifications + dailySummaryNotifications).map(\.identifier))
         let allIdentifiers = Set(
-            tasks.map { AppNotification.identifier(for: .item, targetID: $0.id) }
-            + projects.map { AppNotification.identifier(for: .project, targetID: $0.id) }
+            projects.map { AppNotification.identifier(for: .project, targetID: $0.id) }
             + spaceIDs.map { AppNotification.identifier(for: .dailySummary, targetID: $0) }
         )
         let staleIdentifiers = Array(allIdentifiers.subtracting(desiredIdentifiers))
@@ -102,6 +155,40 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
             scheduledAt: scheduledAt,
             deliveredAt: nil
         )
+    }
+
+    private func shouldPreferAlarm(for item: Item) -> Bool {
+        guard item.repeatRule == nil else { return false }
+        guard item.isArchived == false else { return false }
+        guard item.status != .completed, item.completedAt == nil else { return false }
+        guard item.hasExplicitTime else { return false }
+        guard item.dueAt != nil, item.remindAt != nil else { return false }
+        return true
+    }
+
+    private func scheduleAlarmIfPossible(for item: Item, at date: Date) async -> Bool {
+        let status = await alarmAuthorizationStatusForScheduling()
+        guard status == .authorized else { return false }
+
+        do {
+            try await routineAlarmService.schedule(id: item.id, title: item.title, at: date)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func alarmAuthorizationStatusForScheduling() async -> RoutineAlarmAuthorizationStatus {
+        switch await routineAlarmService.authorizationStatus() {
+        case .authorized:
+            return .authorized
+        case .notDetermined:
+            return (try? await routineAlarmService.requestAuthorization()) ?? .denied
+        case .denied:
+            return .denied
+        case .unavailable:
+            return .unavailable
+        }
     }
 
     private func makeProjectNotification(for project: Project) -> AppNotification? {
@@ -293,12 +380,20 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         await routineAlarmService.cancel(id: taskID)
     }
 
-    func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus {
+    func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus {
         await routineAlarmService.authorizationStatus()
     }
 
-    func requestPeriodicAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus {
+    func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus {
         try await routineAlarmService.requestAuthorization()
+    }
+
+    func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus {
+        await alarmAuthorizationStatus()
+    }
+
+    func requestPeriodicAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus {
+        try await requestAlarmAuthorization()
     }
 
     private struct PeriodicReminderSchedule {

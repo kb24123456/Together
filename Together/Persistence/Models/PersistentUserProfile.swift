@@ -13,12 +13,12 @@ final class PersistentUserProfile {
     // avatarAssetID/avatarVersion, while disk files remain a rebuildable runtime cache.
     @Attribute(.externalStorage) var avatarPhotoData: Data?
     var taskReminderEnabled: Bool = true
-    var dailySummaryEnabled: Bool = true
+    var dailySummaryEnabled: Bool = false
     var calendarReminderEnabled: Bool = true
     var taskUrgencyWindowMinutes: Int = 30
     var defaultSnoozeMinutes: Int = NotificationSettings.defaultSnoozeMinutes
     var quickTimePresetMinutes: [Int] = NotificationSettings.defaultQuickTimePresetMinutes
-    var completedTaskAutoArchiveEnabled: Bool = false
+    var completedTaskAutoArchiveEnabled: Bool = true
     var completedTaskAutoArchiveDays: Int = NotificationSettings.defaultCompletedTaskAutoArchiveDays
     var updatedAt: Date = Date.now
 

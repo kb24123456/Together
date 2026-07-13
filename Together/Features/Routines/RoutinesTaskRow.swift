@@ -552,8 +552,14 @@ private struct RoutinesInlineDetailView: View {
 
     private var reminderMenu: some View {
         Menu {
-            Button("关闭提醒") {
+            Button {
                 viewModel.updateDraftReminder(leadMinutes: nil)
+            } label: {
+                if currentRule?.hasReminder == true {
+                    Text("关闭提醒")
+                } else {
+                    Label("关闭提醒", systemImage: "checkmark")
+                }
             }
 
             Divider()
@@ -580,12 +586,13 @@ private struct RoutinesInlineDetailView: View {
                 }
             }
         } label: {
-            settingLabel(
+            settingMenuLabel(
                 icon: currentRule?.reminderDelivery == .alarm ? "alarm" : "bell",
                 title: reminderTitle,
                 isConfigured: currentRule?.hasReminder == true
             )
         }
+        .buttonStyle(.plain)
         .disabled(currentRule?.hasCompleteTarget(for: draftCycle) != true)
         .accessibilityLabel("例行任务提醒，当前为\(reminderTitle)")
     }
@@ -605,17 +612,24 @@ private struct RoutinesInlineDetailView: View {
     private var cycleMenu: some View {
         Menu {
             ForEach(PeriodicCycle.allCases, id: \.self) { cycle in
-                Button(cycle.title) {
+                Button {
                     viewModel.updateDraftCycle(cycle)
+                } label: {
+                    if draftCycle == cycle {
+                        Label(cycle.title, systemImage: "checkmark")
+                    } else {
+                        Text(cycle.title)
+                    }
                 }
             }
         } label: {
-            settingLabel(
+            settingMenuLabel(
                 icon: "arrow.triangle.2.circlepath",
                 title: draftCycle.title,
                 isConfigured: true
             )
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("例行任务维度，当前为\(draftCycle.title)")
     }
 
@@ -633,12 +647,13 @@ private struct RoutinesInlineDetailView: View {
                     }
                 }
             } label: {
-                settingLabel(
+                settingMenuLabel(
                     icon: "calendar",
                     title: targetDayTitle,
                     isConfigured: currentRule?.hasTargetDay == true
                 )
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("目标日期，当前为\(targetDayTitle)")
         }
     }
@@ -650,13 +665,6 @@ private struct RoutinesInlineDetailView: View {
             title: currentRule?.hasTargetTime == true ? TaskAttributeValueText.time(timeDate) : "时间",
             isConfigured: currentRule?.hasTargetTime == true
         ) {
-            if currentRule?.hasTargetTime != true {
-                let components = Calendar.current.dateComponents([.hour, .minute], from: .now)
-                viewModel.updateDraftTargetTime(
-                    hour: components.hour ?? 0,
-                    minute: components.minute ?? 0
-                )
-            }
             toggleAttributeEditor(.time)
         }
     }
@@ -669,6 +677,15 @@ private struct RoutinesInlineDetailView: View {
         )
     }
 
+    private func settingMenuLabel(icon: String, title: String, isConfigured: Bool) -> some View {
+        TaskAttributeLabel(
+            icon: icon,
+            title: title,
+            isConfigured: isConfigured,
+            fillsAvailableWidth: false
+        )
+    }
+
     private func toggleAttributeEditor(_ editor: InlineAttributeEditor) {
         withAnimation(reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.28, extraBounce: 0.01)) {
             activeAttributeEditor = activeAttributeEditor == editor ? nil : editor
@@ -678,15 +695,16 @@ private struct RoutinesInlineDetailView: View {
     private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
         InlineDateTimePickerPanel(
             editor: editor,
-            title: "目标时间",
-            selection: Binding(get: { timeDate }, set: updateDraftTime),
-            allowsClearing: currentRule?.hasTargetTime == true,
-            onClear: {
-                viewModel.clearDraftTargetTime()
-                withAnimation { activeAttributeEditor = nil }
-            },
-            onDone: {
-                withAnimation { activeAttributeEditor = nil }
+            title: "选择目标时间",
+            initialSelection: currentRule?.hasTargetTime == true ? timeDate : nil,
+            fallbackSelection: .now,
+            supportsClearing: currentRule?.hasTargetTime == true,
+            onCommit: { value in
+                if let value {
+                    updateDraftTime(value)
+                } else {
+                    viewModel.clearDraftTargetTime()
+                }
             }
         )
     }
@@ -695,29 +713,44 @@ private struct RoutinesInlineDetailView: View {
     private func targetDayOptions(for cycle: PeriodicCycle) -> some View {
         switch cycle {
         case .daily:
-            Button("每天") {
-                viewModel.updateDraftTargetDay(.dayOfPeriod(1))
-            }
+            targetDayOption("每天", timing: .dayOfPeriod(1))
         case .weekly:
             ForEach(1...7, id: \.self) { day in
-                Button(RoutineTargetText.weekdayText(for: day)) {
-                    viewModel.updateDraftTargetDay(.dayOfPeriod(day))
-                }
+                targetDayOption(
+                    RoutineTargetText.weekdayText(for: day),
+                    timing: .dayOfPeriod(day)
+                )
             }
         case .monthly:
             ForEach([1, 5, 10, 15, 20, 25, 31], id: \.self) { day in
-                Button(day == 31 ? "最后一天" : "\(day) 号") {
-                    viewModel.updateDraftTargetDay(.dayOfPeriod(day))
-                }
+                targetDayOption(
+                    day == 31 ? "最后一天" : "\(day) 号",
+                    timing: .dayOfPeriod(day)
+                )
             }
         case .quarterly:
-            Button("第 1 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(1)) }
-            Button("第 30 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(30)) }
-            Button("结束前 14 天") { viewModel.updateDraftTargetDay(.daysBeforeEnd(14)) }
+            targetDayOption("第 1 天", timing: .dayOfPeriod(1))
+            targetDayOption("第 30 天", timing: .dayOfPeriod(30))
+            targetDayOption("结束前 14 天", timing: .daysBeforeEnd(14))
         case .yearly:
-            Button("第 1 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(1)) }
-            Button("第 180 天") { viewModel.updateDraftTargetDay(.dayOfPeriod(180)) }
-            Button("结束前 30 天") { viewModel.updateDraftTargetDay(.daysBeforeEnd(30)) }
+            targetDayOption("第 1 天", timing: .dayOfPeriod(1))
+            targetDayOption("第 180 天", timing: .dayOfPeriod(180))
+            targetDayOption("结束前 30 天", timing: .daysBeforeEnd(30))
+        }
+    }
+
+    private func targetDayOption(
+        _ title: String,
+        timing: PeriodicReminderRule.Timing
+    ) -> some View {
+        Button {
+            viewModel.updateDraftTargetDay(timing)
+        } label: {
+            if currentRule?.timing == timing {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
         }
     }
 

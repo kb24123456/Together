@@ -13,11 +13,20 @@ actor MockReminderScheduler: ReminderSchedulerProtocol {
 
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {}
 
-    func resync(tasks: [Item], projects: [Project]) async {}
+    func resync(
+        tasks: [Item],
+        projects: [Project],
+        includeTaskReminders: Bool,
+        includeDailySummary: Bool
+    ) async {}
 
     func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async {}
 
     func removePeriodicTaskReminder(for taskID: UUID) async {}
+
+    func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
+
+    func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus { .authorized }
 
     func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
 

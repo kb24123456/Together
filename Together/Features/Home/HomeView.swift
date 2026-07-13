@@ -2223,8 +2223,8 @@ private struct HomeInlineTaskDetailView: View {
             }
             .buttonStyle(.plain)
             .font(AppTheme.typography.sized(14, weight: .bold))
-            .foregroundStyle(canAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
-            .disabled(!canAddSubtask)
+            .foregroundStyle(canAttemptAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
+            .disabled(!canAttemptAddSubtask)
             .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
     }
@@ -2251,9 +2251,6 @@ private struct HomeInlineTaskDetailView: View {
             title: dateTitle,
             isConfigured: viewModel.inlineDetailDraft?.dueAt != nil
         ) {
-            if viewModel.inlineDetailDraft?.dueAt == nil {
-                viewModel.setDraftDueDateEnabled(true)
-            }
             toggleAttributeEditor(.date)
         }
     }
@@ -2265,9 +2262,6 @@ private struct HomeInlineTaskDetailView: View {
             title: timeTitle,
             isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true
         ) {
-            if viewModel.inlineDetailDraft?.hasExplicitTime != true {
-                viewModel.updateDraftDueTime(.now)
-            }
             toggleAttributeEditor(.time)
         }
     }
@@ -2302,30 +2296,28 @@ private struct HomeInlineTaskDetailView: View {
     private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
         InlineDateTimePickerPanel(
             editor: editor,
-            title: editor == .date ? "日期" : "时间",
-            selection: Binding(
-                get: { viewModel.inlineDetailDraft?.dueAt ?? .now },
-                set: { value in
+            title: editor == .date ? "选择日期" : "选择时间",
+            initialSelection: editor == .date
+                ? viewModel.inlineDetailDraft?.dueAt
+                : (viewModel.inlineDetailDraft?.hasExplicitTime == true ? viewModel.inlineDetailDraft?.dueAt : nil),
+            fallbackSelection: editor == .date
+                ? (viewModel.inlineDetailDraft?.dueAt ?? viewModel.selectedDate)
+                : .now,
+            supportsClearing: editor == .date
+                ? viewModel.inlineDetailDraft?.dueAt != nil
+                : viewModel.inlineDetailDraft?.hasExplicitTime == true,
+            onCommit: { value in
+                if let value {
                     if editor == .date {
                         viewModel.updateDraftDueDate(value)
                     } else {
                         viewModel.updateDraftDueTime(value)
                     }
-                }
-            ),
-            allowsClearing: editor == .date
-                ? viewModel.inlineDetailDraft?.dueAt != nil
-                : viewModel.inlineDetailDraft?.hasExplicitTime == true,
-            onClear: {
-                if editor == .date {
+                } else if editor == .date {
                     viewModel.setDraftDueDateEnabled(false)
                 } else {
                     viewModel.clearDraftDueTime()
                 }
-                withAnimation { activeAttributeEditor = nil }
-            },
-            onDone: {
-                withAnimation { activeAttributeEditor = nil }
             }
         )
     }

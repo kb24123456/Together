@@ -7,10 +7,12 @@ enum AppTheme {
     enum colors {
         // MARK: - Backgrounds & Surfaces
 
-        static let background = Color(light: .init(red: 0.965, green: 0.961, blue: 0.949),
+        /// Neutral cool white keeps large task-list surfaces clear without erasing
+        /// the warm character carried by avatars and semantic accents.
+        static let background = Color(light: .init(red: 0.980, green: 0.984, blue: 0.988),
                                       dark: .init(red: 0.11, green: 0.11, blue: 0.12))
 
-        static let backgroundSoft = Color(light: .init(red: 0.982, green: 0.979, blue: 0.972),
+        static let backgroundSoft = Color(light: .init(red: 0.989, green: 0.992, blue: 0.996),
                                           dark: .init(red: 0.13, green: 0.13, blue: 0.14))
 
         static let homeBackground = background
@@ -138,10 +140,10 @@ enum AppTheme {
 
         // MARK: - Gradient Grid Background
 
-        static let gradientBottom = Color(light: .init(red: 0.961, green: 0.938, blue: 0.922),
+        static let gradientBottom = Color(light: .init(red: 0.965, green: 0.973, blue: 0.980),
                                           dark: .init(red: 0.130, green: 0.118, blue: 0.112))
 
-        static let gridLine = Color(light: .black.opacity(0.034),
+        static let gridLine = Color(light: .black.opacity(0.026),
                                     dark: .white.opacity(0.032))
     }
 

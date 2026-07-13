@@ -7,9 +7,27 @@ protocol ReminderSchedulerProtocol: Sendable {
     func syncProjectReminder(for project: Project) async
     func removeProjectReminder(for projectID: UUID) async
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async
-    func resync(tasks: [Item], projects: [Project]) async
+    func resync(
+        tasks: [Item],
+        projects: [Project],
+        includeTaskReminders: Bool,
+        includeDailySummary: Bool
+    ) async
     func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async
     func removePeriodicTaskReminder(for taskID: UUID) async
+    func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus
+    func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus
     func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus
     func requestPeriodicAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus
+}
+
+extension ReminderSchedulerProtocol {
+    func resync(tasks: [Item], projects: [Project]) async {
+        await resync(
+            tasks: tasks,
+            projects: projects,
+            includeTaskReminders: true,
+            includeDailySummary: true
+        )
+    }
 }

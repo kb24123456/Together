@@ -37,6 +37,7 @@ struct TaskAttributeLabel: View {
     let title: String
     let isConfigured: Bool
     var tint: Color? = nil
+    var fillsAvailableWidth = true
 
     var body: some View {
             HStack(spacing: 4) {
@@ -54,7 +55,10 @@ struct TaskAttributeLabel: View {
             .foregroundStyle(
                 tint ?? (isConfigured ? AppTheme.colors.title.opacity(0.74) : AppTheme.colors.body.opacity(0.48))
             )
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(
+                maxWidth: fillsAvailableWidth ? .infinity : nil,
+                minHeight: 44
+            )
             .contentShape(Rectangle())
     }
 }
@@ -62,38 +66,69 @@ struct TaskAttributeLabel: View {
 struct InlineDateTimePickerPanel: View {
     let editor: InlineAttributeEditor
     let title: String
-    @Binding var selection: Date
-    let allowsClearing: Bool
-    let onClear: () -> Void
-    let onDone: () -> Void
+    let supportsClearing: Bool
+    let onCommit: (Date?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: InlineDateTimePickerDraft
+
+    init(
+        editor: InlineAttributeEditor,
+        title: String,
+        initialSelection: Date?,
+        fallbackSelection: Date = .now,
+        supportsClearing: Bool,
+        onCommit: @escaping (Date?) -> Void
+    ) {
+        self.editor = editor
+        self.title = title
+        self.supportsClearing = supportsClearing
+        self.onCommit = onCommit
+        _draft = State(
+            initialValue: InlineDateTimePickerDraft(
+                initialSelection: initialSelection,
+                fallbackSelection: fallbackSelection
+            )
+        )
+    }
 
     var body: some View {
-        VStack(spacing: AppTheme.spacing.xs) {
-            HStack(spacing: AppTheme.spacing.md) {
-                Text(title)
-                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+        NavigationStack {
+            VStack(spacing: AppTheme.spacing.sm) {
+                picker
+                    .disabled(draft.isCleared)
+                    .opacity(draft.isCleared ? 0.42 : 1)
 
-                Spacer(minLength: 0)
-
-                if allowsClearing {
-                    Button("清除", role: .destructive, action: onClear)
-                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                if supportsClearing {
+                    clearAction
+                }
+            }
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.bottom, AppTheme.spacing.md)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") {
+                        dismiss()
+                    }
                 }
 
-                Button("完成", action: onDone)
-                    .font(AppTheme.typography.sized(13, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.sky)
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") {
+                        onCommit(draft.stagedSelection)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .tint(AppTheme.colors.sky)
+                }
             }
-            .frame(minHeight: 36)
-
-            picker
         }
-        .padding(.horizontal, AppTheme.spacing.lg)
-        .padding(.bottom, AppTheme.spacing.md)
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .contain)
-        .presentationDetents(editor == .date ? [.medium] : [.height(320)])
+        .presentationDetents(
+            editor == .date
+                ? [.medium]
+                : [.height(supportsClearing ? 380 : 320)]
+        )
         .presentationDragIndicator(.visible)
         .presentationBackground(AppTheme.colors.surface)
     }
@@ -104,7 +139,7 @@ struct InlineDateTimePickerPanel: View {
         case .date:
             DatePicker(
                 title,
-                selection: $selection,
+                selection: pickerSelection,
                 displayedComponents: .date
             )
             .labelsHidden()
@@ -114,13 +149,78 @@ struct InlineDateTimePickerPanel: View {
         case .time:
             DatePicker(
                 title,
-                selection: $selection,
+                selection: pickerSelection,
                 displayedComponents: .hourAndMinute
             )
             .labelsHidden()
             .datePickerStyle(.wheel)
             .frame(maxWidth: .infinity)
         }
+    }
+
+    private var pickerSelection: Binding<Date> {
+        Binding(
+            get: { draft.pickerSelection },
+            set: { draft.select($0) }
+        )
+    }
+
+    private var clearAction: some View {
+        Button(role: draft.isCleared ? nil : .destructive) {
+            if draft.isCleared {
+                draft.restore()
+            } else {
+                draft.clear()
+            }
+        } label: {
+            Text(draft.isCleared ? restoreActionTitle : clearActionTitle)
+                .font(.body.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(draft.isCleared ? AppTheme.colors.sky : AppTheme.colors.danger)
+        .accessibilityHint(draft.isCleared ? "恢复打开编辑器时的值" : "完成后应用清除操作")
+    }
+
+    private var clearActionTitle: String {
+        editor == .date ? "清除日期" : "清除时间"
+    }
+
+    private var restoreActionTitle: String {
+        editor == .date ? "恢复日期" : "恢复时间"
+    }
+}
+
+struct InlineDateTimePickerDraft: Equatable {
+    let initialSelection: Date?
+    let fallbackSelection: Date
+    private(set) var stagedSelection: Date?
+
+    init(initialSelection: Date?, fallbackSelection: Date) {
+        self.initialSelection = initialSelection
+        self.fallbackSelection = fallbackSelection
+        stagedSelection = initialSelection ?? fallbackSelection
+    }
+
+    var pickerSelection: Date {
+        stagedSelection ?? initialSelection ?? fallbackSelection
+    }
+
+    var isCleared: Bool {
+        stagedSelection == nil
+    }
+
+    mutating func select(_ date: Date) {
+        stagedSelection = date
+    }
+
+    mutating func clear() {
+        stagedSelection = nil
+    }
+
+    mutating func restore() {
+        stagedSelection = initialSelection ?? fallbackSelection
     }
 }
 

@@ -3,397 +3,280 @@ import UIKit
 
 struct ProfileView: View {
     @Environment(AppContext.self) private var appContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     @Bindable var viewModel: ProfileViewModel
-    @State private var topChromeProgress: CGFloat = 0
-    @State private var showsClearCacheAlert: Bool = false
+    @State private var isSyncSheetPresented = false
     @Namespace private var profileTransition
 
     var body: some View {
-        let currentUser = appContext.sessionStore.currentUser
-
-        GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.lg) {
-                    ProfileScrollOffsetProbe()
-
-                    // MARK: - 名片区
-                    NavigationLink(value: ProfileRoute.editProfile) {
-                        ProfileUserCard(
-                            primaryName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
-                            primaryAvatar: ProfileCardAvatar(
-                                displayName: currentUser?.displayName ?? viewModel.profileCardPrimaryName,
-                                avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
-                                overrideImage: nil
-                            ),
-                            subtitle: viewModel.identityCardSubtitle
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxl) {
+                NavigationLink(value: ProfileRoute.editProfile) {
+                    ProfileCompactIdentityRow(
+                        name: appContext.sessionStore.currentUser?.displayName ?? viewModel.profileCardPrimaryName,
+                        avatar: ProfileCardAvatar(
+                            displayName: appContext.sessionStore.currentUser?.displayName ?? viewModel.profileCardPrimaryName,
+                            avatarAsset: appContext.sessionStore.currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
+                            overrideImage: nil
                         )
-                        .id(appContext.sessionStore.userProfileRevision)
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-                        .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
+                    )
+                    .id(appContext.sessionStore.userProfileRevision)
+                    .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
+                }
+                .buttonStyle(.plain)
+
+                ProfileFlatSection(title: "提醒") {
+                    ProfileFlatToggleRow(
+                        title: "任务提醒",
+                        systemImage: "bell"
+                    ) {
+                        Toggle("任务提醒", isOn: Binding(
+                            get: { viewModel.taskReminderEnabled },
+                            set: { viewModel.updateTaskReminderEnabled($0) }
+                        ))
+                        .labelsHidden()
+                    }
+
+                    if viewModel.taskReminderEnabled {
+                        VStack(spacing: 0) {
+                            ProfileFlatOptionRow(
+                                title: "临近窗口",
+                                value: viewModel.taskUrgencyLabel(minutes: viewModel.taskUrgencyWindowMinutes),
+                                systemImage: "timer"
+                            ) {
+                                ForEach(viewModel.taskUrgencyPickerOptions, id: \.self) { minutes in
+                                    Button {
+                                        HomeInteractionFeedback.selection()
+                                        viewModel.updateTaskUrgencyWindow(minutes: minutes)
+                                    } label: {
+                                        if viewModel.taskUrgencyWindowMinutes == minutes {
+                                            Label(viewModel.taskUrgencyLabel(minutes: minutes), systemImage: "checkmark")
+                                        } else {
+                                            Text(viewModel.taskUrgencyLabel(minutes: minutes))
+                                        }
+                                    }
+                                }
+                            }
+
+                            ProfileFlatToggleRow(
+                                title: "每日汇总",
+                                systemImage: "sunset"
+                            ) {
+                                HStack(spacing: AppTheme.spacing.sm) {
+                                    Text("18:00")
+                                        .font(AppTheme.typography.sized(15, weight: .medium))
+                                        .foregroundStyle(AppTheme.colors.body.opacity(0.58))
+
+                                    Toggle("每日汇总", isOn: Binding(
+                                        get: { viewModel.dailySummaryEnabled },
+                                        set: { viewModel.updateDailySummaryEnabled($0) }
+                                    ))
+                                    .labelsHidden()
+                                }
+                            }
+
+                            if viewModel.notificationAuthorization == .denied {
+                                ProfileInlineNotice(
+                                    message: "系统通知已关闭，部分任务提醒可能无法送达。",
+                                    actionTitle: "前往设置",
+                                    action: openAppSettings
+                                )
+                            }
+                        }
+                        .transition(conditionalSettingsTransition)
+                    }
+                }
+
+                ProfileFlatSection(title: "整理") {
+
+                    ProfileFlatToggleRow(
+                        title: "已完成自动归档",
+                        systemImage: "archivebox"
+                    ) {
+                        Toggle("已完成自动归档", isOn: Binding(
+                            get: { viewModel.completedTaskAutoArchiveEnabled },
+                            set: { viewModel.updateCompletedTaskAutoArchiveEnabled($0) }
+                        ))
+                        .labelsHidden()
+                    }
+
+                    if viewModel.completedTaskAutoArchiveEnabled {
+                        ProfileFlatOptionRow(
+                            title: "归档时间",
+                            value: "\(viewModel.completedTaskAutoArchiveDays) 天后",
+                            systemImage: "clock.arrow.circlepath"
+                        ) {
+                            ForEach(viewModel.completedTaskAutoArchiveOptions, id: \.self) { days in
+                                Button {
+                                    HomeInteractionFeedback.selection()
+                                    viewModel.updateCompletedTaskAutoArchiveDays(days)
+                                } label: {
+                                    if viewModel.completedTaskAutoArchiveDays == days {
+                                        Label("\(days) 天后", systemImage: "checkmark")
+                                    } else {
+                                        Text("\(days) 天后")
+                                    }
+                                }
+                            }
+                        }
+                        .transition(conditionalSettingsTransition)
+                    }
+                }
+
+                ProfileFlatSection(title: "隐私与数据") {
+                    ProfileFlatToggleRow(
+                        title: "应用锁定（\(viewModel.biometricTypeName)）",
+                        systemImage: "lock"
+                    ) {
+                        Toggle("应用锁定", isOn: Binding(
+                            get: { viewModel.appLockEnabled },
+                            set: { viewModel.updateAppLockEnabled($0) }
+                        ))
+                        .labelsHidden()
+                    }
+
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        isSyncSheetPresented = true
+                    } label: {
+                        ProfileFlatValueRow(
+                            title: "iCloud 同步",
+                            value: viewModel.iCloudStatusSummary,
+                            systemImage: "icloud"
+                        )
                     }
                     .buttonStyle(.plain)
-                    .simultaneousGesture(
-                        TapGesture().onEnded {
-                            HomeInteractionFeedback.selection()
-                        }
-                    )
 
-                    // MARK: - 分组设置
-                    executionPreferencesSection
-                    systemSettingsSection
-                    aboutRow
-
+                    NavigationLink(value: ProfileRoute.accountDeletion) {
+                        ProfileFlatValueRow(
+                            title: "删除所有数据",
+                            value: "",
+                            systemImage: "trash",
+                            titleColor: AppTheme.colors.danger
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, AppTheme.spacing.md)
-                .padding(.top, AppTheme.spacing.md)
-                .padding(.bottom, AppTheme.spacing.xxl)
+
+                ProfileFlatSection(title: "关于") {
+                    NavigationLink(value: ProfileRoute.about) {
+                        ProfileFlatValueRow(
+                            title: "Together",
+                            value: "版本 \(viewModel.appVersionString)",
+                            systemImage: "info.circle"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .coordinateSpace(name: ProfileScrollOffsetKey.coordinateSpaceName)
-            .applyScrollEdgeProtection()
-            .background(backgroundView.ignoresSafeArea())
-            .overlay(alignment: .top) {
-                topChromeGradientMask(safeAreaTop: proxy.safeAreaInsets.top)
-            }
+            .padding(.horizontal, AppTheme.spacing.md)
+            .padding(.top, AppTheme.spacing.md)
+            .padding(.bottom, AppTheme.spacing.xxl * 2)
         }
+        .applyScrollEdgeProtection()
+        .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("我")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: ProfileRoute.completedHistory) {
-                    ToolbarTextActionLabel(title: "日志")
+                    ToolbarTextActionLabel(title: "已完成")
                 }
                 .accessibilityHint("查看已完成任务")
             }
         }
-        .toolbarBackground(.regularMaterial, for: .navigationBar)
-        .toolbarBackground(topChromeProgress > 0.02 ? .visible : .hidden, for: .navigationBar)
-        .font(AppTheme.typography.body)
         .navigationDestination(for: ProfileRoute.self) { route in
             switch route {
             case .editProfile:
                 EditProfileView(
                     viewModel: viewModel.makeEditProfileViewModel(user: appContext.sessionStore.currentUser)
                 )
-                    .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
+                .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel(initialFilter: .all))
-            case .privacyPolicy:
-                ProfilePrivacyPolicyView()
-            case .termsOfService:
-                ProfileTermsOfServiceView()
             case .accountDeletion:
                 ProfileAccountDeletionView(viewModel: viewModel)
-            case .feedback:
-                ProfileFeedbackView()
             case .about:
                 ProfileAboutView(appVersion: viewModel.appVersionString)
-            case .notificationSettings, .futureCollaboration:
-                EmptyView()
             }
         }
         .task {
             await viewModel.load()
         }
-        .sheet(item: $viewModel.customDurationSheet) { kind in
-            ProfileDurationPickerSheet(
-                title: kind.title,
-                initialMinutes: viewModel.customDurationInitialMinutes,
-                onSave: { viewModel.applyCustomDuration($0) },
-                onDismiss: { viewModel.dismissCustomDurationSheet() }
-            )
-        }
-        .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
-            let progress = min(max(-offset / 56, 0), 1)
-            topChromeProgress = progress
-        }
-        .animation(.easeOut(duration: 0.18), value: topChromeProgress)
-        .alert("清除缓存", isPresented: $showsClearCacheAlert) {
-            Button("取消", role: .cancel) {}
-            Button("清除", role: .destructive) {
-                HomeInteractionFeedback.delete()
-                viewModel.clearCache()
-            }
-        } message: {
-            Text("将清除应用的缓存数据（\(viewModel.cacheSizeString)），不会影响你的任务数据。")
-        }
-    }
-
-    // MARK: - Background & Chrome
-
-    private var backgroundView: some View {
-        AppTheme.colors.background
-    }
-
-    private func topChromeGradientMask(safeAreaTop: CGFloat) -> some View {
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        AppTheme.colors.background.opacity(0.16 * topChromeProgress),
-                        .clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(height: safeAreaTop + 44)
-            .allowsHitTesting(false)
-    }
-
-    // MARK: - 执行偏好
-
-    private var executionPreferencesSection: some View {
-        ProfileSettingsGroupCard(title: "执行偏好") {
-            ProfileSettingsRow(
-                title: "临期任务提醒",
-                isOn: Binding(
-                    get: { viewModel.taskReminderEnabled },
-                    set: { viewModel.updateTaskReminderEnabled($0) }
-                )
-            )
-
-            if viewModel.taskReminderEnabled {
-                expandableSelectionRow(
-                    title: "提醒时间",
-                    value: viewModel.taskUrgencySummary,
-                    setting: .taskUrgency
-                ) {
-                    selectionContent(
-                        options: viewModel.taskUrgencyOptions,
-                        selectedValue: viewModel.taskUrgencyWindowMinutes,
-                        label: { viewModel.taskUrgencyLabel(minutes: $0) },
-                        onSelect: { viewModel.updateTaskUrgencyWindow(minutes: $0) },
-                        onCustom: {
-                            HomeInteractionFeedback.selection()
-                            viewModel.presentCustomDurationSheet(.taskUrgency)
+        .sheet(isPresented: $isSyncSheetPresented) {
+            NavigationStack {
+                ProfileSyncRecoveryView(viewModel: viewModel)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("完成") {
+                                HomeInteractionFeedback.selection()
+                                isSyncSheetPresented = false
+                            }
                         }
-                    )
-                }
-                .transition(profileListRowTransition)
+                    }
             }
-
-            ProfileSettingsRow(
-                title: "已完成自动归档",
-                isOn: Binding(
-                    get: { viewModel.completedTaskAutoArchiveEnabled },
-                    set: { viewModel.updateCompletedTaskAutoArchiveEnabled($0) }
-                )
-            )
-
-            if viewModel.completedTaskAutoArchiveEnabled {
-                expandableSelectionRow(
-                    title: "归档时间",
-                    value: viewModel.completedArchiveSummary,
-                    setting: .completedArchive
-                ) {
-                    selectionContent(
-                        options: viewModel.completedTaskAutoArchiveOptions,
-                        selectedValue: viewModel.completedTaskAutoArchiveDays,
-                        label: { "\($0)天后" },
-                        onSelect: { viewModel.updateCompletedTaskAutoArchiveDays($0) }
-                    )
-                }
-                .transition(profileListRowTransition)
-            }
+            .presentationSizing(.fitted)
         }
-        .animation(profileListAnimation, value: viewModel.taskReminderEnabled)
-        .animation(profileListAnimation, value: viewModel.completedTaskAutoArchiveEnabled)
-    }
-
-    // MARK: - 系统设置（合并通知与外观 / 安全与隐私 / 数据与账号）
-
-    private var systemSettingsSection: some View {
-        ProfileSettingsGroupCard(title: "系统设置") {
-            Button {
-                HomeInteractionFeedback.selection()
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    openURL(url)
-                }
-            } label: {
-                ProfileSettingsRow(
-                    title: "权限管理",
-                    value: "系统设置",
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-
-            expandableSelectionRow(
-                title: "外观",
-                value: appearanceValueLabel,
-                setting: .appearance
-            ) {
-                appearanceOptionsContent
-            }
-
-            ProfileSettingsRow(
-                title: "应用锁定（\(viewModel.biometricTypeName)）",
-                isOn: Binding(
-                    get: { viewModel.appLockEnabled },
-                    set: { viewModel.updateAppLockEnabled($0) }
-                )
-            )
-
-            ProfileSettingsRow(
-                title: "iCloud 同步",
-                value: viewModel.iCloudStatusSummary
-            )
-
-            Button {
-                HomeInteractionFeedback.selection()
-                showsClearCacheAlert = true
-            } label: {
-                ProfileSettingsRow(
-                    title: "清除缓存",
-                    value: viewModel.cacheSizeString
-                )
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink(value: ProfileRoute.accountDeletion) {
-                ProfileSettingsRow(
-                    title: "账号注销",
-                    value: "",
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-            .simultaneousGesture(
-                TapGesture().onEnded { HomeInteractionFeedback.selection() }
-            )
-        }
-        .animation(profileListAnimation, value: appContext.appearanceManager.mode)
-    }
-
-    private var appearanceValueLabel: String {
-        appContext.appearanceManager.mode.title
-    }
-
-    // MARK: - 关于 Together（跳转子页面）
-
-    private var aboutRow: some View {
-        ProfileSettingsGroupCard(title: "") {
-            NavigationLink(value: ProfileRoute.about) {
-                ProfileSettingsRow(
-                    title: "关于",
-                    value: "v\(viewModel.appVersionString)",
-                    showsChevron: true
-                )
-            }
-            .buttonStyle(.plain)
-            .simultaneousGesture(
-                TapGesture().onEnded { HomeInteractionFeedback.selection() }
-            )
-        }
-    }
-
-    // MARK: - Helpers
-
-    private var profileListAnimation: Animation {
-        .spring(response: 0.34, dampingFraction: 0.86)
-    }
-
-    private var profileListRowTransition: AnyTransition {
-        .asymmetric(
-            insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.985, anchor: .top)),
-            removal: .move(edge: .top).combined(with: .opacity)
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.16) : .smooth(duration: 0.28),
+            value: viewModel.taskReminderEnabled
+        )
+        .animation(
+            reduceMotion ? .easeOut(duration: 0.16) : .smooth(duration: 0.28),
+            value: viewModel.completedTaskAutoArchiveEnabled
         )
     }
 
-    private func expandableSelectionRow<Content: View>(
-        title: String,
-        value: String,
-        setting: ProfileExpandedSetting,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        ProfileExpandableDisclosureRow(
-            title: title,
-            value: value,
-            isExpanded: Binding(
-                get: { viewModel.expandedSetting == setting },
-                set: { isExpanded in
-                    if isExpanded {
-                        viewModel.expandedSetting = setting
-                    } else if viewModel.expandedSetting == setting {
-                        viewModel.expandedSetting = nil
-                    }
-                }
-            ),
-            content: content
-        )
+    private var conditionalSettingsTransition: AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .opacity.combined(with: .move(edge: .top))
     }
 
-    private var appearanceOptionsContent: some View {
-        VStack(spacing: AppTheme.spacing.xs) {
-            ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                ProfileInlineOptionButton(
-                    title: mode.title,
-                    isSelected: appContext.appearanceManager.mode == mode
-                ) {
-                    HomeInteractionFeedback.selection()
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                        appContext.appearanceManager.mode = mode
-                    }
-                }
-            }
-        }
-    }
-
-    private func selectionContent(
-        options: [Int],
-        selectedValue: Int,
-        label: @escaping (Int) -> String,
-        onSelect: @escaping (Int) -> Void,
-        onCustom: (() -> Void)? = nil
-    ) -> some View {
-        VStack(spacing: AppTheme.spacing.xs) {
-            ForEach(options, id: \.self) { option in
-                ProfileInlineOptionButton(
-                    title: label(option),
-                    isSelected: selectedValue == option
-                ) {
-                    HomeInteractionFeedback.selection()
-                    onSelect(option)
-                }
-            }
-
-            if let onCustom {
-                ProfileInlineOptionButton(
-                    title: "自定义",
-                    isSelected: options.contains(selectedValue) == false,
-                    action: onCustom
-                )
-            }
-        }
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        openURL(url)
     }
 }
-
 
 private enum ProfileTransitionSource {
     static let profileCard = "profile-card"
 }
 
-private struct ProfileScrollOffsetProbe: View {
+private struct ProfileCompactIdentityRow: View {
+    let name: String
+    let avatar: ProfileCardAvatar
+
     var body: some View {
-        GeometryReader { proxy in
-            Color.clear
-                .preference(
-                    key: ProfileScrollOffsetKey.self,
-                    value: proxy.frame(in: .named(ProfileScrollOffsetKey.coordinateSpaceName)).minY
-                )
+        HStack(spacing: AppTheme.spacing.md) {
+            UserAvatarView(
+                avatarAsset: avatar.avatarAsset,
+                displayName: avatar.displayName,
+                size: 76,
+                fillColor: AppTheme.colors.avatarWarm,
+                symbolColor: AppTheme.colors.title.opacity(0.82),
+                symbolFont: AppTheme.typography.sized(28, weight: .semibold),
+                overrideImage: avatar.overrideImage
+            )
+
+            Text(name)
+                .font(AppTheme.typography.sized(22, weight: .medium))
+                .foregroundStyle(AppTheme.colors.title)
+                .lineLimit(1)
+
+            Spacer(minLength: AppTheme.spacing.md)
+
+            Image(systemName: "chevron.right")
+                .font(AppTheme.typography.sized(13, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.36))
         }
-        .frame(height: 0)
-    }
-}
-
-private struct ProfileScrollOffsetKey: PreferenceKey {
-    static let coordinateSpaceName = "profile-scroll"
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+        .padding(.vertical, AppTheme.spacing.lg)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name)
+        .accessibilityHint("编辑个人资料")
     }
 }
 
@@ -404,107 +287,3 @@ private struct ProfileScrollOffsetKey: PreferenceKey {
     }
 }
 #endif
-
-private struct ProfileExpandableDisclosureRow<Content: View>: View {
-    let title: String
-    let value: String
-    @Binding var isExpanded: Bool
-    @ViewBuilder let content: Content
-
-    init(
-        title: String,
-        value: String,
-        isExpanded: Binding<Bool>,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.value = value
-        self._isExpanded = isExpanded
-        self.content = content()
-    }
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(spacing: AppTheme.spacing.xs) {
-                Divider()
-                    .overlay(AppTheme.colors.hairline)
-                    .padding(.bottom, AppTheme.spacing.xxs)
-
-                content
-            }
-            .padding(.top, AppTheme.spacing.sm)
-        } label: {
-            HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                ProfileSettingsRow(
-                    title: title,
-                    value: value
-                )
-
-                Spacer(minLength: 0)
-            }
-        }
-        .disclosureGroupStyle(ProfilePlainDisclosureGroupStyle())
-        .tint(AppTheme.colors.body.opacity(0.48))
-        .contentShape(Rectangle())
-    }
-}
-
-private struct ProfilePlainDisclosureGroupStyle: DisclosureGroupStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button {
-                HomeInteractionFeedback.selection()
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                    configuration.isExpanded.toggle()
-                }
-            } label: {
-                HStack(alignment: .center, spacing: AppTheme.spacing.md) {
-                    configuration.label
-
-                    Image(systemName: "chevron.down")
-                        .font(AppTheme.typography.sized(12, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.body.opacity(0.36))
-                        .rotationEffect(.degrees(configuration.isExpanded ? 180 : 0))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if configuration.isExpanded {
-                configuration.content
-            }
-        }
-    }
-}
-
-private struct ProfileInlineOptionButton: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: AppTheme.spacing.md) {
-                Text(title)
-                    .font(AppTheme.typography.textStyle(.subheadline, weight: .medium))
-                    .foregroundStyle(isSelected ? AppTheme.colors.selectionTint : AppTheme.colors.title)
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(AppTheme.typography.sized(13, weight: .bold))
-                        .foregroundStyle(AppTheme.colors.selectionTint)
-                }
-            }
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.vertical, AppTheme.spacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                    .fill(isSelected ? AppTheme.colors.selectionTint.opacity(0.08) : .clear)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}

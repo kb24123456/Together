@@ -27,7 +27,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Together 使用 Face ID 保护你的隐私数据。</string>
 	<key>NSAlarmKitUsageDescription</key>
-	<string>Together 使用系统闹钟，在你明确选择强提醒时按例行任务目标时间提醒你。</string>
+	<string>Together 使用系统闹钟，在你设置带明确时间的任务或例行任务提醒时进行强提醒。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Together 需要读取你选择的照片，用于将纸面清单识别为可确认的 OCR 任务草稿。</string>
 	<key>UIBackgroundModes</key>

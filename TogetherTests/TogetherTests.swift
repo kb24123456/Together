@@ -1110,6 +1110,38 @@ struct TogetherTests {
         #expect(RoutinesViewModel.defaultRule(for: .weekly).isEmpty)
     }
 
+    @Test func inlineDateTimePickerDraftStagesClearAndRestoreWithoutMutatingInitialValue() {
+        let initial = Date(timeIntervalSince1970: 1_000)
+        let replacement = Date(timeIntervalSince1970: 2_000)
+        var draft = InlineDateTimePickerDraft(
+            initialSelection: initial,
+            fallbackSelection: replacement
+        )
+
+        draft.clear()
+        #expect(draft.stagedSelection == nil)
+        #expect(draft.initialSelection == initial)
+
+        draft.restore()
+        #expect(draft.stagedSelection == initial)
+
+        draft.select(replacement)
+        #expect(draft.stagedSelection == replacement)
+        #expect(draft.initialSelection == initial)
+    }
+
+    @Test func inlineDateTimePickerDraftSeedsUnsetValueWithoutCreatingAnExternalSelection() {
+        let fallback = Date(timeIntervalSince1970: 3_000)
+        let draft = InlineDateTimePickerDraft(
+            initialSelection: nil,
+            fallbackSelection: fallback
+        )
+
+        #expect(draft.initialSelection == nil)
+        #expect(draft.stagedSelection == fallback)
+        #expect(draft.pickerSelection == fallback)
+    }
+
     @Test func routinesFailureIsNotPresentedAsEmptyState() async {
         let service = CapturingPeriodicTaskApplicationService(tasks: [], shouldFailFetch: true)
         let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
@@ -2054,7 +2086,11 @@ struct TogetherTests {
         let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)))
         let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 15, minute: 30)))
         let notificationService = CapturingNotificationService()
-        let scheduler = LocalReminderScheduler(notificationService: notificationService, calendar: calendar)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: MockRoutineAlarmService(status: .unavailable),
+            calendar: calendar
+        )
 
         await scheduler.syncTaskReminder(for: makeReminderTestItem(dueAt: dueAt, hasExplicitTime: true, remindAt: remindAt))
 
@@ -2067,7 +2103,11 @@ struct TogetherTests {
         let calendar = gregorianCalendar()
         let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)))
         let notificationService = CapturingNotificationService()
-        let scheduler = LocalReminderScheduler(notificationService: notificationService, calendar: calendar)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: MockRoutineAlarmService(status: .unavailable),
+            calendar: calendar
+        )
 
         await scheduler.syncTaskReminder(for: makeReminderTestItem(dueAt: dueAt, hasExplicitTime: true, remindAt: nil))
 
@@ -2100,6 +2140,129 @@ struct TogetherTests {
         let components = calendar.dateComponents([.hour, .minute], from: summary.scheduledAt)
         #expect(components.hour == 18)
         #expect(components.minute == 0)
+    }
+
+    @Test func dailySummaryCanBeExcludedFromReminderResync() async throws {
+        let notificationService = CapturingNotificationService()
+        let scheduler = LocalReminderScheduler(notificationService: notificationService, calendar: gregorianCalendar())
+
+        await scheduler.resync(
+            tasks: [
+                makeReminderTestItem(title: "无到期任务", dueAt: nil, remindAt: nil)
+            ],
+            projects: [],
+            includeTaskReminders: true,
+            includeDailySummary: false
+        )
+
+        #expect(notificationService.scheduledNotifications().isEmpty)
+        #expect(notificationService.cancelledIdentifiers().contains { $0.hasPrefix("local.dailySummary.") })
+    }
+
+    @Test func disablingTaskRemindersCancelsNotificationAndAlarmDelivery() async throws {
+        let calendar = gregorianCalendar()
+        let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)))
+        let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 15, minute: 30)))
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .authorized)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: calendar
+        )
+        let item = makeReminderTestItem(dueAt: dueAt, hasExplicitTime: true, remindAt: remindAt)
+        try await alarmService.schedule(id: item.id, title: item.title, at: remindAt)
+
+        await scheduler.resync(
+            tasks: [item],
+            projects: [],
+            includeTaskReminders: false,
+            includeDailySummary: false
+        )
+        await scheduler.syncTaskReminder(for: item)
+        let spaceID = try #require(item.spaceID)
+        await scheduler.syncDailySummary(for: spaceID, tasks: [item])
+
+        #expect(notificationService.scheduledNotifications().isEmpty)
+        #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .item, targetID: item.id)))
+        #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .dailySummary, targetID: spaceID)))
+        #expect(await alarmService.scheduled[item.id] == nil)
+    }
+
+    @Test func timedTaskReminderUsesAlarmServiceInsteadOfNotificationWhenAuthorized() async throws {
+        let calendar = gregorianCalendar()
+        let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)))
+        let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 15, minute: 30)))
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .authorized)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: calendar
+        )
+        let item = makeReminderTestItem(dueAt: dueAt, hasExplicitTime: true, remindAt: remindAt)
+
+        await scheduler.syncTaskReminder(for: item)
+
+        let scheduledAlarm = await alarmService.scheduled[item.id]
+        #expect(scheduledAlarm == remindAt)
+        #expect(notificationService.scheduledNotifications().isEmpty)
+        #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .item, targetID: item.id)))
+    }
+
+    @Test func deniedTimedTaskAlarmFallsBackToNotification() async throws {
+        let calendar = gregorianCalendar()
+        let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)))
+        let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 15, minute: 30)))
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .denied)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: calendar
+        )
+
+        await scheduler.syncTaskReminder(for: makeReminderTestItem(dueAt: dueAt, hasExplicitTime: true, remindAt: remindAt))
+
+        let notifications = notificationService.scheduledNotifications()
+        #expect(notifications.count == 1)
+        #expect(notifications.first?.scheduledAt == remindAt)
+        #expect(await alarmService.scheduled.isEmpty)
+    }
+
+    @Test func taskWithoutExplicitTimeDoesNotScheduleAlarm() async throws {
+        let calendar = gregorianCalendar()
+        let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14)))
+        let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 9)))
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .authorized)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: calendar
+        )
+
+        await scheduler.syncTaskReminder(for: makeReminderTestItem(dueAt: dueAt, hasExplicitTime: false, remindAt: remindAt))
+
+        #expect(await alarmService.scheduled.isEmpty)
+        #expect(notificationService.scheduledNotifications().count == 1)
+    }
+
+    @Test func removingTaskReminderCancelsNotificationAndAlarm() async throws {
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .authorized)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: gregorianCalendar()
+        )
+        let itemID = UUID()
+
+        try await alarmService.schedule(id: itemID, title: "旧闹钟", at: .now.addingTimeInterval(3600))
+        await scheduler.removeTaskReminder(for: itemID)
+
+        #expect(await alarmService.scheduled[itemID] == nil)
+        #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .item, targetID: itemID)))
     }
 
     @Test func periodicAlarmDeliveryUsesAlarmServiceInsteadOfNotification() async throws {
@@ -3022,7 +3185,12 @@ private final class DeletionTestReminderScheduler: ReminderSchedulerProtocol {
     func syncProjectReminder(for project: Project) async {}
     func removeProjectReminder(for projectID: UUID) async {}
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {}
-    func resync(tasks: [Item], projects: [Project], includeDailySummary: Bool) async {}
+    func resync(
+        tasks: [Item],
+        projects: [Project],
+        includeTaskReminders: Bool,
+        includeDailySummary: Bool
+    ) async {}
     func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async {}
     func removePeriodicTaskReminder(for taskID: UUID) async { removedPeriodicTaskIDs.insert(taskID) }
     func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }

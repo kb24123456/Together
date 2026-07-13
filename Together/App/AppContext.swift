@@ -336,7 +336,16 @@ final class AppContext {
         guard let spaceID = sessionStore.currentSpace?.id else { return }
         let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
-        await container.reminderScheduler.resync(tasks: tasks, projects: projects)
+        await container.reminderScheduler.resync(
+            tasks: tasks,
+            projects: projects,
+            includeTaskReminders: sessionStore.currentUser?.preferences.taskReminderEnabled ?? true,
+            includeDailySummary: (
+                sessionStore.currentUser?.preferences.taskReminderEnabled ?? true
+            ) && (
+                sessionStore.currentUser?.preferences.dailySummaryEnabled ?? false
+            )
+        )
     }
 
     private func syncAfterMutation(spaceID: UUID) {

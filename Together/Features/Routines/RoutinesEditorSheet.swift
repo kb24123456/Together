@@ -136,16 +136,23 @@ struct RoutinesEditorSheet: View {
     private var cycleMenu: some View {
         Menu {
             ForEach(PeriodicCycle.allCases, id: \.self) { value in
-                Button(value.title) {
+                Button {
                     cycle = value
                     if let rule = reminderRules.first {
                         setRule(RoutinesViewModel.normalizedRule(rule, for: value))
+                    }
+                } label: {
+                    if cycle == value {
+                        Label(value.title, systemImage: "checkmark")
+                    } else {
+                        Text(value.title)
                     }
                 }
             }
         } label: {
             attributeLabel(icon: "arrow.triangle.2.circlepath", title: cycle.title, configured: true)
         }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -162,6 +169,7 @@ struct RoutinesEditorSheet: View {
             } label: {
                 attributeLabel(icon: "calendar", title: targetDayTitle, configured: currentRule?.hasTargetDay == true)
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -172,9 +180,6 @@ struct RoutinesEditorSheet: View {
             title: currentRule?.hasTargetTime == true ? TaskAttributeValueText.time(targetTimeDate) : "时间",
             isConfigured: currentRule?.hasTargetTime == true
         ) {
-            if currentRule?.hasTargetTime != true {
-                updateTargetTime(.now)
-            }
             focusedField = nil
             withAnimation(.snappy(duration: 0.28, extraBounce: 0.01)) {
                 activeInlineAttributeEditor = activeInlineAttributeEditor == .time ? nil : .time
@@ -184,7 +189,15 @@ struct RoutinesEditorSheet: View {
 
     private var reminderMenu: some View {
         Menu {
-            Button("关闭提醒") { mutateRule { $0.reminderLeadMinutes = nil; $0.reminderDelivery = nil } }
+            Button {
+                mutateRule { $0.reminderLeadMinutes = nil; $0.reminderDelivery = nil }
+            } label: {
+                if currentRule?.hasReminder == true {
+                    Text("关闭提醒")
+                } else {
+                    Label("关闭提醒", systemImage: "checkmark")
+                }
+            }
             Divider()
             reminderOption("目标时刻", minutes: 0)
             reminderOption("提前 5 分钟", minutes: 5)
@@ -194,14 +207,26 @@ struct RoutinesEditorSheet: View {
             reminderOption("提前 1 天", minutes: 1_440)
             if currentRule?.hasReminder == true {
                 Divider()
-                Button("普通通知") { mutateRule { $0.reminderDelivery = .notification } }
+                Button {
+                    mutateRule { $0.reminderDelivery = .notification }
+                } label: {
+                    Label(
+                        "普通通知",
+                        systemImage: currentRule?.reminderDelivery == .notification ? "checkmark" : "bell"
+                    )
+                }
                 if #available(iOS 26.0, *) {
-                    Button("原生闹钟") {
+                    Button {
                         Task {
                             let accepted = await viewModel.canUseAlarmDelivery()
                             guard accepted else { return }
                             mutateRule { $0.reminderDelivery = .alarm }
                         }
+                    } label: {
+                        Label(
+                            "原生闹钟",
+                            systemImage: currentRule?.reminderDelivery == .alarm ? "checkmark" : "alarm"
+                        )
                     }
                 }
             }
@@ -212,14 +237,21 @@ struct RoutinesEditorSheet: View {
                 configured: currentRule?.hasReminder == true
             )
         }
+        .buttonStyle(.plain)
         .disabled(currentRule?.hasCompleteTarget(for: cycle) != true)
     }
 
     private func reminderOption(_ title: String, minutes: Int) -> some View {
-        Button(title) {
+        Button {
             mutateRule {
                 $0.reminderLeadMinutes = minutes
                 if $0.reminderDelivery == nil { $0.reminderDelivery = .notification }
+            }
+        } label: {
+            if currentRule?.reminderLeadMinutes == minutes {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
             }
         }
     }
@@ -227,19 +259,22 @@ struct RoutinesEditorSheet: View {
     private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
         InlineDateTimePickerPanel(
             editor: editor,
-            title: "目标时间",
-            selection: Binding(get: { targetTimeDate }, set: updateTargetTime),
-            allowsClearing: currentRule?.hasTargetTime == true,
-            onClear: {
-                mutateRule {
-                    $0.hour = nil
-                    $0.minute = nil
-                    $0.reminderLeadMinutes = nil
-                    $0.reminderDelivery = nil
+            title: "选择目标时间",
+            initialSelection: currentRule?.hasTargetTime == true ? targetTimeDate : nil,
+            fallbackSelection: .now,
+            supportsClearing: currentRule?.hasTargetTime == true,
+            onCommit: { value in
+                if let value {
+                    updateTargetTime(value)
+                } else {
+                    mutateRule {
+                        $0.hour = nil
+                        $0.minute = nil
+                        $0.reminderLeadMinutes = nil
+                        $0.reminderDelivery = nil
+                    }
                 }
-                withAnimation { activeInlineAttributeEditor = nil }
-            },
-            onDone: { withAnimation { activeInlineAttributeEditor = nil } }
+            }
         )
     }
 
@@ -258,20 +293,41 @@ struct RoutinesEditorSheet: View {
             EmptyView()
         case .weekly:
             ForEach(1...7, id: \.self) { day in
-                Button(RoutineTargetText.weekdayText(for: day)) { mutateRule { $0.timing = .dayOfPeriod(day) } }
+                targetDayOption(
+                    RoutineTargetText.weekdayText(for: day),
+                    timing: .dayOfPeriod(day)
+                )
             }
         case .monthly:
             ForEach([1, 5, 10, 15, 20, 25, 31], id: \.self) { day in
-                Button(day == 31 ? "最后一天" : "\(day) 号") { mutateRule { $0.timing = .dayOfPeriod(day) } }
+                targetDayOption(
+                    day == 31 ? "最后一天" : "\(day) 号",
+                    timing: .dayOfPeriod(day)
+                )
             }
         case .quarterly:
-            Button("第 1 天") { mutateRule { $0.timing = .dayOfPeriod(1) } }
-            Button("第 30 天") { mutateRule { $0.timing = .dayOfPeriod(30) } }
-            Button("结束前 14 天") { mutateRule { $0.timing = .daysBeforeEnd(14) } }
+            targetDayOption("第 1 天", timing: .dayOfPeriod(1))
+            targetDayOption("第 30 天", timing: .dayOfPeriod(30))
+            targetDayOption("结束前 14 天", timing: .daysBeforeEnd(14))
         case .yearly:
-            Button("第 1 天") { mutateRule { $0.timing = .dayOfPeriod(1) } }
-            Button("第 180 天") { mutateRule { $0.timing = .dayOfPeriod(180) } }
-            Button("结束前 30 天") { mutateRule { $0.timing = .daysBeforeEnd(30) } }
+            targetDayOption("第 1 天", timing: .dayOfPeriod(1))
+            targetDayOption("第 180 天", timing: .dayOfPeriod(180))
+            targetDayOption("结束前 30 天", timing: .daysBeforeEnd(30))
+        }
+    }
+
+    private func targetDayOption(
+        _ title: String,
+        timing: PeriodicReminderRule.Timing
+    ) -> some View {
+        Button {
+            mutateRule { $0.timing = timing }
+        } label: {
+            if currentRule?.timing == timing {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
         }
     }
 

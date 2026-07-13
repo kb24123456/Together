@@ -1,26 +1,6 @@
 import Foundation
 import Observation
 
-enum ProfileExpandedSetting: Hashable {
-    case taskUrgency
-    case completedArchive
-    case appearance
-}
-
-enum ProfileCustomDurationKind: Hashable, Identifiable {
-    case taskUrgency
-
-    var id: Self { self }
-
-    var title: String {
-        "自定义临期提醒"
-    }
-
-    var initialMinutes: Int {
-        30
-    }
-}
-
 @MainActor
 @Observable
 final class ProfileViewModel {
@@ -38,8 +18,6 @@ final class ProfileViewModel {
     var onTaskMutated: ((_ spaceID: UUID) -> Void)?
     var loadState: LoadableState = .idle
     var notificationAuthorization: NotificationAuthorizationStatus = .notDetermined
-    var expandedSetting: ProfileExpandedSetting?
-    var customDurationSheet: ProfileCustomDurationKind?
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
     var deletionErrorMessage: String?
@@ -75,16 +53,6 @@ final class ProfileViewModel {
     var currentSpace: Space? { sessionStore.currentSpace }
 
     var profileCardPrimaryName: String { currentUserDisplayName }
-    var profileCardSecondaryName: String? { nil }
-
-    var profileCardPrimaryAvatar: ProfileCardAvatar {
-        ProfileCardAvatar(
-            displayName: currentUserDisplayName,
-            avatarAsset: currentUser?.avatarAsset ?? .system("person.crop.circle.fill"),
-            overrideImage: nil
-        )
-    }
-
     func makeEditProfileViewModel(user: User?) -> EditProfileViewModel {
         let vm = EditProfileViewModel(
             sessionStore: sessionStore,
@@ -93,34 +61,6 @@ final class ProfileViewModel {
         )
         vm.onProfileSaved = onProfileSaved
         return vm
-    }
-
-    var notificationSummary: String {
-        switch notificationAuthorization {
-        case .authorized:
-            return "提醒已开启"
-        case .denied:
-            return "提醒未开启"
-        case .notDetermined:
-            return "尚未请求提醒权限"
-        }
-    }
-
-    var taskUrgencySummary: String {
-        guard taskReminderEnabled else { return "已关闭" }
-        return taskUrgencyLabel(minutes: taskUrgencyWindowMinutes)
-    }
-
-    var completedArchiveSummary: String {
-        "\(completedTaskAutoArchiveDays)天后"
-    }
-
-    var spaceSummary: String {
-        currentSpace?.displayName ?? "我的任务空间"
-    }
-
-    var identityCardSubtitle: String {
-        "独立工作空间"
     }
 
     var taskUrgencyWindowMinutes: Int {
@@ -135,6 +75,14 @@ final class ProfileViewModel {
 
     let taskUrgencyOptions: [Int] = [5, 10, 30, 60]
     let completedTaskAutoArchiveOptions: [Int] = NotificationSettings.completedTaskAutoArchiveDayOptions
+
+    var taskUrgencyPickerOptions: [Int] {
+        Array(Set(taskUrgencyOptions + [taskUrgencyWindowMinutes])).sorted()
+    }
+
+    var dailySummaryEnabled: Bool {
+        sessionStore.currentUser?.preferences.dailySummaryEnabled ?? false
+    }
 
     var completedTaskAutoArchiveEnabled: Bool {
         sessionStore.currentUser?.preferences.completedTaskAutoArchiveEnabled ?? true
@@ -171,14 +119,6 @@ final class ProfileViewModel {
         return "\(version) (\(build))"
     }
 
-    var cacheSizeString: String {
-        let cacheSize = URLCache.shared.currentDiskUsage
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useKB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(cacheSize))
-    }
-
     func updateAppLockEnabled(_ isEnabled: Bool) {
         if isEnabled {
             // 开启前先验证生物识别身份
@@ -197,15 +137,6 @@ final class ProfileViewModel {
         }
     }
 
-    var customDurationInitialMinutes: Int {
-        switch customDurationSheet {
-        case .taskUrgency:
-            return taskUrgencyWindowMinutes
-        case nil:
-            return ProfileCustomDurationKind.taskUrgency.initialMinutes
-        }
-    }
-
     func load() async {
         loadState = .loading
         async let notifStatus = notificationService.authorizationStatus()
@@ -217,10 +148,6 @@ final class ProfileViewModel {
 
     func checkICloudStatus() async {
         iCloudStatus = await ICloudStatusService.checkStatus()
-    }
-
-    func clearCache() {
-        URLCache.shared.removeAllCachedResponses()
     }
 
     @discardableResult
@@ -242,11 +169,7 @@ final class ProfileViewModel {
 
     func requestNotifications() async {
         notificationAuthorization = (try? await notificationService.requestAuthorization()) ?? .denied
-        guard notificationAuthorization == .authorized else { return }
-        let spaceID = sessionStore.currentSpace?.id
-        let tasks = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
-        let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
-        await reminderScheduler.resync(tasks: tasks, projects: projects)
+        await resyncReminderNotifications()
     }
 
     func updateTaskUrgencyWindow(minutes: Int) {
@@ -267,38 +190,28 @@ final class ProfileViewModel {
         applyUpdatedPreferences(user.preferences, to: user)
     }
 
+    func updateDailySummaryEnabled(_ isEnabled: Bool) {
+        guard var user = sessionStore.currentUser else { return }
+        user.preferences.dailySummaryEnabled = isEnabled && user.preferences.taskReminderEnabled
+        applyUpdatedPreferences(user.preferences, to: user)
+        Task { await resyncReminderNotifications() }
+    }
+
     func updateTaskReminderEnabled(_ isEnabled: Bool) {
         guard var user = sessionStore.currentUser else { return }
         user.preferences.taskReminderEnabled = isEnabled
+        if isEnabled == false {
+            user.preferences.dailySummaryEnabled = false
+        }
         applyUpdatedPreferences(user.preferences, to: user)
-        if isEnabled == false, expandedSetting == .taskUrgency {
-            expandedSetting = nil
+
+        Task {
+            if isEnabled, notificationAuthorization != .authorized {
+                await requestNotifications()
+            } else {
+                await resyncReminderNotifications()
+            }
         }
-    }
-
-    func toggleExpandedSetting(_ setting: ProfileExpandedSetting) {
-        if expandedSetting == setting {
-            expandedSetting = nil
-        } else {
-            expandedSetting = setting
-        }
-    }
-
-    func presentCustomDurationSheet(_ kind: ProfileCustomDurationKind) {
-        customDurationSheet = kind
-    }
-
-    func dismissCustomDurationSheet() {
-        customDurationSheet = nil
-    }
-
-    func applyCustomDuration(_ minutes: Int) {
-        guard let customDurationSheet else { return }
-        switch customDurationSheet {
-        case .taskUrgency:
-            updateTaskUrgencyWindow(minutes: minutes)
-        }
-        self.customDurationSheet = nil
     }
 
     func makeCompletedHistoryViewModel(
@@ -328,6 +241,33 @@ final class ProfileViewModel {
             return "\(minutes / 60)小时后"
         }
         return "\(minutes)分钟后"
+    }
+
+    func iCloudStatusDescription(for status: ICloudStatus) -> String {
+        switch status {
+        case .available:
+            return "iCloud 已登录，Together 会使用你的私人 iCloud 数据库进行同步与恢复。"
+        case .noAccount:
+            return "当前设备未登录 iCloud。登录 iCloud 后可在 Apple 设备间恢复任务数据。"
+        case .restricted:
+            return "当前 iCloud 访问受限，请检查系统设置或屏幕使用时间限制。"
+        case .couldNotDetermine:
+            return "暂时无法确认 iCloud 状态，可以稍后重新检查。"
+        case .temporarilyUnavailable:
+            return "iCloud 暂时不可用，系统恢复后会继续同步。"
+        }
+    }
+
+    private func resyncReminderNotifications() async {
+        let spaceID = sessionStore.currentSpace?.id
+        let tasks = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
+        let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        await reminderScheduler.resync(
+            tasks: tasks,
+            projects: projects,
+            includeTaskReminders: taskReminderEnabled,
+            includeDailySummary: taskReminderEnabled && dailySummaryEnabled
+        )
     }
 
     private func applyUpdatedPreferences(_ preferences: NotificationSettings, to user: User) {
