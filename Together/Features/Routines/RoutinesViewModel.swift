@@ -194,6 +194,9 @@ final class RoutinesViewModel {
     var showsAlarmAuthorizationDeniedAlert = false
     private(set) var persistedVisibleCycles: Set<PeriodicCycle>
     private var pendingCompletedTask: PeriodicTask?
+    private var completingTaskIDs: Set<UUID> = []
+    private var animatingCompletionTaskIDs: Set<UUID> = []
+    private var animatingReopeningTaskIDs: Set<UUID> = []
     private var temporaryVisibleCycle: PeriodicCycle?
 
     private var loadedSpaceID: UUID?
@@ -290,6 +293,21 @@ final class RoutinesViewModel {
         sortedTasks(for: selectedCycle)
     }
 
+    var nextDeferredTaskResumeDate: Date? {
+        tasks.compactMap(\.deferredUntil).filter { $0 > referenceDate }.min()
+    }
+
+    private func activeTasks(for cycle: PeriodicCycle, referenceDate: Date) -> [PeriodicTask] {
+        tasks.filter {
+            $0.cycle == cycle && isDeferred($0, referenceDate: referenceDate) == false
+        }
+    }
+
+    private func isDeferred(_ task: PeriodicTask, referenceDate: Date) -> Bool {
+        guard let deferredUntil = task.deferredUntil else { return false }
+        return deferredUntil > referenceDate
+    }
+
     // MARK: - Summary
 
     var hasPendingTasks: Bool {
@@ -302,7 +320,7 @@ final class RoutinesViewModel {
 
     func pendingSummary(referenceDate: Date) -> [(PeriodicCycle, Int)] {
         PeriodicCycle.allCases.compactMap { cycle in
-            let cycleTasks = tasks.filter { $0.cycle == cycle }
+            let cycleTasks = activeTasks(for: cycle, referenceDate: referenceDate)
             let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
             let pendingCount = cycleTasks.filter { !$0.isCompleted(forPeriodKey: periodKey) }.count
             return pendingCount > 0 ? (cycle, pendingCount) : nil
@@ -313,6 +331,7 @@ final class RoutinesViewModel {
         PeriodicCycle.allCases.compactMap { cycle in
             let count = tasks.filter { task in
                 guard task.cycle == cycle else { return false }
+                guard isDeferred(task, referenceDate: referenceDate) == false else { return false }
                 let periodKey = PeriodicCycleCalculator.periodKey(for: task.cycle, date: referenceDate, calendar: calendar)
                 guard task.isCompleted(forPeriodKey: periodKey) == false else { return false }
                 let urgency = urgencyState(task)
@@ -323,7 +342,7 @@ final class RoutinesViewModel {
     }
 
     func summary(for cycle: PeriodicCycle) -> RoutineDimensionSummary {
-        let cycleTasks = tasks.filter { $0.cycle == cycle }
+        let cycleTasks = activeTasks(for: cycle, referenceDate: referenceDate)
         let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
         let completedCount = cycleTasks.filter { $0.isCompleted(forPeriodKey: periodKey) }.count
         let attentionCount = cycleTasks.filter { task in
@@ -344,7 +363,7 @@ final class RoutinesViewModel {
 
     func sortedTasks(for cycle: PeriodicCycle) -> [PeriodicTask] {
         tasks
-            .filter { $0.cycle == cycle }
+            .filter { $0.cycle == cycle && isDeferred($0, referenceDate: referenceDate) == false }
             .sorted { lhs, rhs in
                 let lhsCompleted = isCompleted(lhs)
                 let rhsCompleted = isCompleted(rhs)
@@ -354,13 +373,13 @@ final class RoutinesViewModel {
     }
 
     func pendingCount(for cycle: PeriodicCycle) -> Int {
-        let cycleTasks = tasks.filter { $0.cycle == cycle }
+        let cycleTasks = activeTasks(for: cycle, referenceDate: referenceDate)
         let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
         return cycleTasks.filter { !$0.isCompleted(forPeriodKey: periodKey) }.count
     }
 
     func sectionSummary(for cycle: PeriodicCycle) -> String {
-        let cycleTasks = tasks.filter { $0.cycle == cycle }
+        let cycleTasks = activeTasks(for: cycle, referenceDate: referenceDate)
         let periodKey = PeriodicCycleCalculator.periodKey(for: cycle, date: referenceDate, calendar: calendar)
         let completedCount = cycleTasks.filter { $0.isCompleted(forPeriodKey: periodKey) }.count
         return "\(completedCount)/\(cycleTasks.count) 已完成"
@@ -478,6 +497,7 @@ final class RoutinesViewModel {
     }
 
     func loadIfNeeded() async {
+        referenceDate = .now
         guard let spaceID = sessionStore.currentSpace?.id else {
             clearLoadedSpace()
             return
@@ -549,14 +569,37 @@ final class RoutinesViewModel {
 
     func toggleCompletion(taskID: UUID) async {
         guard let spaceID = sessionStore.currentSpace?.id else { return }
+        guard completingTaskIDs.contains(taskID) == false else { return }
+        completingTaskIDs.insert(taskID)
+        defer {
+            completingTaskIDs.remove(taskID)
+            animatingCompletionTaskIDs.remove(taskID)
+            animatingReopeningTaskIDs.remove(taskID)
+        }
+
         do {
             let updated = try await periodicTaskApplicationService.toggleCompletion(
                 in: spaceID,
                 taskID: taskID,
                 referenceDate: referenceDate
             )
-            if let index = tasks.firstIndex(where: { $0.id == taskID }) {
-                tasks[index] = updated
+
+            if isCompleted(updated) {
+                animatingCompletionTaskIDs.insert(taskID)
+                try? await Task.sleep(for: .milliseconds(320))
+                withAnimation(.smooth(duration: 0.28, extraBounce: 0)) {
+                    replaceTask(updated)
+                }
+                try? await Task.sleep(for: .milliseconds(140))
+            } else {
+                animatingReopeningTaskIDs.insert(taskID)
+                try? await Task.sleep(for: .milliseconds(220))
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    replaceTask(updated)
+                }
+                try? await Task.sleep(for: .milliseconds(90))
             }
             cacheCurrentTasks()
         } catch {
@@ -566,16 +609,26 @@ final class RoutinesViewModel {
     }
 
     func prepareExpandedCompletion(taskID: UUID) async -> Bool {
+        guard completingTaskIDs.contains(taskID) == false else { return false }
         guard await saveInlineDetailDraft() else { return false }
         guard let spaceID = sessionStore.currentSpace?.id else { return false }
+        completingTaskIDs.insert(taskID)
         do {
             pendingCompletedTask = try await periodicTaskApplicationService.toggleCompletion(
                 in: spaceID,
                 taskID: taskID,
                 referenceDate: referenceDate
             )
+            if let pendingCompletedTask, isCompleted(pendingCompletedTask) {
+                animatingCompletionTaskIDs.insert(taskID)
+            } else {
+                animatingReopeningTaskIDs.insert(taskID)
+            }
             return true
         } catch {
+            completingTaskIDs.remove(taskID)
+            animatingCompletionTaskIDs.remove(taskID)
+            animatingReopeningTaskIDs.remove(taskID)
             pendingCompletedTask = nil
             operationErrorMessage = "例行任务状态更新失败，请重试。"
             return false
@@ -584,11 +637,30 @@ final class RoutinesViewModel {
 
     func finishExpandedCompletion(taskID: UUID) {
         guard let pendingCompletedTask, pendingCompletedTask.id == taskID else { return }
-        if let index = tasks.firstIndex(where: { $0.id == taskID }) {
-            tasks[index] = pendingCompletedTask
+        if isCompleted(pendingCompletedTask) {
+            withAnimation(.smooth(duration: 0.28, extraBounce: 0)) {
+                replaceTask(pendingCompletedTask)
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                replaceTask(pendingCompletedTask)
+            }
         }
         self.pendingCompletedTask = nil
+        completingTaskIDs.remove(taskID)
+        animatingCompletionTaskIDs.remove(taskID)
+        animatingReopeningTaskIDs.remove(taskID)
         cacheCurrentTasks()
+    }
+
+    func isAnimatingCompletion(taskID: UUID) -> Bool {
+        animatingCompletionTaskIDs.contains(taskID)
+    }
+
+    func isAnimatingReopening(taskID: UUID) -> Bool {
+        animatingReopeningTaskIDs.contains(taskID)
     }
 
     func toggleInlineDetail(_ taskID: UUID) async {
@@ -782,6 +854,22 @@ final class RoutinesViewModel {
         return SoloPermissionService.canEditPeriodicTask(task, actorID: userID)
     }
 
+    func deferTaskUntilTomorrow(taskID: UUID) async {
+        guard let spaceID = sessionStore.currentSpace?.id else { return }
+        do {
+            let updated = try await periodicTaskApplicationService.deferTaskUntilTomorrow(
+                in: spaceID,
+                taskID: taskID,
+                referenceDate: .now
+            )
+            referenceDate = .now
+            replaceTask(updated)
+        } catch {
+            operationErrorMessage = "例行任务推迟失败，请重试。"
+            await load()
+        }
+    }
+
     func deleteTask(taskID: UUID) async {
         guard let spaceID = sessionStore.currentSpace?.id,
               let actorID = sessionStore.currentUser?.id else { return }
@@ -797,6 +885,10 @@ final class RoutinesViewModel {
             operationErrorMessage = "例行任务删除失败，请重试。"
             await load()
         }
+    }
+
+    func refreshReferenceDate() {
+        referenceDate = .now
     }
 
     func presentEditor(for task: PeriodicTask? = nil, defaultCycle: PeriodicCycle? = nil) {

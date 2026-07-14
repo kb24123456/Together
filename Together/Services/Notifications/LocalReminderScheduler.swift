@@ -335,7 +335,7 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
 
     func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async {
         let periodKey = PeriodicCycleCalculator.periodKey(for: task.cycle, date: referenceDate, calendar: calendar)
-        let notificationID = periodicTaskNotificationID(taskID: task.id, periodKey: periodKey)
+        let notificationID = AppNotification.identifier(for: .periodicTask, targetID: task.id)
 
         guard task.isActive, !task.isCompleted(forPeriodKey: periodKey) else {
             await notificationService.cancel([notificationID])
@@ -343,7 +343,13 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
             return
         }
 
-        guard let schedule = nextPeriodicReminderSchedule(for: task, referenceDate: referenceDate) else {
+        let schedule: PeriodicReminderSchedule?
+        if let deferredUntil = task.deferredUntil, deferredUntil > .now {
+            schedule = deferredPeriodicReminderSchedule(for: task)
+        } else {
+            schedule = nextPeriodicReminderSchedule(for: task, referenceDate: referenceDate)
+        }
+        guard let schedule else {
             await notificationService.cancel([notificationID])
             await routineAlarmService.cancel(id: task.id)
             return
@@ -372,11 +378,9 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     }
 
     func removePeriodicTaskReminder(for taskID: UUID) async {
-        let ids = PeriodicCycle.allCases.map { cycle in
-            let key = PeriodicCycleCalculator.periodKey(for: cycle, date: .now, calendar: calendar)
-            return periodicTaskNotificationID(taskID: taskID, periodKey: key)
-        }
-        await notificationService.cancel(ids)
+        await notificationService.cancel([
+            AppNotification.identifier(for: .periodicTask, targetID: taskID)
+        ])
         await routineAlarmService.cancel(id: taskID)
     }
 
@@ -429,6 +433,41 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         return earliest
     }
 
+    private func deferredPeriodicReminderSchedule(
+        for task: PeriodicTask
+    ) -> PeriodicReminderSchedule? {
+        let now = Date.now
+        guard let deferredUntil = task.deferredUntil, deferredUntil > now else { return nil }
+
+        var earliest: PeriodicReminderSchedule?
+        for rule in task.reminderRules {
+            guard let leadMinutes = rule.reminderLeadMinutes,
+                  let hour = rule.hour,
+                  let minute = rule.minute,
+                  let targetDate = calendar.date(
+                    bySettingHour: hour,
+                    minute: minute,
+                    second: 0,
+                    of: deferredUntil
+                  ),
+                  let reminderDate = calendar.date(
+                    byAdding: .minute,
+                    value: -leadMinutes,
+                    to: targetDate
+                  ) else { continue }
+
+            let scheduledDate = max(reminderDate, deferredUntil)
+            guard scheduledDate > now else { continue }
+            if earliest == nil || scheduledDate < earliest!.date {
+                earliest = PeriodicReminderSchedule(
+                    date: scheduledDate,
+                    delivery: rule.reminderDelivery ?? .notification
+                )
+            }
+        }
+        return earliest
+    }
+
     private func makePeriodicTaskNotification(
         for task: PeriodicTask,
         periodKey: String,
@@ -448,7 +487,4 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         )
     }
 
-    private func periodicTaskNotificationID(taskID: UUID, periodKey: String) -> String {
-        "local.periodicTask.\(taskID.uuidString).\(periodKey)"
-    }
 }

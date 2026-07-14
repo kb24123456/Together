@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-07-03
+- 日期：2026-07-14
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
@@ -15,7 +15,7 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：2026-07-01 已完成例行任务列表与首页任务流的交互架构同构；首页统一任务区、已完成归档、OCR 和例行任务工作区继续迭代。
+- 当前任务：2026-07-14 已完成普通任务与例行任务的原生右滑操作，并统一两类任务的勾选完成动画与列表迁移时序。
 - 已确认边界：
   - 不迁移旧 Supabase 数据，允许删除。
   - 不保留 RevenueCat、Paywall、PremiumGate、Supabase webhook。
@@ -51,6 +51,8 @@
   - 2026-07-03 例行展开卡节奏对齐：例行详情旧固定 `126pt` fallback 与实际“添加备注 + 属性栏”两行不匹配，导致卡片被撑到接近普通任务高度并在属性栏下方留下空白。`RoutineInlineLayoutMetrics` 改为按可见行计算 fallback，统一使用 32pt 紧凑行、2pt 行距和 44pt 属性栏；有添加备注时为 86pt，无入口时为 52pt，不伪造普通任务的子任务空间。
   - 2026-07-03 例行维度栏与卡外交互完善：维度栏改为名称与末尾管理入口全宽等分，Gauge 中心数字提升为 12pt 等宽粗体；每天至每年均可通过 UserDefaults 偏好显示或隐藏且至少保留一个，旧季度/年度偏好自动迁移，隐藏维度任务与提醒不删除，首页临期跳转可临时显示隐藏维度。展开态使用命名坐标空间记录聚焦卡 frame，`SpatialTapGesture` 仅在卡外收起，修复 ScrollView 背景手势无法命中空白区域；长按菜单提供编辑/收起与删除。focused tests、`git diff --check`、generic iOS `build-for-testing` 通过；仍需真机确认等分栏、大字体和空白点击手感。
   - 2026-07-03 首页进入例行任务改为同画布模式转场：`HomeView` 常驻普通任务层与例行任务层，网格画布不参与切换；普通任务轻微缩小 / 上移 / 模糊淡出，例行维度区与任务层从下方进入，前五行以 20ms 间隔级联，返回按反向顺序播放。根标题使用稳定 principal 容器做 2pt blur / opacity 替换，不缩放，时长为 0.42 秒无回弹 `.smooth`；Reduce Motion 仅保留 180ms 淡变。隐藏例行层禁止命中与辅助功能访问，但预加载数据；退出模式会收起草稿并清理临时维度。历史 Calendar 页面、ViewModel、路由以及首页不可达的周/月日历与翻页手势已删除；Foundation `Calendar` 仍服务任务日期分组、DatePicker、提醒和周期计算。主 App 全量 iPhoneOS SDK typecheck 与 `git diff --check` 通过；标准 `build-for-testing` 因本机 Xcode 将已有 iOS 26.5 SDK 判定为 platform 未安装而在 destination 阶段阻塞，仍需真机确认转场节奏与快速连续点击。
+  - 2026-07-14 普通任务与例行任务统一接入 SwiftUI 原生 leading `swipeActions`（右滑露出操作），均提供“推迟到明天”和删除，禁用 full swipe；详情展开期间不暴露滑动操作。普通任务沿用已有 due date 推迟逻辑；例行任务新增可选 `deferredUntil`，作为 SwiftData / CloudKit 可同步的一次性可见性与提醒延后状态，不修改 `PeriodicCycle` 或提醒规则，到次日自动重新进入列表。例行删除以当前 personal space 为权限边界，兼容重装恢复后历史 `creatorID`；删除同时取消真实通知标识和 AlarmKit 提醒。关键文件：`HomeView.swift`、`RoutinesListContent.swift`、`RoutinesViewModel.swift`、`PeriodicTaskApplicationService.swift`、`PersistentPeriodicTask.swift`、`LocalReminderScheduler.swift`。
+  - 2026-07-14 例行任务勾选完成动画与普通任务完全同构：原位置先播放虚线轮廓收束、珊瑚填充与光晕扩散、勾号弹入和整行轻微压缩回弹，未展开任务约 320ms 后、展开任务约 680ms 后才提交完成状态并用无额外回弹的 smooth 动画重排；取消完成使用同款勾号淡出恢复，Reduce Motion 保留短淡变。动画临时态由 `RoutinesViewModel` 管理，持久化结果在反馈窗口结束后才写入列表，避免先重排后动画。关键文件：`RoutinesTaskRow.swift`、`RoutinesListContent.swift`、`RoutinesViewModel.swift`。
   - 2026-06-25 中文输入法提交修复：删除 `CompositionAwareTextField` / `TextInputCommitter` 的 UIKit TextField 桥接和经验延迟提交路径；首页展开态标题、备注、子任务新增/编辑、任务详情子任务、OCR 草稿、项目子任务和快速创建子任务统一回到 SwiftUI 原生 `TextField` + `@FocusState` + 本地编辑 buffer；针对微信输入法 marked text 不落入 SwiftUI binding 的真机现象，新增 `TextInputSnapshotReader`，在保存/添加瞬间读取当前 UIKit 第一响应者的可见文本，再结束焦点并提交。
   - 2026-06-14 普通任务子任务已落地：新增独立 `TaskSubtask` / `PersistentTaskSubtask`，`Item.subtasks` 与 `TaskDraft.subtasks` 走本地 SwiftData hydrate；不复用 `ProjectSubtask`，不引入 Supabase 或多人能力；删除父任务会 tombstone 普通任务子任务。
   - 普通任务子任务应用服务已接入 `TaskApplicationServiceProtocol` / `DefaultTaskApplicationService`，支持新增、勾选、改名、删除；子任务完成只更新子任务和父任务 `updatedAt`，不会自动完成父任务。
@@ -64,6 +66,7 @@
   - 测试 target 已重建为当前架构的 Swift Testing 基础测试，覆盖 Item 状态机、单人 SessionStore、OCR parser。
 - 当前验证：
   - `git diff --check` 通过。
+  - 2026-07-14 右滑操作、例行任务删除/推迟与完成动画验证：签名 iOS 26.4.1 模拟器完整 `TogetherTests` 125/125 通过；覆盖动画窗口结束前保持原任务状态、推迟不修改重复规则、次日恢复显示、历史 creator 身份删除、提醒迁移和真实通知标识取消。Xcode 27 `build-for-testing` 通过；尚未做真机滑动手感、完成动效和通知到达验收。
   - 2026-06-14 普通任务子任务验证：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖创建 hydrate 排序、整单更新过滤空标题、勾选最后子任务不自动完成父任务、删除父任务隐藏子任务、模板保存/恢复子任务、Timeline entry 子任务数据。
   - 2026-06-14 普通任务子任务构建：`xcodebuild build -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -quiet` 通过；仍有既有 Swift 6 actor isolation / Widget / Notification warning，本次新增的 `TaskSubtaskDraft` Equatable warning 已收敛。
   - 2026-06-19 已完成任务分层 focused 测试：`xcodebuild test -project Together.xcodeproj -scheme Together -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TogetherTests/TogetherTests -quiet` 通过；覆盖 CompletedTaskRange、首页今天已完成过滤、本周 sheet 排除今天、计数失败不清空首页主任务流、已完成页子任务搜索与所有历史分页。

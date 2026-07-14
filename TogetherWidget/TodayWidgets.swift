@@ -2,10 +2,11 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// Keep widget emphasis aligned with `AppTheme.colors.sky` in the main app.
+/// Keep widget emphasis aligned with the main app's semantic colors.
 /// Widget extensions do not link the app target's design-system source directly.
 private enum TodayWidgetTheme {
     static let babyBlue = Color(red: 0.42, green: 0.70, blue: 0.98)
+    static let coralOrange = Color(red: 0.87, green: 0.48, blue: 0.41)
 }
 
 struct TodayOverviewWidget: Widget {
@@ -18,7 +19,7 @@ struct TodayOverviewWidget: Widget {
                 .widgetURL(TodayWidgetConstants.todayDeepLink)
         }
         .configurationDisplayName("今日概览")
-        .description("查看今日进度，并在中号或大号组件中完成任务。")
+        .description("查看今日待办、最近任务与完成进度；中号和大号可直接完成任务。")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -89,43 +90,65 @@ private struct TodayWidgetView: View {
     }
 
     private var smallOverview: some View {
-        ViewThatFits(in: .vertical) {
-            smallOverviewContent(countSize: 48, verticalSpacing: 8)
-            smallOverviewContent(countSize: 38, verticalSpacing: 3)
-        }
-    }
-
-    private func smallOverviewContent(
-        countSize: CGFloat,
-        verticalSpacing: CGFloat
-    ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("今天")
                     .font(.headline.weight(.semibold))
 
-                Spacer(minLength: 8)
-                TodayWidgetAddTaskLink()
+                Spacer(minLength: 4)
+
+                Text(verbatim: "\(entry.snapshot.remainingCount)")
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(TodayWidgetTheme.coralOrange)
+                    .widgetAccentable()
+                    .contentTransition(.numericText())
+
+                Text("待办")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("今天，剩余 \(entry.snapshot.remainingCount) 项待办")
+
+            Spacer(minLength: 8)
+
+            if let task = entry.snapshot.tasks.first {
+                TodayWidgetRecentTask(
+                    task: task,
+                    isAppearing: entry.snapshot.appearingTaskIDs.contains(task.id)
+                )
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(TodayWidgetTheme.babyBlue)
+                        .widgetAccentable()
+                    Text("今日已清空")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
 
-            Spacer(minLength: verticalSpacing)
+            Spacer(minLength: 8)
 
-            Text(verbatim: "\(entry.snapshot.remainingCount)")
-                .font(.system(size: countSize, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .contentTransition(.numericText())
+            HStack(alignment: .center, spacing: 5) {
+                Text("完成进度")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
 
-            Text("项待办")
-                .font(.subheadline.weight(.medium))
+                Text(verbatim: "\(entry.snapshot.completedTodayCount)/\(entry.snapshot.totalTodayCount)")
+                    .font(.system(.caption2, design: .rounded, weight: .semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
 
-            Spacer(minLength: verticalSpacing)
-
-            TodayWidgetLinearProgress(snapshot: entry.snapshot)
+                TodayWidgetCircularProgress(progress: entry.snapshot.completionProgress)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("今日完成进度")
+            .accessibilityValue("已完成 \(entry.snapshot.completedTodayCount) 项，共 \(entry.snapshot.totalTodayCount) 项")
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(smallAccessibilityLabel)
     }
 
     private var mediumOverview: some View {
@@ -232,17 +255,6 @@ private struct TodayWidgetView: View {
         }
     }
 
-    private var smallAccessibilityLabel: String {
-        var parts = [
-            "今天",
-            "剩余 \(entry.snapshot.remainingCount) 项",
-            "已完成 \(entry.snapshot.completedTodayCount) 项，共 \(entry.snapshot.totalTodayCount) 项"
-        ]
-        if entry.snapshot.overdueCount > 0 {
-            parts.append("逾期 \(entry.snapshot.overdueCount) 项")
-        }
-        return parts.joined(separator: "，")
-    }
 }
 
 private struct TodayWidgetDashboardHeader: View {
@@ -304,27 +316,6 @@ private struct TodayWidgetAddTaskLink: View {
         .buttonStyle(.plain)
         .accessibilityLabel("新建任务")
         .accessibilityHint("打开 Together 的任务创建页")
-    }
-}
-
-private struct TodayWidgetLinearProgress: View {
-    let snapshot: TodayWidgetSnapshot
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(verbatim: "\(snapshot.completedTodayCount) / \(snapshot.totalTodayCount) 已完成")
-                .font(.system(.caption, design: .rounded, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            ProgressView(value: snapshot.completionProgress)
-                .tint(TodayWidgetTheme.babyBlue)
-                .widgetAccentable()
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("今日完成进度")
-        .accessibilityValue("已完成 \(snapshot.completedTodayCount) 项，共 \(snapshot.totalTodayCount) 项")
     }
 }
 
@@ -408,6 +399,68 @@ private struct TodayWidgetTaskRow: View {
 
     private var taskAccessibilityLabel: String {
         [task.title, task.dueTimeText].compactMap { $0 }.joined(separator: "，")
+    }
+}
+
+private struct TodayWidgetRecentTask: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let task: TodayWidgetTaskSnapshot
+    let isAppearing: Bool
+
+    var body: some View {
+        Link(destination: TodayWidgetConstants.taskDeepLink(taskID: task.id)) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Text("最近")
+                    if let dueTimeText = task.dueTimeText {
+                        Text("·")
+                        Text(dueTimeText)
+                            .monospacedDigit()
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(task.isOverdue ? .red : .secondary)
+
+                Text(task.title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(taskAccessibilityLabel)
+        .opacity(isAppearing ? 0 : 1)
+        .offset(y: reduceMotion || isAppearing == false ? 0 : 3)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.24), value: isAppearing)
+    }
+
+    private var taskAccessibilityLabel: String {
+        [task.title, task.dueTimeText].compactMap { $0 }.joined(separator: "，")
+    }
+}
+
+private struct TodayWidgetCircularProgress: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.secondary.opacity(0.16), lineWidth: 2)
+
+            Circle()
+                .trim(from: 0, to: min(max(progress, 0), 1))
+                .stroke(
+                    TodayWidgetTheme.babyBlue,
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .widgetAccentable()
+        }
+        .frame(width: 16, height: 16)
+        .accessibilityHidden(true)
     }
 }
 
@@ -495,7 +548,17 @@ private func tasksVisibleInWidget(
     from snapshot: TodayWidgetSnapshot,
     family: WidgetFamily
 ) -> [TodayWidgetTaskSnapshot] {
-    let limit = family == .systemLarge ? 5 : family == .systemMedium ? 2 : 0
+    let limit: Int
+    switch family {
+    case .systemSmall:
+        limit = 1
+    case .systemMedium:
+        limit = 2
+    case .systemLarge:
+        limit = 5
+    default:
+        limit = 0
+    }
     return Array(snapshot.tasks.prefix(limit))
 }
 

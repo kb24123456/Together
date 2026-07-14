@@ -94,6 +94,9 @@ struct RoutinesListContent: View {
             appContext.router.pendingPeriodicCycle = viewModel.selectedCycle
             selectPendingRouterCycleIfNeeded()
         }
+        .task(id: viewModel.nextDeferredTaskResumeDate) {
+            await refreshWhenNextDeferredTaskResumes()
+        }
         .onChange(of: viewModel.expandedTaskID) { _, taskID in
             guard taskID == nil else { return }
             visualFocusTaskID = nil
@@ -440,6 +443,8 @@ struct RoutinesListContent: View {
         return RoutinesTaskRow(
             task: task,
             viewModel: viewModel,
+            isAnimatingCompletion: viewModel.isAnimatingCompletion(taskID: task.id),
+            isAnimatingReopening: viewModel.isAnimatingReopening(taskID: task.id),
             isDetailPresented: isDetailPresented,
             isDetailExpanded: isDetailExpanded,
             animationBatch: detailAnimationBatch,
@@ -460,6 +465,24 @@ struct RoutinesListContent: View {
                 leading: rowHorizontalInset,
                 bottom: rowBottomInset,
                 trailing: rowHorizontalInset
+            )
+        )
+        .modifier(
+            RoutineSwipeActionsModifier(
+                isEnabled: visualFocusTaskID == nil && isDetailPresented == false,
+                canDelete: viewModel.canDeletePeriodicTask(task),
+                onDefer: {
+                    HomeInteractionFeedback.selection()
+                    Task {
+                        await viewModel.deferTaskUntilTomorrow(taskID: task.id)
+                    }
+                },
+                onDelete: {
+                    HomeInteractionFeedback.delete()
+                    Task {
+                        await viewModel.deleteTask(taskID: task.id)
+                    }
+                }
             )
         )
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -507,6 +530,15 @@ struct RoutinesListContent: View {
                 }
 
                 if viewModel.canDeletePeriodicTask(task) {
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        Task {
+                            await viewModel.deferTaskUntilTomorrow(taskID: task.id)
+                        }
+                    } label: {
+                        Label("推迟到明天", systemImage: "calendar.badge.clock")
+                    }
+
                     Button(role: .destructive) {
                         HomeInteractionFeedback.delete()
                         Task {
@@ -518,6 +550,18 @@ struct RoutinesListContent: View {
                 }
             }
         }
+    }
+
+    private func refreshWhenNextDeferredTaskResumes() async {
+        guard let resumeDate = viewModel.nextDeferredTaskResumeDate else { return }
+        let delay = max(0, resumeDate.timeIntervalSinceNow)
+        do {
+            try await Task.sleep(for: .seconds(delay))
+        } catch {
+            return
+        }
+        guard Task.isCancelled == false else { return }
+        viewModel.refreshReferenceDate()
     }
 
     // MARK: - Inline focus lifecycle
@@ -594,7 +638,7 @@ struct RoutinesListContent: View {
             }
 
             guard await viewModel.prepareExpandedCompletion(taskID: task.id) else { return }
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(320))
 
             collapsingTaskID = task.id
             detailAnimationBatch += 1
@@ -605,6 +649,7 @@ struct RoutinesListContent: View {
             let didCollapse = await viewModel.collapseInlineDetail()
             guard didCollapse else {
                 collapsingTaskID = nil
+                viewModel.finishExpandedCompletion(taskID: task.id)
                 return
             }
             withAnimation(focusAnimation) {
@@ -867,5 +912,38 @@ private struct RoutinesInlineFocusChromeModifier: ViewModifier {
 
     private var shadowOpacity: Double {
         colorScheme == .dark ? 0.55 : 0.08
+    }
+}
+
+private struct RoutineSwipeActionsModifier: ViewModifier {
+    let isEnabled: Bool
+    let canDelete: Bool
+    let onDefer: () -> Void
+    let onDelete: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    Button {
+                        onDefer()
+                    } label: {
+                        Label("推迟到明天", systemImage: "calendar.badge.clock")
+                    }
+                    .tint(AppTheme.colors.sky)
+
+                    if canDelete {
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                        .tint(.red)
+                    }
+                }
+        } else {
+            content
+        }
     }
 }

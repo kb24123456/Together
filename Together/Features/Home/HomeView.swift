@@ -828,7 +828,7 @@ struct HomeView: View {
                     )
                     .modifier(
                         TimelineSwipeActionsModifier(
-                            isEnabled: false,
+                            isEnabled: isDetailPresented == false,
                             canDelete: viewModel.canDeleteItem(entry.itemID),
                             onSnooze: {
                                 HomeInteractionFeedback.selection()
@@ -2741,11 +2741,11 @@ private struct TimelineSwipeActionsModifier: ViewModifier {
     func body(content: Content) -> some View {
         if isEnabled {
             content
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
                     Button {
                         onSnooze()
                     } label: {
-                        Image(systemName: "arrowshape.turn.up.forward.fill")
+                        Label("推迟到明天", systemImage: "calendar.badge.clock")
                     }
                     .tint(AppTheme.colors.sky)
 
@@ -2753,7 +2753,7 @@ private struct TimelineSwipeActionsModifier: ViewModifier {
                         Button(role: .destructive) {
                             onDelete()
                         } label: {
-                            Image(systemName: "trash")
+                            Label("删除", systemImage: "trash")
                         }
                         .tint(.red)
                     }

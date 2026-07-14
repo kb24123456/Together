@@ -43,6 +43,8 @@ enum RoutineInlineLayoutMetrics {
 struct RoutinesTaskRow: View {
     let task: PeriodicTask
     @Bindable var viewModel: RoutinesViewModel
+    let isAnimatingCompletion: Bool
+    let isAnimatingReopening: Bool
     let isDetailPresented: Bool
     let isDetailExpanded: Bool
     let animationBatch: Int
@@ -59,11 +61,19 @@ struct RoutinesTaskRow: View {
     @State private var isCommittingTitle = false
     @State private var isEditingNotes = false
     @State private var isCommittingNotes = false
-    @State private var isAnimatingCompletion = false
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
-    @State private var badgeFillScale: CGFloat = 1
-    @State private var badgeFillOpacity: CGFloat = 0
+    @State private var badgeOutlineOpacity = 1.0
+    @State private var badgeFillScale: CGFloat = 0.5
+    @State private var badgeFillOpacity = 0.0
+    @State private var badgeAuraScale: CGFloat = 0.86
+    @State private var badgeAuraOpacity = 0.0
+    @State private var completionCheckmarkScale: CGFloat = 1
+    @State private var completionCheckmarkOpacity = 1.0
+    @State private var rowScale: CGFloat = 1
+    @State private var rowVerticalOffset: CGFloat = 0
+    @State private var rowOpacity = 1.0
+    @State private var reopeningCheckmarkOpacity = 1.0
 
     private var isCompleted: Bool {
         viewModel.isCompleted(task)
@@ -90,10 +100,48 @@ struct RoutinesTaskRow: View {
                 .id(RoutineInlineFocusTarget.detail.anchorID(for: task.id))
             }
         }
+        .scaleEffect(rowScale, anchor: .center)
+        .offset(y: rowVerticalOffset)
+        .opacity(rowOpacity)
         .animation(detailAnimation, value: isDetailPresented)
         .onAppear {
             titleDraft = draftTitle
             notesDraft = visibleNotes
+            guard shouldPlayCompletionAnimation else { return }
+            startCompletionAnimation()
+        }
+        .onChange(of: isAnimatingCompletion) { _, newValue in
+            guard newValue, shouldPlayCompletionAnimation else { return }
+            startCompletionAnimation()
+        }
+        .onChange(of: isAnimatingReopening) { _, newValue in
+            guard newValue else { return }
+
+            if reduceMotion {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    reopeningCheckmarkOpacity = 0
+                    badgeOutlineOpacity = 1
+                }
+                return
+            }
+
+            reopeningCheckmarkOpacity = 1
+            badgeOutlineOpacity = 0.14
+            completionCheckmarkScale = 1
+
+            withAnimation(.easeOut(duration: 0.18)) {
+                reopeningCheckmarkOpacity = 0
+                badgeOutlineOpacity = 1
+            }
+
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                    rowScale = 1
+                    rowVerticalOffset = 0
+                    rowOpacity = 1
+                }
+            }
         }
         .onChange(of: draftTitle) { _, title in
             guard isTitleFocused == false, isEditingTitle == false else { return }
@@ -111,10 +159,6 @@ struct RoutinesTaskRow: View {
             if isEditingNotes || isNotesFocused {
                 commitNotesAfterFocusUpdate()
             }
-        }
-        .onChange(of: isCompleted) { _, completed in
-            guard completed else { return }
-            triggerCompletionAnimation()
         }
     }
 
@@ -149,9 +193,6 @@ struct RoutinesTaskRow: View {
                 HomeInteractionFeedback.selection()
             } else {
                 HomeInteractionFeedback.completion()
-                if isDetailPresented {
-                    triggerCompletionAnimation()
-                }
             }
             onToggleCompletion()
         } label: {
@@ -384,76 +425,140 @@ struct RoutinesTaskRow: View {
 
     // MARK: - Completion badge
 
+    private var shouldPlayCompletionAnimation: Bool {
+        isAnimatingCompletion && isCompleted == false
+    }
+
     private var completionBadge: some View {
         ZStack {
             RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+                .strokeBorder(AppTheme.colors.coral.opacity(0.34), lineWidth: 2)
+                .scaleEffect(badgeAuraScale)
+                .opacity(badgeAuraOpacity)
+
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .fill(AppTheme.colors.coral.opacity(0.14))
                 .scaleEffect(badgeFillScale)
-                .opacity(isCompleted ? 0 : badgeFillOpacity)
+                .opacity(shouldPlayCompletionAnimation ? badgeFillOpacity : (isCompleted ? 0 : badgeFillOpacity))
 
             RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
                 .strokeBorder(
                     ringColor,
-                    style: StrokeStyle(lineWidth: isAnimatingCompletion ? 1.8 : 1.6, dash: [3.6, 4.4])
+                    style: StrokeStyle(lineWidth: shouldPlayCompletionAnimation ? 1.7 : 1.6, dash: [3.6, 4.4])
                 )
-                .opacity(isCompleted ? 0 : 1)
+                .opacity(outlineOpacity)
 
             Image(systemName: "checkmark")
                 .font(AppTheme.typography.sized(17, weight: .bold))
                 .foregroundStyle(AppTheme.colors.coral)
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, options: .speed(1.15), value: completionAnimationCount)
-                .opacity(isCompleted ? 1 : 0)
+                .opacity(checkmarkOpacity)
+                .scaleEffect(completionCheckmarkScale)
                 .offset(
                     x: AppTheme.metrics.checkmarkVisualOffset.width,
                     y: AppTheme.metrics.checkmarkVisualOffset.height
                 )
         }
-        .scaleEffect(isAnimatingCompletion ? badgeScale : 1)
+        .scaleEffect(badgeScale)
         .shadow(
-            color: AppTheme.colors.coral.opacity(isAnimatingCompletion ? 0.2 : 0),
-            radius: isAnimatingCompletion ? 12 : 0,
-            y: isAnimatingCompletion ? 5 : 0
+            color: AppTheme.colors.coral.opacity(badgeAuraOpacity * 0.42),
+            radius: badgeAuraOpacity > 0 ? 12 : 0,
+            y: badgeAuraOpacity > 0 ? 5 : 0
         )
     }
 
     private var ringColor: Color {
-        if isAnimatingCompletion {
+        if isAnimatingReopening {
+            return AppTheme.colors.body.opacity(0.44)
+        }
+
+        if isCompleted {
+            return .clear
+        }
+
+        if shouldPlayCompletionAnimation {
             return AppTheme.colors.body.opacity(0.32)
         }
+
         return AppTheme.colors.body.opacity(0.44)
     }
 
-    private func triggerCompletionAnimation() {
+    private var outlineOpacity: Double {
+        if isAnimatingReopening { return badgeOutlineOpacity }
+        if isCompleted { return 0 }
+        if shouldPlayCompletionAnimation { return badgeOutlineOpacity }
+        return 1
+    }
+
+    private var checkmarkOpacity: Double {
+        guard isCompleted || shouldPlayCompletionAnimation || isAnimatingReopening else { return 0 }
+        return (isAnimatingReopening ? reopeningCheckmarkOpacity : 1) * completionCheckmarkOpacity
+    }
+
+    private func startCompletionAnimation() {
         completionAnimationCount += 1
-        isAnimatingCompletion = true
-        badgeScale = 1
-        badgeFillScale = 1
-        badgeFillOpacity = 0
+        badgeOutlineOpacity = 1
+        badgeFillScale = reduceMotion ? 0.96 : 0.68
+        badgeFillOpacity = reduceMotion ? 0.1 : 0.18
+        badgeAuraScale = 0.86
+        badgeAuraOpacity = 0
+        badgeScale = reduceMotion ? 1 : 0.92
+        completionCheckmarkScale = reduceMotion ? 1 : 0.72
+        completionCheckmarkOpacity = reduceMotion ? 1 : 0
+        rowScale = reduceMotion ? 1 : 0.992
+        rowVerticalOffset = 0
 
-        if reduceMotion {
-            withAnimation(.easeOut(duration: 0.16)) {
-                badgeFillOpacity = 0
-            }
-            isAnimatingCompletion = false
-            return
-        }
-
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.52)) {
-            badgeScale = 1.22
-            badgeFillScale = 1.4
-            badgeFillOpacity = 1
+        withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.08)) {
+            badgeOutlineOpacity = reduceMotion ? 0.16 : 0.12
         }
 
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.52)) {
-                badgeScale = 1
-                badgeFillOpacity = 0
+            if reduceMotion {
+                withAnimation(.easeOut(duration: 0.16)) {
+                    badgeFillScale = 1
+                    badgeFillOpacity = 0
+                    badgeAuraOpacity = 0
+                    completionCheckmarkOpacity = 1
+                }
+                return
             }
-            try? await Task.sleep(for: .milliseconds(350))
-            isAnimatingCompletion = false
-            badgeFillScale = 1
+
+            try? await Task.sleep(for: .milliseconds(36))
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
+                badgeScale = 1.08
+                badgeFillScale = 1.04
+                badgeAuraScale = 1.08
+                completionCheckmarkScale = 1.08
+                rowScale = 0.986
+                rowVerticalOffset = -1
+            }
+            withAnimation(.easeOut(duration: 0.12)) {
+                badgeFillOpacity = 0.24
+                badgeAuraOpacity = 0.28
+                completionCheckmarkOpacity = 1
+            }
+
+            try? await Task.sleep(for: .milliseconds(112))
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                badgeScale = 1
+                completionCheckmarkScale = 1
+                rowScale = 1
+                rowVerticalOffset = 1
+            }
+            withAnimation(.easeOut(duration: 0.22)) {
+                badgeFillScale = 1.42
+                badgeFillOpacity = 0
+                badgeAuraScale = 1.48
+                badgeAuraOpacity = 0
+                badgeOutlineOpacity = 0
+            }
+
+            try? await Task.sleep(for: .milliseconds(96))
+            withAnimation(.easeOut(duration: 0.12)) {
+                rowVerticalOffset = 0
+                rowScale = 1
+            }
         }
     }
 }

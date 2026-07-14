@@ -11,6 +11,7 @@ final class PersistentPeriodicTask {
     var cycleRawValue: String = PeriodicCycle.monthly.rawValue
     var reminderRulesData: Data?
     var completionsData: Data = Data()
+    var deferredUntil: Date?
     var sortOrder: Double = 0
     var isActive: Bool = true
     var createdAt: Date = Date.now
@@ -26,6 +27,7 @@ final class PersistentPeriodicTask {
         cycleRawValue: String,
         reminderRulesData: Data?,
         completionsData: Data,
+        deferredUntil: Date? = nil,
         sortOrder: Double,
         isActive: Bool,
         createdAt: Date,
@@ -40,6 +42,7 @@ final class PersistentPeriodicTask {
         self.cycleRawValue = cycleRawValue
         self.reminderRulesData = reminderRulesData
         self.completionsData = completionsData
+        self.deferredUntil = deferredUntil
         self.sortOrder = sortOrder
         self.isActive = isActive
         self.createdAt = createdAt
@@ -59,6 +62,7 @@ extension PersistentPeriodicTask {
             cycleRawValue: task.cycle.rawValue,
             reminderRulesData: Self.encode(task.reminderRules),
             completionsData: Self.encode(task.completions),
+            deferredUntil: task.deferredUntil,
             sortOrder: task.sortOrder,
             isActive: task.isActive,
             createdAt: task.createdAt,
@@ -76,6 +80,7 @@ extension PersistentPeriodicTask {
             cycle: PeriodicCycle(rawValue: cycleRawValue) ?? .monthly,
             reminderRules: Self.decode(reminderRulesData, defaultValue: []),
             completions: Self.decode(completionsData, defaultValue: []),
+            deferredUntil: deferredUntil,
             sortOrder: sortOrder,
             isActive: isActive,
             createdAt: createdAt,
@@ -90,6 +95,7 @@ extension PersistentPeriodicTask {
         cycleRawValue = task.cycle.rawValue
         reminderRulesData = Self.encode(task.reminderRules)
         completionsData = Self.encode(task.completions)
+        deferredUntil = task.deferredUntil
         sortOrder = task.sortOrder
         isActive = task.isActive
         updatedAt = task.updatedAt

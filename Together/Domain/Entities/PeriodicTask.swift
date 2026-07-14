@@ -143,6 +143,7 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
     var cycle: PeriodicCycle
     var reminderRules: [PeriodicReminderRule]
     var completions: [PeriodicCompletion]
+    var deferredUntil: Date?
     var sortOrder: Double
     var isActive: Bool
     let createdAt: Date
@@ -158,6 +159,7 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
         cycle = try container.decode(PeriodicCycle.self, forKey: .cycle)
         reminderRules = try container.decode([PeriodicReminderRule].self, forKey: .reminderRules)
         completions = try container.decode([PeriodicCompletion].self, forKey: .completions)
+        deferredUntil = try container.decodeIfPresent(Date.self, forKey: .deferredUntil)
         sortOrder = try container.decode(Double.self, forKey: .sortOrder)
         isActive = try container.decode(Bool.self, forKey: .isActive)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
@@ -173,6 +175,7 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
         cycle: PeriodicCycle,
         reminderRules: [PeriodicReminderRule] = [],
         completions: [PeriodicCompletion] = [],
+        deferredUntil: Date? = nil,
         sortOrder: Double = 0,
         isActive: Bool = true,
         createdAt: Date = .now,
@@ -186,6 +189,7 @@ struct PeriodicTask: Identifiable, Hashable, Sendable, Codable {
         self.cycle = cycle
         self.reminderRules = reminderRules
         self.completions = completions
+        self.deferredUntil = deferredUntil
         self.sortOrder = sortOrder
         self.isActive = isActive
         self.createdAt = createdAt

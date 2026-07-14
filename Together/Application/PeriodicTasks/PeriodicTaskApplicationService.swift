@@ -6,6 +6,7 @@ protocol PeriodicTaskApplicationServiceProtocol: Sendable {
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
     func reorderTasks(in spaceID: UUID, taskIDs: [UUID]) async throws -> [PeriodicTask]
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask
+    func deferTaskUntilTomorrow(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask
     func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws
     func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus
     func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus
@@ -113,13 +114,37 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         return updated
     }
 
-    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {
-        guard let task = try await repository.fetchTask(taskID: taskID) else {
+    func deferTaskUntilTomorrow(
+        in spaceID: UUID,
+        taskID: UUID,
+        referenceDate: Date
+    ) async throws -> PeriodicTask {
+        guard var task = try await repository.fetchTask(taskID: taskID),
+              task.spaceID == spaceID else {
             throw PeriodicTaskError.notFound
         }
-        guard SoloPermissionService.canDeletePeriodicTask(task, actorID: actorID) else {
-            throw PermissionError.notCreator
+
+        let startOfReferenceDay = Calendar.current.startOfDay(for: referenceDate)
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: startOfReferenceDay) else {
+            throw PeriodicTaskError.notSupported
         }
+
+        task.deferredUntil = tomorrow
+        task.updatedAt = .now
+        let saved = try await repository.saveTask(task)
+        await syncCoordinator.recordLocalChange(
+            SyncChange(entityKind: .periodicTask, operation: .upsert, recordID: saved.id, spaceID: spaceID)
+        )
+        await reminderScheduler.syncPeriodicTaskReminder(for: saved, referenceDate: referenceDate)
+        return saved
+    }
+
+    func deleteTask(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws {
+        guard let task = try await repository.fetchTask(taskID: taskID),
+              task.spaceID == spaceID else {
+            throw PeriodicTaskError.notFound
+        }
+        _ = actorID
         await reminderScheduler.removePeriodicTaskReminder(for: taskID)
         try await repository.deleteTask(taskID: taskID)
         await syncCoordinator.recordLocalChange(

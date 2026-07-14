@@ -1,5 +1,6 @@
 import SwiftUI
 #if canImport(UIKit)
+import Combine
 import UIKit
 import CoreText
 #endif
@@ -31,6 +32,10 @@ struct ComposerPlaceholderSheet: View {
     @State private var isTaskSubtaskMode: Bool = false
     @State private var isProjectSubtaskMode: Bool = false
     @State private var activeInlineAttributeEditor: InlineAttributeEditor?
+    @State private var lastTextEditingField: ComposerField = .title
+    @State private var lastTextInputWasTaskSubtask = false
+    @State private var taskSubtaskKeyboardRestoreRevision = 0
+    @State private var isComposerVisible = false
 
     init(
         route: ComposerRoute,
@@ -84,7 +89,11 @@ struct ComposerPlaceholderSheet: View {
                     focusedField: $focusedField,
                     focusCoordinator: focusCoordinator,
                     isTaskSubtaskMode: isTaskSubtaskMode,
-                    isProjectSubtaskMode: isProjectSubtaskMode
+                    isProjectSubtaskMode: isProjectSubtaskMode,
+                    taskSubtaskKeyboardRestoreRevision: taskSubtaskKeyboardRestoreRevision,
+                    onTaskSubtaskInputFocused: {
+                        lastTextInputWasTaskSubtask = true
+                    }
                 )
                 .padding(.horizontal, AppTheme.spacing.xl) // 26→28
                 .padding(.top, AppTheme.spacing.md) // 12→16
@@ -108,6 +117,7 @@ struct ComposerPlaceholderSheet: View {
         }
         .sheet(isPresented: isSecondaryMenuPresented, onDismiss: {
             restoreKeyboardFocusIfNeeded(preferImmediateResponder: true)
+            restoreEditingSurfaceIfNeeded()
             playPendingChipUpdatesIfNeeded()
         }) {
             if let menuBinding = activeMenuBinding {
@@ -171,6 +181,7 @@ struct ComposerPlaceholderSheet: View {
             Text("请在系统设置中允许 Together 使用闹钟；当前提醒方式保持不变。")
         }
         .onAppear {
+            isComposerVisible = true
             guard !hasScheduledInitialTitleFocus else { return }
             hasScheduledInitialTitleFocus = true
             displayedChips = makeRenderedChips(from: currentChipSnapshots, previous: displayedChips)
@@ -194,6 +205,34 @@ struct ComposerPlaceholderSheet: View {
                 await loadTemplates()
             }
         }
+        .onChange(of: focusedField) { _, field in
+            if let field {
+                lastTextEditingField = field
+                lastTextInputWasTaskSubtask = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+            restoreEditingSurfaceIfNeeded()
+        }
+        .onDisappear {
+            isComposerVisible = false
+        }
+    }
+
+    private func restoreEditingSurfaceIfNeeded() {
+        guard isComposerVisible else { return }
+        guard draftState.category != .template else { return }
+        guard activeMenu == nil, activeInlineAttributeEditor == nil else { return }
+
+        if draftState.category == .task,
+           isTaskSubtaskMode,
+           lastTextInputWasTaskSubtask {
+            taskSubtaskKeyboardRestoreRevision += 1
+            return
+        }
+
+        focusedField = lastTextEditingField
+        focusCoordinator.requestFocus(for: lastTextEditingField)
     }
 
     private var categorySwitcher: some View {
@@ -445,7 +484,10 @@ struct ComposerPlaceholderSheet: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .sheet(item: $activeInlineAttributeEditor) { editor in
+        .sheet(
+            item: $activeInlineAttributeEditor,
+            onDismiss: restoreEditingSurfaceIfNeeded
+        ) { editor in
             composerInlineAttributeEditor(editor)
         }
     }
@@ -526,7 +568,10 @@ struct ComposerPlaceholderSheet: View {
             composerPeriodicReminderMenu.frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .sheet(item: $activeInlineAttributeEditor) { editor in
+        .sheet(
+            item: $activeInlineAttributeEditor,
+            onDismiss: restoreEditingSurfaceIfNeeded
+        ) { editor in
             composerInlineAttributeEditor(editor)
         }
     }
@@ -1595,6 +1640,8 @@ private struct ComposerPage: View {
     let focusCoordinator: ComposerTextInputFocusCoordinator
     var isTaskSubtaskMode: Bool = false
     var isProjectSubtaskMode: Bool = false
+    let taskSubtaskKeyboardRestoreRevision: Int
+    let onTaskSubtaskInputFocused: () -> Void
 
     var body: some View {
         Group {
@@ -1638,7 +1685,11 @@ private struct ComposerPage: View {
             )
 
             if category == .task && isTaskSubtaskMode {
-                ComposerTaskSubtasksInline(draftState: $draftState)
+                ComposerTaskSubtasksInline(
+                    draftState: $draftState,
+                    keyboardRestoreRevision: taskSubtaskKeyboardRestoreRevision,
+                    onTextInputFocused: onTaskSubtaskInputFocused
+                )
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
@@ -2732,10 +2783,15 @@ private struct ComposerProjectSubtasksPanel: View {
 
 private struct ComposerTaskSubtasksInline: View {
     @Binding var draftState: ComposerDraftState
+    let keyboardRestoreRevision: Int
+    let onTextInputFocused: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var scaledCheckboxVisualSize: CGFloat = 28
     @FocusState private var isInputFocused: Bool
     @FocusState private var focusedSubtaskID: UUID?
     @State private var editingSubtaskID: UUID?
     @State private var subtaskDraft = ""
+    @State private var lastFocusedSubtaskID: UUID?
 
     var body: some View {
         VStack(spacing: AppTheme.spacing.xs) {
@@ -2758,11 +2814,35 @@ private struct ComposerTaskSubtasksInline: View {
                 subtaskDraft = ""
             }
         }
+        .onChange(of: isInputFocused) { _, isFocused in
+            guard isFocused else { return }
+            lastFocusedSubtaskID = nil
+            onTextInputFocused()
+        }
+        .onChange(of: focusedSubtaskID) { _, subtaskID in
+            guard let subtaskID else { return }
+            lastFocusedSubtaskID = subtaskID
+            onTextInputFocused()
+        }
+        .onChange(of: keyboardRestoreRevision) { _, _ in
+            restoreLastTextInputFocus()
+        }
+    }
+
+    private func restoreLastTextInputFocus() {
+        if let lastFocusedSubtaskID,
+           let subtask = draftState.taskSubtasks.first(where: { $0.id == lastFocusedSubtaskID }) {
+            editingSubtaskID = subtask.id
+            subtaskDraft = subtask.title
+            focusedSubtaskID = subtask.id
+        } else {
+            isInputFocused = true
+        }
     }
 
     @ViewBuilder
     private func subtaskRow(_ subtask: TaskSubtaskDraft) -> some View {
-        HStack(spacing: AppTheme.spacing.md) {
+        HStack(alignment: .center, spacing: ComposerTaskSubtaskMetrics.columnSpacing) {
             Button {
                 ComposerButtonHaptics.selection()
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
@@ -2781,26 +2861,27 @@ private struct ComposerTaskSubtasksInline: View {
                             .foregroundStyle(AppTheme.colors.coral)
                     }
                 }
-                .frame(width: 40, height: 40)
+                .frame(width: checkboxSize, height: checkboxSize)
+                .frame(
+                    minWidth: ComposerTaskSubtaskMetrics.actionGutterWidth,
+                    minHeight: ComposerTaskSubtaskMetrics.minimumRowHeight
+                )
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(subtask.isCompleted ? "恢复子任务" : "完成子任务")
 
             if editingSubtaskID == subtask.id {
-                TextField(
-                    subtask.title,
-                    text: subtaskBinding(for: subtask)
-                )
-                .font(AppTheme.typography.sized(15, weight: .medium))
-                .foregroundStyle(AppTheme.colors.title)
-                .textInputAutocapitalization(.sentences)
-                .submitLabel(.done)
-                .focused($focusedSubtaskID, equals: subtask.id)
-                .onSubmit {
-                    commitSubtaskAfterFocusUpdate(subtask)
-                }
-                .onChange(of: focusedSubtaskID) { _, focusedID in
-                    if focusedID != subtask.id, editingSubtaskID == subtask.id {
-                        commitSubtaskAfterFocusUpdate(subtask)
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+                        editableTitle(for: subtask)
+                        editingActionButtons(for: subtask)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: AppTheme.spacing.xs) {
+                        editableTitle(for: subtask)
+                        editingActionButtons(for: subtask)
                     }
                 }
             } else {
@@ -2811,40 +2892,18 @@ private struct ComposerTaskSubtasksInline: View {
                     focusedSubtaskID = subtask.id
                 } label: {
                     Text(subtask.title)
-                        .font(AppTheme.typography.sized(15, weight: .medium))
+                        .font(AppTheme.typography.textStyle(.body, weight: .medium))
                         .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.46 : 0.92))
                         .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.32))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-
-            if editingSubtaskID == subtask.id {
-                HStack(spacing: 0) {
-                    Button {
-                        commitSubtaskAfterFocusUpdate(subtask)
-                    } label: {
-                        Label("保存", systemImage: "checkmark")
-                            .font(AppTheme.typography.sized(12, weight: .bold))
-                            .foregroundStyle(AppTheme.colors.sky)
-                            .frame(minWidth: 54, minHeight: 44)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        draftState.removeTaskSubtask(subtask.id)
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(AppTheme.typography.sized(11, weight: .semibold))
-                            .foregroundStyle(AppTheme.colors.body.opacity(0.44))
-                            .frame(minWidth: 36, minHeight: 44)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
-        .frame(maxWidth: .infinity, minHeight: 40)
+        .frame(maxWidth: .infinity, minHeight: ComposerTaskSubtaskMetrics.minimumRowHeight)
         .contextMenu {
             if editingSubtaskID != subtask.id {
                 Button("删除子任务", systemImage: "trash", role: .destructive) {
@@ -2852,6 +2911,63 @@ private struct ComposerTaskSubtasksInline: View {
                 }
             }
         }
+    }
+
+    private var checkboxSize: CGFloat {
+        min(max(scaledCheckboxVisualSize, 28), 36)
+    }
+
+    private func editableTitle(for subtask: TaskSubtaskDraft) -> some View {
+        TextField(
+            subtask.title,
+            text: subtaskBinding(for: subtask),
+            axis: .vertical
+        )
+        .font(AppTheme.typography.textStyle(.body, weight: .medium))
+        .foregroundStyle(AppTheme.colors.title)
+        .lineLimit(1...3)
+        .textInputAutocapitalization(.sentences)
+        .submitLabel(.done)
+        .focused($focusedSubtaskID, equals: subtask.id)
+        .onSubmit {
+            commitSubtaskAfterFocusUpdate(subtask)
+        }
+        .onChange(of: focusedSubtaskID) { _, focusedID in
+            if focusedID != subtask.id, editingSubtaskID == subtask.id {
+                commitSubtaskAfterFocusUpdate(subtask)
+            }
+        }
+    }
+
+    private func editingActionButtons(for subtask: TaskSubtaskDraft) -> some View {
+        HStack(spacing: AppTheme.spacing.xs) {
+            Button {
+                commitSubtaskAfterFocusUpdate(subtask)
+            } label: {
+                Label("保存", systemImage: "checkmark")
+                    .font(AppTheme.typography.textStyle(.callout, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.sky)
+                    .padding(.horizontal, AppTheme.spacing.sm)
+                    .frame(minHeight: ComposerTaskSubtaskMetrics.minimumRowHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("保存子任务")
+
+            Button(role: .destructive) {
+                draftState.removeTaskSubtask(subtask.id)
+            } label: {
+                Label("删除", systemImage: "trash")
+                    .font(AppTheme.typography.textStyle(.callout, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.56))
+                    .padding(.horizontal, AppTheme.spacing.sm)
+                    .frame(minHeight: ComposerTaskSubtaskMetrics.minimumRowHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除子任务")
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func subtaskBinding(for subtask: TaskSubtaskDraft) -> Binding<String> {
@@ -2882,18 +2998,22 @@ private struct ComposerTaskSubtasksInline: View {
     }
 
     private var addInputRow: some View {
-        HStack(spacing: AppTheme.spacing.md) {
+        HStack(alignment: .center, spacing: ComposerTaskSubtaskMetrics.columnSpacing) {
             Image(systemName: "plus")
-                .font(AppTheme.typography.sized(13, weight: .bold))
+                .font(AppTheme.typography.textStyle(.body, weight: .bold))
                 .foregroundStyle(AppTheme.colors.body.opacity(canAddSubtask ? 0.72 : 0.38))
-                .frame(width: 40, height: 34, alignment: .trailing)
+                .frame(width: ComposerTaskSubtaskMetrics.actionGutterWidth)
+                .frame(minHeight: ComposerTaskSubtaskMetrics.minimumRowHeight)
+                .accessibilityHidden(true)
 
             TextField(
                 "添加子任务",
-                text: $draftState.taskSubtaskInput
+                text: $draftState.taskSubtaskInput,
+                axis: .vertical
             )
-            .font(AppTheme.typography.sized(15, weight: .medium))
+            .font(AppTheme.typography.textStyle(.body, weight: .medium))
             .foregroundStyle(AppTheme.colors.title)
+            .lineLimit(1...3)
             .textInputAutocapitalization(.sentences)
             .submitLabel(.done)
             .focused($isInputFocused)
@@ -2903,12 +3023,15 @@ private struct ComposerTaskSubtasksInline: View {
 
             if isInputFocused || canAddSubtask {
                 Button("添加") { addSubtaskAfterFocusUpdate() }
-                    .font(AppTheme.typography.sized(14, weight: .bold))
+                    .font(AppTheme.typography.textStyle(.body, weight: .bold))
                     .foregroundStyle(canAttemptAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
+                    .padding(.horizontal, AppTheme.spacing.sm)
+                    .frame(minHeight: ComposerTaskSubtaskMetrics.minimumRowHeight)
+                    .contentShape(Rectangle())
                     .disabled(canAttemptAddSubtask == false)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 34)
+        .frame(maxWidth: .infinity, minHeight: ComposerTaskSubtaskMetrics.minimumRowHeight)
     }
 
     private var canAddSubtask: Bool {
@@ -2936,6 +3059,12 @@ private struct ComposerTaskSubtasksInline: View {
         }
     }
 
+}
+
+private enum ComposerTaskSubtaskMetrics {
+    static let actionGutterWidth: CGFloat = 52
+    static let columnSpacing: CGFloat = 12
+    static let minimumRowHeight: CGFloat = 52
 }
 
 // MARK: - Project Subtasks Inline (embedded in editor body)

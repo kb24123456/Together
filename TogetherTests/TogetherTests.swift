@@ -1378,6 +1378,24 @@ struct TogetherTests {
         #expect(summary.completionProgress == 0.5)
     }
 
+    @Test func routineExpandedCompletionKeepsRowActiveUntilAnimationFinishes() async {
+        let task = makePeriodicTask(title: "动画完成后再重排", cycle: .daily)
+        let service = CapturingPeriodicTaskApplicationService(tasks: [task])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.tasks = [task]
+
+        await viewModel.toggleInlineDetail(task.id)
+        #expect(await viewModel.prepareExpandedCompletion(taskID: task.id))
+
+        #expect(viewModel.isAnimatingCompletion(taskID: task.id))
+        #expect(viewModel.isCompleted(viewModel.tasks[0]) == false)
+
+        viewModel.finishExpandedCompletion(taskID: task.id)
+
+        #expect(viewModel.isCompleted(viewModel.tasks[0]))
+        #expect(viewModel.isAnimatingCompletion(taskID: task.id) == false)
+    }
+
     @Test func routineCycleSelectionIsBlockedWhileInlineDetailIsExpanded() async {
         let task = makePeriodicTask(title: "每日复盘", cycle: .daily)
         let viewModel = makeRoutinesViewModel()
@@ -1456,6 +1474,59 @@ struct TogetherTests {
         #expect(saved.reminderRules == [
             PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)
         ])
+    }
+
+    @Test func routineCanBeDeferredUntilTomorrowWithoutChangingItsRule() async throws {
+        let task = makePeriodicTask(
+            title: "明天再做",
+            cycle: .weekly,
+            reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)]
+        )
+        let service = CapturingPeriodicTaskApplicationService(tasks: [task])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.tasks = [task]
+        viewModel.selectCycle(.weekly)
+
+        await viewModel.deferTaskUntilTomorrow(taskID: task.id)
+
+        let deferredTask = try #require(viewModel.tasks.first)
+        let deferredUntil = try #require(deferredTask.deferredUntil)
+        #expect(deferredTask.reminderRules == task.reminderRules)
+        #expect(viewModel.currentTasks.isEmpty)
+        #expect(viewModel.summary(for: .weekly).totalCount == 0)
+
+        viewModel.referenceDate = deferredUntil.addingTimeInterval(1)
+        #expect(viewModel.currentTasks.map(\.id) == [task.id])
+    }
+
+    @Test func legacyCreatorRoutineCanBeDeletedInsideCurrentPersonalSpace() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let context = ModelContext(container)
+        let task = PeriodicTask(
+            spaceID: MockDataFactory.singleSpaceID,
+            creatorID: UUID(),
+            title: "旧身份可删除",
+            cycle: .daily
+        )
+        context.insert(PersistentPeriodicTask(task: task))
+        try context.save()
+
+        let reminderScheduler = DeletionTestReminderScheduler()
+        let repository = LocalPeriodicTaskRepository(container: container)
+        let service = DefaultPeriodicTaskApplicationService(
+            repository: repository,
+            reminderScheduler: reminderScheduler,
+            syncCoordinator: NoOpSyncCoordinator()
+        )
+
+        try await service.deleteTask(
+            in: MockDataFactory.singleSpaceID,
+            taskID: task.id,
+            actorID: MockDataFactory.currentUserID
+        )
+
+        #expect(try await repository.fetchTask(taskID: task.id) == nil)
+        #expect(reminderScheduler.removedPeriodicTaskIDs.contains(task.id))
     }
 
     @Test func routineCollapseKeepsDraftOpenWhenPersistenceFails() async throws {
@@ -2325,6 +2396,49 @@ struct TogetherTests {
         await scheduler.syncPeriodicTaskReminder(for: task, referenceDate: referenceDate)
 
         #expect(notificationService.scheduledNotifications().count == 1)
+    }
+
+    @Test func deferredRoutineReminderMovesToDeferredDayAndDeletionCancelsItsRealIdentifier() async throws {
+        let calendar = gregorianCalendar()
+        let notificationService = CapturingNotificationService()
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: MockRoutineAlarmService(status: .authorized),
+            calendar: calendar
+        )
+        let deferredUntil = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 19))
+        )
+        var task = makePeriodicTask(
+            title: "推迟提醒",
+            cycle: .weekly,
+            reminderRules: [
+                PeriodicReminderRule(
+                    timing: .dayOfPeriod(3),
+                    hour: 18,
+                    minute: 30,
+                    reminderLeadMinutes: 30,
+                    reminderDelivery: .notification
+                )
+            ]
+        )
+        task.deferredUntil = deferredUntil
+
+        await scheduler.syncPeriodicTaskReminder(for: task, referenceDate: deferredUntil)
+
+        let notification = try #require(notificationService.scheduledNotifications().first)
+        let scheduledComponents = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: notification.scheduledAt
+        )
+        #expect(scheduledComponents == DateComponents(year: 2030, month: 6, day: 19, hour: 18, minute: 0))
+
+        await scheduler.removePeriodicTaskReminder(for: task.id)
+        #expect(
+            notificationService.cancelledIdentifiers().contains(
+                AppNotification.identifier(for: .periodicTask, targetID: task.id)
+            )
+        )
     }
 
     @Test func localTaskRepositoryCreatesAndHydratesTaskSubtasksInSortOrder() async throws {
@@ -3406,6 +3520,19 @@ private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplica
         } else {
             tasks[index].completions.append(PeriodicCompletion(periodKey: periodKey, completedAt: referenceDate))
         }
+        return tasks[index]
+    }
+
+    func deferTaskUntilTomorrow(
+        in spaceID: UUID,
+        taskID: UUID,
+        referenceDate: Date
+    ) async throws -> PeriodicTask {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw PeriodicTaskError.notFound
+        }
+        let dayStart = Calendar.current.startOfDay(for: referenceDate)
+        tasks[index].deferredUntil = Calendar.current.date(byAdding: .day, value: 1, to: dayStart)
         return tasks[index]
     }
 

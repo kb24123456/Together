@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Rules:
 /// - Tasks in the active personal space can be edited/deleted by the current user
-/// - Lists, projects, and periodic tasks retain their existing ownership checks
+/// - Lists and projects retain their existing ownership checks
 /// - The space owner can rename the space
 /// - Completion and restore actions stay local to the active user
 ///
@@ -70,11 +70,15 @@ enum SoloPermissionService {
     // MARK: - PeriodicTask
 
     nonisolated static func canEditPeriodicTask(_ task: PeriodicTask, actorID: UUID) -> Bool {
-        task.creatorID == actorID
+        _ = task
+        _ = actorID
+        return true
     }
 
     nonisolated static func canDeletePeriodicTask(_ task: PeriodicTask, actorID: UUID) -> Bool {
-        task.creatorID == actorID
+        _ = task
+        _ = actorID
+        return true
     }
 
     // MARK: - Space
