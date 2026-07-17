@@ -1,57 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentPeriodicTask {
-    var id: UUID = UUID()
-    var spaceID: UUID?
-    var creatorID: UUID = UUID()
-    var title: String = ""
-    var notes: String?
-    var cycleRawValue: String = PeriodicCycle.monthly.rawValue
-    var reminderRulesData: Data?
-    var completionsData: Data = Data()
-    var deferredUntil: Date?
-    var sortOrder: Double = 0
-    var isActive: Bool = true
-    var createdAt: Date = Date.now
-    var updatedAt: Date = Date.now
-    var isLocallyDeleted: Bool = false
-
-    init(
-        id: UUID,
-        spaceID: UUID?,
-        creatorID: UUID,
-        title: String,
-        notes: String?,
-        cycleRawValue: String,
-        reminderRulesData: Data?,
-        completionsData: Data,
-        deferredUntil: Date? = nil,
-        sortOrder: Double,
-        isActive: Bool,
-        createdAt: Date,
-        updatedAt: Date,
-        isLocallyDeleted: Bool = false
-    ) {
-        self.id = id
-        self.spaceID = spaceID
-        self.creatorID = creatorID
-        self.title = title
-        self.notes = notes
-        self.cycleRawValue = cycleRawValue
-        self.reminderRulesData = reminderRulesData
-        self.completionsData = completionsData
-        self.deferredUntil = deferredUntil
-        self.sortOrder = sortOrder
-        self.isActive = isActive
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.isLocallyDeleted = isLocallyDeleted
-    }
-}
-
-extension PersistentPeriodicTask {
+nonisolated extension PersistentPeriodicTask {
     convenience init(task: PeriodicTask) {
         self.init(
             id: task.id,

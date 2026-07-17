@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TogetherCore
 
 enum PersistenceFailurePolicy {
     nonisolated static let shouldDeleteStoreAfterOpenFailure = false
@@ -89,32 +90,28 @@ struct PersistenceController {
     }
 
     private static func makeContainer(inMemory: Bool) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: TogetherCore.TogetherSchemaV1.self)
         let configuration: ModelConfiguration
 
         if inMemory {
             configuration = ModelConfiguration(
+                "TogetherPreview",
+                schema: schema,
                 isStoredInMemoryOnly: true,
                 cloudKitDatabase: .none
             )
         } else {
             configuration = ModelConfiguration(
                 "TogetherStore",
+                schema: schema,
                 url: persistentStoreURL,
                 cloudKitDatabase: .private(CloudKitSyncConfiguration.defaultContainerIdentifier)
             )
         }
 
         return try ModelContainer(
-            for: PersistentUserProfile.self,
-            PersistentSpace.self,
-            PersistentTaskList.self,
-            PersistentProject.self,
-            PersistentProjectSubtask.self,
-            PersistentItem.self,
-            PersistentTaskSubtask.self,
-            PersistentItemOccurrenceCompletion.self,
-            PersistentTaskTemplate.self,
-            PersistentPeriodicTask.self,
+            for: schema,
+            migrationPlan: TogetherCore.TogetherMigrationPlan.self,
             configurations: configuration
         )
     }

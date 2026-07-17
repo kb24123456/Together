@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TogetherCore
 
 actor LocalItemRepository: ItemRepositoryProtocol {
     private let container: ModelContainer

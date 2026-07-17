@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TogetherCore
 
 actor LocalSpaceService: SpaceServiceProtocol {
     private let container: ModelContainer

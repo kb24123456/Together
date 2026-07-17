@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TogetherCore
 
 enum PersonalDataDeletionResult: Equatable {
     case completed(newUser: User, newSpace: Space)

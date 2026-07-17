@@ -1,57 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentTaskTemplate {
-    var id: UUID = UUID()
-    var spaceID: UUID?
-    var title: String = ""
-    var notes: String?
-    var listID: UUID?
-    var projectID: UUID?
-    var isPinned: Bool = false
-    var hasExplicitTime: Bool = false
-    var timeData: Data?
-    var reminderOffset: TimeInterval?
-    var repeatRuleData: Data?
-    var subtasksData: Data?
-    var createdAt: Date = Date.now
-    var updatedAt: Date = Date.now
-
-    init(
-        id: UUID,
-        spaceID: UUID?,
-        title: String,
-        notes: String?,
-        listID: UUID?,
-        projectID: UUID?,
-        isPinned: Bool,
-        hasExplicitTime: Bool,
-        timeData: Data?,
-        reminderOffset: TimeInterval?,
-        repeatRuleData: Data?,
-        subtasksData: Data?,
-        createdAt: Date,
-        updatedAt: Date
-    ) {
-        self.id = id
-        self.spaceID = spaceID
-        self.title = title
-        self.notes = notes
-        self.listID = listID
-        self.projectID = projectID
-        self.isPinned = isPinned
-        self.hasExplicitTime = hasExplicitTime
-        self.timeData = timeData
-        self.reminderOffset = reminderOffset
-        self.repeatRuleData = repeatRuleData
-        self.subtasksData = subtasksData
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-    }
-}
-
-extension PersistentTaskTemplate {
+nonisolated extension PersistentTaskTemplate {
     convenience init(template: TaskTemplate) {
         self.init(
             id: template.id,

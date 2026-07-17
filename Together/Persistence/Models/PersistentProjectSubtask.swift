@@ -1,39 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentProjectSubtask {
-    var id: UUID = UUID()
-    var projectID: UUID = UUID()
-    var creatorID: UUID = UUID()
-    var title: String = ""
-    var isCompleted: Bool = false
-    var sortOrder: Int = 0
-    var updatedAt: Date = Date.now
-    var isLocallyDeleted: Bool = false
-
-    init(
-        id: UUID,
-        projectID: UUID,
-        creatorID: UUID,
-        title: String,
-        isCompleted: Bool,
-        sortOrder: Int,
-        updatedAt: Date = Date.now,
-        isLocallyDeleted: Bool = false
-    ) {
-        self.id = id
-        self.projectID = projectID
-        self.creatorID = creatorID
-        self.title = title
-        self.isCompleted = isCompleted
-        self.sortOrder = sortOrder
-        self.updatedAt = updatedAt
-        self.isLocallyDeleted = isLocallyDeleted
-    }
-}
-
-extension PersistentProjectSubtask {
+nonisolated extension PersistentProjectSubtask {
     convenience init(subtask: ProjectSubtask) {
         self.init(
             id: subtask.id,

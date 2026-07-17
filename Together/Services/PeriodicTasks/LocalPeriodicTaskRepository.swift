@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TogetherCore
 
 actor LocalPeriodicTaskRepository: PeriodicTaskRepositoryProtocol {
     private let container: ModelContainer

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
+import TogetherCore
 import UIKit
 @testable import Together
 
@@ -109,6 +110,35 @@ struct TogetherTests {
         #expect(appContext.homeViewModel.failedExternalRouteTaskID == missingTaskID)
         #expect(appContext.homeViewModel.externalRouteErrorMessage != nil)
         #expect(appContext.consumePendingHighlightTaskID() == nil)
+    }
+
+    @Test func successfulCloudImportRemovesRemotelyDeletedTaskFromForegroundCache() async throws {
+        let appContext = try makeOCRAppContext(
+            taskApplicationService: CapturingTaskApplicationService(),
+            cloudImportConvergenceDelays: [.zero, .zero]
+        )
+        let repository = try #require(appContext.container.itemRepository as? MockItemRepository)
+
+        await appContext.homeViewModel.reload(reason: .sync)
+        let deletedTaskID = try #require(appContext.homeViewModel.items.first?.id)
+        let reloadRevisionBeforeImport = appContext.homeViewModel.reloadRevision
+        var importFetchCount = 0
+        repository.homeItemsFetchTransform = { items in
+            importFetchCount += 1
+            guard appContext.homeViewModel.reloadRevision >= reloadRevisionBeforeImport + 2 else {
+                return items
+            }
+            return items.filter { $0.id != deletedTaskID }
+        }
+
+        #expect(appContext.homeViewModel.item(for: deletedTaskID) != nil)
+
+        let convergenceTask = await appContext.handleSuccessfulCloudImport()
+        await convergenceTask.value
+
+        #expect(importFetchCount >= 2)
+        #expect(appContext.homeViewModel.reloadRevision == reloadRevisionBeforeImport + 3)
+        #expect(appContext.homeViewModel.item(for: deletedTaskID) == nil)
     }
 
     @Test func routineInlineDetailFallbackHeightMatchesVisibleRows() {
@@ -3057,7 +3087,10 @@ private func makeCompletedHistoryViewModel(
 }
 
 @MainActor
-private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationService) throws -> AppContext {
+private func makeOCRAppContext(
+    taskApplicationService: CapturingTaskApplicationService,
+    cloudImportConvergenceDelays: [Duration] = [.milliseconds(800), .seconds(4)]
+) throws -> AppContext {
     let syncCoordinator = NoOpSyncCoordinator()
     let itemRepository = MockItemRepository()
     let taskTemplateRepository = MockTaskTemplateRepository()
@@ -3100,7 +3133,8 @@ private func makeOCRAppContext(taskApplicationService: CapturingTaskApplicationS
             userProfileRemote: MockUserProfileRemoteRepository()
         ),
         sessionStore: sessionStore,
-        router: AppRouter()
+        router: AppRouter(),
+        cloudImportConvergenceDelays: cloudImportConvergenceDelays
     )
 }
 

@@ -1,65 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentUserProfile {
-    var userID: UUID = UUID()
-    var displayName: String = ""
-    var avatarSystemName: String?
-    var avatarPhotoFileName: String?
-    var avatarAssetID: String?
-    var avatarVersion: Int = 0
-    // Legacy/local repair payload only. Shared-authority avatar semantics must rely on
-    // avatarAssetID/avatarVersion, while disk files remain a rebuildable runtime cache.
-    @Attribute(.externalStorage) var avatarPhotoData: Data?
-    var taskReminderEnabled: Bool = true
-    var dailySummaryEnabled: Bool = false
-    var calendarReminderEnabled: Bool = true
-    var taskUrgencyWindowMinutes: Int = 30
-    var defaultSnoozeMinutes: Int = NotificationSettings.defaultSnoozeMinutes
-    var quickTimePresetMinutes: [Int] = NotificationSettings.defaultQuickTimePresetMinutes
-    var completedTaskAutoArchiveEnabled: Bool = true
-    var completedTaskAutoArchiveDays: Int = NotificationSettings.defaultCompletedTaskAutoArchiveDays
-    var updatedAt: Date = Date.now
-
-    init(
-        userID: UUID,
-        displayName: String,
-        avatarSystemName: String?,
-        avatarPhotoFileName: String?,
-        avatarAssetID: String?,
-        avatarVersion: Int,
-        avatarPhotoData: Data?,
-        taskReminderEnabled: Bool,
-        dailySummaryEnabled: Bool,
-        calendarReminderEnabled: Bool,
-        taskUrgencyWindowMinutes: Int,
-        defaultSnoozeMinutes: Int,
-        quickTimePresetMinutes: [Int],
-        completedTaskAutoArchiveEnabled: Bool,
-        completedTaskAutoArchiveDays: Int,
-        updatedAt: Date
-    ) {
-        self.userID = userID
-        self.displayName = displayName
-        self.avatarSystemName = avatarSystemName
-        self.avatarPhotoFileName = avatarPhotoFileName
-        self.avatarAssetID = avatarAssetID
-        self.avatarVersion = avatarVersion
-        self.avatarPhotoData = avatarPhotoData
-        self.taskReminderEnabled = taskReminderEnabled
-        self.dailySummaryEnabled = dailySummaryEnabled
-        self.calendarReminderEnabled = calendarReminderEnabled
-        self.taskUrgencyWindowMinutes = taskUrgencyWindowMinutes
-        self.defaultSnoozeMinutes = defaultSnoozeMinutes
-        self.quickTimePresetMinutes = quickTimePresetMinutes
-        self.completedTaskAutoArchiveEnabled = completedTaskAutoArchiveEnabled
-        self.completedTaskAutoArchiveDays = completedTaskAutoArchiveDays
-        self.updatedAt = updatedAt
-    }
-}
-
-extension PersistentUserProfile {
+nonisolated extension PersistentUserProfile {
     convenience init(user: User) {
         self.init(
             userID: user.id,

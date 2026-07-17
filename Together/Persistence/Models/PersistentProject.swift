@@ -1,57 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentProject {
-    var id: UUID = UUID()
-    var spaceID: UUID = UUID()
-    var creatorID: UUID = UUID()
-    var name: String = ""
-    var notes: String?
-    var colorToken: String?
-    var statusRawValue: String = ProjectStatus.active.rawValue
-    var targetDate: Date?
-    var remindAt: Date?
-    var sortOrder: Double = 0
-    var createdAt: Date = Date.now
-    var updatedAt: Date = Date.now
-    var completedAt: Date?
-    var isLocallyDeleted: Bool = false
-
-    init(
-        id: UUID,
-        spaceID: UUID,
-        creatorID: UUID = UUID(),
-        name: String,
-        notes: String?,
-        colorToken: String?,
-        statusRawValue: String,
-        targetDate: Date?,
-        remindAt: Date?,
-        sortOrder: Double = 0,
-        createdAt: Date,
-        updatedAt: Date,
-        completedAt: Date?,
-        isLocallyDeleted: Bool = false
-    ) {
-        self.id = id
-        self.spaceID = spaceID
-        self.creatorID = creatorID
-        self.name = name
-        self.notes = notes
-        self.colorToken = colorToken
-        self.statusRawValue = statusRawValue
-        self.targetDate = targetDate
-        self.remindAt = remindAt
-        self.sortOrder = sortOrder
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.completedAt = completedAt
-        self.isLocallyDeleted = isLocallyDeleted
-    }
-}
-
-extension PersistentProject {
+nonisolated extension PersistentProject {
     convenience init(project: Project) {
         self.init(
             id: project.id,

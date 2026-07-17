@@ -1,48 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentTaskList {
-    var id: UUID = UUID()
-    var spaceID: UUID = UUID()
-    var creatorID: UUID = UUID()
-    var name: String = ""
-    var kindRawValue: String = TaskListKind.custom.rawValue
-    var colorToken: String?
-    var sortOrder: Double = 0
-    var isArchived: Bool = false
-    var createdAt: Date = Date.now
-    var updatedAt: Date = Date.now
-    var isLocallyDeleted: Bool = false
-
-    init(
-        id: UUID,
-        spaceID: UUID,
-        creatorID: UUID = UUID(),
-        name: String,
-        kindRawValue: String,
-        colorToken: String?,
-        sortOrder: Double,
-        isArchived: Bool,
-        createdAt: Date,
-        updatedAt: Date,
-        isLocallyDeleted: Bool = false
-    ) {
-        self.id = id
-        self.spaceID = spaceID
-        self.creatorID = creatorID
-        self.name = name
-        self.kindRawValue = kindRawValue
-        self.colorToken = colorToken
-        self.sortOrder = sortOrder
-        self.isArchived = isArchived
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.isLocallyDeleted = isLocallyDeleted
-    }
-}
-
-extension PersistentTaskList {
+nonisolated extension PersistentTaskList {
     convenience init(list: TaskList) {
         self.init(
             id: list.id,

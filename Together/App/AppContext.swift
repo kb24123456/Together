@@ -37,11 +37,17 @@ final class AppContext {
     private var hasRestoredPersistedUserProfile = false
     private var startupRestoreSlowTask: Task<Void, Never>?
     private var reloadAfterSyncTask: Task<Void, Never>?
+    private var reloadAfterSyncRevision = 0
+    private var cloudImportConvergenceTask: Task<Void, Never>?
     private var pendingDeepLinkTaskID: UUID?
     private var pendingHighlightTaskID: UUID?
 
     private let todayWidgetContextStore: TodayWidgetSharedContextStore
     private let todayWidgetSnapshotWriter: TodayWidgetSnapshotWriter
+    private let cloudImportConvergenceDelays: [Duration]
+    private let cloudKitDiagnosticsEnabled = ProcessInfo.processInfo.arguments.contains(
+        "-TogetherCloudKitDiagnostics"
+    )
 
     private static let reloadAfterSyncCoalescingDelay: Duration = .milliseconds(180)
 
@@ -49,12 +55,14 @@ final class AppContext {
         container: AppContainer,
         sessionStore: SessionStore,
         router: AppRouter,
-        appearanceManager: AppearanceManager = AppearanceManager()
+        appearanceManager: AppearanceManager = AppearanceManager(),
+        cloudImportConvergenceDelays: [Duration] = [.milliseconds(800), .seconds(4)]
     ) {
         self.container = container
         self.sessionStore = sessionStore
         self.router = router
         self.appearanceManager = appearanceManager
+        self.cloudImportConvergenceDelays = cloudImportConvergenceDelays
 
         let todayWidgetContextStore = TodayWidgetSharedContextStore()
         self.todayWidgetContextStore = todayWidgetContextStore
@@ -216,6 +224,29 @@ final class AppContext {
         await reloadAfterSync()
     }
 
+    @discardableResult
+    func handleSuccessfulCloudImport() async -> Task<Void, Never> {
+        cloudImportConvergenceTask?.cancel()
+        await reloadAfterSync()
+        logCloudImportReload(stage: "immediate")
+
+        let delays = cloudImportConvergenceDelays
+        let task = Task { @MainActor [weak self] in
+            for (index, delay) in delays.enumerated() {
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    return
+                }
+                guard let self, Task.isCancelled == false else { return }
+                await self.reloadAfterSync()
+                self.logCloudImportReload(stage: "retry-\(index + 1)")
+            }
+        }
+        cloudImportConvergenceTask = task
+        return task
+    }
+
     func handleNotificationResponse(_ response: UNNotificationResponse) async {
         guard let taskID = taskID(from: response.notification.request.content.userInfo) else { return }
 
@@ -356,6 +387,7 @@ final class AppContext {
     }
 
     private func reloadAfterSync() async {
+        reloadAfterSyncRevision &+= 1
         if reloadAfterSyncTask == nil {
             reloadAfterSyncTask = Task { @MainActor [weak self] in
                 await self?.performCoalescedReloadAfterSync()
@@ -365,13 +397,27 @@ final class AppContext {
     }
 
     private func performCoalescedReloadAfterSync() async {
-        try? await Task.sleep(for: Self.reloadAfterSyncCoalescingDelay)
-        await homeViewModel.reload(reason: .sync)
-        await projectsViewModel.load()
-        await routinesViewModel.loadIfNeeded()
-        await refreshTodayWidgetSnapshot()
+        while true {
+            try? await Task.sleep(for: Self.reloadAfterSyncCoalescingDelay)
+            let appliedRevision = reloadAfterSyncRevision
+            await homeViewModel.reload(reason: .sync)
+            await projectsViewModel.load()
+            await routinesViewModel.reload()
+            await refreshTodayWidgetSnapshot()
+            guard appliedRevision == reloadAfterSyncRevision else { continue }
+            break
+        }
         reloadAfterSyncTask = nil
         finishStartupRestorePresentation()
+    }
+
+    private func logCloudImportReload(stage: String) {
+        guard cloudKitDiagnosticsEnabled else { return }
+        print(
+            "[CloudImportReload] stage=\(stage)"
+                + " homeCount=\(homeViewModel.items.count)"
+                + " revision=\(homeViewModel.reloadRevision)"
+        )
     }
 
     private func beginStartupRestorePresentation() {

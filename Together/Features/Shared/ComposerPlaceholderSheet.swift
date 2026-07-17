@@ -1,4 +1,5 @@
 import SwiftUI
+import TogetherCore
 #if canImport(UIKit)
 import Combine
 import UIKit
@@ -1227,8 +1228,8 @@ private struct ComposerDraftState: Hashable {
 
     init(initialCategory: ComposerCategory, referenceDate: Date) {
         self.category = initialCategory
-        let calendar = Calendar.current
-        self.taskDate = calendar.startOfDay(for: referenceDate)
+        let creationDefaults = TaskCreationPolicy.defaults(referenceDate: referenceDate)
+        self.taskDate = creationDefaults.dueDate
     }
 
     var hasMeaningfulContent: Bool {

@@ -1,39 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentSpace {
-    var id: UUID = UUID()
-    var typeRawValue: String = SpaceType.single.rawValue
-    var displayName: String = ""
-    var ownerUserID: UUID = UUID()
-    var statusRawValue: String = SpaceStatus.active.rawValue
-    var createdAt: Date = Date.now
-    var updatedAt: Date = Date.now
-    var archivedAt: Date?
-
-    init(
-        id: UUID,
-        typeRawValue: String,
-        displayName: String,
-        ownerUserID: UUID,
-        statusRawValue: String,
-        createdAt: Date,
-        updatedAt: Date,
-        archivedAt: Date?
-    ) {
-        self.id = id
-        self.typeRawValue = typeRawValue
-        self.displayName = displayName
-        self.ownerUserID = ownerUserID
-        self.statusRawValue = statusRawValue
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.archivedAt = archivedAt
-    }
-}
-
-extension PersistentSpace {
+nonisolated extension PersistentSpace {
     convenience init(space: Space) {
         self.init(
             id: space.id,

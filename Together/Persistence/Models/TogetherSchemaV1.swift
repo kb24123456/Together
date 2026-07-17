@@ -1,0 +1,14 @@
+import TogetherCore
+
+typealias TogetherSchemaV1 = TogetherCore.TogetherSchemaV1
+typealias TogetherMigrationPlan = TogetherCore.TogetherMigrationPlan
+typealias PersistentUserProfile = TogetherCore.PersistentUserProfile
+typealias PersistentSpace = TogetherCore.PersistentSpace
+typealias PersistentTaskList = TogetherCore.PersistentTaskList
+typealias PersistentProject = TogetherCore.PersistentProject
+typealias PersistentProjectSubtask = TogetherCore.PersistentProjectSubtask
+typealias PersistentItem = TogetherCore.PersistentItem
+typealias PersistentTaskSubtask = TogetherCore.PersistentTaskSubtask
+typealias PersistentItemOccurrenceCompletion = TogetherCore.PersistentItemOccurrenceCompletion
+typealias PersistentTaskTemplate = TogetherCore.PersistentTaskTemplate
+typealias PersistentPeriodicTask = TogetherCore.PersistentPeriodicTask

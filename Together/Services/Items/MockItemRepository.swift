@@ -8,6 +8,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
     private let throwsOnCompletedItemCount: Bool
     private let throwsOnFetchCompletedItems: Bool
     var throwsOnFetchHomeItems = false
+    var homeItemsFetchTransform: ([Item]) -> [Item] = { $0 }
 
     init(throwsOnCompletedItemCount: Bool = false, throwsOnFetchCompletedItems: Bool = false) {
         self.items = MockDataFactory.makeItems()
@@ -37,7 +38,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
             throw RepositoryError.invalidInput("home items failed")
         }
 
-        return items
+        let fetchedItems = items
             .filter { item in
                 guard item.spaceID == spaceID && item.isArchived == false else { return false }
                 guard item.status == .completed || item.completedAt != nil else { return true }
@@ -46,6 +47,7 @@ final class MockItemRepository: ItemRepositoryProtocol {
             }
             .map(hydratedItem)
             .sorted { $0.updatedAt > $1.updatedAt }
+        return homeItemsFetchTransform(fetchedItems)
     }
 
     func fetchArchivedCompletedItems(

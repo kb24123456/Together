@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		7B050400000000000000000B /* TogetherWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 7B0504000000000000000001 /* TogetherWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C0DE00000000000000000011 /* TogetherCore in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE00000000000000000013 /* TogetherCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -106,6 +107,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DE00000000000000000011 /* TogetherCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,6 +179,7 @@
 			);
 			name = Together;
 			packageProductDependencies = (
+				C0DE00000000000000000013 /* TogetherCore */,
 			);
 			productName = Together;
 			productReference = 122A42C62F5DF61600BFFAD1 /* Together.app */;
@@ -287,6 +290,7 @@
 			mainGroup = 122A42BD2F5DF61600BFFAD1;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				C0DE00000000000000000012 /* XCLocalSwiftPackageReference "../TogetherCore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 122A42C72F5DF61600BFFAD1 /* Products */;
@@ -380,6 +384,21 @@
 			targetProxy = 7B050400000000000000000C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		C0DE00000000000000000012 /* XCLocalSwiftPackageReference "../TogetherCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../TogetherCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0DE00000000000000000013 /* TogetherCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DE00000000000000000012 /* XCLocalSwiftPackageReference "../TogetherCore" */;
+			productName = TogetherCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		122A42EB2F5DF61800BFFAD1 /* Debug */ = {

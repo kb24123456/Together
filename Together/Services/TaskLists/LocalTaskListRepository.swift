@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TogetherCore
 
 actor LocalTaskListRepository: TaskListRepositoryProtocol {
     private let container: ModelContainer

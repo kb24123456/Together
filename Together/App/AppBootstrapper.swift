@@ -20,6 +20,9 @@ final class AppBootstrapper {
     private var identityRestoreSlowTask: Task<Void, Never>?
     private var cloudImportObservationTask: Task<Void, Never>?
     private var didObserveSuccessfulInitialImport = false
+    private let cloudKitDiagnosticsEnabled = ProcessInfo.processInfo.arguments.contains(
+        "-TogetherCloudKitDiagnostics"
+    )
 
     var isReady: Bool {
         phase == .ready && appContext != nil
@@ -117,8 +120,12 @@ final class AppBootstrapper {
                 named: NSPersistentCloudKitContainer.eventChangedNotification
             ) {
                 guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
-                    as? NSPersistentCloudKitContainer.Event,
-                      event.type == .import,
+                    as? NSPersistentCloudKitContainer.Event
+                else { continue }
+
+                self?.logCloudKitEvent(event)
+
+                guard event.type == .import,
                       event.endDate != nil,
                       event.succeeded
                 else { continue }
@@ -135,10 +142,28 @@ final class AppBootstrapper {
                 let hasProvisionalIdentity = UserDefaults.standard.string(
                     forKey: PersonalIdentityService.provisionalSpaceIDKey
                 ) != nil
-                guard isWaitingForIdentity || hasProvisionalIdentity else { continue }
                 guard let appContext else { continue }
-                apply(await appContext.bootstrapIfNeeded(afterInitialCloudImport: true))
+                if isWaitingForIdentity || hasProvisionalIdentity {
+                    apply(await appContext.bootstrapIfNeeded(afterInitialCloudImport: true))
+                }
+                if phase == .ready {
+                    await appContext.handleSuccessfulCloudImport()
+                }
             }
         }
+    }
+
+    private func logCloudKitEvent(_ event: NSPersistentCloudKitContainer.Event) {
+        guard cloudKitDiagnosticsEnabled else { return }
+
+        let error = event.error as NSError?
+        let state = event.endDate == nil ? "started" : "ended"
+        print(
+            "[CloudKitEvent] type=\(String(describing: event.type))"
+                + " state=\(state)"
+                + " succeeded=\(event.succeeded)"
+                + " errorDomain=\(error?.domain ?? "none")"
+                + " errorCode=\(error?.code ?? 0)"
+        )
     }
 }

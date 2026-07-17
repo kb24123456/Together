@@ -1,60 +1,7 @@
 import Foundation
-import SwiftData
+import TogetherCore
 
-@Model
-final class PersistentTaskSubtask {
-    var id: UUID = UUID()
-    var itemID: UUID = UUID()
-    var creatorID: UUID = UUID()
-    var title: String = ""
-    var isCompleted: Bool = false
-    var sortOrder: Int = 0
-    var updatedAt: Date = Date.now
-    var sourceTaskID: UUID?
-    var sourceNotes: String?
-    var sourceDueAt: Date?
-    var sourceHasExplicitTime: Bool = false
-    var sourceRemindAt: Date?
-    var sourceCreatedAt: Date?
-    var sourceCompletedAt: Date?
-    var isLocallyDeleted: Bool = false
-
-    init(
-        id: UUID,
-        itemID: UUID,
-        creatorID: UUID,
-        title: String,
-        isCompleted: Bool,
-        sortOrder: Int,
-        updatedAt: Date = Date.now,
-        sourceTaskID: UUID? = nil,
-        sourceNotes: String? = nil,
-        sourceDueAt: Date? = nil,
-        sourceHasExplicitTime: Bool = false,
-        sourceRemindAt: Date? = nil,
-        sourceCreatedAt: Date? = nil,
-        sourceCompletedAt: Date? = nil,
-        isLocallyDeleted: Bool = false
-    ) {
-        self.id = id
-        self.itemID = itemID
-        self.creatorID = creatorID
-        self.title = title
-        self.isCompleted = isCompleted
-        self.sortOrder = sortOrder
-        self.updatedAt = updatedAt
-        self.sourceTaskID = sourceTaskID
-        self.sourceNotes = sourceNotes
-        self.sourceDueAt = sourceDueAt
-        self.sourceHasExplicitTime = sourceHasExplicitTime
-        self.sourceRemindAt = sourceRemindAt
-        self.sourceCreatedAt = sourceCreatedAt
-        self.sourceCompletedAt = sourceCompletedAt
-        self.isLocallyDeleted = isLocallyDeleted
-    }
-}
-
-extension PersistentTaskSubtask {
+nonisolated extension PersistentTaskSubtask {
     convenience init(subtask: TaskSubtask) {
         self.init(
             id: subtask.id,

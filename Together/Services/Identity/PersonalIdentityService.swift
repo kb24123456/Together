@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TogetherCore
 
 enum PersonalIdentityResolution: Equatable {
     case ready(user: User, space: Space)
