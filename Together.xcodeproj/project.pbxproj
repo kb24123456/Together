@@ -290,7 +290,7 @@
 			mainGroup = 122A42BD2F5DF61600BFFAD1;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				C0DE00000000000000000012 /* XCLocalSwiftPackageReference "../TogetherCore" */,
+				C0DE00000000000000000012 /* XCRemoteSwiftPackageReference "TogetherCore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 122A42C72F5DF61600BFFAD1 /* Products */;
@@ -385,17 +385,21 @@
 		};
 /* End PBXTargetDependency section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		C0DE00000000000000000012 /* XCLocalSwiftPackageReference "../TogetherCore" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../TogetherCore;
+/* Begin XCRemoteSwiftPackageReference section */
+		C0DE00000000000000000012 /* XCRemoteSwiftPackageReference "TogetherCore" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kb24123456/TogetherCore.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		C0DE00000000000000000013 /* TogetherCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = C0DE00000000000000000012 /* XCLocalSwiftPackageReference "../TogetherCore" */;
+			package = C0DE00000000000000000012 /* XCRemoteSwiftPackageReference "TogetherCore" */;
 			productName = TogetherCore;
 		};
 /* End XCSwiftPackageProductDependency section */

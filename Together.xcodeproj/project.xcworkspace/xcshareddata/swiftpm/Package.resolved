@@ -1,6 +1,15 @@
 {
-  "originHash" : "812afc0086f4221cf8177fa0017b68a0bdb3c53b2ec21cd1407b5801cb46b3aa",
+  "originHash" : "a0cee5e245b55a1549e25937398c407ca6ff654a7ae8870f66899b2cf41e9ccd",
   "pins" : [
+    {
+      "identity" : "togethercore",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kb24123456/TogetherCore.git",
+      "state" : {
+        "revision" : "58c436b909c99fcd3306bcec402f12ff728923c4",
+        "version" : "1.0.0"
+      }
+    }
   ],
   "version" : 3
 }
