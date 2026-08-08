@@ -6,20 +6,31 @@ private enum AppRootRoute: Hashable {
     case completedHistory(CompletedHistoryFilter)
 }
 
-private struct RootTitleBlurTransitionModifier: ViewModifier {
-    let blurRadius: CGFloat
-    let opacity: Double
+struct AppRootView: View {
+    @Environment(AppContext.self) private var appContext
+    @State private var focusModel = HomeFocusPresentationModel()
 
-    func body(content: Content) -> some View {
-        content
-            .blur(radius: blurRadius)
-            .opacity(opacity)
+    var body: some View {
+        HomeRootContainer(
+            rootView: HomeRootContent(focusModel: focusModel)
+                .environment(appContext),
+            focusView: AnyView(
+                HomeFocusSurfaceView(focusModel: focusModel)
+                    .environment(appContext)
+                    .id(focusModel.surfaceRevision)
+            ),
+            focusModel: focusModel
+        )
+        .ignoresSafeArea()
+        .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
     }
 }
 
-struct AppRootView: View {
+struct HomeRootContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Bindable var focusModel: HomeFocusPresentationModel
     @State private var rootNavigationPath = NavigationPath()
     @State private var activeOCRSourceSession: OCRSourceSheetSession?
     @State private var pendingOCRReviewSession: OCRReviewSession?
@@ -27,50 +38,41 @@ struct AppRootView: View {
     @State private var directOCRPhotoPickerSelection: [PhotosPickerItem] = []
     @State private var directOCRProcessingTask: Task<Void, Never>?
     @State private var isPresentingDirectOCRCamera = false
+    @State private var frozenRootSurface: RootSurface?
+
+    private var displayedRootSurface: RootSurface {
+        frozenRootSurface ?? appContext.router.currentSurface
+    }
 
     var body: some View {
         @Bindable var router = appContext.router
 
         NavigationStack(path: $rootNavigationPath) {
-            rootSurfaceView(router: router)
-                .toolbar {
-                    topToolbar(router: router)
-                    dockToolbar(router: router)
-                }
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackgroundVisibility(.hidden, for: .bottomBar)
-                .toolbarVisibility(appContext.homeViewModel.isDockHidden ? .hidden : .visible, for: .bottomBar)
-                .navigationDestination(for: AppRootRoute.self) { route in
-                    switch route {
-                    case .profile:
-                        ProfileView(viewModel: appContext.profileViewModel)
-                    case .completedHistory(let filter):
-                        CompletedHistoryView(
-                            viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
-                        )
+                rootSurfaceView(router: router)
+                    .toolbar {
+                        topToolbar(router: router)
                     }
+                    .toolbarBackground(.hidden, for: .navigationBar)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationDestination(for: AppRootRoute.self) { route in
+                        switch route {
+                        case .profile:
+                            ProfileView(viewModel: appContext.profileViewModel)
+                        case .completedHistory(let filter):
+                            CompletedHistoryView(
+                                viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
+                            )
+                        }
+                    }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if rootNavigationPath.isEmpty {
+                    homeBottomDock(router: router)
                 }
-        }
-        .background(GradientGridBackground())
-        .sheet(item: $router.activeComposer, onDismiss: {
-            router.pendingComposerTitle = nil
-            router.pendingPeriodicCycle = nil
-        }) { route in
-            ComposerPlaceholderSheet(
-                route: route,
-                appContext: appContext,
-                initialTitle: router.pendingComposerTitle,
-                initialPeriodicCycle: router.pendingPeriodicCycle
-            )
-            .presentationDetents([.large])
-            .presentationDragIndicator(.hidden)
-            .presentationCornerRadius(40)
-            .presentationBackground(AppTheme.colors.surface)
-            .presentationBackgroundInteraction(.enabled)
-            .presentationContentInteraction(.scrolls)
-            .interactiveDismissDisabled(false)
-            .modifier(ComposerPresentationSizingModifier())
-        }
+            }
+            .background(Color.clear)
+            .allowsHitTesting(focusModel.isActive == false)
+            .accessibilityHidden(focusModel.isActive)
         .sheet(item: $activeOCRSourceSession, onDismiss: {
             guard let pendingOCRReviewSession else { return }
             router.activeOCRReviewSession = pendingOCRReviewSession
@@ -125,6 +127,10 @@ struct AppRootView: View {
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
         .onChange(of: router.isProfilePresented) { _, isPresented in
             guard isPresented else { return }
+            guard focusModel.isActive == false else {
+                focusModel.requestDismissal()
+                return
+            }
             guard rootNavigationPath.count == 0 else { return }
             rootNavigationPath.append(AppRootRoute.profile)
         }
@@ -136,6 +142,33 @@ struct AppRootView: View {
         .onChange(of: router.rootResetRevision) { _, _ in
             rootNavigationPath = NavigationPath()
         }
+        .onChange(of: router.activeComposer?.id) { _, _ in
+            synchronizeComposerPresentation(router: router)
+        }
+        .onChange(of: focusModel.phase) { _, phase in
+            switch phase {
+            case .preparing, .transitioningIn, .focused, .saving, .transitioningOut, .recovering:
+                if frozenRootSurface == nil {
+                    frozenRootSurface = router.currentSurface
+                }
+            case .preparingLanding, .landing:
+                break
+            case .idle:
+                frozenRootSurface = nil
+                synchronizePendingRootRoutes(router: router)
+            }
+        }
+        .onAppear {
+            configureFocusCallbacks()
+            synchronizeComposerPresentation(router: router)
+        }
+        .onDisappear {
+            focusModel.onDismissIntent = nil
+            focusModel.onDismissCompleted = nil
+            focusModel.onLandingCompleted = nil
+            focusModel.onRecoveryCompleted = nil
+            focusModel.onCompletionIntent = nil
+        }
         .task {
             StartupTrace.mark("AppRootView.visible")
         }
@@ -145,13 +178,14 @@ struct AppRootView: View {
     private func rootSurfaceView(router: AppRouter) -> some View {
         HomeView(
             viewModel: appContext.homeViewModel,
+            focusModel: focusModel,
             projectsViewModel: appContext.projectsViewModel,
             routinesViewModel: appContext.routinesViewModel,
             isProjectModePresented: false,
-            isRoutinesModePresented: router.isRoutinesModePresented,
+            isRoutinesModePresented: displayedRootSurface == .routines,
             onCreateTaskTapped: {
                 router.pendingComposerTitle = nil
-                router.activeComposer = .newTask
+                beginFocusCreation(domain: .todo)
             },
             onCompletedHistoryTapped: { filter in
                 rootNavigationPath.append(AppRootRoute.completedHistory(filter))
@@ -163,42 +197,51 @@ struct AppRootView: View {
         }
     }
 
-    // MARK: - Native bottom toolbar
+    // MARK: - Navigation toolbar and app-owned bottom dock
 
     @ToolbarContentBuilder
     private func topToolbar(router: AppRouter) -> some ToolbarContent {
-        let showsRoutinesButton = appContext.sessionStore.activeMode == .single
-        let isRoutinesModeActive = router.currentSurface == .routines
-
-        if showsRoutinesButton {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    toggleRoutinesSurface(router: router)
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .rotationEffect(.degrees(isRoutinesModeActive ? 180 : 0))
-                        .scaleEffect(isRoutinesModeActive ? 1.08 : 1)
-                        .animation(projectModeAnimation, value: isRoutinesModeActive)
-                }
-                .tint(isRoutinesModeActive ? dockSelectionTint : AppTheme.colors.title)
-                .accessibilityLabel(isRoutinesModeActive ? "关闭例行事务" : "打开例行事务")
-            }
-        }
+        let showsModePicker = appContext.sessionStore.activeMode == .single
+        let isRoutinesModeActive = displayedRootSurface == .routines
 
         ToolbarItem(placement: .principal) {
-            ZStack {
-                if isRoutinesModeActive {
-                    Text("例行任务")
-                        .transition(rootTitleTransition)
+            if showsModePicker {
+                if dynamicTypeSize.isAccessibilitySize {
+                    Menu {
+                        Picker("任务模式", selection: rootModeSelection(router: router)) {
+                            Text("待办").tag(RootSurface.today)
+                            Text("定期").tag(RootSurface.routines)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(isRoutinesModeActive ? "定期" : "待办")
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.colors.title)
+                    }
+                    .accessibilityIdentifier("together.mode-picker")
+                    .accessibilityLabel("任务模式")
+                    .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
+                    .accessibilityHint("选择待办或定期模式")
                 } else {
-                    Text("任务")
-                        .transition(rootTitleTransition)
+                    Picker("任务模式", selection: rootModeSelection(router: router)) {
+                        Text("待办").tag(RootSurface.today)
+                        Text("定期").tag(RootSurface.routines)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 144)
+                    .accessibilityIdentifier("together.mode-picker")
+                    .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
+                    .accessibilityHint("在待办任务和定期任务之间切换")
                 }
+            } else {
+                Text("待办")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.colors.title)
+                    .accessibilityAddTraits(.isHeader)
             }
-            .font(AppTheme.typography.sized(17, weight: .semibold))
-            .foregroundStyle(AppTheme.colors.title)
-            .animation(rootTitleAnimation, value: isRoutinesModeActive)
-            .accessibilityAddTraits(.isHeader)
         }
 
         ToolbarItem(placement: .topBarTrailing) {
@@ -223,86 +266,29 @@ struct AppRootView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private func dockToolbar(router: AppRouter) -> some ToolbarContent {
-        ToolbarItem(placement: .bottomBar) {
-            Menu {
-                Button {
-                    openDirectOCRCamera()
-                } label: {
-                    Label("相机", systemImage: "camera")
-                }
+    private func homeBottomDock(router: AppRouter) -> some View {
+        let isAvailable = appContext.homeViewModel.isDockHidden == false
 
-                Button {
-                    openDirectOCRPhotoPicker()
-                } label: {
-                    Label("照片", systemImage: "photo.on.rectangle")
-                }
-            } label: {
-                Image(systemName: "doc.text.viewfinder")
-            }
-            .buttonBorderShape(.circle)
-            .accessibilityIdentifier("together.toolbar.ocr")
-            .accessibilityLabel("OCR 导入")
-            .accessibilityHint("拍摄或选择纸面笔记生成草稿")
-        }
-
-        ToolbarSpacer(.flexible, placement: .bottomBar)
-
-        ToolbarItem(placement: .bottomBar) {
-            Button {
+        return HomeBottomDock(
+            showsAuxiliaryVisual: isAvailable,
+            showsAddButtonVisual: isAvailable,
+            isInteractive: isAvailable && focusModel.isActive == false,
+            onCamera: openDirectOCRCamera,
+            onPhotos: openDirectOCRPhotoPicker,
+            onAdd: {
                 HomeInteractionFeedback.selection()
                 openContextualComposer(router: router)
-            } label: {
-                Image(systemName: "plus")
-            }
-            .accessibilityLabel("新建")
-            .accessibilityHint("在当前视图下新建一项")
-        }
+            },
+            onAddFrameChanged: { _ in }
+        )
     }
 
     // MARK: - Surface routing
 
-    private var dockSelectionTint: Color {
-        .blue
-    }
-
-    private var projectModeAnimation: Animation {
+    private var rootModeAnimation: Animation {
         reduceMotion
             ? .easeInOut(duration: 0.18)
             : .spring(response: 0.38, dampingFraction: 0.88)
-    }
-
-    private var rootTitleTransition: AnyTransition {
-        guard reduceMotion == false else { return .opacity }
-        return .modifier(
-            active: RootTitleBlurTransitionModifier(
-                blurRadius: 2,
-                opacity: 0
-            ),
-            identity: RootTitleBlurTransitionModifier(
-                blurRadius: 0,
-                opacity: 1
-            )
-        )
-    }
-
-    private var rootTitleAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: 0.18)
-            : .smooth(duration: 0.42, extraBounce: 0)
-    }
-
-    private func returnToToday(router: AppRouter) {
-        let surface = router.currentSurface
-        switch surface {
-        case .routines:
-            toggleRoutinesSurface(router: router)
-        case .projects:
-            router.currentSurface = .today
-        case .today:
-            break
-        }
     }
 
     private func openProfile(router: AppRouter) {
@@ -312,11 +298,162 @@ struct AppRootView: View {
 
     private func openContextualComposer(router: AppRouter) {
         router.pendingComposerTitle = nil
-        switch router.currentSurface {
+        switch displayedRootSurface {
         case .today, .projects:
-            router.activeComposer = .newTask
+            beginFocusCreation(domain: .todo)
         case .routines:
-            router.activeComposer = .newPeriodicTask
+            beginFocusCreation(domain: .periodic)
+        }
+    }
+
+    private func beginFocusCreation(domain: HomeFocusDomain, title: String? = nil) {
+        guard focusModel.isActive == false else { return }
+        switch domain {
+        case .todo:
+            appContext.homeViewModel.beginTaskCreation()
+            if let title, title.isEmpty == false {
+                appContext.homeViewModel.updateTaskCreationDraft { $0.title = title }
+            }
+            guard let session = appContext.homeViewModel.taskCreationSession else { return }
+            _ = focusModel.presentCreation(
+                domain: .todo,
+                sessionID: session.id,
+                proposedSize: CGSize(width: 900, height: 360)
+            )
+        case .periodic:
+            appContext.routinesViewModel.beginFocusCreation(
+                defaultCycle: appContext.router.pendingPeriodicCycle ?? appContext.routinesViewModel.selectedCycle
+            )
+            if let title, title.isEmpty == false {
+                appContext.routinesViewModel.updateCreationDraft { $0.title = title }
+            }
+            guard let session = appContext.routinesViewModel.creationSession else { return }
+            _ = focusModel.presentCreation(
+                domain: .periodic,
+                sessionID: session.id,
+                proposedSize: CGSize(width: 900, height: 320)
+            )
+        }
+    }
+
+    private func synchronizeComposerPresentation(router: AppRouter) {
+        guard let route = router.activeComposer else { return }
+        guard focusModel.isActive == false else {
+            focusModel.requestDismissal()
+            return
+        }
+        let title = router.pendingComposerTitle
+        router.activeComposer = nil
+        router.pendingComposerTitle = nil
+        switch route {
+        case .newTask:
+            beginFocusCreation(domain: .todo, title: title)
+        case .newPeriodicTask:
+            beginFocusCreation(domain: .periodic, title: title)
+        case .newProject:
+            break
+        }
+    }
+
+    private func configureFocusCallbacks() {
+        focusModel.onDismissIntent = { subject in
+            switch subject {
+            case .creation:
+                focusModel.dismissToSource()
+            case .detail(.todo, _):
+                guard appContext.homeViewModel.hasUnsavedDetailChanges else {
+                    focusModel.dismissToSource()
+                    return
+                }
+                saveFocusedDetail(subject)
+            case .detail(.periodic, let itemID):
+                guard let task = appContext.routinesViewModel.tasks.first(where: { $0.id == itemID }),
+                      appContext.routinesViewModel.hasUnsavedInlineChanges(for: task)
+                else {
+                    focusModel.dismissToSource()
+                    return
+                }
+                saveFocusedDetail(subject)
+            }
+        }
+
+        focusModel.onDismissCompleted = { subject in
+            clearFocusDomainState(for: subject)
+            schedulePendingRootRoutes(router: appContext.router)
+        }
+
+        focusModel.onLandingCompleted = { subject in
+            clearFocusDomainState(for: subject)
+            schedulePendingRootRoutes(router: appContext.router)
+        }
+
+        focusModel.onRecoveryCompleted = { subject in
+            switch subject {
+            case .detail(.todo, _):
+                appContext.homeViewModel.dismissItemDetail()
+            case .detail(.periodic, _):
+                appContext.routinesViewModel.finishFocusDetail()
+            case .creation:
+                break
+            }
+            schedulePendingRootRoutes(router: appContext.router)
+        }
+
+        focusModel.onCompletionIntent = { subject in
+            guard let token = focusModel.beginSaving() else { return }
+            Task { @MainActor in
+                let result: HomeFocusPersistenceResult
+                switch subject {
+                case .detail(.todo, _):
+                    result = await appContext.homeViewModel.completeDetailForFocus()
+                case .detail(.periodic, _):
+                    result = await appContext.routinesViewModel.completeDetailForFocus()
+                case .creation:
+                    return
+                }
+                focusModel.finishSaving(using: token, result: result)
+            }
+        }
+    }
+
+    private func saveFocusedDetail(_ subject: HomeFocusSubject) {
+        guard let token = focusModel.beginSaving() else { return }
+        Task { @MainActor in
+            let result: HomeFocusPersistenceResult
+            switch subject {
+            case .detail(.todo, _):
+                result = await appContext.homeViewModel.saveDetailForFocus()
+            case .detail(.periodic, _):
+                result = await appContext.routinesViewModel.saveDetailForFocus()
+                if case .saved(let descriptor) = result,
+                   case .periodic(let cycle) = descriptor.section {
+                    appContext.routinesViewModel.selectCycle(cycle)
+                }
+            case .creation:
+                return
+            }
+            focusModel.finishSaving(using: token, result: result)
+        }
+    }
+
+    private func clearFocusDomainState(for subject: HomeFocusSubject) {
+        switch subject {
+        case .detail(.todo, _):
+            appContext.homeViewModel.dismissItemDetail()
+        case .creation(.todo, _):
+            if appContext.homeViewModel.taskCreationSession?.phase == .committed {
+                appContext.homeViewModel.finalizeCommittedTaskCreation()
+            } else {
+                appContext.homeViewModel.discardTaskCreation()
+            }
+        case .detail(.periodic, _):
+            appContext.routinesViewModel.finishFocusDetail()
+        case .creation(.periodic, _):
+            if appContext.routinesViewModel.creationSession?.phase == .committed {
+                appContext.routinesViewModel.finalizeFocusCreation()
+            } else {
+                appContext.routinesViewModel.discardFocusCreation()
+            }
         }
     }
 
@@ -381,30 +518,44 @@ struct AppRootView: View {
         }
     }
 
-    private func toggleRoutinesSurface(router: AppRouter) {
+    private func rootModeSelection(router: AppRouter) -> Binding<RootSurface> {
+        Binding(
+            get: {
+                displayedRootSurface == .routines ? .routines : .today
+            },
+            set: { surface in
+                selectRootSurface(surface, router: router)
+            }
+        )
+    }
+
+    private func selectRootSurface(_ surface: RootSurface, router: AppRouter) {
+        guard focusModel.isActive == false else { return }
         guard router.isProfilePresented == false else { return }
         guard router.activeComposer == nil else { return }
+        guard surface == .today || surface == .routines else { return }
+        guard router.currentSurface != surface else { return }
 
         HomeInteractionFeedback.selection()
 
-        withAnimation(projectModeAnimation) {
-            if router.currentSurface == .routines {
-                router.currentSurface = .today
-            } else {
-                router.currentSurface = .routines
-            }
+        withAnimation(rootModeAnimation) {
+            router.currentSurface = surface
         }
     }
 
-}
+    private func synchronizePendingRootRoutes(router: AppRouter) {
+        guard focusModel.isActive == false else { return }
+        if router.isProfilePresented, rootNavigationPath.count == 0 {
+            rootNavigationPath.append(AppRootRoute.profile)
+        }
+        synchronizeComposerPresentation(router: router)
+    }
 
-
-private struct ComposerPresentationSizingModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.presentationSizing(.page)
-        } else {
-            content
+    private func schedulePendingRootRoutes(router: AppRouter) {
+        Task { @MainActor in
+            await Task.yield()
+            synchronizePendingRootRoutes(router: router)
         }
     }
+
 }

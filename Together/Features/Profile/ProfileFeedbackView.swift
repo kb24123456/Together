@@ -18,7 +18,7 @@ struct ProfileFeedbackView: View {
 
                 Image(systemName: "envelope.circle.fill")
                     .font(AppTheme.typography.sized(56))
-                    .foregroundStyle(AppTheme.colors.accent)
+                    .foregroundStyle(AppTheme.colors.coral)
 
                 VStack(spacing: AppTheme.spacing.xs) {
                     Text("意见反馈")
@@ -43,12 +43,12 @@ struct ProfileFeedbackView: View {
                         Text("发送邮件反馈")
                             .font(AppTheme.typography.sized(16, weight: .bold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.colors.background)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, AppTheme.spacing.md)
                     .background(
                         RoundedRectangle(cornerRadius: AppTheme.radius.lg, style: .continuous)
-                            .fill(AppTheme.colors.accent)
+                            .fill(AppTheme.colors.title)
                     )
                 }
                 .buttonStyle(.plain)

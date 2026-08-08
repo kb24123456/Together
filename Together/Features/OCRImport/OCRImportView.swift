@@ -622,7 +622,7 @@ struct OCRTaskAttributeMenuSheet: View {
             )
         case .urgent:
             EmptyView()
-        case .subtasks, .template, .periodicReminder, .periodicCycle:
+        case .subtasks, .periodicReminder, .periodicCycle:
             EmptyView()
         }
     }

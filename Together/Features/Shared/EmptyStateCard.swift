@@ -22,7 +22,7 @@ struct EmptyStateCard: View {
             } else if let systemImage {
                 Image(systemName: systemImage)
                     .font(AppTheme.typography.sized(36, weight: .light))
-                    .foregroundStyle(AppTheme.colors.accent)
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.72))
                     .padding(.bottom, AppTheme.spacing.xs)
                     .accessibilityHidden(true)
             }
@@ -38,7 +38,7 @@ struct EmptyStateCard: View {
         .padding(AppTheme.spacing.lg)
         .frame(maxWidth: .infinity)
         .background(
-            (usesNeutralBackground ? Color.clear : AppTheme.colors.accentSoft),
+            (usesNeutralBackground ? Color.clear : AppTheme.colors.surfaceElevated),
             in: RoundedRectangle(cornerRadius: AppTheme.radius.card)
         )
     }

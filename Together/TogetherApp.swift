@@ -124,6 +124,7 @@ struct TogetherApp: App {
 
                     switch newPhase {
                     case .background:
+                        appContext.handleAppEnteredBackground()
                         let lockEnabled = appContext.sessionStore.currentUser?.preferences.appLockEnabled == true
                         if lockEnabled {
                             appContext.sessionStore.isAppLocked = true

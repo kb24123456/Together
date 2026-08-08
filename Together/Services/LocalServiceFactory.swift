@@ -19,7 +19,6 @@ enum LocalServiceFactory {
         let userProfileRepository = LocalUserProfileRepository(container: modelContainer)
 
         let itemRepository = LocalItemRepository(container: modelContainer, syncCoordinator: syncCoordinator)
-        let taskTemplateRepository = LocalTaskTemplateRepository(container: modelContainer)
         let taskApplicationService = DefaultTaskApplicationService(
             itemRepository: itemRepository,
             syncCoordinator: syncCoordinator,
@@ -44,7 +43,6 @@ enum LocalServiceFactory {
             syncCoordinator: syncCoordinator,
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
-            taskTemplateRepository: taskTemplateRepository,
             taskListRepository: LocalTaskListRepository(container: modelContainer, syncCoordinator: syncCoordinator),
             projectRepository: LocalProjectRepository(
                 container: modelContainer,

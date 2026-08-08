@@ -83,14 +83,23 @@ enum HomeReloadReason {
     }
 }
 
+enum HomeTaskCreationPhase: Equatable, Sendable {
+    case editing
+    case committing
+    case committed
+}
+
+struct HomeTaskCreationSession: Equatable, Sendable, Identifiable {
+    let id: UUID
+    let createdAt: Date
+    var draft: TaskDraft
+    var phase: HomeTaskCreationPhase
+    var errorMessage: String?
+}
+
 private struct HomeItemOccurrenceKey: Hashable {
     let itemID: UUID
     let dayStart: Date
-}
-
-struct TaskTemplateSaveResult: Sendable, Equatable {
-    let templateID: UUID
-    let isNewlyCreated: Bool
 }
 
 @MainActor
@@ -100,12 +109,11 @@ final class HomeViewModel {
     private let sessionStore: SessionStore
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let itemRepository: ItemRepositoryProtocol
-    private let taskTemplateRepository: TaskTemplateRepositoryProtocol
 
     /// 任务操作完成后的回调，参数为 spaceID，用于刷新外部依赖。
     var onTaskMutated: ((UUID) -> Void)?
     var onTodayDataChanged: (@MainActor @Sendable () -> Void)?
-    /// 将当前任务转为例行事务时的回调（传递任务标题）
+    /// 将当前任务转为定期任务时的回调（传递任务标题）
     var onConvertToPeriodicTask: ((String) -> Void)?
     /// 将当前任务转为项目时的回调（传递任务标题）
     var onConvertToProject: ((String) -> Void)?
@@ -124,6 +132,7 @@ final class HomeViewModel {
     private(set) var reloadRevision = 0
     var selectedItemID: UUID?
     var detailDraft: TaskDraft?
+    var taskCreationSession: HomeTaskCreationSession?
     var detailDetent: PresentationDetent = .height(316)
     private var completingOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
@@ -140,17 +149,113 @@ final class HomeViewModel {
     init(
         sessionStore: SessionStore,
         taskApplicationService: TaskApplicationServiceProtocol,
-        itemRepository: ItemRepositoryProtocol,
-        taskTemplateRepository: TaskTemplateRepositoryProtocol
+        itemRepository: ItemRepositoryProtocol
     ) {
         self.sessionStore = sessionStore
         self.taskApplicationService = taskApplicationService
         self.itemRepository = itemRepository
-        self.taskTemplateRepository = taskTemplateRepository
     }
 
     var currentUserID: UUID? {
         sessionStore.currentUser?.id
+    }
+
+    var isTaskCreationActive: Bool {
+        taskCreationSession != nil
+    }
+
+    func beginTaskCreation() {
+        guard taskCreationSession == nil, selectedItemID == nil else { return }
+        let day = calendar.startOfDay(for: selectedDate)
+        taskCreationSession = HomeTaskCreationSession(
+            id: UUID(),
+            createdAt: .now,
+            draft: TaskDraft(title: "", dueAt: day),
+            phase: .editing,
+            errorMessage: nil
+        )
+    }
+
+    func updateTaskCreationDraft(_ update: (inout TaskDraft) -> Void) {
+        guard var session = taskCreationSession, session.phase == .editing else { return }
+        update(&session.draft)
+        session.errorMessage = nil
+        taskCreationSession = session
+    }
+
+    func discardTaskCreation() {
+        guard taskCreationSession?.phase == .editing else { return }
+        taskCreationSession = nil
+    }
+
+    func commitTaskCreationForFocus() async -> HomeFocusPersistenceResult {
+        guard
+            var session = taskCreationSession,
+            session.phase == .editing,
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else { return .failed(message: "当前无法创建任务。") }
+
+        let title = session.draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard title.isEmpty == false else { return .failed(message: "请输入任务标题。") }
+        session.draft.title = title
+        session.phase = .committing
+        session.errorMessage = nil
+        taskCreationSession = session
+
+        do {
+            let created = try await taskApplicationService.createTask(
+                id: session.id,
+                in: spaceID,
+                actorID: actorID,
+                draft: session.draft
+            )
+            replaceItem(created)
+            selectLandingDate(for: created)
+            emitTaskMutation(spaceID: spaceID)
+            session.phase = .committed
+            taskCreationSession = session
+            guard let descriptor = focusLandingDescriptor(for: created.id) else {
+                return .failed(message: "任务已保存，但暂时无法定位到列表。")
+            }
+            return .saved(descriptor)
+        } catch {
+            session.phase = .editing
+            session.errorMessage = "保存失败，请重试。"
+            taskCreationSession = session
+            return .failed(message: session.errorMessage ?? "保存失败，请重试。")
+        }
+    }
+
+    func finalizeCommittedTaskCreation() {
+        guard taskCreationSession?.phase == .committed else { return }
+        taskCreationSession = nil
+    }
+
+    func saveDetailForFocus() async -> HomeFocusPersistenceResult {
+        detailSaveTask?.cancel()
+        if hasUnsavedDetailChanges, await persistDetailDraft() == false {
+            return .failed(message: operationErrorMessage ?? "任务保存失败，请重试。")
+        }
+        if let selectedItemID, let item = item(for: selectedItemID) {
+            selectLandingDate(for: item)
+        }
+        guard let selectedItemID,
+              let descriptor = focusLandingDescriptor(for: selectedItemID)
+        else { return .failed(message: "暂时无法定位任务。") }
+        return .saved(descriptor)
+    }
+
+    func completeDetailForFocus() async -> HomeFocusPersistenceResult {
+        guard let selectedItemID else { return .failed(message: "暂时无法定位任务。") }
+        if hasUnsavedDetailChanges, await persistDetailDraft() == false {
+            return .failed(message: operationErrorMessage ?? "任务保存失败，请重试。")
+        }
+        await completeItem(selectedItemID, trigger: .taskExpansion)
+        guard let descriptor = focusLandingDescriptor(for: selectedItemID) else {
+            return .failed(message: operationErrorMessage ?? "任务状态更新失败，请重试。")
+        }
+        return .saved(descriptor)
     }
 
     var selectedDateKey: String {
@@ -236,7 +341,9 @@ final class HomeViewModel {
 
     func loadIfNeeded() async {
         guard loadState == .idle else { return }
+        StartupTrace.mark("HomeViewModel.loadIfNeeded.reload.begin")
         await reload()
+        StartupTrace.mark("HomeViewModel.loadIfNeeded.reload.end")
     }
 
     func performDeferredMaintenanceIfNeeded() async {
@@ -272,6 +379,7 @@ final class HomeViewModel {
         }
 
         loadState = .loading
+        StartupTrace.mark("HomeViewModel.reload.fetch.begin reason=\(reason)")
         do {
             // 记录刷新前的 ID 集合，用于检测同步到达的新任务
             let previousIDs = Set(items.map(\.id))
@@ -282,7 +390,9 @@ final class HomeViewModel {
                 completedFrom: completedRange.lowerBound ?? .distantPast,
                 completedBefore: completedRange.upperBound ?? .distantFuture
             )
+            StartupTrace.mark("HomeViewModel.reload.fetch.end reason=\(reason) count=\(fetchedItems.count)")
             await refreshWeeklyCompletedEntryCount(spaceID: spaceID)
+            StartupTrace.mark("HomeViewModel.reload.weeklyCount.end reason=\(reason)")
             let visibleItemIDs = Set(fetchedItems.map(\.id))
             let persistedInsertedIDs = insertedItemIDs.intersection(visibleItemIDs)
             let nextInsertedIDs = expectedInsertedItemIDs.intersection(visibleItemIDs)
@@ -303,7 +413,9 @@ final class HomeViewModel {
             if overdueEntryCount == 0 {
                 isOverdueSheetPresented = false
             }
+            StartupTrace.mark("HomeViewModel.reload.end reason=\(reason)")
         } catch {
+            StartupTrace.mark("HomeViewModel.reload.failed reason=\(reason) error=\(error.localizedDescription)")
             loadState = .failed("任务加载失败，请重试。")
             reloadRevision += 1
         }
@@ -426,6 +538,38 @@ final class HomeViewModel {
         detailDraft = draft
     }
 
+    func updateDraftSchedule(date: Date, time: Date?) {
+        guard var draft = detailDraft else { return }
+
+        let reminderLeadTime: TimeInterval? = {
+            guard
+                draft.hasExplicitTime,
+                let currentDueAt = draft.dueAt,
+                let remindAt = draft.remindAt
+            else {
+                return nil
+            }
+            return currentDueAt.timeIntervalSince(remindAt)
+        }()
+
+        let updatedDueAt: Date
+        if let time {
+            updatedDueAt = merge(date: date, timeSource: time)
+            draft.hasExplicitTime = true
+        } else {
+            updatedDueAt = dateOnlyDueDate(for: date)
+            draft.hasExplicitTime = false
+        }
+
+        draft.dueAt = updatedDueAt
+        if let reminderLeadTime, time != nil {
+            draft.remindAt = updatedDueAt.addingTimeInterval(-reminderLeadTime)
+        } else if time == nil {
+            draft.remindAt = nil
+        }
+        detailDraft = draft
+    }
+
     func clearDraftDueTime() {
         guard var draft = detailDraft, let dueAt = draft.dueAt else { return }
         draft.dueAt = dateOnlyDueDate(for: dueAt)
@@ -503,102 +647,6 @@ final class HomeViewModel {
 
         dismissItemDetail()
         return true
-    }
-
-    func saveCurrentDraftAsTemplate() async -> Bool {
-        await saveCurrentDraftAsTemplateResult() != nil
-    }
-
-    func fetchTaskTemplates() async -> [TaskTemplate] {
-        guard let spaceID = sessionStore.currentSpace?.id else { return [] }
-
-        do {
-            return try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
-        } catch {
-            presentOperationError("模板加载失败，请稍后重试。")
-            return []
-        }
-    }
-
-    func createTask(from template: TaskTemplate) async -> Bool {
-        guard
-            let spaceID = sessionStore.currentSpace?.id,
-            let actorID = sessionStore.currentUser?.id
-        else {
-            return false
-        }
-
-        do {
-            let item = try await taskApplicationService.createTask(
-                in: spaceID,
-                actorID: actorID,
-                draft: template.makeTaskDraft(for: selectedDate, calendar: calendar)
-            )
-            await reload(insertedItemIDs: [item.id])
-            emitTaskMutation(spaceID: spaceID)
-            return true
-        } catch {
-            presentOperationError("无法从模板创建任务，请重试。")
-            return false
-        }
-    }
-
-    func saveCurrentDraftAsTemplateResult() async -> TaskTemplateSaveResult? {
-        guard
-            let detailDraft,
-            let spaceID = sessionStore.currentSpace?.id
-        else {
-            return nil
-        }
-
-        return await saveTaskTemplate(from: detailDraft, in: spaceID)
-    }
-
-    func saveItemAsTemplateResult(_ itemID: UUID) async -> TaskTemplateSaveResult? {
-        guard let spaceID = sessionStore.currentSpace?.id else { return nil }
-
-        let draft: TaskDraft?
-        if selectedItemID == itemID {
-            await saveDetailDraft()
-            draft = detailDraft
-        } else {
-            draft = item(for: itemID).map(TaskDraft.init(item:))
-        }
-
-        guard let draft else { return nil }
-        return await saveTaskTemplate(from: draft, in: spaceID)
-    }
-
-    private func saveTaskTemplate(from draft: TaskDraft, in spaceID: UUID) async -> TaskTemplateSaveResult? {
-        let trimmedTitle = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedTitle.isEmpty == false else { return nil }
-
-        let template = TaskTemplate(spaceID: spaceID, draft: draft, calendar: calendar)
-
-        do {
-            let existing = try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
-                .first { $0.isSemanticallyEquivalent(to: template) }
-
-            if let existing {
-                return TaskTemplateSaveResult(templateID: existing.id, isNewlyCreated: false)
-            }
-
-            let saved = try await taskTemplateRepository.saveTaskTemplate(template)
-            return TaskTemplateSaveResult(templateID: saved.id, isNewlyCreated: true)
-        } catch {
-            presentOperationError("模板保存失败，请重试。")
-            return nil
-        }
-    }
-
-    func deleteTaskTemplate(_ templateID: UUID) async -> Bool {
-        do {
-            try await taskTemplateRepository.deleteTaskTemplate(templateID: templateID)
-            return true
-        } catch {
-            presentOperationError("模板删除失败，请重试。")
-            return false
-        }
     }
 
     func setItemUrgent(_ itemID: UUID, isUrgent: Bool) async {
@@ -688,6 +736,12 @@ final class HomeViewModel {
                     withAnimation(.smooth(duration: 0.26, extraBounce: 0)) {
                         replaceItemPreservingOrder(saved)
                     }
+                }
+            case .taskExpansion:
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    replaceItemPreservingOrder(saved)
                 }
             }
             emitTaskMutation(spaceID: spaceID)
@@ -956,12 +1010,50 @@ final class HomeViewModel {
         activeTimelineEntries + completedTimelineEntries
     }
 
+    func timelineEntry(for itemID: UUID) -> HomeTimelineEntry? {
+        timelineEntries.first { $0.itemID == itemID }
+    }
+
     var hasAnyTimelineEntriesForSelectedDate: Bool {
         sortedItemsForTimeline.isEmpty == false
     }
 
     var timelineEntryIDs: [UUID] {
         timelineEntries.map(\.id)
+    }
+
+    func focusLandingDescriptor(for itemID: UUID) -> HomeFocusLandingDescriptor? {
+        for section in activeTimelineSections {
+            if let index = section.entries.firstIndex(where: { $0.itemID == itemID }) {
+                let entry = section.entries[index]
+                return HomeFocusLandingDescriptor(
+                    domain: .todo,
+                    itemID: itemID,
+                    section: .todo(
+                        dayStart: section.isUnscheduled ? nil : section.dayStart,
+                        isUnscheduled: section.isUnscheduled
+                    ),
+                    index: index,
+                    presentationID: entry.presentationID
+                )
+            }
+        }
+        if let index = completedTimelineEntries.firstIndex(where: { $0.itemID == itemID }) {
+            let entry = completedTimelineEntries[index]
+            return HomeFocusLandingDescriptor(
+                domain: .todo,
+                itemID: itemID,
+                section: .todoCompleted(dayStart: calendar.startOfDay(for: selectedDate)),
+                index: index,
+                presentationID: entry.presentationID
+            )
+        }
+        return nil
+    }
+
+    private func selectLandingDate(for item: Item) {
+        guard let dueAt = item.dueAt else { return }
+        selectedDate = calendar.startOfDay(for: dueAt)
     }
 
     func reorderTimelineEntries(_ entries: [HomeTimelineEntry], fromOffsets: IndexSet, toOffset: Int) async {
@@ -989,8 +1081,6 @@ final class HomeViewModel {
             let detailDraft
         else { return false }
 
-        let previousDueAt = savedDetailDraft?.dueAt
-
         do {
             let saved = try await taskApplicationService.updateTask(
                 in: spaceID,
@@ -1004,25 +1094,10 @@ final class HomeViewModel {
             replaceItem(saved)
             emitTaskMutation(spaceID: spaceID)
 
-            // dueAt 跨天变化时，原日期视图需要重新拉取以移除/纳入该任务
-            if dueDateScopeChanged(from: previousDueAt, to: saved.dueAt) {
-                await reload()
-            }
             return true
         } catch {
             presentOperationError("任务保存失败，请重试。")
             return false
-        }
-    }
-
-    private func dueDateScopeChanged(from previous: Date?, to current: Date?) -> Bool {
-        switch (previous, current) {
-        case (nil, nil):
-            return false
-        case (nil, _), (_, nil):
-            return true
-        case let (.some(p), .some(c)):
-            return calendar.isDate(p, inSameDayAs: c) == false
         }
     }
 
@@ -1137,9 +1212,15 @@ final class HomeViewModel {
 
     private func timelineReminderText(for item: Item, isCompleted: Bool) -> String {
         guard isCompleted == false,
-              item.remindAt != nil
+              let remindAt = item.remindAt
         else { return "" }
-        return "提醒"
+        let dueAt = item.occurrenceDueDate(on: selectedDate, calendar: calendar) ?? item.dueAt
+        return TaskSharedAttributeText.reminderLead(
+            dueAt: dueAt,
+            hasExplicitTime: item.hasExplicitTime,
+            remindAt: remindAt,
+            calendar: calendar
+        )
     }
 
     private func completionTimestamp(for item: Item) -> Date? {
@@ -1234,6 +1315,17 @@ final class HomeViewModel {
             dayStart: calendar.startOfDay(for: item.createdAt),
             isUnscheduled: true
         )
+    }
+
+    private func creationSectionKey(for session: HomeTaskCreationSession) -> ActiveTimelineSectionKey {
+        if let dueAt = session.draft.dueAt {
+            return ActiveTimelineSectionKey(dayStart: calendar.startOfDay(for: dueAt), isUnscheduled: false)
+        }
+        return ActiveTimelineSectionKey(dayStart: calendar.startOfDay(for: session.createdAt), isUnscheduled: true)
+    }
+
+    private func sectionID(for key: ActiveTimelineSectionKey) -> String {
+        "\(key.isUnscheduled ? "created" : "scheduled")-\(Int(key.dayStart.timeIntervalSince1970))"
     }
 
     private func timelineSectionTitle(for dayStart: Date) -> String {
@@ -1560,5 +1652,6 @@ extension HomeViewModel {
         case inlineControl
         case expandedControl
         case swipeAction
+        case taskExpansion
     }
 }

@@ -63,6 +63,533 @@ struct TaskAttributeLabel: View {
     }
 }
 
+enum ExistingTaskScheduleEditorSection: String, CaseIterable, Identifiable {
+    case date
+    case time
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .date: return "日期"
+        case .time: return "时间"
+        }
+    }
+}
+
+enum ExistingTaskScheduleEditorPolicy {
+    static let timeMinuteInterval = 5
+
+    static func roundedTime(
+        _ seed: Date,
+        on date: Date,
+        calendar: Calendar = .current
+    ) -> Date {
+        let components = calendar.dateComponents([.hour, .minute], from: seed)
+        let hour = components.hour ?? 9
+        let minute = components.minute ?? 0
+        let roundedMinute = Int(
+            (Double(minute) / Double(timeMinuteInterval)).rounded()
+        ) * timeMinuteInterval
+        let normalizedMinute = roundedMinute % 60
+        let normalizedHour = (hour + roundedMinute / 60) % 24
+        return calendar.date(
+            bySettingHour: normalizedHour,
+            minute: normalizedMinute,
+            second: 0,
+            of: date
+        ) ?? date
+    }
+}
+
+struct ExistingTaskScheduleEditorPresentation: Identifiable {
+    let id = UUID()
+    let initialSection: ExistingTaskScheduleEditorSection
+    let initialDraft: ExistingTaskScheduleDraft
+
+    init(
+        initialSection: ExistingTaskScheduleEditorSection,
+        dueAt: Date?,
+        hasExplicitTime: Bool,
+        fallbackDate: Date
+    ) {
+        self.initialSection = initialSection
+        initialDraft = ExistingTaskScheduleDraft(
+            dueAt: dueAt,
+            hasExplicitTime: hasExplicitTime,
+            fallbackDate: fallbackDate
+        )
+    }
+}
+
+struct ExistingTaskScheduleDraft: Equatable {
+    private(set) var selectedDate: Date
+    private(set) var selectedTime: Date?
+
+    init(
+        dueAt: Date?,
+        hasExplicitTime: Bool,
+        fallbackDate: Date,
+        calendar: Calendar = .current
+    ) {
+        let sourceDate = dueAt ?? fallbackDate
+        selectedDate = calendar.startOfDay(for: sourceDate)
+        selectedTime = hasExplicitTime ? dueAt : nil
+    }
+
+    var hasExplicitTime: Bool {
+        selectedTime != nil
+    }
+
+    mutating func selectDate(_ date: Date, calendar: Calendar = .current) {
+        selectedDate = calendar.startOfDay(for: date)
+    }
+
+    mutating func setTimeEnabled(
+        _ isEnabled: Bool,
+        seed: Date = .now,
+        calendar: Calendar = .current
+    ) {
+        if isEnabled {
+            guard selectedTime == nil else { return }
+            selectedTime = ExistingTaskScheduleEditorPolicy.roundedTime(
+                seed,
+                on: selectedDate,
+                calendar: calendar
+            )
+        } else {
+            selectedTime = nil
+        }
+    }
+
+    mutating func selectTime(_ time: Date) {
+        selectedTime = time
+    }
+
+    func timePickerSeed(
+        seed: Date = .now,
+        calendar: Calendar = .current
+    ) -> Date {
+        let sourceTime = selectedTime ?? seed
+        return ExistingTaskScheduleEditorPolicy.roundedTime(
+            sourceTime,
+            on: selectedDate,
+            calendar: calendar
+        )
+    }
+}
+
+enum ExistingTaskMonthGrid {
+    static let dayCount = 42
+
+    static func dates(
+        for displayedMonth: Date,
+        calendar sourceCalendar: Calendar = .current
+    ) -> [Date] {
+        var calendar = sourceCalendar
+        calendar.firstWeekday = 1
+        guard let monthStart = calendar.date(
+            from: calendar.dateComponents([.year, .month], from: displayedMonth)
+        ) else {
+            return []
+        }
+
+        let weekday = calendar.component(.weekday, from: monthStart)
+        let leadingDays = (weekday - calendar.firstWeekday + 7) % 7
+        guard let gridStart = calendar.date(byAdding: .day, value: -leadingDays, to: monthStart) else {
+            return []
+        }
+
+        return (0..<dayCount).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: gridStart)
+        }
+    }
+}
+
+struct ExistingTaskDateTimeEditorSheet: View {
+    let selectionFeedback: () -> Void
+    let onChange: (ExistingTaskScheduleDraft) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var draft: ExistingTaskScheduleDraft
+    @State private var activeSection: ExistingTaskScheduleEditorSection
+    @State private var timePickerSeed: Date
+    @Namespace private var sectionIndicatorNamespace
+
+    init(
+        presentation: ExistingTaskScheduleEditorPresentation,
+        selectionFeedback: @escaping () -> Void,
+        onChange: @escaping (ExistingTaskScheduleDraft) -> Void
+    ) {
+        self.selectionFeedback = selectionFeedback
+        self.onChange = onChange
+        _draft = State(initialValue: presentation.initialDraft)
+        _activeSection = State(initialValue: presentation.initialSection)
+        _timePickerSeed = State(initialValue: presentation.initialDraft.timePickerSeed())
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: ExistingTaskDateTimeEditorMetrics.sectionSpacing) {
+                sectionSwitcher
+
+                ZStack(alignment: .top) {
+                    dateSection
+                        .opacity(activeSection == .date ? 1 : 0)
+                        .allowsHitTesting(activeSection == .date)
+                        .accessibilityHidden(activeSection != .date)
+
+                    timeSection
+                        .opacity(activeSection == .time ? 1 : 0)
+                        .allowsHitTesting(activeSection == .time)
+                        .accessibilityHidden(activeSection != .time)
+                }
+                .frame(height: ExistingTaskDateTimeEditorMetrics.editorHeight, alignment: .top)
+            }
+            .padding(.horizontal, ExistingTaskDateTimeEditorMetrics.horizontalInset)
+            .padding(.top, ExistingTaskDateTimeEditorMetrics.topInset)
+            .padding(.bottom, ExistingTaskDateTimeEditorMetrics.bottomInset)
+        }
+        .scrollIndicators(.hidden)
+        .accessibilityAction(.escape) {
+            dismiss()
+        }
+        .presentationDetents(
+            dynamicTypeSize.isAccessibilitySize
+                ? [.large]
+                : [.custom(ExistingTaskDateTimeEditorDetent.self)]
+        )
+        .presentationContentInteraction(.scrolls)
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(AppTheme.colors.surface)
+    }
+
+    private var dateSelection: Binding<Date> {
+        Binding(
+            get: { draft.selectedDate },
+            set: { newValue in
+                draft.selectDate(newValue)
+                onChange(draft)
+            }
+        )
+    }
+
+    private var timeSelection: Binding<Date> {
+        Binding(
+            get: { draft.selectedTime ?? timePickerSeed },
+            set: { newValue in
+                timePickerSeed = newValue
+                draft.selectTime(newValue)
+                onChange(draft)
+            }
+        )
+    }
+
+    private var sectionSwitcher: some View {
+        HStack(spacing: AppTheme.spacing.sm) {
+            ForEach(ExistingTaskScheduleEditorSection.allCases) { section in
+                Button {
+                    guard activeSection != section else { return }
+                    selectionFeedback()
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.22, extraBounce: 0)) {
+                        activeSection = section
+                    }
+                } label: {
+                    VStack(spacing: 0) {
+                        Text(section.title)
+                            .font(AppTheme.typography.sized(16, weight: .semibold))
+                            .foregroundStyle(
+                                activeSection == section
+                                    ? AppTheme.colors.title
+                                    : AppTheme.colors.body.opacity(0.52)
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 44)
+
+                        ZStack {
+                            if activeSection == section {
+                                Capsule(style: .continuous)
+                                    .fill(AppTheme.colors.sky)
+                                    .frame(width: 24, height: 3)
+                                    .matchedGeometryEffect(
+                                        id: "existing-task-schedule-section",
+                                        in: sectionIndicatorNamespace
+                                    )
+                            }
+                        }
+                        .frame(height: ExistingTaskDateTimeEditorMetrics.indicatorSlotHeight)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(activeSection == section ? .isSelected : [])
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var dateSection: some View {
+        ExistingTaskCompactMonthCalendar(
+            selection: dateSelection,
+            selectionFeedback: selectionFeedback
+        )
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private var timeSection: some View {
+        VStack(spacing: ExistingTaskDateTimeEditorMetrics.timeSpacing) {
+            Spacer(minLength: 0)
+
+            ExistingTaskMinuteIntervalWheelPicker(
+                selection: timeSelection,
+                minuteInterval: ExistingTaskScheduleEditorPolicy.timeMinuteInterval
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: ExistingTaskDateTimeEditorMetrics.timePickerHeight)
+            .clipped()
+            .accessibilityLabel("选择时间")
+
+            Button("清除时间", role: .destructive) {
+                selectionFeedback()
+                draft.setTimeEnabled(false)
+                onChange(draft)
+            }
+            .buttonStyle(.plain)
+            .font(AppTheme.typography.sized(16, weight: .semibold))
+            .foregroundStyle(Color(uiColor: .systemRed))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+            .disabled(draft.hasExplicitTime == false)
+            .opacity(draft.hasExplicitTime ? 1 : 0.36)
+            .accessibilityHint("立即清除具体时间和依赖该时间的提醒")
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+#if canImport(UIKit)
+private struct ExistingTaskMinuteIntervalWheelPicker: UIViewRepresentable {
+    @Binding var selection: Date
+    let minuteInterval: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> UIDatePicker {
+        let picker = UIDatePicker()
+        picker.datePickerMode = .time
+        picker.preferredDatePickerStyle = .wheels
+        picker.locale = Locale(identifier: "zh_CN")
+        picker.minuteInterval = minuteInterval
+        picker.setDate(roundedSelection, animated: false)
+        picker.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.valueChanged(_:)),
+            for: .valueChanged
+        )
+        return picker
+    }
+
+    func updateUIView(_ picker: UIDatePicker, context: Context) {
+        context.coordinator.parent = self
+        picker.minuteInterval = minuteInterval
+
+        guard abs(picker.date.timeIntervalSince(roundedSelection)) >= 1 else { return }
+        picker.setDate(roundedSelection, animated: false)
+    }
+
+    private var roundedSelection: Date {
+        ExistingTaskScheduleEditorPolicy.roundedTime(
+            selection,
+            on: selection
+        )
+    }
+
+    final class Coordinator: NSObject {
+        var parent: ExistingTaskMinuteIntervalWheelPicker
+
+        init(parent: ExistingTaskMinuteIntervalWheelPicker) {
+            self.parent = parent
+        }
+
+        @objc func valueChanged(_ sender: UIDatePicker) {
+            parent.selection = sender.date
+        }
+    }
+}
+#endif
+
+struct ExistingTaskCompactMonthCalendar: View {
+    @Binding var selection: Date
+    let selectionFeedback: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var displayedMonth: Date
+
+    init(
+        selection: Binding<Date>,
+        selectionFeedback: @escaping () -> Void
+    ) {
+        _selection = selection
+        self.selectionFeedback = selectionFeedback
+        _displayedMonth = State(initialValue: Self.monthStart(for: selection.wrappedValue))
+    }
+
+    var body: some View {
+        VStack(spacing: ExistingTaskDateTimeEditorMetrics.calendarSpacing) {
+            HStack(spacing: AppTheme.spacing.sm) {
+                Text(monthTitle)
+                    .font(AppTheme.typography.sized(19, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .contentTransition(.numericText())
+
+                Spacer(minLength: 0)
+
+                monthButton(systemImage: "chevron.left", offset: -1)
+                monthButton(systemImage: "chevron.right", offset: 1)
+            }
+            .frame(minHeight: 44)
+
+            LazyVGrid(columns: columns, spacing: 0) {
+                ForEach(weekdaySymbols, id: \.self) { symbol in
+                    Text(symbol)
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.body.opacity(0.58))
+                        .frame(maxWidth: .infinity, minHeight: 28)
+                }
+
+                ForEach(monthDates, id: \.self) { date in
+                    dayButton(for: date)
+                }
+            }
+        }
+        .onChange(of: selection) { _, newValue in
+            let nextMonth = Self.monthStart(for: newValue)
+            guard Calendar.current.isDate(nextMonth, equalTo: displayedMonth, toGranularity: .month) == false else {
+                return
+            }
+            displayedMonth = nextMonth
+        }
+    }
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+    }
+
+    private var weekdaySymbols: [String] {
+        ["日", "一", "二", "三", "四", "五", "六"]
+    }
+
+    private var monthDates: [Date] {
+        ExistingTaskMonthGrid.dates(for: displayedMonth)
+    }
+
+    private var monthTitle: String {
+        displayedMonth.formatted(
+            .dateTime
+                .locale(Locale(identifier: "zh_CN"))
+                .year()
+                .month(.wide)
+        )
+    }
+
+    private func monthButton(systemImage: String, offset: Int) -> some View {
+        Button {
+            guard let nextMonth = Calendar.current.date(byAdding: .month, value: offset, to: displayedMonth) else {
+                return
+            }
+            selectionFeedback()
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.24, extraBounce: 0)) {
+                displayedMonth = Self.monthStart(for: nextMonth)
+            }
+        } label: {
+            Image(systemName: systemImage)
+                .font(AppTheme.typography.sized(16, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.title)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(offset < 0 ? "上个月" : "下个月")
+    }
+
+    private func dayButton(for date: Date) -> some View {
+        let isSelected = Calendar.current.isDate(date, inSameDayAs: selection)
+        let isToday = Calendar.current.isDateInToday(date)
+        let isInDisplayedMonth = Calendar.current.isDate(date, equalTo: displayedMonth, toGranularity: .month)
+
+        return Button {
+            selectionFeedback()
+            selection = Calendar.current.startOfDay(for: date)
+        } label: {
+            VStack(spacing: 1) {
+                Text("\(Calendar.current.component(.day, from: date))")
+                    .font(AppTheme.typography.sized(16, weight: isSelected ? .semibold : .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(
+                        isInDisplayedMonth
+                            ? AppTheme.colors.title
+                            : AppTheme.colors.textTertiary.opacity(0.48)
+                    )
+                    .frame(width: 36, height: 30)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemFill))
+                        }
+                    }
+                    .overlay(alignment: .bottom) {
+                        if isSelected {
+                            Capsule(style: .continuous)
+                                .fill(AppTheme.colors.sky)
+                                .frame(width: 20, height: 2.5)
+                                .offset(y: 3)
+                        }
+                    }
+
+                Circle()
+                    .fill(isToday ? AppTheme.colors.coral : .clear)
+                    .frame(width: 4, height: 4)
+            }
+            .frame(maxWidth: .infinity, minHeight: ExistingTaskDateTimeEditorMetrics.dayCellHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(date.formatted(.dateTime.locale(Locale(identifier: "zh_CN")).month().day().weekday(.wide)))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private static func monthStart(for date: Date) -> Date {
+        Calendar.current.date(
+            from: Calendar.current.dateComponents([.year, .month], from: date)
+        ) ?? date
+    }
+}
+
+private struct ExistingTaskDateTimeEditorDetent: CustomPresentationDetent {
+    static func height(in context: Context) -> CGFloat? {
+        min(ExistingTaskDateTimeEditorMetrics.preferredHeight, context.maxDetentValue * 0.92)
+    }
+}
+
+private enum ExistingTaskDateTimeEditorMetrics {
+    static let preferredHeight: CGFloat = 470
+    static let horizontalInset: CGFloat = 20
+    static let topInset: CGFloat = 12
+    static let bottomInset: CGFloat = 16
+    static let sectionSpacing: CGFloat = 10
+    static let calendarSpacing: CGFloat = 4
+    static let timeSpacing: CGFloat = 10
+    static let dayCellHeight: CGFloat = 39
+    static let timePickerHeight: CGFloat = 170
+    static let editorHeight: CGFloat = 310
+    static let indicatorSlotHeight: CGFloat = 6
+}
+
 struct InlineDateTimePickerPanel: View {
     let editor: InlineAttributeEditor
     let title: String
@@ -192,6 +719,270 @@ struct InlineDateTimePickerPanel: View {
     }
 }
 
+struct InlineDatePickerPopover: View {
+    let title: String
+    let supportsClearing: Bool
+    let onCommit: (Date?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: InlineDateTimePickerDraft
+
+    init(
+        title: String,
+        initialSelection: Date?,
+        fallbackSelection: Date = .now,
+        supportsClearing: Bool = true,
+        onCommit: @escaping (Date?) -> Void
+    ) {
+        self.title = title
+        self.supportsClearing = supportsClearing
+        self.onCommit = onCommit
+        _draft = State(
+            initialValue: InlineDateTimePickerDraft(
+                initialSelection: initialSelection,
+                fallbackSelection: fallbackSelection
+            )
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            DatePicker(
+                title,
+                selection: pickerSelection,
+                displayedComponents: .date
+            )
+            .labelsHidden()
+            .datePickerStyle(.graphical)
+            .disabled(draft.isCleared)
+            .opacity(draft.isCleared ? 0.42 : 1)
+            .frame(width: InlineDatePickerPopoverMetrics.pickerWidth)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: AppTheme.spacing.sm) {
+                if supportsClearing {
+                    clearAction
+                }
+
+                Spacer(minLength: AppTheme.spacing.md)
+
+                Button("完成") {
+                    onCommit(draft.stagedSelection)
+                    dismiss()
+                }
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AppTheme.colors.sky)
+                .frame(
+                    minWidth: InlineDatePickerPopoverMetrics.actionMinimumWidth,
+                    minHeight: InlineDatePickerPopoverMetrics.actionHeight,
+                    alignment: .trailing
+                )
+                .contentShape(Rectangle())
+            }
+            .frame(height: InlineDatePickerPopoverMetrics.actionHeight)
+            .padding(.horizontal, InlineDatePickerPopoverMetrics.horizontalInset)
+        }
+        .padding(.top, InlineDatePickerPopoverMetrics.topInset)
+        .padding(.bottom, InlineDatePickerPopoverMetrics.bottomInset)
+        .frame(width: InlineDatePickerPopoverMetrics.width)
+        .presentationCompactAdaptation(.popover)
+    }
+
+    private var pickerSelection: Binding<Date> {
+        Binding(
+            get: { draft.pickerSelection },
+            set: { draft.select($0) }
+        )
+    }
+
+    private var clearAction: some View {
+        Button(role: draft.isCleared ? nil : .destructive) {
+            if draft.isCleared {
+                draft.restore()
+            } else {
+                draft.clear()
+            }
+        } label: {
+            Text(draft.isCleared ? "恢复日期" : "清除日期")
+                .font(.body.weight(.semibold))
+        }
+        .foregroundStyle(
+            draft.isCleared
+                ? AppTheme.colors.sky
+                : Color(uiColor: .systemRed)
+        )
+        .frame(
+            minWidth: InlineDatePickerPopoverMetrics.actionMinimumWidth,
+            minHeight: InlineDatePickerPopoverMetrics.actionHeight,
+            alignment: .leading
+        )
+        .contentShape(Rectangle())
+        .accessibilityHint(draft.isCleared ? "恢复打开选择器时的日期" : "完成后应用清除操作")
+    }
+}
+
+private enum InlineDatePickerPopoverMetrics {
+    static let width: CGFloat = 330
+    static let pickerWidth: CGFloat = 306
+    static let actionHeight: CGFloat = 48
+    static let actionMinimumWidth: CGFloat = 72
+    static let horizontalInset: CGFloat = 18
+    static let topInset: CGFloat = 8
+    static let bottomInset: CGFloat = 8
+}
+
+struct InlineTimePickerControl: View {
+    let selection: Date?
+    let fallbackSelection: Date
+    let onWillPresent: () -> Void
+    let onDidDismiss: () -> Void
+    let onCommit: (Date?) -> Void
+
+    @State private var isPopoverPresented = false
+
+    init(
+        selection: Date?,
+        fallbackSelection: Date,
+        onWillPresent: @escaping () -> Void = {},
+        onDidDismiss: @escaping () -> Void = {},
+        onCommit: @escaping (Date?) -> Void
+    ) {
+        self.selection = selection
+        self.fallbackSelection = fallbackSelection
+        self.onWillPresent = onWillPresent
+        self.onDidDismiss = onDidDismiss
+        self.onCommit = onCommit
+    }
+
+    var body: some View {
+        TaskAttributeButton(
+            icon: "clock",
+            title: selection.map(TaskAttributeValueText.time) ?? "时间",
+            isConfigured: selection != nil
+        ) {
+            onWillPresent()
+            isPopoverPresented = true
+        }
+        .popover(
+            isPresented: $isPopoverPresented,
+            attachmentAnchor: .rect(.bounds)
+        ) {
+            InlineTimePickerPopover(
+                initialSelection: selection,
+                fallbackSelection: fallbackSelection,
+                onCommit: onCommit
+            )
+        }
+        .onChange(of: isPopoverPresented) { _, isPresented in
+            if isPresented == false {
+                onDidDismiss()
+            }
+        }
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("轻点打开时间选择器")
+    }
+
+    private var accessibilityLabel: String {
+        guard let selection else { return "未设置时间" }
+        return "时间，\(TaskAttributeValueText.time(selection))"
+    }
+}
+
+private struct InlineTimePickerPopover: View {
+    let onCommit: (Date?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: InlineDateTimePickerDraft
+
+    init(
+        initialSelection: Date?,
+        fallbackSelection: Date,
+        onCommit: @escaping (Date?) -> Void
+    ) {
+        self.onCommit = onCommit
+        _draft = State(
+            initialValue: InlineDateTimePickerDraft(
+                initialSelection: initialSelection,
+                fallbackSelection: fallbackSelection
+            )
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            DatePicker(
+                "选择时间",
+                selection: pickerSelection,
+                displayedComponents: .hourAndMinute
+            )
+            .labelsHidden()
+            .datePickerStyle(.wheel)
+            .tint(AppTheme.colors.sky)
+            .frame(
+                width: InlineTimePickerPopoverMetrics.pickerWidth,
+                height: InlineTimePickerPopoverMetrics.pickerHeight
+            )
+            .clipped()
+
+            HStack(spacing: AppTheme.spacing.sm) {
+                Button("清除时间", role: .destructive) {
+                    draft.clear()
+                }
+                .buttonStyle(.plain)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color(uiColor: .systemRed))
+                .frame(
+                    minWidth: InlineTimePickerPopoverMetrics.actionMinimumWidth,
+                    minHeight: InlineTimePickerPopoverMetrics.actionHeight,
+                    alignment: .leading
+                )
+                .contentShape(Rectangle())
+                .disabled(draft.isCleared)
+                .opacity(draft.isCleared ? 0.42 : 1)
+                .accessibilityHint("轻点后再点完成以清除时间")
+
+                Spacer(minLength: AppTheme.spacing.md)
+
+                Button("完成") {
+                    onCommit(draft.stagedSelection)
+                    dismiss()
+                }
+                .buttonStyle(.plain)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AppTheme.colors.sky)
+                .frame(
+                    minWidth: InlineTimePickerPopoverMetrics.actionMinimumWidth,
+                    minHeight: InlineTimePickerPopoverMetrics.actionHeight,
+                    alignment: .trailing
+                )
+                .contentShape(Rectangle())
+            }
+            .frame(height: InlineTimePickerPopoverMetrics.actionHeight)
+            .padding(.horizontal, InlineTimePickerPopoverMetrics.horizontalInset)
+        }
+        .padding(.vertical, InlineTimePickerPopoverMetrics.verticalInset)
+        .frame(width: InlineTimePickerPopoverMetrics.width)
+        .presentationCompactAdaptation(.popover)
+    }
+
+    private var pickerSelection: Binding<Date> {
+        Binding(
+            get: { draft.pickerSelection },
+            set: { draft.select($0) }
+        )
+    }
+}
+
+private enum InlineTimePickerPopoverMetrics {
+    static let width: CGFloat = 276
+    static let pickerWidth: CGFloat = 252
+    static let pickerHeight: CGFloat = 152
+    static let actionHeight: CGFloat = 48
+    static let actionMinimumWidth: CGFloat = 76
+    static let horizontalInset: CGFloat = 16
+    static let verticalInset: CGFloat = 8
+}
+
 struct InlineDateTimePickerDraft: Equatable {
     let initialSelection: Date?
     let fallbackSelection: Date
@@ -315,7 +1106,6 @@ enum TaskEditorMenu: String, Identifiable {
     case reminder
     case urgent
     case subtasks
-    case template
     case periodicReminder
     case periodicCycle
 
@@ -333,8 +1123,6 @@ enum TaskEditorMenu: String, Identifiable {
             return "flag"
         case .subtasks:
             return "checklist"
-        case .template:
-            return "bookmark"
         case .periodicReminder:
             return "bell"
         case .periodicCycle:
@@ -354,8 +1142,6 @@ enum TaskEditorMenu: String, Identifiable {
             return "紧急"
         case .subtasks:
             return "子任务"
-        case .template:
-            return "模板"
         case .periodicReminder:
             return "提醒"
         case .periodicCycle:
@@ -365,7 +1151,6 @@ enum TaskEditorMenu: String, Identifiable {
 }
 
 enum TaskEditorMenuContext: Equatable {
-    case templates
     case task
     case taskInline
     case project
@@ -379,8 +1164,6 @@ enum TaskEditorMenuContext: Equatable {
             return [.date, .time, .reminder, .urgent]
         case .project:
             return [.date]
-        case .templates:
-            return [.template]
         case .periodic:
             return [.periodicCycle, .periodicReminder]
         }
@@ -397,15 +1180,7 @@ enum TaskEditorMenuContext: Equatable {
                 showsQuickPresets: true,
                 showsPrimaryButton: false
             ) + TaskEditorUnifiedMenuMetrics.sheetChromeHeight
-        case .templates:
-            return 440
         }
-    }
-}
-
-private struct TaskEditorTemplateMenuDetent: CustomPresentationDetent {
-    static func height(in context: Context) -> CGFloat? {
-        min(440, context.maxDetentValue * 0.72)
     }
 }
 
@@ -3500,7 +4275,7 @@ private struct TaskEditorAnimatedChipIcon: View {
             return .rotate
         case .reminder, .periodicReminder:
             return .wiggle
-        case .date, .urgent, .subtasks, .template:
+        case .date, .urgent, .subtasks:
             return .none
         }
     }

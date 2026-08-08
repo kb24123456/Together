@@ -3,7 +3,7 @@ import Foundation
 protocol TaskApplicationServiceProtocol: Sendable {
     func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item]
     func todaySummary(in spaceID: UUID, referenceDate: Date) async throws -> TaskTodaySummary
-    func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item
+    func createTask(id: UUID, in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item
     func moveTask(
         in spaceID: UUID,
@@ -46,6 +46,10 @@ protocol TaskApplicationServiceProtocol: Sendable {
 }
 
 extension TaskApplicationServiceProtocol {
+    func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
+        try await createTask(id: UUID(), in: spaceID, actorID: actorID, draft: draft)
+    }
+
     func toggleTaskCompletion(in spaceID: UUID, taskID: UUID, actorID: UUID) async throws -> Item {
         try await toggleTaskCompletion(
             in: spaceID,

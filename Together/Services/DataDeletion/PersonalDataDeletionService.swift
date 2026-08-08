@@ -130,7 +130,6 @@ final class PersonalDataDeletionService {
         for value in try context.fetch(FetchDescriptor<PersistentProjectSubtask>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentItem>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentPeriodicTask>()) { context.delete(value) }
-        for value in try context.fetch(FetchDescriptor<PersistentTaskTemplate>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentTaskList>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentProject>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentSpace>()) { context.delete(value) }
@@ -182,7 +181,6 @@ private struct PersonalDataDeletionManifest {
             try context.fetchCount(FetchDescriptor<PersistentUserProfile>()),
             try context.fetchCount(FetchDescriptor<PersistentTaskSubtask>()),
             try context.fetchCount(FetchDescriptor<PersistentItemOccurrenceCompletion>()),
-            try context.fetchCount(FetchDescriptor<PersistentTaskTemplate>()),
             try context.fetchCount(FetchDescriptor<PersistentTaskList>()),
             try context.fetchCount(FetchDescriptor<PersistentProjectSubtask>())
         ]

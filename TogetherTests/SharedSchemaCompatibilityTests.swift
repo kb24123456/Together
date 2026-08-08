@@ -6,13 +6,10 @@ import TogetherCore
 
 @Suite("iPhone shared SwiftData schema compatibility", .serialized)
 struct SharedSchemaCompatibilityTests {
-    @Test("Production aliases resolve to the complete TogetherCore V1")
+    @Test("Production schema uses V2 without templates")
     @MainActor
     func productionSchemaUsesSharedV1() {
-        let productionSchema = Schema(versionedSchema: TogetherSchemaV1.self)
-        let sharedSchema = Schema(versionedSchema: TogetherCore.TogetherSchemaV1.self)
-
-        #expect(productionSchema == sharedSchema)
+        let productionSchema = Schema(versionedSchema: TogetherSchemaV2.self)
         #expect(Set(productionSchema.entities.map(\.name)) == [
             "PersistentUserProfile",
             "PersistentSpace",
@@ -22,12 +19,11 @@ struct SharedSchemaCompatibilityTests {
             "PersistentItem",
             "PersistentTaskSubtask",
             "PersistentItemOccurrenceCompletion",
-            "PersistentTaskTemplate",
             "PersistentPeriodicTask",
         ])
     }
 
-    @Test("Existing unversioned iPhone store reopens with shared V1")
+    @Test("Existing V1 iPhone store migrates to V2 without data loss")
     @MainActor
     func existingStoreReopensWithoutDataLoss() throws {
         let directory = FileManager.default.temporaryDirectory
@@ -75,11 +71,27 @@ struct SharedSchemaCompatibilityTests {
                 archivedAt: nil,
                 repeatRuleData: payload
             ))
+            context.insert(TogetherCore.PersistentTaskTemplate(
+                id: UUID(),
+                spaceID: nil,
+                title: "迁移后应删除",
+                notes: nil,
+                listID: nil,
+                projectID: nil,
+                isPinned: false,
+                hasExplicitTime: false,
+                timeData: nil,
+                reminderOffset: nil,
+                repeatRuleData: nil,
+                subtasksData: nil,
+                createdAt: now,
+                updatedAt: now
+            ))
             try context.save()
         }
 
         do {
-            let sharedSchema = Schema(versionedSchema: TogetherSchemaV1.self)
+            let sharedSchema = Schema(versionedSchema: TogetherSchemaV2.self)
             let configuration = ModelConfiguration(
                 "TogetherStore",
                 schema: sharedSchema,
@@ -88,7 +100,7 @@ struct SharedSchemaCompatibilityTests {
             )
             let container = try ModelContainer(
                 for: sharedSchema,
-                migrationPlan: TogetherMigrationPlan.self,
+                migrationPlan: Together.TogetherMigrationPlan.self,
                 configurations: configuration
             )
             let context = ModelContext(container)
@@ -100,6 +112,7 @@ struct SharedSchemaCompatibilityTests {
             #expect(item.notes == "unversioned -> TogetherCore V1")
             #expect(item.dueAt == now)
             #expect(item.repeatRuleData == payload)
+            #expect(sharedSchema.entities.contains { $0.name == "PersistentTaskTemplate" } == false)
         }
     }
 

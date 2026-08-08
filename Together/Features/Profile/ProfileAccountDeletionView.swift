@@ -78,7 +78,7 @@ struct ProfileAccountDeletionView: View {
         ProfileSettingsGroupCard(title: "将被删除的数据") {
             deletionItem(icon: "person.crop.circle", text: "个人资料（昵称、头像）")
             deletionItem(icon: "checkmark.circle", text: "所有任务数据（待办、已完成、已归档）")
-            deletionItem(icon: "square.stack", text: "例行事务和模板")
+            deletionItem(icon: "square.stack", text: "定期任务")
             deletionItem(icon: "folder", text: "项目和清单")
             deletionItem(icon: "icloud", text: "对应的 iCloud 私有同步记录")
         }

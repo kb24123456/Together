@@ -183,7 +183,10 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         case .authorized:
             return .authorized
         case .notDetermined:
-            return (try? await routineAlarmService.requestAuthorization()) ?? .denied
+            // Never present an AlarmKit authorization prompt during cold-launch
+            // maintenance. Until the user explicitly opts in, preserve delivery
+            // by falling back to a standard local notification.
+            return .notDetermined
         case .denied:
             return .denied
         case .unavailable:

@@ -57,14 +57,6 @@ enum AppTheme {
         static let timeText = Color(light: .init(red: 0.72, green: 0.72, blue: 0.73),
                                     dark: .init(red: 0.50, green: 0.50, blue: 0.52))
 
-        // MARK: - Accent & Brand
-
-        static let accent = Color(light: .init(red: 0.24, green: 0.47, blue: 0.42),
-                                  dark: .init(red: 0.38, green: 0.68, blue: 0.60))
-
-        static let accentSoft = Color(light: .init(red: 0.92, green: 0.96, blue: 0.94),
-                                      dark: .init(red: 0.18, green: 0.26, blue: 0.24))
-
         // MARK: - Warm Accent
 
         static let warmAccent = Color(light: .init(red: 0.87, green: 0.48, blue: 0.41),
@@ -90,7 +82,6 @@ enum AppTheme {
         static let sun = Color(red: 0.93, green: 0.74, blue: 0.18)
         static let violet = Color(red: 0.44, green: 0.28, blue: 0.91)
 
-        static let success = Color(red: 0.25, green: 0.61, blue: 0.44)
         static let warning = Color(red: 0.82, green: 0.56, blue: 0.26)
         static let danger = Color(red: 0.74, green: 0.35, blue: 0.32)
 

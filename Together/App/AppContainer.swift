@@ -6,7 +6,6 @@ struct AppContainer {
     let syncCoordinator: SyncCoordinatorProtocol
     let userProfileRepository: UserProfileRepositoryProtocol
     let itemRepository: ItemRepositoryProtocol
-    let taskTemplateRepository: TaskTemplateRepositoryProtocol
     let taskListRepository: TaskListRepositoryProtocol
     let projectRepository: ProjectRepositoryProtocol
     let projectToTaskMigrationService: ProjectToTaskMigrationService

@@ -1375,11 +1375,11 @@ private extension ProjectStatus {
     var tint: Color {
         switch self {
         case .active:
-            return AppTheme.colors.accent
+            return AppTheme.colors.sky
         case .onHold:
             return AppTheme.colors.warning
         case .completed:
-            return AppTheme.colors.success
+            return AppTheme.colors.coral
         case .archived:
             return AppTheme.colors.body
         }

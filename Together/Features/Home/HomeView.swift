@@ -1,10 +1,12 @@
 import SwiftUI
-import UIKit
 
 struct HomeView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var viewModel: HomeViewModel
+    @Bindable var focusModel: HomeFocusPresentationModel
     @Bindable var projectsViewModel: ProjectsViewModel
     @Bindable var routinesViewModel: RoutinesViewModel
     let isProjectModePresented: Bool
@@ -16,10 +18,14 @@ struct HomeView: View {
     @State private var isCompletedSectionVisible = true
     @State private var highlightedTaskID: UUID?
     @State private var isTimelineReorderingActive = false
-    @State private var visualFocusItemID: UUID?
-    @State private var collapsingInlineDetailID: UUID?
-    @State private var inlineDetailAnimationBatch = 0
-    @State private var inlineNoteEditingItemID: UUID?
+    @State private var hasHandledInitialSelectedDateTask = false
+    @State private var frozenActiveSections: [HomeTimelineSection]?
+    @State private var frozenCompletedEntries: [HomeTimelineEntry]?
+    @State private var frozenShowsOverdueCapsule: Bool?
+    @State private var frozenHasAttentionTasks: Bool?
+    @State private var frozenHasWeeklyCompletedEntries: Bool?
+    @State private var frozenWeeklyCompletedEntryCount: Int?
+    @State private var pendingFocusTaskID: UUID?
 
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
@@ -38,22 +44,12 @@ struct HomeView: View {
             await viewModel.performDeferredMaintenanceIfNeeded()
         }
         .task(id: viewModel.selectedDateKey) {
-            visualFocusItemID = nil
-            collapsingInlineDetailID = nil
-            await viewModel.reload(reason: .dateChange)
-            restoreVisualFocusIfNeeded()
-        }
-        .onChange(of: viewModel.expandedDetailItemID) { _, expandedItemID in
-            if let expandedItemID {
-                guard collapsingInlineDetailID != expandedItemID else { return }
-                withAnimation(timelineFocusAnimation) {
-                    visualFocusItemID = expandedItemID
-                }
-            } else {
-                visualFocusItemID = nil
-                inlineNoteEditingItemID = nil
-                collapsingInlineDetailID = nil
+            guard focusModel.isActive == false else { return }
+            guard hasHandledInitialSelectedDateTask else {
+                hasHandledInitialSelectedDateTask = true
+                return
             }
+            await viewModel.reload(reason: .dateChange)
         }
         .sheet(
             isPresented: Binding(
@@ -95,10 +91,43 @@ struct HomeView: View {
                 await viewModel.reload(reason: .startupRestore)
             }
         }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active, focusModel.isActive else { return }
+            focusModel.recover()
+        }
+        .onChange(of: focusModel.phase) { _, phase in
+            switch phase {
+            case .preparing, .transitioningIn, .focused, .saving, .transitioningOut, .recovering:
+                if frozenActiveSections == nil {
+                    frozenActiveSections = viewModel.activeTimelineSections
+                    frozenCompletedEntries = viewModel.completedTimelineEntries
+                    frozenShowsOverdueCapsule = viewModel.showsOverdueCapsule
+                    frozenHasAttentionTasks = appContext.routinesViewModel.hasAttentionTasks
+                    frozenHasWeeklyCompletedEntries = viewModel.hasWeeklyCompletedEntries
+                    frozenWeeklyCompletedEntryCount = viewModel.weeklyCompletedEntryCount
+                }
+            case .preparingLanding, .landing, .idle:
+                frozenActiveSections = nil
+                frozenCompletedEntries = nil
+                frozenShowsOverdueCapsule = nil
+                frozenHasAttentionTasks = nil
+                frozenHasWeeklyCompletedEntries = nil
+                frozenWeeklyCompletedEntryCount = nil
+            }
+        }
+        .onChange(of: viewModel.items.map(\.id)) { _, itemIDs in
+            guard case .detail(.todo, let itemID) = focusModel.subject,
+                  itemIDs.contains(itemID) == false
+            else { return }
+            focusModel.recover()
+        }
+        .accessibilityAction(.escape) {
+            focusModel.requestDismissal()
+        }
     }
 
     private var backgroundView: some View {
-        GradientGridBackground()
+        Color.clear
     }
 
     private var showsStartupRestoreStatus: Bool {
@@ -182,14 +211,11 @@ struct HomeView: View {
                     .allowsHitTesting(true)
             }
 
-            routinesModeContent
-                .opacity(isRoutinesModePresented ? 1 : 0)
-                .offset(y: routinesSurfaceOffset)
-                .scaleEffect(routinesSurfaceScale, anchor: .top)
-                .blur(radius: routinesSurfaceBlur)
-                .allowsHitTesting(isRoutinesModePresented)
-                .accessibilityHidden(isRoutinesModePresented == false)
-                .animation(routinesSurfaceModeAnimation, value: isRoutinesModePresented)
+            if isRoutinesModePresented {
+                routinesModeContent
+                    .transition(.opacity.combined(with: .offset(y: 12)))
+                    .allowsHitTesting(true)
+            }
         }
         .animation(projectModeAnimation, value: isProjectModePresented)
     }
@@ -208,15 +234,19 @@ struct HomeView: View {
                 .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
                 .transition(timelineTransition)
-            } else if viewModel.items.isEmpty, viewModel.loadState == .loading || viewModel.loadState == .idle {
+            } else if focusModel.isActive == false,
+                      viewModel.items.isEmpty,
+                      viewModel.loadState == .loading || viewModel.loadState == .idle {
                 homeLoadingState
-            } else if viewModel.items.isEmpty, case .failed = viewModel.loadState {
+            } else if focusModel.isActive == false,
+                      viewModel.items.isEmpty,
+                      case .failed = viewModel.loadState {
                 homeLoadFailureState
-            } else if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
+            } else if hasDisplayedTimelineEntries == false {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppTheme.spacing.md) { // normalized 14→16
                         if appContext.sessionStore.activeMode == .single,
-                           appContext.routinesViewModel.hasAttentionTasks {
+                           displayedHasAttentionTasks {
                             RoutinesSummaryCard(
                                 viewModel: appContext.routinesViewModel,
                                 onNavigateToRoutines: {
@@ -247,14 +277,18 @@ struct HomeView: View {
                         .onReceive(NotificationCenter.default.publisher(for: .openTaskFromNudge)) { notif in
                             guard let id = notif.userInfo?["task_id"] as? UUID else { return }
                             _ = appContext.consumePendingHighlightTaskID()
-                            highlight(id, via: scrollProxy)
+                            requestExternalFocus(id, via: scrollProxy)
                         }
                         .task {
                             // Cold-launch path: openTaskFromNotification fires before this
                             // ScrollViewReader is alive, so onReceive never fires. Drain the
                             // pending highlight stored on AppContext and apply it now.
                             guard let id = appContext.consumePendingHighlightTaskID() else { return }
-                            highlight(id, via: scrollProxy)
+                            requestExternalFocus(id, via: scrollProxy)
+                        }
+                        .onChange(of: focusModel.phase) { _, phase in
+                            guard phase == .idle, let itemID = pendingFocusTaskID else { return }
+                            requestExternalFocus(itemID, via: scrollProxy)
                         }
                 }
             }
@@ -370,8 +404,11 @@ struct HomeView: View {
     /// (onReceive) and the cold-launch path (.task drain on ScrollViewReader).
     private func highlight(_ id: UUID, via proxy: ScrollViewProxy) {
         highlightedTaskID = id
+        let presentationID = viewModel.timelineEntry(for: id)?.presentationID
         withAnimation {
-            proxy.scrollTo(id, anchor: .center)
+            if let presentationID {
+                proxy.scrollTo(presentationID, anchor: .center)
+            }
         }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
@@ -379,135 +416,55 @@ struct HomeView: View {
         }
     }
 
-    private func toggleInlineDetail(_ itemID: UUID, scrollProxy: ScrollViewProxy) {
-        HomeInteractionFeedback.soft()
-        Task { @MainActor in
-            if let focusedItemID = visualFocusItemID, focusedItemID != itemID {
-                beginInlineDetailCollapse(itemID: focusedItemID)
-                return
-            }
-
-            if viewModel.expandedDetailItemID == itemID {
-                beginInlineDetailCollapse(itemID: itemID)
-                return
-            }
-
-            if let expandedItemID = viewModel.expandedDetailItemID, expandedItemID != itemID {
-                beginInlineDetailCollapse(itemID: expandedItemID)
-                return
-            }
-
-            collapsingInlineDetailID = nil
-            visualFocusItemID = nil
-            await viewModel.toggleInlineDetail(itemID)
-            inlineDetailAnimationBatch += 1
-            guard viewModel.expandedDetailItemID == itemID else { return }
-            withAnimation(timelineFocusAnimation) {
-                visualFocusItemID = itemID
-            }
-            try? await Task.sleep(for: .milliseconds(90))
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                scrollProxy.scrollTo(inlineDetailAnchorID(for: itemID), anchor: .center)
-            }
-        }
+    private func requestExternalFocus(_ id: UUID, via proxy: ScrollViewProxy) {
+        pendingFocusTaskID = id
+        guard focusModel.isActive == false else { return }
+        highlight(id, via: proxy)
+        openPendingExternalFocusIfPossible()
     }
 
-    private func beginInlineDetailCollapse(
-        itemID: UUID,
-        preservesFocusUntilCompletion: Bool = false
-    ) {
-        guard collapsingInlineDetailID != itemID else { return }
-
-        if preservesFocusUntilCompletion == false {
-            withAnimation(timelineFocusAnimation) {
-                visualFocusItemID = nil
-            }
-        }
-
-        Task { @MainActor in
-            collapsingInlineDetailID = itemID
-            inlineDetailAnimationBatch += 1
-            try? await Task.sleep(for: .milliseconds(inlineCollapseDelayMilliseconds))
-            guard collapsingInlineDetailID == itemID else { return }
-            let didCollapse = await viewModel.collapseInlineDetail()
-            collapsingInlineDetailID = nil
-            if didCollapse == false, viewModel.expandedDetailItemID == itemID {
-                inlineDetailAnimationBatch += 1
-                withAnimation(timelineFocusAnimation) {
-                    visualFocusItemID = itemID
-                }
-            } else if preservesFocusUntilCompletion {
-                withAnimation(timelineFocusAnimation) {
-                    visualFocusItemID = nil
-                }
-            }
-        }
-    }
-
-    private func restoreVisualFocusIfNeeded() {
-        guard
-            let expandedItemID = viewModel.expandedDetailItemID,
-            collapsingInlineDetailID != expandedItemID
+    private func openPendingExternalFocusIfPossible() {
+        guard focusModel.isActive == false,
+              let itemID = pendingFocusTaskID,
+              let entry = viewModel.timelineEntry(for: itemID),
+              openInlineTaskDetail(entry)
         else { return }
-
-        withAnimation(timelineFocusAnimation) {
-            visualFocusItemID = expandedItemID
-        }
+        pendingFocusTaskID = nil
     }
 
-    private func completeTimelineEntry(
-        _ entry: HomeTimelineEntry,
-        isDetailPresented: Bool
-    ) {
+    private func completeTimelineEntry(_ entry: HomeTimelineEntry) {
         Task { @MainActor in
-            guard isDetailPresented else {
-                await viewModel.completeItem(entry.itemID)
-                return
-            }
-
-            guard await viewModel.saveInlineDetailDraft() else { return }
-            let completionTask = Task {
-                await viewModel.completeItem(entry.itemID, trigger: .expandedControl)
-            }
-            try? await Task.sleep(for: .milliseconds(320))
-            beginInlineDetailCollapse(
-                itemID: entry.itemID,
-                preservesFocusUntilCompletion: true
-            )
-            await completionTask.value
+            await viewModel.completeItem(entry.itemID)
         }
     }
 
-    private func collapseVisualFocusIfNeeded() {
-        guard let focusedItemID = visualFocusItemID else { return }
+    @discardableResult
+    private func openInlineTaskDetail(_ entry: HomeTimelineEntry) -> Bool {
+        guard focusModel.isActive == false else { return false }
         HomeInteractionFeedback.soft()
-        beginInlineDetailCollapse(itemID: focusedItemID)
-    }
-
-    private func isInlineDetailPresented(for itemID: UUID) -> Bool {
-        viewModel.expandedDetailItemID == itemID || collapsingInlineDetailID == itemID
-    }
-
-    private func isInlineDetailVisuallyExpanded(for itemID: UUID) -> Bool {
-        viewModel.expandedDetailItemID == itemID && collapsingInlineDetailID != itemID
-    }
-
-    private var inlineCollapseDelayMilliseconds: UInt64 {
-        360
-    }
-
-    private func inlineDetailAnchorID(for itemID: UUID) -> String {
-        "inline-detail-\(itemID.uuidString)"
-    }
-
-    private func scrollToInlineFocus(
-        _ target: HomeInlineFocusTarget,
-        itemID: UUID,
-        scrollProxy: ScrollViewProxy
-    ) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-            scrollProxy.scrollTo(target.anchorID(for: itemID), anchor: target.scrollAnchor)
+        viewModel.presentItemDetail(entry.itemID)
+        viewModel.markDetailForExpandedEditing()
+        let draft = viewModel.inlineDetailDraft
+        let proposedHeight = max(
+            240,
+            86 + HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
+                subtaskCount: draft?.subtasks.count ?? 0,
+                note: draft?.notes
+            )
+        )
+        guard focusModel.presentDetail(
+            domain: .todo,
+            itemID: entry.itemID,
+            proposedHeight: proposedHeight
+        ) else {
+            viewModel.dismissItemDetail()
+            return false
         }
+        return true
+    }
+
+    private var isFocusPresentationActive: Bool {
+        focusModel.isActive
     }
 
     private var projectsModeContent: some View {
@@ -524,6 +481,7 @@ struct HomeView: View {
     private var routinesModeContent: some View {
         RoutinesListContent(
             viewModel: routinesViewModel,
+            focusModel: focusModel,
             isPresented: isRoutinesModePresented,
             contentTopPadding: 0,
             contentBottomPadding: 104,
@@ -539,7 +497,7 @@ struct HomeView: View {
         ZStack(alignment: .topLeading) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    if viewModel.showsOverdueCapsule {
+                    if displayedShowsOverdueCapsule {
                         overdueReminderCapsule
                             .padding(
                                 EdgeInsets(
@@ -552,7 +510,7 @@ struct HomeView: View {
                     }
 
                     if appContext.sessionStore.activeMode == .single,
-                       appContext.routinesViewModel.hasAttentionTasks {
+                       displayedHasAttentionTasks {
                         RoutinesSummaryCard(
                             viewModel: appContext.routinesViewModel,
                             onNavigateToRoutines: {
@@ -570,10 +528,11 @@ struct HomeView: View {
                         )
                     }
 
-                    ForEach(viewModel.activeTimelineSections) { section in
+                    ForEach(displayedActiveSections) { section in
                         Section {
                             timelineRows(
                                 section.entries,
+                                section: section,
                                 rowTransition: activeRowTransition,
                                 scrollProxy: scrollProxy
                             )
@@ -582,7 +541,7 @@ struct HomeView: View {
                         }
                     }
 
-                    if viewModel.hasCompletedEntries {
+                    if displayedCompletedEntries.isEmpty == false {
                         todayCompletedHeader
                             .padding(
                                 EdgeInsets(
@@ -596,34 +555,49 @@ struct HomeView: View {
                         completedTimelineSection(scrollProxy: scrollProxy)
                     }
 
-                    if viewModel.hasWeeklyCompletedEntries {
+                    if displayedHasWeeklyCompletedEntries {
                         completedVisibilityButton
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(
                                 EdgeInsets(
-                                    top: viewModel.hasCompletedEntries ? 4 : 12,
+                                    top: displayedCompletedEntries.isEmpty ? 12 : 4,
                                     leading: timelineRowHorizontalInset,
                                     bottom: timelineBottomInset,
                                     trailing: timelineRowHorizontalInset
                                 )
                             )
-                    } else if viewModel.hasCompletedEntries == false {
-                        Color.clear.frame(height: timelineBottomInset)
+                    } else if displayedCompletedEntries.isEmpty {
+                        Color.clear
+                            .frame(height: max(64, timelineBottomInset))
                     }
-                }
-                .background {
-                    timelineFocusDismissBackground
                 }
             }
             .coordinateSpace(name: HomeTimelineScrollCoordinateSpace.name)
             .scrollIndicators(.hidden)
-            .scrollDisabled(isOverlayModeActive)
+            .scrollDisabled(isOverlayModeActive || isFocusPresentationActive)
+            .transaction { transaction in
+                if focusModel.isActive {
+                    // The real destination row is established atomically under
+                    // the lifted surface. It must not run the timeline's normal
+                    // insertion/reordering animation at the same time.
+                    transaction.animation = nil
+                }
+            }
             .safeAreaPadding(.top, 0)
             .applyScrollEdgeProtection()
             .refreshable {
                 await viewModel.reload()
             }
+            .onChange(of: focusModel.landingDescriptor) { _, descriptor in
+                guard let descriptor, descriptor.domain == .todo else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    scrollProxy.scrollTo(descriptor.presentationID, anchor: .center)
+                }
+            }
         }
+        .coordinateSpace(name: HomeTimelineFocusCoordinateSpace.name)
     }
 
     private func timelinePinnedSectionHeader(_ section: HomeTimelineSection) -> some View {
@@ -635,23 +609,9 @@ struct HomeView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .opacity(timelineStickyFocusOpacity)
-                .saturation(timelineStickyFocusSaturation)
-                .brightness(timelineStickyFocusBrightness)
-                .blur(radius: timelineStickyFocusBlurRadius)
-                .scaleEffect(timelineStickyFocusScale, anchor: .topLeading)
-                .animation(timelineFocusAnimation, value: visualFocusItemID)
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .allowsHitTesting(false)
-    }
-
-    private var timelineFocusDismissBackground: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .onTapGesture {
-                collapseVisualFocusIfNeeded()
-            }
+        .contentShape(Rectangle())
     }
 
     private var timelineReorderingControl: some View {
@@ -682,14 +642,43 @@ struct HomeView: View {
     @ViewBuilder
     private func completedTimelineSection(scrollProxy: ScrollViewProxy) -> some View {
         timelineRows(
-            viewModel.completedTimelineEntries,
+            displayedCompletedEntries,
             rowTransition: completedRowTransition,
             sectionVisibility: CompletedSectionVisibility(
                 isVisible: isCompletedSectionVisible,
-                count: viewModel.completedTimelineEntries.count
+                count: displayedCompletedEntries.count
             ),
             scrollProxy: scrollProxy
         )
+    }
+
+    private var displayedActiveSections: [HomeTimelineSection] {
+        frozenActiveSections ?? viewModel.activeTimelineSections
+    }
+
+    private var displayedCompletedEntries: [HomeTimelineEntry] {
+        frozenCompletedEntries ?? viewModel.completedTimelineEntries
+    }
+
+    private var hasDisplayedTimelineEntries: Bool {
+        displayedActiveSections.contains { $0.entries.isEmpty == false }
+            || displayedCompletedEntries.isEmpty == false
+    }
+
+    private var displayedShowsOverdueCapsule: Bool {
+        frozenShowsOverdueCapsule ?? viewModel.showsOverdueCapsule
+    }
+
+    private var displayedHasAttentionTasks: Bool {
+        frozenHasAttentionTasks ?? appContext.routinesViewModel.hasAttentionTasks
+    }
+
+    private var displayedHasWeeklyCompletedEntries: Bool {
+        frozenHasWeeklyCompletedEntries ?? viewModel.hasWeeklyCompletedEntries
+    }
+
+    private var displayedWeeklyCompletedEntryCount: Int {
+        frozenWeeklyCompletedEntryCount ?? viewModel.weeklyCompletedEntryCount
     }
 
     private var todayCompletedHeader: some View {
@@ -698,7 +687,7 @@ struct HomeView: View {
                 .font(AppTheme.typography.sized(13, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.58))
 
-            Text("\(viewModel.todayCompletedEntryCount)")
+            Text("\(displayedCompletedEntries.count)")
                 .font(AppTheme.typography.sized(11, weight: .bold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.46))
                 .frame(minWidth: 20, minHeight: 20)
@@ -713,199 +702,78 @@ struct HomeView: View {
     @ViewBuilder
     private func timelineRows(
         _ entries: [HomeTimelineEntry],
+        section: HomeTimelineSection? = nil,
         rowTransition: AnyTransition? = nil,
         sectionVisibility: CompletedSectionVisibility? = nil,
         scrollProxy: ScrollViewProxy
     ) -> some View {
         ForEach(entries, id: \.presentationID) { entry in
             let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
-            let isDetailPresented = isInlineDetailPresented(for: entry.itemID)
-            let isDetailExpanded = isInlineDetailVisuallyExpanded(for: entry.itemID)
-            VStack(alignment: .leading, spacing: 0) {
-                if entry.isCompleted {
-                    HomeTimelineRow(
-                        entry: entry,
-                        isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.itemID, on: viewModel.selectedDate),
-                        isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.itemID, on: viewModel.selectedDate),
-                        titleLineLimit: 1,
-                        titleMinimumScaleFactor: 0.68,
-                        isDetailPresented: isDetailPresented,
-                        isDetailExpanded: isDetailExpanded,
-                        isUrgent: isDetailPresented ? (viewModel.inlineDetailDraft?.isUrgent ?? entry.isUrgent) : entry.isUrgent,
-                        expandedTitle: viewModel.inlineDetailDraft?.title ?? entry.title,
-                        expandedNotes: viewModel.inlineDetailDraft?.notes,
-                        isEditingNotes: inlineNoteEditingItemID == entry.itemID,
-                        onToggleCompletion: {
-                            if entry.isCompleted {
-                                HomeInteractionFeedback.selection()
-                            } else {
-                                HomeInteractionFeedback.completion()
-                            }
-                            completeTimelineEntry(entry, isDetailPresented: isDetailPresented)
-                        },
-                        onOpenDetail: {
-                            toggleInlineDetail(entry.itemID, scrollProxy: scrollProxy)
-                        },
-                        onCollapseDetail: {
-                            beginInlineDetailCollapse(itemID: entry.itemID)
-                        },
-                        onUpdateTitle: { title in
-                            viewModel.updateDraftTitle(title)
-                        },
-                        onUpdateNotes: { notes in
-                            viewModel.updateDraftNotes(notes)
-                        },
-                        onBeginNoteEditing: {
-                            inlineNoteEditingItemID = entry.itemID
-                        },
-                        onEndNoteEditing: {
-                            if inlineNoteEditingItemID == entry.itemID {
-                                inlineNoteEditingItemID = nil
-                            }
-                        },
-                        onToggleUrgent: {
-                            if isDetailPresented {
-                                viewModel.updateDraftUrgent(false)
-                            } else {
-                                Task { await viewModel.setItemUrgent(entry.itemID, isUrgent: false) }
-                            }
-                        },
-                        onInlineFocus: { target in
-                            scrollToInlineFocus(target, itemID: entry.itemID, scrollProxy: scrollProxy)
-                        }
-                    )
-                } else {
-                    HomeTimelineRow(
-                        entry: entry,
-                        isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.itemID, on: viewModel.selectedDate),
-                        isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.itemID, on: viewModel.selectedDate),
-                        titleLineLimit: 1,
-                        titleMinimumScaleFactor: 0.68,
-                        isDetailPresented: isDetailPresented,
-                        isDetailExpanded: isDetailExpanded,
-                        isUrgent: isDetailPresented ? (viewModel.inlineDetailDraft?.isUrgent ?? entry.isUrgent) : entry.isUrgent,
-                        expandedTitle: viewModel.inlineDetailDraft?.title ?? entry.title,
-                        expandedNotes: viewModel.inlineDetailDraft?.notes,
-                        isEditingNotes: inlineNoteEditingItemID == entry.itemID,
-                        onToggleCompletion: {
-                            if entry.isCompleted {
-                                HomeInteractionFeedback.selection()
-                            } else {
-                                HomeInteractionFeedback.completion()
-                            }
-                            completeTimelineEntry(entry, isDetailPresented: isDetailPresented)
-                        },
-                        onOpenDetail: {
-                            toggleInlineDetail(entry.itemID, scrollProxy: scrollProxy)
-                        },
-                        onCollapseDetail: {
-                            beginInlineDetailCollapse(itemID: entry.itemID)
-                        },
-                        onUpdateTitle: { title in
-                            viewModel.updateDraftTitle(title)
-                        },
-                        onUpdateNotes: { notes in
-                            viewModel.updateDraftNotes(notes)
-                        },
-                        onBeginNoteEditing: {
-                            inlineNoteEditingItemID = entry.itemID
-                        },
-                        onEndNoteEditing: {
-                            if inlineNoteEditingItemID == entry.itemID {
-                                inlineNoteEditingItemID = nil
-                            }
-                        },
-                        onToggleUrgent: {
-                            if isDetailPresented {
-                                viewModel.updateDraftUrgent(false)
-                            } else {
-                                Task { await viewModel.setItemUrgent(entry.itemID, isUrgent: false) }
-                            }
-                        },
-                        onInlineFocus: { target in
-                            scrollToInlineFocus(target, itemID: entry.itemID, scrollProxy: scrollProxy)
-                        }
-                    )
-                    .modifier(
-                        TimelineSwipeActionsModifier(
-                            isEnabled: isDetailPresented == false,
-                            canDelete: viewModel.canDeleteItem(entry.itemID),
-                            onSnooze: {
-                                HomeInteractionFeedback.selection()
-                                Task {
-                                    await viewModel.snoozeItem(entry.itemID)
-                                }
-                            },
-                            onDelete: {
-                                HomeInteractionFeedback.delete()
-                                Task {
-                                    await viewModel.deleteItem(entry.itemID)
-                                }
-                            }
-                        )
-                    )
-                    .contextMenu {
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            Task {
-                                await viewModel.snoozeItem(entry.itemID)
-                            }
-                        } label: {
-                            Label("推迟到明天", systemImage: "calendar.badge.clock")
-                        }
+            let isHiddenIdentity = focusModel.isIdentityHidden(domain: .todo, itemID: entry.itemID)
+            let geometryRevision = focusModel.geometryRevision
+            HomeTimelineRow(
+                entry: entry,
+                isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.itemID, on: viewModel.selectedDate),
+                isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.itemID, on: viewModel.selectedDate),
+                titleLineLimit: 1,
+                titleMinimumScaleFactor: 0.68,
+                isDetailPresented: false,
+                isDetailExpanded: false,
+                isUrgent: entry.isUrgent,
+                expandedTitle: entry.title,
+                expandedNotes: entry.notes,
+                isEditingNotes: false,
+                onToggleCompletion: {
+                    entry.isCompleted
+                        ? HomeInteractionFeedback.selection()
+                        : HomeInteractionFeedback.completion()
+                    completeTimelineEntry(entry)
+                },
+                onOpenDetail: { openInlineTaskDetail(entry) },
+                onUpdateTitle: { _ in },
+                onUpdateNotes: { _ in },
+                onBeginNoteEditing: {},
+                onEndNoteEditing: {},
+                onInlineFocus: { _ in }
+            )
+            .modifier(
+                TimelineSwipeActionsModifier(
+                    isEnabled: entry.isCompleted == false && focusModel.isActive == false,
+                    canDelete: viewModel.canDeleteItem(entry.itemID),
+                    onSnooze: {
+                        HomeInteractionFeedback.selection()
+                        Task { await viewModel.snoozeItem(entry.itemID) }
+                    },
+                    onDelete: {
+                        HomeInteractionFeedback.delete()
+                        Task { await viewModel.deleteItem(entry.itemID) }
+                    }
+                )
+            )
+            .contextMenu {
+                if entry.isCompleted == false, focusModel.isActive == false {
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        Task { await viewModel.snoozeItem(entry.itemID) }
+                    } label: {
+                        Label("推迟到明天", systemImage: "calendar.badge.clock")
+                    }
 
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            Task {
-                                _ = await viewModel.saveItemAsTemplateResult(entry.itemID)
-                            }
-                        } label: {
-                            Label("存为模板", systemImage: "bookmark")
-                        }
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        Task { await viewModel.convertItemToPeriodicTask(entry.itemID) }
+                    } label: {
+                        Label("转为定期任务", systemImage: "arrow.triangle.2.circlepath")
+                    }
 
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            Task {
-                                await viewModel.convertItemToPeriodicTask(entry.itemID)
-                            }
+                    if viewModel.canDeleteItem(entry.itemID) {
+                        Button(role: .destructive) {
+                            HomeInteractionFeedback.delete()
+                            Task { await viewModel.deleteItem(entry.itemID) }
                         } label: {
-                            Label("转为例行任务", systemImage: "arrow.triangle.2.circlepath")
-                        }
-
-                        if viewModel.canDeleteItem(entry.itemID) {
-                            Button(role: .destructive) {
-                                HomeInteractionFeedback.delete()
-                                Task {
-                                    await viewModel.deleteItem(entry.itemID)
-                                }
-                            } label: {
-                                Label("删除", systemImage: "trash")
-                            }
+                            Label("删除", systemImage: "trash")
                         }
                     }
-                }
-
-                if isDetailPresented {
-                    HomeInlineTaskDetailView(
-                        entry: entry,
-                        viewModel: viewModel,
-                        isExpanded: isDetailExpanded,
-                        animationBatch: inlineDetailAnimationBatch,
-                        showsAddNote: (viewModel.inlineDetailDraft?.notes ?? "")
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                            .isEmpty && inlineNoteEditingItemID != entry.itemID,
-                        onAddNote: {
-                            inlineNoteEditingItemID = entry.itemID
-                        },
-                        onFocus: { target in
-                            scrollToInlineFocus(target, itemID: entry.itemID, scrollProxy: scrollProxy)
-                        }
-                    )
-                    .id(inlineDetailAnchorID(for: entry.itemID))
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .move(edge: .top))
-                    ))
                 }
             }
             .id(entry.presentationID)
@@ -918,22 +786,26 @@ struct HomeView: View {
                 )
             )
             .frame(maxWidth: .infinity, alignment: .leading)
-            .allowsHitTesting(isDetailPresented == false || isDetailExpanded)
-            .modifier(
-                HomeInlineFocusChromeModifier(
-                    isFocused: visualFocusItemID == entry.itemID && isDetailPresented,
-                    reduceMotion: reduceMotion
+            .opacity(isHiddenIdentity ? 0 : 1)
+            .onGeometryChange(for: HomeFocusFrameObservation.self) { proxy in
+                HomeFocusFrameObservation(
+                    frame: proxy.frame(in: .global),
+                    revision: geometryRevision
                 )
-            )
-            .opacity(timelineFocusOpacity(for: entry))
-            .saturation(timelineFocusSaturation(for: entry))
-            .brightness(timelineFocusBrightness(for: entry))
-            .blur(radius: timelineFocusBlurRadius(for: entry))
-            .scaleEffect(timelineFocusScale(for: entry), anchor: .center)
-            .zIndex(timelineFocusZIndex(for: entry))
-            .animation(timelineFocusAnimation, value: visualFocusItemID)
+            } action: { observation in
+                focusModel.recordTaskFrame(
+                    domain: .todo,
+                    itemID: entry.itemID,
+                    frame: observation.frame
+                )
+                if pendingFocusTaskID == entry.itemID {
+                    openPendingExternalFocusIfPossible()
+                }
+            }
+            .allowsHitTesting(focusModel.isActive == false)
+            .accessibilityHidden(focusModel.isActive)
             .insertedListItemMotion(
-                isInserted: viewModel.isAnimatingInsertion(for: entry.itemID),
+                isInserted: isHiddenIdentity == false && viewModel.isAnimatingInsertion(for: entry.itemID),
                 onAnimationCompleted: {
                     viewModel.completeInsertionAnimation(for: entry.itemID)
                 }
@@ -945,66 +817,9 @@ struct HomeView: View {
         }
     }
 
-    private func timelineFocusOpacity(for entry: HomeTimelineEntry) -> Double {
-        guard let focusedItemID = visualFocusItemID else { return 1 }
-        guard focusedItemID != entry.itemID else { return 1 }
-        return entry.isCompleted ? 0.08 : 0.12
-    }
-
-    private func timelineFocusSaturation(for entry: HomeTimelineEntry) -> Double {
-        guard let focusedItemID = visualFocusItemID else { return 1 }
-        return focusedItemID == entry.itemID ? 1.1 : 0.03
-    }
-
-    private func timelineFocusBrightness(for entry: HomeTimelineEntry) -> Double {
-        guard let focusedItemID = visualFocusItemID else { return 0 }
-        return focusedItemID == entry.itemID ? 0.045 : -0.125
-    }
-
-    private func timelineFocusBlurRadius(for entry: HomeTimelineEntry) -> CGFloat {
-        guard reduceMotion == false, let focusedItemID = visualFocusItemID else { return 0 }
-        return focusedItemID == entry.itemID ? 0 : 3.05
-    }
-
-    private func timelineFocusScale(for entry: HomeTimelineEntry) -> CGFloat {
-        guard reduceMotion == false, let focusedItemID = visualFocusItemID else { return 1 }
-        return focusedItemID == entry.itemID ? 1.02 : 0.986
-    }
-
-    private func timelineFocusZIndex(for entry: HomeTimelineEntry) -> Double {
-        guard let focusedItemID = visualFocusItemID else { return 0 }
-        return focusedItemID == entry.itemID ? 3 : 0
-    }
-
-    private var timelineStickyFocusOpacity: Double {
-        visualFocusItemID == nil ? 1 : 0.34
-    }
-
-    private var timelineStickyFocusSaturation: Double {
-        visualFocusItemID == nil ? 1 : 0.82
-    }
-
-    private var timelineStickyFocusBrightness: Double {
-        visualFocusItemID == nil ? 0 : 0.02
-    }
-
-    private var timelineStickyFocusBlurRadius: CGFloat {
-        guard reduceMotion == false, visualFocusItemID != nil else { return 0 }
-        return 2.4
-    }
-
-    private var timelineStickyFocusScale: CGFloat {
-        guard reduceMotion == false, visualFocusItemID != nil else { return 1 }
-        return 0.99
-    }
-
-    private var timelineFocusAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.18, extraBounce: 0)
-    }
-
     private var timelineSection: some View {
         ZStack {
-            if viewModel.hasAnyTimelineEntriesForSelectedDate == false {
+            if hasDisplayedTimelineEntries == false {
                 VStack(spacing: AppTheme.spacing.xl) {
                     VStack(spacing: AppTheme.spacing.md) {
                         Image("EmptyCalendar")
@@ -1044,7 +859,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if viewModel.hasWeeklyCompletedEntries {
+                    if displayedHasWeeklyCompletedEntries {
                         Button {
                             HomeInteractionFeedback.selection()
                             isCompletedVisibilityButtonCompressed = true
@@ -1056,7 +871,7 @@ struct HomeView: View {
                                 await viewModel.presentWeeklyCompletedSheet()
                             }
                         } label: {
-                            Text("本周已完成 \(viewModel.weeklyCompletedEntryCount) 项")
+                            Text("本周已完成 \(displayedWeeklyCompletedEntryCount) 项")
                                 .font(AppTheme.typography.sized(13, weight: .medium))
                                 .foregroundStyle(AppTheme.colors.body.opacity(0.5))
                         }
@@ -1160,13 +975,6 @@ struct HomeView: View {
             : .smooth(duration: 0.34, extraBounce: 0).delay(0.06)
     }
 
-    private var routinesSurfaceModeAnimation: Animation {
-        guard reduceMotion == false else { return .easeInOut(duration: 0.18) }
-        return isRoutinesModePresented
-            ? .smooth(duration: 0.36, extraBounce: 0).delay(0.04)
-            : .smooth(duration: 0.38, extraBounce: 0)
-    }
-
     private var routinesTaskSurfaceOffset: CGFloat {
         guard reduceMotion == false, isRoutinesModePresented else { return 0 }
         return -8
@@ -1180,21 +988,6 @@ struct HomeView: View {
     private var routinesTaskSurfaceBlur: CGFloat {
         guard reduceMotion == false, isRoutinesModePresented else { return 0 }
         return 2
-    }
-
-    private var routinesSurfaceOffset: CGFloat {
-        guard reduceMotion == false, isRoutinesModePresented == false else { return 0 }
-        return 12
-    }
-
-    private var routinesSurfaceScale: CGFloat {
-        guard reduceMotion == false, isRoutinesModePresented == false else { return 1 }
-        return 0.992
-    }
-
-    private var routinesSurfaceBlur: CGFloat {
-        guard reduceMotion == false, isRoutinesModePresented == false else { return 0 }
-        return 3
     }
 
     private var projectModeAnimation: Animation {
@@ -1233,60 +1026,6 @@ struct HomeView: View {
 
 }
 
-private struct HomeInlineFocusChromeModifier: ViewModifier {
-    let isFocused: Bool
-    let reduceMotion: Bool
-    @Environment(\.colorScheme) private var colorScheme
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                focusBackground
-            }
-            .shadow(
-                color: primaryShadowColor.opacity(isFocused ? primaryShadowOpacity : 0),
-                radius: isFocused ? (reduceMotion ? 14 : 28) : 0,
-                x: 0,
-                y: isFocused ? 14 : 0
-            )
-    }
-
-    private var primaryShadowColor: Color {
-        colorScheme == .dark ? .black : AppTheme.colors.title
-    }
-
-    private var primaryShadowOpacity: Double {
-        colorScheme == .dark ? 0.55 : 0.08
-    }
-
-    private var focusBackground: some View {
-        focusPlate
-            .allowsHitTesting(false)
-    }
-
-    private var focusPlate: some View {
-        RoundedRectangle(cornerRadius: 44, style: .continuous)
-            .fill(focusSurfaceColor.opacity(isFocused ? 1 : 0))
-            .overlay {
-                RoundedRectangle(cornerRadius: 44, style: .continuous)
-                    .strokeBorder(focusSurfaceColor.opacity(isFocused ? 1 : 0), lineWidth: 0.8)
-            }
-            .shadow(
-                color: primaryShadowColor.opacity(isFocused ? primaryShadowOpacity : 0),
-                radius: isFocused ? (reduceMotion ? 14 : 28) : 0,
-                x: 0,
-                y: isFocused ? 14 : 0
-            )
-            .padding(.horizontal, 14)
-            .padding(.vertical, -16)
-            .allowsHitTesting(false)
-    }
-
-    private var focusSurfaceColor: Color {
-        AppTheme.colors.surface
-    }
-}
-
 #if DEBUG
 #Preview("Home Default") {
     makeHomePreview()
@@ -1311,6 +1050,7 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
 
     return HomeView(
         viewModel: context.homeViewModel,
+        focusModel: HomeFocusPresentationModel(),
         projectsViewModel: context.projectsViewModel,
         routinesViewModel: context.routinesViewModel,
         isProjectModePresented: false,
@@ -1339,18 +1079,33 @@ enum HomeInlineTaskLayoutMetrics {
     static let detailTopPadding: CGFloat = AppTheme.spacing.xxs
     static let detailBottomPadding: CGFloat = AppTheme.spacing.xxs
 
-    static func estimatedDetailHeight(subtaskCount: Int, showsAddNote: Bool = true) -> CGFloat {
+    static func estimatedDetailHeight(
+        subtaskCount: Int,
+        showsAddNote: Bool = true,
+        note: String? = nil
+    ) -> CGFloat {
         let leadingRowCount = showsAddNote ? 1 : 0
         let rowCount = max(subtaskCount + leadingRowCount + 2, 1)
         let compactRows = CGFloat(leadingRowCount + 1) * compactRowMinHeight
         let subtaskRows = CGFloat(subtaskCount) * rowMinHeight
-        let rowHeights = compactRows + subtaskRows + attributeMinHeight
+        let noteHeight: CGFloat = if let note, note.isEmpty == false {
+            estimatedNoteHeight(note)
+        } else {
+            0
+        }
+        let rowHeights = compactRows + subtaskRows + attributeMinHeight + noteHeight
         let spacings = CGFloat(max(rowCount - 1, 0)) * detailVerticalSpacing
         return detailTopPadding + rowHeights + spacings + detailBottomPadding
     }
+
+    private static func estimatedNoteHeight(_ note: String) -> CGFloat {
+        let explicitLines = max(1, note.split(separator: "\n", omittingEmptySubsequences: false).count)
+        let wrappedLines = max(1, Int(ceil(Double(note.count) / 24)))
+        return min(CGFloat(max(explicitLines, wrappedLines)) * 20, 260)
+    }
 }
 
-private enum HomeInlineFocusTarget: Hashable {
+enum HomeInlineFocusTarget: Hashable {
     case title
     case notes
     case newSubtask
@@ -1385,17 +1140,12 @@ enum HomeTimelineSubtitleText {
             components.append(entry.reminderText)
         }
 
-        if entry.subtasks.isEmpty == false {
-            let total = entry.subtasks.count
-            components.append("\(entry.subtaskCompletedCount)/\(total) 子任务")
-        }
-
         return components.joined(separator: " · ")
     }
 
     static func text(for entry: HomeTimelineEntry) -> String {
         let properties = propertyText(for: entry)
-        return properties.isEmpty ? entry.statusText : properties
+        return properties
     }
 }
 
@@ -1415,11 +1165,201 @@ struct HomeTimelineRowDisplayText: Equatable {
             nil
         }
 
-        let properties = HomeTimelineSubtitleText.propertyText(for: entry)
         return HomeTimelineRowDisplayText(
-            primarySubtitle: noteText ?? (properties.isEmpty ? entry.statusText : properties),
-            propertyText: noteText != nil && properties.isEmpty == false ? properties : nil
+            primarySubtitle: noteText ?? "",
+            propertyText: nil
         )
+    }
+}
+
+struct TaskSharedElementVisual: View {
+    let element: TaskSharedElement
+    let content: TaskSharedIdentityContent
+    var noteLineLimit: Int? = nil
+
+    @ViewBuilder
+    var body: some View {
+        switch element {
+        case .completion:
+            completionMark
+        case .title:
+            Text(content.title)
+                .font(AppTheme.typography.sized(19, weight: .bold))
+                .foregroundStyle(titleColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+                .allowsTightening(true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .note:
+            if let note = content.note {
+                Text(note)
+                    .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(subtitleColor)
+                    .lineLimit(noteLineLimit)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        case .progress:
+            if content.totalSubtaskCount > 0 {
+                HStack(spacing: 6) {
+                    ZStack {
+                        Circle()
+                            .stroke(AppTheme.colors.body.opacity(0.16), lineWidth: 2.2)
+                        Circle()
+                            .trim(from: 0, to: progressFraction)
+                            .stroke(
+                                AppTheme.colors.sky,
+                                style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: 17, height: 17)
+
+                    Text("\(content.completedSubtaskCount)/\(content.totalSubtaskCount)")
+                        .font(AppTheme.typography.sized(14, weight: .semibold))
+                }
+                .foregroundStyle(subtitleColor)
+                .fixedSize()
+            }
+        case .time:
+            if let timeSummary = content.timeSummary {
+                attributeToken(icon: "clock", text: timeSummary, color: subtitleColor)
+            }
+        case .reminder:
+            if let reminderSummary = content.reminderSummary {
+                attributeToken(icon: "bell", text: reminderSummary, color: subtitleColor)
+            }
+        case .urgent:
+            if content.isUrgent, content.isCompleted == false {
+                attributeToken(icon: "flag.fill", text: "紧急", color: AppTheme.colors.coral)
+            }
+        }
+    }
+
+    private var completionMark: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+                .strokeBorder(
+                    content.isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.44),
+                    style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                )
+            if content.isCompleted {
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(17, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.coral)
+                    .offset(
+                        x: AppTheme.metrics.checkmarkVisualOffset.width,
+                        y: AppTheme.metrics.checkmarkVisualOffset.height
+                    )
+            }
+        }
+        .frame(width: 40, height: 40)
+    }
+
+    private func attributeToken(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .frame(width: 16)
+            Text(text)
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(color)
+        .fixedSize()
+    }
+
+    private var progressFraction: CGFloat {
+        guard content.totalSubtaskCount > 0 else { return 0 }
+        return CGFloat(content.completedSubtaskCount) / CGFloat(content.totalSubtaskCount)
+    }
+
+    private var subtitleColor: Color {
+        AppTheme.colors.body.opacity(content.isMuted ? 0.4 : 0.74)
+    }
+
+    private var titleColor: Color {
+        content.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title
+    }
+}
+
+struct TaskSharedAttributeBand: View {
+    let content: TaskSharedIdentityContent
+    var elements: [TaskSharedElement] = [.progress, .time, .reminder, .urgent]
+
+    var body: some View {
+        TaskSharedAttributeBandLayout(horizontalSpacing: 14, verticalSpacing: 6) {
+            ForEach(visibleElements, id: \.self) { element in
+                TaskSharedElementVisual(element: element, content: content)
+            }
+        }
+    }
+
+    private var visibleElements: [TaskSharedElement] {
+        elements.filter { content.visibleElements.contains($0) }
+    }
+}
+
+private struct TaskSharedAttributeBandLayout: Layout {
+    let horizontalSpacing: CGFloat
+    let verticalSpacing: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard subviews.isEmpty == false else { return .zero }
+        let width = proposal.width ?? subviews.reduce(0) { $0 + $1.sizeThatFits(.unspecified).width }
+        let rows = rows(for: subviews, width: width)
+        let height = rows.enumerated().reduce(CGFloat.zero) { partial, row in
+            partial + (row.element.map(\.height).max() ?? 0) + (row.offset == 0 ? 0 : verticalSpacing)
+        }
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        var y = bounds.minY
+        for row in rows(for: subviews, width: bounds.width) {
+            var x = bounds.minX
+            let rowHeight = row.map(\.height).max() ?? 0
+            for item in row {
+                item.subview.place(
+                    at: CGPoint(x: x, y: y + (rowHeight - item.height) / 2),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(width: item.width, height: item.height)
+                )
+                x += item.width + horizontalSpacing
+            }
+            y += rowHeight + verticalSpacing
+        }
+    }
+
+    private func rows(for subviews: Subviews, width: CGFloat) -> [[Item]] {
+        var rows: [[Item]] = [[]]
+        var currentWidth: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let required = rows[rows.count - 1].isEmpty ? size.width : horizontalSpacing + size.width
+            if currentWidth + required > width, rows.count < 2, rows[rows.count - 1].isEmpty == false {
+                rows.append([])
+                currentWidth = 0
+            }
+            rows[rows.count - 1].append(Item(subview: subview, width: size.width, height: size.height))
+            currentWidth += (rows[rows.count - 1].count == 1 ? 0 : horizontalSpacing) + size.width
+        }
+        return rows
+    }
+
+    private struct Item {
+        let subview: LayoutSubview
+        let width: CGFloat
+        let height: CGFloat
     }
 }
 
@@ -1453,6 +1393,10 @@ private struct HomeTimelineDateSectionHeader: View {
 
 private enum HomeTimelineScrollCoordinateSpace {
     static let name = "home-timeline-scroll"
+}
+
+private enum HomeTimelineFocusCoordinateSpace {
+    static let name = "home-timeline-focus"
 }
 
 private struct HomeTimelinePinnedHeaderBackdrop: View {
@@ -1522,7 +1466,7 @@ private struct HomeTimelineRowShell<Symbol: View, Content: View>: View {
     }
 }
 
-private struct HomeTimelineRow: View {
+struct HomeTimelineRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: HomeTimelineEntry
     let isAnimatingCompletion: Bool
@@ -1537,12 +1481,10 @@ private struct HomeTimelineRow: View {
     let isEditingNotes: Bool
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
-    let onCollapseDetail: () -> Void
     let onUpdateTitle: (String) -> Void
     let onUpdateNotes: (String) -> Void
     let onBeginNoteEditing: () -> Void
     let onEndNoteEditing: () -> Void
-    let onToggleUrgent: () -> Void
     let onInlineFocus: (HomeInlineFocusTarget) -> Void
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNotesFocused: Bool
@@ -1755,47 +1697,23 @@ private struct HomeTimelineRow: View {
     }
 
     private func titleContent(isInteractive: Bool) -> some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.xs) {
-            ZStack(alignment: .topLeading) {
-                titleStack
-                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+        ZStack(alignment: .topLeading) {
+            titleStack
+                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
 
-                if isInteractive {
-                    Button {
-                        HomeInteractionFeedback.soft()
-                        onOpenDetail()
-                    } label: {
-                        Color.clear
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("展开任务")
+            if isInteractive {
+                Button {
+                    onOpenDetail()
+                } label: {
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if isUrgent, entry.isCompleted == false {
-                urgentFlagButton
+                .buttonStyle(.plain)
+                .accessibilityLabel("展开任务")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var urgentFlagButton: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            onToggleUrgent()
-        } label: {
-            Image(systemName: "flag.fill")
-                .font(AppTheme.typography.sized(15, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.coral)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("取消紧急")
-        .accessibilityHint("关闭此任务的紧急属性")
     }
 
     private var titleStack: some View {
@@ -1812,14 +1730,38 @@ private struct HomeTimelineRow: View {
                 subtitleContent
             }
 
-            if let displayPropertyText {
-                Text(displayPropertyText)
-                    .font(AppTheme.typography.sized(15, weight: .medium))
-                    .foregroundStyle(subtitleColor)
-                    .lineLimit(2)
-            }
+            TaskSharedAttributeBand(content: sharedIdentityContent)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(sharedAttributeAccessibilityLabel)
+            .accessibilityHidden(sharedIdentityContent.visibleElements.isDisjoint(with: [.progress, .time, .reminder, .urgent]))
+            .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var sharedIdentityContent: TaskSharedIdentityContent {
+        TaskSharedIdentityContent.make(
+            entry: entry,
+            title: isDetailPresented ? expandedTitle : entry.title,
+            notes: visibleNotes
+        )
+    }
+
+    private var sharedAttributeAccessibilityLabel: String {
+        var labels: [String] = []
+        if sharedIdentityContent.totalSubtaskCount > 0 {
+            labels.append("子任务 \(sharedIdentityContent.completedSubtaskCount) / \(sharedIdentityContent.totalSubtaskCount)")
+        }
+        if let time = sharedIdentityContent.timeSummary { labels.append(time) }
+        if let reminder = sharedIdentityContent.reminderSummary { labels.append("提醒 \(reminder)") }
+        if sharedIdentityContent.isUrgent { labels.append("紧急") }
+        return labels.joined(separator: "，")
+    }
+
+    @ViewBuilder
+    private var sourceTitleVisual: some View {
+        TaskSharedElementVisual(element: .title, content: sharedIdentityContent)
     }
 
     @ViewBuilder
@@ -1864,10 +1806,11 @@ private struct HomeTimelineRow: View {
     }
 
     private func subtitleText(_ text: String) -> some View {
-        Text(text)
-            .font(AppTheme.typography.sized(15, weight: .medium))
-            .foregroundStyle(subtitleColor)
-            .lineLimit(2)
+        TaskSharedElementVisual(
+            element: .note,
+            content: sharedIdentityContent,
+            noteLineLimit: isDetailPresented ? nil : 1
+        )
     }
 
     private var expandedTitleDisplay: some View {
@@ -1881,12 +1824,7 @@ private struct HomeTimelineRow: View {
     }
 
     private func titleText(_ title: String) -> some View {
-        Text(title)
-            .font(AppTheme.typography.sized(19, weight: .bold))
-            .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-            .lineLimit(titleLineLimit)
-            .minimumScaleFactor(titleMinimumScaleFactor)
-            .allowsTightening(true)
+        sourceTitleVisual
     }
 
     private func beginTitleEditing() {
@@ -2066,668 +2004,6 @@ private struct HomeTimelineRow: View {
     private var checkmarkOpacity: Double {
         guard entry.isCompleted || shouldPlayCompletionAnimation || isAnimatingReopening else { return 0 }
         return (isAnimatingReopening ? reopeningCheckmarkOpacity : 1) * completionCheckmarkOpacity
-    }
-}
-
-private struct HomeInlineTaskDetailView: View {
-    let entry: HomeTimelineEntry
-    @Bindable var viewModel: HomeViewModel
-    let isExpanded: Bool
-    let animationBatch: Int
-    let showsAddNote: Bool
-    let onAddNote: () -> Void
-    let onFocus: (HomeInlineFocusTarget) -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var focusedField: InlineTaskDetailField?
-    @State private var newSubtaskTitle = ""
-    @State private var activeAttributeEditor: InlineAttributeEditor?
-
-    private enum InlineTaskDetailField: Hashable {
-        case newSubtask
-
-        var focusTarget: HomeInlineFocusTarget {
-            switch self {
-            case .newSubtask:
-                return .newSubtask
-            }
-        }
-    }
-
-    var body: some View {
-        HomeInlineCascadeStack(
-            isExpanded: isExpanded,
-            animationBatch: animationBatch,
-            reduceMotion: reduceMotion,
-            fallbackHeight: HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
-                subtaskCount: subtasks.count,
-                showsAddNote: showsAddNote
-            )
-        ) {
-            VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
-                if showsAddNote {
-                    notesPlaceholderButton
-                        .modifier(cascadeItem(index: 0))
-                }
-
-                ForEach(Array(subtasks.enumerated()), id: \.element.id) { index, subtask in
-                    HomeInlineSubtaskRow(
-                        subtask: subtask,
-                        viewModel: viewModel,
-                        onFocus: {
-                            onFocus(.subtask(subtask.id))
-                        }
-                    )
-                    .id(HomeInlineFocusTarget.subtask(subtask.id).anchorID(for: entry.itemID))
-                    .modifier(cascadeItem(index: index + detailLeadingRowCount))
-                }
-
-                addSubtaskRow
-                    .id(HomeInlineFocusTarget.newSubtask.anchorID(for: entry.itemID))
-                    .modifier(cascadeItem(index: subtasks.count + detailLeadingRowCount))
-
-                attributePills
-                    .modifier(cascadeItem(index: subtasks.count + detailLeadingRowCount + 1))
-
-            }
-            .padding(.top, HomeInlineTaskLayoutMetrics.detailTopPadding)
-            .padding(.bottom, HomeInlineTaskLayoutMetrics.detailBottomPadding)
-        }
-        .animation(detailAnimation, value: viewModel.inlineDetailDraft?.subtasks)
-        .onChange(of: focusedField) { _, field in
-            if let field {
-                onFocus(field.focusTarget)
-            }
-        }
-    }
-
-    private var subtasks: [TaskSubtaskDraft] {
-        viewModel.inlineDetailDraft?.subtasks ?? []
-    }
-
-    private var cascadeRowCount: Int {
-        subtasks.count + detailLeadingRowCount + 2
-    }
-
-    private var detailLeadingRowCount: Int {
-        showsAddNote ? 1 : 0
-    }
-
-    private func cascadeItem(index: Int) -> HomeInlineCascadeItemModifier {
-        HomeInlineCascadeItemModifier(
-            index: index,
-            rowCount: cascadeRowCount,
-            isExpanded: isExpanded,
-            animationBatch: animationBatch,
-            reduceMotion: reduceMotion
-        )
-    }
-
-    private var notesPlaceholderButton: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            onAddNote()
-        } label: {
-            HStack(spacing: HomeInlineTaskLayoutMetrics.titleGap) {
-                Image(systemName: "plus")
-                    .font(AppTheme.typography.sized(12, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
-                    .frame(
-                        width: HomeInlineTaskLayoutMetrics.actionSlotWidth,
-                        height: HomeInlineTaskLayoutMetrics.compactRowMinHeight,
-                        alignment: .trailing
-                    )
-
-                Text("添加备注")
-                    .font(AppTheme.typography.sized(14, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("添加备注")
-    }
-
-    private var addSubtaskRow: some View {
-        HStack(alignment: .center, spacing: HomeInlineTaskLayoutMetrics.titleGap) {
-            Image(systemName: "plus")
-                .font(AppTheme.typography.sized(13, weight: .bold))
-                .foregroundStyle(AppTheme.colors.body.opacity(canAttemptAddSubtask ? 0.72 : 0.38))
-                .frame(width: HomeInlineTaskLayoutMetrics.actionSlotWidth, height: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .trailing)
-
-            TextField(
-                "添加子任务",
-                text: $newSubtaskTitle
-            )
-            .font(AppTheme.typography.sized(15, weight: .medium))
-            .foregroundStyle(AppTheme.colors.title)
-            .textInputAutocapitalization(.sentences)
-            .submitLabel(.done)
-            .focused($focusedField, equals: .newSubtask)
-            .onSubmit {
-                addSubtaskAfterFocusUpdate()
-            }
-
-            addSubtaskButton
-        }
-        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var addSubtaskButton: some View {
-        if showsAddSubtaskButton {
-            Button("添加") {
-                addSubtaskAfterFocusUpdate()
-            }
-            .buttonStyle(.plain)
-            .font(AppTheme.typography.sized(14, weight: .bold))
-            .foregroundStyle(canAttemptAddSubtask ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.34))
-            .disabled(!canAttemptAddSubtask)
-            .transition(.opacity.combined(with: .move(edge: .trailing)))
-        }
-    }
-
-    private var attributePills: some View {
-        AdaptiveTaskAttributeToolbarLayout() {
-            dateControl.frame(maxWidth: .infinity)
-            timeControl.frame(maxWidth: .infinity)
-            reminderMenu.frame(maxWidth: .infinity)
-            urgentSettingButton
-                .frame(maxWidth: .infinity)
-        }
-        .padding(.leading, HomeInlineTaskLayoutMetrics.attributeLeadingInset)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .sheet(item: $activeAttributeEditor) { editor in
-            inlineAttributeEditor(editor)
-        }
-    }
-
-    @ViewBuilder
-    private var dateControl: some View {
-        TaskAttributeButton(
-            icon: "calendar",
-            title: dateTitle,
-            isConfigured: viewModel.inlineDetailDraft?.dueAt != nil
-        ) {
-            toggleAttributeEditor(.date)
-        }
-    }
-
-    @ViewBuilder
-    private var timeControl: some View {
-        TaskAttributeButton(
-            icon: "clock",
-            title: timeTitle,
-            isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true
-        ) {
-            toggleAttributeEditor(.time)
-        }
-    }
-
-    private var reminderMenu: some View {
-        Menu {
-            Button("不提醒") { viewModel.setDraftReminderEnabled(false) }
-            Divider()
-            ForEach(TaskEditorReminderPreset.allCases, id: \.self) { preset in
-                Button(preset.title) {
-                    guard let target = reminderTargetDate else { return }
-                    viewModel.updateDraftReminder(target.addingTimeInterval(-preset.secondsBeforeTarget))
-                }
-            }
-        } label: {
-            TaskAttributeLabel(
-                icon: "bell",
-                title: reminderTitle,
-                isConfigured: viewModel.inlineDetailDraft?.remindAt != nil
-            )
-        }
-        .disabled(viewModel.inlineDetailDraft?.hasExplicitTime != true)
-    }
-
-    private func toggleAttributeEditor(_ editor: InlineAttributeEditor) {
-        focusedField = nil
-        withAnimation(reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.28, extraBounce: 0.01)) {
-            activeAttributeEditor = activeAttributeEditor == editor ? nil : editor
-        }
-    }
-
-    private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
-        InlineDateTimePickerPanel(
-            editor: editor,
-            title: editor == .date ? "选择日期" : "选择时间",
-            initialSelection: editor == .date
-                ? viewModel.inlineDetailDraft?.dueAt
-                : (viewModel.inlineDetailDraft?.hasExplicitTime == true ? viewModel.inlineDetailDraft?.dueAt : nil),
-            fallbackSelection: editor == .date
-                ? (viewModel.inlineDetailDraft?.dueAt ?? viewModel.selectedDate)
-                : .now,
-            supportsClearing: editor == .date
-                ? viewModel.inlineDetailDraft?.dueAt != nil
-                : viewModel.inlineDetailDraft?.hasExplicitTime == true,
-            onCommit: { value in
-                if let value {
-                    if editor == .date {
-                        viewModel.updateDraftDueDate(value)
-                    } else {
-                        viewModel.updateDraftDueTime(value)
-                    }
-                } else if editor == .date {
-                    viewModel.setDraftDueDateEnabled(false)
-                } else {
-                    viewModel.clearDraftDueTime()
-                }
-            }
-        )
-    }
-
-    private var canAddSubtask: Bool {
-        !newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var canAttemptAddSubtask: Bool {
-        canAddSubtask || focusedField == .newSubtask
-    }
-
-    private var showsAddSubtaskButton: Bool {
-        focusedField == .newSubtask || canAddSubtask
-    }
-
-    private func addSubtask() {
-        let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false else { return }
-        HomeInteractionFeedback.soft()
-        withAnimation(detailAnimation) {
-            viewModel.addDetailDraftSubtask(title: trimmed)
-            newSubtaskTitle = ""
-        }
-        focusedField = .newSubtask
-    }
-
-    private func addSubtaskAfterFocusUpdate() {
-        Task { @MainActor in
-            newSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: newSubtaskTitle)
-            focusedField = nil
-            await Task.yield()
-            addSubtask()
-        }
-    }
-
-    private var dateTitle: String {
-        guard let dueAt = viewModel.inlineDetailDraft?.dueAt else { return "日期" }
-        if Calendar.current.isDateInToday(dueAt) {
-            return "今天"
-        }
-        return dueAt.formatted(.dateTime.locale(Locale(identifier: "zh_CN")).month().day())
-    }
-
-    private var timeTitle: String {
-        guard viewModel.inlineDetailDraft?.hasExplicitTime == true,
-              let dueAt = viewModel.inlineDetailDraft?.dueAt
-        else { return "时间" }
-        return dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-    }
-
-    private var reminderTitle: String {
-        guard let remindAt = viewModel.inlineDetailDraft?.remindAt else { return "提醒" }
-        guard let dueAt = viewModel.inlineDetailDraft?.dueAt else {
-            return remindAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-        }
-
-        let target = viewModel.inlineDetailDraft?.hasExplicitTime == true
-            ? dueAt
-            : Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
-        let delta = target.timeIntervalSince(remindAt)
-        return TaskEditorReminderPreset.preset(for: delta)?.chipTitle ?? "提醒"
-    }
-
-    private var reminderTargetDate: Date? {
-        guard viewModel.inlineDetailDraft?.hasExplicitTime == true else { return nil }
-        return viewModel.inlineDetailDraft?.dueAt
-    }
-
-    private var urgentSettingButton: some View {
-        let isUrgent = viewModel.inlineDetailDraft?.isUrgent == true
-        return TaskAttributeButton(
-            icon: isUrgent ? "flag.fill" : "flag",
-            title: "紧急",
-            isConfigured: isUrgent,
-            tint: isUrgent ? AppTheme.colors.coral : nil
-        ) {
-            HomeInteractionFeedback.selection()
-            focusedField = nil
-            viewModel.updateDraftUrgent(!isUrgent)
-        }
-        .accessibilityLabel(isUrgent ? "关闭紧急" : "设为紧急")
-    }
-
-    private var detailAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .spring(response: 0.34, dampingFraction: 0.86)
-    }
-}
-
-private struct HomeInlineCascadeStack<Content: View>: View {
-    let isExpanded: Bool
-    let animationBatch: Int
-    let reduceMotion: Bool
-    let fallbackHeight: CGFloat
-    @ViewBuilder let content: Content
-
-    @State private var measuredHeight: CGFloat = 0
-    @State private var heightProgress: CGFloat = 0
-    @State private var heightTask: Task<Void, Never>?
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            content
-                .fixedSize(horizontal: false, vertical: true)
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(key: HomeInlineDetailHeightPreferenceKey.self, value: proxy.size.height)
-                    }
-                }
-        }
-        .frame(height: targetHeight * heightProgress, alignment: .top)
-        .clipped()
-        .onAppear {
-            updateHeightProgress(isExpanded, animated: isExpanded)
-        }
-        .onDisappear {
-            heightTask?.cancel()
-            heightTask = nil
-        }
-        .onPreferenceChange(HomeInlineDetailHeightPreferenceKey.self) { height in
-            guard height > 0 else { return }
-            if isExpanded && heightProgress > 0 {
-                withAnimation(heightAnimation) {
-                    measuredHeight = height
-                }
-            } else {
-                measuredHeight = height
-            }
-        }
-        .onChange(of: isExpanded) { _, expanded in
-            updateHeightProgress(expanded, animated: true)
-        }
-        .onChange(of: animationBatch) { _, _ in
-            updateHeightProgress(isExpanded, animated: true)
-        }
-    }
-
-    private var targetHeight: CGFloat {
-        measuredHeight > 0 ? measuredHeight : fallbackHeight
-    }
-
-    private func updateHeightProgress(_ expanded: Bool, animated: Bool) {
-        heightTask?.cancel()
-
-        if expanded {
-            heightProgress = 0
-            heightTask = Task { @MainActor in
-                await Task.yield()
-                guard Task.isCancelled == false else { return }
-                if animated {
-                    withAnimation(heightAnimation) {
-                        heightProgress = 1
-                    }
-                } else {
-                    heightProgress = 1
-                }
-            }
-            return
-        }
-
-        guard animated else {
-            heightProgress = 0
-            return
-        }
-
-        withAnimation(heightAnimation) {
-            heightProgress = 0
-        }
-    }
-
-    private var heightAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.34, extraBounce: 0.02)
-    }
-}
-
-private struct HomeInlineDetailHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-private struct HomeInlineCascadeItemModifier: ViewModifier {
-    let index: Int
-    let rowCount: Int
-    let isExpanded: Bool
-    let animationBatch: Int
-    let reduceMotion: Bool
-
-    @State private var isVisible = false
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(isVisible ? 1 : 0)
-            .offset(y: isVisible ? 0 : (reduceMotion ? 0 : 14))
-            .scaleEffect(isVisible ? 1 : (reduceMotion ? 1 : 0.985), anchor: .top)
-            .onAppear {
-                isVisible = false
-                guard isExpanded else { return }
-                Task { @MainActor in
-                    await Task.yield()
-                    updateVisibility(true, animated: true)
-                }
-            }
-            .onChange(of: isExpanded) { _, expanded in
-                updateVisibility(expanded, animated: true)
-            }
-            .onChange(of: animationBatch) { _, _ in
-                updateVisibility(isExpanded, animated: true)
-            }
-    }
-
-    private func updateVisibility(_ visible: Bool, animated: Bool) {
-        guard animated else {
-            isVisible = visible
-            return
-        }
-        withAnimation(rowAnimation(expanding: visible)) {
-            isVisible = visible
-        }
-    }
-
-    private func rowAnimation(expanding: Bool) -> Animation {
-        if reduceMotion {
-            return .easeInOut(duration: 0.14)
-        }
-        let delay = expanding
-            ? Double(index) * 0.045
-            : Double(max(rowCount - index - 1, 0)) * 0.032
-        return .snappy(duration: 0.28, extraBounce: 0.02).delay(delay)
-    }
-}
-
-private struct HomeInlineSubtaskRow: View {
-    let subtask: TaskSubtaskDraft
-    @Bindable var viewModel: HomeViewModel
-    let onFocus: () -> Void
-
-    @FocusState private var isFocused: Bool
-    @State private var isEditing = false
-    @State private var draftTitle = ""
-
-    var body: some View {
-        HStack(alignment: .center, spacing: HomeInlineTaskLayoutMetrics.titleGap) {
-            HomeInlineSubtaskCheckbox(
-                isCompleted: subtask.isCompleted,
-                onToggle: {
-                    HomeInteractionFeedback.selection()
-                    viewModel.toggleDetailDraftSubtask(subtask.id)
-                }
-            )
-
-            if isEditing {
-                TextField(
-                    subtask.title,
-                    text: $draftTitle
-                )
-                .font(AppTheme.typography.sized(15, weight: .medium))
-                .foregroundStyle(AppTheme.colors.title)
-                .textInputAutocapitalization(.sentences)
-                .submitLabel(.done)
-                .focused($isFocused)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onSubmit {
-                    commitAfterFocusUpdate()
-                }
-                .onChange(of: isFocused) { _, focused in
-                    if focused {
-                        onFocus()
-                    } else if isEditing {
-                        commitAfterFocusUpdate()
-                    }
-                }
-            } else {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    draftTitle = subtask.title
-                    isEditing = true
-                    isFocused = true
-                } label: {
-                    Text(subtask.title)
-                        .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.title.opacity(subtask.isCompleted ? 0.54 : 0.9))
-                        .strikethrough(subtask.isCompleted, color: AppTheme.colors.body.opacity(0.42))
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-
-            if isEditing {
-                editingActionButtons
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: HomeInlineTaskLayoutMetrics.compactRowMinHeight, alignment: .leading)
-        .contextMenu {
-            if !isEditing {
-                Button(role: .destructive) {
-                    deleteSubtask()
-                } label: {
-                    Label("删除子任务", systemImage: "trash")
-                }
-            }
-        }
-        .onChange(of: subtask.title) { _, title in
-            guard !isEditing else { return }
-            draftTitle = title
-        }
-    }
-
-    private var editingActionButtons: some View {
-        HStack(spacing: 0) {
-            Button {
-                HomeInteractionFeedback.selection()
-                commitAfterFocusUpdate()
-            } label: {
-                Label("保存", systemImage: "checkmark")
-                    .font(AppTheme.typography.sized(12, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.sky)
-                    .labelStyle(.titleAndIcon)
-                    .frame(minWidth: 54, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("保存子任务")
-
-            Button {
-                deleteSubtask()
-            } label: {
-                Image(systemName: "trash")
-                    .font(AppTheme.typography.sized(11, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.44))
-                    .frame(width: 18, height: 18)
-                    .frame(minWidth: 36, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("删除子任务")
-        }
-    }
-
-    private func commit() {
-        let trimmed = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        defer {
-            isEditing = false
-            isFocused = false
-            draftTitle = ""
-        }
-        guard trimmed.isEmpty == false, trimmed != subtask.title else { return }
-        viewModel.updateDetailDraftSubtask(subtask.id, title: trimmed)
-    }
-
-    private func commitAfterFocusUpdate() {
-        Task { @MainActor in
-            draftTitle = TextInputSnapshotReader.resolvedText(fallback: draftTitle)
-            isFocused = false
-            await Task.yield()
-            guard isEditing else { return }
-            commit()
-        }
-    }
-
-    private func deleteSubtask() {
-        HomeInteractionFeedback.selection()
-        isEditing = false
-        isFocused = false
-        draftTitle = ""
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-            viewModel.deleteDetailDraftSubtask(subtask.id)
-        }
-    }
-}
-
-private struct HomeInlineSubtaskCheckbox: View {
-    let isCompleted: Bool
-    let onToggle: () -> Void
-
-    var body: some View {
-        Button(action: onToggle) {
-            ZStack {
-                RoundedRectangle(cornerRadius: AppTheme.radius.xs, style: .continuous)
-                    .strokeBorder(
-                        isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.44),
-                        style: StrokeStyle(lineWidth: 1.5, dash: [3.2, 4.0])
-                    )
-
-                Image(systemName: "checkmark")
-                    .font(AppTheme.typography.sized(13, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.coral)
-                    .opacity(isCompleted ? 1 : 0)
-                    .offset(
-                        x: AppTheme.metrics.checkmarkVisualOffset.width,
-                        y: AppTheme.metrics.checkmarkVisualOffset.height
-                    )
-            }
-            .frame(
-                width: HomeInlineTaskLayoutMetrics.checkboxSize,
-                height: HomeInlineTaskLayoutMetrics.checkboxSize
-            )
-            .frame(
-                width: HomeInlineTaskLayoutMetrics.actionSlotWidth,
-                height: HomeInlineTaskLayoutMetrics.rowMinHeight,
-                alignment: .trailing
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -3047,12 +2323,10 @@ private struct HomeOverdueSummarySheet: View {
                     onOpenDetail: {
                         HomeInteractionFeedback.selection()
                     },
-                    onCollapseDetail: {},
                     onUpdateTitle: { _ in },
                     onUpdateNotes: { _ in },
                     onBeginNoteEditing: {},
                     onEndNoteEditing: {},
-                    onToggleUrgent: {},
                     onInlineFocus: { _ in }
                 )
 

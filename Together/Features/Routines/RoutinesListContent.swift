@@ -28,6 +28,7 @@ private struct RoutinesListLoadKey: Hashable {
 
 struct RoutinesListContent: View {
     @Bindable var viewModel: RoutinesViewModel
+    @Bindable var focusModel: HomeFocusPresentationModel
     let isPresented: Bool
     let contentTopPadding: CGFloat
     let contentBottomPadding: CGFloat
@@ -36,20 +37,24 @@ struct RoutinesListContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var cycleIndicatorNamespace
-    @State private var visualFocusTaskID: UUID?
-    @State private var collapsingTaskID: UUID?
-    @State private var detailAnimationBatch = 0
     @State private var cycleTransitionDirection = 1
-    @State private var focusedRowFrame: CGRect?
+    @State private var frozenTasks: [PeriodicTask]?
+    @State private var frozenTaskStreamPresentation: RoutinesViewModel.TaskStreamPresentation?
+    @State private var frozenSummary: RoutineDimensionSummary?
+    @State private var frozenStatusMessage: String?
+    @State private var frozenSelectedCycle: PeriodicCycle?
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let rowTopInset: CGFloat = 24
     private let rowBottomInset: CGFloat = 4
     private let listTopAnchor = "routines-list-top"
-    private let taskScrollCoordinateSpace = "routines-task-scroll"
 
     private var currentTasks: [PeriodicTask] {
-        viewModel.currentTasks
+        frozenTasks ?? viewModel.currentTasks
+    }
+
+    private var displayedCycle: PeriodicCycle {
+        frozenSelectedCycle ?? viewModel.selectedCycle
     }
 
     var body: some View {
@@ -60,6 +65,7 @@ struct RoutinesListContent: View {
                 taskScrollView(scrollProxy: scrollProxy)
                     .onChange(of: viewModel.selectedCycle) { _, cycle in
                         appContext.router.pendingPeriodicCycle = cycle
+                        guard focusModel.isActive == false else { return }
                         withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) {
                             scrollProxy.scrollTo(listTopAnchor, anchor: .top)
                         }
@@ -70,9 +76,6 @@ struct RoutinesListContent: View {
             if showsCanvasBackground {
                 GradientGridBackground()
             }
-        }
-        .sheet(isPresented: $viewModel.isEditorPresented) {
-            RoutinesEditorSheet(viewModel: viewModel, initialCycle: viewModel.editorDefaultCycle)
         }
         .alert("无法使用原生闹钟", isPresented: $viewModel.showsAlarmAuthorizationDeniedAlert) {
             Button("取消", role: .cancel) {}
@@ -89,36 +92,44 @@ struct RoutinesListContent: View {
                 isPresented: isPresented
             )
         ) {
-            await viewModel.loadIfNeeded()
             guard isPresented else { return }
+            await viewModel.loadIfNeeded()
             appContext.router.pendingPeriodicCycle = viewModel.selectedCycle
             selectPendingRouterCycleIfNeeded()
         }
         .task(id: viewModel.nextDeferredTaskResumeDate) {
             await refreshWhenNextDeferredTaskResumes()
         }
-        .onChange(of: viewModel.expandedTaskID) { _, taskID in
-            guard taskID == nil else { return }
-            visualFocusTaskID = nil
-            collapsingTaskID = nil
-            focusedRowFrame = nil
-        }
         .onChange(of: isPresented) { _, newValue in
             guard newValue == false else { return }
-            Task { @MainActor in
-                if viewModel.expandedTaskID != nil {
-                    _ = await viewModel.collapseInlineDetail()
-                }
-                viewModel.clearTemporaryCycleIfNeeded()
-            }
+            viewModel.clearTemporaryCycleIfNeeded()
         }
         .onDisappear {
-            Task { @MainActor in
-                if viewModel.expandedTaskID != nil {
-                    _ = await viewModel.collapseInlineDetail()
+            viewModel.clearTemporaryCycleIfNeeded()
+        }
+        .onChange(of: focusModel.phase) { _, phase in
+            switch phase {
+            case .preparing, .transitioningIn, .focused, .saving, .transitioningOut, .recovering:
+                if frozenTasks == nil {
+                    frozenTasks = viewModel.currentTasks
+                    frozenTaskStreamPresentation = viewModel.taskStreamPresentation
+                    frozenSummary = viewModel.summary(for: viewModel.selectedCycle)
+                    frozenStatusMessage = nonBlockingStatusMessage
+                    frozenSelectedCycle = viewModel.selectedCycle
                 }
-                viewModel.clearTemporaryCycleIfNeeded()
+            case .preparingLanding, .landing, .idle:
+                frozenTasks = nil
+                frozenTaskStreamPresentation = nil
+                frozenSummary = nil
+                frozenStatusMessage = nil
+                frozenSelectedCycle = nil
             }
+        }
+        .onChange(of: viewModel.tasks.map(\.id)) { _, taskIDs in
+            guard case .detail(.periodic, let taskID) = focusModel.subject,
+                  taskIDs.contains(taskID) == false
+            else { return }
+            focusModel.recover()
         }
     }
 
@@ -133,26 +144,9 @@ struct RoutinesListContent: View {
         .padding(.top, contentTopPadding + AppTheme.spacing.xs)
         .padding(.bottom, AppTheme.spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .saturation(fixedHeaderSaturation)
-        .brightness(fixedHeaderBrightness)
-        .blur(radius: fixedHeaderBlurRadius)
-        .scaleEffect(fixedHeaderScale, anchor: .top)
         .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 10))
-        .opacity(isPresented ? fixedHeaderOpacity : 0)
-        .animation(focusAnimation, value: visualFocusTaskID)
+        .opacity(isPresented ? 1 : 0)
         .animation(modeHeaderAnimation, value: isPresented)
-        .overlay {
-            if visualFocusTaskID != nil {
-                Button {
-                    collapseVisualFocusIfNeeded()
-                } label: {
-                    Color.clear
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("收起例行任务详情")
-            }
-        }
     }
 
     private var cycleRail: some View {
@@ -169,12 +163,9 @@ struct RoutinesListContent: View {
     }
 
     private func cycleButton(_ cycle: PeriodicCycle) -> some View {
-        let isSelected = viewModel.selectedCycle == cycle
+        let isSelected = displayedCycle == cycle
         return Button {
-            guard visualFocusTaskID == nil else {
-                collapseVisualFocusIfNeeded()
-                return
-            }
+            guard focusModel.isActive == false else { return }
             HomeInteractionFeedback.selection()
             updateCycleTransitionDirection(to: cycle)
             withAnimation(cycleAnimation) {
@@ -227,11 +218,11 @@ struct RoutinesListContent: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("管理例行任务维度")
+        .accessibilityLabel("管理定期任务维度")
     }
 
     private func updateCycleVisibility(_ cycle: PeriodicCycle, isVisible: Bool) {
-        guard visualFocusTaskID == nil else { return }
+        guard focusModel.isActive == false else { return }
         HomeInteractionFeedback.selection()
         if isVisible == false, viewModel.selectedCycle == cycle,
            let fallback = PeriodicCycle.allCases.first(where: {
@@ -245,10 +236,10 @@ struct RoutinesListContent: View {
     }
 
     private var periodHeader: some View {
-        let summary = viewModel.summary(for: viewModel.selectedCycle)
+        let summary = frozenSummary ?? viewModel.summary(for: displayedCycle)
         return HStack(alignment: .center, spacing: AppTheme.spacing.lg) {
             VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                Text(viewModel.selectedCycle.currentPeriodPrefix)
+                Text(displayedCycle.currentPeriodPrefix)
                     .font(AppTheme.typography.sized(19, weight: .bold))
                     .foregroundStyle(AppTheme.colors.title.opacity(0.78))
 
@@ -274,14 +265,14 @@ struct RoutinesListContent: View {
             .gaugeStyle(.accessoryCircularCapacity)
             .tint(AppTheme.colors.sky)
             .frame(width: 52, height: 52)
-            .accessibilityLabel("\(viewModel.selectedCycle.title)完成进度")
+            .accessibilityLabel("\(displayedCycle.title)完成进度")
             .accessibilityValue("已完成 \(summary.completedCount) 项，共 \(summary.totalCount) 项")
         }
         .contentTransition(.numericText())
     }
 
     private func daysRemainingText(_ summary: RoutineDimensionSummary) -> String {
-        if viewModel.selectedCycle == .daily {
+        if displayedCycle == .daily {
             return "今天"
         }
         return "还剩 \(summary.daysRemaining) 天"
@@ -297,7 +288,7 @@ struct RoutinesListContent: View {
                         .frame(height: 1)
                         .id(listTopAnchor)
 
-                    if let statusMessage = nonBlockingStatusMessage {
+                    if let statusMessage = displayedStatusMessage {
                         routinesStatusBanner(
                             message: statusMessage,
                             retriesLoad: hasNonBlockingLoadFailure
@@ -307,7 +298,7 @@ struct RoutinesListContent: View {
                     }
 
                     taskStream(scrollProxy: scrollProxy)
-                        .id(viewModel.selectedCycle)
+                        .id(displayedCycle)
                         .transition(cycleContentTransition)
 
                     Color.clear.frame(height: contentBottomPadding)
@@ -316,26 +307,28 @@ struct RoutinesListContent: View {
             }
             .scrollIndicators(.hidden)
             .applyScrollEdgeProtection()
-            .coordinateSpace(name: taskScrollCoordinateSpace)
-            .simultaneousGesture(
-                SpatialTapGesture()
-                    .onEnded { value in
-                        guard visualFocusTaskID != nil,
-                              RoutineFocusTapPolicy.shouldCollapse(
-                                  tapLocation: value.location,
-                                  focusedRowFrame: focusedRowFrame
-                              )
-                        else { return }
-                        collapseVisualFocusIfNeeded()
-                    }
-            )
+            .transaction { transaction in
+                if focusModel.isActive {
+                    // Cycle changes and the destination row are prepared behind
+                    // the focus surface without a second SwiftUI transition.
+                    transaction.animation = nil
+                }
+            }
+            .onChange(of: focusModel.landingDescriptor) { _, descriptor in
+                guard let descriptor, descriptor.domain == .periodic else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    scrollProxy.scrollTo(descriptor.itemID, anchor: .center)
+                }
+            }
         }
-        .animation(cycleAnimation, value: viewModel.selectedCycle)
+        .animation(focusModel.isActive ? nil : cycleAnimation, value: displayedCycle)
     }
 
     @ViewBuilder
     private func taskStream(scrollProxy: ScrollViewProxy) -> some View {
-        switch viewModel.taskStreamPresentation {
+        switch frozenTaskStreamPresentation ?? viewModel.taskStreamPresentation {
         case .loading:
             routinesLoadingState
         case .failure:
@@ -369,10 +362,14 @@ struct RoutinesListContent: View {
         return viewModel.operationErrorMessage
     }
 
+    private var displayedStatusMessage: String? {
+        frozenTasks == nil ? nonBlockingStatusMessage : frozenStatusMessage
+    }
+
     private var routinesLoadingState: some View {
         VStack(spacing: AppTheme.spacing.md) {
             ProgressView()
-            Text("正在加载例行任务")
+            Text("正在加载定期任务")
                 .font(AppTheme.typography.sized(15, weight: .medium))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.64))
         }
@@ -384,7 +381,7 @@ struct RoutinesListContent: View {
     private var routinesFailureState: some View {
         VStack(spacing: AppTheme.spacing.md) {
             EmptyStateCard(
-                title: "例行任务加载失败",
+                title: "定期任务加载失败",
                 message: "已有数据不会被清空，点击重试后会重新读取。",
                 systemImage: "exclamationmark.arrow.triangle.2.circlepath",
                 usesNeutralBackground: true
@@ -438,25 +435,23 @@ struct RoutinesListContent: View {
         taskCount: Int,
         scrollProxy: ScrollViewProxy
     ) -> some View {
-        let isDetailPresented = isInlineDetailPresented(for: task.id)
-        let isDetailExpanded = isInlineDetailVisuallyExpanded(for: task.id)
+        let isHiddenIdentity = focusModel.isIdentityHidden(domain: .periodic, itemID: task.id)
+        let geometryRevision = focusModel.geometryRevision
         return RoutinesTaskRow(
             task: task,
             viewModel: viewModel,
             isAnimatingCompletion: viewModel.isAnimatingCompletion(taskID: task.id),
             isAnimatingReopening: viewModel.isAnimatingReopening(taskID: task.id),
-            isDetailPresented: isDetailPresented,
-            isDetailExpanded: isDetailExpanded,
-            animationBatch: detailAnimationBatch,
+            isDetailPresented: false,
+            isDetailExpanded: false,
+            animationBatch: 0,
             onOpenDetail: {
                 toggleInlineDetail(task.id, scrollProxy: scrollProxy)
             },
             onToggleCompletion: {
-                completeRoutineTask(task, isDetailPresented: isDetailPresented)
+                Task { await viewModel.toggleCompletion(taskID: task.id) }
             },
-            onInlineFocus: { target in
-                scrollToInlineFocus(target, taskID: task.id, scrollProxy: scrollProxy)
-            }
+            onInlineFocus: { _ in }
         )
         .id(task.id)
         .padding(
@@ -469,7 +464,7 @@ struct RoutinesListContent: View {
         )
         .modifier(
             RoutineSwipeActionsModifier(
-                isEnabled: visualFocusTaskID == nil && isDetailPresented == false,
+                isEnabled: focusModel.isActive == false,
                 canDelete: viewModel.canDeletePeriodicTask(task),
                 onDefer: {
                     HomeInteractionFeedback.selection()
@@ -486,46 +481,31 @@ struct RoutinesListContent: View {
             )
         )
         .frame(maxWidth: .infinity, alignment: .leading)
-        .modifier(
-            RoutinesInlineFocusChromeModifier(
-                isFocused: visualFocusTaskID == task.id && isDetailPresented,
-                reduceMotion: reduceMotion
-            )
-        )
-        .saturation(rowFocusSaturation(taskID: task.id))
-        .brightness(rowFocusBrightness(taskID: task.id))
-        .blur(radius: rowFocusBlurRadius(taskID: task.id))
-        .scaleEffect(rowFocusScale(taskID: task.id), anchor: .center)
         .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 12))
-        .opacity(isPresented ? rowFocusOpacity(taskID: task.id) : 0)
-        .zIndex(visualFocusTaskID == task.id ? 3 : 0)
-        .animation(focusAnimation, value: visualFocusTaskID)
+        .opacity(isHiddenIdentity ? 0 : (isPresented ? 1 : 0))
         .animation(
             modeRowAnimation(index: index, taskCount: taskCount),
             value: isPresented
         )
-        .onGeometryChange(for: CGRect?.self) { proxy in
-            visualFocusTaskID == task.id
-                ? proxy.frame(in: .named(taskScrollCoordinateSpace))
-                : nil
-        } action: { frame in
-            guard let frame else { return }
-            focusedRowFrame = frame
+        .onGeometryChange(for: HomeFocusFrameObservation.self) { proxy in
+            HomeFocusFrameObservation(
+                frame: proxy.frame(in: .global),
+                revision: geometryRevision
+            )
+        } action: { observation in
+            focusModel.recordTaskFrame(
+                domain: .periodic,
+                itemID: task.id,
+                frame: observation.frame
+            )
         }
         .contextMenu {
-            if visualFocusTaskID == nil || visualFocusTaskID == task.id {
+            if focusModel.isActive == false {
                 if viewModel.canEditPeriodicTask(task) {
                     Button {
-                        if isDetailPresented {
-                            beginInlineDetailCollapse(taskID: task.id)
-                        } else {
-                            toggleInlineDetail(task.id, scrollProxy: scrollProxy)
-                        }
+                        toggleInlineDetail(task.id, scrollProxy: scrollProxy)
                     } label: {
-                        Label(
-                            isDetailPresented ? "收起" : "编辑",
-                            systemImage: isDetailPresented ? "chevron.up" : "pencil"
-                        )
+                        Label("编辑", systemImage: "pencil")
                     }
                 }
 
@@ -567,120 +547,18 @@ struct RoutinesListContent: View {
     // MARK: - Inline focus lifecycle
 
     private func toggleInlineDetail(_ taskID: UUID, scrollProxy: ScrollViewProxy) {
+        _ = scrollProxy
+        guard focusModel.isActive == false else { return }
         HomeInteractionFeedback.soft()
-        Task { @MainActor in
-            if let focusedTaskID = visualFocusTaskID, focusedTaskID != taskID {
-                beginInlineDetailCollapse(taskID: focusedTaskID)
-                return
-            }
-
-            if viewModel.expandedTaskID == taskID {
-                beginInlineDetailCollapse(taskID: taskID)
-                return
-            }
-
-            if let expandedTaskID = viewModel.expandedTaskID, expandedTaskID != taskID {
-                beginInlineDetailCollapse(taskID: expandedTaskID)
-                return
-            }
-
-            collapsingTaskID = nil
-            visualFocusTaskID = nil
-            focusedRowFrame = nil
-            await viewModel.toggleInlineDetail(taskID)
-            detailAnimationBatch += 1
-            guard viewModel.expandedTaskID == taskID else { return }
-
-            withAnimation(focusAnimation) {
-                visualFocusTaskID = taskID
-            }
-
-            try? await Task.sleep(for: .milliseconds(90))
-            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.88)) {
-                scrollProxy.scrollTo(
-                    RoutineInlineFocusTarget.detail.anchorID(for: taskID),
-                    anchor: .center
-                )
-            }
-        }
-    }
-
-    private func beginInlineDetailCollapse(taskID: UUID) {
-        guard collapsingTaskID != taskID else { return }
-
-        withAnimation(focusAnimation) {
-            visualFocusTaskID = nil
-        }
-
-        Task { @MainActor in
-            collapsingTaskID = taskID
-            detailAnimationBatch += 1
-            if reduceMotion == false {
-                try? await Task.sleep(for: .milliseconds(360))
-            }
-            guard collapsingTaskID == taskID else { return }
-            let didCollapse = await viewModel.collapseInlineDetail()
-            collapsingTaskID = nil
-            guard didCollapse == false else { return }
-
-            detailAnimationBatch += 1
-            withAnimation(focusAnimation) {
-                visualFocusTaskID = taskID
-            }
-        }
-    }
-
-    private func completeRoutineTask(_ task: PeriodicTask, isDetailPresented: Bool) {
-        Task { @MainActor in
-            guard isDetailPresented else {
-                await viewModel.toggleCompletion(taskID: task.id)
-                return
-            }
-
-            guard await viewModel.prepareExpandedCompletion(taskID: task.id) else { return }
-            try? await Task.sleep(for: .milliseconds(320))
-
-            collapsingTaskID = task.id
-            detailAnimationBatch += 1
-            if reduceMotion == false {
-                try? await Task.sleep(for: .milliseconds(360))
-            }
-            guard collapsingTaskID == task.id else { return }
-            let didCollapse = await viewModel.collapseInlineDetail()
-            guard didCollapse else {
-                collapsingTaskID = nil
-                viewModel.finishExpandedCompletion(taskID: task.id)
-                return
-            }
-            withAnimation(focusAnimation) {
-                visualFocusTaskID = nil
-            }
-            collapsingTaskID = nil
-            viewModel.finishExpandedCompletion(taskID: task.id)
-        }
-    }
-
-    private func collapseVisualFocusIfNeeded() {
-        guard let taskID = visualFocusTaskID else { return }
-        HomeInteractionFeedback.soft()
-        beginInlineDetailCollapse(taskID: taskID)
-    }
-
-    private func isInlineDetailPresented(for taskID: UUID) -> Bool {
-        viewModel.expandedTaskID == taskID || collapsingTaskID == taskID
-    }
-
-    private func isInlineDetailVisuallyExpanded(for taskID: UUID) -> Bool {
-        viewModel.expandedTaskID == taskID && collapsingTaskID != taskID
-    }
-
-    private func scrollToInlineFocus(
-        _ target: RoutineInlineFocusTarget,
-        taskID: UUID,
-        scrollProxy: ScrollViewProxy
-    ) {
-        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) {
-            scrollProxy.scrollTo(target.anchorID(for: taskID), anchor: target.scrollAnchor)
+        guard viewModel.presentDetailForFocus(taskID) else { return }
+        let proposedHeight = RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) + 130
+        guard focusModel.presentDetail(
+            domain: .periodic,
+            itemID: taskID,
+            proposedHeight: proposedHeight
+        ) else {
+            viewModel.finishFocusDetail()
+            return
         }
     }
 
@@ -688,17 +566,17 @@ struct RoutinesListContent: View {
 
     private var routinesEmptyState: some View {
         emptyState(
-            title: "还没有例行任务",
+            title: "还没有定期任务",
             subtitle: "先从每天、每周或每月的节奏开始",
-            buttonTitle: "新建例行任务"
+            buttonTitle: "新建定期任务"
         )
     }
 
     private var emptyTabState: some View {
         emptyState(
-            title: "暂无\(viewModel.selectedCycle.title)任务",
+            title: "暂无\(displayedCycle.title)任务",
             subtitle: "给这个维度添加一个固定节奏",
-            buttonTitle: "新建\(viewModel.selectedCycle.title)任务"
+            buttonTitle: "新建\(displayedCycle.title)任务"
         )
     }
 
@@ -797,10 +675,6 @@ struct RoutinesListContent: View {
         )
     }
 
-    private var focusAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.18, extraBounce: 0)
-    }
-
     private var modeHeaderAnimation: Animation {
         reduceMotion
             ? .easeInOut(duration: 0.18)
@@ -819,100 +693,6 @@ struct RoutinesListContent: View {
             : .smooth(duration: 0.3, extraBounce: 0).delay(delay)
     }
 
-    private func rowFocusOpacity(taskID: UUID) -> Double {
-        guard let visualFocusTaskID else { return 1 }
-        return visualFocusTaskID == taskID ? 1 : 0.12
-    }
-
-    private func rowFocusSaturation(taskID: UUID) -> Double {
-        guard let visualFocusTaskID else { return 1 }
-        return visualFocusTaskID == taskID ? 1.1 : 0.03
-    }
-
-    private func rowFocusBrightness(taskID: UUID) -> Double {
-        guard let visualFocusTaskID else { return 0 }
-        return visualFocusTaskID == taskID ? 0.045 : -0.125
-    }
-
-    private func rowFocusBlurRadius(taskID: UUID) -> CGFloat {
-        guard reduceMotion == false, let visualFocusTaskID else { return 0 }
-        return visualFocusTaskID == taskID ? 0 : 3.05
-    }
-
-    private func rowFocusScale(taskID: UUID) -> CGFloat {
-        guard reduceMotion == false, let visualFocusTaskID else { return 1 }
-        return visualFocusTaskID == taskID ? 1.02 : 0.986
-    }
-
-    private var fixedHeaderOpacity: Double {
-        visualFocusTaskID == nil ? 1 : 0.34
-    }
-
-    private var fixedHeaderSaturation: Double {
-        visualFocusTaskID == nil ? 1 : 0.82
-    }
-
-    private var fixedHeaderBrightness: Double {
-        visualFocusTaskID == nil ? 0 : 0.02
-    }
-
-    private var fixedHeaderBlurRadius: CGFloat {
-        guard reduceMotion == false, visualFocusTaskID != nil else { return 0 }
-        return 2.4
-    }
-
-    private var fixedHeaderScale: CGFloat {
-        guard reduceMotion == false, visualFocusTaskID != nil else { return 1 }
-        return 0.99
-    }
-}
-
-enum RoutineFocusTapPolicy {
-    private static let focusTolerance: CGFloat = 6
-    private static let focusBottomOverflow: CGFloat = 16
-
-    static func shouldCollapse(tapLocation: CGPoint, focusedRowFrame: CGRect?) -> Bool {
-        guard var hitFrame = focusedRowFrame else { return false }
-        hitFrame = hitFrame.insetBy(dx: -focusTolerance, dy: -focusTolerance)
-        hitFrame.size.height += focusBottomOverflow
-        return hitFrame.contains(tapLocation) == false
-    }
-}
-
-private struct RoutinesInlineFocusChromeModifier: ViewModifier {
-    let isFocused: Bool
-    let reduceMotion: Bool
-    @Environment(\.colorScheme) private var colorScheme
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                RoundedRectangle(cornerRadius: 44, style: .continuous)
-                    .fill(AppTheme.colors.surface.opacity(isFocused ? 1 : 0))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 44, style: .continuous)
-                            .strokeBorder(AppTheme.colors.surface.opacity(isFocused ? 1 : 0), lineWidth: 0.8)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.top, 0)
-                    .padding(.bottom, -16)
-                    .allowsHitTesting(false)
-            }
-            .shadow(
-                color: shadowColor.opacity(isFocused ? shadowOpacity : 0),
-                radius: isFocused ? (reduceMotion ? 14 : 28) : 0,
-                x: 0,
-                y: isFocused ? 14 : 0
-            )
-    }
-
-    private var shadowColor: Color {
-        colorScheme == .dark ? .black : AppTheme.colors.title
-    }
-
-    private var shadowOpacity: Double {
-        colorScheme == .dark ? 0.55 : 0.08
-    }
 }
 
 private struct RoutineSwipeActionsModifier: ViewModifier {

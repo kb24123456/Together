@@ -21,7 +21,7 @@ struct RoutinesSummaryCard: View {
                     Image(systemName: "bell.badge")
                         .font(AppTheme.typography.sized(16, weight: .semibold))
 
-                    Text("\(totalAttention) 项例行任务临近")
+                    Text("\(totalAttention) 项定期任务临近")
                         .font(AppTheme.typography.sized(14, weight: .semibold))
 
                     Spacer(minLength: 0)

@@ -48,9 +48,8 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         )
     }
 
-    func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
+    func createTask(id itemID: UUID, in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
         let now = Date.now
-        let itemID = UUID()
         let item = Item(
             id: itemID,
             spaceID: spaceID,

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftData
 import Testing
 import TogetherCore
@@ -8,9 +9,136 @@ import UIKit
 @MainActor
 @Suite(.serialized)
 struct TogetherTests {
+    private final class ObservationChangeFlag: @unchecked Sendable {
+        nonisolated(unsafe) var value = false
+    }
+
     private func clearRoutineCycleVisibilityPreferences() {
         UserDefaults.standard.removeObject(forKey: "together.routines.visibleCycles.v2")
         UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
+    }
+
+    @Test func taskSharedIdentityShowsOnlyConfiguredAttributes() {
+        let itemID = UUID()
+        let entry = HomeTimelineEntry(
+            id: itemID,
+            presentationID: "active-test-\(itemID.uuidString)",
+            title: "收集对公联动情况",
+            notes: "  完整备注  ",
+            timeText: "08:30",
+            reminderText: "30 分钟前",
+            statusText: "进行中",
+            isUrgent: true,
+            isMuted: false,
+            isCompleted: false,
+            timingUrgency: .normal,
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: nil,
+            subtasks: [
+                TaskSubtask(
+                    itemID: itemID,
+                    creatorID: MockDataFactory.currentUserID,
+                    title: "已完成",
+                    isCompleted: true,
+                    sortOrder: 0
+                ),
+                TaskSubtask(
+                    itemID: itemID,
+                    creatorID: MockDataFactory.currentUserID,
+                    title: "待完成",
+                    isCompleted: false,
+                    sortOrder: 1
+                )
+            ],
+            subtaskCompletedCount: 1
+        )
+
+        let content = TaskSharedIdentityContent.make(entry: entry)
+
+        #expect(content.note == "完整备注")
+        #expect(content.completedSubtaskCount == 1)
+        #expect(content.totalSubtaskCount == 2)
+        #expect(content.visibleElements == [
+            .completion, .title, .note, .progress, .time, .reminder, .urgent
+        ])
+    }
+
+    @Test func taskSharedReminderTextDescribesActualLeadTime() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let dueAt = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 8, day: 3, hour: 8, minute: 30)
+        ))
+        let remindAt = try #require(calendar.date(
+            from: DateComponents(year: 2026, month: 8, day: 3, hour: 8, minute: 0)
+        ))
+
+        #expect(
+            TaskSharedAttributeText.reminderLead(
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                remindAt: remindAt,
+                calendar: calendar
+            ) == "30 分钟前"
+        )
+    }
+
+    @Test func inlineDetailSaveRefreshesRowSummaryBeforeCollapse() async throws {
+        let item = makeHomeFilterItem(
+            title: "原始列表标题",
+            completedAt: nil,
+            status: .inProgress
+        )
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        viewModel.presentItemDetail(item.id)
+        viewModel.updateDraftTitle("收起前已同步")
+
+        #expect(await viewModel.saveInlineDetailDraft())
+        #expect(viewModel.activeTimelineEntries.first?.title == "收起前已同步")
+        #expect(try await repository.fetchItem(itemID: item.id)?.title == "收起前已同步")
+    }
+
+    @Test func inlineTaskCreationKeepsOneUUIDAcrossFailureAndRetry() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let service = CapturingTaskApplicationService()
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: service,
+            itemRepository: MockItemRepository()
+        )
+
+        viewModel.beginTaskCreation()
+        let provisionalID = try #require(viewModel.taskCreationSession?.id)
+        viewModel.updateTaskCreationDraft { $0.title = "稳定身份任务" }
+
+        guard case .failed = await viewModel.commitTaskCreationForFocus() else {
+            Issue.record("首次保存应失败")
+            return
+        }
+        #expect(viewModel.taskCreationSession?.id == provisionalID)
+        #expect(viewModel.taskCreationSession?.draft.title == "稳定身份任务")
+        #expect(viewModel.taskCreationSession?.errorMessage != nil)
+
+        service.capturesCreates = true
+        guard case .saved(let descriptor) = await viewModel.commitTaskCreationForFocus() else {
+            Issue.record("重试保存应成功")
+            return
+        }
+        #expect(descriptor.itemID == provisionalID)
+        #expect(service.createdTaskIDs == [provisionalID])
+        #expect(viewModel.taskCreationSession?.phase == .committed)
+        #expect(viewModel.taskCreationSession?.id == provisionalID)
+        viewModel.finalizeCommittedTaskCreation()
+        #expect(viewModel.taskCreationSession == nil)
     }
 
     @Test func persistenceFailurePolicyNeverDeletesStoreAutomatically() {
@@ -524,7 +652,6 @@ struct TogetherTests {
         #expect(try context.fetchCount(FetchDescriptor<PersistentTaskSubtask>()) == 0)
         #expect(try context.fetchCount(FetchDescriptor<PersistentItemOccurrenceCompletion>()) == 0)
         #expect(try context.fetchCount(FetchDescriptor<PersistentPeriodicTask>()) == 0)
-        #expect(try context.fetchCount(FetchDescriptor<PersistentTaskTemplate>()) == 0)
         #expect(try context.fetchCount(FetchDescriptor<PersistentTaskList>()) == 0)
         #expect(try context.fetchCount(FetchDescriptor<PersistentProject>()) == 0)
         #expect(try context.fetchCount(FetchDescriptor<PersistentProjectSubtask>()) == 0)
@@ -882,7 +1009,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: CapturingTaskApplicationService(),
             itemRepository: MockItemRepository(items: items),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         await viewModel.reload()
@@ -1186,6 +1312,30 @@ struct TogetherTests {
         #expect(viewModel.taskStreamPresentation == .failure)
     }
 
+    @Test func periodicFocusCreationUsesItsPreallocatedIdentityForLanding() async throws {
+        let service = CapturingPeriodicTaskApplicationService(tasks: [])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+
+        viewModel.beginFocusCreation(defaultCycle: .weekly)
+        let provisionalID = try #require(viewModel.creationSession?.id)
+        viewModel.updateCreationDraft { $0.title = "稳定身份定期任务" }
+
+        let result = await viewModel.commitFocusCreation()
+        let descriptor: HomeFocusLandingDescriptor
+        switch result {
+        case .saved(let value):
+            descriptor = value
+        case .failed(let message):
+            Issue.record(Comment(rawValue: message))
+            return
+        }
+
+        #expect(service.tasks.last?.id == provisionalID)
+        #expect(descriptor.itemID == provisionalID)
+        #expect(descriptor.section == .periodic(cycle: .weekly))
+        #expect(viewModel.creationSession?.phase == .committed)
+    }
+
     @Test func routineDraftClearsTargetDayAndTimeIndependently() async {
         let task = makePeriodicTask(
             title: "分别清空",
@@ -1334,14 +1484,6 @@ struct TogetherTests {
         #expect(viewModel.selectedCycle == .weekly)
         #expect(viewModel.visibleCycles == [.daily, .weekly, .monthly])
         #expect(viewModel.persistedVisibleCycles.contains(.yearly) == false)
-    }
-
-    @Test func routineFocusTapPolicyOnlyCollapsesOutsideFocusedCard() {
-        let frame = CGRect(x: 20, y: 100, width: 320, height: 240)
-
-        #expect(RoutineFocusTapPolicy.shouldCollapse(tapLocation: CGPoint(x: 100, y: 180), focusedRowFrame: frame) == false)
-        #expect(RoutineFocusTapPolicy.shouldCollapse(tapLocation: CGPoint(x: 100, y: 370), focusedRowFrame: frame))
-        #expect(RoutineFocusTapPolicy.shouldCollapse(tapLocation: CGPoint(x: 100, y: 180), focusedRowFrame: nil) == false)
     }
 
     @Test func routinesAttentionSummaryOnlyIncludesUnfinishedApproachingTasks() {
@@ -1627,7 +1769,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: CapturingTaskApplicationService(),
             itemRepository: MockItemRepository(items: items, throwsOnCompletedItemCount: true),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         await viewModel.reload()
@@ -1656,7 +1797,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: CapturingTaskApplicationService(),
             itemRepository: MockItemRepository(items: [late, early]),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         await viewModel.reload()
@@ -1814,7 +1954,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskApplicationService,
             itemRepository: MockItemRepository(items: [snoozed, later]),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
         await viewModel.reload()
 
@@ -1848,7 +1987,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskApplicationService,
             itemRepository: MockItemRepository(items: [overdue]),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
         await viewModel.reload()
 
@@ -1906,7 +2044,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: CapturingTaskApplicationService(),
             itemRepository: MockItemRepository(items: items),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         await viewModel.loadWeeklyCompletedSheet()
@@ -1938,7 +2075,6 @@ struct TogetherTests {
                 items: items,
                 throwsOnFetchCompletedItems: true
             ),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         await viewModel.loadWeeklyCompletedSheet()
@@ -2173,7 +2309,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskApplicationService,
             itemRepository: MockItemRepository(),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         let itemID = MockDataFactory.makeItems()[0].id
@@ -2329,6 +2464,26 @@ struct TogetherTests {
         #expect(notifications.count == 1)
         #expect(notifications.first?.scheduledAt == remindAt)
         #expect(await alarmService.scheduled.isEmpty)
+    }
+
+    @Test func coldLaunchReminderSyncDoesNotRequestAlarmAuthorization() async throws {
+        let calendar = gregorianCalendar()
+        let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)))
+        let remindAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 15, minute: 30)))
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .notDetermined)
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            calendar: calendar
+        )
+
+        await scheduler.syncTaskReminder(
+            for: makeReminderTestItem(dueAt: dueAt, hasExplicitTime: true, remindAt: remindAt)
+        )
+
+        #expect(await alarmService.authorizationRequestCount == 0)
+        #expect(notificationService.scheduledNotifications().count == 1)
     }
 
     @Test func taskWithoutExplicitTimeDoesNotScheduleAlarm() async throws {
@@ -2596,25 +2751,6 @@ struct TogetherTests {
         #expect(fetched?.subtasks.isEmpty == true)
     }
 
-    @Test func taskTemplatePreservesSubtasksWhenCreatingDraft() throws {
-        let template = TaskTemplate(
-            spaceID: MockDataFactory.singleSpaceID,
-            draft: TaskDraft(
-                title: "模板任务",
-                subtasks: [
-                    TaskSubtaskDraft(title: "第一步", isCompleted: true),
-                    TaskSubtaskDraft(title: "第二步", isCompleted: false)
-                ]
-            ),
-            calendar: gregorianCalendar()
-        )
-
-        let draft = template.makeTaskDraft(for: Date(timeIntervalSince1970: 0), calendar: gregorianCalendar())
-
-        #expect(draft.subtasks.map(\.title) == ["第一步", "第二步"])
-        #expect(draft.subtasks.map(\.isCompleted) == [true, false])
-    }
-
     @Test func timelineEntryCarriesTaskSubtaskProgressData() async throws {
         let sessionStore = SessionStore()
         sessionStore.seedMock(
@@ -2645,7 +2781,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: taskApplicationService,
             itemRepository: MockItemRepository(items: [item]),
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         await viewModel.reload()
@@ -2706,6 +2841,124 @@ struct TogetherTests {
         #expect(saved.isUrgent)
     }
 
+    @Test func existingTaskScheduleDraftUsesCurrentTimeAsUncommittedSeed() throws {
+        let calendar = gregorianCalendar()
+        let fallbackDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 30))
+        )
+        let timeSeed = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 30, hour: 13, minute: 53))
+        )
+
+        var draft = ExistingTaskScheduleDraft(
+            dueAt: nil,
+            hasExplicitTime: false,
+            fallbackDate: fallbackDate,
+            calendar: calendar
+        )
+
+        #expect(draft.selectedDate == fallbackDate)
+        #expect(draft.selectedTime == nil)
+
+        let pickerSeed = draft.timePickerSeed(seed: timeSeed, calendar: calendar)
+        #expect(calendar.component(.hour, from: pickerSeed) == 13)
+        #expect(calendar.component(.minute, from: pickerSeed) == 55)
+        #expect(ExistingTaskScheduleEditorPolicy.timeMinuteInterval == 5)
+        #expect(draft.selectedTime == nil)
+
+        let legacyDraft = ExistingTaskScheduleDraft(
+            dueAt: timeSeed,
+            hasExplicitTime: true,
+            fallbackDate: fallbackDate,
+            calendar: calendar
+        )
+        let roundedLegacySeed = legacyDraft.timePickerSeed(calendar: calendar)
+        #expect(calendar.component(.minute, from: roundedLegacySeed) == 55)
+        #expect(legacyDraft.selectedTime == timeSeed)
+
+        draft.selectTime(pickerSeed)
+        #expect(draft.selectedTime == pickerSeed)
+
+        draft.setTimeEnabled(false, calendar: calendar)
+        #expect(draft.selectedTime == nil)
+    }
+
+    @Test func existingTaskSchedulePresentationKeepsTheRequestedInitialSection() throws {
+        let calendar = gregorianCalendar()
+        let fallbackDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 30))
+        )
+
+        let datePresentation = ExistingTaskScheduleEditorPresentation(
+            initialSection: .date,
+            dueAt: nil,
+            hasExplicitTime: false,
+            fallbackDate: fallbackDate
+        )
+        let timePresentation = ExistingTaskScheduleEditorPresentation(
+            initialSection: .time,
+            dueAt: nil,
+            hasExplicitTime: false,
+            fallbackDate: fallbackDate
+        )
+
+        #expect(datePresentation.initialSection == .date)
+        #expect(timePresentation.initialSection == .time)
+        #expect(datePresentation.initialDraft.selectedDate == Calendar.current.startOfDay(for: fallbackDate))
+        #expect(timePresentation.initialDraft.selectedTime == nil)
+    }
+
+    @Test func existingTaskMonthGridAlwaysReservesSixWeeks() throws {
+        let calendar = gregorianCalendar()
+        let july = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 1))
+        )
+        let dates = ExistingTaskMonthGrid.dates(for: july, calendar: calendar)
+
+        #expect(dates.count == 42)
+        #expect(dates.first == calendar.date(from: DateComponents(year: 2026, month: 6, day: 28)))
+        #expect(dates.last == calendar.date(from: DateComponents(year: 2026, month: 8, day: 8)))
+    }
+
+    @Test func unifiedExistingTaskSchedulePreservesReminderLeadAndClearsReminderWithTime() async throws {
+        let calendar = Calendar.current
+        let dueAt = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 18, minute: 30))
+        )
+        let remindAt = dueAt.addingTimeInterval(-15 * 60)
+        let item = makeReminderTestItem(
+            title: "统一日期时间",
+            dueAt: dueAt,
+            hasExplicitTime: true,
+            remindAt: remindAt
+        )
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+        let nextDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 21))
+        )
+        let nextTime = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 21, hour: 14, minute: 30))
+        )
+
+        await viewModel.reload()
+        await viewModel.toggleInlineDetail(item.id)
+        viewModel.updateDraftSchedule(date: nextDate, time: nextTime)
+
+        let scheduledDraft = try #require(viewModel.inlineDetailDraft)
+        let scheduledDueAt = try #require(scheduledDraft.dueAt)
+        #expect(calendar.isDate(scheduledDueAt, inSameDayAs: nextDate))
+        #expect(calendar.component(.hour, from: scheduledDueAt) == 14)
+        #expect(calendar.component(.minute, from: scheduledDueAt) == 30)
+        #expect(scheduledDraft.remindAt == scheduledDueAt.addingTimeInterval(-15 * 60))
+
+        viewModel.updateDraftSchedule(date: nextDate, time: nil)
+        let dateOnlyDraft = try #require(viewModel.inlineDetailDraft)
+        #expect(dateOnlyDraft.dueAt == calendar.startOfDay(for: nextDate))
+        #expect(dateOnlyDraft.hasExplicitTime == false)
+        #expect(dateOnlyDraft.remindAt == nil)
+    }
+
     @Test func inlineDetailMovingDateGroupGetsFreshPresentationIdentityAndCanReopen() async throws {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
@@ -2751,7 +3004,6 @@ struct TogetherTests {
             sessionStore: sessionStore,
             taskApplicationService: service,
             itemRepository: repository,
-            taskTemplateRepository: MockTaskTemplateRepository()
         )
 
         await viewModel.reload()
@@ -2843,7 +3095,7 @@ struct TogetherTests {
         )
     }
 
-    @Test func timelineSubtitlePrioritizesSubtaskProgress() {
+    @Test func timelineSharedIdentityKeepsNoteAndSubtaskProgressSeparate() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -2880,10 +3132,15 @@ struct TogetherTests {
             subtaskCompletedCount: 1
         )
 
-        #expect(HomeTimelineSubtitleText.text(for: entry) == "1/2 子任务")
+        let content = TaskSharedIdentityContent.make(entry: entry)
+        #expect(HomeTimelineSubtitleText.text(for: entry).isEmpty)
+        #expect(content.note == "备注不会盖过子任务")
+        #expect(content.visibleElements.contains(.progress))
+        #expect(content.completedSubtaskCount == 1)
+        #expect(content.totalSubtaskCount == 2)
     }
 
-    @Test func timelineRowDisplayUsesSubtaskProgressInSubtitle() {
+    @Test func timelineRowDisplayLeavesSubtaskProgressToSharedRing() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -2921,11 +3178,13 @@ struct TogetherTests {
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
-        #expect(display.primarySubtitle == "1/2 子任务")
+        let content = TaskSharedIdentityContent.make(entry: entry)
+        #expect(display.primarySubtitle.isEmpty)
         #expect(display.propertyText == nil)
+        #expect(content.visibleElements.contains(.progress))
     }
 
-    @Test func timelineRowDisplayKeepsExplicitTimeInSubtitle() {
+    @Test func timelineRowDisplayLeavesExplicitTimeToSharedAttributeBand() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -2948,11 +3207,14 @@ struct TogetherTests {
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
-        #expect(display.primarySubtitle == "18:30")
+        let content = TaskSharedIdentityContent.make(entry: entry)
+        #expect(display.primarySubtitle.isEmpty)
         #expect(display.propertyText == nil)
+        #expect(content.timeSummary == "18:30")
+        #expect(content.visibleElements.contains(.time))
     }
 
-    @Test func timelineRowDisplayPlacesPropertiesBelowNotes() {
+    @Test func timelineRowDisplayKeepsOnlyRealNoteAsSubtitle() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -2976,10 +3238,14 @@ struct TogetherTests {
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
         #expect(display.primarySubtitle == "跟进客户反馈")
-        #expect(display.propertyText == "18:30 · 提醒")
+        #expect(display.propertyText == nil)
+
+        let content = TaskSharedIdentityContent.make(entry: entry)
+        #expect(content.visibleElements.contains(.time))
+        #expect(content.visibleElements.contains(.reminder))
     }
 
-    @Test func timelineRowDisplayFallsBackToStatusWithoutProperties() {
+    @Test func timelineRowDisplayDoesNotInventStatusSubtitle() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -3002,7 +3268,7 @@ struct TogetherTests {
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
-        #expect(display.primarySubtitle == "进行中")
+        #expect(display.primarySubtitle.isEmpty)
         #expect(display.propertyText == nil)
 
     }
@@ -3053,7 +3319,6 @@ private func makeInlineDetailHomeViewModel(repository: MockItemRepository) -> Ho
         sessionStore: sessionStore,
         taskApplicationService: taskService,
         itemRepository: repository,
-        taskTemplateRepository: MockTaskTemplateRepository()
     )
 }
 
@@ -3093,7 +3358,6 @@ private func makeOCRAppContext(
 ) throws -> AppContext {
     let syncCoordinator = NoOpSyncCoordinator()
     let itemRepository = MockItemRepository()
-    let taskTemplateRepository = MockTaskTemplateRepository()
     let notificationService = MockNotificationService()
     let reminderScheduler = MockReminderScheduler()
     let userProfileRepository = MockUserProfileRepository()
@@ -3116,7 +3380,6 @@ private func makeOCRAppContext(
             syncCoordinator: syncCoordinator,
             userProfileRepository: userProfileRepository,
             itemRepository: itemRepository,
-            taskTemplateRepository: taskTemplateRepository,
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
             projectToTaskMigrationService: ProjectToTaskMigrationService(container: migrationPersistence.container),
@@ -3148,7 +3411,6 @@ private func makeTaskSubtaskModelContainer() -> ModelContainer {
         PersistentItem.self,
         PersistentTaskSubtask.self,
         PersistentItemOccurrenceCompletion.self,
-        PersistentTaskTemplate.self,
         PersistentPeriodicTask.self
     ])
     let configuration = ModelConfiguration(
@@ -3264,22 +3526,6 @@ private func seedPersonalDataDeletionStore(container: ModelContainer) throws -> 
         itemID: itemID,
         occurrenceDate: now,
         completedAt: now,
-        createdAt: now,
-        updatedAt: now
-    ))
-    context.insert(PersistentTaskTemplate(
-        id: UUID(),
-        spaceID: spaceID,
-        title: "待删除模板",
-        notes: nil,
-        listID: listID,
-        projectID: projectID,
-        isPinned: false,
-        hasExplicitTime: false,
-        timeData: nil,
-        reminderOffset: nil,
-        repeatRuleData: nil,
-        subtasksData: nil,
         createdAt: now,
         updatedAt: now
     ))
@@ -3457,7 +3703,6 @@ private func makeRoutinesViewModel(
     return RoutinesViewModel(
         sessionStore: sessionStore,
         periodicTaskApplicationService: service,
-        taskTemplateRepository: MockTaskTemplateRepository()
     )
 }
 
@@ -3507,8 +3752,9 @@ private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplica
         return tasks
     }
 
-    func createTask(in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
+    func createTask(id: UUID, in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
         let task = PeriodicTask(
+            id: id,
             spaceID: spaceID,
             creatorID: actorID,
             title: draft.title,
@@ -3615,6 +3861,7 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
     var tasksToReturn: [Item] = []
     var capturesCreates = false
     var createdDrafts: [TaskDraft] = []
+    var createdTaskIDs: [UUID] = []
 
     func tasks(in spaceID: UUID, scope: TaskScope) async throws -> [Item] {
         tasksToReturn
@@ -3631,14 +3878,15 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
         )
     }
 
-    func createTask(in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
+    func createTask(id: UUID, in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
         guard capturesCreates else {
             throw RepositoryError.notFound
         }
         createdDrafts.append(draft)
+        createdTaskIDs.append(id)
         let now = Date.now
         return Item(
-            id: UUID(),
+            id: id,
             spaceID: spaceID,
             listID: draft.listID,
             projectID: draft.projectID,

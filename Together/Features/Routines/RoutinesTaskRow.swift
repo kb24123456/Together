@@ -178,7 +178,7 @@ struct RoutinesTaskRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("展开例行任务")
+                    .accessibilityLabel("展开定期任务")
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
@@ -201,7 +201,7 @@ struct RoutinesTaskRow: View {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
-        .accessibilityLabel(isCompleted ? "标记为未完成" : "完成例行任务")
+        .accessibilityLabel(isCompleted ? "标记为未完成" : "完成定期任务")
     }
 
     @ViewBuilder
@@ -224,7 +224,7 @@ struct RoutinesTaskRow: View {
                 .buttonStyle(.plain)
                 .allowsHitTesting(isDetailPresented)
                 .accessibilityHidden(isDetailPresented == false)
-                .accessibilityLabel("编辑例行任务标题")
+                .accessibilityLabel("编辑定期任务标题")
             }
 
             if isDetailPresented {
@@ -259,7 +259,7 @@ struct RoutinesTaskRow: View {
                         }
                     }
 
-                inlineSaveButton(accessibilityLabel: "保存例行任务备注") {
+                inlineSaveButton(accessibilityLabel: "保存定期任务备注") {
                     commitNotesAfterFocusUpdate()
                 }
             }
@@ -270,7 +270,7 @@ struct RoutinesTaskRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("编辑例行任务备注")
+            .accessibilityLabel("编辑定期任务备注")
         } else {
             subtitleText(rowDisplayText.primarySubtitle)
         }
@@ -316,7 +316,7 @@ struct RoutinesTaskRow: View {
 
     private var expandedTitleEditor: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
-            TextField("例行任务标题", text: $titleDraft)
+            TextField("定期任务标题", text: $titleDraft)
                 .font(AppTheme.typography.sized(19, weight: .bold))
                 .foregroundStyle(AppTheme.colors.title)
                 .textInputAutocapitalization(.sentences)
@@ -337,7 +337,7 @@ struct RoutinesTaskRow: View {
                     }
                 }
 
-            inlineSaveButton(accessibilityLabel: "保存例行任务标题") {
+            inlineSaveButton(accessibilityLabel: "保存定期任务标题") {
                 commitTitleAfterFocusUpdate()
             }
         }
@@ -573,7 +573,6 @@ private struct RoutinesInlineDetailView: View {
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var activeAttributeEditor: InlineAttributeEditor?
 
     var body: some View {
         RoutineInlineCascadeStack(
@@ -650,9 +649,6 @@ private struct RoutinesInlineDetailView: View {
                 .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .sheet(item: $activeAttributeEditor) { editor in
-            inlineAttributeEditor(editor)
-        }
     }
 
     private var reminderMenu: some View {
@@ -699,7 +695,7 @@ private struct RoutinesInlineDetailView: View {
         }
         .buttonStyle(.plain)
         .disabled(currentRule?.hasCompleteTarget(for: draftCycle) != true)
-        .accessibilityLabel("例行任务提醒，当前为\(reminderTitle)")
+        .accessibilityLabel("定期任务提醒，当前为\(reminderTitle)")
     }
 
     private func reminderOption(_ title: String, minutes: Int) -> some View {
@@ -735,7 +731,7 @@ private struct RoutinesInlineDetailView: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("例行任务维度，当前为\(draftCycle.title)")
+        .accessibilityLabel("定期任务维度，当前为\(draftCycle.title)")
     }
 
     @ViewBuilder
@@ -765,13 +761,17 @@ private struct RoutinesInlineDetailView: View {
 
     @ViewBuilder
     private var targetTimeControl: some View {
-        TaskAttributeButton(
-            icon: "clock",
-            title: currentRule?.hasTargetTime == true ? TaskAttributeValueText.time(timeDate) : "时间",
-            isConfigured: currentRule?.hasTargetTime == true
-        ) {
-            toggleAttributeEditor(.time)
-        }
+        InlineTimePickerControl(
+            selection: currentRule?.hasTargetTime == true ? timeDate : nil,
+            fallbackSelection: .now,
+            onCommit: { value in
+                if let value {
+                    updateDraftTime(value)
+                } else {
+                    viewModel.clearDraftTargetTime()
+                }
+            }
+        )
     }
 
     private func settingLabel(icon: String, title: String, isConfigured: Bool) -> some View {
@@ -788,29 +788,6 @@ private struct RoutinesInlineDetailView: View {
             title: title,
             isConfigured: isConfigured,
             fillsAvailableWidth: false
-        )
-    }
-
-    private func toggleAttributeEditor(_ editor: InlineAttributeEditor) {
-        withAnimation(reduceMotion ? .easeInOut(duration: 0.14) : .snappy(duration: 0.28, extraBounce: 0.01)) {
-            activeAttributeEditor = activeAttributeEditor == editor ? nil : editor
-        }
-    }
-
-    private func inlineAttributeEditor(_ editor: InlineAttributeEditor) -> some View {
-        InlineDateTimePickerPanel(
-            editor: editor,
-            title: "选择目标时间",
-            initialSelection: currentRule?.hasTargetTime == true ? timeDate : nil,
-            fallbackSelection: .now,
-            supportsClearing: currentRule?.hasTargetTime == true,
-            onCommit: { value in
-                if let value {
-                    updateDraftTime(value)
-                } else {
-                    viewModel.clearDraftTargetTime()
-                }
-            }
         )
     }
 

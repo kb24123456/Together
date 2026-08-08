@@ -2,7 +2,7 @@ import Foundation
 
 protocol PeriodicTaskApplicationServiceProtocol: Sendable {
     func fetchTasks(in spaceID: UUID) async throws -> [PeriodicTask]
-    func createTask(in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
+    func createTask(id: UUID, in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
     func updateTask(in spaceID: UUID, taskID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask
     func reorderTasks(in spaceID: UUID, taskIDs: [UUID]) async throws -> [PeriodicTask]
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask
@@ -31,10 +31,10 @@ actor DefaultPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProto
         try await repository.fetchActiveTasks(spaceID: spaceID)
     }
 
-    func createTask(in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
+    func createTask(id: UUID, in spaceID: UUID, actorID: UUID, draft: PeriodicTaskDraft) async throws -> PeriodicTask {
         let now = Date.now
         let task = PeriodicTask(
-            id: UUID(),
+            id: id,
             spaceID: spaceID,
             creatorID: actorID,
             title: draft.title,

@@ -33,12 +33,15 @@ final class AppContext {
     private(set) var hasBootstrapped = false
     private(set) var startupRestorePresentationState: StartupRestorePresentationState = .idle
     private var hasCompletedPostLaunchWork = false
+    private var isPerformingPostLaunchWork = false
+    private var hasEnteredBackgroundSinceLaunch = false
     private var hasSyncedReminderNotifications = false
     private var hasRestoredPersistedUserProfile = false
     private var startupRestoreSlowTask: Task<Void, Never>?
     private var reloadAfterSyncTask: Task<Void, Never>?
     private var reloadAfterSyncRevision = 0
     private var cloudImportConvergenceTask: Task<Void, Never>?
+    private var postLaunchMaintenanceTask: Task<Void, Never>?
     private var pendingDeepLinkTaskID: UUID?
     private var pendingHighlightTaskID: UUID?
 
@@ -74,8 +77,7 @@ final class AppContext {
         self.homeViewModel = HomeViewModel(
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
-            itemRepository: container.itemRepository,
-            taskTemplateRepository: container.taskTemplateRepository
+            itemRepository: container.itemRepository
         )
         self.projectsViewModel = ProjectsViewModel(
             sessionStore: sessionStore,
@@ -83,8 +85,7 @@ final class AppContext {
         )
         self.routinesViewModel = RoutinesViewModel(
             sessionStore: sessionStore,
-            periodicTaskApplicationService: container.periodicTaskApplicationService,
-            taskTemplateRepository: container.taskTemplateRepository
+            periodicTaskApplicationService: container.periodicTaskApplicationService
         )
         self.profileViewModel = ProfileViewModel(
             sessionStore: sessionStore,
@@ -178,19 +179,35 @@ final class AppContext {
     }
 
     func performPostLaunchWorkIfNeeded() async {
-        guard hasCompletedPostLaunchWork == false else { return }
-        hasCompletedPostLaunchWork = true
+        guard hasCompletedPostLaunchWork == false, isPerformingPostLaunchWork == false else { return }
+        isPerformingPostLaunchWork = true
+        defer { isPerformingPostLaunchWork = false }
         StartupTrace.mark("AppContext.postLaunch.begin")
         await restorePersistedUserProfileIfNeeded()
+        StartupTrace.mark("AppContext.postLaunch.profileRestored")
         await routinesViewModel.loadIfNeeded()
-        await syncReminderNotificationsIfNeeded()
-        await refreshTodayWidgetSnapshot()
+        StartupTrace.mark("AppContext.postLaunch.routinesLoaded")
+        hasCompletedPostLaunchWork = true
         StartupTrace.mark("AppContext.postLaunch.end")
+
+        postLaunchMaintenanceTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.syncReminderNotificationsIfNeeded()
+            StartupTrace.mark("AppContext.postLaunch.remindersSynced")
+            await self.refreshTodayWidgetSnapshot()
+            StartupTrace.mark("AppContext.postLaunch.widgetRefreshed")
+        }
     }
 
     func handleAppBecameActive() async {
+        guard hasCompletedPostLaunchWork, hasEnteredBackgroundSinceLaunch else { return }
+        hasEnteredBackgroundSinceLaunch = false
         await homeViewModel.reload(reason: .sync)
         await refreshTodayWidgetSnapshot()
+    }
+
+    func handleAppEnteredBackground() {
+        hasEnteredBackgroundSinceLaunch = true
     }
 
     func refreshTodayWidgetSnapshot() async {
@@ -285,9 +302,6 @@ final class AppContext {
             router.resetToToday()
             router.activeComposer = .newTask
         case .task(let taskID):
-            if homeViewModel.expandedDetailItemID != nil {
-                guard await homeViewModel.collapseInlineDetail() else { return }
-            }
             router.resetToToday()
             await homeViewModel.reload(reason: .sync)
 
@@ -363,10 +377,12 @@ final class AppContext {
     private func syncReminderNotificationsIfNeeded() async {
         guard hasSyncedReminderNotifications == false else { return }
         hasSyncedReminderNotifications = true
-        await homeViewModel.reload(reason: .sync)
         guard let spaceID = sessionStore.currentSpace?.id else { return }
+        StartupTrace.mark("AppContext.reminderSync.fetch.begin")
         let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
+        StartupTrace.mark("AppContext.reminderSync.tasksFetched count=\(tasks.count)")
         let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        StartupTrace.mark("AppContext.reminderSync.projectsFetched count=\(projects.count)")
         await container.reminderScheduler.resync(
             tasks: tasks,
             projects: projects,
@@ -377,6 +393,7 @@ final class AppContext {
                 sessionStore.currentUser?.preferences.dailySummaryEnabled ?? false
             )
         )
+        StartupTrace.mark("AppContext.reminderSync.resync.end")
     }
 
     private func syncAfterMutation(spaceID: UUID) {

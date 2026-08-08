@@ -105,11 +105,6 @@ struct RoutineInlineDraft: Equatable {
     }
 }
 
-struct RoutinesTemplateSaveResult: Sendable, Equatable {
-    let templateID: UUID
-    let isNewlyCreated: Bool
-}
-
 enum RoutineTargetText {
     static func text(for task: PeriodicTask, calendar: Calendar = .current) -> String {
         guard let rule = task.reminderRules.first else {
@@ -173,24 +168,34 @@ enum RoutineTargetText {
     }
 }
 
+enum PeriodicTaskCreationPhase: Equatable, Sendable {
+    case editing
+    case committing
+    case committed
+}
+
+struct PeriodicTaskCreationSession: Equatable, Sendable, Identifiable {
+    let id: UUID
+    var draft: PeriodicTaskDraft
+    var phase: PeriodicTaskCreationPhase
+    var errorMessage: String?
+}
+
 @MainActor
 @Observable
 final class RoutinesViewModel {
     private let sessionStore: SessionStore
     private let periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
-    private let taskTemplateRepository: TaskTemplateRepositoryProtocol
     private let calendar = Calendar.current
 
     var tasks: [PeriodicTask] = []
     var loadState: LoadableState = .idle
     var operationErrorMessage: String?
     var referenceDate: Date = .now
-    var isEditorPresented = false
-    var editingTask: PeriodicTask?
-    var editorDefaultCycle: PeriodicCycle = .daily
     var selectedCycle: PeriodicCycle = .daily
     var expandedTaskID: UUID?
     var detailDraft: RoutineInlineDraft?
+    var creationSession: PeriodicTaskCreationSession?
     var showsAlarmAuthorizationDeniedAlert = false
     private(set) var persistedVisibleCycles: Set<PeriodicCycle>
     private var pendingCompletedTask: PeriodicTask?
@@ -230,14 +235,65 @@ final class RoutinesViewModel {
         operationErrorMessage = nil
     }
 
+    func beginFocusCreation(defaultCycle: PeriodicCycle? = nil) {
+        guard creationSession == nil, expandedTaskID == nil else { return }
+        creationSession = PeriodicTaskCreationSession(
+            id: UUID(),
+            draft: PeriodicTaskDraft(cycle: defaultCycle ?? selectedCycle),
+            phase: .editing,
+            errorMessage: nil
+        )
+    }
+
+    func updateCreationDraft(_ mutation: (inout PeriodicTaskDraft) -> Void) {
+        guard var session = creationSession, session.phase == .editing else { return }
+        mutation(&session.draft)
+        session.errorMessage = nil
+        creationSession = session
+    }
+
+    func discardFocusCreation() {
+        guard creationSession?.phase == .editing else { return }
+        creationSession = nil
+    }
+
+    func commitFocusCreation() async -> HomeFocusPersistenceResult {
+        guard var session = creationSession, session.phase == .editing else {
+            return .failed(message: "当前无法创建定期任务。")
+        }
+        let title = session.draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard title.isEmpty == false else { return .failed(message: "请输入事务名称。") }
+        session.draft.title = title
+        session.phase = .committing
+        session.errorMessage = nil
+        creationSession = session
+
+        guard let created = await createTask(id: session.id, draft: session.draft) else {
+            session.phase = .editing
+            session.errorMessage = operationErrorMessage ?? "定期任务创建失败，请重试。"
+            creationSession = session
+            return .failed(message: session.errorMessage ?? "定期任务创建失败，请重试。")
+        }
+
+        session.phase = .committed
+        creationSession = session
+        guard let descriptor = focusLandingDescriptor(for: created.id) else {
+            return .failed(message: "任务已保存，但暂时无法定位到列表。")
+        }
+        return .saved(descriptor)
+    }
+
+    func finalizeFocusCreation() {
+        guard creationSession?.phase == .committed else { return }
+        creationSession = nil
+    }
+
     init(
         sessionStore: SessionStore,
-        periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol,
-        taskTemplateRepository: TaskTemplateRepositoryProtocol
+        periodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol
     ) {
         self.sessionStore = sessionStore
         self.periodicTaskApplicationService = periodicTaskApplicationService
-        self.taskTemplateRepository = taskTemplateRepository
         self.persistedVisibleCycles = Self.loadPersistedVisibleCycles(
             storageKey: Self.visibleCyclesStorageKey,
             legacyStorageKey: Self.legacyOptionalCyclesStorageKey
@@ -397,7 +453,7 @@ final class RoutinesViewModel {
                 replaceTask(task)
             }
         } catch {
-            operationErrorMessage = "例行任务排序失败，请重试。"
+            operationErrorMessage = "定期任务排序失败，请重试。"
         }
     }
 
@@ -498,6 +554,10 @@ final class RoutinesViewModel {
 
     func loadIfNeeded() async {
         referenceDate = .now
+        guard loadState != .loading else {
+            StartupTrace.mark("RoutinesViewModel.loadIfNeeded.coalesced")
+            return
+        }
         guard let spaceID = sessionStore.currentSpace?.id else {
             clearLoadedSpace()
             return
@@ -529,17 +589,20 @@ final class RoutinesViewModel {
             clearLoadedSpace()
             return
         }
+        StartupTrace.mark("RoutinesViewModel.load.fetch.begin")
         if showsLoading {
             loadState = .loading
         }
         do {
             let fetchedTasks = try await periodicTaskApplicationService.fetchTasks(in: spaceID)
+            StartupTrace.mark("RoutinesViewModel.load.fetch.end count=\(fetchedTasks.count)")
             tasksBySpaceID[spaceID] = fetchedTasks
             guard sessionStore.currentSpace?.id == spaceID else { return }
             tasks = fetchedTasks
             loadedSpaceID = spaceID
             loadState = .loaded
         } catch {
+            StartupTrace.mark("RoutinesViewModel.load.failed error=\(error.localizedDescription)")
             loadState = .failed(error.localizedDescription)
         }
     }
@@ -603,7 +666,7 @@ final class RoutinesViewModel {
             }
             cacheCurrentTasks()
         } catch {
-            operationErrorMessage = "例行任务状态更新失败，请重试。"
+            operationErrorMessage = "定期任务状态更新失败，请重试。"
             await load()
         }
     }
@@ -630,7 +693,7 @@ final class RoutinesViewModel {
             animatingCompletionTaskIDs.remove(taskID)
             animatingReopeningTaskIDs.remove(taskID)
             pendingCompletedTask = nil
-            operationErrorMessage = "例行任务状态更新失败，请重试。"
+            operationErrorMessage = "定期任务状态更新失败，请重试。"
             return false
         }
     }
@@ -677,6 +740,21 @@ final class RoutinesViewModel {
         guard let task = tasks.first(where: { $0.id == taskID }) else { return }
         expandedTaskID = taskID
         detailDraft = RoutineInlineDraft(task: task)
+    }
+
+    @discardableResult
+    func presentDetailForFocus(_ taskID: UUID) -> Bool {
+        guard expandedTaskID == nil,
+              let task = tasks.first(where: { $0.id == taskID })
+        else { return false }
+        expandedTaskID = taskID
+        detailDraft = RoutineInlineDraft(task: task)
+        return true
+    }
+
+    func finishFocusDetail() {
+        expandedTaskID = nil
+        detailDraft = nil
     }
 
     func updateDraftTitle(_ title: String) {
@@ -804,20 +882,69 @@ final class RoutinesViewModel {
         return await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft)
     }
 
-    func createTask(draft: PeriodicTaskDraft) async {
+    func saveDetailForFocus() async -> HomeFocusPersistenceResult {
+        guard let expandedTaskID else { return .failed(message: "暂时无法定位定期任务。") }
+        guard await saveInlineDetailDraft() else {
+            return .failed(message: operationErrorMessage ?? "定期任务保存失败，请重试。")
+        }
+        guard let descriptor = focusLandingDescriptor(for: expandedTaskID) else {
+            return .failed(message: "暂时无法定位定期任务。")
+        }
+        return .saved(descriptor)
+    }
+
+    func completeDetailForFocus() async -> HomeFocusPersistenceResult {
+        guard let expandedTaskID,
+              await saveInlineDetailDraft(),
+              let spaceID = sessionStore.currentSpace?.id
+        else { return .failed(message: operationErrorMessage ?? "定期任务保存失败，请重试。") }
+        do {
+            let updated = try await periodicTaskApplicationService.toggleCompletion(
+                in: spaceID,
+                taskID: expandedTaskID,
+                referenceDate: referenceDate
+            )
+            replaceTask(updated)
+            guard let descriptor = focusLandingDescriptor(for: expandedTaskID) else {
+                return .failed(message: "暂时无法定位定期任务。")
+            }
+            return .saved(descriptor)
+        } catch {
+            operationErrorMessage = "定期任务状态更新失败，请重试。"
+            return .failed(message: operationErrorMessage ?? "定期任务状态更新失败，请重试。")
+        }
+    }
+
+    func focusLandingDescriptor(for taskID: UUID) -> HomeFocusLandingDescriptor? {
+        guard let task = tasks.first(where: { $0.id == taskID }) else { return nil }
+        let sorted = sortedTasks(for: task.cycle)
+        guard let index = sorted.firstIndex(where: { $0.id == taskID }) else { return nil }
+        return HomeFocusLandingDescriptor(
+            domain: .periodic,
+            itemID: taskID,
+            section: .periodic(cycle: task.cycle),
+            index: index,
+            presentationID: task.id.uuidString
+        )
+    }
+
+    @discardableResult
+    func createTask(id: UUID = UUID(), draft: PeriodicTaskDraft) async -> PeriodicTask? {
         guard let spaceID = sessionStore.currentSpace?.id,
-              let actorID = sessionStore.currentUser?.id else { return }
+              let actorID = sessionStore.currentUser?.id else { return nil }
         do {
             let created = try await periodicTaskApplicationService.createTask(
+                id: id,
                 in: spaceID,
                 actorID: actorID,
                 draft: draft
             )
             tasks.append(created)
             cacheCurrentTasks()
+            return created
         } catch {
-            operationErrorMessage = "例行任务创建失败，请重试。"
-            await load()
+            operationErrorMessage = "定期任务创建失败，请重试。"
+            return nil
         }
     }
 
@@ -839,7 +966,7 @@ final class RoutinesViewModel {
             loadState = .loaded
             return true
         } catch {
-            operationErrorMessage = "例行任务保存失败，请重试。"
+            operationErrorMessage = "定期任务保存失败，请重试。"
             return false
         }
     }
@@ -865,7 +992,7 @@ final class RoutinesViewModel {
             referenceDate = .now
             replaceTask(updated)
         } catch {
-            operationErrorMessage = "例行任务推迟失败，请重试。"
+            operationErrorMessage = "定期任务推迟失败，请重试。"
             await load()
         }
     }
@@ -882,25 +1009,13 @@ final class RoutinesViewModel {
             }
             cacheCurrentTasks()
         } catch {
-            operationErrorMessage = "例行任务删除失败，请重试。"
+            operationErrorMessage = "定期任务删除失败，请重试。"
             await load()
         }
     }
 
     func refreshReferenceDate() {
         referenceDate = .now
-    }
-
-    func presentEditor(for task: PeriodicTask? = nil, defaultCycle: PeriodicCycle? = nil) {
-        editingTask = task
-        editorDefaultCycle = task?.cycle ?? defaultCycle ?? selectedCycle
-        isEditorPresented = true
-    }
-
-    func dismissEditor() {
-        isEditorPresented = false
-        editingTask = nil
-        editorDefaultCycle = .daily
     }
 
     static func defaultRule(for cycle: PeriodicCycle) -> PeriodicReminderRule {
@@ -932,43 +1047,6 @@ final class RoutinesViewModel {
         case let (.yearly, .businessDayOfPeriod(day)): return .businessDayOfPeriod(max(1, min(260, day)))
         case let (.yearly, .daysBeforeEnd(days)): return .daysBeforeEnd(max(1, min(364, days)))
         default: return nil
-        }
-    }
-
-    // MARK: - Templates
-
-    func saveAsTemplate(task: PeriodicTask) async -> RoutinesTemplateSaveResult? {
-        guard let spaceID = sessionStore.currentSpace?.id else { return nil }
-        let trimmedTitle = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return nil }
-
-        let template = TaskTemplate(
-            spaceID: spaceID,
-            title: trimmedTitle,
-            notes: task.notes
-        )
-
-        do {
-            let existing = try await taskTemplateRepository.fetchTaskTemplates(spaceID: spaceID)
-                .first { $0.title == template.title }
-
-            if let existing {
-                return RoutinesTemplateSaveResult(templateID: existing.id, isNewlyCreated: false)
-            }
-
-            let saved = try await taskTemplateRepository.saveTaskTemplate(template)
-            return RoutinesTemplateSaveResult(templateID: saved.id, isNewlyCreated: true)
-        } catch {
-            operationErrorMessage = "模板保存失败，请重试。"
-            return nil
-        }
-    }
-
-    func deleteTemplate(templateID: UUID) async {
-        do {
-            try await taskTemplateRepository.deleteTaskTemplate(templateID: templateID)
-        } catch {
-            operationErrorMessage = "模板删除失败，请重试。"
         }
     }
 

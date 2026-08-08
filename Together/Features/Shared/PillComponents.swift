@@ -88,7 +88,7 @@ struct PillToggleButton: View {
 #Preview("Badges") {
     VStack(spacing: AppTheme.spacing.md) {
         Badge(text: "紧急", tint: AppTheme.colors.coral, size: .small)
-        Badge(text: "已完成", tint: AppTheme.colors.success)
+        Badge(text: "已完成", tint: AppTheme.colors.coral)
         Badge(text: "超期", tint: AppTheme.colors.danger, size: .regular)
         ModeIndicator()
         HStack {

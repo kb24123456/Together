@@ -224,16 +224,6 @@ final class PersonalIdentityService {
             }
         }
 
-        let templates = (try? context.fetch(FetchDescriptor<PersistentTaskTemplate>())) ?? []
-        let remoteTemplateIDs = Set(templates.filter { $0.spaceID == remoteSpace.id }.map(\.id))
-        for template in templates where template.spaceID == provisionalID {
-            if remoteTemplateIDs.contains(template.id) {
-                context.delete(template)
-            } else {
-                template.spaceID = remoteSpace.id
-            }
-        }
-
         let taskSubtasks = (try? context.fetch(FetchDescriptor<PersistentTaskSubtask>())) ?? []
         for subtask in taskSubtasks where localItemIDs.contains(subtask.itemID) && subtask.creatorID == localUserID {
             subtask.creatorID = remoteUserID
