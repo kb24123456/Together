@@ -121,10 +121,10 @@ struct HomeTaskCreationCard: View {
         }
         .padding(
             EdgeInsets(
-                top: 14,
-                leading: AppTheme.spacing.xl,
+                top: 2,
+                leading: 0,
                 bottom: AppTheme.spacing.lg,
-                trailing: AppTheme.spacing.xl
+                trailing: 0
             )
         )
         .contentShape(Rectangle())

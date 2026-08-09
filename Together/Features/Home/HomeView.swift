@@ -6,7 +6,7 @@ struct HomeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @Bindable var viewModel: HomeViewModel
-    @Bindable var focusModel: HomeFocusPresentationModel
+    @Bindable var morphSession: HomeMorphSession
     @Bindable var projectsViewModel: ProjectsViewModel
     @Bindable var routinesViewModel: RoutinesViewModel
     let isProjectModePresented: Bool
@@ -26,6 +26,10 @@ struct HomeView: View {
     @State private var frozenHasWeeklyCompletedEntries: Bool?
     @State private var frozenWeeklyCompletedEntryCount: Int?
     @State private var pendingFocusTaskID: UUID?
+    @State private var pendingDraftFrame: CGRect?
+    @State private var heroTargetCaptureID: UUID?
+    @State private var editingNoteTaskID: UUID?
+    @State private var timelineMorphViewport = TaskMorphViewportCoordinator()
 
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 14
@@ -44,7 +48,7 @@ struct HomeView: View {
             await viewModel.performDeferredMaintenanceIfNeeded()
         }
         .task(id: viewModel.selectedDateKey) {
-            guard focusModel.isActive == false else { return }
+            guard morphSession.isActive == false else { return }
             guard hasHandledInitialSelectedDateTask else {
                 hasHandledInitialSelectedDateTask = true
                 return
@@ -92,12 +96,15 @@ struct HomeView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase != .active, focusModel.isActive else { return }
-            focusModel.recover()
+            guard phase != .active,
+                  morphSession.phase == .heroEntering,
+                  let token = morphSession.currentToken()
+            else { return }
+            morphSession.finishHero(using: token)
         }
-        .onChange(of: focusModel.phase) { _, phase in
+        .onChange(of: morphSession.phase) { _, phase in
             switch phase {
-            case .preparing, .transitioningIn, .focused, .saving, .transitioningOut, .recovering:
+            case .heroEntering, .active, .saving, .collapsing:
                 if frozenActiveSections == nil {
                     frozenActiveSections = viewModel.activeTimelineSections
                     frozenCompletedEntries = viewModel.completedTimelineEntries
@@ -106,7 +113,7 @@ struct HomeView: View {
                     frozenHasWeeklyCompletedEntries = viewModel.hasWeeklyCompletedEntries
                     frozenWeeklyCompletedEntryCount = viewModel.weeklyCompletedEntryCount
                 }
-            case .preparingLanding, .landing, .idle:
+            case .relocating, .idle:
                 frozenActiveSections = nil
                 frozenCompletedEntries = nil
                 frozenShowsOverdueCapsule = nil
@@ -114,20 +121,32 @@ struct HomeView: View {
                 frozenHasWeeklyCompletedEntries = nil
                 frozenWeeklyCompletedEntryCount = nil
             }
+
+            if phase == .idle {
+                timelineMorphViewport.reset()
+            }
+        }
+        .onChange(of: morphSession.visualState) { oldState, newState in
+            guard oldState == .expanded,
+                  newState == .compact,
+                  case .persisted(.todo, let itemID) = morphSession.subject
+            else { return }
+            timelineMorphViewport.beginCollapse(for: itemID)
         }
         .onChange(of: viewModel.items.map(\.id)) { _, itemIDs in
-            guard case .detail(.todo, let itemID) = focusModel.subject,
+            guard case .persisted(.todo, let itemID) = morphSession.subject,
                   itemIDs.contains(itemID) == false
             else { return }
-            focusModel.recover()
+            viewModel.dismissItemDetail()
+            morphSession.recover()
         }
         .accessibilityAction(.escape) {
-            focusModel.requestDismissal()
+            morphSession.requestDismissal()
         }
     }
 
     private var backgroundView: some View {
-        Color.clear
+        GradientGridBackground()
     }
 
     private var showsStartupRestoreStatus: Bool {
@@ -234,11 +253,11 @@ struct HomeView: View {
                 .scrollDisabled(isOverlayModeActive)
                 .applyScrollEdgeProtection()
                 .transition(timelineTransition)
-            } else if focusModel.isActive == false,
+            } else if morphSession.isActive == false,
                       viewModel.items.isEmpty,
                       viewModel.loadState == .loading || viewModel.loadState == .idle {
                 homeLoadingState
-            } else if focusModel.isActive == false,
+            } else if morphSession.isActive == false,
                       viewModel.items.isEmpty,
                       case .failed = viewModel.loadState {
                 homeLoadFailureState
@@ -286,7 +305,7 @@ struct HomeView: View {
                             guard let id = appContext.consumePendingHighlightTaskID() else { return }
                             requestExternalFocus(id, via: scrollProxy)
                         }
-                        .onChange(of: focusModel.phase) { _, phase in
+                        .onChange(of: morphSession.phase) { _, phase in
                             guard phase == .idle, let itemID = pendingFocusTaskID else { return }
                             requestExternalFocus(itemID, via: scrollProxy)
                         }
@@ -418,13 +437,13 @@ struct HomeView: View {
 
     private func requestExternalFocus(_ id: UUID, via proxy: ScrollViewProxy) {
         pendingFocusTaskID = id
-        guard focusModel.isActive == false else { return }
+        guard morphSession.isActive == false else { return }
         highlight(id, via: proxy)
         openPendingExternalFocusIfPossible()
     }
 
     private func openPendingExternalFocusIfPossible() {
-        guard focusModel.isActive == false,
+        guard morphSession.isActive == false,
               let itemID = pendingFocusTaskID,
               let entry = viewModel.timelineEntry(for: itemID),
               openInlineTaskDetail(entry)
@@ -440,31 +459,64 @@ struct HomeView: View {
 
     @discardableResult
     private func openInlineTaskDetail(_ entry: HomeTimelineEntry) -> Bool {
-        guard focusModel.isActive == false else { return false }
+        if morphSession.isActive {
+            morphSession.requestDismissal()
+            return false
+        }
         HomeInteractionFeedback.soft()
-        viewModel.presentItemDetail(entry.itemID)
-        viewModel.markDetailForExpandedEditing()
-        let draft = viewModel.inlineDetailDraft
-        let proposedHeight = max(
-            240,
-            86 + HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
-                subtaskCount: draft?.subtasks.count ?? 0,
-                note: draft?.notes
-            )
+        guard let placement = viewModel.morphPlacement(for: entry.itemID) else { return false }
+        timelineMorphViewport.beginExpansion(
+            for: entry.itemID,
+            estimatedHeightDelta: estimatedExpansionHeight(for: entry)
         )
-        guard focusModel.presentDetail(
-            domain: .todo,
-            itemID: entry.itemID,
-            proposedHeight: proposedHeight
-        ) else {
+        var expansionToken: HomeMorphSessionToken?
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            viewModel.presentItemDetail(entry.itemID)
+            viewModel.markDetailForExpandedEditing()
+            expansionToken = morphSession.prepareExpansion(
+                domain: .todo,
+                id: entry.itemID,
+                placement: placement
+            )
+        }
+        guard let expansionToken else {
+            timelineMorphViewport.cancelExpansion(for: entry.itemID)
             viewModel.dismissItemDetail()
             return false
+        }
+        Task { @MainActor in
+            // Let SwiftUI commit the active compact surface and its pre-mounted,
+            // zero-height disclosure before starting the reversible morph.
+            await Task.yield()
+            await Task.yield()
+            guard morphSession.isCurrent(expansionToken) else { return }
+            withAnimation(morphGeometryAnimation) {
+                _ = morphSession.activatePreparedExpansion(using: expansionToken)
+            }
         }
         return true
     }
 
-    private var isFocusPresentationActive: Bool {
-        focusModel.isActive
+    private func estimatedExpansionHeight(for entry: HomeTimelineEntry) -> CGFloat {
+        let expandedTextAllowance: CGFloat = {
+            let titleAllowance: CGFloat = entry.title.count > 18 ? 28 : 0
+            let noteAllowance: CGFloat = entry.notes?.isEmpty == false ? 24 : 0
+            return titleAllowance + noteAllowance
+        }()
+        return estimatedDetailDisclosureHeight(for: entry) + expandedTextAllowance
+    }
+
+    private func estimatedDetailDisclosureHeight(for entry: HomeTimelineEntry) -> CGFloat {
+        // Base detail editor + collapse control, then one 44pt row and its
+        // spacing for every subtask. Measured geometry overrides this whenever
+        // it is already available (including Dynamic Type changes).
+        162 + 58 * CGFloat(entry.subtasks.count)
+    }
+
+    private var morphGeometryAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.14) : .spring(response: 0.38, dampingFraction: 0.9)
     }
 
     private var projectsModeContent: some View {
@@ -481,7 +533,7 @@ struct HomeView: View {
     private var routinesModeContent: some View {
         RoutinesListContent(
             viewModel: routinesViewModel,
-            focusModel: focusModel,
+            morphSession: morphSession,
             isPresented: isRoutinesModePresented,
             contentTopPadding: 0,
             contentBottomPadding: 104,
@@ -528,8 +580,19 @@ struct HomeView: View {
                         )
                     }
 
+                    if needsProvisionalDraftSection {
+                        Section {
+                            todoDraftSlot(scrollProxy: scrollProxy)
+                        } header: {
+                            provisionalDraftSectionHeader
+                        }
+                    }
+
                     ForEach(displayedActiveSections) { section in
                         Section {
+                            if draftBelongs(in: section) {
+                                todoDraftSlot(scrollProxy: scrollProxy)
+                            }
                             timelineRows(
                                 section.entries,
                                 section: section,
@@ -537,7 +600,7 @@ struct HomeView: View {
                                 scrollProxy: scrollProxy
                             )
                         } header: {
-                            timelinePinnedSectionHeader(section)
+                            timelinePinnedSectionHeader(sectionIncludingDraftCount(section))
                         }
                     }
 
@@ -571,12 +634,23 @@ struct HomeView: View {
                             .frame(height: max(64, timelineBottomInset))
                     }
                 }
+                .taskMorphScrollViewport(coordinator: timelineMorphViewport)
             }
             .coordinateSpace(name: HomeTimelineScrollCoordinateSpace.name)
+            .onScrollGeometryChange(for: TaskMorphScrollSnapshot.self) { geometry in
+                TaskMorphScrollSnapshot(geometry)
+            } action: { _, snapshot in
+                timelineMorphViewport.recordScrollSnapshot(snapshot)
+            }
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                timelineMorphViewport.recordViewportFrame(frame)
+            }
             .scrollIndicators(.hidden)
-            .scrollDisabled(isOverlayModeActive || isFocusPresentationActive)
+            .scrollDisabled(isOverlayModeActive)
             .transaction { transaction in
-                if focusModel.isActive {
+                if morphSession.phase == .relocating {
                     // The real destination row is established atomically under
                     // the lifted surface. It must not run the timeline's normal
                     // insertion/reordering animation at the same time.
@@ -587,14 +661,6 @@ struct HomeView: View {
             .applyScrollEdgeProtection()
             .refreshable {
                 await viewModel.reload()
-            }
-            .onChange(of: focusModel.landingDescriptor) { _, descriptor in
-                guard let descriptor, descriptor.domain == .todo else { return }
-                var transaction = Transaction()
-                transaction.animation = nil
-                withTransaction(transaction) {
-                    scrollProxy.scrollTo(descriptor.presentationID, anchor: .center)
-                }
             }
         }
         .coordinateSpace(name: HomeTimelineFocusCoordinateSpace.name)
@@ -653,7 +719,18 @@ struct HomeView: View {
     }
 
     private var displayedActiveSections: [HomeTimelineSection] {
-        frozenActiveSections ?? viewModel.activeTimelineSections
+        let sections = frozenActiveSections ?? viewModel.activeTimelineSections
+        guard let draftID = activeTodoDraftID else { return sections }
+        return sections.map { section in
+            HomeTimelineSection(
+                id: section.id,
+                dayStart: section.dayStart,
+                title: section.title,
+                subtitle: section.subtitle,
+                isUnscheduled: section.isUnscheduled,
+                entries: section.entries.filter { $0.itemID != draftID }
+            )
+        }
     }
 
     private var displayedCompletedEntries: [HomeTimelineEntry] {
@@ -661,7 +738,8 @@ struct HomeView: View {
     }
 
     private var hasDisplayedTimelineEntries: Bool {
-        displayedActiveSections.contains { $0.entries.isEmpty == false }
+        activeTodoDraftID != nil
+            || displayedActiveSections.contains { $0.entries.isEmpty == false }
             || displayedCompletedEntries.isEmpty == false
     }
 
@@ -679,6 +757,144 @@ struct HomeView: View {
 
     private var displayedWeeklyCompletedEntryCount: Int {
         frozenWeeklyCompletedEntryCount ?? viewModel.weeklyCompletedEntryCount
+    }
+
+    private var activeTodoDraftID: UUID? {
+        guard case .draft(.todo, let id) = morphSession.subject else {
+            if case .persisted(.todo, let id) = morphSession.subject,
+               viewModel.taskCreationSession?.id == id {
+                return id
+            }
+            return nil
+        }
+        return id
+    }
+
+    private var provisionalTodoSection: TaskMorphSection? {
+        guard activeTodoDraftID != nil else { return nil }
+        return morphSession.placement?.provisionalSection
+    }
+
+    private func draftBelongs(in section: HomeTimelineSection) -> Bool {
+        guard case .todo(let dayStart, let isUnscheduled) = provisionalTodoSection else { return false }
+        return section.isUnscheduled == isUnscheduled
+            && dayStart.map { Calendar.current.isDate($0, inSameDayAs: section.dayStart) } == true
+    }
+
+    private func sectionIncludingDraftCount(_ section: HomeTimelineSection) -> HomeTimelineSection {
+        guard draftBelongs(in: section) else { return section }
+        let count = section.entries.count + 1
+        let prefix = section.isUnscheduled ? "创建·" : ""
+        return HomeTimelineSection(
+            id: section.id,
+            dayStart: section.dayStart,
+            title: section.title,
+            subtitle: "\(prefix)\(viewModel.weekdayLabel(for: section.dayStart))·\(count)项",
+            isUnscheduled: section.isUnscheduled,
+            entries: section.entries
+        )
+    }
+
+    private var needsProvisionalDraftSection: Bool {
+        guard activeTodoDraftID != nil else { return false }
+        return displayedActiveSections.contains(where: draftBelongs) == false
+    }
+
+    private var provisionalDraftSectionHeader: some View {
+        let dayStart: Date = if case .todo(let day, _) = provisionalTodoSection {
+            day ?? viewModel.selectedDate
+        } else {
+            viewModel.selectedDate
+        }
+        let section = HomeTimelineSection(
+            id: "provisional-\(Int(dayStart.timeIntervalSince1970))",
+            dayStart: dayStart,
+            title: Calendar.current.isDateInToday(dayStart) ? "今天" : dayStart.formatted(.dateTime.month().day()),
+            subtitle: "新建·1项",
+            isUnscheduled: false,
+            entries: []
+        )
+        return timelinePinnedSectionHeader(section)
+    }
+
+    @ViewBuilder
+    private func todoDraftSlot(scrollProxy: ScrollViewProxy) -> some View {
+        if let session = viewModel.taskCreationSession,
+           activeTodoDraftID == session.id,
+           let placement = morphSession.placement {
+            TaskMorphContainer(
+                state: morphSession.visualState,
+                isActive: true,
+                hidesRealSurfaceForHero: morphSession.phase == .heroEntering
+            ) {
+                switch morphSession.visualState {
+                case .compact, .expanded:
+                    todoDraftCompactContent(session: session)
+                case .editing:
+                    HomeTaskCreationCard(
+                        viewModel: viewModel,
+                        session: session,
+                        isExpanded: true,
+                        isInteractive: morphSession.isInteractive,
+                        onDiscard: { morphSession.requestDismissal() },
+                        onCommit: { morphSession.requestCommit() }
+                    )
+                }
+            }
+            .id(placement.presentationID)
+            .taskMorphListPlacement(
+                state: morphSession.visualState,
+                isActive: true,
+                compactInsets: EdgeInsets(
+                    top: timelineRowVerticalInset,
+                    leading: timelineRowHorizontalInset,
+                    bottom: timelineRowVerticalInset,
+                    trailing: timelineRowHorizontalInset
+                )
+            )
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                pendingDraftFrame = frame
+                guard heroTargetCaptureID == session.id else { return }
+                morphSession.recordHeroTargetFrame(frame)
+            }
+            .task(id: session.id) {
+                guard morphSession.phase == .heroEntering else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    scrollProxy.scrollTo(placement.presentationID, anchor: .center)
+                }
+                await Task.yield()
+                await Task.yield()
+                heroTargetCaptureID = session.id
+                if let pendingDraftFrame {
+                    morphSession.recordHeroTargetFrame(pendingDraftFrame)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func todoDraftCompactContent(session: HomeTaskCreationSession) -> some View {
+        if session.phase == .committed,
+           let entry = viewModel.timelineEntry(for: session.id) {
+            timelineRow(entry: entry, isDetailPresented: false, isDetailExpanded: false)
+        } else {
+            HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+                    .strokeBorder(
+                        AppTheme.colors.body.opacity(0.38),
+                        style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                    )
+                    .frame(width: 40, height: 40)
+                Text(session.draft.title.isEmpty ? "新任务" : session.draft.title)
+                    .font(AppTheme.typography.sized(19, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            }
+        }
     }
 
     private var todayCompletedHeader: some View {
@@ -709,36 +925,44 @@ struct HomeView: View {
     ) -> some View {
         ForEach(entries, id: \.presentationID) { entry in
             let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
-            let isHiddenIdentity = focusModel.isIdentityHidden(domain: .todo, itemID: entry.itemID)
-            let geometryRevision = focusModel.geometryRevision
-            HomeTimelineRow(
-                entry: entry,
-                isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.itemID, on: viewModel.selectedDate),
-                isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.itemID, on: viewModel.selectedDate),
-                titleLineLimit: 1,
-                titleMinimumScaleFactor: 0.68,
-                isDetailPresented: false,
-                isDetailExpanded: false,
-                isUrgent: entry.isUrgent,
-                expandedTitle: entry.title,
-                expandedNotes: entry.notes,
-                isEditingNotes: false,
-                onToggleCompletion: {
-                    entry.isCompleted
-                        ? HomeInteractionFeedback.selection()
-                        : HomeInteractionFeedback.completion()
-                    completeTimelineEntry(entry)
-                },
-                onOpenDetail: { openInlineTaskDetail(entry) },
-                onUpdateTitle: { _ in },
-                onUpdateNotes: { _ in },
-                onBeginNoteEditing: {},
-                onEndNoteEditing: {},
-                onInlineFocus: { _ in }
-            )
+            let isActiveMorph = morphSession.isActive(.todo, id: entry.itemID)
+            TaskMorphContainer(
+                state: isActiveMorph ? morphSession.visualState : .compact,
+                isActive: isActiveMorph,
+                hidesRealSurfaceForHero: false
+            ) {
+                let isExpanded = isActiveMorph && morphSession.visualState == .expanded
+                VStack(alignment: .leading, spacing: 0) {
+                    timelineRow(
+                        entry: entry,
+                        isDetailPresented: isExpanded,
+                        isDetailExpanded: isExpanded
+                    )
+                    TaskMorphDisclosure(
+                        isExpanded: isExpanded,
+                        estimatedHeight: estimatedDetailDisclosureHeight(for: entry),
+                        onMeasuredHeight: { height in
+                            timelineMorphViewport.recordExpansionHeight(height, for: entry.itemID)
+                        }
+                    ) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HomeInlineTaskDetailCard(entry: entry, viewModel: viewModel)
+                                .padding(.leading, 52)
+                            if let error = morphSession.errorMessage {
+                                Label(error, systemImage: "exclamationmark.circle.fill")
+                                    .font(AppTheme.typography.sized(13, weight: .medium))
+                                    .foregroundStyle(.red)
+                                    .padding(.leading, 52)
+                                    .padding(.top, AppTheme.spacing.sm)
+                            }
+                            morphCollapseButton
+                        }
+                    }
+                }
+            }
             .modifier(
                 TimelineSwipeActionsModifier(
-                    isEnabled: entry.isCompleted == false && focusModel.isActive == false,
+                    isEnabled: entry.isCompleted == false && morphSession.isActive == false,
                     canDelete: viewModel.canDeleteItem(entry.itemID),
                     onSnooze: {
                         HomeInteractionFeedback.selection()
@@ -751,7 +975,7 @@ struct HomeView: View {
                 )
             )
             .contextMenu {
-                if entry.isCompleted == false, focusModel.isActive == false {
+                if entry.isCompleted == false, morphSession.isActive == false {
                     Button {
                         HomeInteractionFeedback.selection()
                         Task { await viewModel.snoozeItem(entry.itemID) }
@@ -777,35 +1001,29 @@ struct HomeView: View {
                 }
             }
             .id(entry.presentationID)
-            .padding(
-                EdgeInsets(
+            .taskMorphListPlacement(
+                state: isActiveMorph ? morphSession.visualState : .compact,
+                isActive: isActiveMorph,
+                compactInsets: EdgeInsets(
                     top: timelineRowVerticalInset,
                     leading: timelineRowHorizontalInset,
                     bottom: timelineRowVerticalInset,
                     trailing: timelineRowHorizontalInset
                 )
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(isHiddenIdentity ? 0 : 1)
-            .onGeometryChange(for: HomeFocusFrameObservation.self) { proxy in
-                HomeFocusFrameObservation(
-                    frame: proxy.frame(in: .global),
-                    revision: geometryRevision
-                )
-            } action: { observation in
-                focusModel.recordTaskFrame(
-                    domain: .todo,
-                    itemID: entry.itemID,
-                    frame: observation.frame
-                )
-                if pendingFocusTaskID == entry.itemID {
-                    openPendingExternalFocusIfPossible()
-                }
+            .taskMorphViewportProgress(
+                isActiveMorph && morphSession.visualState == .expanded ? 1 : 0,
+                id: entry.itemID,
+                coordinator: timelineMorphViewport
+            )
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                timelineMorphViewport.recordRowFrame(frame, for: entry.itemID)
             }
-            .allowsHitTesting(focusModel.isActive == false)
-            .accessibilityHidden(focusModel.isActive)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .insertedListItemMotion(
-                isInserted: isHiddenIdentity == false && viewModel.isAnimatingInsertion(for: entry.itemID),
+                isInserted: viewModel.isAnimatingInsertion(for: entry.itemID),
                 onAnimationCompleted: {
                     viewModel.completeInsertionAnimation(for: entry.itemID)
                 }
@@ -815,6 +1033,64 @@ struct HomeView: View {
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
         }
+    }
+
+    private func timelineRow(
+        entry: HomeTimelineEntry,
+        isDetailPresented: Bool,
+        isDetailExpanded: Bool
+    ) -> some View {
+        HomeTimelineRow(
+            entry: entry,
+            isAnimatingCompletion: viewModel.isAnimatingCompletion(for: entry.itemID, on: viewModel.selectedDate),
+            isAnimatingReopening: viewModel.isAnimatingReopening(for: entry.itemID, on: viewModel.selectedDate),
+            titleLineLimit: isDetailPresented ? 3 : 1,
+            titleMinimumScaleFactor: isDetailPresented ? 0.8 : 0.68,
+            isDetailPresented: isDetailPresented,
+            isDetailExpanded: isDetailExpanded,
+            isUrgent: isDetailPresented ? (viewModel.inlineDetailDraft?.isUrgent ?? entry.isUrgent) : entry.isUrgent,
+            expandedTitle: isDetailPresented ? (viewModel.inlineDetailDraft?.title ?? entry.title) : entry.title,
+            expandedNotes: isDetailPresented ? (viewModel.inlineDetailDraft?.notes ?? entry.notes) : entry.notes,
+            isEditingNotes: editingNoteTaskID == entry.itemID,
+            onToggleCompletion: {
+                if isDetailPresented {
+                    morphSession.requestCompletion()
+                } else {
+                    guard morphSession.isActive == false else { return }
+                    entry.isCompleted
+                        ? HomeInteractionFeedback.selection()
+                        : HomeInteractionFeedback.completion()
+                    completeTimelineEntry(entry)
+                }
+            },
+            onOpenDetail: { openInlineTaskDetail(entry) },
+            onUpdateTitle: viewModel.updateDraftTitle,
+            onUpdateNotes: viewModel.updateDraftNotes,
+            onBeginNoteEditing: { editingNoteTaskID = entry.itemID },
+            onEndNoteEditing: {
+                if editingNoteTaskID == entry.itemID {
+                    editingNoteTaskID = nil
+                }
+            },
+            onInlineFocus: { _ in }
+        )
+    }
+
+    private var morphCollapseButton: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button {
+                morphSession.requestDismissal()
+            } label: {
+                Label("收起", systemImage: "chevron.up")
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .disabled(morphSession.phase != .active)
+            .accessibilityHint("保存更改并收起任务详情")
+        }
+        .padding(.leading, 52)
     }
 
     private var timelineSection: some View {
@@ -1050,7 +1326,7 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
 
     return HomeView(
         viewModel: context.homeViewModel,
-        focusModel: HomeFocusPresentationModel(),
+        morphSession: HomeMorphSession(),
         projectsViewModel: context.projectsViewModel,
         routinesViewModel: context.routinesViewModel,
         isProjectModePresented: false,
@@ -1518,11 +1794,7 @@ struct HomeTimelineRow: View {
                 .contentShape(Rectangle())
             } content: {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-                    if isDetailPresented {
-                        titleContent(isInteractive: false)
-                    } else {
-                        titleContent(isInteractive: true)
-                    }
+                    titleContent
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 2)
@@ -1531,7 +1803,6 @@ struct HomeTimelineRow: View {
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
-        .animation(rowDetailAnimation, value: isDetailPresented)
         .onAppear {
             titleDraft = expandedTitle
             notesDraft = expandedNotes ?? ""
@@ -1696,34 +1967,36 @@ struct HomeTimelineRow: View {
         displaySubtitle.isEmpty == false
     }
 
-    private func titleContent(isInteractive: Bool) -> some View {
+    private var titleContent: some View {
         ZStack(alignment: .topLeading) {
             titleStack
                 .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
 
-            if isInteractive {
-                Button {
+            Button {
+                if isDetailPresented {
+                    beginTitleEditing()
+                } else {
                     onOpenDetail()
-                } label: {
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("展开任务")
+            } label: {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .allowsHitTesting(isEditingTitle == false && isEditingNotes == false)
+            .accessibilityLabel(isDetailPresented ? "编辑任务标题" : "展开任务")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var titleStack: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-            if isDetailPresented, isEditingTitle {
+            if isEditingTitle {
                 expandedTitleEditor
-            } else if isDetailPresented {
-                expandedTitleDisplay
             } else {
-                titleText(entry.title)
+                sourceTitleVisual
             }
 
             if showsSubtitle {
@@ -1790,8 +2063,9 @@ struct HomeTimelineRow: View {
                     commitNotesAfterFocusUpdate()
                 }
             }
-        } else if isDetailPresented, visibleNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+        } else if visibleNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
             Button {
+                guard isDetailPresented else { return }
                 onBeginNoteEditing()
             } label: {
                 subtitleText(displaySubtitle)
@@ -1799,6 +2073,7 @@ struct HomeTimelineRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .allowsHitTesting(isDetailPresented)
             .accessibilityLabel("编辑备注")
         } else {
             subtitleText(displaySubtitle)
@@ -1811,20 +2086,6 @@ struct HomeTimelineRow: View {
             content: sharedIdentityContent,
             noteLineLimit: isDetailPresented ? nil : 1
         )
-    }
-
-    private var expandedTitleDisplay: some View {
-        Button {
-            beginTitleEditing()
-        } label: {
-            titleText(expandedTitle)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("编辑任务标题")
-    }
-
-    private func titleText(_ title: String) -> some View {
-        sourceTitleVisual
     }
 
     private func beginTitleEditing() {
@@ -1928,10 +2189,6 @@ struct HomeTimelineRow: View {
 
     private var subtitleColor: Color {
         AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.74)
-    }
-
-    private var rowDetailAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.28, extraBounce: 0.02)
     }
 
     @ViewBuilder

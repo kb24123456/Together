@@ -28,7 +28,7 @@ private struct RoutinesListLoadKey: Hashable {
 
 struct RoutinesListContent: View {
     @Bindable var viewModel: RoutinesViewModel
-    @Bindable var focusModel: HomeFocusPresentationModel
+    @Bindable var morphSession: HomeMorphSession
     let isPresented: Bool
     let contentTopPadding: CGFloat
     let contentBottomPadding: CGFloat
@@ -43,6 +43,9 @@ struct RoutinesListContent: View {
     @State private var frozenSummary: RoutineDimensionSummary?
     @State private var frozenStatusMessage: String?
     @State private var frozenSelectedCycle: PeriodicCycle?
+    @State private var pendingDraftFrame: CGRect?
+    @State private var heroTargetCaptureID: UUID?
+    @State private var taskMorphViewport = TaskMorphViewportCoordinator()
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let rowTopInset: CGFloat = 24
@@ -50,7 +53,20 @@ struct RoutinesListContent: View {
     private let listTopAnchor = "routines-list-top"
 
     private var currentTasks: [PeriodicTask] {
-        frozenTasks ?? viewModel.currentTasks
+        let tasks = frozenTasks ?? viewModel.currentTasks
+        guard let draftID = activePeriodicDraftID else { return tasks }
+        return tasks.filter { $0.id != draftID }
+    }
+
+    private var activePeriodicDraftID: UUID? {
+        guard case .draft(.periodic, let id) = morphSession.subject else {
+            if case .persisted(.periodic, let id) = morphSession.subject,
+               viewModel.creationSession?.id == id {
+                return id
+            }
+            return nil
+        }
+        return id
     }
 
     private var displayedCycle: PeriodicCycle {
@@ -65,7 +81,7 @@ struct RoutinesListContent: View {
                 taskScrollView(scrollProxy: scrollProxy)
                     .onChange(of: viewModel.selectedCycle) { _, cycle in
                         appContext.router.pendingPeriodicCycle = cycle
-                        guard focusModel.isActive == false else { return }
+                        guard morphSession.isActive == false else { return }
                         withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) {
                             scrollProxy.scrollTo(listTopAnchor, anchor: .top)
                         }
@@ -107,9 +123,9 @@ struct RoutinesListContent: View {
         .onDisappear {
             viewModel.clearTemporaryCycleIfNeeded()
         }
-        .onChange(of: focusModel.phase) { _, phase in
+        .onChange(of: morphSession.phase) { _, phase in
             switch phase {
-            case .preparing, .transitioningIn, .focused, .saving, .transitioningOut, .recovering:
+            case .heroEntering, .active, .saving, .collapsing:
                 if frozenTasks == nil {
                     frozenTasks = viewModel.currentTasks
                     frozenTaskStreamPresentation = viewModel.taskStreamPresentation
@@ -117,19 +133,34 @@ struct RoutinesListContent: View {
                     frozenStatusMessage = nonBlockingStatusMessage
                     frozenSelectedCycle = viewModel.selectedCycle
                 }
-            case .preparingLanding, .landing, .idle:
+            case .relocating, .idle:
                 frozenTasks = nil
                 frozenTaskStreamPresentation = nil
                 frozenSummary = nil
                 frozenStatusMessage = nil
                 frozenSelectedCycle = nil
             }
+
+            if phase == .idle {
+                taskMorphViewport.reset()
+            }
+        }
+        .onChange(of: morphSession.visualState) { oldState, newState in
+            guard oldState == .expanded,
+                  newState == .compact,
+                  case .persisted(.periodic, let taskID) = morphSession.subject
+            else { return }
+            taskMorphViewport.beginCollapse(for: taskID)
         }
         .onChange(of: viewModel.tasks.map(\.id)) { _, taskIDs in
-            guard case .detail(.periodic, let taskID) = focusModel.subject,
+            guard case .persisted(.periodic, let taskID) = morphSession.subject,
                   taskIDs.contains(taskID) == false
             else { return }
-            focusModel.recover()
+            viewModel.finishMorphDetail()
+            morphSession.recover()
+        }
+        .accessibilityAction(.escape) {
+            morphSession.requestDismissal()
         }
     }
 
@@ -165,7 +196,7 @@ struct RoutinesListContent: View {
     private func cycleButton(_ cycle: PeriodicCycle) -> some View {
         let isSelected = displayedCycle == cycle
         return Button {
-            guard focusModel.isActive == false else { return }
+            guard morphSession.isActive == false else { return }
             HomeInteractionFeedback.selection()
             updateCycleTransitionDirection(to: cycle)
             withAnimation(cycleAnimation) {
@@ -222,7 +253,7 @@ struct RoutinesListContent: View {
     }
 
     private func updateCycleVisibility(_ cycle: PeriodicCycle, isVisible: Bool) {
-        guard focusModel.isActive == false else { return }
+        guard morphSession.isActive == false else { return }
         HomeInteractionFeedback.selection()
         if isVisible == false, viewModel.selectedCycle == cycle,
            let fallback = PeriodicCycle.allCases.first(where: {
@@ -304,39 +335,46 @@ struct RoutinesListContent: View {
                     Color.clear.frame(height: contentBottomPadding)
                 }
                 .padding(.bottom, AppTheme.spacing.md)
+                .taskMorphScrollViewport(coordinator: taskMorphViewport)
+            }
+            .onScrollGeometryChange(for: TaskMorphScrollSnapshot.self) { geometry in
+                TaskMorphScrollSnapshot(geometry)
+            } action: { _, snapshot in
+                taskMorphViewport.recordScrollSnapshot(snapshot)
+            }
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                taskMorphViewport.recordViewportFrame(frame)
             }
             .scrollIndicators(.hidden)
             .applyScrollEdgeProtection()
             .transaction { transaction in
-                if focusModel.isActive {
+                if morphSession.phase == .relocating {
                     // Cycle changes and the destination row are prepared behind
                     // the focus surface without a second SwiftUI transition.
                     transaction.animation = nil
                 }
             }
-            .onChange(of: focusModel.landingDescriptor) { _, descriptor in
-                guard let descriptor, descriptor.domain == .periodic else { return }
-                var transaction = Transaction()
-                transaction.animation = nil
-                withTransaction(transaction) {
-                    scrollProxy.scrollTo(descriptor.itemID, anchor: .center)
-                }
-            }
         }
-        .animation(focusModel.isActive ? nil : cycleAnimation, value: displayedCycle)
+        .animation(morphSession.isActive ? nil : cycleAnimation, value: displayedCycle)
     }
 
     @ViewBuilder
     private func taskStream(scrollProxy: ScrollViewProxy) -> some View {
+        if activePeriodicDraftID != nil {
+            periodicDraftSlot(scrollProxy: scrollProxy)
+        }
+
         switch frozenTaskStreamPresentation ?? viewModel.taskStreamPresentation {
         case .loading:
             routinesLoadingState
         case .failure:
             routinesFailureState
         case .allEmpty:
-            routinesEmptyState
+            if activePeriodicDraftID == nil { routinesEmptyState }
         case .cycleEmpty:
-            emptyTabState
+            if activePeriodicDraftID == nil { emptyTabState }
         case .content:
             ForEach(Array(currentTasks.enumerated()), id: \.element.id) { index, task in
                 routineRow(
@@ -435,36 +473,80 @@ struct RoutinesListContent: View {
         taskCount: Int,
         scrollProxy: ScrollViewProxy
     ) -> some View {
-        let isHiddenIdentity = focusModel.isIdentityHidden(domain: .periodic, itemID: task.id)
-        let geometryRevision = focusModel.geometryRevision
-        return RoutinesTaskRow(
-            task: task,
-            viewModel: viewModel,
-            isAnimatingCompletion: viewModel.isAnimatingCompletion(taskID: task.id),
-            isAnimatingReopening: viewModel.isAnimatingReopening(taskID: task.id),
-            isDetailPresented: false,
-            isDetailExpanded: false,
-            animationBatch: 0,
-            onOpenDetail: {
-                toggleInlineDetail(task.id, scrollProxy: scrollProxy)
-            },
-            onToggleCompletion: {
-                Task { await viewModel.toggleCompletion(taskID: task.id) }
-            },
-            onInlineFocus: { _ in }
-        )
+        let isActiveMorph = morphSession.isActive(.periodic, id: task.id)
+        return TaskMorphContainer(
+            state: isActiveMorph ? morphSession.visualState : .compact,
+            isActive: isActiveMorph,
+            hidesRealSurfaceForHero: false
+        ) {
+            let isExpanded = isActiveMorph && morphSession.visualState == .expanded
+            VStack(alignment: .leading, spacing: 0) {
+                routineTaskRow(
+                    task,
+                    isDetailPresented: isExpanded,
+                    isDetailExpanded: isExpanded,
+                    scrollProxy: scrollProxy
+                )
+                TaskMorphDisclosure(
+                    isExpanded: isExpanded,
+                    onMeasuredHeight: { height in
+                        taskMorphViewport.recordExpansionHeight(
+                            height,
+                            for: task.id,
+                            component: .footer
+                        )
+                    }
+                ) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if let error = morphSession.errorMessage {
+                            Label(error, systemImage: "exclamationmark.circle.fill")
+                                .font(AppTheme.typography.sized(13, weight: .medium))
+                                .foregroundStyle(.red)
+                                .padding(.leading, 52)
+                                .padding(.top, AppTheme.spacing.sm)
+                        }
+                        HStack {
+                            Spacer(minLength: 0)
+                            Button {
+                                morphSession.requestDismissal()
+                            } label: {
+                                Label("收起", systemImage: "chevron.up")
+                                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                                    .frame(minHeight: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(morphSession.phase != .active)
+                            .accessibilityHint("保存更改并收起定期任务详情")
+                        }
+                        .padding(.leading, 52)
+                    }
+                }
+            }
+        }
         .id(task.id)
-        .padding(
-            EdgeInsets(
+        .taskMorphListPlacement(
+            state: isActiveMorph ? morphSession.visualState : .compact,
+            isActive: isActiveMorph,
+            compactInsets: EdgeInsets(
                 top: rowTopInset,
                 leading: rowHorizontalInset,
                 bottom: rowBottomInset,
                 trailing: rowHorizontalInset
             )
         )
+        .taskMorphViewportProgress(
+            isActiveMorph && morphSession.visualState == .expanded ? 1 : 0,
+            id: task.id,
+            coordinator: taskMorphViewport
+        )
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            taskMorphViewport.recordRowFrame(frame, for: task.id)
+        }
         .modifier(
             RoutineSwipeActionsModifier(
-                isEnabled: focusModel.isActive == false,
+                isEnabled: morphSession.isActive == false,
                 canDelete: viewModel.canDeletePeriodicTask(task),
                 onDefer: {
                     HomeInteractionFeedback.selection()
@@ -482,25 +564,13 @@ struct RoutinesListContent: View {
         )
         .frame(maxWidth: .infinity, alignment: .leading)
         .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 12))
-        .opacity(isHiddenIdentity ? 0 : (isPresented ? 1 : 0))
+        .opacity(isPresented ? 1 : 0)
         .animation(
             modeRowAnimation(index: index, taskCount: taskCount),
             value: isPresented
         )
-        .onGeometryChange(for: HomeFocusFrameObservation.self) { proxy in
-            HomeFocusFrameObservation(
-                frame: proxy.frame(in: .global),
-                revision: geometryRevision
-            )
-        } action: { observation in
-            focusModel.recordTaskFrame(
-                domain: .periodic,
-                itemID: task.id,
-                frame: observation.frame
-            )
-        }
         .contextMenu {
-            if focusModel.isActive == false {
+            if morphSession.isActive == false {
                 if viewModel.canEditPeriodicTask(task) {
                     Button {
                         toggleInlineDetail(task.id, scrollProxy: scrollProxy)
@@ -532,6 +602,128 @@ struct RoutinesListContent: View {
         }
     }
 
+    private func routineTaskRow(
+        _ task: PeriodicTask,
+        isDetailPresented: Bool,
+        isDetailExpanded: Bool,
+        scrollProxy: ScrollViewProxy
+    ) -> some View {
+        RoutinesTaskRow(
+            task: task,
+            viewModel: viewModel,
+            isAnimatingCompletion: viewModel.isAnimatingCompletion(taskID: task.id),
+            isAnimatingReopening: viewModel.isAnimatingReopening(taskID: task.id),
+            isDetailPresented: isDetailPresented,
+            isDetailExpanded: isDetailExpanded,
+            animationBatch: 0,
+            onOpenDetail: {
+                toggleInlineDetail(task.id, scrollProxy: scrollProxy)
+            },
+            onToggleCompletion: {
+                if isDetailPresented {
+                    morphSession.requestCompletion()
+                } else {
+                    guard morphSession.isActive == false else { return }
+                    Task { await viewModel.toggleCompletion(taskID: task.id) }
+                }
+            },
+            onInlineFocus: { focus in
+                withAnimation(reduceMotion ? nil : .smooth(duration: 0.22, extraBounce: 0)) {
+                    scrollProxy.scrollTo(focus.anchorID(for: task.id), anchor: focus.scrollAnchor)
+                }
+            },
+            onDetailHeightChange: { height in
+                taskMorphViewport.recordExpansionHeight(
+                    height,
+                    for: task.id,
+                    component: .primary
+                )
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func periodicDraftSlot(scrollProxy: ScrollViewProxy) -> some View {
+        if let session = viewModel.creationSession,
+           activePeriodicDraftID == session.id,
+           let placement = morphSession.placement {
+            TaskMorphContainer(
+                state: morphSession.visualState,
+                isActive: true,
+                hidesRealSurfaceForHero: morphSession.phase == .heroEntering
+            ) {
+                switch morphSession.visualState {
+                case .compact, .expanded:
+                    periodicDraftCompactContent(session: session, scrollProxy: scrollProxy)
+                case .editing:
+                    PeriodicTaskCreationCard(
+                        viewModel: viewModel,
+                        session: session,
+                        isInteractive: morphSession.isInteractive,
+                        onDiscard: { morphSession.requestDismissal() },
+                        onCommit: { morphSession.requestCommit() }
+                    )
+                }
+            }
+            .id(placement.presentationID)
+            .taskMorphListPlacement(
+                state: morphSession.visualState,
+                isActive: true,
+                compactInsets: EdgeInsets(
+                    top: rowTopInset,
+                    leading: rowHorizontalInset,
+                    bottom: rowBottomInset,
+                    trailing: rowHorizontalInset
+                )
+            )
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .global)
+            } action: { frame in
+                pendingDraftFrame = frame
+                guard heroTargetCaptureID == session.id else { return }
+                morphSession.recordHeroTargetFrame(frame)
+            }
+            .task(id: session.id) {
+                guard morphSession.phase == .heroEntering else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    scrollProxy.scrollTo(placement.presentationID, anchor: .center)
+                }
+                await Task.yield()
+                await Task.yield()
+                heroTargetCaptureID = session.id
+                if let pendingDraftFrame {
+                    morphSession.recordHeroTargetFrame(pendingDraftFrame)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func periodicDraftCompactContent(
+        session: PeriodicTaskCreationSession,
+        scrollProxy: ScrollViewProxy
+    ) -> some View {
+        if session.phase == .committed,
+           let task = viewModel.tasks.first(where: { $0.id == session.id }) {
+            routineTaskRow(task, isDetailPresented: false, isDetailExpanded: false, scrollProxy: scrollProxy)
+        } else {
+            HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+                    .strokeBorder(
+                        AppTheme.colors.body.opacity(0.38),
+                        style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                    )
+                    .frame(width: 40, height: 40)
+                Text(session.draft.title.isEmpty ? "新定期任务" : session.draft.title)
+                    .font(AppTheme.typography.sized(19, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            }
+        }
+    }
+
     private func refreshWhenNextDeferredTaskResumes() async {
         guard let resumeDate = viewModel.nextDeferredTaskResumeDate else { return }
         let delay = max(0, resumeDate.timeIntervalSinceNow)
@@ -548,18 +740,48 @@ struct RoutinesListContent: View {
 
     private func toggleInlineDetail(_ taskID: UUID, scrollProxy: ScrollViewProxy) {
         _ = scrollProxy
-        guard focusModel.isActive == false else { return }
-        HomeInteractionFeedback.soft()
-        guard viewModel.presentDetailForFocus(taskID) else { return }
-        let proposedHeight = RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) + 130
-        guard focusModel.presentDetail(
-            domain: .periodic,
-            itemID: taskID,
-            proposedHeight: proposedHeight
-        ) else {
-            viewModel.finishFocusDetail()
+        if morphSession.isActive {
+            morphSession.requestDismissal()
             return
         }
+        HomeInteractionFeedback.soft()
+        guard let placement = viewModel.morphPlacement(for: taskID),
+              let task = viewModel.tasks.first(where: { $0.id == taskID })
+        else { return }
+        let showsAddNote = task.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+        taskMorphViewport.beginExpansion(
+            for: taskID,
+            estimatedHeightDelta: RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: showsAddNote) + 44,
+            protectedTopInset: 12
+        )
+        var expansionToken: HomeMorphSessionToken?
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            guard viewModel.presentDetailForMorph(taskID) else { return }
+            expansionToken = morphSession.prepareExpansion(
+                domain: .periodic,
+                id: taskID,
+                placement: placement
+            )
+        }
+        guard let expansionToken else {
+            taskMorphViewport.cancelExpansion(for: taskID)
+            viewModel.finishMorphDetail()
+            return
+        }
+        Task { @MainActor in
+            await Task.yield()
+            await Task.yield()
+            guard morphSession.isCurrent(expansionToken) else { return }
+            withAnimation(morphGeometryAnimation) {
+                _ = morphSession.activatePreparedExpansion(using: expansionToken)
+            }
+        }
+    }
+
+    private var morphGeometryAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.14) : .spring(response: 0.38, dampingFraction: 0.9)
     }
 
     // MARK: - Empty states

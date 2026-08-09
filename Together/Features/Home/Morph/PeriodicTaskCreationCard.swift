@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Editing content hosted by the list-owned periodic task morph container.
 struct PeriodicTaskCreationCard: View {
     @Bindable var viewModel: RoutinesViewModel
     let session: PeriodicTaskCreationSession
@@ -155,10 +156,10 @@ struct PeriodicTaskCreationCard: View {
         }
         .padding(
             EdgeInsets(
-                top: 24,
-                leading: AppTheme.spacing.xl,
+                top: 2,
+                leading: 0,
                 bottom: AppTheme.spacing.lg,
-                trailing: AppTheme.spacing.xl
+                trailing: 0
             )
         )
         .onAppear { updateFocus(isInteractive) }

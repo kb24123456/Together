@@ -8,20 +8,16 @@ private enum AppRootRoute: Hashable {
 
 struct AppRootView: View {
     @Environment(AppContext.self) private var appContext
-    @State private var focusModel = HomeFocusPresentationModel()
+    @State private var morphSession = HomeMorphSession()
 
     var body: some View {
-        HomeRootContainer(
-            rootView: HomeRootContent(focusModel: focusModel)
-                .environment(appContext),
-            focusView: AnyView(
-                HomeFocusSurfaceView(focusModel: focusModel)
-                    .environment(appContext)
-                    .id(focusModel.surfaceRevision)
-            ),
-            focusModel: focusModel
-        )
-        .ignoresSafeArea()
+        ZStack {
+            HomeRootContent(morphSession: morphSession)
+                .environment(appContext)
+
+            HomeHeroTransitionLayer(session: morphSession)
+                .environment(appContext)
+        }
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
     }
 }
@@ -30,7 +26,7 @@ struct HomeRootContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Bindable var focusModel: HomeFocusPresentationModel
+    @Bindable var morphSession: HomeMorphSession
     @State private var rootNavigationPath = NavigationPath()
     @State private var activeOCRSourceSession: OCRSourceSheetSession?
     @State private var pendingOCRReviewSession: OCRReviewSession?
@@ -39,6 +35,7 @@ struct HomeRootContent: View {
     @State private var directOCRProcessingTask: Task<Void, Never>?
     @State private var isPresentingDirectOCRCamera = false
     @State private var frozenRootSurface: RootSurface?
+    @State private var dockAddFrame: CGRect?
 
     private var displayedRootSurface: RootSurface {
         frozenRootSurface ?? appContext.router.currentSurface
@@ -71,8 +68,6 @@ struct HomeRootContent: View {
                 }
             }
             .background(Color.clear)
-            .allowsHitTesting(focusModel.isActive == false)
-            .accessibilityHidden(focusModel.isActive)
         .sheet(item: $activeOCRSourceSession, onDismiss: {
             guard let pendingOCRReviewSession else { return }
             router.activeOCRReviewSession = pendingOCRReviewSession
@@ -127,8 +122,8 @@ struct HomeRootContent: View {
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
         .onChange(of: router.isProfilePresented) { _, isPresented in
             guard isPresented else { return }
-            guard focusModel.isActive == false else {
-                focusModel.requestDismissal()
+            guard morphSession.isActive == false else {
+                morphSession.requestDismissal()
                 return
             }
             guard rootNavigationPath.count == 0 else { return }
@@ -145,29 +140,25 @@ struct HomeRootContent: View {
         .onChange(of: router.activeComposer?.id) { _, _ in
             synchronizeComposerPresentation(router: router)
         }
-        .onChange(of: focusModel.phase) { _, phase in
+        .onChange(of: morphSession.phase) { _, phase in
             switch phase {
-            case .preparing, .transitioningIn, .focused, .saving, .transitioningOut, .recovering:
+            case .heroEntering, .active, .saving, .collapsing, .relocating:
                 if frozenRootSurface == nil {
                     frozenRootSurface = router.currentSurface
                 }
-            case .preparingLanding, .landing:
-                break
             case .idle:
                 frozenRootSurface = nil
                 synchronizePendingRootRoutes(router: router)
             }
         }
         .onAppear {
-            configureFocusCallbacks()
+            configureMorphCallbacks()
             synchronizeComposerPresentation(router: router)
         }
         .onDisappear {
-            focusModel.onDismissIntent = nil
-            focusModel.onDismissCompleted = nil
-            focusModel.onLandingCompleted = nil
-            focusModel.onRecoveryCompleted = nil
-            focusModel.onCompletionIntent = nil
+            morphSession.onDismissIntent = nil
+            morphSession.onCommitIntent = nil
+            morphSession.onCompletionIntent = nil
         }
         .task {
             StartupTrace.mark("AppRootView.visible")
@@ -178,14 +169,14 @@ struct HomeRootContent: View {
     private func rootSurfaceView(router: AppRouter) -> some View {
         HomeView(
             viewModel: appContext.homeViewModel,
-            focusModel: focusModel,
+            morphSession: morphSession,
             projectsViewModel: appContext.projectsViewModel,
             routinesViewModel: appContext.routinesViewModel,
             isProjectModePresented: false,
             isRoutinesModePresented: displayedRootSurface == .routines,
             onCreateTaskTapped: {
                 router.pendingComposerTitle = nil
-                beginFocusCreation(domain: .todo)
+                beginMorphCreation(domain: .todo, heroSourceFrame: nil)
             },
             onCompletedHistoryTapped: { filter in
                 rootNavigationPath.append(AppRootRoute.completedHistory(filter))
@@ -271,15 +262,15 @@ struct HomeRootContent: View {
 
         return HomeBottomDock(
             showsAuxiliaryVisual: isAvailable,
-            showsAddButtonVisual: isAvailable,
-            isInteractive: isAvailable && focusModel.isActive == false,
+            showsAddButtonVisual: isAvailable && morphSession.subject?.isDraft != true,
+            isInteractive: isAvailable && morphSession.isActive == false,
             onCamera: openDirectOCRCamera,
             onPhotos: openDirectOCRPhotoPicker,
             onAdd: {
                 HomeInteractionFeedback.selection()
                 openContextualComposer(router: router)
             },
-            onAddFrameChanged: { _ in }
+            onAddFrameChanged: { dockAddFrame = $0 }
         )
     }
 
@@ -300,14 +291,18 @@ struct HomeRootContent: View {
         router.pendingComposerTitle = nil
         switch displayedRootSurface {
         case .today, .projects:
-            beginFocusCreation(domain: .todo)
+            beginMorphCreation(domain: .todo, heroSourceFrame: reduceMotion ? nil : dockAddFrame)
         case .routines:
-            beginFocusCreation(domain: .periodic)
+            beginMorphCreation(domain: .periodic, heroSourceFrame: reduceMotion ? nil : dockAddFrame)
         }
     }
 
-    private func beginFocusCreation(domain: HomeFocusDomain, title: String? = nil) {
-        guard focusModel.isActive == false else { return }
+    private func beginMorphCreation(
+        domain: TaskMorphDomain,
+        title: String? = nil,
+        heroSourceFrame: CGRect? = nil
+    ) {
+        guard morphSession.isActive == false else { return }
         switch domain {
         case .todo:
             appContext.homeViewModel.beginTaskCreation()
@@ -315,31 +310,45 @@ struct HomeRootContent: View {
                 appContext.homeViewModel.updateTaskCreationDraft { $0.title = title }
             }
             guard let session = appContext.homeViewModel.taskCreationSession else { return }
-            _ = focusModel.presentCreation(
+            let dayStart = Calendar.current.startOfDay(for: appContext.homeViewModel.selectedDate)
+            let section = TaskMorphSection.todo(dayStart: dayStart, isUnscheduled: false)
+            _ = morphSession.beginCreation(
                 domain: .todo,
-                sessionID: session.id,
-                proposedSize: CGSize(width: 900, height: 360)
+                id: session.id,
+                placement: TaskMorphPlacement(
+                    provisionalSection: section,
+                    index: 0,
+                    presentationID: "todo-draft-\(session.id.uuidString)"
+                ),
+                heroSourceFrame: heroSourceFrame
             )
         case .periodic:
-            appContext.routinesViewModel.beginFocusCreation(
+            appContext.routinesViewModel.beginMorphCreation(
                 defaultCycle: appContext.router.pendingPeriodicCycle ?? appContext.routinesViewModel.selectedCycle
             )
             if let title, title.isEmpty == false {
                 appContext.routinesViewModel.updateCreationDraft { $0.title = title }
             }
             guard let session = appContext.routinesViewModel.creationSession else { return }
-            _ = focusModel.presentCreation(
+            let cycle = appContext.routinesViewModel.selectedCycle
+            let section = TaskMorphSection.periodic(cycle: cycle)
+            _ = morphSession.beginCreation(
                 domain: .periodic,
-                sessionID: session.id,
-                proposedSize: CGSize(width: 900, height: 320)
+                id: session.id,
+                placement: TaskMorphPlacement(
+                    provisionalSection: section,
+                    index: 0,
+                    presentationID: "periodic-draft-\(session.id.uuidString)"
+                ),
+                heroSourceFrame: heroSourceFrame
             )
         }
     }
 
     private func synchronizeComposerPresentation(router: AppRouter) {
         guard let route = router.activeComposer else { return }
-        guard focusModel.isActive == false else {
-            focusModel.requestDismissal()
+        guard morphSession.isActive == false else {
+            morphSession.requestDismissal()
             return
         }
         let title = router.pendingComposerTitle
@@ -347,114 +356,210 @@ struct HomeRootContent: View {
         router.pendingComposerTitle = nil
         switch route {
         case .newTask:
-            beginFocusCreation(domain: .todo, title: title)
+            beginMorphCreation(domain: .todo, title: title)
         case .newPeriodicTask:
-            beginFocusCreation(domain: .periodic, title: title)
+            beginMorphCreation(domain: .periodic, title: title)
         case .newProject:
             break
         }
     }
 
-    private func configureFocusCallbacks() {
-        focusModel.onDismissIntent = { subject in
-            switch subject {
-            case .creation:
-                focusModel.dismissToSource()
-            case .detail(.todo, _):
-                guard appContext.homeViewModel.hasUnsavedDetailChanges else {
-                    focusModel.dismissToSource()
-                    return
-                }
-                saveFocusedDetail(subject)
-            case .detail(.periodic, let itemID):
-                guard let task = appContext.routinesViewModel.tasks.first(where: { $0.id == itemID }),
-                      appContext.routinesViewModel.hasUnsavedInlineChanges(for: task)
-                else {
-                    focusModel.dismissToSource()
-                    return
-                }
-                saveFocusedDetail(subject)
-            }
+    private func configureMorphCallbacks() {
+        morphSession.onDismissIntent = { subject in
+            dismissMorph(subject)
         }
-
-        focusModel.onDismissCompleted = { subject in
-            clearFocusDomainState(for: subject)
-            schedulePendingRootRoutes(router: appContext.router)
+        morphSession.onCommitIntent = { subject in
+            commitMorphCreation(subject)
         }
-
-        focusModel.onLandingCompleted = { subject in
-            clearFocusDomainState(for: subject)
-            schedulePendingRootRoutes(router: appContext.router)
-        }
-
-        focusModel.onRecoveryCompleted = { subject in
-            switch subject {
-            case .detail(.todo, _):
-                appContext.homeViewModel.dismissItemDetail()
-            case .detail(.periodic, _):
-                appContext.routinesViewModel.finishFocusDetail()
-            case .creation:
-                break
-            }
-            schedulePendingRootRoutes(router: appContext.router)
-        }
-
-        focusModel.onCompletionIntent = { subject in
-            guard let token = focusModel.beginSaving() else { return }
-            Task { @MainActor in
-                let result: HomeFocusPersistenceResult
-                switch subject {
-                case .detail(.todo, _):
-                    result = await appContext.homeViewModel.completeDetailForFocus()
-                case .detail(.periodic, _):
-                    result = await appContext.routinesViewModel.completeDetailForFocus()
-                case .creation:
-                    return
-                }
-                focusModel.finishSaving(using: token, result: result)
-            }
+        morphSession.onCompletionIntent = { subject in
+            saveAndCollapseMorph(subject, completesTask: true)
         }
     }
 
-    private func saveFocusedDetail(_ subject: HomeFocusSubject) {
-        guard let token = focusModel.beginSaving() else { return }
+    private func dismissMorph(_ subject: TaskMorphSubject) {
+        if subject.isDraft {
+            discardMorphCreation(subject)
+        } else {
+            saveAndCollapseMorph(subject, completesTask: false)
+        }
+    }
+
+    private func commitMorphCreation(_ subject: TaskMorphSubject) {
+        guard subject.isDraft, let token = morphSession.beginSaving() else { return }
         Task { @MainActor in
-            let result: HomeFocusPersistenceResult
-            switch subject {
-            case .detail(.todo, _):
-                result = await appContext.homeViewModel.saveDetailForFocus()
-            case .detail(.periodic, _):
-                result = await appContext.routinesViewModel.saveDetailForFocus()
-                if case .saved(let descriptor) = result,
-                   case .periodic(let cycle) = descriptor.section {
-                    appContext.routinesViewModel.selectCycle(cycle)
-                }
-            case .creation:
+            let result: TaskMorphPersistenceResult = switch subject.domain {
+            case .todo:
+                await appContext.homeViewModel.commitTaskCreationForMorph()
+            case .periodic:
+                await appContext.routinesViewModel.commitMorphCreation()
+            }
+            await handleCreationSaveResult(result, subject: subject, token: token)
+        }
+    }
+
+    private func handleCreationSaveResult(
+        _ result: TaskMorphPersistenceResult,
+        subject: TaskMorphSubject,
+        token: HomeMorphSessionToken
+    ) async {
+        switch result {
+        case .failed(let message):
+            morphSession.failSaving(using: token, message: message)
+        case .saved(let finalPlacement):
+            let requiresRelocation = morphSession.placement?.requiresRelocation(to: finalPlacement) ?? true
+            let persisted = TaskMorphSubject.persisted(domain: subject.domain, id: subject.id)
+            let collapse = withAnimation(morphAnimation) {
+                morphSession.beginCollapseAfterSave(
+                    using: token,
+                    persistedSubject: persisted,
+                    finalPlacement: finalPlacement
+                )
+            }
+            guard let collapse else { return }
+            await waitForCollapse()
+            guard requiresRelocation else {
+                finishCreationWithoutRelocation(subject, collapse: collapse)
                 return
             }
-            focusModel.finishSaving(using: token, result: result)
+            let relocation = withAnimation(relocationAnimation) {
+                morphSession.beginRelocating(using: collapse)
+            }
+            guard let relocation else { return }
+            relocateAndFinalizeCreation(subject)
+            await Task.yield()
+            withAnimation(relocationAnimation) {
+                morphSession.finishRelocating(using: relocation)
+            }
         }
     }
 
-    private func clearFocusDomainState(for subject: HomeFocusSubject) {
-        switch subject {
-        case .detail(.todo, _):
-            appContext.homeViewModel.dismissItemDetail()
-        case .creation(.todo, _):
-            if appContext.homeViewModel.taskCreationSession?.phase == .committed {
-                appContext.homeViewModel.finalizeCommittedTaskCreation()
-            } else {
+    private func discardMorphCreation(_ subject: TaskMorphSubject) {
+        let collapse = withAnimation(morphAnimation) {
+            morphSession.beginDiscardCollapse()
+        }
+        guard let collapse else { return }
+        Task { @MainActor in
+            await waitForCollapse()
+            switch subject.domain {
+            case .todo:
                 appContext.homeViewModel.discardTaskCreation()
+            case .periodic:
+                appContext.routinesViewModel.discardMorphCreation()
             }
-        case .detail(.periodic, _):
-            appContext.routinesViewModel.finishFocusDetail()
-        case .creation(.periodic, _):
-            if appContext.routinesViewModel.creationSession?.phase == .committed {
-                appContext.routinesViewModel.finalizeFocusCreation()
-            } else {
-                appContext.routinesViewModel.discardFocusCreation()
+            withAnimation(morphAnimation) {
+                morphSession.finishDiscard(using: collapse)
             }
         }
+    }
+
+    private func saveAndCollapseMorph(_ subject: TaskMorphSubject, completesTask: Bool) {
+        guard subject.isDraft == false, let token = morphSession.beginSaving() else { return }
+        Task { @MainActor in
+            let result: TaskMorphPersistenceResult
+            switch (subject.domain, completesTask) {
+            case (.todo, false):
+                result = await appContext.homeViewModel.saveDetailForMorph()
+            case (.todo, true):
+                result = await appContext.homeViewModel.completeDetailForMorph()
+            case (.periodic, false):
+                result = await appContext.routinesViewModel.saveDetailForMorph()
+            case (.periodic, true):
+                result = await appContext.routinesViewModel.completeDetailForMorph()
+            }
+            switch result {
+            case .failed(let message):
+                morphSession.failSaving(using: token, message: message)
+            case .saved(let placement):
+                let requiresRelocation = morphSession.placement?.requiresRelocation(to: placement) ?? true
+                let collapse = withAnimation(morphAnimation) {
+                    morphSession.beginDetailCollapseAfterSave(using: token, finalPlacement: placement)
+                }
+                guard let collapse else { return }
+                await waitForCollapse()
+                guard requiresRelocation else {
+                    finishDetailWithoutRelocation(subject, collapse: collapse)
+                    return
+                }
+                let relocation = withAnimation(relocationAnimation) {
+                    morphSession.beginRelocating(using: collapse)
+                }
+                guard let relocation else { return }
+                relocateAndClearDetail(subject)
+                await Task.yield()
+                withAnimation(relocationAnimation) {
+                    morphSession.finishRelocating(using: relocation)
+                }
+            }
+        }
+    }
+
+    private func finishCreationWithoutRelocation(
+        _ subject: TaskMorphSubject,
+        collapse: HomeMorphSessionToken
+    ) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            switch subject.domain {
+            case .todo:
+                appContext.homeViewModel.finalizeCommittedTaskCreation()
+            case .periodic:
+                appContext.routinesViewModel.finalizeMorphCreation()
+            }
+            morphSession.finishCollapse(using: collapse)
+        }
+    }
+
+    private func finishDetailWithoutRelocation(
+        _ subject: TaskMorphSubject,
+        collapse: HomeMorphSessionToken
+    ) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            switch subject.domain {
+            case .todo:
+                appContext.homeViewModel.dismissItemDetail()
+            case .periodic:
+                appContext.routinesViewModel.finishMorphDetail()
+            }
+            morphSession.finishCollapse(using: collapse)
+        }
+    }
+
+    private func relocateAndFinalizeCreation(_ subject: TaskMorphSubject) {
+        switch subject.domain {
+        case .todo:
+            appContext.homeViewModel.relocateMorphItem(subject.id)
+            appContext.homeViewModel.finalizeCommittedTaskCreation()
+        case .periodic:
+            appContext.routinesViewModel.relocateMorphTask(subject.id)
+            appContext.routinesViewModel.finalizeMorphCreation()
+        }
+    }
+
+    private func relocateAndClearDetail(_ subject: TaskMorphSubject) {
+        switch subject.domain {
+        case .todo:
+            appContext.homeViewModel.relocateMorphItem(subject.id)
+            appContext.homeViewModel.dismissItemDetail()
+        case .periodic:
+            appContext.routinesViewModel.relocateMorphTask(subject.id)
+            appContext.routinesViewModel.finishMorphDetail()
+        }
+    }
+
+    private var morphAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.14) : .spring(response: 0.38, dampingFraction: 0.9)
+    }
+
+    private var relocationAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.14) : .smooth(duration: 0.28, extraBounce: 0)
+    }
+
+    private func waitForCollapse() async {
+        guard reduceMotion == false else { return }
+        try? await Task.sleep(for: .milliseconds(380))
     }
 
     private func openDirectOCRPhotoPicker() {
@@ -530,7 +635,7 @@ struct HomeRootContent: View {
     }
 
     private func selectRootSurface(_ surface: RootSurface, router: AppRouter) {
-        guard focusModel.isActive == false else { return }
+        guard morphSession.isActive == false else { return }
         guard router.isProfilePresented == false else { return }
         guard router.activeComposer == nil else { return }
         guard surface == .today || surface == .routines else { return }
@@ -544,7 +649,7 @@ struct HomeRootContent: View {
     }
 
     private func synchronizePendingRootRoutes(router: AppRouter) {
-        guard focusModel.isActive == false else { return }
+        guard morphSession.isActive == false else { return }
         if router.isProfilePresented, rootNavigationPath.count == 0 {
             rootNavigationPath.append(AppRootRoute.profile)
         }

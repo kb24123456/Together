@@ -188,7 +188,7 @@ final class HomeViewModel {
         taskCreationSession = nil
     }
 
-    func commitTaskCreationForFocus() async -> HomeFocusPersistenceResult {
+    func commitTaskCreationForMorph() async -> TaskMorphPersistenceResult {
         guard
             var session = taskCreationSession,
             session.phase == .editing,
@@ -211,11 +211,10 @@ final class HomeViewModel {
                 draft: session.draft
             )
             replaceItem(created)
-            selectLandingDate(for: created)
             emitTaskMutation(spaceID: spaceID)
             session.phase = .committed
             taskCreationSession = session
-            guard let descriptor = focusLandingDescriptor(for: created.id) else {
+            guard let descriptor = morphPlacement(for: created.id) else {
                 return .failed(message: "任务已保存，但暂时无法定位到列表。")
             }
             return .saved(descriptor)
@@ -232,27 +231,24 @@ final class HomeViewModel {
         taskCreationSession = nil
     }
 
-    func saveDetailForFocus() async -> HomeFocusPersistenceResult {
+    func saveDetailForMorph() async -> TaskMorphPersistenceResult {
         detailSaveTask?.cancel()
         if hasUnsavedDetailChanges, await persistDetailDraft() == false {
             return .failed(message: operationErrorMessage ?? "任务保存失败，请重试。")
         }
-        if let selectedItemID, let item = item(for: selectedItemID) {
-            selectLandingDate(for: item)
-        }
         guard let selectedItemID,
-              let descriptor = focusLandingDescriptor(for: selectedItemID)
+              let descriptor = morphPlacement(for: selectedItemID)
         else { return .failed(message: "暂时无法定位任务。") }
         return .saved(descriptor)
     }
 
-    func completeDetailForFocus() async -> HomeFocusPersistenceResult {
+    func completeDetailForMorph() async -> TaskMorphPersistenceResult {
         guard let selectedItemID else { return .failed(message: "暂时无法定位任务。") }
         if hasUnsavedDetailChanges, await persistDetailDraft() == false {
             return .failed(message: operationErrorMessage ?? "任务保存失败，请重试。")
         }
         await completeItem(selectedItemID, trigger: .taskExpansion)
-        guard let descriptor = focusLandingDescriptor(for: selectedItemID) else {
+        guard let descriptor = morphPlacement(for: selectedItemID) else {
             return .failed(message: operationErrorMessage ?? "任务状态更新失败，请重试。")
         }
         return .saved(descriptor)
@@ -1022,17 +1018,16 @@ final class HomeViewModel {
         timelineEntries.map(\.id)
     }
 
-    func focusLandingDescriptor(for itemID: UUID) -> HomeFocusLandingDescriptor? {
+    func morphPlacement(for itemID: UUID) -> TaskMorphPlacement? {
         for section in activeTimelineSections {
             if let index = section.entries.firstIndex(where: { $0.itemID == itemID }) {
                 let entry = section.entries[index]
-                return HomeFocusLandingDescriptor(
-                    domain: .todo,
-                    itemID: itemID,
-                    section: .todo(
+                let section = TaskMorphSection.todo(
                         dayStart: section.isUnscheduled ? nil : section.dayStart,
                         isUnscheduled: section.isUnscheduled
-                    ),
+                    )
+                return TaskMorphPlacement(
+                    provisionalSection: section,
                     index: index,
                     presentationID: entry.presentationID
                 )
@@ -1040,10 +1035,9 @@ final class HomeViewModel {
         }
         if let index = completedTimelineEntries.firstIndex(where: { $0.itemID == itemID }) {
             let entry = completedTimelineEntries[index]
-            return HomeFocusLandingDescriptor(
-                domain: .todo,
-                itemID: itemID,
-                section: .todoCompleted(dayStart: calendar.startOfDay(for: selectedDate)),
+            let section = TaskMorphSection.todoCompleted(dayStart: calendar.startOfDay(for: selectedDate))
+            return TaskMorphPlacement(
+                provisionalSection: section,
                 index: index,
                 presentationID: entry.presentationID
             )
@@ -1054,6 +1048,11 @@ final class HomeViewModel {
     private func selectLandingDate(for item: Item) {
         guard let dueAt = item.dueAt else { return }
         selectedDate = calendar.startOfDay(for: dueAt)
+    }
+
+    func relocateMorphItem(_ itemID: UUID) {
+        guard let item = item(for: itemID) else { return }
+        selectLandingDate(for: item)
     }
 
     func reorderTimelineEntries(_ entries: [HomeTimelineEntry], fromOffsets: IndexSet, toOffset: Int) async {
@@ -1315,17 +1314,6 @@ final class HomeViewModel {
             dayStart: calendar.startOfDay(for: item.createdAt),
             isUnscheduled: true
         )
-    }
-
-    private func creationSectionKey(for session: HomeTaskCreationSession) -> ActiveTimelineSectionKey {
-        if let dueAt = session.draft.dueAt {
-            return ActiveTimelineSectionKey(dayStart: calendar.startOfDay(for: dueAt), isUnscheduled: false)
-        }
-        return ActiveTimelineSectionKey(dayStart: calendar.startOfDay(for: session.createdAt), isUnscheduled: true)
-    }
-
-    private func sectionID(for key: ActiveTimelineSectionKey) -> String {
-        "\(key.isUnscheduled ? "created" : "scheduled")-\(Int(key.dayStart.timeIntervalSince1970))"
     }
 
     private func timelineSectionTitle(for dayStart: Date) -> String {

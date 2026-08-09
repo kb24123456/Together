@@ -1,9 +1,12 @@
 ---
-status: accepted
+status: superseded
+superseded-by: ADR-0021
 supersedes: ADR-0019
 ---
 
 # 首页详情与创建采用统一可逆任务表面
+
+> 本 ADR 已由 ADR-0021 取代，仅保留为历史决策记录。根级 Modal Focus Host、全局背景景深和非列表 Draft 不再是现行架构。
 
 ## 决策
 

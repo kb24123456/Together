@@ -235,7 +235,7 @@ final class RoutinesViewModel {
         operationErrorMessage = nil
     }
 
-    func beginFocusCreation(defaultCycle: PeriodicCycle? = nil) {
+    func beginMorphCreation(defaultCycle: PeriodicCycle? = nil) {
         guard creationSession == nil, expandedTaskID == nil else { return }
         creationSession = PeriodicTaskCreationSession(
             id: UUID(),
@@ -252,12 +252,12 @@ final class RoutinesViewModel {
         creationSession = session
     }
 
-    func discardFocusCreation() {
+    func discardMorphCreation() {
         guard creationSession?.phase == .editing else { return }
         creationSession = nil
     }
 
-    func commitFocusCreation() async -> HomeFocusPersistenceResult {
+    func commitMorphCreation() async -> TaskMorphPersistenceResult {
         guard var session = creationSession, session.phase == .editing else {
             return .failed(message: "当前无法创建定期任务。")
         }
@@ -277,13 +277,13 @@ final class RoutinesViewModel {
 
         session.phase = .committed
         creationSession = session
-        guard let descriptor = focusLandingDescriptor(for: created.id) else {
+        guard let descriptor = morphPlacement(for: created.id) else {
             return .failed(message: "任务已保存，但暂时无法定位到列表。")
         }
         return .saved(descriptor)
     }
 
-    func finalizeFocusCreation() {
+    func finalizeMorphCreation() {
         guard creationSession?.phase == .committed else { return }
         creationSession = nil
     }
@@ -743,7 +743,7 @@ final class RoutinesViewModel {
     }
 
     @discardableResult
-    func presentDetailForFocus(_ taskID: UUID) -> Bool {
+    func presentDetailForMorph(_ taskID: UUID) -> Bool {
         guard expandedTaskID == nil,
               let task = tasks.first(where: { $0.id == taskID })
         else { return false }
@@ -752,7 +752,7 @@ final class RoutinesViewModel {
         return true
     }
 
-    func finishFocusDetail() {
+    func finishMorphDetail() {
         expandedTaskID = nil
         detailDraft = nil
     }
@@ -882,18 +882,18 @@ final class RoutinesViewModel {
         return await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft)
     }
 
-    func saveDetailForFocus() async -> HomeFocusPersistenceResult {
+    func saveDetailForMorph() async -> TaskMorphPersistenceResult {
         guard let expandedTaskID else { return .failed(message: "暂时无法定位定期任务。") }
         guard await saveInlineDetailDraft() else {
             return .failed(message: operationErrorMessage ?? "定期任务保存失败，请重试。")
         }
-        guard let descriptor = focusLandingDescriptor(for: expandedTaskID) else {
+        guard let descriptor = morphPlacement(for: expandedTaskID) else {
             return .failed(message: "暂时无法定位定期任务。")
         }
         return .saved(descriptor)
     }
 
-    func completeDetailForFocus() async -> HomeFocusPersistenceResult {
+    func completeDetailForMorph() async -> TaskMorphPersistenceResult {
         guard let expandedTaskID,
               await saveInlineDetailDraft(),
               let spaceID = sessionStore.currentSpace?.id
@@ -905,7 +905,7 @@ final class RoutinesViewModel {
                 referenceDate: referenceDate
             )
             replaceTask(updated)
-            guard let descriptor = focusLandingDescriptor(for: expandedTaskID) else {
+            guard let descriptor = morphPlacement(for: expandedTaskID) else {
                 return .failed(message: "暂时无法定位定期任务。")
             }
             return .saved(descriptor)
@@ -915,17 +915,25 @@ final class RoutinesViewModel {
         }
     }
 
-    func focusLandingDescriptor(for taskID: UUID) -> HomeFocusLandingDescriptor? {
+    func morphPlacement(for taskID: UUID) -> TaskMorphPlacement? {
         guard let task = tasks.first(where: { $0.id == taskID }) else { return nil }
         let sorted = sortedTasks(for: task.cycle)
         guard let index = sorted.firstIndex(where: { $0.id == taskID }) else { return nil }
-        return HomeFocusLandingDescriptor(
-            domain: .periodic,
-            itemID: taskID,
-            section: .periodic(cycle: task.cycle),
+        let section = TaskMorphSection.periodic(cycle: task.cycle)
+        return TaskMorphPlacement(
+            provisionalSection: section,
             index: index,
             presentationID: task.id.uuidString
         )
+    }
+
+    func relocateMorphTask(_ taskID: UUID) {
+        guard let cycle = tasks.first(where: { $0.id == taskID })?.cycle else { return }
+        if persistedVisibleCycles.contains(cycle) {
+            selectCycle(cycle)
+        } else {
+            selectCycleTemporarily(cycle)
+        }
     }
 
     @discardableResult

@@ -51,6 +51,7 @@ struct RoutinesTaskRow: View {
     let onOpenDetail: () -> Void
     let onToggleCompletion: () -> Void
     let onInlineFocus: (RoutineInlineFocusTarget) -> Void
+    let onDetailHeightChange: (CGFloat) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isTitleFocused: Bool
@@ -87,7 +88,10 @@ struct RoutinesTaskRow: View {
         VStack(alignment: .leading, spacing: 0) {
             topRow
 
-            if isDetailPresented {
+            TaskMorphDisclosure(
+                isExpanded: isDetailPresented,
+                onMeasuredHeight: onDetailHeightChange
+            ) {
                 RoutinesInlineDetailView(
                     task: task,
                     viewModel: viewModel,
@@ -103,7 +107,6 @@ struct RoutinesTaskRow: View {
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
-        .animation(detailAnimation, value: isDetailPresented)
         .onAppear {
             titleDraft = draftTitle
             notesDraft = visibleNotes
@@ -419,10 +422,6 @@ struct RoutinesTaskRow: View {
         AppTheme.colors.body.opacity(isCompleted ? 0.4 : 0.74)
     }
 
-    private var detailAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.28, extraBounce: 0.02)
-    }
-
     // MARK: - Completion badge
 
     private var shouldPlayCompletionAnimation: Bool {
@@ -575,25 +574,18 @@ private struct RoutinesInlineDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        RoutineInlineCascadeStack(
-            isExpanded: isExpanded,
-            animationBatch: animationBatch,
-            reduceMotion: reduceMotion,
-            fallbackHeight: RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: showsAddNote)
-        ) {
-            VStack(alignment: .leading, spacing: RoutineInlineLayoutMetrics.detailVerticalSpacing) {
-                if showsAddNote {
-                    notesPlaceholderButton
-                        .modifier(cascadeItem(index: 0))
-                }
-
-                attributeToolbar
-                    .modifier(cascadeItem(index: showsAddNote ? 1 : 0))
-
+        VStack(alignment: .leading, spacing: RoutineInlineLayoutMetrics.detailVerticalSpacing) {
+            if showsAddNote {
+                notesPlaceholderButton
+                    .modifier(cascadeItem(index: 0))
             }
-            .padding(.top, RoutineInlineLayoutMetrics.detailTopPadding)
-            .padding(.bottom, RoutineInlineLayoutMetrics.detailBottomPadding)
+
+            attributeToolbar
+                .modifier(cascadeItem(index: showsAddNote ? 1 : 0))
+
         }
+        .padding(.top, RoutineInlineLayoutMetrics.detailTopPadding)
+        .padding(.bottom, RoutineInlineLayoutMetrics.detailBottomPadding)
     }
 
     private func cascadeItem(index: Int) -> RoutineInlineCascadeItemModifier {
@@ -895,96 +887,6 @@ private struct RoutinesInlineDetailView: View {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
         guard let hour = components.hour, let minute = components.minute else { return }
         viewModel.updateDraftTargetTime(hour: hour, minute: minute)
-    }
-}
-
-private struct RoutineInlineCascadeStack<Content: View>: View {
-    let isExpanded: Bool
-    let animationBatch: Int
-    let reduceMotion: Bool
-    let fallbackHeight: CGFloat
-    @ViewBuilder let content: Content
-
-    @State private var measuredHeight: CGFloat = 0
-    @State private var heightProgress: CGFloat = 0
-    @State private var heightTask: Task<Void, Never>?
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            content
-                .fixedSize(horizontal: false, vertical: true)
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(key: RoutineInlineDetailHeightPreferenceKey.self, value: proxy.size.height)
-                    }
-                }
-        }
-        .frame(height: targetHeight * heightProgress, alignment: .top)
-        .clipped()
-        .onAppear {
-            updateHeightProgress(isExpanded, animated: isExpanded)
-        }
-        .onDisappear {
-            heightTask?.cancel()
-            heightTask = nil
-        }
-        .onPreferenceChange(RoutineInlineDetailHeightPreferenceKey.self) { height in
-            guard height > 0 else { return }
-            if isExpanded && heightProgress > 0 {
-                withAnimation(heightAnimation) {
-                    measuredHeight = height
-                }
-            } else {
-                measuredHeight = height
-            }
-        }
-        .onChange(of: isExpanded) { _, expanded in
-            updateHeightProgress(expanded, animated: true)
-        }
-        .onChange(of: animationBatch) { _, _ in
-            updateHeightProgress(isExpanded, animated: true)
-        }
-    }
-
-    private var targetHeight: CGFloat {
-        measuredHeight > 0 ? measuredHeight : fallbackHeight
-    }
-
-    private func updateHeightProgress(_ expanded: Bool, animated: Bool) {
-        heightTask?.cancel()
-        if expanded {
-            heightProgress = 0
-            heightTask = Task { @MainActor in
-                await Task.yield()
-                guard Task.isCancelled == false else { return }
-                if animated {
-                    withAnimation(heightAnimation) {
-                        heightProgress = 1
-                    }
-                } else {
-                    heightProgress = 1
-                }
-            }
-        } else if animated {
-            withAnimation(heightAnimation) {
-                heightProgress = 0
-            }
-        } else {
-            heightProgress = 0
-        }
-    }
-
-    private var heightAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.16) : .snappy(duration: 0.34, extraBounce: 0.02)
-    }
-}
-
-private struct RoutineInlineDetailHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 

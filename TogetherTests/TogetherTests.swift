@@ -120,7 +120,7 @@ struct TogetherTests {
         let provisionalID = try #require(viewModel.taskCreationSession?.id)
         viewModel.updateTaskCreationDraft { $0.title = "稳定身份任务" }
 
-        guard case .failed = await viewModel.commitTaskCreationForFocus() else {
+        guard case .failed = await viewModel.commitTaskCreationForMorph() else {
             Issue.record("首次保存应失败")
             return
         }
@@ -129,11 +129,11 @@ struct TogetherTests {
         #expect(viewModel.taskCreationSession?.errorMessage != nil)
 
         service.capturesCreates = true
-        guard case .saved(let descriptor) = await viewModel.commitTaskCreationForFocus() else {
+        guard case .saved(let descriptor) = await viewModel.commitTaskCreationForMorph() else {
             Issue.record("重试保存应成功")
             return
         }
-        #expect(descriptor.itemID == provisionalID)
+        #expect(descriptor.presentationID.contains(provisionalID.uuidString))
         #expect(service.createdTaskIDs == [provisionalID])
         #expect(viewModel.taskCreationSession?.phase == .committed)
         #expect(viewModel.taskCreationSession?.id == provisionalID)
@@ -1316,12 +1316,12 @@ struct TogetherTests {
         let service = CapturingPeriodicTaskApplicationService(tasks: [])
         let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
 
-        viewModel.beginFocusCreation(defaultCycle: .weekly)
+        viewModel.beginMorphCreation(defaultCycle: .weekly)
         let provisionalID = try #require(viewModel.creationSession?.id)
         viewModel.updateCreationDraft { $0.title = "稳定身份定期任务" }
 
-        let result = await viewModel.commitFocusCreation()
-        let descriptor: HomeFocusLandingDescriptor
+        let result = await viewModel.commitMorphCreation()
+        let descriptor: TaskMorphPlacement
         switch result {
         case .saved(let value):
             descriptor = value
@@ -1331,8 +1331,8 @@ struct TogetherTests {
         }
 
         #expect(service.tasks.last?.id == provisionalID)
-        #expect(descriptor.itemID == provisionalID)
-        #expect(descriptor.section == .periodic(cycle: .weekly))
+        #expect(descriptor.presentationID == provisionalID.uuidString)
+        #expect(descriptor.finalSection == .periodic(cycle: .weekly))
         #expect(viewModel.creationSession?.phase == .committed)
     }
 
