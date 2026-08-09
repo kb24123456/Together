@@ -178,6 +178,11 @@ struct RoutinesListContent: View {
         .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 10))
         .opacity(isPresented ? 1 : 0)
         .animation(modeHeaderAnimation, value: isPresented)
+        .taskMorphBackgroundDepth(
+            isDeemphasized: morphSession.visualState == .expanded,
+            anchor: .top,
+            onDismiss: morphSession.requestDismissal
+        )
     }
 
     private var cycleRail: some View {
@@ -477,7 +482,8 @@ struct RoutinesListContent: View {
         return TaskMorphContainer(
             state: isActiveMorph ? morphSession.visualState : .compact,
             isActive: isActiveMorph,
-            hidesRealSurfaceForHero: false
+            hidesRealSurfaceForHero: false,
+            isBackgroundDeemphasized: morphSession.visualState == .expanded && isActiveMorph == false
         ) {
             let isExpanded = isActiveMorph && morphSession.visualState == .expanded
             VStack(alignment: .leading, spacing: 0) {
@@ -600,6 +606,7 @@ struct RoutinesListContent: View {
                 }
             }
         }
+        .zIndex(isActiveMorph ? 1 : 0)
     }
 
     private func routineTaskRow(

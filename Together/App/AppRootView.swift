@@ -41,6 +41,10 @@ struct HomeRootContent: View {
         frozenRootSurface ?? appContext.router.currentSurface
     }
 
+    private var isMorphBackgroundDeemphasized: Bool {
+        morphSession.visualState == .expanded
+    }
+
     var body: some View {
         @Bindable var router = appContext.router
 
@@ -196,43 +200,50 @@ struct HomeRootContent: View {
         let isRoutinesModeActive = displayedRootSurface == .routines
 
         ToolbarItem(placement: .principal) {
-            if showsModePicker {
-                if dynamicTypeSize.isAccessibilitySize {
-                    Menu {
+            ZStack {
+                if showsModePicker {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        Menu {
+                            Picker("任务模式", selection: rootModeSelection(router: router)) {
+                                Text("待办").tag(RootSurface.today)
+                                Text("定期").tag(RootSurface.routines)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(isRoutinesModeActive ? "定期" : "待办")
+                                Image(systemName: "chevron.down")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .font(.headline)
+                            .foregroundStyle(AppTheme.colors.title)
+                        }
+                        .accessibilityIdentifier("together.mode-picker")
+                        .accessibilityLabel("任务模式")
+                        .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
+                        .accessibilityHint("选择待办或定期模式")
+                    } else {
                         Picker("任务模式", selection: rootModeSelection(router: router)) {
                             Text("待办").tag(RootSurface.today)
                             Text("定期").tag(RootSurface.routines)
                         }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(isRoutinesModeActive ? "定期" : "待办")
-                            Image(systemName: "chevron.down")
-                                .font(.caption.weight(.semibold))
-                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 144)
+                        .accessibilityIdentifier("together.mode-picker")
+                        .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
+                        .accessibilityHint("在待办任务和定期任务之间切换")
+                    }
+                } else {
+                    Text("待办")
                         .font(.headline)
                         .foregroundStyle(AppTheme.colors.title)
-                    }
-                    .accessibilityIdentifier("together.mode-picker")
-                    .accessibilityLabel("任务模式")
-                    .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
-                    .accessibilityHint("选择待办或定期模式")
-                } else {
-                    Picker("任务模式", selection: rootModeSelection(router: router)) {
-                        Text("待办").tag(RootSurface.today)
-                        Text("定期").tag(RootSurface.routines)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 144)
-                    .accessibilityIdentifier("together.mode-picker")
-                    .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
-                    .accessibilityHint("在待办任务和定期任务之间切换")
+                        .accessibilityAddTraits(.isHeader)
                 }
-            } else {
-                Text("待办")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.colors.title)
-                    .accessibilityAddTraits(.isHeader)
             }
+            .taskMorphBackgroundDepth(
+                isDeemphasized: isMorphBackgroundDeemphasized,
+                anchor: .top,
+                onDismiss: morphSession.requestDismissal
+            )
         }
 
         ToolbarItem(placement: .topBarTrailing) {
@@ -254,6 +265,11 @@ struct HomeRootContent: View {
             .buttonBorderShape(.circle)
             .accessibilityLabel("打开个人页")
             .accessibilityHint("查看个人资料和设置")
+            .taskMorphBackgroundDepth(
+                isDeemphasized: isMorphBackgroundDeemphasized,
+                anchor: .topTrailing,
+                onDismiss: morphSession.requestDismissal
+            )
         }
     }
 

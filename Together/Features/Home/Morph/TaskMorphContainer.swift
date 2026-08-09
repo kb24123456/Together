@@ -4,11 +4,14 @@ import UIKit
 #endif
 
 private enum TaskMorphSurfaceMetrics {
-    static let horizontalInset: CGFloat = 12
-    static let verticalInset: CGFloat = 10
+    static let horizontalInset: CGFloat = 20
+    static let verticalInset: CGFloat = 16
+    static let expandedScreenEdgeInset: CGFloat = 6
     static let expandedCornerRadius = AppTheme.radius.xl
     static let compactCornerRadius = AppTheme.radius.lg
-    static let expandedContentScale: CGFloat = 1.012
+    static let expandedContentScale: CGFloat = 1.05
+    static let backgroundContentScale: CGFloat = 0.94
+    static let backgroundContentOpacity: CGFloat = 0.62
 }
 
 enum TaskMorphListSpacing {
@@ -27,9 +30,9 @@ enum TaskMorphListSpacing {
     static func expandedInsets(from compactInsets: EdgeInsets) -> EdgeInsets {
         EdgeInsets(
             top: compactInsets.top + expandedExternalSeparation,
-            leading: max(0, compactInsets.leading - TaskMorphSurfaceMetrics.horizontalInset),
+            leading: min(compactInsets.leading, TaskMorphSurfaceMetrics.expandedScreenEdgeInset),
             bottom: compactInsets.bottom + expandedExternalSeparation,
-            trailing: max(0, compactInsets.trailing - TaskMorphSurfaceMetrics.horizontalInset)
+            trailing: min(compactInsets.trailing, TaskMorphSurfaceMetrics.expandedScreenEdgeInset)
         )
     }
 }
@@ -396,26 +399,41 @@ struct TaskMorphContainer<Content: View>: View {
     let state: TaskMorphVisualState
     let isActive: Bool
     let hidesRealSurfaceForHero: Bool
+    var isBackgroundDeemphasized = false
     @ViewBuilder let content: () -> Content
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             content()
         }
+        .scaleEffect(
+            x: activeContentScale,
+            y: activeContentScale,
+            anchor: .top
+        )
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .padding(.horizontal, usesExpandedGeometry ? TaskMorphSurfaceMetrics.horizontalInset : 0)
         .padding(.vertical, usesExpandedGeometry ? TaskMorphSurfaceMetrics.verticalInset : 0)
         .background {
             RoundedRectangle(cornerRadius: surfaceCornerRadius, style: .continuous)
-                .fill(isActive ? AppTheme.colors.surface : Color.clear)
+                .fill(AppTheme.colors.surface)
+                .opacity(usesExpandedGeometry ? 1 : 0)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: surfaceCornerRadius, style: .continuous)
+                .strokeBorder(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
+                .opacity(usesExpandedGeometry ? 1 : 0)
         }
         .clipShape(RoundedRectangle(cornerRadius: clippingCornerRadius, style: .continuous))
         .shadow(
-            color: usesExpandedGeometry ? Color.black.opacity(0.09) : .clear,
-            radius: usesExpandedGeometry ? 12 : 0,
-            y: usesExpandedGeometry ? 5 : 0
+            color: usesExpandedGeometry ? Color.black.opacity(0.14) : .clear,
+            radius: usesExpandedGeometry ? 16 : 0,
+            y: usesExpandedGeometry ? 7 : 0
         )
-        .opacity(hidesRealSurfaceForHero ? 0 : 1)
+        .scaleEffect(backgroundContentScale)
+        .opacity(hidesRealSurfaceForHero ? 0 : backgroundContentOpacity)
         .accessibilityElement(children: .contain)
     }
 
@@ -430,9 +448,80 @@ struct TaskMorphContainer<Content: View>: View {
     }
 
     private var clippingCornerRadius: CGFloat {
-        isActive ? surfaceCornerRadius : 0
+        usesExpandedGeometry ? surfaceCornerRadius : 0
     }
 
+    private var activeContentScale: CGFloat {
+        guard reduceMotion == false, usesExpandedGeometry else { return 1 }
+        return TaskMorphSurfaceMetrics.expandedContentScale
+    }
+
+    private var backgroundContentScale: CGFloat {
+        guard reduceMotion == false, isBackgroundDeemphasized else { return 1 }
+        return TaskMorphSurfaceMetrics.backgroundContentScale
+    }
+
+    private var backgroundContentOpacity: CGFloat {
+        isBackgroundDeemphasized
+            ? TaskMorphSurfaceMetrics.backgroundContentOpacity
+            : 1
+    }
+
+}
+
+private struct TaskMorphBackgroundDepthModifier: ViewModifier {
+    let isDeemphasized: Bool
+    let anchor: UnitPoint
+    let onDismiss: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .allowsHitTesting(isDeemphasized == false)
+            .accessibilityHidden(isDeemphasized)
+            .scaleEffect(
+                reduceMotion || isDeemphasized == false
+                    ? 1
+                    : TaskMorphSurfaceMetrics.backgroundContentScale,
+                anchor: anchor
+            )
+            .opacity(
+                isDeemphasized
+                    ? TaskMorphSurfaceMetrics.backgroundContentOpacity
+                    : 1
+            )
+            .overlay {
+                if isDeemphasized {
+                    Button(action: onDismiss) {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("收起任务详情")
+                    .accessibilityHint("保存更改并收起当前任务")
+                }
+            }
+    }
+}
+
+extension View {
+    /// Applies the same compositor-only depth treatment as inactive task rows
+    /// and temporarily converts the visible surface into a dismissal target.
+    func taskMorphBackgroundDepth(
+        isDeemphasized: Bool,
+        anchor: UnitPoint = .center,
+        onDismiss: @escaping () -> Void
+    ) -> some View {
+        modifier(
+            TaskMorphBackgroundDepthModifier(
+                isDeemphasized: isDeemphasized,
+                anchor: anchor,
+                onDismiss: onDismiss
+            )
+        )
+    }
 }
 
 struct TaskMorphDisclosure<Content: View>: View {
@@ -441,7 +530,6 @@ struct TaskMorphDisclosure<Content: View>: View {
     let onMeasuredHeight: ((CGFloat) -> Void)?
     @ViewBuilder let content: () -> Content
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var measuredHeight: CGFloat = 0
     @State private var hasMeasuredExpandedContent = false
 
@@ -465,10 +553,6 @@ struct TaskMorphDisclosure<Content: View>: View {
             } action: { height in
                 updateMeasuredHeight(height)
             }
-            .scaleEffect(
-                reduceMotion || isExpanded == false ? 1 : TaskMorphSurfaceMetrics.expandedContentScale,
-                anchor: .top
-            )
             .frame(height: isExpanded ? resolvedExpandedHeight : 0, alignment: .top)
             .clipped()
             .allowsHitTesting(isExpanded)

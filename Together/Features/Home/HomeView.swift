@@ -675,6 +675,11 @@ struct HomeView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .taskMorphBackgroundDepth(
+                    isDeemphasized: morphSession.visualState == .expanded,
+                    anchor: .leading,
+                    onDismiss: morphSession.requestDismissal
+                )
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .contentShape(Rectangle())
@@ -913,6 +918,10 @@ struct HomeView: View {
                 )
         }
         .frame(maxWidth: .infinity, alignment: .center)
+        .taskMorphBackgroundDepth(
+            isDeemphasized: morphSession.visualState == .expanded,
+            onDismiss: morphSession.requestDismissal
+        )
     }
 
     @ViewBuilder
@@ -929,7 +938,8 @@ struct HomeView: View {
             TaskMorphContainer(
                 state: isActiveMorph ? morphSession.visualState : .compact,
                 isActive: isActiveMorph,
-                hidesRealSurfaceForHero: false
+                hidesRealSurfaceForHero: false,
+                isBackgroundDeemphasized: morphSession.visualState == .expanded && isActiveMorph == false
             ) {
                 let isExpanded = isActiveMorph && morphSession.visualState == .expanded
                 VStack(alignment: .leading, spacing: 0) {
@@ -1032,6 +1042,7 @@ struct HomeView: View {
             .applyCompletedSectionVisibility(
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
+            .zIndex(isActiveMorph ? 1 : 0)
         }
     }
 
