@@ -109,15 +109,27 @@ final class HomeMorphSession {
     private(set) var heroSourceFrame: CGRect?
     private(set) var heroTargetFrame: CGRect?
     private(set) var heroProgress: CGFloat = 0
+    private(set) var isCreationListRevealEnabled = false
+    private(set) var isCreationFlow = false
 
     @ObservationIgnored var onDismissIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCommitIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCompletionIntent: ((TaskMorphSubject) -> Void)?
+    @ObservationIgnored var onCreationRevealCompletionIntent: ((TaskMorphSubject, HomeMorphSessionToken) -> Void)?
 
     var isActive: Bool { phase != .idle }
     var isInteractive: Bool { phase == .active }
+    var isCreationOverlayVisible: Bool {
+        isCreationFlow && phase != .idle && phase != .relocating
+    }
+    var isFocusDepthActive: Bool {
+        if isCreationFlow {
+            return phase != .idle && phase != .relocating
+        }
+        return visualState == .expanded
+    }
     var isHeroVisible: Bool {
-        phase == .heroEntering && heroSourceFrame != nil && heroTargetFrame != nil
+        isCreationFlow && phase == .heroEntering && heroSourceFrame != nil && heroTargetFrame != nil
     }
 
     @discardableResult
@@ -130,10 +142,12 @@ final class HomeMorphSession {
         guard phase == .idle else { return nil }
         sessionID = UUID()
         subject = .draft(domain: domain, id: id)
+        isCreationFlow = true
         self.placement = placement
         errorMessage = nil
         heroTargetFrame = nil
         heroProgress = 0
+        isCreationListRevealEnabled = false
 
         if let heroSourceFrame, Self.isValid(frame: heroSourceFrame) {
             self.heroSourceFrame = heroSourceFrame
@@ -155,11 +169,13 @@ final class HomeMorphSession {
         guard phase == .idle else { return nil }
         sessionID = UUID()
         subject = .persisted(domain: domain, id: id)
+        isCreationFlow = false
         self.placement = placement
         errorMessage = nil
         heroSourceFrame = nil
         heroTargetFrame = nil
         heroProgress = 0
+        isCreationListRevealEnabled = false
         // First establish ownership while the real container is still compact.
         // The caller advances to `.expanded` in a following render turn so the
         // opening animation is the exact geometric inverse of collapse.
@@ -215,6 +231,19 @@ final class HomeMorphSession {
         onCompletionIntent?(subject)
     }
 
+    func requestCreationRevealCompletion(
+        _ subject: TaskMorphSubject,
+        using token: HomeMorphSessionToken
+    ) {
+        guard isCreationFlow,
+              phase == .relocating,
+              self.subject == subject,
+              isCurrent(token),
+              isCreationListRevealEnabled
+        else { return }
+        onCreationRevealCompletionIntent?(subject, token)
+    }
+
     func beginSaving() -> HomeMorphSessionToken? {
         guard phase == .active, subject != nil else { return nil }
         errorMessage = nil
@@ -266,7 +295,13 @@ final class HomeMorphSession {
 
     func beginRelocating(using token: HomeMorphSessionToken) -> HomeMorphSessionToken? {
         guard phase == .collapsing, isCurrent(token) else { return nil }
+        isCreationListRevealEnabled = false
         return advance(to: .relocating)
+    }
+
+    func enableCreationListReveal(using token: HomeMorphSessionToken) {
+        guard isCreationFlow, phase == .relocating, isCurrent(token) else { return }
+        isCreationListRevealEnabled = true
     }
 
     func finishRelocating(using token: HomeMorphSessionToken) {
@@ -290,7 +325,16 @@ final class HomeMorphSession {
     }
 
     func isActive(_ domain: TaskMorphDomain, id: UUID) -> Bool {
-        subject?.domain == domain && subject?.id == id && isActive
+        isCreationFlow == false
+            && subject?.domain == domain
+            && subject?.id == id
+            && isActive
+    }
+
+    func isCreationListRevealTarget(_ domain: TaskMorphDomain, id: UUID) -> Bool {
+        isCreationFlow
+            && phase == .relocating
+            && subject == .persisted(domain: domain, id: id)
     }
 
     func currentToken() -> HomeMorphSessionToken? {
@@ -321,6 +365,8 @@ final class HomeMorphSession {
         heroSourceFrame = nil
         heroTargetFrame = nil
         heroProgress = 0
+        isCreationListRevealEnabled = false
+        isCreationFlow = false
     }
 
     private static func isValid(frame: CGRect) -> Bool {

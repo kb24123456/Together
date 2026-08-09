@@ -15,7 +15,7 @@ struct AppRootView: View {
             HomeRootContent(morphSession: morphSession)
                 .environment(appContext)
 
-            HomeHeroTransitionLayer(session: morphSession)
+            HomeCreationMorphOverlayLayer(session: morphSession)
                 .environment(appContext)
         }
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
@@ -42,7 +42,7 @@ struct HomeRootContent: View {
     }
 
     private var isMorphBackgroundDeemphasized: Bool {
-        morphSession.visualState == .expanded
+        morphSession.isFocusDepthActive
     }
 
     var body: some View {
@@ -71,6 +71,7 @@ struct HomeRootContent: View {
                     homeBottomDock(router: router)
                 }
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .background(Color.clear)
         .sheet(item: $activeOCRSourceSession, onDismiss: {
             guard let pendingOCRReviewSession else { return }
@@ -163,6 +164,7 @@ struct HomeRootContent: View {
             morphSession.onDismissIntent = nil
             morphSession.onCommitIntent = nil
             morphSession.onCompletionIntent = nil
+            morphSession.onCreationRevealCompletionIntent = nil
         }
         .task {
             StartupTrace.mark("AppRootView.visible")
@@ -242,6 +244,8 @@ struct HomeRootContent: View {
             .taskMorphBackgroundDepth(
                 isDeemphasized: isMorphBackgroundDeemphasized,
                 anchor: .top,
+                scalesContent: false,
+                actsAsDismissTarget: false,
                 onDismiss: morphSession.requestDismissal
             )
         }
@@ -268,6 +272,8 @@ struct HomeRootContent: View {
             .taskMorphBackgroundDepth(
                 isDeemphasized: isMorphBackgroundDeemphasized,
                 anchor: .topTrailing,
+                scalesContent: false,
+                actsAsDismissTarget: false,
                 onDismiss: morphSession.requestDismissal
             )
         }
@@ -278,7 +284,7 @@ struct HomeRootContent: View {
 
         return HomeBottomDock(
             showsAuxiliaryVisual: isAvailable,
-            showsAddButtonVisual: isAvailable && morphSession.subject?.isDraft != true,
+            showsAddButtonVisual: isAvailable && morphSession.isCreationOverlayVisible == false,
             isInteractive: isAvailable && morphSession.isActive == false,
             onCamera: openDirectOCRCamera,
             onPhotos: openDirectOCRPhotoPicker,
@@ -390,6 +396,9 @@ struct HomeRootContent: View {
         morphSession.onCompletionIntent = { subject in
             saveAndCollapseMorph(subject, completesTask: true)
         }
+        morphSession.onCreationRevealCompletionIntent = { subject, token in
+            finalizeCreationReveal(subject, token: token)
+        }
     }
 
     private func dismissMorph(_ subject: TaskMorphSubject) {
@@ -422,49 +431,45 @@ struct HomeRootContent: View {
         case .failed(let message):
             morphSession.failSaving(using: token, message: message)
         case .saved(let finalPlacement):
-            let requiresRelocation = morphSession.placement?.requiresRelocation(to: finalPlacement) ?? true
             let persisted = TaskMorphSubject.persisted(domain: subject.domain, id: subject.id)
-            let collapse = withAnimation(morphAnimation) {
-                morphSession.beginCollapseAfterSave(
+            var collapseToken: HomeMorphSessionToken?
+            withAnimation(
+                creationDissolveAnimation,
+                completionCriteria: .logicallyComplete
+            ) {
+                collapseToken = morphSession.beginCollapseAfterSave(
                     using: token,
                     persistedSubject: persisted,
                     finalPlacement: finalPlacement
                 )
-            }
-            guard let collapse else { return }
-            await waitForCollapse()
-            guard requiresRelocation else {
-                finishCreationWithoutRelocation(subject, collapse: collapse)
-                return
-            }
-            let relocation = withAnimation(relocationAnimation) {
-                morphSession.beginRelocating(using: collapse)
-            }
-            guard let relocation else { return }
-            relocateAndFinalizeCreation(subject)
-            await Task.yield()
-            withAnimation(relocationAnimation) {
-                morphSession.finishRelocating(using: relocation)
+            } completion: {
+                guard let collapseToken else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    guard morphSession.beginRelocating(using: collapseToken) != nil else { return }
+                    prepareCreationLanding(subject)
+                }
             }
         }
     }
 
     private func discardMorphCreation(_ subject: TaskMorphSubject) {
-        let collapse = withAnimation(morphAnimation) {
-            morphSession.beginDiscardCollapse()
-        }
-        guard let collapse else { return }
-        Task { @MainActor in
-            await waitForCollapse()
+        var collapseToken: HomeMorphSessionToken?
+        withAnimation(
+            morphAnimation,
+            completionCriteria: .logicallyComplete
+        ) {
+            collapseToken = morphSession.beginDiscardCollapse()
+        } completion: {
+            guard let collapseToken else { return }
             switch subject.domain {
             case .todo:
                 appContext.homeViewModel.discardTaskCreation()
             case .periodic:
                 appContext.routinesViewModel.discardMorphCreation()
             }
-            withAnimation(morphAnimation) {
-                morphSession.finishDiscard(using: collapse)
-            }
+            morphSession.finishDiscard(using: collapseToken)
         }
     }
 
@@ -509,23 +514,6 @@ struct HomeRootContent: View {
         }
     }
 
-    private func finishCreationWithoutRelocation(
-        _ subject: TaskMorphSubject,
-        collapse: HomeMorphSessionToken
-    ) {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            switch subject.domain {
-            case .todo:
-                appContext.homeViewModel.finalizeCommittedTaskCreation()
-            case .periodic:
-                appContext.routinesViewModel.finalizeMorphCreation()
-            }
-            morphSession.finishCollapse(using: collapse)
-        }
-    }
-
     private func finishDetailWithoutRelocation(
         _ subject: TaskMorphSubject,
         collapse: HomeMorphSessionToken
@@ -543,14 +531,33 @@ struct HomeRootContent: View {
         }
     }
 
-    private func relocateAndFinalizeCreation(_ subject: TaskMorphSubject) {
+    private func prepareCreationLanding(_ subject: TaskMorphSubject) {
         switch subject.domain {
         case .todo:
             appContext.homeViewModel.relocateMorphItem(subject.id)
-            appContext.homeViewModel.finalizeCommittedTaskCreation()
         case .periodic:
             appContext.routinesViewModel.relocateMorphTask(subject.id)
-            appContext.routinesViewModel.finalizeMorphCreation()
+        }
+    }
+
+    private func finalizeCreationReveal(
+        _ subject: TaskMorphSubject,
+        token: HomeMorphSessionToken
+    ) {
+        guard morphSession.isCurrent(token),
+              morphSession.phase == .relocating,
+              morphSession.subject == subject
+        else { return }
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            switch subject.domain {
+            case .todo:
+                appContext.homeViewModel.finalizeCommittedTaskCreation()
+            case .periodic:
+                appContext.routinesViewModel.finalizeMorphCreation()
+            }
+            morphSession.finishRelocating(using: token)
         }
     }
 
@@ -571,6 +578,10 @@ struct HomeRootContent: View {
 
     private var relocationAnimation: Animation {
         reduceMotion ? .easeInOut(duration: 0.14) : .smooth(duration: 0.28, extraBounce: 0)
+    }
+
+    private var creationDissolveAnimation: Animation {
+        reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22, extraBounce: 0)
     }
 
     private func waitForCollapse() async {

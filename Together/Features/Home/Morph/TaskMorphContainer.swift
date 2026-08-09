@@ -119,6 +119,12 @@ final class TaskMorphViewportCoordinator {
         rowFrames[id] = frame
     }
 
+    func isFrameVisible(_ frame: CGRect) -> Bool {
+        Self.isValid(viewportFrame)
+            && Self.isValid(frame)
+            && viewportFrame.intersects(frame)
+    }
+
 #if canImport(UIKit)
     func installScrollView(_ scrollView: UIScrollView, token: UUID) {
         self.scrollView = scrollView
@@ -400,9 +406,11 @@ struct TaskMorphContainer<Content: View>: View {
     let isActive: Bool
     let hidesRealSurfaceForHero: Bool
     var isBackgroundDeemphasized = false
+    var isBackgroundDimmed = false
     @ViewBuilder let content: () -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -433,7 +441,8 @@ struct TaskMorphContainer<Content: View>: View {
             y: usesExpandedGeometry ? 7 : 0
         )
         .scaleEffect(backgroundContentScale)
-        .opacity(hidesRealSurfaceForHero ? 0 : backgroundContentOpacity)
+        .brightness(backgroundBrightness)
+        .opacity(hidesRealSurfaceForHero ? 0 : backgroundContentOpacity * backgroundDimOpacity)
         .accessibilityElement(children: .contain)
     }
 
@@ -467,21 +476,33 @@ struct TaskMorphContainer<Content: View>: View {
             : 1
     }
 
+    private var backgroundBrightness: Double {
+        guard isBackgroundDeemphasized || isBackgroundDimmed else { return 0 }
+        return colorScheme == .dark ? -0.06 : -0.10
+    }
+
+    private var backgroundDimOpacity: CGFloat {
+        isBackgroundDimmed ? 0.78 : 1
+    }
+
 }
 
 private struct TaskMorphBackgroundDepthModifier: ViewModifier {
     let isDeemphasized: Bool
     let anchor: UnitPoint
+    let scalesContent: Bool
+    let actsAsDismissTarget: Bool
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         content
             .allowsHitTesting(isDeemphasized == false)
             .accessibilityHidden(isDeemphasized)
             .scaleEffect(
-                reduceMotion || isDeemphasized == false
+                reduceMotion || isDeemphasized == false || scalesContent == false
                     ? 1
                     : TaskMorphSurfaceMetrics.backgroundContentScale,
                 anchor: anchor
@@ -491,8 +512,13 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
                     ? TaskMorphSurfaceMetrics.backgroundContentOpacity
                     : 1
             )
+            .brightness(
+                isDeemphasized
+                    ? (colorScheme == .dark ? -0.06 : -0.10)
+                    : 0
+            )
             .overlay {
-                if isDeemphasized {
+                if isDeemphasized, actsAsDismissTarget {
                     Button(action: onDismiss) {
                         Rectangle()
                             .fill(Color.clear)
@@ -512,12 +538,16 @@ extension View {
     func taskMorphBackgroundDepth(
         isDeemphasized: Bool,
         anchor: UnitPoint = .center,
+        scalesContent: Bool = true,
+        actsAsDismissTarget: Bool = true,
         onDismiss: @escaping () -> Void
     ) -> some View {
         modifier(
             TaskMorphBackgroundDepthModifier(
                 isDeemphasized: isDeemphasized,
                 anchor: anchor,
+                scalesContent: scalesContent,
+                actsAsDismissTarget: actsAsDismissTarget,
                 onDismiss: onDismiss
             )
         )
@@ -531,7 +561,6 @@ struct TaskMorphDisclosure<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @State private var measuredHeight: CGFloat = 0
-    @State private var hasMeasuredExpandedContent = false
 
     init(
         isExpanded: Bool,
@@ -557,31 +586,20 @@ struct TaskMorphDisclosure<Content: View>: View {
             .clipped()
             .allowsHitTesting(isExpanded)
             .accessibilityHidden(isExpanded == false)
-            .onChange(of: isExpanded) { _, expanded in
-                if expanded == false {
-                    hasMeasuredExpandedContent = false
-                }
-            }
     }
 
     private var resolvedExpandedHeight: CGFloat {
-        hasMeasuredExpandedContent
-            ? measuredHeight
-            : max(measuredHeight, estimatedHeight)
+        measuredHeight > 0 ? measuredHeight : estimatedHeight
     }
 
     private func updateMeasuredHeight(_ height: CGFloat) {
         guard height.isFinite, height > 0 else { return }
         onMeasuredHeight?(height)
-        let shouldResolveExpandedMeasurement = isExpanded && hasMeasuredExpandedContent == false
-        guard abs(height - measuredHeight) > 0.5 || shouldResolveExpandedMeasurement else { return }
+        guard abs(height - measuredHeight) > 0.5 else { return }
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) {
             measuredHeight = height
-            if isExpanded {
-                hasMeasuredExpandedContent = true
-            }
         }
     }
 }
@@ -640,56 +658,297 @@ extension View {
             )
         )
     }
+
+    func taskCreationListReveal(
+        isTarget: Bool,
+        isEnabled: Bool,
+        onCompleted: @escaping () -> Void
+    ) -> some View {
+        modifier(
+            TaskCreationListRevealModifier(
+                isTarget: isTarget,
+                isEnabled: isEnabled,
+                onCompleted: onCompleted
+            )
+        )
+    }
 }
 
-struct HomeHeroTransitionLayer: View {
-    @Bindable var session: HomeMorphSession
+private struct TaskCreationListRevealModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    let isTarget: Bool
+    let isEnabled: Bool
+    let onCompleted: () -> Void
+
+    @State private var naturalHeight: CGFloat = 0
+    @State private var revealProgress: CGFloat = 0
+    @State private var hasStarted = false
+    @State private var revealTask: Task<Void, Never>?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isTarget {
+            content
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    guard height.isFinite, height > 0 else { return }
+                    naturalHeight = max(naturalHeight, height)
+                    startRevealIfReady()
+                }
+                .frame(height: naturalHeight * revealProgress, alignment: .top)
+                .clipped()
+                .opacity(revealProgress)
+                .scaleEffect(0.985 + 0.015 * revealProgress, anchor: .top)
+                .onChange(of: isEnabled) { _, _ in
+                    startRevealIfReady()
+                }
+                .onDisappear {
+                    revealTask?.cancel()
+                    revealTask = nil
+                    if hasStarted {
+                        onCompleted()
+                    }
+                }
+        } else {
+            content
+        }
+    }
+
+    private var revealAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .smooth(duration: 0.3, extraBounce: 0)
+    }
+
+    private func startRevealIfReady() {
+        guard isTarget,
+              isEnabled,
+              naturalHeight > 0,
+              hasStarted == false
+        else { return }
+
+        hasStarted = true
+        revealProgress = 0
+        revealTask?.cancel()
+        revealTask = Task { @MainActor in
+            await Task.yield()
+            guard Task.isCancelled == false else { return }
+            withAnimation(
+                revealAnimation,
+                completionCriteria: .logicallyComplete
+            ) {
+                revealProgress = 1
+            } completion: {
+                guard Task.isCancelled == false else { return }
+                onCompleted()
+            }
+        }
+    }
+}
+
+struct HomeCreationMorphOverlayLayer: View {
+    @Bindable var session: HomeMorphSession
+
+    @Environment(AppContext.self) private var appContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var measuredTodoEditorContentHeight: CGFloat = 0
+    @State private var measuredTodoEditorSubjectID: UUID?
+
     var body: some View {
-        GeometryReader { _ in
-            if let source = session.heroSourceFrame,
-               let target = session.heroTargetFrame,
-               session.isHeroVisible {
-                let frame = interpolatedFrame(from: source, to: target, progress: session.heroProgress)
+        GeometryReader { proxy in
+            if let subject = session.subject, session.isCreationOverlayVisible {
+                let rootFrame = proxy.frame(in: .global)
+                let editorFrame = editorFrame(in: proxy)
+                let dissolvedFrame = dissolvedFrame(from: editorFrame)
+                let frame = currentFrame(
+                    rootFrame: rootFrame,
+                    editorFrame: editorFrame,
+                    dissolvedFrame: dissolvedFrame
+                )
+
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { }
+
+                Color.black
+                    .opacity(creationScrimOpacity * backgroundScrimProgress)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
                 RoundedRectangle(
-                    cornerRadius: interpolatedCornerRadius(from: source, to: target, progress: session.heroProgress),
+                    cornerRadius: surfaceCornerRadius(frame: frame),
                     style: .continuous
                 )
                 .fill(AppTheme.colors.surface)
                 .overlay {
+                    RoundedRectangle(
+                        cornerRadius: surfaceCornerRadius(frame: frame),
+                        style: .continuous
+                    )
+                    .strokeBorder(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
+                }
+                .opacity(surfaceChromeOpacity)
+                .shadow(
+                    color: .black.opacity(0.2 * surfaceChromeOpacity),
+                    radius: 20 * surfaceChromeOpacity,
+                    y: 9 * surfaceChromeOpacity
+                )
+                .overlay {
+                    editorContent(for: subject)
+                        .padding(.horizontal, TaskMorphSurfaceMetrics.horizontalInset)
+                        .padding(.vertical, TaskMorphSurfaceMetrics.verticalInset)
+                        .scaleEffect(editorContentScale, anchor: .top)
+                        .opacity(editorContentOpacity)
+                        .allowsHitTesting(session.isInteractive)
+                }
+                .overlay {
                     Image(systemName: "plus")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.colors.title)
-                        .opacity(1 - session.heroProgress)
+                        .opacity(heroSourceGlyphOpacity)
                 }
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: surfaceCornerRadius(frame: frame),
+                        style: .continuous
+                    )
+                )
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-                .task(id: target) {
-                    await runHeroIfCurrent()
+                .accessibilityElement(children: .contain)
+                .accessibilityAction(.escape) {
+                    session.requestDismissal()
+                }
+                .task(id: globalFrame(editorFrame, in: rootFrame)) {
+                    session.recordHeroTargetFrame(globalFrame(editorFrame, in: rootFrame))
+                    runHeroIfCurrent()
                 }
             }
         }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
+        .ignoresSafeArea(.container, edges: .all)
     }
 
-    private func runHeroIfCurrent() async {
+    @ViewBuilder
+    private func editorContent(for subject: TaskMorphSubject) -> some View {
+        ScrollView {
+            Group {
+                switch subject.domain {
+                case .todo:
+                    if let creation = appContext.homeViewModel.taskCreationSession,
+                       creation.id == subject.id {
+                        HomeTaskCreationCard(
+                            viewModel: appContext.homeViewModel,
+                            session: creation,
+                            isExpanded: true,
+                            isInteractive: session.isInteractive,
+                            onDiscard: { session.requestDismissal() },
+                            onCommit: { session.requestCommit() }
+                        )
+                        .id(creation.id)
+                    }
+                case .periodic:
+                    if let creation = appContext.routinesViewModel.creationSession,
+                       creation.id == subject.id {
+                        PeriodicTaskCreationCard(
+                            viewModel: appContext.routinesViewModel,
+                            session: creation,
+                            isInteractive: session.isInteractive,
+                            onDiscard: { session.requestDismissal() },
+                            onCommit: { session.requestCommit() }
+                        )
+                        .id(creation.id)
+                    }
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                guard subject.domain == .todo, height.isFinite, height > 0 else { return }
+                measuredTodoEditorSubjectID = subject.id
+                measuredTodoEditorContentHeight = height
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private func runHeroIfCurrent() {
         guard let token = session.currentToken(), session.phase == .heroEntering else { return }
-        await Task.yield()
-        guard session.isCurrent(token) else { return }
-        withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.92)) {
+        withAnimation(
+            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.92),
+            completionCriteria: .logicallyComplete
+        ) {
             session.setHeroProgress(1, using: token)
-        }
-        if reduceMotion == false {
-            try? await Task.sleep(for: .milliseconds(340))
-        }
-        guard Task.isCancelled == false else { return }
-        withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.9)) {
+        } completion: {
+            guard session.isCurrent(token) else { return }
             session.finishHero(using: token)
+        }
+    }
+
+    private var creationScrimOpacity: Double {
+        colorScheme == .dark ? 0.12 : 0.18
+    }
+
+    private func editorFrame(in proxy: GeometryProxy) -> CGRect {
+        let horizontalInset: CGFloat = 12
+        let verticalInset: CGFloat = 14
+        let availableHeight = max(120, proxy.size.height - verticalInset * 2)
+        let isTodo = session.subject?.domain == .todo
+        let preferredHeight: CGFloat = if isTodo {
+            if measuredTodoEditorSubjectID == session.subject?.id {
+                max(206, measuredTodoEditorContentHeight + 2 * TaskMorphSurfaceMetrics.verticalInset)
+            } else {
+                206
+            }
+        } else {
+            560
+        }
+        let height = min(preferredHeight, availableHeight)
+        let y: CGFloat = if isTodo {
+            max(verticalInset, proxy.size.height - height - 10)
+        } else {
+            max(verticalInset, (proxy.size.height - height) / 2)
+        }
+        return CGRect(
+            x: horizontalInset,
+            y: y,
+            width: max(120, proxy.size.width - horizontalInset * 2),
+            height: height
+        )
+    }
+
+    private func dissolvedFrame(from editorFrame: CGRect) -> CGRect {
+        CGRect(
+            x: editorFrame.minX + editorFrame.width * 0.09,
+            y: editorFrame.midY - 0.5,
+            width: editorFrame.width * 0.82,
+            height: 1
+        )
+    }
+
+    private func currentFrame(
+        rootFrame: CGRect,
+        editorFrame: CGRect,
+        dissolvedFrame: CGRect
+    ) -> CGRect {
+        switch session.phase {
+        case .heroEntering:
+            guard let source = session.heroSourceFrame else { return editorFrame }
+            return interpolatedFrame(
+                from: localFrame(source, in: rootFrame),
+                to: editorFrame,
+                progress: session.heroProgress
+            )
+        case .active, .saving:
+            return editorFrame
+        case .collapsing:
+            return dissolvedFrame
+        case .relocating, .idle:
+            return dissolvedFrame
         }
     }
 
@@ -702,9 +961,73 @@ struct HomeHeroTransitionLayer: View {
         )
     }
 
-    private func interpolatedCornerRadius(from source: CGRect, to target: CGRect, progress: CGFloat) -> CGFloat {
-        let start = min(source.width, source.height) / 2
-        let end = TaskMorphSurfaceMetrics.compactCornerRadius
-        return start + (end - start) * progress
+    private func localFrame(_ globalFrame: CGRect, in rootFrame: CGRect) -> CGRect {
+        globalFrame.offsetBy(dx: -rootFrame.minX, dy: -rootFrame.minY)
+    }
+
+    private func globalFrame(_ localFrame: CGRect, in rootFrame: CGRect) -> CGRect {
+        localFrame.offsetBy(dx: rootFrame.minX, dy: rootFrame.minY)
+    }
+
+    private func surfaceCornerRadius(frame: CGRect) -> CGFloat {
+        if session.phase == .heroEntering {
+            let source = session.heroSourceFrame ?? frame
+            let start = min(source.width, source.height) / 2
+            return start + (TaskMorphSurfaceMetrics.expandedCornerRadius - start) * session.heroProgress
+        }
+        return session.phase == .collapsing
+            ? TaskMorphSurfaceMetrics.compactCornerRadius
+            : TaskMorphSurfaceMetrics.expandedCornerRadius
+    }
+
+    private var surfaceChromeOpacity: CGFloat {
+        switch session.phase {
+        case .heroEntering:
+            1
+        case .collapsing, .relocating, .idle:
+            0
+        case .active, .saving:
+            1
+        }
+    }
+
+    private var backgroundScrimProgress: CGFloat {
+        switch session.phase {
+        case .heroEntering:
+            session.heroProgress
+        case .active, .saving:
+            1
+        case .collapsing, .relocating, .idle:
+            0
+        }
+    }
+
+    private var editorContentOpacity: CGFloat {
+        switch session.phase {
+        case .heroEntering:
+            min(max((session.heroProgress - 0.18) / 0.82, 0), 1)
+        case .active, .saving:
+            1
+        case .collapsing, .idle, .relocating:
+            0
+        }
+    }
+
+    private var editorContentScale: CGFloat {
+        guard reduceMotion == false else { return 1 }
+        return switch session.phase {
+        case .heroEntering:
+            1 + (TaskMorphSurfaceMetrics.expandedContentScale - 1) * session.heroProgress
+        case .active, .saving:
+            TaskMorphSurfaceMetrics.expandedContentScale
+        case .collapsing:
+            0.985
+        case .relocating, .idle:
+            1
+        }
+    }
+
+    private var heroSourceGlyphOpacity: CGFloat {
+        session.phase == .heroEntering ? 1 - session.heroProgress : 0
     }
 }

@@ -3,7 +3,7 @@ import Testing
 @testable import Together
 
 @MainActor
-@Suite("Home list-owned morph session")
+@Suite("Home morph session")
 struct HomeMorphSessionTests {
     @Test func viewportMotionSplitsRealHeightAcrossBothSides() {
         let heightDelta: CGFloat = 300
@@ -50,6 +50,8 @@ struct HomeMorphSessionTests {
         #expect(model.visualState == .editing)
         #expect(model.phase == .active)
         #expect(model.placement == placement)
+        #expect(model.isCreationFlow)
+        #expect(model.isCreationOverlayVisible)
         #expect(model.isCurrent(token))
     }
 
@@ -117,7 +119,7 @@ struct HomeMorphSessionTests {
         #expect(model.errorMessage == "保存失败")
     }
 
-    @Test func creationCollapsesBeforeRelocationAndKeepsUUID() throws {
+    @Test func creationDissolvesBeforeListRevealAndKeepsUUID() throws {
         let model = HomeMorphSession()
         let id = UUID()
         let provisional = todoPlacement(id: id)
@@ -147,8 +149,45 @@ struct HomeMorphSessionTests {
 
         let relocating = try #require(model.beginRelocating(using: collapse))
         #expect(model.phase == .relocating)
+        #expect(model.isCreationListRevealTarget(.todo, id: id))
+        #expect(model.isCreationOverlayVisible == false)
+        #expect(model.isCreationListRevealEnabled == false)
+        model.enableCreationListReveal(using: relocating)
+        #expect(model.isCreationListRevealEnabled)
+        #expect(model.isFocusDepthActive == false)
         model.finishRelocating(using: relocating)
         #expect(model.phase == .idle)
+        #expect(model.isCreationFlow == false)
+    }
+
+    @Test func creationRevealCompletionRequiresEnabledCurrentPhase() throws {
+        let model = HomeMorphSession()
+        let id = UUID()
+        let subject = TaskMorphSubject.persisted(domain: .todo, id: id)
+        var completedSubject: TaskMorphSubject?
+        model.onCreationRevealCompletionIntent = { subject, _ in
+            completedSubject = subject
+        }
+
+        _ = try #require(
+            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id), heroSourceFrame: nil)
+        )
+        let saving = try #require(model.beginSaving())
+        let collapse = try #require(
+            model.beginCollapseAfterSave(
+                using: saving,
+                persistedSubject: subject,
+                finalPlacement: todoPlacement(id: id)
+            )
+        )
+        let relocating = try #require(model.beginRelocating(using: collapse))
+
+        model.requestCreationRevealCompletion(subject, using: relocating)
+        #expect(completedSubject == nil)
+
+        model.enableCreationListReveal(using: relocating)
+        model.requestCreationRevealCompletion(subject, using: relocating)
+        #expect(completedSubject == subject)
     }
 
     @Test func staleAnimationCallbackCannotFinishNewerPhase() throws {

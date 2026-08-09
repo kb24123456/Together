@@ -1,13 +1,14 @@
 ---
 status: accepted
 supersedes: ADR-0020
+creation-path-superseded-by: ADR-0023
 ---
 
 # 首页任务采用列表拥有的原地 Morph 容器
 
 ## 决策
 
-首页待办与定期任务统一由 `ScrollView + LazyVStack` 承载。每个业务 UUID 只对应一个 `TaskMorphContainer`，容器在 `.compact / .editing / .expanded` 之间改变真实布局高度和内部内容。详情不再进入根级 Modal、窗口级 Overlay 或独立 Sheet。
+首页待办与定期任务统一由 `ScrollView + LazyVStack` 承载。已有任务的每个业务 UUID 只对应一个 `TaskMorphContainer`，容器在 `.compact / .expanded` 之间改变真实布局高度和内部内容。详情不再进入根级 Modal、窗口级 Overlay 或独立 Sheet。本 ADR 的列表内创建决策已由 ADR-0023 取代。
 
 已有任务展开采用“准备接管 + 真实行高 + 真实视口位移”的双向外撑。打开事件先在无动画 transaction 中让同一 UUID 的容器取得活跃所有权、保持 `.compact` 几何，并预挂载裁切为零高的详情；下一次渲染才以统一 spring 执行 `p: 0 -> 1`。任务内容不参与整组 opacity 淡入；卡片背景、描边、圆角、阴影、内边距、详情裁切和外部呼吸间距随 `p` 连续显现。关闭保持所有权不变并用同一端点执行 `p: 1 -> 0`，到达紧凑端点后才原子释放，因此是展开的严格逆向。
 

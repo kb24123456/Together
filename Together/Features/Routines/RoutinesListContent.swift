@@ -43,8 +43,6 @@ struct RoutinesListContent: View {
     @State private var frozenSummary: RoutineDimensionSummary?
     @State private var frozenStatusMessage: String?
     @State private var frozenSelectedCycle: PeriodicCycle?
-    @State private var pendingDraftFrame: CGRect?
-    @State private var heroTargetCaptureID: UUID?
     @State private var taskMorphViewport = TaskMorphViewportCoordinator()
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
@@ -53,20 +51,7 @@ struct RoutinesListContent: View {
     private let listTopAnchor = "routines-list-top"
 
     private var currentTasks: [PeriodicTask] {
-        let tasks = frozenTasks ?? viewModel.currentTasks
-        guard let draftID = activePeriodicDraftID else { return tasks }
-        return tasks.filter { $0.id != draftID }
-    }
-
-    private var activePeriodicDraftID: UUID? {
-        guard case .draft(.periodic, let id) = morphSession.subject else {
-            if case .persisted(.periodic, let id) = morphSession.subject,
-               viewModel.creationSession?.id == id {
-                return id
-            }
-            return nil
-        }
-        return id
+        frozenTasks ?? viewModel.currentTasks
     }
 
     private var displayedCycle: PeriodicCycle {
@@ -85,6 +70,21 @@ struct RoutinesListContent: View {
                         withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) {
                             scrollProxy.scrollTo(listTopAnchor, anchor: .top)
                         }
+                    }
+                    .task(id: morphSession.phase) {
+                        guard morphSession.phase == .relocating,
+                              morphSession.isCreationFlow,
+                              case .persisted(.periodic, let taskID) = morphSession.subject,
+                              let token = morphSession.currentToken()
+                        else { return }
+                        await Task.yield()
+                        var transaction = Transaction()
+                        transaction.animation = nil
+                        withTransaction(transaction) {
+                            scrollProxy.scrollTo(taskID, anchor: .center)
+                        }
+                        await Task.yield()
+                        morphSession.enableCreationListReveal(using: token)
                     }
             }
         }
@@ -179,7 +179,7 @@ struct RoutinesListContent: View {
         .opacity(isPresented ? 1 : 0)
         .animation(modeHeaderAnimation, value: isPresented)
         .taskMorphBackgroundDepth(
-            isDeemphasized: morphSession.visualState == .expanded,
+            isDeemphasized: morphSession.isFocusDepthActive,
             anchor: .top,
             onDismiss: morphSession.requestDismissal
         )
@@ -355,7 +355,7 @@ struct RoutinesListContent: View {
             .scrollIndicators(.hidden)
             .applyScrollEdgeProtection()
             .transaction { transaction in
-                if morphSession.phase == .relocating {
+                if morphSession.phase == .relocating, morphSession.isCreationFlow == false {
                     // Cycle changes and the destination row are prepared behind
                     // the focus surface without a second SwiftUI transition.
                     transaction.animation = nil
@@ -367,19 +367,15 @@ struct RoutinesListContent: View {
 
     @ViewBuilder
     private func taskStream(scrollProxy: ScrollViewProxy) -> some View {
-        if activePeriodicDraftID != nil {
-            periodicDraftSlot(scrollProxy: scrollProxy)
-        }
-
         switch frozenTaskStreamPresentation ?? viewModel.taskStreamPresentation {
         case .loading:
             routinesLoadingState
         case .failure:
             routinesFailureState
         case .allEmpty:
-            if activePeriodicDraftID == nil { routinesEmptyState }
+            routinesEmptyState
         case .cycleEmpty:
-            if activePeriodicDraftID == nil { emptyTabState }
+            emptyTabState
         case .content:
             ForEach(Array(currentTasks.enumerated()), id: \.element.id) { index, task in
                 routineRow(
@@ -479,11 +475,14 @@ struct RoutinesListContent: View {
         scrollProxy: ScrollViewProxy
     ) -> some View {
         let isActiveMorph = morphSession.isActive(.periodic, id: task.id)
+        let isCreationRevealTarget = morphSession.isCreationListRevealTarget(.periodic, id: task.id)
         return TaskMorphContainer(
             state: isActiveMorph ? morphSession.visualState : .compact,
             isActive: isActiveMorph,
             hidesRealSurfaceForHero: false,
-            isBackgroundDeemphasized: morphSession.visualState == .expanded && isActiveMorph == false
+            isBackgroundDeemphasized: morphSession.isFocusDepthActive
+                && isActiveMorph == false
+                && isCreationRevealTarget == false
         ) {
             let isExpanded = isActiveMorph && morphSession.visualState == .expanded
             VStack(alignment: .leading, spacing: 0) {
@@ -540,6 +539,16 @@ struct RoutinesListContent: View {
                 trailing: rowHorizontalInset
             )
         )
+        .taskCreationListReveal(
+            isTarget: isCreationRevealTarget,
+            isEnabled: morphSession.isCreationListRevealEnabled,
+            onCompleted: {
+                guard let subject = morphSession.subject,
+                      let token = morphSession.currentToken()
+                else { return }
+                morphSession.requestCreationRevealCompletion(subject, using: token)
+            }
+        )
         .taskMorphViewportProgress(
             isActiveMorph && morphSession.visualState == .expanded ? 1 : 0,
             id: task.id,
@@ -571,6 +580,8 @@ struct RoutinesListContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 12))
         .opacity(isPresented ? 1 : 0)
+        .allowsHitTesting(isCreationRevealTarget == false)
+        .accessibilityHidden(isCreationRevealTarget)
         .animation(
             modeRowAnimation(index: index, taskCount: taskCount),
             value: isPresented
@@ -647,88 +658,6 @@ struct RoutinesListContent: View {
                 )
             }
         )
-    }
-
-    @ViewBuilder
-    private func periodicDraftSlot(scrollProxy: ScrollViewProxy) -> some View {
-        if let session = viewModel.creationSession,
-           activePeriodicDraftID == session.id,
-           let placement = morphSession.placement {
-            TaskMorphContainer(
-                state: morphSession.visualState,
-                isActive: true,
-                hidesRealSurfaceForHero: morphSession.phase == .heroEntering
-            ) {
-                switch morphSession.visualState {
-                case .compact, .expanded:
-                    periodicDraftCompactContent(session: session, scrollProxy: scrollProxy)
-                case .editing:
-                    PeriodicTaskCreationCard(
-                        viewModel: viewModel,
-                        session: session,
-                        isInteractive: morphSession.isInteractive,
-                        onDiscard: { morphSession.requestDismissal() },
-                        onCommit: { morphSession.requestCommit() }
-                    )
-                }
-            }
-            .id(placement.presentationID)
-            .taskMorphListPlacement(
-                state: morphSession.visualState,
-                isActive: true,
-                compactInsets: EdgeInsets(
-                    top: rowTopInset,
-                    leading: rowHorizontalInset,
-                    bottom: rowBottomInset,
-                    trailing: rowHorizontalInset
-                )
-            )
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
-            } action: { frame in
-                pendingDraftFrame = frame
-                guard heroTargetCaptureID == session.id else { return }
-                morphSession.recordHeroTargetFrame(frame)
-            }
-            .task(id: session.id) {
-                guard morphSession.phase == .heroEntering else { return }
-                var transaction = Transaction()
-                transaction.animation = nil
-                withTransaction(transaction) {
-                    scrollProxy.scrollTo(placement.presentationID, anchor: .center)
-                }
-                await Task.yield()
-                await Task.yield()
-                heroTargetCaptureID = session.id
-                if let pendingDraftFrame {
-                    morphSession.recordHeroTargetFrame(pendingDraftFrame)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func periodicDraftCompactContent(
-        session: PeriodicTaskCreationSession,
-        scrollProxy: ScrollViewProxy
-    ) -> some View {
-        if session.phase == .committed,
-           let task = viewModel.tasks.first(where: { $0.id == session.id }) {
-            routineTaskRow(task, isDetailPresented: false, isDetailExpanded: false, scrollProxy: scrollProxy)
-        } else {
-            HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
-                    .strokeBorder(
-                        AppTheme.colors.body.opacity(0.38),
-                        style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
-                    )
-                    .frame(width: 40, height: 40)
-                Text(session.draft.title.isEmpty ? "新定期任务" : session.draft.title)
-                    .font(AppTheme.typography.sized(19, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-                    .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            }
-        }
     }
 
     private func refreshWhenNextDeferredTaskResumes() async {
