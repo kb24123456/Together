@@ -183,6 +183,21 @@ final class HomeViewModel {
         taskCreationSession = session
     }
 
+    func updateTaskCreationSchedule(
+        date: Date,
+        time: Date?,
+        reminderOffset: TimeInterval?
+    ) {
+        updateTaskCreationDraft { draft in
+            applySchedule(
+                date: date,
+                time: time,
+                reminderOffset: reminderOffset,
+                to: &draft
+            )
+        }
+    }
+
     func discardTaskCreation() {
         guard taskCreationSession?.phase == .editing else { return }
         taskCreationSession = nil
@@ -566,17 +581,26 @@ final class HomeViewModel {
         detailDraft = draft
     }
 
+    func updateDraftSchedule(
+        date: Date,
+        time: Date?,
+        reminderOffset: TimeInterval?
+    ) {
+        guard var draft = detailDraft else { return }
+        applySchedule(
+            date: date,
+            time: time,
+            reminderOffset: reminderOffset,
+            to: &draft
+        )
+        detailDraft = draft
+    }
+
     func clearDraftDueTime() {
         guard var draft = detailDraft, let dueAt = draft.dueAt else { return }
         draft.dueAt = dateOnlyDueDate(for: dueAt)
         draft.hasExplicitTime = false
         draft.remindAt = nil
-        detailDraft = draft
-    }
-
-    func setDraftReminderEnabled(_ enabled: Bool) {
-        guard var draft = detailDraft else { return }
-        draft.remindAt = enabled ? defaultReminderDate(for: draft) : nil
         detailDraft = draft
     }
 
@@ -1169,15 +1193,27 @@ final class HomeViewModel {
         calendar.startOfDay(for: date)
     }
 
-    private func defaultReminderDate(for draft: TaskDraft? = nil) -> Date {
-        let currentDraft = draft ?? detailDraft
-        let reminderTarget: Date
-        if let dueAt = currentDraft?.dueAt {
-            reminderTarget = reminderTargetDate(for: dueAt, hasExplicitTime: currentDraft?.hasExplicitTime ?? false)
+    private func applySchedule(
+        date: Date,
+        time: Date?,
+        reminderOffset: TimeInterval?,
+        to draft: inout TaskDraft
+    ) {
+        let updatedDueAt: Date
+        if let time {
+            updatedDueAt = merge(date: date, timeSource: time)
+            draft.hasExplicitTime = true
         } else {
-            reminderTarget = defaultDueDate()
+            updatedDueAt = dateOnlyDueDate(for: date)
+            draft.hasExplicitTime = false
         }
-        return calendar.date(byAdding: .minute, value: -30, to: reminderTarget) ?? reminderTarget
+
+        draft.dueAt = updatedDueAt
+        if time != nil, let reminderOffset {
+            draft.remindAt = updatedDueAt.addingTimeInterval(-max(0, reminderOffset))
+        } else {
+            draft.remindAt = nil
+        }
     }
 
     private func merge(date: Date, timeSource: Date) -> Date {
@@ -1190,11 +1226,6 @@ final class HomeViewModel {
             hour: timeComponents.hour,
             minute: timeComponents.minute
         )) ?? date
-    }
-
-    private func reminderTargetDate(for dueAt: Date, hasExplicitTime: Bool) -> Date {
-        guard hasExplicitTime == false else { return dueAt }
-        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: dueAt) ?? dueAt
     }
 
     private func timeText(for item: Item) -> String {

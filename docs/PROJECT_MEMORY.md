@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 日期：2026-08-09
+- 日期：2026-08-11
 - 项目路径：`/Users/papertiger/Desktop/Together`
 - Git 根目录：`/Users/papertiger/Desktop/Together`
 - 产品主轴：iPhone-only 的纯单人 Todo 效率工具。
@@ -15,13 +15,14 @@
 ## 当前进行中交接
 
 - 分支：`main`
-- 当前任务：2026-08-09 首页详情继续使用列表拥有的原地 Morph 与“真实行高 + 真实 ScrollView content offset”双向外撑；创建路径采用 ADR-0023 的双阶段视觉交接：根级 SwiftUI 创建表面覆盖 Dock Hero、编辑和保存后原地消融，最终任务行在无动画定位后从高度零局部长出。根级 Modal Focus Host、详情 Overlay、动态模糊、最终跨层 Frame 飞行与重复前景卡均不存在。Swift 源码编译由本轮完成；UI、真机和 Instruments 性能验收按用户要求交由用户执行。
+- 当前任务：2026-08-11 已有待办详情的日期、时间与提醒统一为同一个 `DateTimePickerSheet`；正式流程保留系统 `.compact` `DatePicker`，实验性横向刻度时间选择器只作为未接线 Preview。SwiftData schema、任务持久化模型和创建任务流程均未改变。
 - 已确认边界：
   - 不迁移旧 Supabase 数据，允许删除。
   - 不保留 RevenueCat、Paywall、PremiumGate、Supabase webhook。
   - CloudKit 作为唯一跨设备同步/恢复能力，本地 SwiftData 必须保留。
   - OCR 第一版接受“识别 -> 草稿确认 -> 入库”。
 - 当前结果：
+  - 2026-08-11 已有待办详情完成统一日期时间编辑：`DateTimePickerSheet` 使用不透明实色表面、自定义固定六周的七列月历、珊瑚色选中态、上月 / Today / 下月导航，以及同一 Sheet 内的时间与提醒行；无标题栏、完成按钮、Toggle、Material、Liquid Glass 或自定义时间滚轮。未设置时间时“添加时间”建立按 5 分钟取整的 draft 时间；设置后由原生 SwiftUI `.compact` `DatePicker` 直接触发系统时间选择器，字段右侧的唯一清除图标按钮立即清除时间与提醒，不保留长按清除操作。月份标题和导航保持单行，空间不足时 Today 退化为日历图标；月份和年份使用方向一致的原生数字内容转场，Reduce Motion 下直接更新。Sheet detent 按固定六周内容紧凑计算，圆角交回系统 presentation 自适应。提醒使用同页系统 `Menu`，没有具体时间时禁用；日期、时间、提醒提前量通过 `HomeViewModel.updateDraftSchedule(date:time:reminderOffset:)` 原子写回当前 `TaskDraft`，清除时间同步清除提醒。独立 `CustomTimePickerSheet` 提供大号时间、横向刻度拖动、5 分钟步进、轻触觉反馈和停手吸附，但仅有本地 Preview 引用，未接入正式任务编辑。关键文件：`TaskEditorSharedComponents.swift`、`CustomTimePickerSheet.swift`、`HomeInlineTaskDetailCard.swift`、`HomeViewModel.swift`、`TogetherTests.swift`。验证：Xcode 27 beta 3 generic iOS 无签名 build 通过；iOS 27 Simulator focused tests 5 / 5 通过；正式详情入口、月历窄屏布局、添加时间、系统 compact 时间 Popover 和提醒菜单已在 iPhone 17 Pro Simulator 检查。完整 `TogetherTests` 为 152 / 153，唯一失败是工作区先前未提交的详情 Morph 水平 inset 改动使 `expanded.leading` 为 6 而既有测试仍期望 12，与日期时间改动无关；本轮 follow-up 按用户要求只需最终构建，不运行测试或 Simulator，仍需真机检查 12/24 小时制、Dynamic Type、VoiceOver、Reduce Motion 与清除图标命中手感。
   - 2026-08-09 首页创建最终落位改为双阶段视觉交接：真机验证确认 ADR-0022 的 Overlay 跨层飞入列表会在同一时间窗叠加目标分组切换、无动画滚动、`LazyVStack` 重排、目标 Frame 回传和 CGRect 插值，造成明显卡顿。ADR-0023 取代该最终落点，但保留 Dock 到根级编辑卡的短 Hero、稳定 UUID、失败保留 Draft 和现有详情 Morph。保存成功后 Overlay 在原位用约 220ms 将高度收窄到 1pt 并同步消融内容、表面和阴影；完成后以无动画 transaction 切换最终日期/周期并释放冻结列表。目标行先以高度零建立，无动画定位完成后，仅该行测量一次自然高度，并用约 300ms 的 `height 0 -> natural / opacity 0 -> 1 / scale 0.985 -> 1` 本地动画推动相邻行。普通行没有新增 Geometry 或动画状态，旧 `landingTargetFrame / landingProgress / target capture / reservation / Overlay landing` 路径已删除；revision token 继续拒绝过期完成回调。关键文件：`docs/adr/0023-two-stage-creation-dissolve-and-list-reveal.md`、`AppRootView.swift`、`HomeMorphSession.swift`、`TaskMorphContainer.swift`、`HomeView.swift`、`RoutinesListContent.swift`、`HomeMorphSessionTests.swift`。验证：修改 Swift 文件 parse、旧 landing 路径残留搜索、`git diff --check` 通过；使用 iPhoneOS 26.5 SDK、无签名并临时排除 `.xcassets` 后，App 与 TogetherTests target 均真实 Swift 编译和链接且 `BUILD SUCCEEDED`，仅报告仓库既有 warnings。按用户要求未运行模拟器、测试用例、UI 测试或 Instruments；消融与长出的视觉间隔、屏外/跨分组定位和 60/120Hz 帧率由用户真机验收。
   - 2026-08-09 历史阶段（已由 ADR-0023 取代）首页创建曾按 ADR-0022 使用目标行隐藏 reservation、全局 Frame 捕获和 Overlay 跨层落点；该路径真机卡顿，不代表当前代码。
   - 2026-08-09 首页详情纵深与收起命中范围补齐：非活跃任务既有 `0.94` 等比合成缩放 / `0.62` 不透明度参数现由共享 `taskMorphBackgroundDepth` 同步应用到顶部模式控件、头像按钮、待办日期分组标题、已完成标题和定期周期固定区；不增加模糊、几何测量或逐帧状态。展开态下这些可见区域临时覆盖单一“保存并收起”命中层，第一次点击不同时切换模式、打开个人页或切换周期；VoiceOver 只暴露收起动作。系统状态栏与导航栏空白区域继续由系统持有。验证：`git diff --check` 与 Xcode 27 beta 3 generic iOS 无签名 `build` 通过，仅报告仓库既有 actor-isolation warnings；按用户要求未运行模拟器、UI 测试或 Instruments，Toolbar 宿主中的缩放连续性与命中范围由用户真机验收。

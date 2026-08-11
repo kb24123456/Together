@@ -17,7 +17,7 @@ struct HomeTaskCreationCard: View {
     @State private var activeSubtaskTitle = ""
     @State private var showsNotesEditor: Bool
     @State private var showsSubtaskEditor: Bool
-    @State private var activePanel: Panel?
+    @State private var schedulePresentation: ExistingTaskScheduleEditorPresentation?
     @State private var isResolvingTextInput = false
 
     private enum Field: Hashable {
@@ -25,14 +25,6 @@ struct HomeTaskCreationCard: View {
         case notes
         case newSubtask
         case existingSubtask(UUID)
-    }
-
-    private enum Panel: String, Identifiable {
-        case date
-        case time
-        case reminder
-
-        var id: String { rawValue }
     }
 
     init(
@@ -67,11 +59,6 @@ struct HomeTaskCreationCard: View {
                     .transition(disclosureTransition)
             }
 
-            if isExpanded, let activePanel {
-                panel(activePanel)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-
             if isExpanded, let error = session.errorMessage {
                 Label(error, systemImage: "exclamationmark.circle.fill")
                     .font(AppTheme.typography.sized(13, weight: .medium))
@@ -99,10 +86,19 @@ struct HomeTaskCreationCard: View {
             else { return }
             commitExistingSubtask(id)
         }
-        .animation(
-            reduceMotion ? .easeInOut(duration: 0.14) : .smooth(duration: 0.24, extraBounce: 0),
-            value: activePanel
-        )
+        .sheet(item: $schedulePresentation) { presentation in
+            DateTimePickerSheet(
+                presentation: presentation,
+                selectionFeedback: HomeInteractionFeedback.selection,
+                onChange: { draft in
+                    viewModel.updateTaskCreationSchedule(
+                        date: draft.selectedDate,
+                        time: draft.selectedTime,
+                        reminderOffset: draft.reminderOffset
+                    )
+                }
+            )
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("新建待办")
     }
@@ -178,7 +174,6 @@ struct HomeTaskCreationCard: View {
         } else {
             revealButton("添加备注") {
                 showsNotesEditor = true
-                activePanel = nil
                 Task { @MainActor in
                     await Task.yield()
                     focusedField = .notes
@@ -217,7 +212,6 @@ struct HomeTaskCreationCard: View {
         } else {
             revealButton("添加子任务") {
                 showsSubtaskEditor = true
-                activePanel = nil
                 Task { @MainActor in
                     await Task.yield()
                     focusedField = .newSubtask
@@ -245,10 +239,11 @@ struct HomeTaskCreationCard: View {
     }
 
     private func creationSubtaskRow(_ subtask: TaskSubtaskDraft) -> some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             SubtaskCompletionMark(isCompleted: subtask.isCompleted)
                 .frame(width: 20, height: 20)
-                .frame(width: 40, height: 44, alignment: .center)
+                .frame(width: 44, height: 44, alignment: .center)
+                .padding(.horizontal, -8)
                 .padding(.vertical, -10)
 
             if activeSubtaskID == subtask.id {
@@ -302,16 +297,20 @@ struct HomeTaskCreationCard: View {
         HStack(spacing: AppTheme.spacing.xs) {
             ScrollView(.horizontal) {
                 HStack(spacing: AppTheme.spacing.xs) {
-                    attributeButton(.date, title: dateText, systemImage: "calendar")
-                    attributeButton(
-                        .time,
-                        title: session.draft.hasExplicitTime ? (timeText ?? "时间") : "时间",
-                        systemImage: "clock"
+                    scheduleAttributeButton(
+                        title: dateText,
+                        systemImage: "calendar",
+                        isConfigured: true
                     )
-                    attributeButton(
-                        .reminder,
+                    scheduleAttributeButton(
+                        title: session.draft.hasExplicitTime ? (timeText ?? "时间") : "时间",
+                        systemImage: "clock",
+                        isConfigured: session.draft.hasExplicitTime
+                    )
+                    scheduleAttributeButton(
                         title: reminderText ?? "提醒",
-                        systemImage: "bell"
+                        systemImage: "bell",
+                        isConfigured: session.draft.remindAt != nil
                     )
 
                     Button {
@@ -356,118 +355,23 @@ struct HomeTaskCreationCard: View {
         }
     }
 
-    private func attributeButton(_ panel: Panel, title: String, systemImage: String) -> some View {
+    private func scheduleAttributeButton(
+        title: String,
+        systemImage: String,
+        isConfigured: Bool
+    ) -> some View {
         Button {
             HomeInteractionFeedback.selection()
             focusedField = nil
-            activePanel = activePanel == panel ? nil : panel
+            openSchedule()
         } label: {
             HomeMorphAttributeLabel(
                 icon: systemImage,
                 title: title,
-                isConfigured: isConfigured(panel)
+                isConfigured: isConfigured
             )
         }
         .buttonStyle(HomeMorphAttributeButtonStyle())
-    }
-
-    private func isConfigured(_ panel: Panel) -> Bool {
-        switch panel {
-        case .date:
-            true
-        case .time:
-            session.draft.hasExplicitTime
-        case .reminder:
-            session.draft.remindAt != nil
-        }
-    }
-
-    @ViewBuilder
-    private func panel(_ panel: Panel) -> some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            switch panel {
-            case .date:
-                DatePicker("日期", selection: dateBinding, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .labelsHidden()
-            case .time:
-                DatePicker("时间", selection: timeBinding, displayedComponents: .hourAndMinute)
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
-                if session.draft.hasExplicitTime {
-                    Button("清除时间", role: .destructive) {
-                        HomeInteractionFeedback.selection()
-                        viewModel.updateTaskCreationDraft {
-                            $0.hasExplicitTime = false
-                            $0.remindAt = nil
-                            $0.dueAt = Calendar.current.startOfDay(for: $0.dueAt ?? .now)
-                        }
-                        activePanel = nil
-                    }
-                }
-            case .reminder:
-                if session.draft.hasExplicitTime, let dueAt = session.draft.dueAt {
-                    Button("不提醒") {
-                        HomeInteractionFeedback.selection()
-                        viewModel.updateTaskCreationDraft { $0.remindAt = nil }
-                    }
-                    ForEach(TaskEditorReminderPreset.allCases) { preset in
-                        Button(preset.title) {
-                            HomeInteractionFeedback.selection()
-                            viewModel.updateTaskCreationDraft {
-                                $0.remindAt = dueAt.addingTimeInterval(-preset.secondsBeforeTarget)
-                            }
-                            activePanel = nil
-                        }
-                    }
-                } else {
-                    Button("设置时间后可添加提醒") {
-                        HomeInteractionFeedback.selection()
-                        activePanel = .time
-                    }
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                }
-            }
-        }
-        .padding(.leading, 56)
-    }
-
-    private var dateBinding: Binding<Date> {
-        Binding(
-            get: { session.draft.dueAt ?? .now },
-            set: { value in
-                viewModel.updateTaskCreationDraft { draft in
-                    let calendar = Calendar.current
-                    if draft.hasExplicitTime, let old = draft.dueAt {
-                        let time = calendar.dateComponents([.hour, .minute], from: old)
-                        var date = calendar.dateComponents([.year, .month, .day], from: value)
-                        date.hour = time.hour
-                        date.minute = time.minute
-                        draft.dueAt = calendar.date(from: date)
-                    } else {
-                        draft.dueAt = calendar.startOfDay(for: value)
-                    }
-                }
-            }
-        )
-    }
-
-    private var timeBinding: Binding<Date> {
-        Binding(
-            get: { session.draft.dueAt ?? .now },
-            set: { value in
-                viewModel.updateTaskCreationDraft { draft in
-                    let calendar = Calendar.current
-                    let day = draft.dueAt ?? .now
-                    var components = calendar.dateComponents([.year, .month, .day], from: day)
-                    let time = calendar.dateComponents([.hour, .minute], from: value)
-                    components.hour = time.hour
-                    components.minute = (time.minute ?? 0) / 5 * 5
-                    draft.dueAt = calendar.date(from: components)
-                    draft.hasExplicitTime = true
-                }
-            }
-        )
     }
 
     private var dateText: String {
@@ -493,6 +397,15 @@ struct HomeTaskCreationCard: View {
         )
     }
 
+    private func openSchedule() {
+        schedulePresentation = ExistingTaskScheduleEditorPresentation(
+            dueAt: session.draft.dueAt,
+            hasExplicitTime: session.draft.hasExplicitTime,
+            remindAt: session.draft.remindAt,
+            fallbackDate: viewModel.selectedDate
+        )
+    }
+
     private var canAttemptCommit: Bool {
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             || focusedField == .title
@@ -514,7 +427,7 @@ struct HomeTaskCreationCard: View {
             }
         } else {
             focusedField = nil
-            activePanel = nil
+            schedulePresentation = nil
         }
     }
 

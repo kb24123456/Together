@@ -104,14 +104,15 @@ struct HomeInlineTaskDetailCard: View {
     }
 
     private func subtaskRow(_ subtask: TaskSubtaskDraft) -> some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Button {
                 viewModel.toggleDetailDraftSubtask(subtask.id)
             } label: {
                 SubtaskCompletionMark(isCompleted: subtask.isCompleted)
                     .frame(width: 20, height: 20)
-                    .frame(width: 40, height: 44, alignment: .center)
+                    .frame(width: 44, height: 44, alignment: .center)
             }
+            .padding(.horizontal, -8)
             .padding(.vertical, -10)
             .buttonStyle(.plain)
             .accessibilityLabel(subtask.isCompleted ? "恢复子任务" : "完成子任务")
@@ -291,11 +292,15 @@ struct HomeTaskAttributeFooter: View {
                 revealTask = nil
             }
         .sheet(item: $schedulePresentation) { presentation in
-            ExistingTaskDateTimeEditorSheet(
+            DateTimePickerSheet(
                 presentation: presentation,
                 selectionFeedback: HomeInteractionFeedback.selection,
                 onChange: { draft in
-                    viewModel.updateDraftSchedule(date: draft.selectedDate, time: draft.selectedTime)
+                    viewModel.updateDraftSchedule(
+                        date: draft.selectedDate,
+                        time: draft.selectedTime,
+                        reminderOffset: draft.reminderOffset
+                    )
                 }
             )
         }
@@ -303,39 +308,28 @@ struct HomeTaskAttributeFooter: View {
 
     private var expandedControls: some View {
         HStack(spacing: AppTheme.spacing.xs) {
-            attributeButton(title: dateTitle, systemImage: "calendar") {
-                openSchedule(.date)
+            attributeButton(
+                title: dateTitle,
+                systemImage: "calendar",
+                isConfigured: viewModel.inlineDetailDraft?.dueAt != nil
+            ) {
+                openSchedule()
             }
-            attributeButton(title: timeTitle, systemImage: "clock") {
-                openSchedule(.time)
+            attributeButton(
+                title: timeTitle,
+                systemImage: "clock",
+                isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true
+            ) {
+                openSchedule()
             }
 
-            Menu {
-                Button("不提醒") {
-                    HomeInteractionFeedback.selection()
-                    viewModel.setDraftReminderEnabled(false)
-                }
-                if viewModel.inlineDetailDraft?.hasExplicitTime == true,
-                   let dueAt = viewModel.inlineDetailDraft?.dueAt {
-                    ForEach(TaskEditorReminderPreset.allCases) { preset in
-                        Button(preset.title) {
-                            HomeInteractionFeedback.selection()
-                            viewModel.updateDraftReminder(dueAt.addingTimeInterval(-preset.secondsBeforeTarget))
-                        }
-                    }
-                } else {
-                    Button("先设置时间") {
-                        openSchedule(.time)
-                    }
-                }
-            } label: {
-                HomeMorphAttributeLabel(
-                    icon: "bell",
-                    title: reminderTitle,
-                    isConfigured: viewModel.inlineDetailDraft?.remindAt != nil
-                )
+            attributeButton(
+                title: reminderTitle,
+                systemImage: "bell",
+                isConfigured: viewModel.inlineDetailDraft?.remindAt != nil
+            ) {
+                openSchedule()
             }
-            .buttonStyle(HomeMorphAttributeButtonStyle())
 
             Button {
                 HomeInteractionFeedback.selection()
@@ -346,7 +340,8 @@ struct HomeTaskAttributeFooter: View {
                     title: "",
                     isConfigured: viewModel.inlineDetailDraft?.isUrgent == true,
                     tint: viewModel.inlineDetailDraft?.isUrgent == true ? AppTheme.colors.coral : nil,
-                    isCircular: true
+                    isCircular: true,
+                    alignsToCardCorner: true
                 )
             }
             .buttonStyle(HomeMorphAttributeButtonStyle())
@@ -360,6 +355,7 @@ struct HomeTaskAttributeFooter: View {
     private func attributeButton(
         title: String,
         systemImage: String,
+        isConfigured: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -369,7 +365,9 @@ struct HomeTaskAttributeFooter: View {
             HomeMorphAttributeLabel(
                 icon: systemImage,
                 title: title,
-                isConfigured: title != "日期" && title != "时间"
+                isConfigured: isConfigured,
+                usesContinuousCapsule: true,
+                alignsToCardCorner: true
             )
         }
         .buttonStyle(HomeMorphAttributeButtonStyle())
@@ -400,12 +398,12 @@ struct HomeTaskAttributeFooter: View {
         )
     }
 
-    private func openSchedule(_ section: ExistingTaskScheduleEditorSection) {
+    private func openSchedule() {
         let draft = viewModel.inlineDetailDraft
         schedulePresentation = ExistingTaskScheduleEditorPresentation(
-            initialSection: section,
             dueAt: draft?.dueAt,
             hasExplicitTime: draft?.hasExplicitTime ?? false,
+            remindAt: draft?.remindAt,
             fallbackDate: viewModel.selectedDate
         )
     }
@@ -451,13 +449,12 @@ struct HomeTaskCompactSummary: View {
     var body: some View {
         TaskSharedAttributeBand(
             content: content,
-            elements: [.progress, .time, .reminder]
+            elements: [.time, .reminder, .progress]
         )
         .allowsHitTesting(false)
         .opacity(isExpanded ? 0 : 1)
-        .frame(height: isExpanded || hasContent == false ? 0 : 20, alignment: .top)
+        .frame(minHeight: isExpanded || hasContent == false ? 0 : 20, alignment: .top)
         .padding(.top, isExpanded || hasContent == false ? 0 : AppTheme.spacing.xs)
-        .clipped()
         .animation(.easeOut(duration: 0.09), value: isExpanded)
     }
 }
@@ -468,6 +465,8 @@ struct HomeMorphAttributeLabel: View {
     let isConfigured: Bool
     var tint: Color? = nil
     var isCircular = false
+    var usesContinuousCapsule = false
+    var alignsToCardCorner = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -493,9 +492,15 @@ struct HomeMorphAttributeLabel: View {
             AppTheme.colors.surfaceElevated,
             in: isCircular
                 ? AnyShape(Circle())
-                : AnyShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                : usesContinuousCapsule
+                    ? AnyShape(Capsule(style: .continuous))
+                    : AnyShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         )
-        .frame(minWidth: 44, minHeight: 44)
+        .frame(
+            minWidth: 44,
+            minHeight: 44,
+            alignment: alignsToCardCorner ? .bottom : .center
+        )
         .contentShape(Rectangle())
     }
 }

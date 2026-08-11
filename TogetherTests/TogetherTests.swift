@@ -2883,29 +2883,54 @@ struct TogetherTests {
         #expect(draft.selectedTime == nil)
     }
 
-    @Test func existingTaskSchedulePresentationKeepsTheRequestedInitialSection() throws {
+    @Test func dateTimePickerPresentationSeedsReminderOffsetFromCurrentDraft() throws {
         let calendar = gregorianCalendar()
         let fallbackDate = try #require(
             calendar.date(from: DateComponents(year: 2026, month: 7, day: 30))
         )
-
-        let datePresentation = ExistingTaskScheduleEditorPresentation(
-            initialSection: .date,
-            dueAt: nil,
-            hasExplicitTime: false,
-            fallbackDate: fallbackDate
+        let dueAt = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 30, hour: 14, minute: 30))
         )
-        let timePresentation = ExistingTaskScheduleEditorPresentation(
-            initialSection: .time,
-            dueAt: nil,
-            hasExplicitTime: false,
-            fallbackDate: fallbackDate
+        let remindAt = try #require(
+            calendar.date(byAdding: .minute, value: -15, to: dueAt)
         )
 
-        #expect(datePresentation.initialSection == .date)
-        #expect(timePresentation.initialSection == .time)
-        #expect(datePresentation.initialDraft.selectedDate == Calendar.current.startOfDay(for: fallbackDate))
-        #expect(timePresentation.initialDraft.selectedTime == nil)
+        let presentation = ExistingTaskScheduleEditorPresentation(
+            dueAt: dueAt,
+            hasExplicitTime: true,
+            remindAt: remindAt,
+            fallbackDate: fallbackDate
+        )
+
+        #expect(presentation.initialDraft.selectedDate == Calendar.current.startOfDay(for: dueAt))
+        #expect(presentation.initialDraft.selectedTime == dueAt)
+        let reminderOffset = try #require(presentation.initialDraft.reminderOffset)
+        #expect(reminderOffset == TimeInterval(15 * 60))
+    }
+
+    @Test func dateTimePickerDraftRejectsReminderWithoutTimeAndClearsItWithTime() throws {
+        let calendar = gregorianCalendar()
+        let fallbackDate = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 7, day: 30))
+        )
+        var draft = ExistingTaskScheduleDraft(
+            dueAt: fallbackDate,
+            hasExplicitTime: false,
+            fallbackDate: fallbackDate,
+            calendar: calendar
+        )
+
+        draft.selectReminderOffset(15 * 60)
+        #expect(draft.reminderOffset == nil)
+
+        draft.setTimeEnabled(true, seed: fallbackDate, calendar: calendar)
+        draft.selectReminderOffset(15 * 60)
+        let reminderOffset = try #require(draft.reminderOffset)
+        #expect(reminderOffset == TimeInterval(15 * 60))
+
+        draft.setTimeEnabled(false, calendar: calendar)
+        #expect(draft.selectedTime == nil)
+        #expect(draft.reminderOffset == nil)
     }
 
     @Test func existingTaskMonthGridAlwaysReservesSixWeeks() throws {
@@ -2918,6 +2943,27 @@ struct TogetherTests {
         #expect(dates.count == 42)
         #expect(dates.first == calendar.date(from: DateComponents(year: 2026, month: 6, day: 28)))
         #expect(dates.last == calendar.date(from: DateComponents(year: 2026, month: 8, day: 8)))
+    }
+
+    @Test func customTimePickerScaleWrapsAndSnapsInFiveMinuteIntervals() throws {
+        let calendar = gregorianCalendar()
+        let date = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 8, day: 11, hour: 23, minute: 58))
+        )
+
+        #expect(CustomTimePickerScale.slot(for: date, calendar: calendar) == 0)
+        #expect(CustomTimePickerScale.wrappedSlot(-1) == CustomTimePickerScale.slotCount - 1)
+
+        let snapped = CustomTimePickerScale.date(for: -1, on: date, calendar: calendar)
+        #expect(calendar.component(.hour, from: snapped) == 23)
+        #expect(calendar.component(.minute, from: snapped) == 55)
+        #expect(
+            CustomTimePickerScale.projectedStepDelta(
+                translation: -20,
+                predictedTranslation: -500,
+                tickSpacing: 14
+            ) == CustomTimePickerScale.maximumProjectedStepDelta
+        )
     }
 
     @Test func unifiedExistingTaskSchedulePreservesReminderLeadAndClearsReminderWithTime() async throws {
@@ -2957,6 +3003,45 @@ struct TogetherTests {
         #expect(dateOnlyDraft.dueAt == calendar.startOfDay(for: nextDate))
         #expect(dateOnlyDraft.hasExplicitTime == false)
         #expect(dateOnlyDraft.remindAt == nil)
+    }
+
+    @Test func dateTimePickerScheduleAppliesExplicitReminderOffsetAtomically() async throws {
+        let calendar = Calendar.current
+        let item = makeReminderTestItem(
+            title: "日期时间提醒",
+            dueAt: nil,
+            hasExplicitTime: false,
+            remindAt: nil
+        )
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+        let date = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 21))
+        )
+        let time = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 21, hour: 14, minute: 30))
+        )
+
+        await viewModel.reload()
+        await viewModel.toggleInlineDetail(item.id)
+        viewModel.updateDraftSchedule(
+            date: date,
+            time: time,
+            reminderOffset: 10 * 60
+        )
+
+        let configured = try #require(viewModel.inlineDetailDraft)
+        let configuredDueAt = try #require(configured.dueAt)
+        #expect(configured.hasExplicitTime)
+        #expect(configured.remindAt == configuredDueAt.addingTimeInterval(-10 * 60))
+
+        viewModel.updateDraftSchedule(
+            date: date,
+            time: nil,
+            reminderOffset: 10 * 60
+        )
+        #expect(viewModel.inlineDetailDraft?.hasExplicitTime == false)
+        #expect(viewModel.inlineDetailDraft?.remindAt == nil)
     }
 
     @Test func inlineDetailMovingDateGroupGetsFreshPresentationIdentityAndCanReopen() async throws {

@@ -6,8 +6,11 @@ import UIKit
 private enum TaskMorphSurfaceMetrics {
     static let horizontalInset: CGFloat = 20
     static let verticalInset: CGFloat = 16
+    static let detailHorizontalInset: CGFloat = 28
+    static let detailVerticalInset: CGFloat = 28
     static let expandedScreenEdgeInset: CGFloat = 6
     static let expandedCornerRadius = AppTheme.radius.xl
+    static let detailExpandedCornerRadius: CGFloat = 45
     static let compactCornerRadius = AppTheme.radius.lg
     static let expandedContentScale: CGFloat = 1.05
     static let backgroundContentScale: CGFloat = 0.94
@@ -24,7 +27,7 @@ enum TaskMorphListSpacing {
     /// Vertical growth outside the disclosure itself: two internal card insets
     /// plus the two real external separation gaps.
     static var fixedExpansionHeightDelta: CGFloat {
-        2 * (TaskMorphSurfaceMetrics.verticalInset + expandedExternalSeparation)
+        2 * (TaskMorphSurfaceMetrics.detailVerticalInset + expandedExternalSeparation)
     }
 
     static func expandedInsets(from compactInsets: EdgeInsets) -> EdgeInsets {
@@ -422,8 +425,8 @@ struct TaskMorphContainer<Content: View>: View {
             anchor: .top
         )
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.horizontal, usesExpandedGeometry ? TaskMorphSurfaceMetrics.horizontalInset : 0)
-        .padding(.vertical, usesExpandedGeometry ? TaskMorphSurfaceMetrics.verticalInset : 0)
+        .padding(.horizontal, usesExpandedGeometry ? TaskMorphSurfaceMetrics.detailHorizontalInset : 0)
+        .padding(.vertical, usesExpandedGeometry ? TaskMorphSurfaceMetrics.detailVerticalInset : 0)
         .background {
             RoundedRectangle(cornerRadius: surfaceCornerRadius, style: .continuous)
                 .fill(AppTheme.colors.surface)
@@ -452,7 +455,7 @@ struct TaskMorphContainer<Content: View>: View {
 
     private var surfaceCornerRadius: CGFloat {
         usesExpandedGeometry
-            ? TaskMorphSurfaceMetrics.expandedCornerRadius
+            ? TaskMorphSurfaceMetrics.detailExpandedCornerRadius
             : TaskMorphSurfaceMetrics.compactCornerRadius
     }
 

@@ -1371,8 +1371,9 @@ struct TaskSharedElementVisual: View {
                 HStack(spacing: 6) {
                     ZStack {
                         Circle()
-                            .stroke(AppTheme.colors.body.opacity(0.16), lineWidth: 2.2)
+                            .strokeBorder(AppTheme.colors.body.opacity(0.16), lineWidth: 2.2)
                         Circle()
+                            .inset(by: 1.1)
                             .trim(from: 0, to: progressFraction)
                             .stroke(
                                 AppTheme.colors.sky,
@@ -1454,7 +1455,7 @@ struct TaskSharedElementVisual: View {
 
 struct TaskSharedAttributeBand: View {
     let content: TaskSharedIdentityContent
-    var elements: [TaskSharedElement] = [.progress, .time, .reminder, .urgent]
+    var elements: [TaskSharedElement] = [.time, .reminder, .progress, .urgent]
 
     var body: some View {
         TaskSharedAttributeBandLayout(horizontalSpacing: 14, verticalSpacing: 6) {
@@ -1626,13 +1627,26 @@ private struct HomeTimelineRowShell<Symbol: View, Content: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .taskTitleCenter, spacing: AppTheme.spacing.sm) {
             symbol
+                .alignmentGuide(.taskTitleCenter) { dimensions in
+                    dimensions[VerticalAlignment.center]
+                }
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+private struct TaskTitleCenterAlignment: AlignmentID {
+    static func defaultValue(in dimensions: ViewDimensions) -> CGFloat {
+        dimensions[VerticalAlignment.center]
+    }
+}
+
+private extension VerticalAlignment {
+    static let taskTitleCenter = VerticalAlignment(TaskTitleCenterAlignment.self)
 }
 
 struct HomeTimelineRow: View {
@@ -1681,8 +1695,9 @@ struct HomeTimelineRow: View {
             HomeTimelineRowShell {
                 Button(action: onToggleCompletion) {
                     timelineSymbol
-                        .frame(width: 40, height: 44)
+                        .frame(width: 44, height: 44)
                 }
+                .padding(.horizontal, -8)
                 .padding(.vertical, -10)
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
@@ -1886,10 +1901,15 @@ struct HomeTimelineRow: View {
 
     private var titleStack: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
-            if isEditingTitle {
-                expandedTitleEditor
-            } else {
-                sourceTitleVisual
+            Group {
+                if isEditingTitle {
+                    expandedTitleEditor
+                } else {
+                    sourceTitleVisual
+                }
+            }
+            .alignmentGuide(.taskTitleCenter) { dimensions in
+                dimensions[VerticalAlignment.center]
             }
 
             if showsSubtitle {
