@@ -284,6 +284,34 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         return item
     }
 
+    func setTaskFollowed(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        isFollowed: Bool
+    ) async throws -> Item {
+        var item = try await existingTask(in: spaceID, taskID: taskID)
+        guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
+            throw PermissionError.notCreator
+        }
+        guard item.repeatRule == nil else {
+            throw RepositoryError.invalidInput("定期任务暂不支持关注")
+        }
+        guard item.status != .completed, item.completedAt == nil else {
+            throw RepositoryError.invalidInput("已完成任务不能关注")
+        }
+        guard item.isFollowed != isFollowed else { return item }
+
+        let now = Date.now
+        item.isFollowed = isFollowed
+        item.followedAt = isFollowed ? now : nil
+        item.lastActionByUserID = actorID
+        item.lastActionAt = now
+        item.updatedAt = now
+
+        return try await itemRepository.saveItem(item)
+    }
+
     func addTaskSubtask(in spaceID: UUID, taskID: UUID, actorID: UUID, title: String) async throws -> Item {
         let item = try await existingTask(in: spaceID, taskID: taskID)
         guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
@@ -332,6 +360,8 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.isArchived = true
         item.archivedAt = .now
         item.isUrgent = false
+        item.isFollowed = false
+        item.followedAt = nil
         item.updatedAt = .now
 
         let saved = try await itemRepository.saveItem(item)

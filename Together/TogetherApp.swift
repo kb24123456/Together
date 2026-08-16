@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import AppIntents
 
 @main
 struct TogetherApp: App {
@@ -14,6 +15,11 @@ struct TogetherApp: App {
         DebugResetCoordinator.applyPendingNukeIfNeeded()
         #endif
         StartupTrace.mark("TogetherApp.init")
+        AppDependencyManager.shared.add(
+            dependency: { @Sendable () async throws -> any TaskFollowIntentHandling in
+                try await TaskFollowIntentHandler.make()
+            }
+        )
     }
 
     var body: some Scene {

@@ -22,12 +22,12 @@ enum RoutineInlineFocusTarget: Hashable {
 }
 
 enum RoutineInlineLayoutMetrics {
-    static let actionSlotWidth: CGFloat = 40
-    static let titleGap: CGFloat = AppTheme.spacing.md
+    static let actionSlotWidth: CGFloat = 44
+    static let titleGap: CGFloat = AppTheme.spacing.sm
     static let titleLeadingInset = actionSlotWidth + titleGap
     static let rowMinHeight: CGFloat = 44
     static let compactRowMinHeight: CGFloat = 32
-    static let detailVerticalSpacing: CGFloat = 2
+    static let detailVerticalSpacing: CGFloat = AppTheme.spacing.xxs
     static let attributeMinHeight: CGFloat = AdaptiveTaskAttributeToolbarLayout.rowHeight
     static let detailTopPadding: CGFloat = AppTheme.spacing.xxs
     static let detailBottomPadding: CGFloat = AppTheme.spacing.xxs
@@ -54,6 +54,7 @@ struct RoutinesTaskRow: View {
     let onDetailHeightChange: (CGFloat) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNotesFocused: Bool
     @State private var titleDraft = ""
@@ -166,7 +167,7 @@ struct RoutinesTaskRow: View {
     }
 
     private var topRow: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .top, spacing: AppTheme.spacing.sm) {
             completionButton
 
             ZStack(alignment: .topLeading) {
@@ -184,8 +185,7 @@ struct RoutinesTaskRow: View {
                     .accessibilityLabel("展开定期任务")
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            .padding(.top, 2)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -200,7 +200,8 @@ struct RoutinesTaskRow: View {
             onToggleCompletion()
         } label: {
             completionBadge
-                .frame(width: 40, height: 40)
+                .frame(width: 24, height: 24)
+                .frame(width: 44, height: 44)
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
@@ -209,7 +210,7 @@ struct RoutinesTaskRow: View {
 
     @ViewBuilder
     private var stableTitleStack: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
             if isDetailPresented, isEditingTitle {
                 expandedTitleEditor
             } else {
@@ -281,7 +282,7 @@ struct RoutinesTaskRow: View {
 
     private func subtitleText(_ text: String) -> some View {
         Text(text)
-            .font(AppTheme.typography.sized(15, weight: .medium))
+            .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
             .foregroundStyle(subtitleColor)
             .lineLimit(2)
     }
@@ -310,23 +311,20 @@ struct RoutinesTaskRow: View {
 
     private func titleText(_ title: String) -> some View {
         Text(title)
-            .font(AppTheme.typography.sized(19, weight: .bold))
+            .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
             .foregroundStyle(isCompleted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-            .lineLimit(1)
-            .minimumScaleFactor(0.68)
-            .allowsTightening(true)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize || isDetailPresented ? nil : 2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var expandedTitleEditor: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
-            TextField("定期任务标题", text: $titleDraft)
-                .font(AppTheme.typography.sized(19, weight: .bold))
+            TextField("定期任务标题", text: $titleDraft, axis: .vertical)
+                .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
                 .foregroundStyle(AppTheme.colors.title)
                 .textInputAutocapitalization(.sentences)
                 .submitLabel(.done)
-                .lineLimit(1)
-                .minimumScaleFactor(0.68)
-                .allowsTightening(true)
+                .lineLimit(1...4)
                 .focused($isTitleFocused)
                 .onSubmit {
                     commitTitleAfterFocusUpdate()
@@ -430,20 +428,20 @@ struct RoutinesTaskRow: View {
 
     private var completionBadge: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(AppTheme.colors.coral.opacity(0.34), lineWidth: 2)
                 .scaleEffect(badgeAuraScale)
                 .opacity(badgeAuraOpacity)
 
-            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(AppTheme.colors.coral.opacity(0.14))
                 .scaleEffect(badgeFillScale)
                 .opacity(shouldPlayCompletionAnimation ? badgeFillOpacity : (isCompleted ? 0 : badgeFillOpacity))
 
-            RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(
                     ringColor,
-                    style: StrokeStyle(lineWidth: shouldPlayCompletionAnimation ? 1.7 : 1.6, dash: [3.6, 4.4])
+                    lineWidth: shouldPlayCompletionAnimation ? 1.4 : 1.2
                 )
                 .opacity(outlineOpacity)
 
@@ -469,7 +467,7 @@ struct RoutinesTaskRow: View {
 
     private var ringColor: Color {
         if isAnimatingReopening {
-            return AppTheme.colors.body.opacity(0.44)
+            return AppTheme.colors.body.opacity(0.30)
         }
 
         if isCompleted {
@@ -480,7 +478,7 @@ struct RoutinesTaskRow: View {
             return AppTheme.colors.body.opacity(0.32)
         }
 
-        return AppTheme.colors.body.opacity(0.44)
+        return AppTheme.colors.body.opacity(0.30)
     }
 
     private var outlineOpacity: Double {
@@ -641,6 +639,7 @@ private struct RoutinesInlineDetailView: View {
                 .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
+        .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
     }
 
     private var reminderMenu: some View {
@@ -902,8 +901,6 @@ private struct RoutineInlineCascadeItemModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(isVisible ? 1 : 0)
-            .offset(y: isVisible ? 0 : (reduceMotion ? 0 : 14))
-            .scaleEffect(isVisible ? 1 : (reduceMotion ? 1 : 0.985), anchor: .top)
             .onAppear {
                 isVisible = false
                 guard isExpanded else { return }
@@ -931,8 +928,9 @@ private struct RoutineInlineCascadeItemModifier: ViewModifier {
             return .easeInOut(duration: 0.14)
         }
         let delay = expanding
-            ? Double(index) * 0.045
-            : Double(max(rowCount - index - 1, 0)) * 0.032
-        return .snappy(duration: 0.28, extraBounce: 0.02).delay(delay)
+            ? Double(index) * 0.024
+            : Double(max(rowCount - index - 1, 0)) * 0.018
+        return (expanding ? Animation.easeOut(duration: 0.12) : .easeIn(duration: 0.09))
+            .delay(delay)
     }
 }

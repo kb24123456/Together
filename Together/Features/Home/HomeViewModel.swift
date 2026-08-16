@@ -47,9 +47,14 @@ struct HomeTimelineSection: Identifiable, Hashable {
     let id: String
     let dayStart: Date
     let title: String
-    let subtitle: String
+    let context: String
+    let count: Int
     let isUnscheduled: Bool
     let entries: [HomeTimelineEntry]
+
+    var subtitle: String {
+        "\(context)·\(count)项"
+    }
 }
 
 struct HomeOverdueEntry: Identifiable, Hashable {
@@ -112,6 +117,7 @@ final class HomeViewModel {
 
     /// 任务操作完成后的回调，参数为 spaceID，用于刷新外部依赖。
     var onTaskMutated: ((UUID) -> Void)?
+    var onTaskFollowChanged: ((UUID) -> Void)?
     var onTodayDataChanged: (@MainActor @Sendable () -> Void)?
     /// 将当前任务转为定期任务时的回调（传递任务标题）
     var onConvertToPeriodicTask: ((String) -> Void)?
@@ -137,6 +143,7 @@ final class HomeViewModel {
     private var completingOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingCompletionOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
     private var animatingReopeningOccurrenceKeys: Set<HomeItemOccurrenceKey> = []
+    private var taskFollowMutationIDs: Set<UUID> = []
     var isWeeklyCompletedSheetPresented = false
     var isWeeklyCompletedSheetLoading = false
     var didFailLoadingWeeklyCompletedSheet = false
@@ -436,6 +443,10 @@ final class HomeViewModel {
         operationErrorMessage = nil
     }
 
+    func presentOperationStatus(_ message: String) {
+        operationErrorMessage = message
+    }
+
     func presentExternalRouteFailure(taskID: UUID) {
         failedExternalRouteTaskID = taskID
         externalRouteErrorMessage = "未找到该任务，可能已删除或已归档。你可以重试刷新。"
@@ -610,6 +621,45 @@ final class HomeViewModel {
 
     func updateDraftUrgent(_ isUrgent: Bool) {
         detailDraft?.isUrgent = isUrgent
+    }
+
+    func isUpdatingTaskFollow(_ itemID: UUID) -> Bool {
+        taskFollowMutationIDs.contains(itemID)
+    }
+
+    func toggleTaskFollow(_ itemID: UUID) async {
+        guard
+            taskFollowMutationIDs.contains(itemID) == false,
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id,
+            let original = item(for: itemID),
+            original.repeatRule == nil,
+            original.status != .completed,
+            original.completedAt == nil
+        else { return }
+
+        let nextIsFollowed = original.isFollowed == false
+        var optimistic = original
+        optimistic.isFollowed = nextIsFollowed
+        optimistic.followedAt = nextIsFollowed ? .now : nil
+        taskFollowMutationIDs.insert(itemID)
+        replaceItemPreservingOrder(optimistic)
+
+        defer { taskFollowMutationIDs.remove(itemID) }
+        do {
+            let saved = try await taskApplicationService.setTaskFollowed(
+                in: spaceID,
+                taskID: itemID,
+                actorID: actorID,
+                isFollowed: nextIsFollowed
+            )
+            replaceItemPreservingOrder(saved)
+            emitTaskMutation(spaceID: spaceID)
+            onTaskFollowChanged?(spaceID)
+        } catch {
+            replaceItemPreservingOrder(original)
+            presentOperationError("关注状态保存失败，请重试。")
+        }
     }
 
     func addDetailDraftSubtask(title: String) {
@@ -1322,11 +1372,11 @@ final class HomeViewModel {
                 id: "\(key.isUnscheduled ? "created" : "scheduled")-\(Int(key.dayStart.timeIntervalSince1970))",
                 dayStart: key.dayStart,
                 title: timelineSectionTitle(for: key.dayStart),
-                subtitle: timelineSectionSubtitle(
+                context: timelineSectionContext(
                     for: key.dayStart,
-                    isUnscheduled: key.isUnscheduled,
-                    count: entries.count
+                    isUnscheduled: key.isUnscheduled
                 ),
+                count: entries.count,
                 isUnscheduled: key.isUnscheduled,
                 entries: entries
             )
@@ -1366,13 +1416,9 @@ final class HomeViewModel {
         return dayStart.formatted(.dateTime.locale(Locale(identifier: "zh_CN")).month().day())
     }
 
-    private func timelineSectionSubtitle(for dayStart: Date, isUnscheduled: Bool, count: Int) -> String {
+    private func timelineSectionContext(for dayStart: Date, isUnscheduled: Bool) -> String {
         let weekday = weekdayLabel(for: dayStart)
-        let countText = "\(count)项"
-        guard isUnscheduled else {
-            return "\(weekday)·\(countText)"
-        }
-        return "创建·\(weekday)·\(countText)"
+        return isUnscheduled ? "创建·\(weekday)" : weekday
     }
 
     private func timelineItemSortPrecedes(_ lhs: Item, _ rhs: Item) -> Bool {

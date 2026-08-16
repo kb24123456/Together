@@ -32,19 +32,11 @@
 	<string>Together 使用系统闹钟，在你设置带明确时间的任务或例行任务提醒时进行强提醒。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Together 需要读取你选择的照片，用于将纸面清单识别为可确认的 OCR 任务草稿。</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
-	</array>
-	<key>UIAppFonts</key>
-	<array>
-		<string>ResourceHanRoundedCN-Bold.ttf</string>
-		<string>ResourceHanRoundedCN-ExtraLight.ttf</string>
-		<string>ResourceHanRoundedCN-Heavy.ttf</string>
-		<string>ResourceHanRoundedCN-Light.ttf</string>
-		<string>ResourceHanRoundedCN-Medium.ttf</string>
-		<string>ResourceHanRoundedCN-Normal.ttf</string>
-		<string>ResourceHanRoundedCN-Regular.ttf</string>
 	</array>
 </dict>
 </plist>

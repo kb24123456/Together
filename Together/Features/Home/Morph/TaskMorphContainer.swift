@@ -7,7 +7,8 @@ private enum TaskMorphSurfaceMetrics {
     static let horizontalInset: CGFloat = 20
     static let verticalInset: CGFloat = 16
     static let detailHorizontalInset: CGFloat = 28
-    static let detailVerticalInset: CGFloat = 28
+    static let detailTopInset: CGFloat = 18
+    static let detailBottomInset: CGFloat = 20
     static let expandedScreenEdgeInset: CGFloat = 6
     static let expandedCornerRadius = AppTheme.radius.xl
     static let detailExpandedCornerRadius: CGFloat = 45
@@ -17,17 +18,101 @@ private enum TaskMorphSurfaceMetrics {
     static let backgroundContentOpacity: CGFloat = 0.62
 }
 
+enum TaskMorphBloomMotion {
+    static let geometryDuration: TimeInterval = 0.35
+    static let reducedMotionDuration: TimeInterval = 0.14
+    static let boundaryOvershootDuration: TimeInterval = 0.38
+    static let boundaryOvershootDelay: Duration = .milliseconds(380)
+    static let boundarySettleDuration: TimeInterval = 0.14
+    static let boundaryHorizontalOutset: CGFloat = 4
+    static let boundaryBottomOutset: CGFloat = 12
+    static let boundaryCornerRadius: CGFloat = 45
+    static let boundaryOvershootShadowRadius: CGFloat = 18
+    static let boundarySettledShadowRadius: CGFloat = 16
+    static let boundaryOvershootShadowOffsetY: CGFloat = 8
+    static let boundarySettledShadowOffsetY: CGFloat = 7
+
+    static func geometryAnimation(reduceMotion: Bool) -> Animation {
+        reduceMotion
+            ? .easeInOut(duration: reducedMotionDuration)
+            : .smooth(duration: geometryDuration, extraBounce: 0)
+    }
+
+    static func horizontalProgress(_ progress: CGFloat) -> CGFloat {
+        min(max(progress / 0.72, 0), 1)
+    }
+
+    static func verticalProgress(_ progress: CGFloat) -> CGFloat {
+        min(max((progress - 0.06) / 0.94, 0), 1)
+    }
+
+    static func interpolate(_ start: CGFloat, _ end: CGFloat, progress: CGFloat) -> CGFloat {
+        start + (end - start) * min(max(progress, 0), 1)
+    }
+
+    static func boundaryPresentation(
+        for phase: TaskMorphBoundaryPhase
+    ) -> TaskMorphBoundaryPresentation {
+        switch phase {
+        case .compact:
+            TaskMorphBoundaryPresentation(
+                opacity: 0,
+                horizontalOutset: 0,
+                bottomOutset: 0,
+                cornerRadius: boundaryCornerRadius,
+                shadowRadius: 0,
+                shadowOffsetY: 0
+            )
+        case .overshot:
+            TaskMorphBoundaryPresentation(
+                opacity: 1,
+                horizontalOutset: boundaryHorizontalOutset,
+                bottomOutset: boundaryBottomOutset,
+                cornerRadius: boundaryCornerRadius,
+                shadowRadius: boundaryOvershootShadowRadius,
+                shadowOffsetY: boundaryOvershootShadowOffsetY
+            )
+        case .settled:
+            TaskMorphBoundaryPresentation(
+                opacity: 1,
+                horizontalOutset: 0,
+                bottomOutset: 0,
+                cornerRadius: boundaryCornerRadius,
+                shadowRadius: boundarySettledShadowRadius,
+                shadowOffsetY: boundarySettledShadowOffsetY
+            )
+        }
+    }
+}
+
+enum TaskMorphBoundaryPhase: Equatable, Sendable {
+    case compact
+    case overshot
+    case settled
+}
+
+struct TaskMorphBoundaryPresentation: Equatable, Sendable {
+    let opacity: Double
+    let horizontalOutset: CGFloat
+    let bottomOutset: CGFloat
+    let cornerRadius: CGFloat
+    let shadowRadius: CGFloat
+    let shadowOffsetY: CGFloat
+}
+
 enum TaskMorphListSpacing {
     /// Real empty space added outside the active card boundary. Because this is
     /// list-owned padding, it contributes to LazyVStack row height and reverses
     /// with the same transaction as the disclosure instead of faking movement
     /// with offsets on neighboring rows.
-    static let expandedExternalSeparation: CGFloat = 10
+    static let expandedExternalSeparation: CGFloat = 8
 
-    /// Vertical growth outside the disclosure itself: two internal card insets
-    /// plus the two real external separation gaps.
+    /// Vertical growth outside the disclosure itself: asymmetric internal card
+    /// insets plus the two real external separation gaps.
     static var fixedExpansionHeightDelta: CGFloat {
-        2 * (TaskMorphSurfaceMetrics.detailVerticalInset + expandedExternalSeparation)
+        TaskMorphSurfaceMetrics.detailTopInset
+            + TaskMorphSurfaceMetrics.detailBottomInset
+            + 2 * expandedExternalSeparation
     }
 
     static func expandedInsets(from compactInsets: EdgeInsets) -> EdgeInsets {
@@ -182,7 +267,7 @@ final class TaskMorphViewportCoordinator {
             return
         }
 
-        // Keep the selected row below the pinned section-header zone. Within
+        // Keep the selected row below the stable top chrome zone. Within
         // that constraint, assign roughly two fifths of the new height upward.
         let protectedTop = viewportFrame.minY + max(0, protectedTopInset)
         let availableAbove = max(0, rowFrame.minY - protectedTop)
@@ -201,6 +286,16 @@ final class TaskMorphViewportCoordinator {
         motionDirection = .collapsing
         collapseOffsetY = liveContentOffsetY ?? scrollSnapshot?.contentOffsetY ?? openingOffsetY
         collapseStartingDisplacement = currentUpwardDisplacement
+    }
+
+    /// Retargets an in-flight collapse back toward expansion while preserving
+    /// the current on-screen offset as the new presentation baseline. This also
+    /// lets a later collapse re-freeze any scrolling performed after reversal.
+    func resumeExpansion(for id: UUID) {
+        guard activeID == id else { return }
+        let liveOffset = liveContentOffsetY ?? openingOffsetY + currentUpwardDisplacement
+        openingOffsetY = liveOffset - currentUpwardDisplacement
+        motionDirection = .expanding
     }
 
     /// Receives the active row's explicit presentation progress. The same SwiftUI
@@ -222,9 +317,6 @@ final class TaskMorphViewportCoordinator {
               maximumUpwardDisplacement > 0.5
         else { return }
 
-        if progress < lastProgress - 0.001, motionDirection == .expanding {
-            beginCollapse(for: id)
-        }
         lastProgress = progress
 
         let desiredDisplacement = maximumUpwardDisplacement * progress
@@ -395,7 +487,10 @@ private struct TaskMorphViewportProgressModifier: AnimatableModifier {
         get { progress }
         set {
             progress = newValue
-            coordinator.applyExpansionProgress(newValue, for: id)
+            coordinator.applyExpansionProgress(
+                TaskMorphBloomMotion.verticalProgress(newValue),
+                for: id
+            )
         }
     }
 
@@ -419,29 +514,12 @@ struct TaskMorphContainer<Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             content()
         }
-        .scaleEffect(
-            x: activeContentScale,
-            y: activeContentScale,
-            anchor: .top
-        )
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.horizontal, usesExpandedGeometry ? TaskMorphSurfaceMetrics.detailHorizontalInset : 0)
-        .padding(.vertical, usesExpandedGeometry ? TaskMorphSurfaceMetrics.detailVerticalInset : 0)
-        .background {
-            RoundedRectangle(cornerRadius: surfaceCornerRadius, style: .continuous)
-                .fill(AppTheme.colors.surface)
-                .opacity(usesExpandedGeometry ? 1 : 0)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: surfaceCornerRadius, style: .continuous)
-                .strokeBorder(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
-                .opacity(usesExpandedGeometry ? 1 : 0)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: clippingCornerRadius, style: .continuous))
-        .shadow(
-            color: usesExpandedGeometry ? Color.black.opacity(0.14) : .clear,
-            radius: usesExpandedGeometry ? 16 : 0,
-            y: usesExpandedGeometry ? 7 : 0
+        .modifier(
+            TaskMorphBloomSurfaceModifier(
+                progress: usesExpandedGeometry ? 1 : 0,
+                isExpandedTarget: usesExpandedGeometry,
+                reduceMotion: reduceMotion
+            )
         )
         .scaleEffect(backgroundContentScale)
         .brightness(backgroundBrightness)
@@ -451,21 +529,6 @@ struct TaskMorphContainer<Content: View>: View {
 
     private var usesExpandedGeometry: Bool {
         isActive && state != .compact
-    }
-
-    private var surfaceCornerRadius: CGFloat {
-        usesExpandedGeometry
-            ? TaskMorphSurfaceMetrics.detailExpandedCornerRadius
-            : TaskMorphSurfaceMetrics.compactCornerRadius
-    }
-
-    private var clippingCornerRadius: CGFloat {
-        usesExpandedGeometry ? surfaceCornerRadius : 0
-    }
-
-    private var activeContentScale: CGFloat {
-        guard reduceMotion == false, usesExpandedGeometry else { return 1 }
-        return TaskMorphSurfaceMetrics.expandedContentScale
     }
 
     private var backgroundContentScale: CGFloat {
@@ -488,6 +551,176 @@ struct TaskMorphContainer<Content: View>: View {
         isBackgroundDimmed ? 0.78 : 1
     }
 
+}
+
+private struct TaskMorphBloomSurfaceModifier: AnimatableModifier {
+    var progress: CGFloat
+    let isExpandedTarget: Bool
+    let reduceMotion: Bool
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        TaskMorphBloomSurfaceBody(
+            content: content,
+            progress: progress,
+            isExpandedTarget: isExpandedTarget,
+            reduceMotion: reduceMotion
+        )
+    }
+}
+
+private struct TaskMorphBloomSurfaceBody<Content: View>: View {
+    let content: Content
+    let progress: CGFloat
+    let isExpandedTarget: Bool
+    let reduceMotion: Bool
+
+    @State private var boundaryPhase: TaskMorphBoundaryPhase
+    @State private var settleTask: Task<Void, Never>?
+
+    init(
+        content: Content,
+        progress: CGFloat,
+        isExpandedTarget: Bool,
+        reduceMotion: Bool
+    ) {
+        self.content = content
+        self.progress = progress
+        self.isExpandedTarget = isExpandedTarget
+        self.reduceMotion = reduceMotion
+        _boundaryPhase = State(initialValue: isExpandedTarget ? .settled : .compact)
+    }
+
+    var body: some View {
+        let horizontalProgress = TaskMorphBloomMotion.horizontalProgress(progress)
+        let verticalProgress = TaskMorphBloomMotion.verticalProgress(progress)
+        let boundary = TaskMorphBloomMotion.boundaryPresentation(for: boundaryPhase)
+        let contentScale = reduceMotion
+            ? 1
+            : TaskMorphBloomMotion.interpolate(
+                1,
+                TaskMorphSurfaceMetrics.expandedContentScale,
+                progress: verticalProgress
+            )
+
+        content
+            .scaleEffect(x: contentScale, y: contentScale, anchor: .top)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(
+                .horizontal,
+                TaskMorphSurfaceMetrics.detailHorizontalInset * horizontalProgress
+            )
+            .padding(
+                EdgeInsets(
+                    top: TaskMorphSurfaceMetrics.detailTopInset * verticalProgress,
+                    leading: 0,
+                    bottom: TaskMorphSurfaceMetrics.detailBottomInset * verticalProgress,
+                    trailing: 0
+                )
+            )
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: progress > 0 ? TaskMorphBloomMotion.boundaryCornerRadius : 0,
+                    style: .continuous
+                )
+            )
+            .background(alignment: .top) {
+                TaskMorphBloomBoundaryLayer(
+                    presentation: boundary
+                )
+                .padding(.horizontal, -boundary.horizontalOutset)
+                .padding(.bottom, -boundary.bottomOutset)
+            }
+            .onChange(of: animationTarget) { _, target in
+                updateBoundary(for: target)
+            }
+            .onDisappear {
+                settleTask?.cancel()
+                settleTask = nil
+            }
+    }
+
+    private var animationTarget: TaskMorphBoundaryTarget {
+        TaskMorphBoundaryTarget(
+            isExpanded: isExpandedTarget,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    private func updateBoundary(for target: TaskMorphBoundaryTarget) {
+        settleTask?.cancel()
+        settleTask = nil
+
+        guard target.isExpanded else {
+            withAnimation(
+                target.reduceMotion
+                    ? .easeInOut(duration: TaskMorphBloomMotion.reducedMotionDuration)
+                    : .smooth(duration: TaskMorphBloomMotion.geometryDuration, extraBounce: 0)
+            ) {
+                boundaryPhase = .compact
+            }
+            return
+        }
+
+        guard target.reduceMotion == false else {
+            withAnimation(
+                .easeInOut(duration: TaskMorphBloomMotion.reducedMotionDuration)
+            ) {
+                boundaryPhase = .settled
+            }
+            return
+        }
+
+        withAnimation(
+            .smooth(
+                duration: TaskMorphBloomMotion.boundaryOvershootDuration,
+                extraBounce: 0
+            )
+        ) {
+            boundaryPhase = .overshot
+        }
+
+        settleTask = Task { @MainActor in
+            try? await Task.sleep(for: TaskMorphBloomMotion.boundaryOvershootDelay)
+            guard Task.isCancelled == false else { return }
+            withAnimation(
+                .spring(
+                    duration: TaskMorphBloomMotion.boundarySettleDuration,
+                    bounce: 0
+                )
+            ) {
+                boundaryPhase = .settled
+            }
+        }
+    }
+}
+
+private struct TaskMorphBloomBoundaryLayer: View {
+    let presentation: TaskMorphBoundaryPresentation
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: presentation.cornerRadius, style: .continuous)
+            .fill(AppTheme.colors.surface)
+            .overlay {
+                RoundedRectangle(cornerRadius: presentation.cornerRadius, style: .continuous)
+                    .strokeBorder(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
+            }
+            .opacity(presentation.opacity)
+            .shadow(
+                color: presentation.opacity > 0 ? Color.black.opacity(0.14) : .clear,
+                radius: presentation.shadowRadius,
+                y: presentation.shadowOffsetY
+            )
+    }
+}
+
+private struct TaskMorphBoundaryTarget: Equatable {
+    let isExpanded: Bool
+    let reduceMotion: Bool
 }
 
 private struct TaskMorphBackgroundDepthModifier: ViewModifier {
@@ -585,8 +818,12 @@ struct TaskMorphDisclosure<Content: View>: View {
             } action: { height in
                 updateMeasuredHeight(height)
             }
-            .frame(height: isExpanded ? resolvedExpandedHeight : 0, alignment: .top)
-            .clipped()
+            .modifier(
+                TaskMorphDisclosureModifier(
+                    progress: isExpanded ? 1 : 0,
+                    expandedHeight: resolvedExpandedHeight
+                )
+            )
             .allowsHitTesting(isExpanded)
             .accessibilityHidden(isExpanded == false)
     }
@@ -607,23 +844,65 @@ struct TaskMorphDisclosure<Content: View>: View {
     }
 }
 
-private struct TaskMorphListPlacementModifier: ViewModifier {
-    let state: TaskMorphVisualState
-    let isActive: Bool
+private struct TaskMorphDisclosureModifier: AnimatableModifier {
+    var progress: CGFloat
+    let expandedHeight: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .frame(
+                height: expandedHeight * TaskMorphBloomMotion.verticalProgress(progress),
+                alignment: .top
+            )
+            .clipped()
+    }
+}
+
+private struct TaskMorphListPlacementModifier: AnimatableModifier {
+    var progress: CGFloat
     let compactInsets: EdgeInsets
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
 
     func body(content: Content) -> some View {
         content
             .padding(adjustedInsets)
     }
 
-    private var usesExpandedGeometry: Bool {
-        isActive && state != .compact
-    }
-
     private var adjustedInsets: EdgeInsets {
-        guard usesExpandedGeometry else { return compactInsets }
-        return TaskMorphListSpacing.expandedInsets(from: compactInsets)
+        let expanded = TaskMorphListSpacing.expandedInsets(from: compactInsets)
+        let horizontalProgress = TaskMorphBloomMotion.horizontalProgress(progress)
+        let verticalProgress = TaskMorphBloomMotion.verticalProgress(progress)
+        return EdgeInsets(
+            top: TaskMorphBloomMotion.interpolate(
+                compactInsets.top,
+                expanded.top,
+                progress: verticalProgress
+            ),
+            leading: TaskMorphBloomMotion.interpolate(
+                compactInsets.leading,
+                expanded.leading,
+                progress: horizontalProgress
+            ),
+            bottom: TaskMorphBloomMotion.interpolate(
+                compactInsets.bottom,
+                expanded.bottom,
+                progress: verticalProgress
+            ),
+            trailing: TaskMorphBloomMotion.interpolate(
+                compactInsets.trailing,
+                expanded.trailing,
+                progress: horizontalProgress
+            )
+        )
     }
 }
 
@@ -655,8 +934,7 @@ extension View {
     ) -> some View {
         modifier(
             TaskMorphListPlacementModifier(
-                state: state,
-                isActive: isActive,
+                progress: isActive && state != .compact ? 1 : 0,
                 compactInsets: compactInsets
             )
         )

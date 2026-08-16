@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kb24123456/TogetherCore.git",
       "state" : {
-        "revision" : "58c436b909c99fcd3306bcec402f12ff728923c4",
-        "version" : "1.0.0"
+        "revision" : "fdec692379ff37aa9b01c316b604de7e24c3a036",
+        "version" : "1.1.0"
       }
     }
   ],

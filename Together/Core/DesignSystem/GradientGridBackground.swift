@@ -3,9 +3,6 @@ import SwiftUI
 struct GradientGridBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
-    private let gridSpacing: CGFloat = 36
-    private let gridLineWidth: CGFloat = 0.6
-
     var body: some View {
         ZStack {
             LinearGradient(
@@ -27,8 +24,8 @@ struct GradientGridBackground: View {
                     var path = Path()
                     path.move(to: CGPoint(x: x, y: 0))
                     path.addLine(to: CGPoint(x: x, y: size.height))
-                    context.stroke(path, with: shading, lineWidth: gridLineWidth)
-                    x += gridSpacing
+                    context.stroke(path, with: shading, lineWidth: AppTheme.grid.lineWidth)
+                    x += AppTheme.grid.spacing
                 }
 
                 // Horizontal lines
@@ -37,8 +34,8 @@ struct GradientGridBackground: View {
                     var path = Path()
                     path.move(to: CGPoint(x: 0, y: y))
                     path.addLine(to: CGPoint(x: size.width, y: y))
-                    context.stroke(path, with: shading, lineWidth: gridLineWidth)
-                    y += gridSpacing
+                    context.stroke(path, with: shading, lineWidth: AppTheme.grid.lineWidth)
+                    y += AppTheme.grid.spacing
                 }
             }
         }

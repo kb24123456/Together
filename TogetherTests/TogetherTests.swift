@@ -145,6 +145,59 @@ struct TogetherTests {
         #expect(PersistenceFailurePolicy.shouldDeleteStoreAfterOpenFailure == false)
     }
 
+    @Test func taskFollowContentStateOrdersLimitsAndStaysBelowPayloadBudget() throws {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let tasks = (0..<8).map { index in
+            var item = makeHomeFilterItem(
+                title: String(repeating: "很长的关注任务", count: 30) + " \(index)",
+                completedAt: nil,
+                status: .inProgress
+            )
+            item.isFollowed = true
+            item.followedAt = base.addingTimeInterval(TimeInterval(index))
+            return item
+        }
+
+        let state = TaskFollowSnapshotBuilder.contentState(from: tasks)
+        let encoded = try JSONEncoder().encode(state)
+
+        #expect(state.totalFollowedCount == 8)
+        #expect(state.visibleTasks.count == 3)
+        #expect(state.visibleTasks.map(\.taskID) == tasks.reversed().prefix(3).map(\.id))
+        #expect(state.visibleTasks.allSatisfy { $0.displayTitle.count <= 80 })
+        #expect(encoded.count < 4_096)
+    }
+
+    @Test func completingFollowedTaskClearsFollowAndReopeningDoesNotRestoreIt() async throws {
+        let repository = makeTaskSubtaskItemRepository()
+        let service = DefaultTaskApplicationService(
+            itemRepository: repository,
+            syncCoordinator: NoOpSyncCoordinator(),
+            reminderScheduler: MockReminderScheduler()
+        )
+        var item = makeHomeFilterItem(title: "需要持续关注", completedAt: nil, status: .inProgress)
+        item.isFollowed = true
+        item.followedAt = .now
+        _ = try await repository.saveItem(item)
+
+        let completed = try await service.completeTask(
+            in: MockDataFactory.singleSpaceID,
+            taskID: item.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: .now
+        )
+        #expect(completed.isFollowed == false)
+        #expect(completed.followedAt == nil)
+
+        let reopened = try await repository.markIncomplete(
+            itemID: item.id,
+            actorID: MockDataFactory.currentUserID,
+            referenceDate: .now
+        )
+        #expect(reopened.isFollowed == false)
+        #expect(reopened.followedAt == nil)
+    }
+
     @Test func ocrStructuralOperationsAddDeleteAndMoveTopLevelTasks() {
         let first = OCRImportTaskDraft(title: "第一条")
         let second = OCRImportTaskDraft(title: "第二条")
@@ -267,6 +320,65 @@ struct TogetherTests {
         #expect(importFetchCount >= 2)
         #expect(appContext.homeViewModel.reloadRevision == reloadRevisionBeforeImport + 3)
         #expect(appContext.homeViewModel.item(for: deletedTaskID) == nil)
+    }
+
+    @Test func startupProfileRestoreAppliesHydratedAvatarToSession() async throws {
+        let originalUser = MockDataFactory.makeCurrentUser()
+        var restoredUser = originalUser
+        restoredUser.avatarPhotoFileName = "asset-restored-avatar.jpg"
+        restoredUser.avatarAssetID = originalUser.id.uuidString.lowercased()
+        restoredUser.avatarVersion = 3
+        let profileRepository = StartupProfileRestoreRepository(restoredUser: restoredUser)
+        let appContext = try makeOCRAppContext(
+            taskApplicationService: CapturingTaskApplicationService(),
+            userProfileRepository: profileRepository
+        )
+
+        await appContext.restorePersistedUserProfileIfNeeded()
+
+        let mergeCallCount = await profileRepository.mergedUserCallCount
+        #expect(appContext.sessionStore.currentUser?.avatarAsset == .photo(fileName: "asset-restored-avatar.jpg"))
+        #expect(mergeCallCount == 1)
+    }
+
+    @Test func successfulCloudImportRetriesProfileRestoreForLateAvatarPayload() async throws {
+        let restoredUser = MockDataFactory.makeCurrentUser()
+        let profileRepository = StartupProfileRestoreRepository(restoredUser: restoredUser)
+        let appContext = try makeOCRAppContext(
+            taskApplicationService: CapturingTaskApplicationService(),
+            userProfileRepository: profileRepository,
+            cloudImportConvergenceDelays: [.zero, .zero]
+        )
+
+        let convergenceTask = await appContext.handleSuccessfulCloudImport()
+        await convergenceTask.value
+
+        let mergeCallCount = await profileRepository.mergedUserCallCount
+        #expect(mergeCallCount == 3)
+    }
+
+    @Test func missingAvatarFilePreservesCloudAssetMetadataUntilPayloadArrives() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let userID = UUID()
+        var user = makeIdentityTestUser(id: userID)
+        user.avatarPhotoFileName = "asset-\(userID.uuidString.lowercased()).jpg"
+        user.avatarAssetID = userID.uuidString.lowercased()
+        user.avatarVersion = 4
+        let context = ModelContext(container)
+        context.insert(PersistentUserProfile(user: user))
+        try context.save()
+        let repository = LocalUserProfileRepository(
+            container: container,
+            avatarMediaStore: MissingAvatarMediaStore()
+        )
+
+        let mergedUser = await repository.mergedUser(user)
+        let storedProfile = try #require(context.fetch(FetchDescriptor<PersistentUserProfile>()).first)
+
+        #expect(mergedUser?.avatarPhotoFileName == user.avatarPhotoFileName)
+        #expect(mergedUser?.avatarAssetID == user.avatarAssetID)
+        #expect(storedProfile.avatarPhotoFileName == user.avatarPhotoFileName)
+        #expect(storedProfile.avatarAssetID == user.avatarAssetID)
     }
 
     @Test func routineInlineDetailFallbackHeightMatchesVisibleRows() {
@@ -3170,7 +3282,8 @@ struct TogetherTests {
     @Test func inlineDetailLayoutMetricsAlignSubtasksWithParentTitle() {
         #expect(HomeInlineTaskLayoutMetrics.actionSlotWidth == 40)
         #expect(HomeInlineTaskLayoutMetrics.titleLeadingInset == HomeInlineTaskLayoutMetrics.actionSlotWidth + HomeInlineTaskLayoutMetrics.titleGap)
-        #expect(HomeInlineTaskLayoutMetrics.attributeLeadingInset == 0)
+        #expect(HomeInlineTaskLayoutMetrics.taskTitleLeadingInset == 38)
+        #expect(HomeInlineTaskLayoutMetrics.attributeLeadingInset == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset)
         #expect(HomeInlineTaskLayoutMetrics.checkboxSize < HomeInlineTaskLayoutMetrics.actionSlotWidth)
         #expect(HomeInlineTaskLayoutMetrics.attributeMinHeight < HomeInlineTaskLayoutMetrics.rowMinHeight)
         #expect(HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 0) > 0)
@@ -3439,13 +3552,19 @@ private func makeCompletedHistoryViewModel(
 @MainActor
 private func makeOCRAppContext(
     taskApplicationService: CapturingTaskApplicationService,
+    userProfileRepository: UserProfileRepositoryProtocol? = nil,
     cloudImportConvergenceDelays: [Duration] = [.milliseconds(800), .seconds(4)]
 ) throws -> AppContext {
     let syncCoordinator = NoOpSyncCoordinator()
     let itemRepository = MockItemRepository()
     let notificationService = MockNotificationService()
     let reminderScheduler = MockReminderScheduler()
-    let userProfileRepository = MockUserProfileRepository()
+    let resolvedUserProfileRepository: UserProfileRepositoryProtocol
+    if let userProfileRepository {
+        resolvedUserProfileRepository = userProfileRepository
+    } else {
+        resolvedUserProfileRepository = MockUserProfileRepository()
+    }
     let periodicTaskRepository = MockPeriodicTaskRepository()
     let periodicTaskApplicationService = DefaultPeriodicTaskApplicationService(
         repository: periodicTaskRepository,
@@ -3463,7 +3582,7 @@ private func makeOCRAppContext(
             personalIdentityService: PersonalIdentityService(container: migrationPersistence.container),
             taskApplicationService: taskApplicationService,
             syncCoordinator: syncCoordinator,
-            userProfileRepository: userProfileRepository,
+            userProfileRepository: resolvedUserProfileRepository,
             itemRepository: itemRepository,
             taskListRepository: MockTaskListRepository(),
             projectRepository: MockProjectRepository(reminderScheduler: reminderScheduler),
@@ -3486,6 +3605,74 @@ private func makeOCRAppContext(
     )
 }
 
+private actor StartupProfileRestoreRepository: UserProfileRepositoryProtocol {
+    private let restoredUser: User
+    private(set) var mergedUserCallCount = 0
+
+    init(restoredUser: User) {
+        self.restoredUser = restoredUser
+    }
+
+    func mergedUser(_ user: User?) async -> User? {
+        mergedUserCallCount += 1
+        return restoredUser
+    }
+
+    func saveProfile(
+        for user: User,
+        displayName: String,
+        avatarUpdate: UserAvatarUpdate
+    ) async throws -> User {
+        user
+    }
+
+    func savePreferences(
+        for user: User,
+        preferences: NotificationSettings
+    ) async throws -> User {
+        user
+    }
+
+    func hydrateFromRemote(
+        for user: User,
+        displayName: String,
+        avatarBytes: Data?,
+        avatarAssetID: String?,
+        avatarSystemName: String?,
+        avatarVersion: Int
+    ) async throws -> User {
+        user
+    }
+}
+
+private struct MissingAvatarMediaStore: UserAvatarMediaStoreProtocol {
+    nonisolated func canonicalFileName(for userID: UUID) -> String {
+        "\(userID.uuidString.lowercased())-avatar.jpg"
+    }
+
+    nonisolated func cacheFileName(for assetID: String) -> String {
+        UserAvatarStorage.fileName(forAssetID: assetID)
+    }
+
+    nonisolated func versionedCacheFileName(for assetID: String, version: Int) -> String {
+        UserAvatarStorage.versionedFileName(forAssetID: assetID, version: version)
+    }
+
+    nonisolated func avatarData(named fileName: String) throws -> Data {
+        throw CocoaError(.fileNoSuchFile)
+    }
+
+    nonisolated func persistAvatarData(_ data: Data, fileName: String) throws {}
+
+    nonisolated func migrateAvatarIfNeeded(from sourceFileName: String, to destinationFileName: String) throws {}
+
+    nonisolated func removeAvatar(named fileName: String) throws {}
+
+    nonisolated func fileExists(named fileName: String) -> Bool {
+        false
+    }
+}
+
 private func makeTaskSubtaskModelContainer() -> ModelContainer {
     let schema = Schema([
         PersistentUserProfile.self,
@@ -3494,6 +3681,7 @@ private func makeTaskSubtaskModelContainer() -> ModelContainer {
         PersistentProject.self,
         PersistentProjectSubtask.self,
         PersistentItem.self,
+        PersistentTaskFollow.self,
         PersistentTaskSubtask.self,
         PersistentItemOccurrenceCompletion.self,
         PersistentPeriodicTask.self
@@ -4059,6 +4247,15 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
         taskID: UUID,
         actorID: UUID,
         referenceDate: Date
+    ) async throws -> Item {
+        throw RepositoryError.notFound
+    }
+
+    func setTaskFollowed(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        isFollowed: Bool
     ) async throws -> Item {
         throw RepositoryError.notFound
     }

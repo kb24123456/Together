@@ -111,6 +111,7 @@ final class HomeMorphSession {
     private(set) var heroProgress: CGFloat = 0
     private(set) var isCreationListRevealEnabled = false
     private(set) var isCreationFlow = false
+    private var detailSourcePlacement: TaskMorphPlacement?
 
     @ObservationIgnored var onDismissIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCommitIntent: ((TaskMorphSubject) -> Void)?
@@ -148,6 +149,7 @@ final class HomeMorphSession {
         heroTargetFrame = nil
         heroProgress = 0
         isCreationListRevealEnabled = false
+        detailSourcePlacement = nil
 
         if let heroSourceFrame, Self.isValid(frame: heroSourceFrame) {
             self.heroSourceFrame = heroSourceFrame
@@ -176,6 +178,7 @@ final class HomeMorphSession {
         heroTargetFrame = nil
         heroProgress = 0
         isCreationListRevealEnabled = false
+        detailSourcePlacement = placement
         // First establish ownership while the real container is still compact.
         // The caller advances to `.expanded` in a following render turn so the
         // opening animation is the exact geometric inverse of collapse.
@@ -293,6 +296,23 @@ final class HomeMorphSession {
         beginCollapseAfterSave(using: token, finalPlacement: finalPlacement)
     }
 
+    @discardableResult
+    func reverseDetailCollapse(
+        domain: TaskMorphDomain,
+        id: UUID
+    ) -> HomeMorphSessionToken? {
+        guard phase == .collapsing,
+              isCreationFlow == false,
+              subject == .persisted(domain: domain, id: id)
+        else { return nil }
+        if let detailSourcePlacement {
+            placement = detailSourcePlacement
+        }
+        errorMessage = nil
+        visualState = .expanded
+        return advance(to: .active)
+    }
+
     func beginRelocating(using token: HomeMorphSessionToken) -> HomeMorphSessionToken? {
         guard phase == .collapsing, isCurrent(token) else { return nil }
         isCreationListRevealEnabled = false
@@ -367,6 +387,7 @@ final class HomeMorphSession {
         heroProgress = 0
         isCreationListRevealEnabled = false
         isCreationFlow = false
+        detailSourcePlacement = nil
     }
 
     private static func isValid(frame: CGRect) -> Bool {

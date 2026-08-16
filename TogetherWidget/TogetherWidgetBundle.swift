@@ -5,5 +5,6 @@ import WidgetKit
 struct TogetherWidgetBundle: WidgetBundle {
     var body: some Widget {
         TodayOverviewWidget()
+        TaskFollowLiveActivityWidget()
     }
 }

@@ -33,18 +33,19 @@ struct PeriodicTaskCreationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                RoundedRectangle(cornerRadius: AppTheme.radius.sm, style: .continuous)
+            HStack(alignment: .top, spacing: AppTheme.spacing.sm) {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(
-                        AppTheme.colors.body.opacity(0.38),
-                        style: StrokeStyle(lineWidth: 1.6, dash: [3.6, 4.4])
+                        AppTheme.colors.body.opacity(0.30),
+                        lineWidth: 1.2
                     )
-                    .frame(width: 40, height: 40)
+                    .frame(width: 24, height: 24)
+                    .frame(width: 44, height: 44)
                     .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                     TextField("定期任务标题", text: $title, axis: .vertical)
-                        .font(AppTheme.typography.sized(20, weight: .bold))
+                        .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
                         .lineLimit(1...3)
                         .focused($focusedField, equals: .title)
                         .submitLabel(.next)
@@ -54,7 +55,7 @@ struct PeriodicTaskCreationCard: View {
                         }
 
                     TextField("添加备注", text: $notes, axis: .vertical)
-                        .font(AppTheme.typography.sized(15, weight: .medium))
+                        .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
                         .foregroundStyle(AppTheme.colors.body.opacity(0.72))
                         .lineLimit(1...4)
                         .focused($focusedField, equals: .notes)

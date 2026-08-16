@@ -100,6 +100,11 @@
 			path = TogetherWidget;
 			sourceTree = "<group>";
 		};
+		F0110A000000000000000001 /* TaskFollowShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TaskFollowShared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -140,6 +145,7 @@
 			children = (
 				122A42C82F5DF61600BFFAD1 /* Together */,
 				7B0504000000000000000003 /* TogetherWidget */,
+				F0110A000000000000000001 /* TaskFollowShared */,
 				122A42DA2F5DF61800BFFAD1 /* TogetherTests */,
 				122A42E42F5DF61800BFFAD1 /* TogetherUITests */,
 				122A42C72F5DF61600BFFAD1 /* Products */,
@@ -176,6 +182,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				122A42C82F5DF61600BFFAD1 /* Together */,
+				F0110A000000000000000001 /* TaskFollowShared */,
 			);
 			name = Together;
 			packageProductDependencies = (
@@ -245,6 +252,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				7B0504000000000000000003 /* TogetherWidget */,
+				F0110A000000000000000001 /* TaskFollowShared */,
 			);
 			name = TogetherWidget;
 			packageProductDependencies = (
@@ -780,7 +788,7 @@
 			repositoryURL = "https://github.com/kb24123456/TogetherCore.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
+				minimumVersion = 1.1.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

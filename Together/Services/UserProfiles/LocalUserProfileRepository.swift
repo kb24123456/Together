@@ -90,9 +90,8 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
                     // Keep the current avatar reference while the legacy/local repair payload still
                     // exists. The blob is not shared-authority truth, but it is sufficient to avoid
                     // spuriously clearing local avatar metadata when file repair temporarily fails.
-                } else {
+                } else if mergedUser.avatarAssetID == nil {
                     mergedUser.avatarPhotoFileName = nil
-                    mergedUser.avatarAssetID = nil
                 }
             } else if let resolvedAssetID,
                       let resolvedCacheFileName,
@@ -361,9 +360,11 @@ actor LocalUserProfileRepository: UserProfileRepositoryProtocol {
                 record.avatarPhotoFileName = targetFileName
                 record.avatarAssetID = normalizedAssetID
                 hasMutatedRecord = true
-            } else {
+            } else if record.avatarAssetID == nil {
+                // A CloudKit external-storage payload may arrive after its profile
+                // metadata. Preserve an explicit asset reference until a later import
+                // can rebuild the local cache file; absence on disk is not a delete.
                 record.avatarPhotoFileName = nil
-                record.avatarAssetID = nil
                 hasMutatedRecord = true
             }
         } else if record.avatarAssetID != normalizedAssetID || record.avatarPhotoFileName != resolvedFileName {

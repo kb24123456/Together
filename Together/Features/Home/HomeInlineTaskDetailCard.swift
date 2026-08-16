@@ -27,7 +27,7 @@ struct HomeInlineTaskDetailCard: View {
         let subtasks = viewModel.inlineDetailDraft?.subtasks ?? []
         let firstSubtaskStep = showsAddNote ? 2 : 1
 
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+        VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
             if showsAddNote {
                 disclosureButton(title: "添加备注", systemImage: "plus", action: onAddNote)
                     .opacity(revealStep >= 1 ? 1 : 0)
@@ -86,11 +86,15 @@ struct HomeInlineTaskDetailCard: View {
         systemImage: String,
         action: @escaping () -> Void
     ) -> some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(14, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.42))
-                .frame(width: 40, height: 36, alignment: .trailing)
+                .frame(
+                    width: HomeInlineTaskLayoutMetrics.checkboxSize,
+                    height: 36,
+                    alignment: .trailing
+                )
 
             Button(action: action) {
                 Text(title)
@@ -166,11 +170,15 @@ struct HomeInlineTaskDetailCard: View {
     }
 
     private var newSubtaskRow: some View {
-        HStack(alignment: .center, spacing: AppTheme.spacing.md) {
+        HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Image(systemName: "plus")
                 .font(AppTheme.typography.sized(14, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.42))
-                .frame(width: 40, height: 36, alignment: .trailing)
+                .frame(
+                    width: HomeInlineTaskLayoutMetrics.checkboxSize,
+                    height: 36,
+                    alignment: .trailing
+                )
 
             TextField("添加子任务", text: $newSubtaskTitle)
                 .font(AppTheme.typography.sized(15, weight: .medium))
@@ -280,7 +288,8 @@ struct HomeTaskAttributeFooter: View {
     var body: some View {
         expandedControls
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .padding(.top, AppTheme.spacing.xs)
+            .padding(.leading, HomeInlineTaskLayoutMetrics.attributeLeadingInset)
+            .padding(.top, AppTheme.spacing.xxs)
             .opacity(controlsVisible ? 1 : 0)
             .allowsHitTesting(isExpanded && controlsVisible)
             .onAppear { updateControlsVisibility(isExpanded) }
@@ -348,8 +357,38 @@ struct HomeTaskAttributeFooter: View {
             .accessibilityLabel("紧急")
             .accessibilityValue(viewModel.inlineDetailDraft?.isUrgent == true ? "已开启" : "已关闭")
 
+            if canShowFollowButton {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    Task { await viewModel.toggleTaskFollow(entry.itemID) }
+                } label: {
+                    HomeMorphAttributeLabel(
+                        icon: "scope",
+                        title: "",
+                        isConfigured: isFollowed,
+                        tint: isFollowed ? AppTheme.colors.violet : nil,
+                        isCircular: true,
+                        alignsToCardCorner: true
+                    )
+                }
+                .buttonStyle(HomeMorphAttributeButtonStyle())
+                .disabled(viewModel.isUpdatingTaskFollow(entry.itemID))
+                .accessibilityLabel(isFollowed ? "已关注" : "关注任务")
+                .accessibilityValue(isFollowed ? "已开启" : "已关闭")
+                .accessibilityHint(isFollowed ? "轻点取消关注" : "轻点在实时活动中关注此任务")
+            }
+
             Spacer(minLength: 0)
         }
+    }
+
+    private var isFollowed: Bool {
+        viewModel.item(for: entry.itemID)?.isFollowed == true
+    }
+
+    private var canShowFollowButton: Bool {
+        guard let item = viewModel.item(for: entry.itemID) else { return false }
+        return item.repeatRule == nil && item.status != .completed && item.completedAt == nil
     }
 
     private func attributeButton(
@@ -522,8 +561,8 @@ struct SubtaskCompletionMark: View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(
-                    isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.42),
-                    style: StrokeStyle(lineWidth: 1.5, dash: [3.2, 4])
+                    isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.28),
+                    lineWidth: 1.1
                 )
 
             if isCompleted {

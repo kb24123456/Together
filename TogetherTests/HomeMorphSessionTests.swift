@@ -5,6 +5,43 @@ import Testing
 @MainActor
 @Suite("Home morph session")
 struct HomeMorphSessionTests {
+    @Test func anchoredSurfaceBloomBuildsWidthBeforeVerticalGrowth() {
+        let samples: [CGFloat] = [0, 0.2, 0.5, 0.8, 1]
+        let horizontal = samples.map(TaskMorphBloomMotion.horizontalProgress)
+        let vertical = samples.map(TaskMorphBloomMotion.verticalProgress)
+
+        #expect(horizontal.first == 0)
+        #expect(vertical.first == 0)
+        #expect(horizontal.last == 1)
+        #expect(vertical.last == 1)
+        #expect(horizontal[1] > vertical[1])
+        #expect(horizontal[2] > vertical[2])
+        #expect(zip(horizontal, horizontal.dropFirst()).allSatisfy { $0.0 <= $0.1 })
+        #expect(zip(vertical, vertical.dropFirst()).allSatisfy { $0.0 <= $0.1 })
+    }
+
+    @Test func boundaryOvershootIsExplicitAndSettlesWithoutMovingContentGeometry() {
+        let overshot = TaskMorphBloomMotion.boundaryPresentation(for: .overshot)
+        let settled = TaskMorphBloomMotion.boundaryPresentation(for: .settled)
+        let compact = TaskMorphBloomMotion.boundaryPresentation(for: .compact)
+
+        #expect(TaskMorphBloomMotion.geometryDuration == 0.35)
+        #expect(TaskMorphBloomMotion.boundaryOvershootDuration == 0.38)
+        #expect(TaskMorphBloomMotion.boundarySettleDuration == 0.14)
+        #expect(overshot.horizontalOutset == 4)
+        #expect(overshot.bottomOutset == 12)
+        #expect(compact.cornerRadius == 45)
+        #expect(overshot.cornerRadius == 45)
+        #expect(settled.cornerRadius == 45)
+        #expect(overshot.shadowRadius == 18)
+        #expect(overshot.shadowOffsetY == 8)
+        #expect(settled.horizontalOutset == 0)
+        #expect(settled.bottomOutset == 0)
+        #expect(settled.cornerRadius == 45)
+        #expect(settled.shadowRadius == 16)
+        #expect(settled.shadowOffsetY == 7)
+    }
+
     @Test func viewportMotionSplitsRealHeightAcrossBothSides() {
         let heightDelta: CGFloat = 300
         let upward = TaskMorphViewportMotion.maximumUpwardDisplacement(
@@ -259,21 +296,91 @@ struct HomeMorphSessionTests {
         #expect(model.subject == .persisted(domain: .todo, id: id))
         #expect(model.phase == .active)
         #expect(model.visualState == .compact)
+        #expect(model.isFocusDepthActive == false)
 
         #expect(model.activatePreparedExpansion(using: token))
         #expect(model.visualState == .expanded)
+        #expect(model.isFocusDepthActive)
         #expect(model.activatePreparedExpansion(using: token) == false)
     }
 
+    @Test func focusDepthDeactivatesDuringAnimatedCollapseBeforeSessionCleanup() throws {
+        let model = HomeMorphSession()
+        let id = UUID()
+        let placement = todoPlacement(id: id)
+        let expansion = try #require(
+            model.prepareExpansion(domain: .todo, id: id, placement: placement)
+        )
+        #expect(model.isFocusDepthActive == false)
+        #expect(model.activatePreparedExpansion(using: expansion))
+        #expect(model.isFocusDepthActive)
+
+        let saving = try #require(model.beginSaving())
+        let collapse = try #require(
+            model.beginDetailCollapseAfterSave(using: saving, finalPlacement: placement)
+        )
+
+        #expect(model.phase == .collapsing)
+        #expect(model.visualState == .compact)
+        #expect(model.isFocusDepthActive == false)
+
+        model.finishCollapse(using: collapse)
+        #expect(model.phase == .idle)
+        #expect(model.isFocusDepthActive == false)
+    }
+
+    @Test func tappingActiveRowDuringCollapseReversesFromCurrentSession() throws {
+        let model = HomeMorphSession()
+        let id = UUID()
+        let source = todoPlacement(id: id)
+        let destination = TaskMorphPlacement(
+            provisionalSection: source.provisionalSection,
+            finalSection: .todo(
+                dayStart: Date(timeIntervalSince1970: 86_400),
+                isUnscheduled: false
+            ),
+            index: 2,
+            presentationID: "destination-\(id.uuidString)"
+        )
+        let prepared = try #require(
+            model.prepareExpansion(domain: .todo, id: id, placement: source)
+        )
+        #expect(model.activatePreparedExpansion(using: prepared))
+        let saving = try #require(model.beginSaving())
+        let collapse = try #require(
+            model.beginDetailCollapseAfterSave(
+                using: saving,
+                finalPlacement: destination
+            )
+        )
+
+        let reversed = try #require(model.reverseDetailCollapse(domain: .todo, id: id))
+
+        #expect(model.phase == .active)
+        #expect(model.visualState == .expanded)
+        #expect(model.placement == source)
+        #expect(model.isCurrent(reversed))
+        #expect(model.isCurrent(collapse) == false)
+    }
+
     @Test func expandedListSpacingAddsRealSeparationAroundActiveCard() {
-        let compact = EdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24)
+        let compact = EdgeInsets(top: 8, leading: 28, bottom: 8, trailing: 28)
         let expanded = TaskMorphListSpacing.expandedInsets(from: compact)
 
-        #expect(expanded.top == 24)
-        #expect(expanded.bottom == 24)
-        #expect(expanded.leading == 12)
-        #expect(expanded.trailing == 12)
-        #expect(TaskMorphListSpacing.fixedExpansionHeightDelta == 40)
+        #expect(expanded.top == 16)
+        #expect(expanded.bottom == 16)
+        #expect(expanded.leading == 6)
+        #expect(expanded.trailing == 6)
+        #expect(TaskMorphListSpacing.fixedExpansionHeightDelta == 54)
+    }
+
+    @Test func inlineDetailContentSharesTheParentTitleAxis() {
+        #expect(HomeInlineTaskLayoutMetrics.taskTitleLeadingInset == 38)
+        #expect(
+            HomeInlineTaskLayoutMetrics.attributeLeadingInset
+                == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset
+        )
+        #expect(RoutineInlineLayoutMetrics.titleLeadingInset == 54)
     }
 
     private func todoPlacement(id: UUID) -> TaskMorphPlacement {

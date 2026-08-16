@@ -37,6 +37,12 @@ protocol TaskApplicationServiceProtocol: Sendable {
         actorID: UUID,
         referenceDate: Date
     ) async throws -> Item
+    func setTaskFollowed(
+        in spaceID: UUID,
+        taskID: UUID,
+        actorID: UUID,
+        isFollowed: Bool
+    ) async throws -> Item
     func addTaskSubtask(in spaceID: UUID, taskID: UUID, actorID: UUID, title: String) async throws -> Item
     func toggleTaskSubtask(in spaceID: UUID, taskID: UUID, subtaskID: UUID, actorID: UUID) async throws -> Item
     func updateTaskSubtask(in spaceID: UUID, taskID: UUID, subtaskID: UUID, actorID: UUID, title: String) async throws -> Item

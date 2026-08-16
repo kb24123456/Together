@@ -46,8 +46,8 @@ struct RoutinesListContent: View {
     @State private var taskMorphViewport = TaskMorphViewportCoordinator()
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
-    private let rowTopInset: CGFloat = 24
-    private let rowBottomInset: CGFloat = 4
+    private let rowTopInset: CGFloat = 8
+    private let rowBottomInset: CGFloat = 8
     private let listTopAnchor = "routines-list-top"
 
     private var currentTasks: [PeriodicTask] {
@@ -146,11 +146,12 @@ struct RoutinesListContent: View {
             }
         }
         .onChange(of: morphSession.visualState) { oldState, newState in
-            guard oldState == .expanded,
-                  newState == .compact,
-                  case .persisted(.periodic, let taskID) = morphSession.subject
-            else { return }
-            taskMorphViewport.beginCollapse(for: taskID)
+            guard case .persisted(.periodic, let taskID) = morphSession.subject else { return }
+            if oldState == .expanded, newState == .compact {
+                taskMorphViewport.beginCollapse(for: taskID)
+            } else if oldState == .compact, newState == .expanded {
+                taskMorphViewport.resumeExpansion(for: taskID)
+            }
         }
         .onChange(of: viewModel.tasks.map(\.id)) { _, taskIDs in
             guard case .persisted(.periodic, let taskID) = morphSession.subject,
@@ -353,7 +354,7 @@ struct RoutinesListContent: View {
                 taskMorphViewport.recordViewportFrame(frame)
             }
             .scrollIndicators(.hidden)
-            .applyScrollEdgeProtection()
+            .applyHomeScrollEdgeTransition()
             .transaction { transaction in
                 if morphSession.phase == .relocating, morphSession.isCreationFlow == false {
                     // Cycle changes and the destination row are prepared behind
@@ -507,7 +508,7 @@ struct RoutinesListContent: View {
                             Label(error, systemImage: "exclamationmark.circle.fill")
                                 .font(AppTheme.typography.sized(13, weight: .medium))
                                 .foregroundStyle(.red)
-                                .padding(.leading, 52)
+                                .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
                                 .padding(.top, AppTheme.spacing.sm)
                         }
                         HStack {
@@ -523,7 +524,7 @@ struct RoutinesListContent: View {
                             .disabled(morphSession.phase != .active)
                             .accessibilityHint("保存更改并收起定期任务详情")
                         }
-                        .padding(.leading, 52)
+                        .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
                     }
                 }
             }
@@ -580,8 +581,6 @@ struct RoutinesListContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 12))
         .opacity(isPresented ? 1 : 0)
-        .allowsHitTesting(isCreationRevealTarget == false)
-        .accessibilityHidden(isCreationRevealTarget)
         .animation(
             modeRowAnimation(index: index, taskCount: taskCount),
             value: isPresented
@@ -617,6 +616,10 @@ struct RoutinesListContent: View {
                 }
             }
         }
+        .taskEdgeFlow(
+            intensity: morphSession.isFocusDepthActive ? 0 : 1,
+            isBaseHidden: isCreationRevealTarget
+        )
         .zIndex(isActiveMorph ? 1 : 0)
     }
 
@@ -677,6 +680,14 @@ struct RoutinesListContent: View {
     private func toggleInlineDetail(_ taskID: UUID, scrollProxy: ScrollViewProxy) {
         _ = scrollProxy
         if morphSession.isActive {
+            var reversedCollapse = false
+            withAnimation(morphGeometryAnimation) {
+                reversedCollapse = morphSession.reverseDetailCollapse(
+                    domain: .periodic,
+                    id: taskID
+                ) != nil
+            }
+            if reversedCollapse { return }
             morphSession.requestDismissal()
             return
         }
@@ -717,7 +728,7 @@ struct RoutinesListContent: View {
     }
 
     private var morphGeometryAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.14) : .spring(response: 0.38, dampingFraction: 0.9)
+        TaskMorphBloomMotion.geometryAnimation(reduceMotion: reduceMotion)
     }
 
     // MARK: - Empty states

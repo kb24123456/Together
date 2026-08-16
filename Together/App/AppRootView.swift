@@ -51,7 +51,12 @@ struct HomeRootContent: View {
         NavigationStack(path: $rootNavigationPath) {
                 rootSurfaceView(router: router)
                     .toolbar {
-                        topToolbar(router: router)
+                        if #available(iOS 26.0, *) {
+                            topToolbar(router: router)
+                                .sharedBackgroundVisibility(.hidden)
+                        } else {
+                            topToolbar(router: router)
+                        }
                     }
                     .toolbarBackground(.hidden, for: .navigationBar)
                     .navigationBarTitleDisplayMode(.inline)
@@ -229,10 +234,12 @@ struct HomeRootContent: View {
                             Text("定期").tag(RootSurface.routines)
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: 144)
+                        .controlSize(.small)
+                        .frame(width: 144, height: 38)
+                        .frame(height: 44)
                         .accessibilityIdentifier("together.mode-picker")
                         .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
-                        .accessibilityHint("在待办任务和定期任务之间切换")
+                        .accessibilityHint("切换待办或定期任务")
                     }
                 } else {
                     Text("待办")
@@ -259,14 +266,20 @@ struct HomeRootContent: View {
                 UserAvatarView(
                     avatarAsset: avatar.avatarAsset,
                     displayName: avatar.displayName,
-                    size: 32,
+                    size: 40,
                     fillColor: AppTheme.colors.avatarWarm,
                     symbolColor: AppTheme.colors.title.opacity(0.82),
-                    symbolFont: AppTheme.typography.sized(16, weight: .semibold),
+                    symbolFont: AppTheme.typography.sized(18, weight: .semibold),
                     overrideImage: avatar.overrideImage
                 )
+                .overlay {
+                    Circle()
+                        .strokeBorder(AppTheme.colors.hairline, lineWidth: 0.5)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
             }
-            .buttonBorderShape(.circle)
+            .buttonStyle(.plain)
             .accessibilityLabel("打开个人页")
             .accessibilityHint("查看个人资料和设置")
             .taskMorphBackgroundDepth(
@@ -497,6 +510,9 @@ struct HomeRootContent: View {
                 }
                 guard let collapse else { return }
                 await waitForCollapse()
+                guard morphSession.phase == .collapsing,
+                      morphSession.isCurrent(collapse)
+                else { return }
                 guard requiresRelocation else {
                     finishDetailWithoutRelocation(subject, collapse: collapse)
                     return
@@ -573,7 +589,7 @@ struct HomeRootContent: View {
     }
 
     private var morphAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.14) : .spring(response: 0.38, dampingFraction: 0.9)
+        TaskMorphBloomMotion.geometryAnimation(reduceMotion: reduceMotion)
     }
 
     private var relocationAnimation: Animation {
@@ -586,7 +602,7 @@ struct HomeRootContent: View {
 
     private func waitForCollapse() async {
         guard reduceMotion == false else { return }
-        try? await Task.sleep(for: .milliseconds(380))
+        try? await Task.sleep(for: .milliseconds(430))
     }
 
     private func openDirectOCRPhotoPicker() {

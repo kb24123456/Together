@@ -38,4 +38,6 @@ struct Item: Identifiable, Hashable, Sendable, Codable {
     var isArchived: Bool = false
     var archivedAt: Date? = nil
     var repeatRule: ItemRepeatRule? = nil
+    var isFollowed: Bool = false
+    var followedAt: Date? = nil
 }

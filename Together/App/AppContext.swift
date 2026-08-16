@@ -47,6 +47,7 @@ final class AppContext {
 
     private let todayWidgetContextStore: TodayWidgetSharedContextStore
     private let todayWidgetSnapshotWriter: TodayWidgetSnapshotWriter
+    private let taskFollowActivityCoordinator: TaskFollowActivityCoordinator
     private let cloudImportConvergenceDelays: [Duration]
     private let cloudKitDiagnosticsEnabled = ProcessInfo.processInfo.arguments.contains(
         "-TogetherCloudKitDiagnostics"
@@ -72,6 +73,9 @@ final class AppContext {
         self.todayWidgetSnapshotWriter = TodayWidgetSnapshotWriter(
             itemRepository: container.itemRepository,
             contextStore: todayWidgetContextStore
+        )
+        self.taskFollowActivityCoordinator = TaskFollowActivityCoordinator(
+            itemRepository: container.itemRepository
         )
 
         self.homeViewModel = HomeViewModel(
@@ -171,11 +175,14 @@ final class AppContext {
         }
     }
 
-    func restorePersistedUserProfileIfNeeded(force _: Bool = false) async {
+    func restorePersistedUserProfileIfNeeded(force: Bool = false) async {
+        if force {
+            hasRestoredPersistedUserProfile = false
+        }
         guard hasRestoredPersistedUserProfile == false else { return }
-        hasRestoredPersistedUserProfile = true
         guard let user = sessionStore.currentUser else { return }
-        sessionStore.currentUser = user
+        hasRestoredPersistedUserProfile = true
+        sessionStore.currentUser = await container.userProfileRepository.mergedUser(user) ?? user
     }
 
     func performPostLaunchWorkIfNeeded() async {
@@ -196,6 +203,7 @@ final class AppContext {
             StartupTrace.mark("AppContext.postLaunch.remindersSynced")
             await self.refreshTodayWidgetSnapshot()
             StartupTrace.mark("AppContext.postLaunch.widgetRefreshed")
+            await self.reconcileFollowActivity(reason: .appActive)
         }
     }
 
@@ -204,6 +212,9 @@ final class AppContext {
         hasEnteredBackgroundSinceLaunch = false
         await homeViewModel.reload(reason: .sync)
         await refreshTodayWidgetSnapshot()
+        if let spaceID = sessionStore.currentSpace?.id {
+            _ = await taskFollowActivityCoordinator.reconcileAfterAppBecameActive(spaceID: spaceID)
+        }
     }
 
     func handleAppEnteredBackground() {
@@ -244,6 +255,7 @@ final class AppContext {
     @discardableResult
     func handleSuccessfulCloudImport() async -> Task<Void, Never> {
         cloudImportConvergenceTask?.cancel()
+        await restorePersistedUserProfileIfNeeded(force: true)
         await reloadAfterSync()
         logCloudImportReload(stage: "immediate")
 
@@ -256,6 +268,7 @@ final class AppContext {
                     return
                 }
                 guard let self, Task.isCancelled == false else { return }
+                await self.restorePersistedUserProfileIfNeeded(force: true)
                 await self.reloadAfterSync()
                 self.logCloudImportReload(stage: "retry-\(index + 1)")
             }
@@ -342,6 +355,18 @@ final class AppContext {
             self?.syncAfterMutation(spaceID: spaceID)
             Task { await self?.refreshTodayWidgetSnapshot() }
         }
+        homeViewModel.onTaskFollowChanged = { [weak self] spaceID in
+            Task { @MainActor in
+                guard let self else { return }
+                let result = await self.taskFollowActivityCoordinator.reconcile(
+                    spaceID: spaceID,
+                    reason: .userMutation
+                )
+                if result == .activitiesDisabled {
+                    self.homeViewModel.presentOperationStatus("已关注，但实时活动未开启")
+                }
+            }
+        }
         homeViewModel.onTodayDataChanged = { [weak self] in
             Task { await self?.refreshTodayWidgetSnapshot() }
         }
@@ -397,10 +422,18 @@ final class AppContext {
     }
 
     private func syncAfterMutation(spaceID: UUID) {
-        _ = spaceID
         Task {
             await refreshTodayWidgetSnapshot()
+            _ = await taskFollowActivityCoordinator.reconcile(
+                spaceID: spaceID,
+                reason: .dataChanged
+            )
         }
+    }
+
+    private func reconcileFollowActivity(reason: TaskFollowReconcileReason) async {
+        guard let spaceID = sessionStore.currentSpace?.id else { return }
+        _ = await taskFollowActivityCoordinator.reconcile(spaceID: spaceID, reason: reason)
     }
 
     private func reloadAfterSync() async {
@@ -421,6 +454,7 @@ final class AppContext {
             await projectsViewModel.load()
             await routinesViewModel.reload()
             await refreshTodayWidgetSnapshot()
+            await reconcileFollowActivity(reason: .dataChanged)
             guard appliedRevision == reloadAfterSyncRevision else { continue }
             break
         }

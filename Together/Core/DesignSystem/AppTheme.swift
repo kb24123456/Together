@@ -131,11 +131,11 @@ enum AppTheme {
 
         // MARK: - Gradient Grid Background
 
-        static let gradientBottom = Color(light: .init(red: 0.965, green: 0.973, blue: 0.980),
-                                          dark: .init(red: 0.130, green: 0.118, blue: 0.112))
+        static let gradientBottom = Color(light: .init(red: 0.974, green: 0.978, blue: 0.982),
+                                          dark: .init(red: 0.125, green: 0.125, blue: 0.132))
 
-        static let gridLine = Color(light: .black.opacity(0.026),
-                                    dark: .white.opacity(0.032))
+        static let gridLine = Color(light: .black.opacity(0.016),
+                                    dark: .white.opacity(0.020))
     }
 
     enum spacing {
@@ -162,6 +162,11 @@ enum AppTheme {
     enum metrics {
         /// SF Symbol "checkmark" 视觉居中补偿：字形短臂偏左下、长臂延伸右上，需向左下微调
         static let checkmarkVisualOffset: CGSize = CGSize(width: -0.5, height: 0.5)
+    }
+
+    enum grid {
+        static let spacing: CGFloat = 44
+        static let lineWidth: CGFloat = 0.5
     }
 
     /// 标准动画曲线（Wave 5 design system 统一）。
@@ -196,8 +201,6 @@ enum AppTheme {
         static let priceLarge = sized(20, weight: .bold)
         static let priceXLarge = sized(22, weight: .bold)
 
-        private static var hasLoggedRoundedFallback = false
-
         static func textStyle(_ style: UIFont.TextStyle, weight: UIFont.Weight = .regular) -> Font {
             Font(uiFont(textStyle: style, weight: weight))
         }
@@ -206,9 +209,17 @@ enum AppTheme {
             Font(uiFont(size: size, weight: weight))
         }
 
+        static func scaled(
+            _ size: CGFloat,
+            weight: UIFont.Weight = .regular,
+            relativeTo textStyle: UIFont.TextStyle
+        ) -> Font {
+            let metrics = UIFontMetrics(forTextStyle: textStyle)
+            return Font(metrics.scaledFont(for: uiFont(size: size, weight: weight)))
+        }
+
         /// Editorial large-display helper. Pins weight to `.light` so name card titles
-        /// feel airy and restrained rather than bold. No font bundling — relies on
-        /// system rounded Chinese fallback configured in `uiFont(size:weight:)`.
+        /// feel airy and restrained rather than bold.
         static func displayLight(_ size: CGFloat) -> Font {
             Font(uiFont(size: size, weight: .light))
         }
@@ -227,48 +238,7 @@ enum AppTheme {
         }
 
         private static func uiFont(size: CGFloat, weight: UIFont.Weight) -> UIFont {
-            let roundedBase = UIFont.systemFont(ofSize: size, weight: weight)
-            let roundedDescriptor = roundedBase.fontDescriptor.withDesign(.rounded) ?? roundedBase.fontDescriptor
-
-            guard let chineseDescriptor = roundedChineseDescriptor(size: size, weight: weight) else {
-                logRoundedFallbackIfNeeded()
-                return UIFont(descriptor: roundedDescriptor, size: size)
-            }
-
-            let cascadedDescriptor = roundedDescriptor.addingAttributes([
-                .cascadeList: [chineseDescriptor]
-            ])
-            return UIFont(descriptor: cascadedDescriptor, size: size)
-        }
-
-        private static func roundedChineseDescriptor(size: CGFloat, weight: UIFont.Weight) -> UIFontDescriptor? {
-            preferredRoundedChineseNames(for: weight)
-                .lazy
-                .compactMap { UIFont(name: $0, size: size)?.fontDescriptor }
-                .first
-        }
-
-        private static func preferredRoundedChineseNames(for weight: UIFont.Weight) -> [String] {
-            switch weight {
-            case ..<UIFont.Weight.regular:
-                return ["Resource-Han-Rounded-CN-ExtraLight", "Resource-Han-Rounded-CN-Light", "Resource-Han-Rounded-CN-Regular"]
-            case ..<UIFont.Weight.medium:
-                return ["Resource-Han-Rounded-CN-Light", "Resource-Han-Rounded-CN-Regular", "Resource-Han-Rounded-CN-Normal"]
-            case ..<UIFont.Weight.semibold:
-                return ["Resource-Han-Rounded-CN-Regular", "Resource-Han-Rounded-CN-Normal", "Resource-Han-Rounded-CN-Medium"]
-            case ..<UIFont.Weight.bold:
-                return ["Resource-Han-Rounded-CN-Medium", "Resource-Han-Rounded-CN-Bold", "Resource-Han-Rounded-CN-Normal"]
-            default:
-                return ["Resource-Han-Rounded-CN-Bold", "Resource-Han-Rounded-CN-Heavy", "Resource-Han-Rounded-CN-Medium"]
-            }
-        }
-
-        private static func logRoundedFallbackIfNeeded() {
-            guard !hasLoggedRoundedFallback else { return }
-            hasLoggedRoundedFallback = true
-            #if DEBUG
-            print("AppTheme.typography warning: Resource Han Rounded CN is unavailable on the current device/runtime. Falling back to the rounded system font.")
-            #endif
+            UIFont.systemFont(ofSize: size, weight: weight)
         }
         #endif
     }
@@ -293,6 +263,17 @@ extension View {
     func applyScrollEdgeProtection() -> some View {
         if #available(iOS 26.0, *) {
             self.scrollEdgeEffectStyle(nil, for: [.top, .bottom])
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func applyHomeScrollEdgeTransition() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                .scrollEdgeEffectStyle(nil, for: .bottom)
         } else {
             self
         }

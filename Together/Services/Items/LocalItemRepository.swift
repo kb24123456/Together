@@ -244,7 +244,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             hasRepeatRule: record.repeatRuleData != nil
         )
 
-        var item = record.domainModel()
+        var item = try hydratedItem(from: record, context: context)
         if item.repeatRule == nil {
             item.status = ItemStateMachine.nextStatus(
                 from: item.status,
@@ -265,8 +265,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.completedByUserID = actorID
         item.isArchived = false
         item.archivedAt = nil
+        item.isFollowed = false
+        item.followedAt = nil
         item.updatedAt = .now
         record.update(from: item)
+        try upsertTaskFollow(for: item, context: context)
         try context.save()
 
         ItemStatusDiagnosisLog.markCompletedSaved(
@@ -297,7 +300,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             throw RepositoryError.notFound
         }
 
-        var item = record.domainModel()
+        var item = try hydratedItem(from: record, context: context)
         if item.repeatRule == nil {
             item.completedAt = nil
             if item.status == .completed {
@@ -312,8 +315,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.completedByUserID = nil
         item.isArchived = false
         item.archivedAt = nil
+        item.isFollowed = false
+        item.followedAt = nil
         item.updatedAt = .now
         record.update(from: item)
+        try upsertTaskFollow(for: item, context: context)
         try context.save()
 
         if let sid = record.spaceID {
@@ -340,6 +346,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             context.insert(PersistentItem(item: savedItem))
             subtaskChanges = try replaceSubtasks(for: savedItem, context: context)
         }
+        try upsertTaskFollow(for: savedItem, context: context)
 
         try context.save()
 
@@ -542,6 +549,11 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         let spaceID = record.spaceID
         record.isLocallyDeleted = true
         record.updatedAt = .now
+        if let follow = try taskFollowRecords(itemIDs: [itemID], context: context).first {
+            follow.isFollowed = false
+            follow.followedAt = nil
+            follow.updatedAt = .now
+        }
         try context.save()
 
         if let sid = spaceID {
@@ -855,11 +867,14 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             context: context
         )
         let subtasks = try subtaskMap(itemIDs: itemIDs, context: context)
+        let follows = try taskFollowMap(itemIDs: itemIDs, context: context)
         return try records.map { record in
-            try hydratedItem(
+            let follow = follows[record.id]
+            return try hydratedItem(
                 from: record,
                 occurrenceCompletions: completions[record.id] ?? [],
                 subtasks: subtasks[record.id] ?? [],
+                follow: follow,
                 context: context
             )
         }
@@ -872,10 +887,12 @@ actor LocalItemRepository: ItemRepositoryProtocol {
             itemRecords: [record],
             context: context
         )
+        let follow = try taskFollowMap(itemIDs: [record.id], context: context)[record.id]
         return try hydratedItem(
             from: record,
             occurrenceCompletions: completions[record.id] ?? [],
             subtasks: subtasks[record.id] ?? [],
+            follow: follow,
             context: context
         )
     }
@@ -884,6 +901,7 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         from record: PersistentItem,
         occurrenceCompletions: [ItemOccurrenceCompletion],
         subtasks: [TaskSubtask],
+        follow: PersistentTaskFollow?,
         context: ModelContext
     ) throws -> Item {
         let migratedLegacyCompletions = try legacyOccurrenceCompletions(for: record, context: context)
@@ -894,7 +912,66 @@ actor LocalItemRepository: ItemRepositoryProtocol {
                 }
                 return lhs.completedAt < rhs.completedAt
             }
-        return record.domainModel(occurrenceCompletions: merged, subtasks: subtasks)
+        let canBeFollowed = record.repeatRuleData == nil
+            && record.isArchived == false
+            && record.isLocallyDeleted == false
+            && record.statusRawValue != ItemStatus.completed.rawValue
+            && record.completedAt == nil
+        return record.domainModel(
+            occurrenceCompletions: merged,
+            subtasks: subtasks,
+            isFollowed: canBeFollowed && (follow?.isFollowed ?? false),
+            followedAt: canBeFollowed ? follow?.followedAt : nil
+        )
+    }
+
+    private func taskFollowRecords(
+        itemIDs: [UUID],
+        context: ModelContext
+    ) throws -> [PersistentTaskFollow] {
+        guard itemIDs.isEmpty == false else { return [] }
+        let descriptor = FetchDescriptor<PersistentTaskFollow>(
+            predicate: #Predicate<PersistentTaskFollow> { itemIDs.contains($0.itemID) },
+            sortBy: [SortDescriptor(\PersistentTaskFollow.updatedAt, order: .reverse)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    private func taskFollowMap(
+        itemIDs: [UUID],
+        context: ModelContext
+    ) throws -> [UUID: PersistentTaskFollow] {
+        try taskFollowRecords(itemIDs: itemIDs, context: context).reduce(into: [:]) { result, record in
+            if result[record.itemID] == nil {
+                result[record.itemID] = record
+            }
+        }
+    }
+
+    private func upsertTaskFollow(for item: Item, context: ModelContext) throws {
+        let records = try taskFollowRecords(itemIDs: [item.id], context: context)
+        guard item.isFollowed || item.followedAt != nil || records.isEmpty == false else { return }
+
+        let now = Date.now
+        if let primary = records.first {
+            primary.spaceID = item.spaceID
+            primary.isFollowed = item.isFollowed
+            primary.followedAt = item.isFollowed ? item.followedAt : nil
+            primary.updatedAt = now
+            for duplicate in records.dropFirst() {
+                context.delete(duplicate)
+            }
+        } else {
+            context.insert(
+                PersistentTaskFollow(
+                    itemID: item.id,
+                    spaceID: item.spaceID,
+                    isFollowed: item.isFollowed,
+                    followedAt: item.isFollowed ? item.followedAt : nil,
+                    updatedAt: now
+                )
+            )
+        }
     }
 
     private struct SubtaskChangeSet {

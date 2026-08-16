@@ -33,7 +33,9 @@ nonisolated extension PersistentItem {
 
     func domainModel(
         occurrenceCompletions: [ItemOccurrenceCompletion] = [],
-        subtasks: [TaskSubtask] = []
+        subtasks: [TaskSubtask] = [],
+        isFollowed: Bool = false,
+        followedAt: Date? = nil
     ) -> Item {
         Item(
             id: id,
@@ -61,7 +63,9 @@ nonisolated extension PersistentItem {
             isDraft: isDraft,
             isArchived: isArchived,
             archivedAt: archivedAt,
-            repeatRule: Self.decode(repeatRuleData, defaultValue: nil)
+            repeatRule: Self.decode(repeatRuleData, defaultValue: nil),
+            isFollowed: isFollowed,
+            followedAt: followedAt
         )
     }
 

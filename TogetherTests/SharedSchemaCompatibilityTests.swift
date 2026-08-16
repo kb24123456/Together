@@ -6,10 +6,10 @@ import TogetherCore
 
 @Suite("iPhone shared SwiftData schema compatibility", .serialized)
 struct SharedSchemaCompatibilityTests {
-    @Test("Production schema uses V2 without templates")
+    @Test("Production schema uses V3 with task-follow state and without templates")
     @MainActor
     func productionSchemaUsesSharedV1() {
-        let productionSchema = Schema(versionedSchema: TogetherSchemaV2.self)
+        let productionSchema = Schema(versionedSchema: Together.TogetherSchemaV3.self)
         #expect(Set(productionSchema.entities.map(\.name)) == [
             "PersistentUserProfile",
             "PersistentSpace",
@@ -17,13 +17,14 @@ struct SharedSchemaCompatibilityTests {
             "PersistentProject",
             "PersistentProjectSubtask",
             "PersistentItem",
+            "PersistentTaskFollow",
             "PersistentTaskSubtask",
             "PersistentItemOccurrenceCompletion",
             "PersistentPeriodicTask",
         ])
     }
 
-    @Test("Existing V1 iPhone store migrates to V2 without data loss")
+    @Test("Existing V1 iPhone store migrates through V3 without data loss")
     @MainActor
     func existingStoreReopensWithoutDataLoss() throws {
         let directory = FileManager.default.temporaryDirectory
@@ -91,7 +92,7 @@ struct SharedSchemaCompatibilityTests {
         }
 
         do {
-            let sharedSchema = Schema(versionedSchema: TogetherSchemaV2.self)
+            let sharedSchema = Schema(versionedSchema: Together.TogetherSchemaV3.self)
             let configuration = ModelConfiguration(
                 "TogetherStore",
                 schema: sharedSchema,
@@ -113,6 +114,8 @@ struct SharedSchemaCompatibilityTests {
             #expect(item.dueAt == now)
             #expect(item.repeatRuleData == payload)
             #expect(sharedSchema.entities.contains { $0.name == "PersistentTaskTemplate" } == false)
+            #expect(sharedSchema.entities.contains { $0.name == "PersistentTaskFollow" })
+            #expect(try context.fetchCount(FetchDescriptor<PersistentTaskFollow>()) == 0)
         }
     }
 
