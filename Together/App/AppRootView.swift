@@ -46,6 +46,15 @@ struct HomeRootContent: View {
         morphSession.isFocusDepthActive
     }
 
+    private var isHomeSurfaceVisible: Bool {
+        rootNavigationPath.isEmpty
+            && activeOCRSourceSession == nil
+            && pendingOCRReviewSession == nil
+            && appContext.router.activeOCRReviewSession == nil
+            && isPresentingDirectOCRPhotoPicker == false
+            && isPresentingDirectOCRCamera == false
+    }
+
     var body: some View {
         @Bindable var router = appContext.router
 
@@ -188,6 +197,7 @@ struct HomeRootContent: View {
             routinesViewModel: appContext.routinesViewModel,
             isProjectModePresented: false,
             isRoutinesModePresented: displayedRootSurface == .routines,
+            isRootSurfaceVisible: isHomeSurfaceVisible,
             onCreateTaskTapped: {
                 router.pendingComposerTitle = nil
                 beginMorphCreation(domain: .todo, heroSourceFrame: nil)

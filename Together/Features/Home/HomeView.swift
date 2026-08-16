@@ -11,6 +11,7 @@ struct HomeView: View {
     @Bindable var routinesViewModel: RoutinesViewModel
     let isProjectModePresented: Bool
     let isRoutinesModePresented: Bool
+    var isRootSurfaceVisible = true
     let onCreateTaskTapped: () -> Void
     let onCompletedHistoryTapped: (CompletedHistoryFilter) -> Void
     @State private var isCompletedVisibilityButtonCompressed = false
@@ -128,7 +129,19 @@ struct HomeView: View {
     }
 
     private var backgroundView: some View {
-        GradientGridBackground()
+        GradientGridBackground(
+            showsAmbientParticles: true,
+            ambientParticlesEnabled: appContext.ambientBackgroundSettings.isEnabled,
+            isParticleMotionSuppressed: isAmbientParticleMotionSuppressed,
+            isSurfaceVisible: isRootSurfaceVisible
+        )
+    }
+
+    private var isAmbientParticleMotionSuppressed: Bool {
+        morphSession.isFocusDepthActive
+            || viewModel.isOverdueSheetPresented
+            || viewModel.isWeeklyCompletedSheetPresented
+            || routinesViewModel.showsAlarmAuthorizationDeniedAlert
     }
 
     private var backgroundDimBrightness: Double {

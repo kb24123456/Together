@@ -10,6 +10,8 @@ struct ProfileView: View {
     @Namespace private var profileTransition
 
     var body: some View {
+        @Bindable var ambientBackgroundSettings = appContext.ambientBackgroundSettings
+
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.spacing.xxl) {
                 NavigationLink(value: ProfileRoute.editProfile) {
@@ -25,6 +27,16 @@ struct ProfileView: View {
                     .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
                 }
                 .buttonStyle(.plain)
+
+                ProfileFlatSection(title: "显示") {
+                    ProfileFlatToggleRow(
+                        title: "动态背景",
+                        systemImage: "sparkles"
+                    ) {
+                        Toggle("动态背景", isOn: $ambientBackgroundSettings.isEnabled)
+                            .labelsHidden()
+                    }
+                }
 
                 ProfileFlatSection(title: "提醒") {
                     ProfileFlatToggleRow(

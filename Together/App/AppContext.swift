@@ -25,6 +25,7 @@ final class AppContext {
     let sessionStore: SessionStore
     let router: AppRouter
     let appearanceManager: AppearanceManager
+    let ambientBackgroundSettings: AmbientBackgroundSettings
     let homeViewModel: HomeViewModel
     let projectsViewModel: ProjectsViewModel
     let profileViewModel: ProfileViewModel
@@ -66,6 +67,7 @@ final class AppContext {
         self.sessionStore = sessionStore
         self.router = router
         self.appearanceManager = appearanceManager
+        self.ambientBackgroundSettings = AmbientBackgroundSettings()
         self.cloudImportConvergenceDelays = cloudImportConvergenceDelays
 
         let todayWidgetContextStore = TodayWidgetSharedContextStore()

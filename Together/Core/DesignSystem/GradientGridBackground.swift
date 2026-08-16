@@ -1,16 +1,31 @@
 import SwiftUI
 
 struct GradientGridBackground: View {
+    var showsAmbientParticles = false
+    var ambientParticlesEnabled = true
+    var isParticleMotionSuppressed = false
+    var isSurfaceVisible = true
+
     var body: some View {
-        LinearGradient(
-            stops: [
-                .init(color: AppTheme.colors.background, location: 0),
-                .init(color: AppTheme.colors.background, location: 0.65),
-                .init(color: AppTheme.colors.gradientBottom, location: 1.0)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+        ZStack {
+            LinearGradient(
+                stops: [
+                    .init(color: AppTheme.colors.background, location: 0),
+                    .init(color: AppTheme.colors.background, location: 0.65),
+                    .init(color: AppTheme.colors.gradientBottom, location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            if showsAmbientParticles {
+                AmbientParticleBackground(
+                    isEnabled: ambientParticlesEnabled,
+                    isMotionSuppressed: isParticleMotionSuppressed,
+                    isSurfaceVisible: isSurfaceVisible
+                )
+            }
+        }
         .ignoresSafeArea()
     }
 }
