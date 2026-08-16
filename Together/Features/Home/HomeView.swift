@@ -25,6 +25,8 @@ struct HomeView: View {
     @State private var pendingFocusTaskID: UUID?
     @State private var editingNoteTaskID: UUID?
     @State private var timelineMorphViewport = TaskMorphViewportCoordinator()
+    @State private var timelineDateBarSelection = HomeTimelineDateBarSelection()
+    @State private var timelineDateBarBoundaryMaxY: CGFloat = 0
 
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset: CGFloat = 8
@@ -555,93 +557,183 @@ struct HomeView: View {
 
     private func standardTimelineList(scrollProxy: ScrollViewProxy) -> some View {
         ZStack(alignment: .topLeading) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    ForEach(displayedActiveSections) { section in
-                        Section {
-                            timelineRows(
-                                section.entries,
-                                section: section,
-                                rowTransition: activeRowTransition,
-                                scrollProxy: scrollProxy
-                            )
-                        } header: {
-                            timelineSectionHeader(section)
+            if #available(iOS 26.0, *) {
+                timelineScrollView(scrollProxy: scrollProxy, usesDateBar: true)
+                    .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) {
+                        if let section = displayedTimelineDateBarSection {
+                            timelineDateBar(section)
                         }
                     }
-
-                    if displayedCompletedEntries.isEmpty == false {
-                        todayCompletedHeader
-                            .padding(
-                                EdgeInsets(
-                                    top: 12,
-                                    leading: timelineRowHorizontalInset,
-                                    bottom: 10,
-                                    trailing: timelineRowHorizontalInset
-                                )
-                            )
-
-                        completedTimelineSection(scrollProxy: scrollProxy)
-                    }
-
-                    if displayedHasWeeklyCompletedEntries {
-                        completedVisibilityButton
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(
-                                EdgeInsets(
-                                    top: displayedCompletedEntries.isEmpty ? 12 : 4,
-                                    leading: timelineRowHorizontalInset,
-                                    bottom: timelineBottomInset,
-                                    trailing: timelineRowHorizontalInset
-                                )
-                            )
-                    } else if displayedCompletedEntries.isEmpty {
-                        Color.clear
-                            .frame(height: max(64, timelineBottomInset))
-                    }
-                }
-                .taskMorphScrollViewport(coordinator: timelineMorphViewport)
-            }
-            .onScrollGeometryChange(for: TaskMorphScrollSnapshot.self) { geometry in
-                TaskMorphScrollSnapshot(geometry)
-            } action: { _, snapshot in
-                timelineMorphViewport.recordScrollSnapshot(snapshot)
-            }
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
-            } action: { frame in
-                timelineMorphViewport.recordViewportFrame(frame)
-            }
-            .scrollIndicators(.hidden)
-            .scrollDisabled(isOverlayModeActive)
-            .transaction { transaction in
-                if morphSession.phase == .relocating, morphSession.isCreationFlow == false {
-                    // The real destination row is established atomically under
-                    // the lifted surface. It must not run the timeline's normal
-                    // insertion/reordering animation at the same time.
-                    transaction.animation = nil
-                }
-            }
-            .safeAreaPadding(.top, 0)
-            .applyHomeScrollEdgeTransition()
-            .refreshable {
-                await viewModel.reload()
+                    .applyHomeScrollEdgeTransition()
+            } else {
+                timelineScrollView(scrollProxy: scrollProxy, usesDateBar: false)
+                    .applyHomeScrollEdgeTransition()
             }
         }
         .coordinateSpace(name: HomeTimelineFocusCoordinateSpace.name)
+        .onChange(of: displayedActiveSections.map(\.id), initial: true) { _, sectionIDs in
+            var selection = timelineDateBarSelection
+            selection.reconcile(sectionIDs: sectionIDs)
+            guard selection != timelineDateBarSelection else { return }
+            timelineDateBarSelection = selection
+        }
     }
 
-    private func timelineSectionHeader(_ section: HomeTimelineSection) -> some View {
-        HomeTimelineDateSectionHeader(section: section)
-            .padding(.horizontal, timelineRowHorizontalInset)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
+    private func timelineScrollView(
+        scrollProxy: ScrollViewProxy,
+        usesDateBar: Bool
+    ) -> some View {
+        ScrollView {
+            LazyVStack(
+                alignment: .leading,
+                spacing: 0,
+                pinnedViews: usesDateBar ? [] : [.sectionHeaders]
+            ) {
+                ForEach(displayedActiveSections) { section in
+                    Section {
+                        timelineRows(
+                            section.entries,
+                            section: section,
+                            rowTransition: activeRowTransition,
+                            scrollProxy: scrollProxy
+                        )
+                    } header: {
+                        timelineSectionHeader(section, usesDateBar: usesDateBar)
+                    }
+                }
+
+                if displayedCompletedEntries.isEmpty == false {
+                    todayCompletedHeader
+                        .padding(
+                            EdgeInsets(
+                                top: 12,
+                                leading: timelineRowHorizontalInset,
+                                bottom: 10,
+                                trailing: timelineRowHorizontalInset
+                            )
+                        )
+
+                    completedTimelineSection(scrollProxy: scrollProxy)
+                }
+
+                if displayedHasWeeklyCompletedEntries {
+                    completedVisibilityButton
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(
+                            EdgeInsets(
+                                top: displayedCompletedEntries.isEmpty ? 12 : 4,
+                                leading: timelineRowHorizontalInset,
+                                bottom: timelineBottomInset,
+                                trailing: timelineRowHorizontalInset
+                            )
+                        )
+                } else if displayedCompletedEntries.isEmpty {
+                    Color.clear
+                        .frame(height: max(64, timelineBottomInset))
+                }
+            }
+            .taskMorphScrollViewport(coordinator: timelineMorphViewport)
+        }
+        .onScrollGeometryChange(for: TaskMorphScrollSnapshot.self) { geometry in
+            TaskMorphScrollSnapshot(geometry)
+        } action: { _, snapshot in
+            timelineMorphViewport.recordScrollSnapshot(snapshot)
+        }
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            timelineMorphViewport.recordViewportFrame(frame)
+        }
+        .scrollIndicators(.hidden)
+        .scrollDisabled(isOverlayModeActive)
+        .transaction { transaction in
+            if morphSession.phase == .relocating, morphSession.isCreationFlow == false {
+                // The real destination row is established atomically under
+                // the lifted surface. It must not run the timeline's normal
+                // insertion/reordering animation at the same time.
+                transaction.animation = nil
+            }
+        }
+        .safeAreaPadding(.top, 0)
+        .refreshable {
+            await viewModel.reload()
+        }
+    }
+
+    @ViewBuilder
+    private func timelineSectionHeader(
+        _ section: HomeTimelineSection,
+        usesDateBar: Bool
+    ) -> some View {
+        if usesDateBar, section.id == displayedActiveSections.first?.id {
+            Color.clear
+                .frame(height: 0)
+                .accessibilityHidden(true)
+        } else if usesDateBar {
+            timelineSectionHeaderLayout(section)
+                .opacity(timelineDateBarSelection.activeSectionID == section.id ? 0 : 1)
+                .accessibilityHidden(timelineDateBarSelection.activeSectionID == section.id)
+                .onGeometryChange(for: Bool.self) { proxy in
+                    guard timelineDateBarBoundaryMaxY > 0 else { return false }
+                    return proxy.frame(in: .global).maxY <= timelineDateBarBoundaryMaxY + 0.5
+                } action: { hasCrossedDateBar in
+                    var selection = timelineDateBarSelection
+                    selection.setCrossed(
+                        hasCrossedDateBar,
+                        sectionID: section.id,
+                        sectionIDs: displayedActiveSections.map(\.id)
+                    )
+                    guard selection != timelineDateBarSelection else { return }
+                    timelineDateBarSelection = selection
+                }
+                .taskMorphBackgroundDepth(
+                    isDeemphasized: morphSession.isFocusDepthActive,
+                    anchor: .leading,
+                    onDismiss: morphSession.requestDismissal
+                )
+        } else {
+            timelineSectionHeader(section)
+        }
+    }
+
+    private func timelineDateBar(_ section: HomeTimelineSection) -> some View {
+        timelineSectionHeaderLayout(section)
+            .contentTransition(reduceMotion ? .opacity : .numericText())
+            .animation(timelineDateBarContentAnimation, value: section.id)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.frame(in: .global).maxY
+            } action: { maxY in
+                guard abs(maxY - timelineDateBarBoundaryMaxY) > 0.5 else { return }
+                timelineDateBarBoundaryMaxY = maxY
+            }
             .taskMorphBackgroundDepth(
                 isDeemphasized: morphSession.isFocusDepthActive,
                 anchor: .leading,
                 onDismiss: morphSession.requestDismissal
             )
+    }
+
+    private var timelineDateBarContentAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.14)
+            : .smooth(duration: 0.26, extraBounce: 0)
+    }
+
+    private func timelineSectionHeader(_ section: HomeTimelineSection) -> some View {
+        timelineSectionHeaderLayout(section)
+            .taskMorphBackgroundDepth(
+                isDeemphasized: morphSession.isFocusDepthActive,
+                anchor: .leading,
+                onDismiss: morphSession.requestDismissal
+            )
+    }
+
+    private func timelineSectionHeaderLayout(_ section: HomeTimelineSection) -> some View {
+        HomeTimelineDateSectionHeader(section: section)
+            .padding(.horizontal, timelineRowHorizontalInset)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
     }
 
     private var timelineReorderingControl: some View {
@@ -684,6 +776,14 @@ struct HomeView: View {
 
     private var displayedActiveSections: [HomeTimelineSection] {
         frozenActiveSections ?? viewModel.activeTimelineSections
+    }
+
+    private var displayedTimelineDateBarSection: HomeTimelineSection? {
+        guard let activeSectionID = timelineDateBarSelection.activeSectionID else {
+            return displayedActiveSections.first
+        }
+        return displayedActiveSections.first(where: { $0.id == activeSectionID })
+            ?? displayedActiveSections.first
     }
 
     private var displayedCompletedEntries: [HomeTimelineEntry] {
@@ -1445,6 +1545,31 @@ private struct TaskSharedAttributeBandLayout: Layout {
         let subview: LayoutSubview
         let width: CGFloat
         let height: CGFloat
+    }
+}
+
+struct HomeTimelineDateBarSelection: Equatable {
+    private(set) var crossedSectionIDs: Set<String> = []
+    private(set) var activeSectionID: String?
+
+    mutating func reconcile(sectionIDs: [String]) {
+        crossedSectionIDs.formIntersection(sectionIDs)
+        activeSectionID = sectionIDs.last(where: crossedSectionIDs.contains)
+            ?? sectionIDs.first
+    }
+
+    mutating func setCrossed(
+        _ hasCrossed: Bool,
+        sectionID: String,
+        sectionIDs: [String]
+    ) {
+        guard sectionIDs.contains(sectionID) else { return }
+        if hasCrossed {
+            crossedSectionIDs.insert(sectionID)
+        } else {
+            crossedSectionIDs.remove(sectionID)
+        }
+        reconcile(sectionIDs: sectionIDs)
     }
 }
 

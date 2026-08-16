@@ -149,6 +149,13 @@ struct TaskMorphScrollSnapshot: Equatable {
 enum TaskMorphViewportMotion {
     static let upwardShare: CGFloat = 0.4
 
+    static func effectiveProtectedTopInset(
+        requestedInset: CGFloat,
+        scrollContentInset: CGFloat
+    ) -> CGFloat {
+        max(0, max(requestedInset, scrollContentInset))
+    }
+
     static func maximumUpwardDisplacement(
         heightDelta: CGFloat,
         availableAbove: CGFloat
@@ -269,7 +276,11 @@ final class TaskMorphViewportCoordinator {
 
         // Keep the selected row below the stable top chrome zone. Within
         // that constraint, assign roughly two fifths of the new height upward.
-        let protectedTop = viewportFrame.minY + max(0, protectedTopInset)
+        let protectedTop = viewportFrame.minY
+            + TaskMorphViewportMotion.effectiveProtectedTopInset(
+                requestedInset: protectedTopInset,
+                scrollContentInset: scrollSnapshot.topInset
+            )
         let availableAbove = max(0, rowFrame.minY - protectedTop)
         maximumUpwardDisplacement = TaskMorphViewportMotion.maximumUpwardDisplacement(
             heightDelta: heightDelta,

@@ -2,7 +2,6 @@ import SwiftUI
 
 nonisolated enum TaskEdgeFlowEdge: Equatable, Sendable {
     case none
-    case top
     case bottom
 }
 
@@ -27,8 +26,6 @@ nonisolated struct TaskEdgeFlowMetrics: Equatable, Sendable {
 }
 
 nonisolated enum TaskEdgeFlowPolicy {
-    private static let topZoneEnd: CGFloat = 88
-    private static let topTravel: CGFloat = 112
     private static let bottomZoneDepth: CGFloat = 128
     private static let bottomSinkExtension: CGFloat = 8
     private static let deepOcclusionThreshold: CGFloat = 0.86
@@ -49,47 +46,21 @@ nonisolated enum TaskEdgeFlowPolicy {
         }
 
         let centerY = rowFrame.midY
-        let topProgress = clamped((topZoneEnd - centerY) / topTravel)
         let bottomStart = viewportHeight - bottomZoneDepth
         let bottomSink = viewportHeight + bottomSinkExtension
         let bottomProgress = clamped((centerY - bottomStart) / (bottomSink - bottomStart))
 
-        guard max(topProgress, bottomProgress) > 0 else {
+        guard bottomProgress > 0 else {
             return .identity
         }
 
-        if bottomProgress > topProgress {
-            return bottomMetrics(
-                progress: bottomProgress,
-                centerY: centerY,
-                sinkY: bottomSink,
-                reduceMotion: reduceMotion
-            )
-            .scaled(by: clampedIntensity)
-        }
-
-        return topMetrics(progress: topProgress, reduceMotion: reduceMotion)
-            .scaled(by: clampedIntensity)
-    }
-
-    private static func topMetrics(
-        progress: CGFloat,
-        reduceMotion: Bool
-    ) -> TaskEdgeFlowMetrics {
-        let eased = smoothstep(progress)
-        if reduceMotion {
-            return clarityOnlyMetrics(progress: progress, eased: eased, edge: .top)
-        }
-
-        return TaskEdgeFlowMetrics(
-            offsetY: -10 * eased,
-            scaleX: 1 - 0.004 * eased,
-            scaleY: 1 - 0.024 * eased,
-            opacity: 1 - 0.82 * Double(eased),
-            blurRadius: 1.2 * eased,
-            edge: .top,
-            isDeeplyOccluded: progress >= deepOcclusionThreshold
+        return bottomMetrics(
+            progress: bottomProgress,
+            centerY: centerY,
+            sinkY: bottomSink,
+            reduceMotion: reduceMotion
         )
+        .scaled(by: clampedIntensity)
     }
 
     private static func bottomMetrics(
@@ -100,7 +71,7 @@ nonisolated enum TaskEdgeFlowPolicy {
     ) -> TaskEdgeFlowMetrics {
         let eased = smoothstep(progress)
         if reduceMotion {
-            return clarityOnlyMetrics(progress: progress, eased: eased, edge: .bottom)
+            return bottomClarityOnlyMetrics(progress: progress, eased: eased)
         }
 
         // Pull rows toward a point just below the viewport. The non-linear
@@ -117,18 +88,17 @@ nonisolated enum TaskEdgeFlowPolicy {
         )
     }
 
-    private static func clarityOnlyMetrics(
+    private static func bottomClarityOnlyMetrics(
         progress: CGFloat,
-        eased: CGFloat,
-        edge: TaskEdgeFlowEdge
+        eased: CGFloat
     ) -> TaskEdgeFlowMetrics {
         TaskEdgeFlowMetrics(
             offsetY: 0,
             scaleX: 1,
             scaleY: 1,
             opacity: 1 - 0.88 * Double(eased),
-            blurRadius: edge == .top ? 0.4 * eased : 0,
-            edge: edge,
+            blurRadius: 0,
+            edge: .bottom,
             isDeeplyOccluded: progress >= deepOcclusionThreshold
         )
     }
@@ -166,7 +136,7 @@ private struct TaskEdgeFlowModifier: ViewModifier {
                     .scaleEffect(
                         x: metrics.scaleX,
                         y: metrics.scaleY,
-                        anchor: metrics.edge == .top ? .top : .bottom
+                        anchor: .bottom
                     )
                     .blur(radius: metrics.blurRadius)
                     .opacity(metrics.opacity)

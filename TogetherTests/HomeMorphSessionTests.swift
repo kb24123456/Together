@@ -74,6 +74,56 @@ struct HomeMorphSessionTests {
         #expect(displacement.below == 254)
     }
 
+    @Test func viewportMotionUsesNativeScrollInsetAsProtectedTopSpace() {
+        #expect(
+            TaskMorphViewportMotion.effectiveProtectedTopInset(
+                requestedInset: 12,
+                scrollContentInset: 148
+            ) == 148
+        )
+        #expect(
+            TaskMorphViewportMotion.effectiveProtectedTopInset(
+                requestedInset: 52,
+                scrollContentInset: 0
+            ) == 52
+        )
+    }
+
+    @Test func dateBarSelectionAdvancesOnlyWhenASectionCrossesItsBoundary() {
+        let sectionIDs = ["today", "tomorrow", "later"]
+        var selection = HomeTimelineDateBarSelection()
+
+        selection.reconcile(sectionIDs: sectionIDs)
+        #expect(selection.activeSectionID == "today")
+
+        selection.setCrossed(true, sectionID: "tomorrow", sectionIDs: sectionIDs)
+        #expect(selection.activeSectionID == "tomorrow")
+
+        selection.setCrossed(true, sectionID: "later", sectionIDs: sectionIDs)
+        #expect(selection.activeSectionID == "later")
+
+        selection.setCrossed(false, sectionID: "later", sectionIDs: sectionIDs)
+        #expect(selection.activeSectionID == "tomorrow")
+
+        selection.setCrossed(false, sectionID: "tomorrow", sectionIDs: sectionIDs)
+        #expect(selection.activeSectionID == "today")
+    }
+
+    @Test func dateBarSelectionDropsRemovedSectionsDuringReconciliation() {
+        var selection = HomeTimelineDateBarSelection()
+        selection.setCrossed(
+            true,
+            sectionID: "tomorrow",
+            sectionIDs: ["today", "tomorrow"]
+        )
+        #expect(selection.activeSectionID == "tomorrow")
+
+        selection.reconcile(sectionIDs: ["today", "later"])
+
+        #expect(selection.activeSectionID == "today")
+        #expect(selection.crossedSectionIDs.isEmpty)
+    }
+
     @Test func directCreationUsesFinalIdentityAndStartsEditing() throws {
         let model = HomeMorphSession()
         let id = UUID()

@@ -229,17 +229,22 @@ struct HomeRootContent: View {
                         .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
                         .accessibilityHint("选择待办或定期模式")
                     } else {
-                        Picker("任务模式", selection: rootModeSelection(router: router)) {
-                            Text("待办").tag(RootSurface.today)
-                            Text("定期").tag(RootSurface.routines)
+                        HStack(spacing: 0) {
+                            rootModeButton(
+                                title: "待办",
+                                surface: .today,
+                                isSelected: isRoutinesModeActive == false,
+                                router: router
+                            )
+                            rootModeButton(
+                                title: "定期",
+                                surface: .routines,
+                                isSelected: isRoutinesModeActive,
+                                router: router
+                            )
                         }
-                        .pickerStyle(.segmented)
-                        .controlSize(.small)
-                        .frame(width: 144, height: 38)
-                        .frame(height: 44)
+                        .frame(width: 144, height: 44)
                         .accessibilityIdentifier("together.mode-picker")
-                        .accessibilityValue(isRoutinesModeActive ? "定期任务" : "待办任务")
-                        .accessibilityHint("切换待办或定期任务")
                     }
                 } else {
                     Text("待办")
@@ -290,6 +295,31 @@ struct HomeRootContent: View {
                 onDismiss: morphSession.requestDismissal
             )
         }
+    }
+
+    private func rootModeButton(
+        title: String,
+        surface: RootSurface,
+        isSelected: Bool,
+        router: AppRouter
+    ) -> some View {
+        Button {
+            selectRootSurface(surface, router: router)
+        } label: {
+            Text(title)
+                .font(.headline.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(
+                    isSelected ? AppTheme.colors.title : AppTheme.colors.textTertiary
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HomeModePlainButtonStyle())
+        .frame(width: 72, height: 44)
+        .accessibilityIdentifier("together.mode-picker.\(surface == .today ? "today" : "routines")")
+        .accessibilityLabel("\(title)任务")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint(isSelected ? "当前模式" : "切换到\(title)任务")
     }
 
     private func homeBottomDock(router: AppRouter) -> some View {
@@ -706,4 +736,24 @@ struct HomeRootContent: View {
         }
     }
 
+}
+
+private struct HomeModePlainButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.94 : 1))
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(pressAnimation(isPressed: configuration.isPressed), value: configuration.isPressed)
+    }
+
+    private func pressAnimation(isPressed: Bool) -> Animation {
+        if reduceMotion {
+            return .easeOut(duration: 0.08)
+        }
+        return isPressed
+            ? .easeOut(duration: 0.09)
+            : .smooth(duration: 0.18, extraBounce: 0.14)
+    }
 }

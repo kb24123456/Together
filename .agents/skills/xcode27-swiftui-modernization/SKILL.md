@@ -23,6 +23,7 @@ Use this skill before changing Together SwiftUI code when the work touches UI st
 - For Liquid Glass, use system controls and glass behavior first; do not hand-roll high-saturation fake glass.
 - For AsyncImage or remote image work, account for iOS 27 cache behavior and use URLRequest or custom URLSession only when policy control is needed.
 - For UIKit interop, keep bridges narrow and let Observation drive updates where it reduces adapter state.
+- For scroll geometry, transform measurements into the smallest `Equatable` semantic state before publishing (for example, whether a section crossed a boundary). Keep continuous frames and offsets in non-observable coordinators; never write per-frame geometry into root Observation state.
 
 ## Source Handling
 

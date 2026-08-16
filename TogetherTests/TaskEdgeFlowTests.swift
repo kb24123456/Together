@@ -16,19 +16,15 @@ struct TaskEdgeFlowTests {
         #expect(metrics == .identity)
     }
 
-    @Test func topEdgeCompressesWithoutCreatingAStack() {
+    @Test func rowsAboveTheViewportAreIgnoredByTheBottomOnlyPolicy() {
         let metrics = TaskEdgeFlowPolicy.metrics(
-            rowFrame: CGRect(x: 0, y: -44, width: 360, height: 64),
+            rowFrame: CGRect(x: 0, y: -80, width: 360, height: 64),
             viewportHeight: 800,
             intensity: 1,
             reduceMotion: false
         )
 
-        #expect(metrics.edge == .top)
-        #expect(metrics.offsetY < 0)
-        #expect(metrics.scaleY < 1)
-        #expect(metrics.opacity < 1)
-        #expect(metrics.isDeeplyOccluded)
+        #expect(metrics == .identity)
     }
 
     @Test func bottomEdgeConvergesTowardDockAndBecomesNoninteractiveWhenDeep() {
@@ -73,18 +69,6 @@ struct TaskEdgeFlowTests {
         #expect(metrics.scaleY == 1)
         #expect(metrics.opacity < 1)
         #expect(metrics.blurRadius == 0)
-    }
-
-    @Test func topEdgeKeepsItsSoftBlur() {
-        let metrics = TaskEdgeFlowPolicy.metrics(
-            rowFrame: CGRect(x: 0, y: -44, width: 360, height: 64),
-            viewportHeight: 800,
-            intensity: 1,
-            reduceMotion: false
-        )
-
-        #expect(metrics.edge == .top)
-        #expect(metrics.blurRadius > 0)
     }
 
     @Test func activeMorphSuspendsEveryEdgeEffect() {

@@ -59,34 +59,30 @@ struct RoutinesListContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            fixedDimensionHeader
-
-            ScrollViewReader { scrollProxy in
-                taskScrollView(scrollProxy: scrollProxy)
-                    .onChange(of: viewModel.selectedCycle) { _, cycle in
-                        appContext.router.pendingPeriodicCycle = cycle
-                        guard morphSession.isActive == false else { return }
-                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) {
-                            scrollProxy.scrollTo(listTopAnchor, anchor: .top)
-                        }
+        ScrollViewReader { scrollProxy in
+            taskScrollView(scrollProxy: scrollProxy)
+                .onChange(of: viewModel.selectedCycle) { _, cycle in
+                    appContext.router.pendingPeriodicCycle = cycle
+                    guard morphSession.isActive == false else { return }
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) {
+                        scrollProxy.scrollTo(listTopAnchor, anchor: .top)
                     }
-                    .task(id: morphSession.phase) {
-                        guard morphSession.phase == .relocating,
-                              morphSession.isCreationFlow,
-                              case .persisted(.periodic, let taskID) = morphSession.subject,
-                              let token = morphSession.currentToken()
-                        else { return }
-                        await Task.yield()
-                        var transaction = Transaction()
-                        transaction.animation = nil
-                        withTransaction(transaction) {
-                            scrollProxy.scrollTo(taskID, anchor: .center)
-                        }
-                        await Task.yield()
-                        morphSession.enableCreationListReveal(using: token)
+                }
+                .task(id: morphSession.phase) {
+                    guard morphSession.phase == .relocating,
+                          morphSession.isCreationFlow,
+                          case .persisted(.periodic, let taskID) = morphSession.subject,
+                          let token = morphSession.currentToken()
+                    else { return }
+                    await Task.yield()
+                    var transaction = Transaction()
+                    transaction.animation = nil
+                    withTransaction(transaction) {
+                        scrollProxy.scrollTo(taskID, anchor: .center)
                     }
-            }
+                    await Task.yield()
+                    morphSession.enableCreationListReveal(using: token)
+                }
         }
         .background {
             if showsCanvasBackground {
@@ -342,6 +338,10 @@ struct RoutinesListContent: View {
                 }
                 .padding(.bottom, AppTheme.spacing.md)
                 .taskMorphScrollViewport(coordinator: taskMorphViewport)
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                fixedDimensionHeader
+                    .background(AppTheme.colors.background)
             }
             .onScrollGeometryChange(for: TaskMorphScrollSnapshot.self) { geometry in
                 TaskMorphScrollSnapshot(geometry)
