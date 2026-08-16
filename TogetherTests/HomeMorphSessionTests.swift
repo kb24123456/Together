@@ -5,88 +5,160 @@ import Testing
 @MainActor
 @Suite("Home morph session")
 struct HomeMorphSessionTests {
-    @Test func anchoredSurfaceBloomBuildsWidthBeforeVerticalGrowth() {
-        let samples: [CGFloat] = [0, 0.2, 0.5, 0.8, 1]
-        let horizontal = samples.map(TaskMorphBloomMotion.horizontalProgress)
-        let vertical = samples.map(TaskMorphBloomMotion.verticalProgress)
-
-        #expect(horizontal.first == 0)
-        #expect(vertical.first == 0)
-        #expect(horizontal.last == 1)
-        #expect(vertical.last == 1)
-        #expect(horizontal[1] > vertical[1])
-        #expect(horizontal[2] > vertical[2])
-        #expect(zip(horizontal, horizontal.dropFirst()).allSatisfy { $0.0 <= $0.1 })
-        #expect(zip(vertical, vertical.dropFirst()).allSatisfy { $0.0 <= $0.1 })
-    }
-
-    @Test func boundaryOvershootIsExplicitAndSettlesWithoutMovingContentGeometry() {
-        let overshot = TaskMorphBloomMotion.boundaryPresentation(for: .overshot)
-        let settled = TaskMorphBloomMotion.boundaryPresentation(for: .settled)
-        let compact = TaskMorphBloomMotion.boundaryPresentation(for: .compact)
-
-        #expect(TaskMorphBloomMotion.geometryDuration == 0.35)
-        #expect(TaskMorphBloomMotion.boundaryOvershootDuration == 0.38)
-        #expect(TaskMorphBloomMotion.boundarySettleDuration == 0.14)
-        #expect(overshot.horizontalOutset == 4)
-        #expect(overshot.bottomOutset == 12)
-        #expect(compact.cornerRadius == 45)
-        #expect(overshot.cornerRadius == 45)
-        #expect(settled.cornerRadius == 45)
-        #expect(overshot.shadowRadius == 18)
-        #expect(overshot.shadowOffsetY == 8)
-        #expect(settled.horizontalOutset == 0)
-        #expect(settled.bottomOutset == 0)
-        #expect(settled.cornerRadius == 45)
-        #expect(settled.shadowRadius == 16)
-        #expect(settled.shadowOffsetY == 7)
-    }
-
-    @Test func viewportMotionSplitsRealHeightAcrossBothSides() {
-        let heightDelta: CGFloat = 300
-        let upward = TaskMorphViewportMotion.maximumUpwardDisplacement(
-            heightDelta: heightDelta,
-            availableAbove: 500
-        )
-        let displacement = TaskMorphViewportMotion.screenDisplacements(
-            heightDelta: heightDelta,
-            upwardDisplacement: upward
-        )
-
-        #expect(upward == 120)
-        #expect(displacement.above == 120)
-        #expect(displacement.below == 180)
-        #expect(displacement.above + displacement.below == heightDelta)
-    }
-
-    @Test func viewportMotionRespectsProtectedTopSpace() {
-        let upward = TaskMorphViewportMotion.maximumUpwardDisplacement(
-            heightDelta: 300,
-            availableAbove: 46
-        )
-        let displacement = TaskMorphViewportMotion.screenDisplacements(
-            heightDelta: 300,
-            upwardDisplacement: upward
-        )
-
-        #expect(upward == 46)
-        #expect(displacement.above == 46)
-        #expect(displacement.below == 254)
-    }
-
-    @Test func viewportMotionUsesNativeScrollInsetAsProtectedTopSpace() {
+    @Test func inlineExpansionUsesIndependentPhysicalTracks() {
+        #expect(TaskExpansionMotionTiming.expansionDuration == 0.80)
+        #expect(TaskExpansionMotionTiming.identityExpansionDuration == 0.52)
+        #expect(TaskExpansionMotionTiming.collapseDuration == 0.36)
+        #expect(TaskExpansionMotionTiming.reducedMotionDuration == 0.22)
+        #expect(TaskExpansionMotionTiming.layoutDuration == 0.52)
         #expect(
-            TaskMorphViewportMotion.effectiveProtectedTopInset(
-                requestedInset: 12,
-                scrollContentInset: 148
-            ) == 148
+            abs(
+                TaskExpansionMotionTiming.identityTroughDuration
+                    + TaskExpansionMotionTiming.identityRiseDuration
+                    - TaskExpansionMotionTiming.identityExpansionDuration
+            ) < 0.000_001
         )
         #expect(
-            TaskMorphViewportMotion.effectiveProtectedTopInset(
-                requestedInset: 52,
-                scrollContentInset: 0
-            ) == 52
+            abs(
+                TaskExpansionMotionTiming.identityCollapseToTroughDuration
+                    + TaskExpansionMotionTiming.identityCollapseToCompactDuration
+                    - TaskExpansionMotionTiming.collapseDuration
+            ) < 0.000_001
         )
+        #expect(TaskExpansionMotionTiming.identityTroughOffset == CGSize(width: -7, height: 14))
+        #expect(TaskExpansionMotionTiming.expandedIdentityOffset == CGSize(width: -16, height: -12))
+        #expect(TaskExpansionMotionTiming.identityTroughScale == 1.05)
+        #expect(
+            abs(
+                TaskExpansionMotion.expanded.identityScale * 1.03
+                    - TaskExpansionMotionTiming.expandedIdentityVisualScale
+            ) < 0.000_001
+        )
+        #expect(TaskExpansionMotion.expanded.identityOffsetX == -16)
+        #expect(TaskExpansionMotion.expanded.identityOffsetY == -12)
+        #expect(TaskExpansionMotion.expanded.detailElapsed == 0.46)
+        #expect(TaskExpansionMotion.expanded.isDetailSettled)
+        #expect(TaskExpansionMotion.compact.collapsedOpacity == 1)
+    }
+
+    @Test func detailCascadeUsesBoundedDiagonalWave() {
+        #expect(TaskMorphCascadeTiming.expansionDelay == 0.34)
+        #expect(
+            TaskMorphCascadeTiming.expansionDelay + TaskMorphCascadeTiming.rowDuration
+                > TaskExpansionMotionTiming.identityExpansionDuration
+        )
+        #expect(
+            abs(
+                TaskMorphCascadeTiming.expansionDelay
+                    + TaskMorphCascadeTiming.timelineDuration
+                    - TaskExpansionMotionTiming.expansionDuration
+            ) < 0.000_001
+        )
+        #expect(TaskMorphCascadeTiming.totalDelay(rowCount: 1) == 0)
+        #expect(abs(TaskMorphCascadeTiming.totalDelay(rowCount: 7) - 0.26) < 0.000_001)
+        #expect(abs(TaskMorphCascadeTiming.totalDelay(rowCount: 20) - 0.26) < 0.000_001)
+        #expect(abs(TaskMorphCascadeTiming.collapseTotalDelay(rowCount: 5) - 0.14) < 0.000_001)
+        #expect(abs(TaskMorphCascadeTiming.collapseTotalDelay(rowCount: 20) - 0.14) < 0.000_001)
+
+        let start = TaskMorphCascadeValues.resolve(
+            elapsed: 0,
+            index: 0,
+            rowCount: 10,
+            reduceMotion: false
+        )
+        #expect(start.progress == 0)
+        #expect(start.offset == CGSize(width: 14, height: 24))
+        #expect(start.opacity == 0)
+
+        let final = TaskMorphCascadeValues.resolve(
+            elapsed: TaskMorphCascadeTiming.timelineDuration,
+            index: 9,
+            rowCount: 10,
+            reduceMotion: false
+        )
+        #expect(final.progress == 1)
+        #expect(final.offset == .zero)
+        #expect(final.opacity == 1)
+    }
+
+    @Test func backgroundWaveCascadesOutwardAndStaysBounded() {
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: nil) == 0)
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 0) == 0)
+        #expect(
+            abs(TaskMorphBackgroundWave.radius(forTaskDelta: 1) - 1.30)
+                < 0.000_001
+        )
+        #expect(
+            abs(TaskMorphBackgroundWave.radius(forTaskDelta: -2) - 2.05)
+                < 0.000_001
+        )
+        #expect(
+            TaskMorphBackgroundWave.radius(forTaskDelta: 20)
+                == TaskMorphBackgroundWave.maximumRadius
+        )
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 1) == 0.92)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 20) == 0.86)
+        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: -1) == -4)
+        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: 1) == 4)
+        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: 20) == 12)
+        #expect(TaskMorphBackgroundWave.delay(forTaskDelta: 2) == 0.025)
+        #expect(TaskMorphBackgroundWave.delay(forTaskDelta: 20) == 0.12)
+    }
+
+    @Test func detailCollapseSharesTheContinuousLayoutClock() {
+        let motion = TaskExpansionMotion(
+            layoutProgress: 0.5,
+            compactHeightProgress: 0.5,
+            identityScale: 1,
+            identityOffsetX: 0,
+            collapsedOpacity: 0.5,
+            identityOffsetY: 0,
+            detailElapsed: 0
+        )
+
+        #expect(motion.cascadeElapsed(isCollapsing: false) == 0)
+        #expect(
+            motion.cascadeElapsed(isCollapsing: true)
+                == TaskMorphCascadeTiming.timelineDuration / 2
+        )
+    }
+
+    @Test func detailCollapseExitsFromBottomToTop() {
+        let collapseElapsed: TimeInterval = 0.05
+        let elapsed = TaskMorphCascadeTiming.timelineDuration
+            * (1 - collapseElapsed / TaskExpansionMotionTiming.collapseDuration)
+
+        let first = TaskMorphCascadeValues.resolve(
+            elapsed: elapsed,
+            index: 0,
+            rowCount: 5,
+            reduceMotion: false,
+            isCollapsing: true
+        )
+        let last = TaskMorphCascadeValues.resolve(
+            elapsed: elapsed,
+            index: 4,
+            rowCount: 5,
+            reduceMotion: false,
+            isCollapsing: true
+        )
+
+        #expect(first.progress == 1)
+        #expect(last.progress < first.progress)
+        #expect(last.opacity < first.opacity)
+    }
+
+    @Test func reduceMotionCascadeUsesOnlyCrossfade() {
+        let midpoint = TaskMorphCascadeValues.resolve(
+            elapsed: TaskMorphCascadeTiming.timelineDuration / 2,
+            index: 5,
+            rowCount: 10,
+            reduceMotion: true
+        )
+
+        #expect(midpoint.progress == 0.5)
+        #expect(midpoint.offset == .zero)
+        #expect(midpoint.opacity == 0.5)
     }
 
     @Test func dateBarSelectionAdvancesOnlyWhenASectionCrossesItsBoundary() {
@@ -318,6 +390,81 @@ struct HomeMorphSessionTests {
         #expect(dismissalCount == 0)
         #expect(completionCount == 0)
         #expect(model.phase == .saving)
+        #expect(model.detailPresentationIntent == .compact)
+    }
+
+    @Test func currentRowTapDuringSaveKeepsExpandedPresentation() throws {
+        let model = HomeMorphSession()
+        let id = UUID()
+        let placement = todoPlacement(id: id)
+        let expansion = try #require(
+            model.prepareExpansion(domain: .todo, id: id, placement: placement)
+        )
+        #expect(model.activatePreparedExpansion(using: expansion))
+        model.requestDismissal()
+        let saving = try #require(model.beginSaving())
+
+        #expect(model.requestExpansionRetention(domain: .todo, id: id))
+        let active = try #require(
+            model.finishSavingKeepingDetail(using: saving, finalPlacement: placement)
+        )
+
+        #expect(model.phase == .active)
+        #expect(model.visualState == .expanded)
+        #expect(model.detailPresentationIntent == .expanded)
+        #expect(model.isCurrent(active))
+    }
+
+    @Test func collapseCompletionRejectsStaleTokenAfterReversal() throws {
+        let model = HomeMorphSession()
+        let id = UUID()
+        let placement = todoPlacement(id: id)
+        var completionCount = 0
+        model.onDetailCollapseCompletionIntent = { _, _ in completionCount += 1 }
+        let expansion = try #require(
+            model.prepareExpansion(domain: .todo, id: id, placement: placement)
+        )
+        #expect(model.activatePreparedExpansion(using: expansion))
+        model.requestDismissal()
+        let saving = try #require(model.beginSaving())
+        let collapse = try #require(
+            model.beginDetailCollapseAfterSave(using: saving, finalPlacement: placement)
+        )
+        _ = try #require(model.reverseDetailCollapse(domain: .todo, id: id))
+
+        model.requestDetailCollapseCompletion(
+            .persisted(domain: .todo, id: id),
+            using: collapse
+        )
+
+        #expect(completionCount == 0)
+        #expect(model.phase == .active)
+        #expect(model.visualState == .expanded)
+    }
+
+    @Test func currentCollapseCompletionEmitsExactlyOncePerRequest() throws {
+        let model = HomeMorphSession()
+        let id = UUID()
+        let placement = todoPlacement(id: id)
+        var received: (TaskMorphSubject, HomeMorphSessionToken)?
+        model.onDetailCollapseCompletionIntent = { received = ($0, $1) }
+        let expansion = try #require(
+            model.prepareExpansion(domain: .todo, id: id, placement: placement)
+        )
+        #expect(model.activatePreparedExpansion(using: expansion))
+        model.requestDismissal()
+        let saving = try #require(model.beginSaving())
+        let collapse = try #require(
+            model.beginDetailCollapseAfterSave(using: saving, finalPlacement: placement)
+        )
+
+        model.requestDetailCollapseCompletion(
+            .persisted(domain: .todo, id: id),
+            using: collapse
+        )
+
+        #expect(received?.0 == .persisted(domain: .todo, id: id))
+        #expect(received?.1 == collapse)
     }
 
     @Test func tappingAnotherSubjectRequestsDismissalWithoutOpeningIt() throws {
@@ -413,15 +560,15 @@ struct HomeMorphSessionTests {
         #expect(model.isCurrent(collapse) == false)
     }
 
-    @Test func expandedListSpacingAddsRealSeparationAroundActiveCard() {
+    @Test func inlineDetailKeepsStandardListRowSpacing() {
         let compact = EdgeInsets(top: 8, leading: 28, bottom: 8, trailing: 28)
         let expanded = TaskMorphListSpacing.expandedInsets(from: compact)
 
-        #expect(expanded.top == 16)
-        #expect(expanded.bottom == 16)
-        #expect(expanded.leading == 6)
-        #expect(expanded.trailing == 6)
-        #expect(TaskMorphListSpacing.fixedExpansionHeightDelta == 54)
+        #expect(expanded.top == 22)
+        #expect(expanded.bottom == 22)
+        #expect(expanded.leading == compact.leading)
+        #expect(expanded.trailing == compact.trailing)
+        #expect(TaskMorphListSpacing.fixedExpansionHeightDelta == 28)
     }
 
     @Test func inlineDetailContentSharesTheParentTitleAxis() {
@@ -430,7 +577,13 @@ struct HomeMorphSessionTests {
             HomeInlineTaskLayoutMetrics.attributeLeadingInset
                 == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset
         )
-        #expect(RoutineInlineLayoutMetrics.titleLeadingInset == 54)
+        #expect(HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset == 0)
+        #expect(RoutineInlineLayoutMetrics.actionSlotWidth == HomeInlineTaskLayoutMetrics.checkboxSize)
+        #expect(RoutineInlineLayoutMetrics.titleLeadingInset == 38)
+        #expect(RoutineInlineLayoutMetrics.titleLeadingInset == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset)
+        #expect(RoutineInlineLayoutMetrics.attributeLeadingInset == 0)
+        #expect(RoutineInlineLayoutMetrics.attributeMinHeight == HomeInlineTaskLayoutMetrics.attributeMinHeight)
+        #expect(TaskAttributeToolbarMetrics.horizontalSpacing == 2)
     }
 
     private func todoPlacement(id: UUID) -> TaskMorphPlacement {

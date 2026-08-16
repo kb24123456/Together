@@ -318,7 +318,7 @@ struct HomeTaskCreationCard: View {
                         focusedField = nil
                         viewModel.updateTaskCreationDraft { $0.isUrgent.toggle() }
                     } label: {
-                        HomeMorphAttributeLabel(
+                        TaskAttributeLabel(
                             icon: session.draft.isUrgent ? "flag.fill" : "flag",
                             title: "",
                             isConfigured: session.draft.isUrgent,
@@ -326,7 +326,7 @@ struct HomeTaskCreationCard: View {
                             isCircular: true
                         )
                     }
-                    .buttonStyle(HomeMorphAttributeButtonStyle())
+                    .buttonStyle(TaskMorphAttributeButtonStyle())
                     .accessibilityLabel("紧急")
                     .accessibilityValue(session.draft.isUrgent ? "已开启" : "已关闭")
                 }
@@ -348,7 +348,7 @@ struct HomeTaskCreationCard: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
             }
-            .buttonStyle(HomeMorphAttributeButtonStyle())
+            .buttonStyle(TaskMorphAttributeButtonStyle())
             .disabled(canAttemptCommit == false || session.phase != .editing)
             .opacity(canAttemptCommit ? 1 : 0.38)
             .accessibilityLabel("添加任务")
@@ -365,13 +365,13 @@ struct HomeTaskCreationCard: View {
             focusedField = nil
             openSchedule()
         } label: {
-            HomeMorphAttributeLabel(
+            TaskAttributeLabel(
                 icon: systemImage,
                 title: title,
                 isConfigured: isConfigured
             )
         }
-        .buttonStyle(HomeMorphAttributeButtonStyle())
+        .buttonStyle(TaskMorphAttributeButtonStyle())
     }
 
     private var dateText: String {

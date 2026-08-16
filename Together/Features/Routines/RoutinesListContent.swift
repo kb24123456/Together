@@ -43,7 +43,6 @@ struct RoutinesListContent: View {
     @State private var frozenSummary: RoutineDimensionSummary?
     @State private var frozenStatusMessage: String?
     @State private var frozenSelectedCycle: PeriodicCycle?
-    @State private var taskMorphViewport = TaskMorphViewportCoordinator()
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let rowTopInset: CGFloat = 8
@@ -137,17 +136,6 @@ struct RoutinesListContent: View {
                 frozenSelectedCycle = nil
             }
 
-            if phase == .idle {
-                taskMorphViewport.reset()
-            }
-        }
-        .onChange(of: morphSession.visualState) { oldState, newState in
-            guard case .persisted(.periodic, let taskID) = morphSession.subject else { return }
-            if oldState == .expanded, newState == .compact {
-                taskMorphViewport.beginCollapse(for: taskID)
-            } else if oldState == .compact, newState == .expanded {
-                taskMorphViewport.resumeExpansion(for: taskID)
-            }
         }
         .onChange(of: viewModel.tasks.map(\.id)) { _, taskIDs in
             guard case .persisted(.periodic, let taskID) = morphSession.subject,
@@ -178,6 +166,8 @@ struct RoutinesListContent: View {
         .taskMorphBackgroundDepth(
             isDeemphasized: morphSession.isFocusDepthActive,
             anchor: .top,
+            appliesVisualDepth: morphSession.isCreationFlow,
+            detailBlurRadius: TaskMorphBackgroundWave.headerBlurRadius,
             onDismiss: morphSession.requestDismissal
         )
     }
@@ -337,21 +327,10 @@ struct RoutinesListContent: View {
                     Color.clear.frame(height: contentBottomPadding)
                 }
                 .padding(.bottom, AppTheme.spacing.md)
-                .taskMorphScrollViewport(coordinator: taskMorphViewport)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 fixedDimensionHeader
                     .background(AppTheme.colors.background)
-            }
-            .onScrollGeometryChange(for: TaskMorphScrollSnapshot.self) { geometry in
-                TaskMorphScrollSnapshot(geometry)
-            } action: { _, snapshot in
-                taskMorphViewport.recordScrollSnapshot(snapshot)
-            }
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .global)
-            } action: { frame in
-                taskMorphViewport.recordViewportFrame(frame)
             }
             .scrollIndicators(.hidden)
             .applyHomeScrollEdgeTransition()
@@ -404,6 +383,16 @@ struct RoutinesListContent: View {
 
     private var displayedStatusMessage: String? {
         frozenTasks == nil ? nonBlockingStatusMessage : frozenStatusMessage
+    }
+
+    private func periodicFocusDepthDelta(for index: Int) -> Int? {
+        guard morphSession.isFocusDepthActive,
+              morphSession.isCreationFlow == false,
+              let subject = morphSession.subject,
+              subject.domain == .periodic,
+              let activeIndex = currentTasks.firstIndex(where: { $0.id == subject.id })
+        else { return nil }
+        return index - activeIndex
     }
 
     private var routinesLoadingState: some View {
@@ -482,51 +471,85 @@ struct RoutinesListContent: View {
             isActive: isActiveMorph,
             hidesRealSurfaceForHero: false,
             isBackgroundDeemphasized: morphSession.isFocusDepthActive
+                && morphSession.isCreationFlow == false
                 && isActiveMorph == false
-                && isCreationRevealTarget == false
-        ) {
+                && isCreationRevealTarget == false,
+            backgroundFocusDelta: periodicFocusDepthDelta(for: index),
+            onBackgroundTap: morphSession.requestDismissal
+        ) { motion in
             let isExpanded = isActiveMorph && morphSession.visualState == .expanded
+            let hasMorphError = morphSession.errorMessage != nil
+            let cascadeRowCount = 3 + (hasMorphError ? 1 : 0)
+            let isCollapsing = isActiveMorph
+                && morphSession.phase == .collapsing
+                && morphSession.visualState == .compact
+            let cascadeElapsed = motion.cascadeElapsed(isCollapsing: isCollapsing)
             VStack(alignment: .leading, spacing: 0) {
                 routineTaskRow(
                     task,
-                    isDetailPresented: isExpanded,
+                    isDetailPresented: isActiveMorph,
                     isDetailExpanded: isExpanded,
+                    isDetailCollapsing: isCollapsing,
+                    motion: isActiveMorph ? motion : .compact,
+                    cascadeRowCount: cascadeRowCount,
                     scrollProxy: scrollProxy
                 )
-                TaskMorphDisclosure(
-                    isExpanded: isExpanded,
-                    onMeasuredHeight: { height in
-                        taskMorphViewport.recordExpansionHeight(
-                            height,
-                            for: task.id,
-                            component: .footer
-                        )
-                    }
-                ) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if let error = morphSession.errorMessage {
-                            Label(error, systemImage: "exclamationmark.circle.fill")
-                                .font(AppTheme.typography.sized(13, weight: .medium))
-                                .foregroundStyle(.red)
-                                .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
-                                .padding(.top, AppTheme.spacing.sm)
-                        }
-                        HStack {
-                            Spacer(minLength: 0)
-                            Button {
-                                morphSession.requestDismissal()
-                            } label: {
-                                Label("收起", systemImage: "chevron.up")
-                                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                                    .frame(minHeight: 44)
+                if isActiveMorph {
+                    TaskMorphDisclosure(
+                        progress: motion.layoutProgress,
+                        isInteractive: isExpanded
+                            && morphSession.phase == .active
+                    ) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if let error = morphSession.errorMessage {
+                                Label(error, systemImage: "exclamationmark.circle.fill")
+                                    .font(AppTheme.typography.sized(13, weight: .medium))
+                                    .foregroundStyle(.red)
+                                    .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
+                                    .padding(.top, AppTheme.spacing.sm)
+                                    .taskMorphCascade(
+                                        elapsed: cascadeElapsed,
+                                        index: 2,
+                                        rowCount: cascadeRowCount,
+                                        isCollapsing: isCollapsing
+                                    )
                             }
-                            .buttonStyle(.plain)
-                            .disabled(morphSession.phase != .active)
-                            .accessibilityHint("保存更改并收起定期任务详情")
+                            HStack {
+                                Spacer(minLength: 0)
+                                Button {
+                                    morphSession.requestDismissal()
+                                } label: {
+                                    Label("收起", systemImage: "chevron.up")
+                                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                                        .frame(minHeight: 44)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(morphSession.phase != .active)
+                                .accessibilityHint("保存更改并收起定期任务详情")
+                            }
+                            .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
+                            .taskMorphCascade(
+                                elapsed: cascadeElapsed,
+                                index: hasMorphError ? 3 : 2,
+                                rowCount: cascadeRowCount,
+                                isCollapsing: isCollapsing
+                            )
                         }
-                        .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
                     }
                 }
+            }
+        }
+        .overlay {
+            if isActiveMorph, morphSession.phase != .active {
+                Button {
+                    toggleInlineDetail(task.id, scrollProxy: scrollProxy)
+                } label: {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("保持定期任务详情展开")
             }
         }
         .id(task.id)
@@ -550,16 +573,6 @@ struct RoutinesListContent: View {
                 morphSession.requestCreationRevealCompletion(subject, using: token)
             }
         )
-        .taskMorphViewportProgress(
-            isActiveMorph && morphSession.visualState == .expanded ? 1 : 0,
-            id: task.id,
-            coordinator: taskMorphViewport
-        )
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .global)
-        } action: { frame in
-            taskMorphViewport.recordRowFrame(frame, for: task.id)
-        }
         .modifier(
             RoutineSwipeActionsModifier(
                 isEnabled: morphSession.isActive == false,
@@ -620,13 +633,29 @@ struct RoutinesListContent: View {
             intensity: morphSession.isFocusDepthActive ? 0 : 1,
             isBaseHidden: isCreationRevealTarget
         )
+        .animation(focusDepthAnimation, value: morphSession.isFocusDepthActive)
         .zIndex(isActiveMorph ? 1 : 0)
+    }
+
+    private var focusDepthAnimation: Animation {
+        if reduceMotion {
+            return .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
+        }
+        return .smooth(
+            duration: morphSession.isFocusDepthActive
+                ? TaskExpansionMotionTiming.identityExpansionDuration
+                : TaskExpansionMotionTiming.collapseDuration,
+            extraBounce: 0
+        )
     }
 
     private func routineTaskRow(
         _ task: PeriodicTask,
         isDetailPresented: Bool,
         isDetailExpanded: Bool,
+        isDetailCollapsing: Bool,
+        motion: TaskExpansionMotion,
+        cascadeRowCount: Int,
         scrollProxy: ScrollViewProxy
     ) -> some View {
         RoutinesTaskRow(
@@ -636,7 +665,9 @@ struct RoutinesListContent: View {
             isAnimatingReopening: viewModel.isAnimatingReopening(taskID: task.id),
             isDetailPresented: isDetailPresented,
             isDetailExpanded: isDetailExpanded,
-            animationBatch: 0,
+            isDetailCollapsing: isDetailCollapsing,
+            expansionMotion: motion,
+            cascadeRowCount: cascadeRowCount,
             onOpenDetail: {
                 toggleInlineDetail(task.id, scrollProxy: scrollProxy)
             },
@@ -652,13 +683,6 @@ struct RoutinesListContent: View {
                 withAnimation(reduceMotion ? nil : .smooth(duration: 0.22, extraBounce: 0)) {
                     scrollProxy.scrollTo(focus.anchorID(for: task.id), anchor: focus.scrollAnchor)
                 }
-            },
-            onDetailHeightChange: { height in
-                taskMorphViewport.recordExpansionHeight(
-                    height,
-                    for: task.id,
-                    component: .primary
-                )
             }
         )
     }
@@ -680,27 +704,20 @@ struct RoutinesListContent: View {
     private func toggleInlineDetail(_ taskID: UUID, scrollProxy: ScrollViewProxy) {
         _ = scrollProxy
         if morphSession.isActive {
-            var reversedCollapse = false
-            withAnimation(morphGeometryAnimation) {
-                reversedCollapse = morphSession.reverseDetailCollapse(
-                    domain: .periodic,
-                    id: taskID
-                ) != nil
+            if morphSession.phase == .saving,
+               morphSession.requestExpansionRetention(domain: .periodic, id: taskID) {
+                return
             }
-            if reversedCollapse { return }
+            if morphSession.reverseDetailCollapse(domain: .periodic, id: taskID) != nil {
+                return
+            }
             morphSession.requestDismissal()
             return
         }
         HomeInteractionFeedback.soft()
         guard let placement = viewModel.morphPlacement(for: taskID),
-              let task = viewModel.tasks.first(where: { $0.id == taskID })
+              viewModel.tasks.contains(where: { $0.id == taskID })
         else { return }
-        let showsAddNote = task.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
-        taskMorphViewport.beginExpansion(
-            for: taskID,
-            estimatedHeightDelta: RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: showsAddNote) + 44,
-            protectedTopInset: 12
-        )
         var expansionToken: HomeMorphSessionToken?
         var transaction = Transaction()
         transaction.animation = nil
@@ -713,7 +730,6 @@ struct RoutinesListContent: View {
             )
         }
         guard let expansionToken else {
-            taskMorphViewport.cancelExpansion(for: taskID)
             viewModel.finishMorphDetail()
             return
         }
@@ -721,14 +737,8 @@ struct RoutinesListContent: View {
             await Task.yield()
             await Task.yield()
             guard morphSession.isCurrent(expansionToken) else { return }
-            withAnimation(morphGeometryAnimation) {
-                _ = morphSession.activatePreparedExpansion(using: expansionToken)
-            }
+            _ = morphSession.activatePreparedExpansion(using: expansionToken)
         }
-    }
-
-    private var morphGeometryAnimation: Animation {
-        TaskMorphBloomMotion.geometryAnimation(reduceMotion: reduceMotion)
     }
 
     // MARK: - Empty states

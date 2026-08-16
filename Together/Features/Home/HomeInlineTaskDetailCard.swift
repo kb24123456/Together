@@ -1,46 +1,59 @@
 import SwiftUI
 
 struct HomeInlineTaskDetailCard: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     let entry: HomeTimelineEntry
     @Bindable var viewModel: HomeViewModel
     let isExpanded: Bool
-    let showsAddNote: Bool
-    let onAddNote: () -> Void
+    let isCollapsing: Bool
+    let cascadeElapsed: TimeInterval
+    let cascadeRowCount: Int
 
     @State private var newSubtaskTitle = ""
+    @State private var notesDraft = ""
     @State private var activeSubtaskID: UUID?
     @State private var activeSubtaskTitle = ""
     @State private var showsSubtaskComposer = false
     @State private var isCommittingSubtask = false
-    @State private var revealStep = 0
-    @State private var revealTask: Task<Void, Never>?
+    @State private var isEditingNotes = false
+    @State private var isCommittingNotes = false
     @FocusState private var focusedField: FocusedField?
 
     private enum FocusedField: Hashable {
         case existingSubtask(UUID)
         case newSubtask
+        case notes
     }
 
     var body: some View {
         let subtasks = viewModel.inlineDetailDraft?.subtasks ?? []
-        let firstSubtaskStep = showsAddNote ? 2 : 1
 
         VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.detailVerticalSpacing) {
-            if showsAddNote {
-                disclosureButton(title: "添加备注", systemImage: "plus", action: onAddNote)
-                    .opacity(revealStep >= 1 ? 1 : 0)
-            }
+            notesRow
+                .taskMorphCascade(
+                    elapsed: cascadeElapsed,
+                    index: 0,
+                    rowCount: cascadeRowCount,
+                    isCollapsing: isCollapsing
+                )
 
-            ForEach(Array(subtasks.enumerated()), id: \.element.id) { index, subtask in
+            ForEach(subtasks, id: \.id) { subtask in
                 subtaskRow(subtask)
-                    .opacity(revealStep >= firstSubtaskStep + index ? 1 : 0)
+                    .taskMorphCascade(
+                        elapsed: cascadeElapsed,
+                        index: cascadeIndex(for: subtask, in: subtasks),
+                        rowCount: cascadeRowCount,
+                        isCollapsing: isCollapsing
+                    )
             }
 
             if showsSubtaskComposer {
                 newSubtaskRow
-                    .opacity(revealStep >= finalRevealStep(subtaskCount: subtasks.count) ? 1 : 0)
+                    .taskMorphCascade(
+                        elapsed: cascadeElapsed,
+                        index: subtasks.count + 1,
+                        rowCount: cascadeRowCount,
+                        isCollapsing: isCollapsing
+                    )
             } else {
                 disclosureButton(title: "添加子任务", systemImage: "plus") {
                     showsSubtaskComposer = true
@@ -49,11 +62,20 @@ struct HomeInlineTaskDetailCard: View {
                         focusedField = .newSubtask
                     }
                 }
-                .opacity(revealStep >= finalRevealStep(subtaskCount: subtasks.count) ? 1 : 0)
+                .taskMorphCascade(
+                    elapsed: cascadeElapsed,
+                    index: subtasks.count + 1,
+                    rowCount: cascadeRowCount,
+                    isCollapsing: isCollapsing
+                )
             }
         }
-        .padding(.top, AppTheme.spacing.xxs)
+        .padding(.top, HomeInlineTaskLayoutMetrics.detailTopPadding)
+        .padding(.bottom, HomeInlineTaskLayoutMetrics.detailBottomPadding)
         .onChange(of: focusedField) { oldValue, newValue in
+            if oldValue == .notes, newValue != .notes, isCommittingNotes == false {
+                commitNotes()
+            }
             guard case let .existingSubtask(id) = oldValue,
                   newValue != oldValue,
                   isCommittingSubtask == false
@@ -69,15 +91,59 @@ struct HomeInlineTaskDetailCard: View {
                 return
             }
         }
-        .onAppear {
-            updateRevealState(isExpanded, subtaskCount: subtasks.count)
-        }
+        .onAppear { notesDraft = viewModel.inlineDetailDraft?.notes ?? entry.notes ?? "" }
         .onChange(of: isExpanded) { _, expanded in
-            updateRevealState(expanded, subtaskCount: subtasks.count)
+            guard expanded == false, isEditingNotes else { return }
+            commitNotes()
         }
-        .onDisappear {
-            revealTask?.cancel()
-            revealTask = nil
+    }
+
+    private func cascadeIndex(
+        for subtask: TaskSubtaskDraft,
+        in subtasks: [TaskSubtaskDraft]
+    ) -> Int {
+        (subtasks.firstIndex(where: { $0.id == subtask.id }) ?? 0) + 1
+    }
+
+    @ViewBuilder
+    private var notesRow: some View {
+        if isEditingNotes {
+            HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
+                Image(systemName: "note.text")
+                    .font(AppTheme.typography.sized(14, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                    .frame(width: HomeInlineTaskLayoutMetrics.checkboxSize, height: 36, alignment: .trailing)
+
+                TextField("添加备注", text: $notesDraft, axis: .vertical)
+                    .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+                    .lineLimit(1...4)
+                    .focused($focusedField, equals: .notes)
+                    .submitLabel(.done)
+                    .onSubmit(commitNotes)
+                    .onChange(of: notesDraft) { _, notes in
+                        guard isEditingNotes else { return }
+                        viewModel.updateDraftNotes(notes)
+                    }
+
+                Button("确认", action: commitNotes)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.sky)
+                    .frame(minWidth: 44, minHeight: 36)
+                    .buttonStyle(.plain)
+            }
+        } else {
+            let notes = viewModel.inlineDetailDraft?.notes ?? entry.notes ?? ""
+            disclosureButton(
+                title: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "添加备注" : notes,
+                systemImage: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "plus" : "note.text"
+            ) {
+                notesDraft = notes
+                isEditingNotes = true
+                Task { @MainActor in
+                    await Task.yield()
+                    focusedField = .notes
+                }
+            }
         }
     }
 
@@ -195,41 +261,14 @@ struct HomeInlineTaskDetailCard: View {
         }
     }
 
-    private func finalRevealStep(subtaskCount: Int) -> Int {
-        (showsAddNote ? 2 : 1) + subtaskCount
-    }
-
-    private func updateRevealState(_ expanded: Bool, subtaskCount: Int) {
-        revealTask?.cancel()
-        let finalStep = finalRevealStep(subtaskCount: subtaskCount)
-
-        if reduceMotion {
-            withAnimation(.easeOut(duration: 0.12)) {
-                revealStep = expanded ? finalStep : 0
-            }
-            return
-        }
-
-        revealTask = Task { @MainActor in
-            if expanded {
-                revealStep = 0
-                for step in 1...max(1, finalStep) {
-                    guard Task.isCancelled == false else { return }
-                    withAnimation(.easeOut(duration: 0.12)) {
-                        revealStep = step
-                    }
-                    try? await Task.sleep(for: .milliseconds(24))
-                }
-            } else {
-                for step in stride(from: revealStep, through: 0, by: -1) {
-                    guard Task.isCancelled == false else { return }
-                    withAnimation(.easeIn(duration: 0.09)) {
-                        revealStep = step
-                    }
-                    try? await Task.sleep(for: .milliseconds(18))
-                }
-            }
-        }
+    private func commitNotes() {
+        guard isEditingNotes, isCommittingNotes == false else { return }
+        isCommittingNotes = true
+        notesDraft = TextInputSnapshotReader.resolvedText(fallback: notesDraft)
+        focusedField = nil
+        viewModel.updateDraftNotes(notesDraft)
+        isEditingNotes = false
+        isCommittingNotes = false
     }
 
     private func addSubtaskAfterSnapshot() {
@@ -280,26 +319,12 @@ struct HomeTaskAttributeFooter: View {
     let isExpanded: Bool
 
     @State private var schedulePresentation: ExistingTaskScheduleEditorPresentation?
-    @State private var controlsVisible = false
-    @State private var revealTask: Task<Void, Never>?
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         expandedControls
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .padding(.leading, HomeInlineTaskLayoutMetrics.attributeLeadingInset)
             .padding(.top, AppTheme.spacing.xxs)
-            .opacity(controlsVisible ? 1 : 0)
-            .allowsHitTesting(isExpanded && controlsVisible)
-            .onAppear { updateControlsVisibility(isExpanded) }
-            .onChange(of: isExpanded) { _, expanded in
-                updateControlsVisibility(expanded)
-            }
-            .onDisappear {
-                revealTask?.cancel()
-                revealTask = nil
-            }
+            .allowsHitTesting(isExpanded)
         .sheet(item: $schedulePresentation) { presentation in
             DateTimePickerSheet(
                 presentation: presentation,
@@ -316,7 +341,7 @@ struct HomeTaskAttributeFooter: View {
     }
 
     private var expandedControls: some View {
-        HStack(spacing: AppTheme.spacing.xs) {
+        TaskAttributeToolbarRail {
             attributeButton(
                 title: dateTitle,
                 systemImage: "calendar",
@@ -344,7 +369,7 @@ struct HomeTaskAttributeFooter: View {
                 HomeInteractionFeedback.selection()
                 viewModel.updateDraftUrgent(!(viewModel.inlineDetailDraft?.isUrgent ?? false))
             } label: {
-                HomeMorphAttributeLabel(
+                TaskAttributeLabel(
                     icon: viewModel.inlineDetailDraft?.isUrgent == true ? "flag.fill" : "flag",
                     title: "",
                     isConfigured: viewModel.inlineDetailDraft?.isUrgent == true,
@@ -353,7 +378,7 @@ struct HomeTaskAttributeFooter: View {
                     alignsToCardCorner: true
                 )
             }
-            .buttonStyle(HomeMorphAttributeButtonStyle())
+            .buttonStyle(TaskMorphAttributeButtonStyle())
             .accessibilityLabel("紧急")
             .accessibilityValue(viewModel.inlineDetailDraft?.isUrgent == true ? "已开启" : "已关闭")
 
@@ -362,7 +387,7 @@ struct HomeTaskAttributeFooter: View {
                     HomeInteractionFeedback.selection()
                     Task { await viewModel.toggleTaskFollow(entry.itemID) }
                 } label: {
-                    HomeMorphAttributeLabel(
+                    TaskAttributeLabel(
                         icon: "scope",
                         title: "",
                         isConfigured: isFollowed,
@@ -371,15 +396,15 @@ struct HomeTaskAttributeFooter: View {
                         alignsToCardCorner: true
                     )
                 }
-                .buttonStyle(HomeMorphAttributeButtonStyle())
+                .buttonStyle(TaskMorphAttributeButtonStyle())
                 .disabled(viewModel.isUpdatingTaskFollow(entry.itemID))
                 .accessibilityLabel(isFollowed ? "已关注" : "关注任务")
                 .accessibilityValue(isFollowed ? "已开启" : "已关闭")
                 .accessibilityHint(isFollowed ? "轻点取消关注" : "轻点在实时活动中关注此任务")
             }
 
-            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var isFollowed: Bool {
@@ -401,15 +426,16 @@ struct HomeTaskAttributeFooter: View {
             HomeInteractionFeedback.selection()
             action()
         } label: {
-            HomeMorphAttributeLabel(
+            TaskAttributeLabel(
                 icon: systemImage,
                 title: title,
                 isConfigured: isConfigured,
                 usesContinuousCapsule: true,
-                alignsToCardCorner: true
+                alignsToCardCorner: true,
+                horizontalPadding: 8
             )
         }
-        .buttonStyle(HomeMorphAttributeButtonStyle())
+        .buttonStyle(TaskMorphAttributeButtonStyle())
     }
 
     private var dateTitle: String {
@@ -447,35 +473,12 @@ struct HomeTaskAttributeFooter: View {
         )
     }
 
-    private func updateControlsVisibility(_ expanded: Bool) {
-        revealTask?.cancel()
-        if reduceMotion {
-            withAnimation(.easeOut(duration: 0.12)) {
-                controlsVisible = expanded
-            }
-            return
-        }
-
-        revealTask = Task { @MainActor in
-            if expanded {
-                let subtaskCount = viewModel.inlineDetailDraft?.subtasks.count ?? entry.subtasks.count
-                try? await Task.sleep(for: .milliseconds(90 + 24 * (subtaskCount + 2)))
-                guard Task.isCancelled == false else { return }
-                withAnimation(.easeOut(duration: 0.14)) {
-                    controlsVisible = true
-                }
-            } else {
-                withAnimation(.easeIn(duration: 0.09)) {
-                    controlsVisible = false
-                }
-            }
-        }
-    }
 }
 
 struct HomeTaskCompactSummary: View {
     let entry: HomeTimelineEntry
-    let isExpanded: Bool
+    let progress: CGFloat
+    let opacity: CGFloat
 
     private var content: TaskSharedIdentityContent {
         TaskSharedIdentityContent.make(entry: entry)
@@ -491,66 +494,11 @@ struct HomeTaskCompactSummary: View {
             elements: [.time, .reminder, .progress]
         )
         .allowsHitTesting(false)
-        .opacity(isExpanded ? 0 : 1)
-        .frame(minHeight: isExpanded || hasContent == false ? 0 : 20, alignment: .top)
-        .padding(.top, isExpanded || hasContent == false ? 0 : AppTheme.spacing.xs)
-        .animation(.easeOut(duration: 0.09), value: isExpanded)
-    }
-}
-
-struct HomeMorphAttributeLabel: View {
-    let icon: String
-    let title: String
-    let isConfigured: Bool
-    var tint: Color? = nil
-    var isCircular = false
-    var usesContinuousCapsule = false
-    var alignsToCardCorner = false
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .frame(width: 16)
-
-            if title.isEmpty == false {
-                Text(title)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.76)
-            }
-        }
-        .foregroundStyle(
-            tint ?? (isConfigured
-                ? AppTheme.colors.title.opacity(0.76)
-                : AppTheme.colors.body.opacity(0.52))
-        )
-        .padding(.horizontal, isCircular ? 0 : 11)
-        .frame(width: isCircular ? 34 : nil, height: 34)
-        .background(
-            AppTheme.colors.surfaceElevated,
-            in: isCircular
-                ? AnyShape(Circle())
-                : usesContinuousCapsule
-                    ? AnyShape(Capsule(style: .continuous))
-                    : AnyShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        )
-        .frame(
-            minWidth: 44,
-            minHeight: 44,
-            alignment: alignsToCardCorner ? .bottom : .center
-        )
-        .contentShape(Rectangle())
-    }
-}
-
-struct HomeMorphAttributeButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .brightness(configuration.isPressed ? -0.035 : 0)
-            .opacity(configuration.isPressed ? 0.9 : 1)
-            .animation(.smooth(duration: 0.14, extraBounce: 0), value: configuration.isPressed)
+        .opacity(opacity)
+        .frame(height: hasContent ? 20 * progress : 0, alignment: .top)
+        .padding(.top, hasContent ? AppTheme.spacing.xs * progress : 0)
+        .clipped()
+        .accessibilityHidden(progress < 0.999)
     }
 }
 

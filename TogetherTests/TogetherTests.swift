@@ -382,8 +382,8 @@ struct TogetherTests {
     }
 
     @Test func routineInlineDetailFallbackHeightMatchesVisibleRows() {
-        #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) == 86)
-        #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: false) == 52)
+        #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: true) == 78)
+        #expect(RoutineInlineLayoutMetrics.estimatedDetailHeight(showsAddNote: false) == 44)
     }
 
     @Test func homeInlineDetailFallbackHeightExcludesHiddenAddNoteRow() {
@@ -3284,8 +3284,9 @@ struct TogetherTests {
         #expect(HomeInlineTaskLayoutMetrics.titleLeadingInset == HomeInlineTaskLayoutMetrics.actionSlotWidth + HomeInlineTaskLayoutMetrics.titleGap)
         #expect(HomeInlineTaskLayoutMetrics.taskTitleLeadingInset == 38)
         #expect(HomeInlineTaskLayoutMetrics.attributeLeadingInset == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset)
+        #expect(HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset == 0)
         #expect(HomeInlineTaskLayoutMetrics.checkboxSize < HomeInlineTaskLayoutMetrics.actionSlotWidth)
-        #expect(HomeInlineTaskLayoutMetrics.attributeMinHeight < HomeInlineTaskLayoutMetrics.rowMinHeight)
+        #expect(HomeInlineTaskLayoutMetrics.attributeMinHeight == HomeInlineTaskLayoutMetrics.rowMinHeight)
         #expect(HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 0) > 0)
         #expect(
             HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 2)

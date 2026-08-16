@@ -22,15 +22,16 @@ enum RoutineInlineFocusTarget: Hashable {
 }
 
 enum RoutineInlineLayoutMetrics {
-    static let actionSlotWidth: CGFloat = 44
+    static let actionSlotWidth: CGFloat = 28
     static let titleGap: CGFloat = AppTheme.spacing.sm
     static let titleLeadingInset = actionSlotWidth + titleGap
+    static let attributeLeadingInset: CGFloat = 0
     static let rowMinHeight: CGFloat = 44
     static let compactRowMinHeight: CGFloat = 32
-    static let detailVerticalSpacing: CGFloat = AppTheme.spacing.xxs
-    static let attributeMinHeight: CGFloat = AdaptiveTaskAttributeToolbarLayout.rowHeight
-    static let detailTopPadding: CGFloat = AppTheme.spacing.xxs
-    static let detailBottomPadding: CGFloat = AppTheme.spacing.xxs
+    static let detailVerticalSpacing: CGFloat = 2
+    static let attributeMinHeight: CGFloat = TaskAttributeToolbarMetrics.rowHeight
+    static let detailTopPadding: CGFloat = 0
+    static let detailBottomPadding: CGFloat = 0
 
     static func estimatedDetailHeight(showsAddNote: Bool) -> CGFloat {
         let visibleRowCount = showsAddNote ? 2 : 1
@@ -47,16 +48,18 @@ struct RoutinesTaskRow: View {
     let isAnimatingReopening: Bool
     let isDetailPresented: Bool
     let isDetailExpanded: Bool
-    let animationBatch: Int
+    let isDetailCollapsing: Bool
+    let expansionMotion: TaskExpansionMotion
+    let cascadeRowCount: Int
     let onOpenDetail: () -> Void
     let onToggleCompletion: () -> Void
     let onInlineFocus: (RoutineInlineFocusTarget) -> Void
-    let onDetailHeightChange: (CGFloat) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNotesFocused: Bool
+    @AccessibilityFocusState private var isTitleAccessibilityFocused: Bool
     @State private var titleDraft = ""
     @State private var notesDraft = ""
     @State private var isEditingTitle = false
@@ -90,16 +93,18 @@ struct RoutinesTaskRow: View {
             topRow
 
             TaskMorphDisclosure(
-                isExpanded: isDetailPresented,
-                onMeasuredHeight: onDetailHeightChange
+                progress: isDetailPresented ? expansionMotion.layoutProgress : 0,
+                isInteractive: isDetailExpanded
             ) {
                 RoutinesInlineDetailView(
                     task: task,
                     viewModel: viewModel,
                     isExpanded: isDetailExpanded,
-                    animationBatch: animationBatch,
-                    showsAddNote: visibleNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && isEditingNotes == false,
-                    onAddNote: beginNotesEditing,
+                    isCollapsing: isDetailCollapsing,
+                    cascadeElapsed: expansionMotion.cascadeElapsed(
+                        isCollapsing: isDetailCollapsing
+                    ),
+                    cascadeRowCount: cascadeRowCount,
                     onFocus: onInlineFocus
                 )
                 .id(RoutineInlineFocusTarget.detail.anchorID(for: task.id))
@@ -164,11 +169,23 @@ struct RoutinesTaskRow: View {
                 commitNotesAfterFocusUpdate()
             }
         }
+        .onChange(of: isDetailPresented) { wasPresented, isPresented in
+            guard wasPresented, isPresented == false else { return }
+            Task { @MainActor in
+                await Task.yield()
+                isTitleAccessibilityFocused = true
+            }
+        }
     }
 
     private var topRow: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.sm) {
+        HStack(alignment: .taskTitleCenter, spacing: AppTheme.spacing.sm) {
             completionButton
+                .padding(.horizontal, -8)
+                .padding(.vertical, -10)
+                .alignmentGuide(.taskTitleCenter) { dimensions in
+                    dimensions[VerticalAlignment.center]
+                }
 
             ZStack(alignment: .topLeading) {
                 stableTitleStack
@@ -182,12 +199,18 @@ struct RoutinesTaskRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityFocused($isTitleAccessibilityFocused)
                     .accessibilityLabel("展开定期任务")
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .scaleEffect(expansionMotion.identityScale, anchor: .topLeading)
+        .offset(
+            x: expansionMotion.identityOffsetX,
+            y: expansionMotion.identityOffsetY
+        )
     }
 
     private var completionButton: some View {
@@ -199,9 +222,9 @@ struct RoutinesTaskRow: View {
             }
             onToggleCompletion()
         } label: {
-            completionBadge
-                .frame(width: 24, height: 24)
-                .frame(width: 44, height: 44)
+                completionBadge
+                    .frame(width: 24, height: 24)
+                    .frame(width: 44, height: 44)
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
@@ -211,34 +234,58 @@ struct RoutinesTaskRow: View {
     @ViewBuilder
     private var stableTitleStack: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-            if isDetailPresented, isEditingTitle {
-                expandedTitleEditor
-            } else {
-                Button {
-                    if isDetailPresented {
-                        beginTitleEditing()
-                    } else {
-                        onOpenDetail()
-                    }
-                } label: {
-                    titleText(isDetailPresented ? draftTitle : task.title)
+            Group {
+                if isDetailPresented, isEditingTitle {
+                    expandedTitleEditor
+                } else {
+                    Button {
+                        if isDetailPresented {
+                            beginTitleEditing()
+                        } else {
+                            onOpenDetail()
+                        }
+                    } label: {
+                        Group {
+                            if isDetailPresented {
+                                TaskMorphInterpolatedHeightRegion(
+                                    progress: expansionMotion.layoutProgress,
+                                    compact: { titleText(draftTitle, lineLimit: 2) },
+                                    expanded: { titleText(draftTitle, lineLimit: nil) },
+                                    visible: { titleText(draftTitle, lineLimit: nil) }
+                                )
+                            } else {
+                                titleText(task.title, lineLimit: 2)
+                            }
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .allowsHitTesting(isDetailPresented)
+                    .accessibilityHidden(isDetailPresented == false)
+                    .accessibilityLabel("编辑定期任务标题")
                 }
-                .buttonStyle(.plain)
-                .allowsHitTesting(isDetailPresented)
-                .accessibilityHidden(isDetailPresented == false)
-                .accessibilityLabel("编辑定期任务标题")
             }
-
             if isDetailPresented {
-                subtitleContent
+                TaskMorphMeasuredRegion(
+                    progress: expansionMotion.compactHeightProgress,
+                    isInteractive: false
+                ) {
+                    VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                        subtitleText(rowDisplayText.primarySubtitle)
+                        if let propertyText = rowDisplayText.propertyText {
+                            subtitleText(propertyText)
+                        }
+                    }
+                    .opacity(expansionMotion.collapsedOpacity)
+                }
             } else {
-                subtitleText(rowDisplayText.primarySubtitle)
-            }
-
-            if let propertyText = rowDisplayText.propertyText {
-                subtitleText(propertyText)
+                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                    subtitleText(rowDisplayText.primarySubtitle)
+                    if let propertyText = rowDisplayText.propertyText {
+                        subtitleText(propertyText)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -309,12 +356,15 @@ struct RoutinesTaskRow: View {
         return RoutineTaskPropertyText.text(for: rule, cycle: draft.cycle)
     }
 
-    private func titleText(_ title: String) -> some View {
+    private func titleText(_ title: String, lineLimit: Int?) -> some View {
         Text(title)
             .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
             .foregroundStyle(isCompleted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize || isDetailPresented ? nil : 2)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : lineLimit)
             .fixedSize(horizontal: false, vertical: true)
+            .alignmentGuide(.taskTitleCenter) { dimensions in
+                dimensions[VerticalAlignment.center]
+            }
     }
 
     private var expandedTitleEditor: some View {
@@ -564,82 +614,124 @@ private struct RoutinesInlineDetailView: View {
     let task: PeriodicTask
     @Bindable var viewModel: RoutinesViewModel
     let isExpanded: Bool
-    let animationBatch: Int
-    let showsAddNote: Bool
-    let onAddNote: () -> Void
+    let isCollapsing: Bool
+    let cascadeElapsed: TimeInterval
+    let cascadeRowCount: Int
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var notesDraft = ""
+    @State private var isEditingNotes = false
+    @State private var isCommittingNotes = false
+    @FocusState private var isNotesFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: RoutineInlineLayoutMetrics.detailVerticalSpacing) {
-            if showsAddNote {
-                notesPlaceholderButton
-                    .modifier(cascadeItem(index: 0))
-            }
-
+            notesControl
+                .taskMorphCascade(
+                    elapsed: cascadeElapsed,
+                    index: 0,
+                    rowCount: cascadeRowCount,
+                    isCollapsing: isCollapsing
+                )
             attributeToolbar
-                .modifier(cascadeItem(index: showsAddNote ? 1 : 0))
-
+                .taskMorphCascade(
+                    elapsed: cascadeElapsed,
+                    index: 1,
+                    rowCount: cascadeRowCount,
+                    isCollapsing: isCollapsing
+                )
         }
         .padding(.top, RoutineInlineLayoutMetrics.detailTopPadding)
         .padding(.bottom, RoutineInlineLayoutMetrics.detailBottomPadding)
-    }
-
-    private func cascadeItem(index: Int) -> RoutineInlineCascadeItemModifier {
-        RoutineInlineCascadeItemModifier(
-            index: index,
-            rowCount: showsAddNote ? 2 : 1,
-            isExpanded: isExpanded,
-            animationBatch: animationBatch,
-            reduceMotion: reduceMotion
-        )
-    }
-
-    private var notesPlaceholderButton: some View {
-        Button {
-            HomeInteractionFeedback.selection()
-            onAddNote()
-        } label: {
-            HStack(spacing: RoutineInlineLayoutMetrics.titleGap) {
-                Image(systemName: "plus")
-                    .font(AppTheme.typography.sized(12, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
-                    .frame(
-                        width: RoutineInlineLayoutMetrics.actionSlotWidth,
-                        height: RoutineInlineLayoutMetrics.compactRowMinHeight,
-                        alignment: .trailing
-                    )
-
-                Text("添加备注")
-                    .font(AppTheme.typography.sized(14, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.34))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(
-                maxWidth: .infinity,
-                minHeight: RoutineInlineLayoutMetrics.compactRowMinHeight,
-                alignment: .leading
-            )
-            .contentShape(Rectangle())
+        .onAppear { notesDraft = viewModel.detailDraft?.notes ?? task.notes ?? "" }
+        .onChange(of: isExpanded) { _, expanded in
+            guard expanded == false, isEditingNotes else { return }
+            commitNotes()
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("添加备注")
+    }
+
+    @ViewBuilder
+    private var notesControl: some View {
+        HStack(spacing: RoutineInlineLayoutMetrics.titleGap) {
+            Image(systemName: notesIcon)
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                .frame(
+                    width: RoutineInlineLayoutMetrics.actionSlotWidth,
+                    height: RoutineInlineLayoutMetrics.compactRowMinHeight,
+                    alignment: .trailing
+                )
+
+            if isEditingNotes {
+                TextField("添加备注", text: $notesDraft, axis: .vertical)
+                    .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+                    .lineLimit(1...4)
+                    .focused($isNotesFocused)
+                    .submitLabel(.done)
+                    .onSubmit(commitNotes)
+                    .onChange(of: notesDraft) { _, notes in
+                        guard isEditingNotes else { return }
+                        viewModel.updateDraftNotes(notes)
+                    }
+
+                Button("确认", action: commitNotes)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.sky)
+                    .frame(minWidth: 44, minHeight: 36)
+                    .buttonStyle(.plain)
+            } else {
+                Button {
+                    HomeInteractionFeedback.selection()
+                    notesDraft = viewModel.detailDraft?.notes ?? task.notes ?? ""
+                    isEditingNotes = true
+                    onFocus(.notes)
+                    Task { @MainActor in
+                        await Task.yield()
+                        isNotesFocused = true
+                    }
+                } label: {
+                    Text(notesTitle)
+                        .font(AppTheme.typography.sized(15, weight: .medium))
+                        .foregroundStyle(AppTheme.colors.body.opacity(notesTitle == "添加备注" ? 0.48 : 0.72))
+                        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(notesTitle == "添加备注" ? "添加备注" : "编辑备注")
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: RoutineInlineLayoutMetrics.compactRowMinHeight)
+    }
+
+    private var notesTitle: String {
+        let notes = viewModel.detailDraft?.notes ?? task.notes ?? ""
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "添加备注" : trimmed
+    }
+
+    private var notesIcon: String {
+        notesTitle == "添加备注" ? "plus" : "note.text"
+    }
+
+    private func commitNotes() {
+        guard isEditingNotes, isCommittingNotes == false else { return }
+        isCommittingNotes = true
+        notesDraft = TextInputSnapshotReader.resolvedText(fallback: notesDraft)
+        isNotesFocused = false
+        viewModel.updateDraftNotes(notesDraft)
+        isEditingNotes = false
+        isCommittingNotes = false
     }
 
     private var attributeToolbar: some View {
-        AdaptiveTaskAttributeToolbarLayout() {
+        TaskAttributeToolbarRail {
             cycleMenu
-                .frame(maxWidth: .infinity)
             targetDayControl
-                .frame(maxWidth: .infinity)
             targetTimeControl
-                .frame(maxWidth: .infinity)
             reminderMenu
-                .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
+        .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
     }
 
     private var reminderMenu: some View {
@@ -769,7 +861,9 @@ private struct RoutinesInlineDetailView: View {
         TaskAttributeLabel(
             icon: icon,
             title: title,
-            isConfigured: isConfigured
+            isConfigured: isConfigured,
+            usesContinuousCapsule: true,
+            horizontalPadding: 8
         )
     }
 
@@ -778,7 +872,8 @@ private struct RoutinesInlineDetailView: View {
             icon: icon,
             title: title,
             isConfigured: isConfigured,
-            fillsAvailableWidth: false
+            usesContinuousCapsule: true,
+            horizontalPadding: 8
         )
     }
 
@@ -886,51 +981,5 @@ private struct RoutinesInlineDetailView: View {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
         guard let hour = components.hour, let minute = components.minute else { return }
         viewModel.updateDraftTargetTime(hour: hour, minute: minute)
-    }
-}
-
-private struct RoutineInlineCascadeItemModifier: ViewModifier {
-    let index: Int
-    let rowCount: Int
-    let isExpanded: Bool
-    let animationBatch: Int
-    let reduceMotion: Bool
-
-    @State private var isVisible = false
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(isVisible ? 1 : 0)
-            .onAppear {
-                isVisible = false
-                guard isExpanded else { return }
-                Task { @MainActor in
-                    await Task.yield()
-                    updateVisibility(true)
-                }
-            }
-            .onChange(of: isExpanded) { _, expanded in
-                updateVisibility(expanded)
-            }
-            .onChange(of: animationBatch) { _, _ in
-                updateVisibility(isExpanded)
-            }
-    }
-
-    private func updateVisibility(_ visible: Bool) {
-        withAnimation(rowAnimation(expanding: visible)) {
-            isVisible = visible
-        }
-    }
-
-    private func rowAnimation(expanding: Bool) -> Animation {
-        if reduceMotion {
-            return .easeInOut(duration: 0.14)
-        }
-        let delay = expanding
-            ? Double(index) * 0.024
-            : Double(max(rowCount - index - 1, 0)) * 0.018
-        return (expanding ? Animation.easeOut(duration: 0.12) : .easeIn(duration: 0.09))
-            .delay(delay)
     }
 }

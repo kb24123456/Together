@@ -5,6 +5,16 @@ import UIKit
 import CoreText
 #endif
 
+struct TaskTitleCenterAlignment: AlignmentID {
+    static func defaultValue(in dimensions: ViewDimensions) -> CGFloat {
+        dimensions[VerticalAlignment.center]
+    }
+}
+
+extension VerticalAlignment {
+    static let taskTitleCenter = VerticalAlignment(TaskTitleCenterAlignment.self)
+}
+
 enum InlineAttributeEditor: String, Identifiable, Hashable {
     case date
     case time
@@ -25,10 +35,12 @@ struct TaskAttributeButton: View {
                 icon: icon,
                 title: title,
                 isConfigured: isConfigured,
-                tint: tint
+                tint: tint,
+                usesContinuousCapsule: true,
+                horizontalPadding: 8
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TaskMorphAttributeButtonStyle())
     }
 }
 
@@ -37,29 +49,54 @@ struct TaskAttributeLabel: View {
     let title: String
     let isConfigured: Bool
     var tint: Color? = nil
-    var fillsAvailableWidth = true
+    var isCircular = false
+    var usesContinuousCapsule = false
+    var alignsToCardCorner = false
+    var horizontalPadding: CGFloat = 11
 
     var body: some View {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .frame(width: 16)
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(AppTheme.typography.sized(14, weight: .semibold))
+                .frame(width: 16)
 
-                if title.isEmpty == false {
-                    Text(title)
-                        .font(AppTheme.typography.sized(14, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
+            if title.isEmpty == false {
+                Text(title)
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .lineLimit(1)
             }
-            .foregroundStyle(
-                tint ?? (isConfigured ? AppTheme.colors.title.opacity(0.74) : AppTheme.colors.body.opacity(0.48))
-            )
-            .frame(
-                maxWidth: fillsAvailableWidth ? .infinity : nil,
-                minHeight: 44
-            )
-            .contentShape(Rectangle())
+        }
+        .foregroundStyle(
+            tint ?? (isConfigured
+                ? AppTheme.colors.title.opacity(0.76)
+                : AppTheme.colors.body.opacity(0.52))
+        )
+        .padding(.horizontal, isCircular ? 0 : horizontalPadding)
+        .frame(width: isCircular ? 34 : nil, height: 34)
+        .background(
+            AppTheme.colors.surfaceElevated,
+            in: isCircular
+                ? AnyShape(Circle())
+                : usesContinuousCapsule
+                    ? AnyShape(Capsule(style: .continuous))
+                    : AnyShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        )
+        .frame(
+            minWidth: 44,
+            minHeight: 44,
+            alignment: alignsToCardCorner ? .bottom : .center
+        )
+        .contentShape(Rectangle())
+    }
+}
+
+struct TaskMorphAttributeButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .brightness(configuration.isPressed ? -0.035 : 0)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.smooth(duration: 0.14, extraBounce: 0), value: configuration.isPressed)
     }
 }
 
@@ -1285,63 +1322,28 @@ enum TaskAttributeValueText {
     }
 }
 
-struct AdaptiveTaskAttributeToolbarLayout: Layout {
-    nonisolated static let rowHeight: CGFloat = 44
-    var horizontalSpacing: CGFloat = 0
-    var verticalSpacing: CGFloat = AppTheme.spacing.xxs
+enum TaskAttributeToolbarMetrics {
+    static let rowHeight: CGFloat = 44
+    static let horizontalSpacing: CGFloat = 2
+}
 
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        guard subviews.isEmpty == false else { return .zero }
-        let width = proposal.width ?? idealSingleRowWidth(subviews)
-        let columns = columnCount(for: width, subviews: subviews)
-        let rows = Int(ceil(Double(subviews.count) / Double(columns)))
+struct TaskAttributeToolbarRail<Content: View>: View {
+    var horizontalSpacing = TaskAttributeToolbarMetrics.horizontalSpacing
+    @ViewBuilder let content: () -> Content
 
-        return CGSize(
-            width: width,
-            height: CGFloat(rows) * Self.rowHeight + CGFloat(max(rows - 1, 0)) * verticalSpacing
-        )
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        guard subviews.isEmpty == false else { return }
-        let columns = columnCount(for: bounds.width, subviews: subviews)
-        let itemWidth = max(0, (bounds.width - CGFloat(columns - 1) * horizontalSpacing) / CGFloat(columns))
-
-        for (index, subview) in subviews.enumerated() {
-            let row = index / columns
-            let column = index % columns
-            let x = bounds.minX + CGFloat(column) * (itemWidth + horizontalSpacing)
-            let y = bounds.minY + CGFloat(row) * (Self.rowHeight + verticalSpacing)
-            subview.place(
-                at: CGPoint(x: x, y: y),
-                anchor: .topLeading,
-                proposal: ProposedViewSize(width: itemWidth, height: Self.rowHeight)
-            )
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: horizontalSpacing) {
+                content()
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minHeight: TaskAttributeToolbarMetrics.rowHeight)
         }
-    }
-
-    private func columnCount(for width: CGFloat, subviews: Subviews) -> Int {
-        let singleRowWidth = idealSingleRowWidth(subviews)
-        if singleRowWidth <= width {
-            return subviews.count
-        }
-        return max(2, Int(ceil(Double(subviews.count) / 2)))
-    }
-
-    private func idealSingleRowWidth(_ subviews: Subviews) -> CGFloat {
-        let contentWidth = subviews.reduce(CGFloat.zero) { partial, subview in
-            partial + max(44, subview.sizeThatFits(.unspecified).width)
-        }
-        return contentWidth + CGFloat(max(subviews.count - 1, 0)) * horizontalSpacing
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .defaultScrollAnchor(.leading)
+        .frame(height: TaskAttributeToolbarMetrics.rowHeight)
+        .accessibilityElement(children: .contain)
     }
 }
 

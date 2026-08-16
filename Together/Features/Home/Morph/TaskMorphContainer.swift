@@ -1,513 +1,319 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 private enum TaskMorphSurfaceMetrics {
     static let horizontalInset: CGFloat = 20
     static let verticalInset: CGFloat = 16
-    static let detailHorizontalInset: CGFloat = 28
-    static let detailTopInset: CGFloat = 18
-    static let detailBottomInset: CGFloat = 20
-    static let expandedScreenEdgeInset: CGFloat = 6
     static let expandedCornerRadius = AppTheme.radius.xl
-    static let detailExpandedCornerRadius: CGFloat = 45
     static let compactCornerRadius = AppTheme.radius.lg
     static let expandedContentScale: CGFloat = 1.05
     static let backgroundContentScale: CGFloat = 0.94
     static let backgroundContentOpacity: CGFloat = 0.62
-}
-
-enum TaskMorphBloomMotion {
-    static let geometryDuration: TimeInterval = 0.35
-    static let reducedMotionDuration: TimeInterval = 0.14
-    static let boundaryOvershootDuration: TimeInterval = 0.38
-    static let boundaryOvershootDelay: Duration = .milliseconds(380)
-    static let boundarySettleDuration: TimeInterval = 0.14
-    static let boundaryHorizontalOutset: CGFloat = 4
-    static let boundaryBottomOutset: CGFloat = 12
-    static let boundaryCornerRadius: CGFloat = 45
-    static let boundaryOvershootShadowRadius: CGFloat = 18
-    static let boundarySettledShadowRadius: CGFloat = 16
-    static let boundaryOvershootShadowOffsetY: CGFloat = 8
-    static let boundarySettledShadowOffsetY: CGFloat = 7
-
-    static func geometryAnimation(reduceMotion: Bool) -> Animation {
-        reduceMotion
-            ? .easeInOut(duration: reducedMotionDuration)
-            : .smooth(duration: geometryDuration, extraBounce: 0)
-    }
-
-    static func horizontalProgress(_ progress: CGFloat) -> CGFloat {
-        min(max(progress / 0.72, 0), 1)
-    }
-
-    static func verticalProgress(_ progress: CGFloat) -> CGFloat {
-        min(max((progress - 0.06) / 0.94, 0), 1)
-    }
-
-    static func interpolate(_ start: CGFloat, _ end: CGFloat, progress: CGFloat) -> CGFloat {
-        start + (end - start) * min(max(progress, 0), 1)
-    }
-
-    static func boundaryPresentation(
-        for phase: TaskMorphBoundaryPhase
-    ) -> TaskMorphBoundaryPresentation {
-        switch phase {
-        case .compact:
-            TaskMorphBoundaryPresentation(
-                opacity: 0,
-                horizontalOutset: 0,
-                bottomOutset: 0,
-                cornerRadius: boundaryCornerRadius,
-                shadowRadius: 0,
-                shadowOffsetY: 0
-            )
-        case .overshot:
-            TaskMorphBoundaryPresentation(
-                opacity: 1,
-                horizontalOutset: boundaryHorizontalOutset,
-                bottomOutset: boundaryBottomOutset,
-                cornerRadius: boundaryCornerRadius,
-                shadowRadius: boundaryOvershootShadowRadius,
-                shadowOffsetY: boundaryOvershootShadowOffsetY
-            )
-        case .settled:
-            TaskMorphBoundaryPresentation(
-                opacity: 1,
-                horizontalOutset: 0,
-                bottomOutset: 0,
-                cornerRadius: boundaryCornerRadius,
-                shadowRadius: boundarySettledShadowRadius,
-                shadowOffsetY: boundarySettledShadowOffsetY
-            )
-        }
-    }
-}
-
-enum TaskMorphBoundaryPhase: Equatable, Sendable {
-    case compact
-    case overshot
-    case settled
-}
-
-struct TaskMorphBoundaryPresentation: Equatable, Sendable {
-    let opacity: Double
-    let horizontalOutset: CGFloat
-    let bottomOutset: CGFloat
-    let cornerRadius: CGFloat
-    let shadowRadius: CGFloat
-    let shadowOffsetY: CGFloat
+    static let detailForegroundContentScale: CGFloat = 1.03
+    static let detailBackgroundContentOpacity: CGFloat = 0.40
+    static let reducedMotionDetailBackgroundOpacity: CGFloat = 0.65
 }
 
 enum TaskMorphListSpacing {
-    /// Real empty space added outside the active card boundary. Because this is
-    /// list-owned padding, it contributes to LazyVStack row height and reverses
-    /// with the same transaction as the disclosure instead of faking movement
-    /// with offsets on neighboring rows.
-    static let expandedExternalSeparation: CGFloat = 8
+    /// Persisted details remain part of the continuous list and keep the row's
+    /// standard external padding plus a symmetric focus-depth breathing space.
+    static let expandedExternalSeparation: CGFloat = 14
 
-    /// Vertical growth outside the disclosure itself: asymmetric internal card
-    /// insets plus the two real external separation gaps.
     static var fixedExpansionHeightDelta: CGFloat {
-        TaskMorphSurfaceMetrics.detailTopInset
-            + TaskMorphSurfaceMetrics.detailBottomInset
-            + 2 * expandedExternalSeparation
+        expandedExternalSeparation * 2
     }
 
     static func expandedInsets(from compactInsets: EdgeInsets) -> EdgeInsets {
         EdgeInsets(
             top: compactInsets.top + expandedExternalSeparation,
-            leading: min(compactInsets.leading, TaskMorphSurfaceMetrics.expandedScreenEdgeInset),
+            leading: compactInsets.leading,
             bottom: compactInsets.bottom + expandedExternalSeparation,
-            trailing: min(compactInsets.trailing, TaskMorphSurfaceMetrics.expandedScreenEdgeInset)
+            trailing: compactInsets.trailing
         )
     }
 }
 
-enum TaskMorphExpansionComponent: Hashable {
-    case primary
-    case footer
+enum TaskExpansionMotionTiming {
+    static let expansionDuration: TimeInterval = 0.80
+    static let identityExpansionDuration: TimeInterval = 0.52
+    static let collapseDuration: TimeInterval = 0.36
+    static let reducedMotionDuration: TimeInterval = 0.22
+    static let layoutDuration: TimeInterval = 0.52
+    static let identityTroughDuration: TimeInterval = 0.18
+    static let identityRiseDuration: TimeInterval = 0.34
+    static let identityCollapseToTroughDuration: TimeInterval = 0.23
+    static let identityCollapseToCompactDuration: TimeInterval = 0.13
+    /// The expanded row adds 14pt of real top spacing. Ending at -12pt
+    /// compensates for that layout shift so the visible down/up wave reads
+    /// close to equal amplitude instead of remaining visually low.
+    static let identityTroughOffset = CGSize(width: -7, height: 14)
+    static let expandedIdentityOffset = CGSize(width: -16, height: -12)
+    /// Relative scales account for the foreground container's 1.03 depth scale,
+    /// keeping the identity group near 1.08 at the trough and 1.12 at rest.
+    static let identityTroughScale: CGFloat = 1.05
+    static let expandedIdentityScale: CGFloat = 1.12 / TaskMorphSurfaceMetrics.detailForegroundContentScale
+    static let expandedIdentityVisualScale: CGFloat = 1.12
 }
 
-struct TaskMorphScrollSnapshot: Equatable {
-    let contentOffsetY: CGFloat
-    let contentHeight: CGFloat
-    let containerHeight: CGFloat
-    let topInset: CGFloat
-    let bottomInset: CGFloat
+enum TaskMorphCascadeTiming {
+    /// Detail rows may enter while the identity is moving, but the first row
+    /// must not settle before the identity reaches its 520ms endpoint.
+    static let expansionDelay: TimeInterval = 0.34
+    static let timelineDuration: TimeInterval = 0.46
+    static let rowDuration: TimeInterval = 0.20
+    static let rowDelay: TimeInterval = 0.055
+    static let maximumTotalDelay: TimeInterval = 0.26
+    static let collapseRowDuration: TimeInterval = 0.22
+    static let collapseRowDelay: TimeInterval = 0.035
+    static let maximumCollapseTotalDelay: TimeInterval = 0.14
+    static let minimumOpacity: CGFloat = 0
+    static let startOffset = CGSize(width: 14, height: 24)
+    static let bendOffset = CGSize(width: 5, height: 9)
 
-    init(_ geometry: ScrollGeometry) {
-        contentOffsetY = geometry.contentOffset.y
-        contentHeight = geometry.contentSize.height
-        containerHeight = geometry.containerSize.height
-        topInset = geometry.contentInsets.top
-        bottomInset = geometry.contentInsets.bottom
+    static func totalDelay(rowCount: Int) -> TimeInterval {
+        guard rowCount > 1 else { return 0 }
+        return min(maximumTotalDelay, rowDelay * Double(rowCount - 1))
+    }
+
+    static func collapseTotalDelay(rowCount: Int) -> TimeInterval {
+        guard rowCount > 1 else { return 0 }
+        return min(maximumCollapseTotalDelay, collapseRowDelay * Double(rowCount - 1))
     }
 }
 
-enum TaskMorphViewportMotion {
-    static let upwardShare: CGFloat = 0.4
+enum TaskMorphBackgroundWave {
+    static let adjacentRadius: CGFloat = 1.30
+    static let radiusStep: CGFloat = 0.75
+    static let maximumRadius: CGFloat = 4.8
+    static let adjacentScale: CGFloat = 0.92
+    static let scaleStep: CGFloat = 0.012
+    static let minimumScale: CGFloat = 0.86
+    static let adjacentOffset: CGFloat = 4
+    static let offsetStep: CGFloat = 2
+    static let maximumOffset: CGFloat = 12
+    static let rowDelay: TimeInterval = 0.025
+    static let maximumDelay: TimeInterval = 0.12
+    static let headerBlurRadius: CGFloat = 1.6
 
-    static func effectiveProtectedTopInset(
-        requestedInset: CGFloat,
-        scrollContentInset: CGFloat
-    ) -> CGFloat {
-        max(0, max(requestedInset, scrollContentInset))
-    }
-
-    static func maximumUpwardDisplacement(
-        heightDelta: CGFloat,
-        availableAbove: CGFloat
-    ) -> CGFloat {
-        min(max(0, heightDelta) * upwardShare, max(0, availableAbove))
-    }
-
-    static func screenDisplacements(
-        heightDelta: CGFloat,
-        upwardDisplacement: CGFloat
-    ) -> (above: CGFloat, below: CGFloat) {
-        let upward = min(max(0, upwardDisplacement), max(0, heightDelta))
-        return (above: upward, below: max(0, heightDelta - upward))
-    }
-}
-
-/// Keeps the expanded row in the real lazy stack while sharing its height delta
-/// between the content above and below through a real ScrollView content offset.
-/// Geometry samples live in a non-observable reference: they are read only at
-/// state boundaries and must not invalidate the list on every scroll frame.
-@MainActor
-final class TaskMorphViewportCoordinator {
-    private enum MotionDirection {
-        case expanding
-        case collapsing
-    }
-
-    private var scrollSnapshot: TaskMorphScrollSnapshot?
-    private var viewportFrame: CGRect = .zero
-    private var rowFrames: [UUID: CGRect] = [:]
-    private var measuredHeights: [UUID: [TaskMorphExpansionComponent: CGFloat]] = [:]
-    private var activeID: UUID?
-    private var maximumUpwardDisplacement: CGFloat = 0
-    private var currentUpwardDisplacement: CGFloat = 0
-    private var openingOffsetY: CGFloat = 0
-    private var collapseOffsetY: CGFloat = 0
-    private var collapseStartingDisplacement: CGFloat = 0
-    private var lastProgress: CGFloat = 0
-    private var motionDirection: MotionDirection = .expanding
-#if canImport(UIKit)
-    private weak var scrollView: UIScrollView?
-    private var scrollViewToken: UUID?
-#endif
-
-    func recordScrollSnapshot(_ snapshot: TaskMorphScrollSnapshot) {
-        scrollSnapshot = snapshot
-    }
-
-    func recordViewportFrame(_ frame: CGRect) {
-        guard Self.isValid(frame) else { return }
-        viewportFrame = frame
-    }
-
-    func recordRowFrame(_ frame: CGRect, for id: UUID) {
-        guard Self.isValid(frame) else { return }
-        rowFrames[id] = frame
-    }
-
-    func isFrameVisible(_ frame: CGRect) -> Bool {
-        Self.isValid(viewportFrame)
-            && Self.isValid(frame)
-            && viewportFrame.intersects(frame)
-    }
-
-#if canImport(UIKit)
-    func installScrollView(_ scrollView: UIScrollView, token: UUID) {
-        self.scrollView = scrollView
-        scrollViewToken = token
-        if let activeID {
-            applyExpansionProgress(lastProgress, for: activeID, forcesOffsetWrite: true)
-        }
-    }
-
-    func removeScrollView(token: UUID) {
-        guard scrollViewToken == token else { return }
-        scrollView = nil
-        scrollViewToken = nil
-    }
-#endif
-
-    func recordExpansionHeight(
-        _ height: CGFloat,
-        for id: UUID,
-        component: TaskMorphExpansionComponent = .primary
-    ) {
-        guard height.isFinite, height > 0 else { return }
-        measuredHeights[id, default: [:]][component] = height
-    }
-
-    /// Freezes compact geometry before the shared SwiftUI transaction starts.
-    /// Subsequent viewport writes are derived from the explicit presentation
-    /// progress rather than inferred from post-layout geometry callbacks.
-    func beginExpansion(
-        for id: UUID,
-        estimatedHeightDelta: CGFloat,
-        protectedTopInset: CGFloat = 52
-    ) {
-        activeID = id
-        currentUpwardDisplacement = 0
-        lastProgress = 0
-        motionDirection = .expanding
-
-        guard let scrollSnapshot,
-              let rowFrame = rowFrames[id],
-              Self.isValid(viewportFrame)
-        else {
-            maximumUpwardDisplacement = 0
-            return
-        }
-
-        let measuredHeight = measuredHeights[id]?.values.reduce(0, +) ?? 0
-        let disclosureHeightDelta = max(estimatedHeightDelta, measuredHeight)
-        let heightDelta = disclosureHeightDelta + TaskMorphListSpacing.fixedExpansionHeightDelta
-        guard heightDelta > 1 else {
-            maximumUpwardDisplacement = 0
-            return
-        }
-
-        // Keep the selected row below the stable top chrome zone. Within
-        // that constraint, assign roughly two fifths of the new height upward.
-        let protectedTop = viewportFrame.minY
-            + TaskMorphViewportMotion.effectiveProtectedTopInset(
-                requestedInset: protectedTopInset,
-                scrollContentInset: scrollSnapshot.topInset
-            )
-        let availableAbove = max(0, rowFrame.minY - protectedTop)
-        maximumUpwardDisplacement = TaskMorphViewportMotion.maximumUpwardDisplacement(
-            heightDelta: heightDelta,
-            availableAbove: availableAbove
+    static func radius(forTaskDelta delta: Int?) -> CGFloat {
+        guard let distance = delta.map(abs), distance > 0 else { return 0 }
+        return min(
+            maximumRadius,
+            adjacentRadius + CGFloat(distance - 1) * radiusStep
         )
-        openingOffsetY = liveContentOffsetY ?? scrollSnapshot.contentOffsetY
     }
 
-    /// Freezes the user's current offset before the row starts shrinking. The
-    /// following per-frame corrections therefore remove only Morph-owned travel.
-    func beginCollapse(for id: UUID) {
-        guard activeID == id else { return }
-        guard motionDirection != .collapsing else { return }
-        motionDirection = .collapsing
-        collapseOffsetY = liveContentOffsetY ?? scrollSnapshot?.contentOffsetY ?? openingOffsetY
-        collapseStartingDisplacement = currentUpwardDisplacement
+    static func scale(forTaskDelta delta: Int?) -> CGFloat {
+        guard let distance = delta.map(abs), distance > 0 else { return 1 }
+        return max(
+            minimumScale,
+            adjacentScale - CGFloat(distance - 1) * scaleStep
+        )
     }
 
-    /// Retargets an in-flight collapse back toward expansion while preserving
-    /// the current on-screen offset as the new presentation baseline. This also
-    /// lets a later collapse re-freeze any scrolling performed after reversal.
-    func resumeExpansion(for id: UUID) {
-        guard activeID == id else { return }
-        let liveOffset = liveContentOffsetY ?? openingOffsetY + currentUpwardDisplacement
-        openingOffsetY = liveOffset - currentUpwardDisplacement
-        motionDirection = .expanding
+    static func offsetY(forTaskDelta delta: Int?) -> CGFloat {
+        guard let delta, delta != 0 else { return 0 }
+        let magnitude = min(
+            maximumOffset,
+            adjacentOffset + CGFloat(abs(delta) - 1) * offsetStep
+        )
+        return delta < 0 ? -magnitude : magnitude
     }
 
-    /// Receives the active row's explicit presentation progress. The same SwiftUI
-    /// transaction drives the real row height while this method writes the
-    /// underlying UIScrollView offset directly, avoiding a second declarative
-    /// scroll animation or a list-wide observable progress broadcast.
-    func applyExpansionProgress(_ progress: CGFloat, for id: UUID) {
-        applyExpansionProgress(progress, for: id, forcesOffsetWrite: false)
+    static func delay(forTaskDelta delta: Int?) -> TimeInterval {
+        guard let distance = delta.map(abs), distance > 1 else { return 0 }
+        return min(maximumDelay, Double(distance - 1) * rowDelay)
+    }
+}
+
+struct TaskExpansionMotion: Equatable {
+    var layoutProgress: CGFloat
+    var compactHeightProgress: CGFloat
+    var identityScale: CGFloat
+    var identityOffsetX: CGFloat
+    var collapsedOpacity: CGFloat
+    var identityOffsetY: CGFloat
+    var detailElapsed: TimeInterval
+
+    static let compact = TaskExpansionMotion(
+        layoutProgress: 0,
+        compactHeightProgress: 1,
+        identityScale: 1,
+        identityOffsetX: 0,
+        collapsedOpacity: 1,
+        identityOffsetY: 0,
+        detailElapsed: 0
+    )
+
+    static let expanded = TaskExpansionMotion(
+        layoutProgress: 1,
+        compactHeightProgress: 0,
+        identityScale: TaskExpansionMotionTiming.expandedIdentityScale,
+        identityOffsetX: TaskExpansionMotionTiming.expandedIdentityOffset.width,
+        collapsedOpacity: 0,
+        identityOffsetY: TaskExpansionMotionTiming.expandedIdentityOffset.height,
+        detailElapsed: TaskMorphCascadeTiming.timelineDuration
+    )
+
+    var isDetailSettled: Bool {
+        detailElapsed >= TaskMorphCascadeTiming.timelineDuration - 0.001
     }
 
-    private func applyExpansionProgress(
-        _ progress: CGFloat,
-        for id: UUID,
-        forcesOffsetWrite: Bool
-    ) {
-        let progress = min(max(progress, 0), 1)
-        guard activeID == id,
-              let scrollSnapshot,
-              maximumUpwardDisplacement > 0.5
-        else { return }
+    func cascadeElapsed(isCollapsing: Bool) -> TimeInterval {
+        guard isCollapsing else { return detailElapsed }
+        return TaskMorphCascadeTiming.timelineDuration
+            * TimeInterval(min(max(layoutProgress, 0), 1))
+    }
 
-        lastProgress = progress
+}
 
-        let desiredDisplacement = maximumUpwardDisplacement * progress
-        guard forcesOffsetWrite || abs(desiredDisplacement - currentUpwardDisplacement) > 0.2 else {
-            return
-        }
+struct TaskMorphCascadeValues: Equatable {
+    let progress: CGFloat
+    let offset: CGSize
+    let opacity: CGFloat
 
-        let unboundedTarget: CGFloat
-        switch motionDirection {
-        case .expanding:
-            unboundedTarget = openingOffsetY + desiredDisplacement
-        case .collapsing:
-            unboundedTarget = collapseOffsetY
-                + desiredDisplacement
-                - collapseStartingDisplacement
-        }
+    static func resolve(
+        elapsed: TimeInterval,
+        index: Int,
+        rowCount: Int,
+        reduceMotion: Bool,
+        isCollapsing: Bool = false
+    ) -> TaskMorphCascadeValues {
+        let clampedRowCount = max(rowCount, 1)
+        let clampedIndex = min(max(index, 0), clampedRowCount - 1)
 
-        let minimumOffset = -scrollSnapshot.topInset
-        let targetOffset = max(unboundedTarget, minimumOffset)
-        guard applyScrollOffset(targetOffset) else { return }
-
-        switch motionDirection {
-        case .expanding:
-            currentUpwardDisplacement = max(0, targetOffset - openingOffsetY)
-        case .collapsing:
-            currentUpwardDisplacement = min(
-                maximumUpwardDisplacement,
-                max(0, collapseStartingDisplacement + targetOffset - collapseOffsetY)
+        if reduceMotion {
+            let reducedProgress = min(
+                max(CGFloat(elapsed / TaskMorphCascadeTiming.timelineDuration), 0),
+                1
+            )
+            return TaskMorphCascadeValues(
+                progress: reducedProgress,
+                offset: .zero,
+                opacity: reducedProgress
             )
         }
-    }
 
-    func cancelExpansion(for id: UUID) {
-        guard activeID == id else { return }
-        reset()
-    }
-
-    func reset() {
-        activeID = nil
-        maximumUpwardDisplacement = 0
-        currentUpwardDisplacement = 0
-        openingOffsetY = 0
-        collapseOffsetY = 0
-        collapseStartingDisplacement = 0
-        lastProgress = 0
-        motionDirection = .expanding
-    }
-
-    private func applyScrollOffset(_ targetOffset: CGFloat) -> Bool {
-#if canImport(UIKit)
-        guard let scrollView else { return false }
-        let point = CGPoint(x: scrollView.contentOffset.x, y: targetOffset)
-        guard abs(point.y - scrollView.contentOffset.y) > 0.2 else { return true }
-        UIView.performWithoutAnimation {
-            scrollView.setContentOffset(point, animated: false)
-        }
-        return true
-#else
-        return false
-#endif
-    }
-
-    private var liveContentOffsetY: CGFloat? {
-#if canImport(UIKit)
-        scrollView?.contentOffset.y
-#else
-        nil
-#endif
-    }
-
-    private static func isValid(_ frame: CGRect) -> Bool {
-        frame.origin.x.isFinite
-            && frame.origin.y.isFinite
-            && frame.width.isFinite
-            && frame.height.isFinite
-            && frame.width > 0
-            && frame.height > 0
-    }
-}
-
-private struct TaskMorphScrollViewportModifier: ViewModifier {
-    let coordinator: TaskMorphViewportCoordinator
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-#if canImport(UIKit)
-                TaskMorphScrollViewResolver(coordinator: coordinator)
-                    .frame(width: 0, height: 0)
-#endif
+        let progress: CGFloat
+        if isCollapsing {
+            let totalDelay = TaskMorphCascadeTiming.collapseTotalDelay(rowCount: clampedRowCount)
+            let reverseIndex = clampedRowCount - clampedIndex - 1
+            let delay: TimeInterval = if clampedRowCount > 1 {
+                totalDelay * Double(reverseIndex) / Double(clampedRowCount - 1)
+            } else {
+                0
             }
-    }
-}
-
-#if canImport(UIKit)
-private struct TaskMorphScrollViewResolver: UIViewRepresentable {
-    let coordinator: TaskMorphViewportCoordinator
-
-    func makeUIView(context: Context) -> ResolverView {
-        ResolverView(coordinator: coordinator)
-    }
-
-    func updateUIView(_ view: ResolverView, context: Context) {
-        view.coordinator = coordinator
-        view.resolveScrollViewIfNeeded()
-    }
-
-    static func dismantleUIView(_ view: ResolverView, coordinator: ()) {
-        view.disconnect()
-    }
-
-    @MainActor
-    final class ResolverView: UIView {
-        weak var coordinator: TaskMorphViewportCoordinator?
-        private let token = UUID()
-        private weak var resolvedScrollView: UIScrollView?
-
-        init(coordinator: TaskMorphViewportCoordinator) {
-            self.coordinator = coordinator
-            super.init(frame: .zero)
-            isHidden = true
-            isUserInteractionEnabled = false
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-
-        override func didMoveToSuperview() {
-            super.didMoveToSuperview()
-            resolveScrollViewIfNeeded()
-        }
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            resolveScrollViewIfNeeded()
-        }
-
-        func resolveScrollViewIfNeeded() {
-            guard resolvedScrollView == nil else { return }
-            var candidate = superview
-            while let view = candidate {
-                if let scrollView = view as? UIScrollView {
-                    resolvedScrollView = scrollView
-                    coordinator?.installScrollView(scrollView, token: token)
-                    return
-                }
-                candidate = view.superview
+            let normalizedElapsed = min(
+                max(elapsed / TaskMorphCascadeTiming.timelineDuration, 0),
+                1
+            )
+            let collapseElapsed = TaskExpansionMotionTiming.collapseDuration * (1 - normalizedElapsed)
+            let exitProgress = min(
+                max(
+                    CGFloat(
+                        (collapseElapsed - delay)
+                            / TaskMorphCascadeTiming.collapseRowDuration
+                    ),
+                    0
+                ),
+                1
+            )
+            progress = 1 - exitProgress
+        } else {
+            let totalDelay = TaskMorphCascadeTiming.totalDelay(rowCount: clampedRowCount)
+            let delay: TimeInterval = if clampedRowCount > 1 {
+                totalDelay * Double(clampedIndex) / Double(clampedRowCount - 1)
+            } else {
+                0
             }
-        }
-
-        func disconnect() {
-            coordinator?.removeScrollView(token: token)
-            resolvedScrollView = nil
-        }
-    }
-}
-#endif
-
-@MainActor
-private struct TaskMorphViewportProgressModifier: AnimatableModifier {
-    var progress: CGFloat
-    let id: UUID
-    let coordinator: TaskMorphViewportCoordinator
-
-    var animatableData: CGFloat {
-        get { progress }
-        set {
-            progress = newValue
-            coordinator.applyExpansionProgress(
-                TaskMorphBloomMotion.verticalProgress(newValue),
-                for: id
+            progress = min(
+                max(
+                    CGFloat(
+                        (elapsed - delay) / TaskMorphCascadeTiming.rowDuration
+                    ),
+                    0
+                ),
+                1
             )
         }
+
+        let offset = waveOffset(progress: progress)
+        let opacityProgress = smoothStep(progress)
+        return TaskMorphCascadeValues(
+            progress: progress,
+            offset: offset,
+            opacity: TaskMorphCascadeTiming.minimumOpacity
+                + (1 - TaskMorphCascadeTiming.minimumOpacity) * opacityProgress
+        )
     }
 
-    func body(content: Content) -> some View {
-        content
+    private static func waveOffset(progress: CGFloat) -> CGSize {
+        let t = min(max(progress, 0), 1)
+        let oneMinusT = 1 - t
+        let start = TaskMorphCascadeTiming.startOffset
+        let firstControl = CGSize(width: 10, height: 13)
+        let secondControl = TaskMorphCascadeTiming.bendOffset
+
+        return CGSize(
+            width: oneMinusT * oneMinusT * oneMinusT * start.width
+                + 3 * oneMinusT * oneMinusT * t * firstControl.width
+                + 3 * oneMinusT * t * t * secondControl.width,
+            height: oneMinusT * oneMinusT * oneMinusT * start.height
+                + 3 * oneMinusT * oneMinusT * t * firstControl.height
+                + 3 * oneMinusT * t * t * secondControl.height
+        )
     }
+
+    private static func smoothStep(_ progress: CGFloat) -> CGFloat {
+        progress * progress * (3 - 2 * progress)
+    }
+}
+
+private struct TaskMorphCascadeModifier: ViewModifier {
+    let elapsed: TimeInterval
+    let index: Int
+    let rowCount: Int
+    let isCollapsing: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let values = TaskMorphCascadeValues.resolve(
+            elapsed: elapsed,
+            index: index,
+            rowCount: rowCount,
+            reduceMotion: reduceMotion,
+            isCollapsing: isCollapsing
+        )
+
+        content
+            .offset(x: values.offset.width, y: values.offset.height)
+            .opacity(values.opacity)
+            .allowsHitTesting(isCollapsing == false && values.progress >= 0.999)
+            .accessibilityHidden(isCollapsing || values.progress < 0.999)
+    }
+}
+
+extension View {
+    func taskMorphCascade(
+        elapsed: TimeInterval,
+        index: Int,
+        rowCount: Int,
+        isCollapsing: Bool = false
+    ) -> some View {
+        modifier(
+            TaskMorphCascadeModifier(
+                elapsed: elapsed,
+                index: index,
+                rowCount: rowCount,
+                isCollapsing: isCollapsing
+            )
+        )
+    }
+}
+
+private struct TaskExpansionMotionTarget: Equatable {
+    let isExpanded: Bool
+    let reduceMotion: Bool
 }
 
 struct TaskMorphContainer<Content: View>: View {
@@ -515,46 +321,222 @@ struct TaskMorphContainer<Content: View>: View {
     let isActive: Bool
     let hidesRealSurfaceForHero: Bool
     var isBackgroundDeemphasized = false
+    var backgroundFocusDelta: Int? = nil
     var isBackgroundDimmed = false
-    @ViewBuilder let content: () -> Content
+    var onBackgroundTap: (() -> Void)? = nil
+    @ViewBuilder let content: (TaskExpansionMotion) -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            content()
+        KeyframeAnimator(
+            initialValue: TaskExpansionMotion.compact,
+            trigger: motionTarget
+        ) { motion in
+            VStack(alignment: .leading, spacing: 0) {
+                content(motion)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .opacity(hidesRealSurfaceForHero ? 0 : backgroundContentOpacity * backgroundDimOpacity)
+            .brightness(backgroundBrightness)
+            .overlay {
+                if isBackgroundDeemphasized, let onBackgroundTap {
+                    Button(action: onBackgroundTap) {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("收起任务详情")
+                    .accessibilityHint("保存更改并收起当前任务")
+                }
+            }
+            .accessibilityElement(children: .contain)
+        } keyframes: { initialValue in
+            KeyframeTrack(\.layoutProgress) {
+                if reduceMotion {
+                    LinearKeyframe(
+                        motionTarget.isExpanded ? 1 : 0,
+                        duration: TaskExpansionMotionTiming.reducedMotionDuration
+                    )
+                } else if motionTarget.isExpanded {
+                    CubicKeyframe(
+                        1,
+                        duration: TaskExpansionMotionTiming.layoutDuration
+                    )
+                } else {
+                    CubicKeyframe(
+                        0,
+                        duration: TaskExpansionMotionTiming.collapseDuration
+                    )
+                }
+            }
+
+            KeyframeTrack(\.compactHeightProgress) {
+                if reduceMotion {
+                    LinearKeyframe(
+                        motionTarget.isExpanded ? 0 : 1,
+                        duration: TaskExpansionMotionTiming.reducedMotionDuration
+                    )
+                } else if motionTarget.isExpanded {
+                    CubicKeyframe(0, duration: 0.20)
+                } else {
+                    LinearKeyframe(0, duration: 0.14)
+                    CubicKeyframe(1, duration: 0.22)
+                }
+            }
+
+            KeyframeTrack(\.identityScale) {
+                if reduceMotion {
+                    LinearKeyframe(1, duration: TaskExpansionMotionTiming.reducedMotionDuration)
+                } else if motionTarget.isExpanded {
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.identityTroughScale,
+                        duration: TaskExpansionMotionTiming.identityTroughDuration
+                    )
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.expandedIdentityScale,
+                        duration: TaskExpansionMotionTiming.identityRiseDuration,
+                        endVelocity: 0
+                    )
+                } else {
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.identityTroughScale,
+                        duration: TaskExpansionMotionTiming.identityCollapseToTroughDuration
+                    )
+                    CubicKeyframe(
+                        1,
+                        duration: TaskExpansionMotionTiming.identityCollapseToCompactDuration,
+                        endVelocity: 0
+                    )
+                }
+            }
+
+            KeyframeTrack(\.identityOffsetX) {
+                if reduceMotion {
+                    LinearKeyframe(0, duration: TaskExpansionMotionTiming.reducedMotionDuration)
+                } else if motionTarget.isExpanded {
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.identityTroughOffset.width,
+                        duration: TaskExpansionMotionTiming.identityTroughDuration
+                    )
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.expandedIdentityOffset.width,
+                        duration: TaskExpansionMotionTiming.identityRiseDuration,
+                        endVelocity: 0
+                    )
+                } else {
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.identityTroughOffset.width,
+                        duration: TaskExpansionMotionTiming.identityCollapseToTroughDuration
+                    )
+                    CubicKeyframe(
+                        0,
+                        duration: TaskExpansionMotionTiming.identityCollapseToCompactDuration,
+                        endVelocity: 0
+                    )
+                }
+            }
+
+            KeyframeTrack(\.collapsedOpacity) {
+                if reduceMotion {
+                    LinearKeyframe(motionTarget.isExpanded ? 0 : 1, duration: 0.20)
+                } else if motionTarget.isExpanded {
+                    CubicKeyframe(0, duration: 0.22)
+                } else {
+                    LinearKeyframe(0, duration: 0.14)
+                    CubicKeyframe(1, duration: 0.22)
+                }
+            }
+
+            KeyframeTrack(\.identityOffsetY) {
+                if reduceMotion {
+                    LinearKeyframe(0, duration: TaskExpansionMotionTiming.reducedMotionDuration)
+                } else if motionTarget.isExpanded {
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.identityTroughOffset.height,
+                        duration: TaskExpansionMotionTiming.identityTroughDuration
+                    )
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.expandedIdentityOffset.height,
+                        duration: TaskExpansionMotionTiming.identityRiseDuration,
+                        endVelocity: 0
+                    )
+                } else {
+                    CubicKeyframe(
+                        TaskExpansionMotionTiming.identityTroughOffset.height,
+                        duration: TaskExpansionMotionTiming.identityCollapseToTroughDuration
+                    )
+                    CubicKeyframe(
+                        0,
+                        duration: TaskExpansionMotionTiming.identityCollapseToCompactDuration,
+                        endVelocity: 0
+                    )
+                }
+            }
+
+            KeyframeTrack(\.detailElapsed) {
+                if reduceMotion {
+                    LinearKeyframe(
+                        motionTarget.isExpanded ? TaskMorphCascadeTiming.timelineDuration : 0,
+                        duration: TaskExpansionMotionTiming.reducedMotionDuration
+                    )
+                } else if motionTarget.isExpanded {
+                    LinearKeyframe(
+                        initialValue.detailElapsed,
+                        duration: initialValue.detailElapsed <= 0.001
+                            ? TaskMorphCascadeTiming.expansionDelay
+                            : 0.001
+                    )
+                    LinearKeyframe(
+                        TaskMorphCascadeTiming.timelineDuration,
+                        duration: TaskMorphCascadeTiming.timelineDuration
+                    )
+                } else {
+                    LinearKeyframe(
+                        0,
+                        duration: TaskExpansionMotionTiming.collapseDuration
+                    )
+                }
+            }
         }
-        .modifier(
-            TaskMorphBloomSurfaceModifier(
-                progress: usesExpandedGeometry ? 1 : 0,
-                isExpandedTarget: usesExpandedGeometry,
-                reduceMotion: reduceMotion
-            )
+        .scaleEffect(
+            isForegroundElevated
+                ? TaskMorphSurfaceMetrics.detailForegroundContentScale
+                : 1,
+            anchor: .topLeading
         )
-        .scaleEffect(backgroundContentScale)
-        .brightness(backgroundBrightness)
-        .opacity(hidesRealSurfaceForHero ? 0 : backgroundContentOpacity * backgroundDimOpacity)
-        .accessibilityElement(children: .contain)
+        .scaleEffect(
+            isBackgroundDeemphasized && reduceMotion == false
+                ? TaskMorphBackgroundWave.scale(forTaskDelta: backgroundFocusDelta)
+                : 1,
+            anchor: .center
+        )
+        .offset(y: detailBackgroundOffsetY)
+        .opacity(detailBackgroundDepthOpacity)
+        .blur(radius: detailBackgroundBlurRadius)
+        .animation(foregroundDepthAnimation, value: isForegroundElevated)
+        .animation(detailBackgroundDepthAnimation, value: backgroundWaveTarget)
     }
 
-    private var usesExpandedGeometry: Bool {
-        isActive && state != .compact
-    }
-
-    private var backgroundContentScale: CGFloat {
-        guard reduceMotion == false, isBackgroundDeemphasized else { return 1 }
-        return TaskMorphSurfaceMetrics.backgroundContentScale
+    private var motionTarget: TaskExpansionMotionTarget {
+        TaskExpansionMotionTarget(
+            isExpanded: isActive && state == .expanded,
+            reduceMotion: reduceMotion
+        )
     }
 
     private var backgroundContentOpacity: CGFloat {
-        isBackgroundDeemphasized
-            ? TaskMorphSurfaceMetrics.backgroundContentOpacity
-            : 1
+        1
+    }
+
+    private var isForegroundElevated: Bool {
+        reduceMotion == false && motionTarget.isExpanded
     }
 
     private var backgroundBrightness: Double {
-        guard isBackgroundDeemphasized || isBackgroundDimmed else { return 0 }
+        guard isBackgroundDimmed else { return 0 }
         return colorScheme == .dark ? -0.06 : -0.10
     }
 
@@ -562,175 +544,67 @@ struct TaskMorphContainer<Content: View>: View {
         isBackgroundDimmed ? 0.78 : 1
     }
 
-}
-
-private struct TaskMorphBloomSurfaceModifier: AnimatableModifier {
-    var progress: CGFloat
-    let isExpandedTarget: Bool
-    let reduceMotion: Bool
-
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
+    private var detailBackgroundDepthOpacity: CGFloat {
+        guard isBackgroundDeemphasized else { return 1 }
+        return reduceMotion
+            ? TaskMorphSurfaceMetrics.reducedMotionDetailBackgroundOpacity
+            : TaskMorphSurfaceMetrics.detailBackgroundContentOpacity
     }
 
-    func body(content: Content) -> some View {
-        TaskMorphBloomSurfaceBody(
-            content: content,
-            progress: progress,
-            isExpandedTarget: isExpandedTarget,
-            reduceMotion: reduceMotion
-        )
-    }
-}
-
-private struct TaskMorphBloomSurfaceBody<Content: View>: View {
-    let content: Content
-    let progress: CGFloat
-    let isExpandedTarget: Bool
-    let reduceMotion: Bool
-
-    @State private var boundaryPhase: TaskMorphBoundaryPhase
-    @State private var settleTask: Task<Void, Never>?
-
-    init(
-        content: Content,
-        progress: CGFloat,
-        isExpandedTarget: Bool,
-        reduceMotion: Bool
-    ) {
-        self.content = content
-        self.progress = progress
-        self.isExpandedTarget = isExpandedTarget
-        self.reduceMotion = reduceMotion
-        _boundaryPhase = State(initialValue: isExpandedTarget ? .settled : .compact)
+    private var detailBackgroundBlurRadius: CGFloat {
+        guard isBackgroundDeemphasized, reduceMotion == false else { return 0 }
+        return TaskMorphBackgroundWave.radius(forTaskDelta: backgroundFocusDelta)
     }
 
-    var body: some View {
-        let horizontalProgress = TaskMorphBloomMotion.horizontalProgress(progress)
-        let verticalProgress = TaskMorphBloomMotion.verticalProgress(progress)
-        let boundary = TaskMorphBloomMotion.boundaryPresentation(for: boundaryPhase)
-        let contentScale = reduceMotion
-            ? 1
-            : TaskMorphBloomMotion.interpolate(
-                1,
-                TaskMorphSurfaceMetrics.expandedContentScale,
-                progress: verticalProgress
-            )
-
-        content
-            .scaleEffect(x: contentScale, y: contentScale, anchor: .top)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(
-                .horizontal,
-                TaskMorphSurfaceMetrics.detailHorizontalInset * horizontalProgress
-            )
-            .padding(
-                EdgeInsets(
-                    top: TaskMorphSurfaceMetrics.detailTopInset * verticalProgress,
-                    leading: 0,
-                    bottom: TaskMorphSurfaceMetrics.detailBottomInset * verticalProgress,
-                    trailing: 0
-                )
-            )
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: progress > 0 ? TaskMorphBloomMotion.boundaryCornerRadius : 0,
-                    style: .continuous
-                )
-            )
-            .background(alignment: .top) {
-                TaskMorphBloomBoundaryLayer(
-                    presentation: boundary
-                )
-                .padding(.horizontal, -boundary.horizontalOutset)
-                .padding(.bottom, -boundary.bottomOutset)
-            }
-            .onChange(of: animationTarget) { _, target in
-                updateBoundary(for: target)
-            }
-            .onDisappear {
-                settleTask?.cancel()
-                settleTask = nil
-            }
+    private var detailBackgroundOffsetY: CGFloat {
+        guard isBackgroundDeemphasized, reduceMotion == false else { return 0 }
+        return TaskMorphBackgroundWave.offsetY(forTaskDelta: backgroundFocusDelta)
     }
 
-    private var animationTarget: TaskMorphBoundaryTarget {
-        TaskMorphBoundaryTarget(
-            isExpanded: isExpandedTarget,
+    private var backgroundWaveTarget: TaskMorphBackgroundWaveTarget {
+        TaskMorphBackgroundWaveTarget(
+            isDeemphasized: isBackgroundDeemphasized,
+            taskDelta: backgroundFocusDelta,
             reduceMotion: reduceMotion
         )
     }
 
-    private func updateBoundary(for target: TaskMorphBoundaryTarget) {
-        settleTask?.cancel()
-        settleTask = nil
-
-        guard target.isExpanded else {
-            withAnimation(
-                target.reduceMotion
-                    ? .easeInOut(duration: TaskMorphBloomMotion.reducedMotionDuration)
-                    : .smooth(duration: TaskMorphBloomMotion.geometryDuration, extraBounce: 0)
-            ) {
-                boundaryPhase = .compact
-            }
-            return
+    private var detailBackgroundDepthAnimation: Animation {
+        if reduceMotion {
+            return .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
         }
-
-        guard target.reduceMotion == false else {
-            withAnimation(
-                .easeInOut(duration: TaskMorphBloomMotion.reducedMotionDuration)
-            ) {
-                boundaryPhase = .settled
-            }
-            return
-        }
-
-        withAnimation(
-            .smooth(
-                duration: TaskMorphBloomMotion.boundaryOvershootDuration,
-                extraBounce: 0
-            )
-        ) {
-            boundaryPhase = .overshot
-        }
-
-        settleTask = Task { @MainActor in
-            try? await Task.sleep(for: TaskMorphBloomMotion.boundaryOvershootDelay)
-            guard Task.isCancelled == false else { return }
-            withAnimation(
-                .spring(
-                    duration: TaskMorphBloomMotion.boundarySettleDuration,
-                    bounce: 0
-                )
-            ) {
-                boundaryPhase = .settled
-            }
-        }
+        let animation = Animation.timingCurve(
+            0.20,
+            0,
+            0.16,
+            1,
+            duration: isBackgroundDeemphasized
+                ? TaskExpansionMotionTiming.identityExpansionDuration
+                : TaskExpansionMotionTiming.collapseDuration
+        )
+        guard isBackgroundDeemphasized else { return animation }
+        return animation.delay(
+            TaskMorphBackgroundWave.delay(forTaskDelta: backgroundFocusDelta)
+        )
     }
+
+    private var foregroundDepthAnimation: Animation {
+        .timingCurve(
+            0.20,
+            0,
+            0.16,
+            1,
+            duration: isForegroundElevated
+                ? TaskExpansionMotionTiming.identityExpansionDuration
+                : TaskExpansionMotionTiming.collapseDuration
+        )
+    }
+
 }
 
-private struct TaskMorphBloomBoundaryLayer: View {
-    let presentation: TaskMorphBoundaryPresentation
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: presentation.cornerRadius, style: .continuous)
-            .fill(AppTheme.colors.surface)
-            .overlay {
-                RoundedRectangle(cornerRadius: presentation.cornerRadius, style: .continuous)
-                    .strokeBorder(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
-            }
-            .opacity(presentation.opacity)
-            .shadow(
-                color: presentation.opacity > 0 ? Color.black.opacity(0.14) : .clear,
-                radius: presentation.shadowRadius,
-                y: presentation.shadowOffsetY
-            )
-    }
-}
-
-private struct TaskMorphBoundaryTarget: Equatable {
-    let isExpanded: Bool
+private struct TaskMorphBackgroundWaveTarget: Equatable {
+    let isDeemphasized: Bool
+    let taskDelta: Int?
     let reduceMotion: Bool
 }
 
@@ -738,6 +612,8 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
     let isDeemphasized: Bool
     let anchor: UnitPoint
     let scalesContent: Bool
+    let appliesVisualDepth: Bool
+    let detailBlurRadius: CGFloat
     let actsAsDismissTarget: Bool
     let onDismiss: () -> Void
 
@@ -749,19 +625,24 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
             .allowsHitTesting(isDeemphasized == false)
             .accessibilityHidden(isDeemphasized)
             .scaleEffect(
-                reduceMotion || isDeemphasized == false || scalesContent == false
+                reduceMotion || isDeemphasized == false || scalesContent == false || appliesVisualDepth == false
                     ? 1
                     : TaskMorphSurfaceMetrics.backgroundContentScale,
                 anchor: anchor
             )
             .opacity(
-                isDeemphasized
+                isDeemphasized && appliesVisualDepth
                     ? TaskMorphSurfaceMetrics.backgroundContentOpacity
                     : 1
             )
             .brightness(
-                isDeemphasized
+                isDeemphasized && appliesVisualDepth
                     ? (colorScheme == .dark ? -0.06 : -0.10)
+                    : 0
+            )
+            .blur(
+                radius: isDeemphasized && appliesVisualDepth == false && reduceMotion == false
+                    ? detailBlurRadius
                     : 0
             )
             .overlay {
@@ -776,6 +657,18 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
                     .accessibilityHint("保存更改并收起当前任务")
                 }
             }
+            .animation(backgroundDepthAnimation, value: isDeemphasized)
+    }
+
+    private var backgroundDepthAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
+            : .smooth(
+                duration: isDeemphasized
+                    ? TaskExpansionMotionTiming.identityExpansionDuration
+                    : TaskExpansionMotionTiming.collapseDuration,
+                extraBounce: 0
+            )
     }
 }
 
@@ -786,6 +679,8 @@ extension View {
         isDeemphasized: Bool,
         anchor: UnitPoint = .center,
         scalesContent: Bool = true,
+        appliesVisualDepth: Bool = true,
+        detailBlurRadius: CGFloat = 0,
         actsAsDismissTarget: Bool = true,
         onDismiss: @escaping () -> Void
     ) -> some View {
@@ -794,6 +689,8 @@ extension View {
                 isDeemphasized: isDeemphasized,
                 anchor: anchor,
                 scalesContent: scalesContent,
+                appliesVisualDepth: appliesVisualDepth,
+                detailBlurRadius: detailBlurRadius,
                 actsAsDismissTarget: actsAsDismissTarget,
                 onDismiss: onDismiss
             )
@@ -802,7 +699,8 @@ extension View {
 }
 
 struct TaskMorphDisclosure<Content: View>: View {
-    let isExpanded: Bool
+    let progress: CGFloat
+    let isInteractive: Bool
     let estimatedHeight: CGFloat
     let onMeasuredHeight: ((CGFloat) -> Void)?
     @ViewBuilder let content: () -> Content
@@ -810,12 +708,14 @@ struct TaskMorphDisclosure<Content: View>: View {
     @State private var measuredHeight: CGFloat = 0
 
     init(
-        isExpanded: Bool,
+        progress: CGFloat,
+        isInteractive: Bool,
         estimatedHeight: CGFloat = 0,
         onMeasuredHeight: ((CGFloat) -> Void)? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        self.isExpanded = isExpanded
+        self.progress = progress
+        self.isInteractive = isInteractive
         self.estimatedHeight = estimatedHeight
         self.onMeasuredHeight = onMeasuredHeight
         self.content = content
@@ -831,12 +731,12 @@ struct TaskMorphDisclosure<Content: View>: View {
             }
             .modifier(
                 TaskMorphDisclosureModifier(
-                    progress: isExpanded ? 1 : 0,
+                    progress: progress,
                     expandedHeight: resolvedExpandedHeight
                 )
             )
-            .allowsHitTesting(isExpanded)
-            .accessibilityHidden(isExpanded == false)
+            .allowsHitTesting(isInteractive)
+            .accessibilityHidden(isInteractive == false)
     }
 
     private var resolvedExpandedHeight: CGFloat {
@@ -855,6 +755,83 @@ struct TaskMorphDisclosure<Content: View>: View {
     }
 }
 
+struct TaskMorphMeasuredRegion<Content: View>: View {
+    let progress: CGFloat
+    let isInteractive: Bool
+    @ViewBuilder let content: () -> Content
+
+    @State private var measuredHeight: CGFloat = 0
+
+    var body: some View {
+        content()
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                guard height.isFinite, height > 0, abs(height - measuredHeight) > 0.5 else { return }
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    measuredHeight = height
+                }
+            }
+            .frame(height: measuredHeight * min(max(progress, 0), 1), alignment: .top)
+            .modifier(TaskMorphConditionalClipModifier(progress: progress))
+            .allowsHitTesting(isInteractive)
+            .accessibilityHidden(isInteractive == false)
+    }
+}
+
+struct TaskMorphInterpolatedHeightRegion<Compact: View, Expanded: View, Visible: View>: View {
+    let progress: CGFloat
+    @ViewBuilder let compact: () -> Compact
+    @ViewBuilder let expanded: () -> Expanded
+    @ViewBuilder let visible: () -> Visible
+
+    @State private var compactHeight: CGFloat = 0
+    @State private var expandedHeight: CGFloat = 0
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            compact()
+                .fixedSize(horizontal: false, vertical: true)
+                .hidden()
+                .accessibilityHidden(true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    update(height, target: $compactHeight)
+                }
+
+            expanded()
+                .fixedSize(horizontal: false, vertical: true)
+                .hidden()
+                .accessibilityHidden(true)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    update(height, target: $expandedHeight)
+                }
+
+            visible()
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(height: resolvedHeight, alignment: .top)
+        .modifier(TaskMorphConditionalClipModifier(progress: progress))
+    }
+
+    private var resolvedHeight: CGFloat? {
+        guard compactHeight > 0, expandedHeight > 0 else { return nil }
+        let progress = min(max(progress, 0), 1)
+        return compactHeight + (expandedHeight - compactHeight) * progress
+    }
+
+    private func update(_ height: CGFloat, target: Binding<CGFloat>) {
+        guard height.isFinite, height > 0, abs(height - target.wrappedValue) > 0.5 else { return }
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            target.wrappedValue = height
+        }
+    }
+}
+
 private struct TaskMorphDisclosureModifier: AnimatableModifier {
     var progress: CGFloat
     let expandedHeight: CGFloat
@@ -867,77 +844,27 @@ private struct TaskMorphDisclosureModifier: AnimatableModifier {
     func body(content: Content) -> some View {
         content
             .frame(
-                height: expandedHeight * TaskMorphBloomMotion.verticalProgress(progress),
+                height: expandedHeight * min(max(progress, 0), 1),
                 alignment: .top
             )
-            .clipped()
+            .modifier(TaskMorphConditionalClipModifier(progress: progress))
     }
 }
 
-private struct TaskMorphListPlacementModifier: AnimatableModifier {
-    var progress: CGFloat
-    let compactInsets: EdgeInsets
+private struct TaskMorphConditionalClipModifier: ViewModifier {
+    let progress: CGFloat
 
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .padding(adjustedInsets)
-    }
-
-    private var adjustedInsets: EdgeInsets {
-        let expanded = TaskMorphListSpacing.expandedInsets(from: compactInsets)
-        let horizontalProgress = TaskMorphBloomMotion.horizontalProgress(progress)
-        let verticalProgress = TaskMorphBloomMotion.verticalProgress(progress)
-        return EdgeInsets(
-            top: TaskMorphBloomMotion.interpolate(
-                compactInsets.top,
-                expanded.top,
-                progress: verticalProgress
-            ),
-            leading: TaskMorphBloomMotion.interpolate(
-                compactInsets.leading,
-                expanded.leading,
-                progress: horizontalProgress
-            ),
-            bottom: TaskMorphBloomMotion.interpolate(
-                compactInsets.bottom,
-                expanded.bottom,
-                progress: verticalProgress
-            ),
-            trailing: TaskMorphBloomMotion.interpolate(
-                compactInsets.trailing,
-                expanded.trailing,
-                progress: horizontalProgress
-            )
-        )
+        if progress < 0.999 {
+            content.clipped()
+        } else {
+            content
+        }
     }
 }
 
 extension View {
-    func taskMorphScrollViewport(
-        coordinator: TaskMorphViewportCoordinator
-    ) -> some View {
-        modifier(TaskMorphScrollViewportModifier(coordinator: coordinator))
-    }
-
-    func taskMorphViewportProgress(
-        _ progress: CGFloat,
-        id: UUID,
-        coordinator: TaskMorphViewportCoordinator
-    ) -> some View {
-        modifier(
-            TaskMorphViewportProgressModifier(
-                progress: progress,
-                id: id,
-                coordinator: coordinator
-            )
-        )
-    }
-
     func taskMorphListPlacement(
         state: TaskMorphVisualState,
         isActive: Bool,
@@ -945,7 +872,7 @@ extension View {
     ) -> some View {
         modifier(
             TaskMorphListPlacementModifier(
-                progress: isActive && state != .compact ? 1 : 0,
+                isExpanded: isActive && state == .expanded,
                 compactInsets: compactInsets
             )
         )
@@ -962,6 +889,37 @@ extension View {
                 isEnabled: isEnabled,
                 onCompleted: onCompleted
             )
+        )
+    }
+}
+
+private struct TaskMorphListPlacementModifier: ViewModifier {
+    let isExpanded: Bool
+    let compactInsets: EdgeInsets
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let usesExpandedSpacing = isExpanded && reduceMotion == false
+
+        content
+            .padding(
+                usesExpandedSpacing
+                    ? TaskMorphListSpacing.expandedInsets(from: compactInsets)
+                    : compactInsets
+            )
+            .animation(placementAnimation, value: usesExpandedSpacing)
+    }
+
+    private var placementAnimation: Animation {
+        if reduceMotion {
+            return .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
+        }
+        return .smooth(
+            duration: isExpanded
+                ? TaskExpansionMotionTiming.identityExpansionDuration
+                : TaskExpansionMotionTiming.collapseDuration,
+            extraBounce: 0
         )
     }
 }

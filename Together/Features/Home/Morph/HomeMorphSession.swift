@@ -91,6 +91,11 @@ enum HomeMorphPhase: Equatable, Sendable {
     }
 }
 
+enum HomeMorphDetailPresentationIntent: Equatable, Sendable {
+    case compact
+    case expanded
+}
+
 struct HomeMorphSessionToken: Equatable, Sendable {
     let sessionID: UUID
     let revision: UInt
@@ -111,12 +116,14 @@ final class HomeMorphSession {
     private(set) var heroProgress: CGFloat = 0
     private(set) var isCreationListRevealEnabled = false
     private(set) var isCreationFlow = false
+    private(set) var detailPresentationIntent: HomeMorphDetailPresentationIntent = .compact
     private var detailSourcePlacement: TaskMorphPlacement?
 
     @ObservationIgnored var onDismissIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCommitIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCompletionIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCreationRevealCompletionIntent: ((TaskMorphSubject, HomeMorphSessionToken) -> Void)?
+    @ObservationIgnored var onDetailCollapseCompletionIntent: ((TaskMorphSubject, HomeMorphSessionToken) -> Void)?
 
     var isActive: Bool { phase != .idle }
     var isInteractive: Bool { phase == .active }
@@ -150,6 +157,7 @@ final class HomeMorphSession {
         heroProgress = 0
         isCreationListRevealEnabled = false
         detailSourcePlacement = nil
+        detailPresentationIntent = .compact
 
         if let heroSourceFrame, Self.isValid(frame: heroSourceFrame) {
             self.heroSourceFrame = heroSourceFrame
@@ -179,6 +187,7 @@ final class HomeMorphSession {
         heroProgress = 0
         isCreationListRevealEnabled = false
         detailSourcePlacement = placement
+        detailPresentationIntent = .expanded
         // First establish ownership while the real container is still compact.
         // The caller advances to `.expanded` in a following render turn so the
         // opening animation is the exact geometric inverse of collapse.
@@ -220,7 +229,11 @@ final class HomeMorphSession {
     }
 
     func requestDismissal() {
-        guard phase == .active, let subject else { return }
+        guard let subject else { return }
+        if subject.isDraft == false {
+            detailPresentationIntent = .compact
+        }
+        guard phase == .active else { return }
         onDismissIntent?(subject)
     }
 
@@ -231,7 +244,18 @@ final class HomeMorphSession {
 
     func requestCompletion() {
         guard phase == .active, let subject, subject.isDraft == false else { return }
+        detailPresentationIntent = .compact
         onCompletionIntent?(subject)
+    }
+
+    @discardableResult
+    func requestExpansionRetention(domain: TaskMorphDomain, id: UUID) -> Bool {
+        guard isCreationFlow == false,
+              subject == .persisted(domain: domain, id: id),
+              phase == .saving || phase == .collapsing
+        else { return false }
+        detailPresentationIntent = .expanded
+        return true
     }
 
     func requestCreationRevealCompletion(
@@ -278,6 +302,9 @@ final class HomeMorphSession {
             )
         }
         errorMessage = nil
+        if isCreationFlow == false {
+            detailPresentationIntent = .compact
+        }
         visualState = .compact
         return advance(to: .collapsing)
     }
@@ -297,6 +324,21 @@ final class HomeMorphSession {
     }
 
     @discardableResult
+    func finishSavingKeepingDetail(
+        using token: HomeMorphSessionToken,
+        finalPlacement: TaskMorphPlacement
+    ) -> HomeMorphSessionToken? {
+        guard phase == .saving,
+              isCurrent(token),
+              isCreationFlow == false,
+              detailPresentationIntent == .expanded
+        else { return nil }
+        placement = finalPlacement
+        visualState = .expanded
+        return advance(to: .active)
+    }
+
+    @discardableResult
     func reverseDetailCollapse(
         domain: TaskMorphDomain,
         id: UUID
@@ -309,6 +351,7 @@ final class HomeMorphSession {
             placement = detailSourcePlacement
         }
         errorMessage = nil
+        detailPresentationIntent = .expanded
         visualState = .expanded
         return advance(to: .active)
     }
@@ -337,6 +380,24 @@ final class HomeMorphSession {
     func finishDiscard(using token: HomeMorphSessionToken) {
         guard phase == .collapsing, isCurrent(token) else { return }
         finishSession()
+    }
+
+    var detailRequiresRelocation: Bool {
+        guard let detailSourcePlacement, let placement else { return true }
+        return detailSourcePlacement.requiresRelocation(to: placement)
+    }
+
+    func requestDetailCollapseCompletion(
+        _ subject: TaskMorphSubject,
+        using token: HomeMorphSessionToken
+    ) {
+        guard isCreationFlow == false,
+              phase == .collapsing,
+              visualState == .compact,
+              self.subject == subject,
+              isCurrent(token)
+        else { return }
+        onDetailCollapseCompletionIntent?(subject, token)
     }
 
     func recover() {
@@ -388,6 +449,7 @@ final class HomeMorphSession {
         isCreationListRevealEnabled = false
         isCreationFlow = false
         detailSourcePlacement = nil
+        detailPresentationIntent = .compact
     }
 
     private static func isValid(frame: CGRect) -> Bool {
