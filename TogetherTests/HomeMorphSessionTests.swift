@@ -85,7 +85,8 @@ struct HomeMorphSessionTests {
         #expect(abs(TaskMorphBackgroundWave.expansionDuration - 0.36) < 0.000_001)
         #expect(TaskMorphBackgroundWave.radius(forTaskDelta: nil) == 0)
         #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 0) == 0)
-        #expect(abs(TaskMorphBackgroundWave.radius(forTaskDelta: 1) - 0.35) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.radius(forTaskDelta: 1) - 0.50) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.radius(forTaskDelta: -1) - 0.50) < 0.000_001)
         #expect(
             abs(TaskMorphBackgroundWave.radius(forTaskDelta: -2) - 0.85)
                 < 0.000_001

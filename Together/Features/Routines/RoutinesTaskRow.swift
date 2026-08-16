@@ -56,6 +56,7 @@ struct RoutinesTaskRow: View {
     let cascadeRowCount: Int
     let onOpenDetail: () -> Void
     let onToggleCompletion: () -> Void
+    let onDismissDetail: () -> Void
     let onInlineFocus: (RoutineInlineFocusTarget) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -108,6 +109,7 @@ struct RoutinesTaskRow: View {
                         isCollapsing: isDetailCollapsing
                     ),
                     cascadeRowCount: cascadeRowCount,
+                    onDismiss: onDismissDetail,
                     onFocus: onInlineFocus
                 )
                 .id(RoutineInlineFocusTarget.detail.anchorID(for: task.id))
@@ -621,8 +623,10 @@ private struct RoutinesInlineDetailView: View {
     let isCollapsing: Bool
     let cascadeElapsed: TimeInterval
     let cascadeRowCount: Int
+    let onDismiss: () -> Void
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var notesDraft = ""
     @State private var isEditingNotes = false
     @State private var isCommittingNotes = false
@@ -652,6 +656,9 @@ private struct RoutinesInlineDetailView: View {
         .onChange(of: isExpanded) { _, expanded in
             guard expanded == false, isEditingNotes else { return }
             commitNotes()
+        }
+        .accessibilityAction(named: "收起定期任务详情") {
+            onDismiss()
         }
     }
 
@@ -730,15 +737,40 @@ private struct RoutinesInlineDetailView: View {
         isCommittingNotes = false
     }
 
+    @ViewBuilder
     private var attributeToolbar: some View {
-        TaskAttributeToolbarRail {
-            cycleMenu
-            targetDayControl
-            targetTimeControl
-            reminderMenu
+        if usesEqualWidthAttributeToolbar {
+            HStack(spacing: TaskAttributeToolbarMetrics.horizontalSpacing) {
+                attributeToolbarControls
+            }
+            .frame(
+                maxWidth: .infinity,
+                minHeight: TaskAttributeToolbarMetrics.rowHeight
+            )
+            .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
+        } else {
+            TaskAttributeToolbarRail {
+                attributeToolbarControls
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
+    }
+
+    @ViewBuilder
+    private var attributeToolbarControls: some View {
+        cycleMenu
+            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
+        targetDayControl
+            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
+        targetTimeControl
+            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
+        reminderMenu
+            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
+    }
+
+    private var usesEqualWidthAttributeToolbar: Bool {
+        dynamicTypeSize.isAccessibilitySize == false
     }
 
     private var reminderMenu: some View {
@@ -854,6 +886,7 @@ private struct RoutinesInlineDetailView: View {
         InlineTimePickerControl(
             selection: currentRule?.hasTargetTime == true ? timeDate : nil,
             fallbackSelection: .now,
+            fillsAvailableWidth: usesEqualWidthAttributeToolbar,
             onCommit: { value in
                 if let value {
                     updateDraftTime(value)
@@ -871,7 +904,8 @@ private struct RoutinesInlineDetailView: View {
             isConfigured: isConfigured,
             usesContinuousCapsule: true,
             horizontalPadding: 8,
-            isFocusForeground: true
+            isFocusForeground: true,
+            fillsAvailableWidth: usesEqualWidthAttributeToolbar
         )
     }
 
@@ -882,7 +916,8 @@ private struct RoutinesInlineDetailView: View {
             isConfigured: isConfigured,
             usesContinuousCapsule: true,
             horizontalPadding: 8,
-            isFocusForeground: true
+            isFocusForeground: true,
+            fillsAvailableWidth: usesEqualWidthAttributeToolbar
         )
     }
 

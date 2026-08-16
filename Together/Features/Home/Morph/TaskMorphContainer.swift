@@ -88,7 +88,8 @@ enum TaskMorphBackgroundWave {
     /// Keep each row's compositor-only movement shorter than the identity
     /// motion so adjacent delays remain visually legible as an outward wave.
     static let expansionDuration: TimeInterval = 0.36
-    static let adjacentRadius: CGFloat = 0.35
+    static let adjacentRadius: CGFloat = 0.50
+    private static let progressiveRadiusOrigin: CGFloat = 0.35
     static let radiusStep: CGFloat = 0.50
     static let radiusAcceleration: CGFloat = 0.10
     static let maximumRadius: CGFloat = 6.0
@@ -121,11 +122,12 @@ enum TaskMorphBackgroundWave {
 
     static func radius(forTaskDelta delta: Int?) -> CGFloat {
         guard let distance = delta.map(abs), distance > 0 else { return 0 }
+        guard distance > 1 else { return adjacentRadius }
         let steps = CGFloat(distance - 1)
         let acceleratedGrowth = radiusAcceleration * steps * max(steps - 1, 0) / 2
         return min(
             maximumRadius,
-            adjacentRadius + steps * radiusStep + acceleratedGrowth
+            progressiveRadiusOrigin + steps * radiusStep + acceleratedGrowth
         )
     }
 
@@ -374,6 +376,11 @@ private struct TaskExpansionMotionTarget: Equatable {
     let reduceMotion: Bool
 }
 
+enum TaskMorphFocusFieldStyle {
+    case adaptivePrimary
+    case subtleLight
+}
+
 struct TaskMorphContainer<Content: View>: View {
     let state: TaskMorphVisualState
     let isActive: Bool
@@ -381,6 +388,7 @@ struct TaskMorphContainer<Content: View>: View {
     var isBackgroundDeemphasized = false
     var backgroundFocusDelta: Int? = nil
     var isBackgroundDimmed = false
+    var focusFieldStyle: TaskMorphFocusFieldStyle = .adaptivePrimary
     var onBackgroundTap: (() -> Void)? = nil
     @ViewBuilder let content: (TaskExpansionMotion) -> Content
 
@@ -627,9 +635,12 @@ struct TaskMorphContainer<Content: View>: View {
     }
 
     private var focusFieldColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.025)
-            : Color.white.opacity(0.018)
+        switch focusFieldStyle {
+        case .adaptivePrimary:
+            Color.primary.opacity(colorScheme == .dark ? 0.025 : 0.035)
+        case .subtleLight:
+            Color.white.opacity(colorScheme == .dark ? 0.025 : 0.018)
+        }
     }
 
     private var detailBackgroundBlurRadius: CGFloat {

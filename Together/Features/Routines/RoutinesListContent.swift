@@ -304,7 +304,9 @@ struct RoutinesListContent: View {
     // MARK: - Task stream
 
     private func taskScrollView(scrollProxy: ScrollViewProxy) -> some View {
-        ZStack {
+        VStack(spacing: 0) {
+            fixedDimensionHeader
+
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     Color.clear
@@ -328,12 +330,8 @@ struct RoutinesListContent: View {
                 }
                 .padding(.bottom, AppTheme.spacing.md)
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                fixedDimensionHeader
-                    .background(AppTheme.colors.background)
-            }
             .scrollIndicators(.hidden)
-            .applyHomeScrollEdgeTransition()
+            .applyScrollEdgeProtection()
             .transaction { transaction in
                 if morphSession.phase == .relocating, morphSession.isCreationFlow == false {
                     // Cycle changes and the destination row are prepared behind
@@ -475,11 +473,12 @@ struct RoutinesListContent: View {
                 && isActiveMorph == false
                 && isCreationRevealTarget == false,
             backgroundFocusDelta: periodicFocusDepthDelta(for: index),
+            focusFieldStyle: .subtleLight,
             onBackgroundTap: morphSession.requestDismissal
         ) { motion in
             let isExpanded = isActiveMorph && morphSession.visualState == .expanded
             let hasMorphError = morphSession.errorMessage != nil
-            let cascadeRowCount = 3 + (hasMorphError ? 1 : 0)
+            let cascadeRowCount = 2 + (hasMorphError ? 1 : 0)
             let isCollapsing = isActiveMorph
                 && morphSession.phase == .collapsing
                 && morphSession.visualState == .compact
@@ -494,47 +493,23 @@ struct RoutinesListContent: View {
                     cascadeRowCount: cascadeRowCount,
                     scrollProxy: scrollProxy
                 )
-                if isActiveMorph {
+                if isActiveMorph, let error = morphSession.errorMessage {
                     TaskMorphDisclosure(
                         progress: motion.layoutProgress,
                         isInteractive: isExpanded
                             && morphSession.phase == .active
                     ) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            if let error = morphSession.errorMessage {
-                                Label(error, systemImage: "exclamationmark.circle.fill")
-                                    .font(AppTheme.typography.sized(13, weight: .medium))
-                                    .foregroundStyle(.red)
-                                    .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
-                                    .padding(.top, AppTheme.spacing.sm)
-                                    .taskMorphCascade(
-                                        elapsed: cascadeElapsed,
-                                        index: 2,
-                                        rowCount: cascadeRowCount,
-                                        isCollapsing: isCollapsing
-                                    )
-                            }
-                            HStack {
-                                Spacer(minLength: 0)
-                                Button {
-                                    morphSession.requestDismissal()
-                                } label: {
-                                    Label("收起", systemImage: "chevron.up")
-                                        .font(AppTheme.typography.sized(13, weight: .semibold))
-                                        .frame(minHeight: 44)
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(morphSession.phase != .active)
-                                .accessibilityHint("保存更改并收起定期任务详情")
-                            }
+                        Label(error, systemImage: "exclamationmark.circle.fill")
+                            .font(AppTheme.typography.sized(13, weight: .medium))
+                            .foregroundStyle(.red)
                             .padding(.leading, RoutineInlineLayoutMetrics.titleLeadingInset)
+                            .padding(.top, AppTheme.spacing.sm)
                             .taskMorphCascade(
                                 elapsed: cascadeElapsed,
-                                index: hasMorphError ? 3 : 2,
+                                index: 2,
                                 rowCount: cascadeRowCount,
                                 isCollapsing: isCollapsing
                             )
-                        }
                     }
                 }
             }
@@ -679,6 +654,7 @@ struct RoutinesListContent: View {
                     Task { await viewModel.toggleCompletion(taskID: task.id) }
                 }
             },
+            onDismissDetail: morphSession.requestDismissal,
             onInlineFocus: { focus in
                 withAnimation(reduceMotion ? nil : .smooth(duration: 0.22, extraBounce: 0)) {
                     scrollProxy.scrollTo(focus.anchorID(for: task.id), anchor: focus.scrollAnchor)

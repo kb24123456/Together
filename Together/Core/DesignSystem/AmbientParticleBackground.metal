@@ -70,7 +70,7 @@ float2 ambientHash22(float2 p) {
 
             float opacityNoise = ambientHash12(cellID + layerSeed + 211.7);
             float opacityRandom = opacityNoise * opacityNoise;
-            float lightOpacity = mix(0.10, 0.22, opacityRandom);
+            float lightOpacity = mix(0.12, 0.22, opacityRandom);
             float darkOpacity = mix(0.10, 0.20, opacityRandom);
             float particleOpacity = mix(lightOpacity, darkOpacity, darkAppearance);
             accumulatedAlpha += circleAlpha * particleOpacity;

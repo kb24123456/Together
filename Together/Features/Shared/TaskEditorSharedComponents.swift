@@ -27,6 +27,7 @@ struct TaskAttributeButton: View {
     let title: String
     let isConfigured: Bool
     var tint: Color? = nil
+    var fillsAvailableWidth = false
     let action: () -> Void
 
     var body: some View {
@@ -37,9 +38,11 @@ struct TaskAttributeButton: View {
                 isConfigured: isConfigured,
                 tint: tint,
                 usesContinuousCapsule: true,
-                horizontalPadding: 8
+                horizontalPadding: 8,
+                fillsAvailableWidth: fillsAvailableWidth
             )
         }
+        .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)
         .buttonStyle(TaskMorphAttributeButtonStyle())
     }
 }
@@ -54,6 +57,7 @@ struct TaskAttributeLabel: View {
     var alignsToCardCorner = false
     var horizontalPadding: CGFloat = 11
     var isFocusForeground = false
+    var fillsAvailableWidth = false
 
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.colorScheme) private var colorScheme
@@ -77,6 +81,7 @@ struct TaskAttributeLabel: View {
         )
         .padding(.horizontal, isCircular ? 0 : horizontalPadding)
         .frame(width: isCircular ? 34 : nil, height: 34)
+        .frame(maxWidth: fillsAvailableWidth && isCircular == false ? .infinity : nil)
         .background {
             backgroundShape
                 .fill(backgroundFill)
@@ -1143,6 +1148,7 @@ private enum InlineDatePickerPopoverMetrics {
 struct InlineTimePickerControl: View {
     let selection: Date?
     let fallbackSelection: Date
+    let fillsAvailableWidth: Bool
     let onWillPresent: () -> Void
     let onDidDismiss: () -> Void
     let onCommit: (Date?) -> Void
@@ -1152,12 +1158,14 @@ struct InlineTimePickerControl: View {
     init(
         selection: Date?,
         fallbackSelection: Date,
+        fillsAvailableWidth: Bool = false,
         onWillPresent: @escaping () -> Void = {},
         onDidDismiss: @escaping () -> Void = {},
         onCommit: @escaping (Date?) -> Void
     ) {
         self.selection = selection
         self.fallbackSelection = fallbackSelection
+        self.fillsAvailableWidth = fillsAvailableWidth
         self.onWillPresent = onWillPresent
         self.onDidDismiss = onDidDismiss
         self.onCommit = onCommit
@@ -1167,7 +1175,8 @@ struct InlineTimePickerControl: View {
         TaskAttributeButton(
             icon: "clock",
             title: selection.map(TaskAttributeValueText.time) ?? "时间",
-            isConfigured: selection != nil
+            isConfigured: selection != nil,
+            fillsAvailableWidth: fillsAvailableWidth
         ) {
             onWillPresent()
             isPopoverPresented = true
