@@ -8,12 +8,16 @@ private enum TaskMorphSurfaceMetrics {
     static let expandedContentScale: CGFloat = 1.05
     static let backgroundContentScale: CGFloat = 0.94
     static let backgroundContentOpacity: CGFloat = 0.62
-    static let detailForegroundContentScale: CGFloat = 1.03
-    static let detailBackgroundContentOpacity: CGFloat = 0.40
+    static let detailForegroundContentScale: CGFloat = 1.05
+    static let detailFallbackBackgroundOpacity: CGFloat = 0.25
     static let reducedMotionDetailBackgroundOpacity: CGFloat = 0.65
 }
 
 enum TaskMorphListSpacing {
+    /// Keep compact rows dense while preserving the row content's own 44pt
+    /// interaction target.
+    static let compactExternalInset: CGFloat = 4
+
     /// Persisted details remain part of the continuous list and keep the row's
     /// standard external padding plus a symmetric focus-depth breathing space.
     static let expandedExternalSeparation: CGFloat = 14
@@ -33,22 +37,22 @@ enum TaskMorphListSpacing {
 }
 
 enum TaskExpansionMotionTiming {
-    static let expansionDuration: TimeInterval = 0.80
-    static let identityExpansionDuration: TimeInterval = 0.52
-    static let collapseDuration: TimeInterval = 0.36
+    static let expansionDuration: TimeInterval = 0.70
+    static let identityExpansionDuration: TimeInterval = 0.46
+    static let collapseDuration: TimeInterval = 0.32
     static let reducedMotionDuration: TimeInterval = 0.22
-    static let layoutDuration: TimeInterval = 0.52
-    static let identityTroughDuration: TimeInterval = 0.18
-    static let identityRiseDuration: TimeInterval = 0.34
-    static let identityCollapseToTroughDuration: TimeInterval = 0.23
-    static let identityCollapseToCompactDuration: TimeInterval = 0.13
+    static let layoutDuration: TimeInterval = 0.46
+    static let identityTroughDuration: TimeInterval = 0.16
+    static let identityRiseDuration: TimeInterval = 0.30
+    static let identityCollapseToTroughDuration: TimeInterval = 0.20
+    static let identityCollapseToCompactDuration: TimeInterval = 0.12
     /// The expanded row adds 14pt of real top spacing. Ending at -12pt
     /// compensates for that layout shift so the visible down/up wave reads
     /// close to equal amplitude instead of remaining visually low.
     static let identityTroughOffset = CGSize(width: -7, height: 14)
     static let expandedIdentityOffset = CGSize(width: -16, height: -12)
-    /// Relative scales account for the foreground container's 1.03 depth scale,
-    /// keeping the identity group near 1.08 at the trough and 1.12 at rest.
+    /// Relative scales account for the foreground container's 1.05 depth scale,
+    /// keeping the identity group near 1.10 at the trough and 1.12 at rest.
     static let identityTroughScale: CGFloat = 1.05
     static let expandedIdentityScale: CGFloat = 1.12 / TaskMorphSurfaceMetrics.detailForegroundContentScale
     static let expandedIdentityVisualScale: CGFloat = 1.12
@@ -56,15 +60,15 @@ enum TaskExpansionMotionTiming {
 
 enum TaskMorphCascadeTiming {
     /// Detail rows may enter while the identity is moving, but the first row
-    /// must not settle before the identity reaches its 520ms endpoint.
-    static let expansionDelay: TimeInterval = 0.34
-    static let timelineDuration: TimeInterval = 0.46
-    static let rowDuration: TimeInterval = 0.20
-    static let rowDelay: TimeInterval = 0.055
-    static let maximumTotalDelay: TimeInterval = 0.26
-    static let collapseRowDuration: TimeInterval = 0.22
-    static let collapseRowDelay: TimeInterval = 0.035
-    static let maximumCollapseTotalDelay: TimeInterval = 0.14
+    /// must not settle before the identity reaches its 460ms endpoint.
+    static let expansionDelay: TimeInterval = 0.30
+    static let timelineDuration: TimeInterval = 0.40
+    static let rowDuration: TimeInterval = 0.18
+    static let rowDelay: TimeInterval = 0.05
+    static let maximumTotalDelay: TimeInterval = 0.22
+    static let collapseRowDuration: TimeInterval = 0.19
+    static let collapseRowDelay: TimeInterval = 0.03
+    static let maximumCollapseTotalDelay: TimeInterval = 0.12
     static let minimumOpacity: CGFloat = 0
     static let startOffset = CGSize(width: 14, height: 24)
     static let bendOffset = CGSize(width: 5, height: 9)
@@ -81,47 +85,101 @@ enum TaskMorphCascadeTiming {
 }
 
 enum TaskMorphBackgroundWave {
-    static let adjacentRadius: CGFloat = 1.30
-    static let radiusStep: CGFloat = 0.75
-    static let maximumRadius: CGFloat = 4.8
-    static let adjacentScale: CGFloat = 0.92
-    static let scaleStep: CGFloat = 0.012
-    static let minimumScale: CGFloat = 0.86
-    static let adjacentOffset: CGFloat = 4
-    static let offsetStep: CGFloat = 2
-    static let maximumOffset: CGFloat = 12
-    static let rowDelay: TimeInterval = 0.025
-    static let maximumDelay: TimeInterval = 0.12
-    static let headerBlurRadius: CGFloat = 1.6
+    /// Keep each row's compositor-only movement shorter than the identity
+    /// motion so adjacent delays remain visually legible as an outward wave.
+    static let expansionDuration: TimeInterval = 0.36
+    static let adjacentRadius: CGFloat = 0.35
+    static let radiusStep: CGFloat = 0.50
+    static let radiusAcceleration: CGFloat = 0.10
+    static let maximumRadius: CGFloat = 6.0
+    static let adjacentScale: CGFloat = 0.95
+    static let scaleStep: CGFloat = 0.03
+    static let minimumScale: CGFloat = 0.87
+    static let lowerAdjacentScale: CGFloat = 0.95
+    static let lowerScaleStep: CGFloat = 0.025
+    static let lowerMinimumScale: CGFloat = 0.88
+    static let adjacentOpacity: CGFloat = 0.60
+    static let opacityStep: CGFloat = 0.055
+    static let minimumOpacity: CGFloat = 0.20
+    static let upperAdjacentOffset: CGFloat = 8
+    static let upperOffsetStep: CGFloat = 4
+    static let upperMaximumOffset: CGFloat = 24
+    static let lowerAdjacentOffset: CGFloat = 12
+    static let lowerOffsetStep: CGFloat = 6
+    static let lowerMaximumOffset: CGFloat = 36
+    static let upperInitialDelay: TimeInterval = 0.015
+    static let upperRowDelay: TimeInterval = 0.06
+    static let upperMaximumDelay: TimeInterval = 0.26
+    static let lowerInitialDelay: TimeInterval = 0.02
+    static let lowerRowDelay: TimeInterval = 0.075
+    static let lowerMaximumDelay: TimeInterval = 0.34
+    static let headerBlurRadius: CGFloat = 0.5
+    static let headerScale: CGFloat = 0.98
+    static let headerOpacity: CGFloat = 0.52
+    static let dockScale: CGFloat = 0.98
+    static let dockOpacity: CGFloat = 0.70
 
     static func radius(forTaskDelta delta: Int?) -> CGFloat {
         guard let distance = delta.map(abs), distance > 0 else { return 0 }
+        let steps = CGFloat(distance - 1)
+        let acceleratedGrowth = radiusAcceleration * steps * max(steps - 1, 0) / 2
         return min(
             maximumRadius,
-            adjacentRadius + CGFloat(distance - 1) * radiusStep
+            adjacentRadius + steps * radiusStep + acceleratedGrowth
         )
     }
 
     static func scale(forTaskDelta delta: Int?) -> CGFloat {
         guard let distance = delta.map(abs), distance > 0 else { return 1 }
+        if let delta, delta > 0 {
+            return max(
+                lowerMinimumScale,
+                lowerAdjacentScale - CGFloat(distance - 1) * lowerScaleStep
+            )
+        }
         return max(
             minimumScale,
             adjacentScale - CGFloat(distance - 1) * scaleStep
         )
     }
 
+    static func opacity(forTaskDelta delta: Int?) -> CGFloat {
+        guard let distance = delta.map(abs), distance > 0 else {
+            return TaskMorphSurfaceMetrics.detailFallbackBackgroundOpacity
+        }
+        return max(
+            minimumOpacity,
+            adjacentOpacity - CGFloat(distance - 1) * opacityStep
+        )
+    }
+
     static func offsetY(forTaskDelta delta: Int?) -> CGFloat {
         guard let delta, delta != 0 else { return 0 }
-        let magnitude = min(
-            maximumOffset,
-            adjacentOffset + CGFloat(abs(delta) - 1) * offsetStep
+        if delta < 0 {
+            let magnitude = min(
+                upperMaximumOffset,
+                upperAdjacentOffset + CGFloat(abs(delta) - 1) * upperOffsetStep
+            )
+            return -magnitude
+        }
+        return min(
+            lowerMaximumOffset,
+            lowerAdjacentOffset + CGFloat(delta - 1) * lowerOffsetStep
         )
-        return delta < 0 ? -magnitude : magnitude
     }
 
     static func delay(forTaskDelta delta: Int?) -> TimeInterval {
-        guard let distance = delta.map(abs), distance > 1 else { return 0 }
-        return min(maximumDelay, Double(distance - 1) * rowDelay)
+        guard let delta, delta != 0 else { return 0 }
+        if delta < 0 {
+            return min(
+                upperMaximumDelay,
+                upperInitialDelay + Double(abs(delta) - 1) * upperRowDelay
+            )
+        }
+        return min(
+            lowerMaximumDelay,
+            lowerInitialDelay + Double(delta - 1) * lowerRowDelay
+        )
     }
 }
 
@@ -340,6 +398,23 @@ struct TaskMorphContainer<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .opacity(hidesRealSurfaceForHero ? 0 : backgroundContentOpacity * backgroundDimOpacity)
             .brightness(backgroundBrightness)
+            .background {
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        focusFieldColor,
+                        focusFieldColor,
+                        .clear,
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .padding(.horizontal, -28)
+                .padding(.vertical, -52)
+                .opacity(isForegroundElevated ? 1 : 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
             .overlay {
                 if isBackgroundDeemphasized, let onBackgroundTap {
                     Button(action: onBackgroundTap) {
@@ -380,10 +455,10 @@ struct TaskMorphContainer<Content: View>: View {
                         duration: TaskExpansionMotionTiming.reducedMotionDuration
                     )
                 } else if motionTarget.isExpanded {
-                    CubicKeyframe(0, duration: 0.20)
+                    CubicKeyframe(0, duration: 0.18)
                 } else {
-                    LinearKeyframe(0, duration: 0.14)
-                    CubicKeyframe(1, duration: 0.22)
+                    LinearKeyframe(0, duration: 0.12)
+                    CubicKeyframe(1, duration: 0.20)
                 }
             }
 
@@ -443,10 +518,10 @@ struct TaskMorphContainer<Content: View>: View {
                 if reduceMotion {
                     LinearKeyframe(motionTarget.isExpanded ? 0 : 1, duration: 0.20)
                 } else if motionTarget.isExpanded {
-                    CubicKeyframe(0, duration: 0.22)
+                    CubicKeyframe(0, duration: 0.18)
                 } else {
-                    LinearKeyframe(0, duration: 0.14)
-                    CubicKeyframe(1, duration: 0.22)
+                    LinearKeyframe(0, duration: 0.12)
+                    CubicKeyframe(1, duration: 0.20)
                 }
             }
 
@@ -548,7 +623,13 @@ struct TaskMorphContainer<Content: View>: View {
         guard isBackgroundDeemphasized else { return 1 }
         return reduceMotion
             ? TaskMorphSurfaceMetrics.reducedMotionDetailBackgroundOpacity
-            : TaskMorphSurfaceMetrics.detailBackgroundContentOpacity
+            : TaskMorphBackgroundWave.opacity(forTaskDelta: backgroundFocusDelta)
+    }
+
+    private var focusFieldColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.025)
+            : Color.white.opacity(0.018)
     }
 
     private var detailBackgroundBlurRadius: CGFloat {
@@ -579,7 +660,7 @@ struct TaskMorphContainer<Content: View>: View {
             0.16,
             1,
             duration: isBackgroundDeemphasized
-                ? TaskExpansionMotionTiming.identityExpansionDuration
+                ? TaskMorphBackgroundWave.expansionDuration
                 : TaskExpansionMotionTiming.collapseDuration
         )
         guard isBackgroundDeemphasized else { return animation }
@@ -621,19 +702,28 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
+        let usesDetailHeaderDepth = isDeemphasized
+            && appliesVisualDepth == false
+            && detailBlurRadius > 0
+            && reduceMotion == false
+
         content
             .allowsHitTesting(isDeemphasized == false)
             .accessibilityHidden(isDeemphasized)
             .scaleEffect(
-                reduceMotion || isDeemphasized == false || scalesContent == false || appliesVisualDepth == false
-                    ? 1
-                    : TaskMorphSurfaceMetrics.backgroundContentScale,
+                usesDetailHeaderDepth
+                    ? TaskMorphBackgroundWave.headerScale
+                    : reduceMotion || isDeemphasized == false || scalesContent == false || appliesVisualDepth == false
+                        ? 1
+                        : TaskMorphSurfaceMetrics.backgroundContentScale,
                 anchor: anchor
             )
             .opacity(
                 isDeemphasized && appliesVisualDepth
                     ? TaskMorphSurfaceMetrics.backgroundContentOpacity
-                    : 1
+                    : usesDetailHeaderDepth
+                        ? TaskMorphBackgroundWave.headerOpacity
+                        : 1
             )
             .brightness(
                 isDeemphasized && appliesVisualDepth

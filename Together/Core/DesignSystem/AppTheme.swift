@@ -129,13 +129,10 @@ enum AppTheme {
         static let shadow = Color(light: .init(red: 0.10, green: 0.10, blue: 0.09).opacity(0.08),
                                   dark: .black.opacity(0.30))
 
-        // MARK: - Gradient Grid Background
+        // MARK: - Background Gradient
 
         static let gradientBottom = Color(light: .init(red: 0.974, green: 0.978, blue: 0.982),
                                           dark: .init(red: 0.125, green: 0.125, blue: 0.132))
-
-        static let gridLine = Color(light: .black.opacity(0.016),
-                                    dark: .white.opacity(0.020))
     }
 
     enum spacing {
@@ -162,11 +159,6 @@ enum AppTheme {
     enum metrics {
         /// SF Symbol "checkmark" 视觉居中补偿：字形短臂偏左下、长臂延伸右上，需向左下微调
         static let checkmarkVisualOffset: CGSize = CGSize(width: -0.5, height: 0.5)
-    }
-
-    enum grid {
-        static let spacing: CGFloat = 44
-        static let lineWidth: CGFloat = 0.5
     }
 
     /// 标准动画曲线（Wave 5 design system 统一）。

@@ -25,19 +25,22 @@ enum RoutineInlineLayoutMetrics {
     static let actionSlotWidth: CGFloat = 28
     static let titleGap: CGFloat = AppTheme.spacing.sm
     static let titleLeadingInset = actionSlotWidth + titleGap
-    static let attributeLeadingInset: CGFloat = 0
+    static let attributeLeadingInset = HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset
     static let rowMinHeight: CGFloat = 44
     static let compactRowMinHeight: CGFloat = 32
-    static let detailVerticalSpacing: CGFloat = 2
+    static let detailVerticalSpacing: CGFloat = 0
     static let attributeMinHeight: CGFloat = TaskAttributeToolbarMetrics.rowHeight
-    static let detailTopPadding: CGFloat = 0
+    static let detailTitleOverlap: CGFloat = HomeInlineTaskLayoutMetrics.detailTitleOverlap
+    static let detailTopPadding: CGFloat = HomeInlineTaskLayoutMetrics.detailTopPadding
+    static let attributeTopOverlap: CGFloat = HomeInlineTaskLayoutMetrics.attributeTopOverlap
     static let detailBottomPadding: CGFloat = 0
 
     static func estimatedDetailHeight(showsAddNote: Bool) -> CGFloat {
         let visibleRowCount = showsAddNote ? 2 : 1
         let rowHeights = attributeMinHeight + (showsAddNote ? compactRowMinHeight : 0)
         let spacings = CGFloat(max(visibleRowCount - 1, 0)) * detailVerticalSpacing
-        return detailTopPadding + rowHeights + spacings + detailBottomPadding
+        let overlap = showsAddNote ? attributeTopOverlap : 0
+        return detailTopPadding + rowHeights + spacings - overlap + detailBottomPadding
     }
 }
 
@@ -109,6 +112,7 @@ struct RoutinesTaskRow: View {
                 )
                 .id(RoutineInlineFocusTarget.detail.anchorID(for: task.id))
             }
+            .padding(.top, -RoutineInlineLayoutMetrics.detailTitleOverlap)
         }
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
@@ -528,7 +532,7 @@ struct RoutinesTaskRow: View {
             return AppTheme.colors.body.opacity(0.32)
         }
 
-        return AppTheme.colors.body.opacity(0.30)
+        return AppTheme.colors.body.opacity(isDetailPresented ? 0.38 : 0.30)
     }
 
     private var outlineOpacity: Double {
@@ -634,6 +638,7 @@ private struct RoutinesInlineDetailView: View {
                     isCollapsing: isCollapsing
                 )
             attributeToolbar
+                .padding(.top, -RoutineInlineLayoutMetrics.attributeTopOverlap)
                 .taskMorphCascade(
                     elapsed: cascadeElapsed,
                     index: 1,
@@ -655,11 +660,10 @@ private struct RoutinesInlineDetailView: View {
         HStack(spacing: RoutineInlineLayoutMetrics.titleGap) {
             Image(systemName: notesIcon)
                 .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                .foregroundStyle(AppTheme.colors.body.opacity(notesTitle == "添加备注" ? 0.68 : 0.76))
                 .frame(
                     width: RoutineInlineLayoutMetrics.actionSlotWidth,
-                    height: RoutineInlineLayoutMetrics.compactRowMinHeight,
-                    alignment: .trailing
+                    height: RoutineInlineLayoutMetrics.compactRowMinHeight
                 )
 
             if isEditingNotes {
@@ -677,7 +681,8 @@ private struct RoutinesInlineDetailView: View {
                 Button("确认", action: commitNotes)
                     .font(AppTheme.typography.sized(13, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.sky)
-                    .frame(minWidth: 44, minHeight: 36)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .padding(.vertical, -6)
                     .buttonStyle(.plain)
             } else {
                 Button {
@@ -692,10 +697,12 @@ private struct RoutinesInlineDetailView: View {
                 } label: {
                     Text(notesTitle)
                         .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(notesTitle == "添加备注" ? 0.48 : 0.72))
-                        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                        .foregroundStyle(AppTheme.colors.body.opacity(notesTitle == "添加备注" ? 0.72 : 0.82))
+                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                         .contentShape(Rectangle())
                 }
+                .frame(minHeight: 44)
+                .padding(.vertical, -6)
                 .buttonStyle(.plain)
                 .accessibilityLabel(notesTitle == "添加备注" ? "添加备注" : "编辑备注")
             }
@@ -863,7 +870,8 @@ private struct RoutinesInlineDetailView: View {
             title: title,
             isConfigured: isConfigured,
             usesContinuousCapsule: true,
-            horizontalPadding: 8
+            horizontalPadding: 8,
+            isFocusForeground: true
         )
     }
 
@@ -873,7 +881,8 @@ private struct RoutinesInlineDetailView: View {
             title: title,
             isConfigured: isConfigured,
             usesContinuousCapsule: true,
-            horizontalPadding: 8
+            horizontalPadding: 8,
+            isFocusForeground: true
         )
     }
 

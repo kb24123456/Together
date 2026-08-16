@@ -45,8 +45,8 @@ struct RoutinesListContent: View {
     @State private var frozenSelectedCycle: PeriodicCycle?
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
-    private let rowTopInset: CGFloat = 8
-    private let rowBottomInset: CGFloat = 8
+    private let rowTopInset = TaskMorphListSpacing.compactExternalInset
+    private let rowBottomInset = TaskMorphListSpacing.compactExternalInset
     private let listTopAnchor = "routines-list-top"
 
     private var currentTasks: [PeriodicTask] {

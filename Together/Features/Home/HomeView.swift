@@ -27,7 +27,7 @@ struct HomeView: View {
     @State private var timelineDateBarBoundaryMaxY: CGFloat = 0
 
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
-    private let timelineRowVerticalInset: CGFloat = 8
+    private let timelineRowVerticalInset = TaskMorphListSpacing.compactExternalInset
     private let timelineBottomInset: CGFloat = 24
 
     var body: some View {
@@ -489,10 +489,13 @@ struct HomeView: View {
     }
 
     private func estimatedDetailDisclosureHeight(for entry: HomeTimelineEntry) -> CGFloat {
-        // The disclosure contains two compact action rows and one 36pt row for
-        // each subtask. Measured geometry replaces this estimate as soon as it
-        // is available, including after Dynamic Type changes.
-        80 + 40 * CGFloat(entry.subtasks.count)
+        // Measured geometry replaces this estimate as soon as it is available,
+        // including after Dynamic Type changes. Keep the fallback synchronized
+        // with the compact overlap metrics to avoid a roomy first frame.
+        HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
+            subtaskCount: entry.subtasks.count,
+            note: entry.notes
+        )
     }
 
     private var projectsModeContent: some View {
@@ -878,6 +881,7 @@ struct HomeView: View {
                                     viewModel: viewModel,
                                     isExpanded: isExpanded
                                 )
+                                .padding(.top, -HomeInlineTaskLayoutMetrics.attributeTopOverlap)
                                 .taskMorphCascade(
                                     elapsed: cascadeElapsed,
                                     index: detailSubtaskCount + 2,
@@ -900,6 +904,7 @@ struct HomeView: View {
                                 }
                             }
                         }
+                        .padding(.top, -HomeInlineTaskLayoutMetrics.detailTitleOverlap)
                     }
                 }
             }
@@ -1267,17 +1272,25 @@ enum HomeInlineTaskLayoutMetrics {
     static let titleLeadingInset: CGFloat = actionSlotWidth + titleGap
     static let rowMinHeight: CGFloat = 44
     static let compactRowMinHeight: CGFloat = 32
-    static let detailVerticalSpacing: CGFloat = 2
+    static let detailVerticalSpacing: CGFloat = 0
+    static let subtaskSpacing: CGFloat = 3
     static let taskTitleLeadingInset: CGFloat = checkboxSize + AppTheme.spacing.sm
     static let attributeLeadingInset: CGFloat = taskTitleLeadingInset
-    static let expandedAttributeLeadingInset: CGFloat = 0
+    /// The 20pt subtask mark is centered inside a 28pt action slot, so its
+    /// visible left edge begins 4pt inside the detail content.
+    static let expandedAttributeLeadingInset: CGFloat = 4
     static let attributeSpacing: CGFloat = 18
     static let attributeMinHeight: CGFloat = TaskAttributeToolbarMetrics.rowHeight
     static let attributeHorizontalPadding: CGFloat = 2
     static let attributeIconSize: CGFloat = 14
     static let attributeIconWidth: CGFloat = 16
     static let attributeTextSize: CGFloat = 14
+    /// The shared title identity rests 12pt above its compact origin. Pull the
+    /// disclosure upward outside its clipping region so the wave endpoint does
+    /// not create a false blank band between the title and note.
+    static let detailTitleOverlap: CGFloat = 8
     static let detailTopPadding: CGFloat = 0
+    static let attributeTopOverlap: CGFloat = 6
     static let detailBottomPadding: CGFloat = 0
 
     static func estimatedDetailHeight(
@@ -1296,7 +1309,13 @@ enum HomeInlineTaskLayoutMetrics {
         }
         let rowHeights = compactRows + subtaskRows + attributeMinHeight + noteHeight
         let spacings = CGFloat(max(rowCount - 1, 0)) * detailVerticalSpacing
-        return detailTopPadding + rowHeights + spacings + detailBottomPadding
+        let subtaskSpacings = CGFloat(max(subtaskCount - 1, 0)) * subtaskSpacing
+        return detailTopPadding
+            + rowHeights
+            + spacings
+            + subtaskSpacings
+            - attributeTopOverlap
+            + detailBottomPadding
     }
 
     private static func estimatedNoteHeight(_ note: String) -> CGFloat {
@@ -2198,7 +2217,7 @@ struct HomeTimelineRow: View {
             return AppTheme.colors.body.opacity(0.32)
         }
 
-        return AppTheme.colors.body.opacity(0.30)
+        return AppTheme.colors.body.opacity(isDetailPresented ? 0.38 : 0.30)
     }
 
     private var outlineOpacity: Double {

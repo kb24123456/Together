@@ -36,14 +36,16 @@ struct HomeInlineTaskDetailCard: View {
                     isCollapsing: isCollapsing
                 )
 
-            ForEach(subtasks, id: \.id) { subtask in
-                subtaskRow(subtask)
-                    .taskMorphCascade(
-                        elapsed: cascadeElapsed,
-                        index: cascadeIndex(for: subtask, in: subtasks),
-                        rowCount: cascadeRowCount,
-                        isCollapsing: isCollapsing
-                    )
+            VStack(alignment: .leading, spacing: HomeInlineTaskLayoutMetrics.subtaskSpacing) {
+                ForEach(subtasks, id: \.id) { subtask in
+                    subtaskRow(subtask)
+                        .taskMorphCascade(
+                            elapsed: cascadeElapsed,
+                            index: cascadeIndex(for: subtask, in: subtasks),
+                            rowCount: cascadeRowCount,
+                            isCollapsing: isCollapsing
+                        )
+                }
             }
 
             if showsSubtaskComposer {
@@ -111,8 +113,8 @@ struct HomeInlineTaskDetailCard: View {
             HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
                 Image(systemName: "note.text")
                     .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.42))
-                    .frame(width: HomeInlineTaskLayoutMetrics.checkboxSize, height: 36, alignment: .trailing)
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                    .frame(width: HomeInlineTaskLayoutMetrics.checkboxSize, height: 32)
 
                 TextField("添加备注", text: $notesDraft, axis: .vertical)
                     .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
@@ -128,14 +130,16 @@ struct HomeInlineTaskDetailCard: View {
                 Button("确认", action: commitNotes)
                     .font(AppTheme.typography.sized(13, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.sky)
-                    .frame(minWidth: 44, minHeight: 36)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .padding(.vertical, -6)
                     .buttonStyle(.plain)
             }
         } else {
             let notes = viewModel.inlineDetailDraft?.notes ?? entry.notes ?? ""
             disclosureButton(
                 title: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "添加备注" : notes,
-                systemImage: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "plus" : "note.text"
+                systemImage: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "plus" : "note.text",
+                isPlaceholder: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ) {
                 notesDraft = notes
                 isEditingNotes = true
@@ -150,25 +154,27 @@ struct HomeInlineTaskDetailCard: View {
     private func disclosureButton(
         title: String,
         systemImage: String,
+        isPlaceholder: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                .foregroundStyle(AppTheme.colors.body.opacity(isPlaceholder ? 0.68 : 0.76))
                 .frame(
                     width: HomeInlineTaskLayoutMetrics.checkboxSize,
-                    height: 36,
-                    alignment: .trailing
+                    height: 32
                 )
 
             Button(action: action) {
                 Text(title)
                     .font(AppTheme.typography.sized(15, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.48))
-                    .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                    .foregroundStyle(AppTheme.colors.body.opacity(isPlaceholder ? 0.72 : 0.82))
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                     .contentShape(Rectangle())
             }
+            .frame(minHeight: 44)
+            .padding(.vertical, -6)
             .buttonStyle(.plain)
         }
     }
@@ -200,7 +206,8 @@ struct HomeInlineTaskDetailCard: View {
                 }
                 .font(AppTheme.typography.sized(13, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.sky)
-                .frame(minWidth: 44, minHeight: 36)
+                .frame(minWidth: 44, minHeight: 44)
+                .padding(.vertical, -6)
                 .buttonStyle(.plain)
 
                 Button(role: .destructive) {
@@ -209,8 +216,9 @@ struct HomeInlineTaskDetailCard: View {
                     focusedField = nil
                 } label: {
                     Image(systemName: "trash")
-                        .frame(width: 40, height: 36)
+                        .frame(width: 40, height: 44)
                 }
+                .padding(.vertical, -6)
                 .buttonStyle(.plain)
                 .accessibilityLabel("删除子任务")
             } else {
@@ -239,11 +247,10 @@ struct HomeInlineTaskDetailCard: View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Image(systemName: "plus")
                 .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.42))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
                 .frame(
                     width: HomeInlineTaskLayoutMetrics.checkboxSize,
-                    height: 36,
-                    alignment: .trailing
+                    height: 32
                 )
 
             TextField("添加子任务", text: $newSubtaskTitle)
@@ -255,7 +262,8 @@ struct HomeInlineTaskDetailCard: View {
             Button("添加", action: addSubtaskAfterSnapshot)
                 .font(AppTheme.typography.sized(13, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.sky)
-                .frame(minWidth: 44, minHeight: 36)
+                .frame(minWidth: 44, minHeight: 44)
+                .padding(.vertical, -6)
                 .buttonStyle(.plain)
                 .accessibilityHint("提交当前输入的子任务")
         }
@@ -323,7 +331,6 @@ struct HomeTaskAttributeFooter: View {
     var body: some View {
         expandedControls
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .padding(.top, AppTheme.spacing.xxs)
             .allowsHitTesting(isExpanded)
         .sheet(item: $schedulePresentation) { presentation in
             DateTimePickerSheet(
@@ -375,7 +382,8 @@ struct HomeTaskAttributeFooter: View {
                     isConfigured: viewModel.inlineDetailDraft?.isUrgent == true,
                     tint: viewModel.inlineDetailDraft?.isUrgent == true ? AppTheme.colors.coral : nil,
                     isCircular: true,
-                    alignsToCardCorner: true
+                    alignsToCardCorner: true,
+                    isFocusForeground: true
                 )
             }
             .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -393,7 +401,8 @@ struct HomeTaskAttributeFooter: View {
                         isConfigured: isFollowed,
                         tint: isFollowed ? AppTheme.colors.violet : nil,
                         isCircular: true,
-                        alignsToCardCorner: true
+                        alignsToCardCorner: true,
+                        isFocusForeground: true
                     )
                 }
                 .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -405,6 +414,7 @@ struct HomeTaskAttributeFooter: View {
 
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset)
     }
 
     private var isFollowed: Bool {
@@ -432,7 +442,8 @@ struct HomeTaskAttributeFooter: View {
                 isConfigured: isConfigured,
                 usesContinuousCapsule: true,
                 alignsToCardCorner: true,
-                horizontalPadding: 8
+                horizontalPadding: 8,
+                isFocusForeground: true
             )
         }
         .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -509,7 +520,7 @@ struct SubtaskCompletionMark: View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .strokeBorder(
-                    isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.28),
+                    isCompleted ? Color.clear : AppTheme.colors.body.opacity(0.34),
                     lineWidth: 1.1
                 )
 

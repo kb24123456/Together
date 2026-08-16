@@ -53,6 +53,10 @@ struct TaskAttributeLabel: View {
     var usesContinuousCapsule = false
     var alignsToCardCorner = false
     var horizontalPadding: CGFloat = 11
+    var isFocusForeground = false
+
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 4) {
@@ -68,25 +72,48 @@ struct TaskAttributeLabel: View {
         }
         .foregroundStyle(
             tint ?? (isConfigured
-                ? AppTheme.colors.title.opacity(0.76)
-                : AppTheme.colors.body.opacity(0.52))
+                ? AppTheme.colors.title.opacity(isFocusForeground ? 0.84 : 0.76)
+                : AppTheme.colors.body.opacity(isFocusForeground ? 0.62 : 0.52))
         )
         .padding(.horizontal, isCircular ? 0 : horizontalPadding)
         .frame(width: isCircular ? 34 : nil, height: 34)
-        .background(
-            AppTheme.colors.surfaceElevated,
-            in: isCircular
-                ? AnyShape(Circle())
-                : usesContinuousCapsule
-                    ? AnyShape(Capsule(style: .continuous))
-                    : AnyShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        )
+        .background {
+            backgroundShape
+                .fill(backgroundFill)
+
+            if isConfigured, let tint {
+                backgroundShape
+                    .fill(tint.opacity(colorScheme == .dark ? 0.16 : 0.09))
+            }
+        }
         .frame(
             minWidth: 44,
             minHeight: 44,
             alignment: alignsToCardCorner ? .bottom : .center
         )
         .contentShape(Rectangle())
+    }
+
+    private var backgroundShape: AnyShape {
+        if isCircular {
+            return AnyShape(Circle())
+        }
+        if usesContinuousCapsule {
+            return AnyShape(Capsule(style: .continuous))
+        }
+        return AnyShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+
+    private var backgroundFill: Color {
+#if canImport(UIKit)
+        Color(
+            uiColor: colorSchemeContrast == .increased
+                ? .systemFill
+                : .secondarySystemFill
+        )
+#else
+        AppTheme.colors.pillSurface
+#endif
     }
 }
 

@@ -6,11 +6,11 @@ import Testing
 @Suite("Home morph session")
 struct HomeMorphSessionTests {
     @Test func inlineExpansionUsesIndependentPhysicalTracks() {
-        #expect(TaskExpansionMotionTiming.expansionDuration == 0.80)
-        #expect(TaskExpansionMotionTiming.identityExpansionDuration == 0.52)
-        #expect(TaskExpansionMotionTiming.collapseDuration == 0.36)
+        #expect(TaskExpansionMotionTiming.expansionDuration == 0.70)
+        #expect(TaskExpansionMotionTiming.identityExpansionDuration == 0.46)
+        #expect(TaskExpansionMotionTiming.collapseDuration == 0.32)
         #expect(TaskExpansionMotionTiming.reducedMotionDuration == 0.22)
-        #expect(TaskExpansionMotionTiming.layoutDuration == 0.52)
+        #expect(TaskExpansionMotionTiming.layoutDuration == 0.46)
         #expect(
             abs(
                 TaskExpansionMotionTiming.identityTroughDuration
@@ -30,19 +30,19 @@ struct HomeMorphSessionTests {
         #expect(TaskExpansionMotionTiming.identityTroughScale == 1.05)
         #expect(
             abs(
-                TaskExpansionMotion.expanded.identityScale * 1.03
+                TaskExpansionMotion.expanded.identityScale * 1.05
                     - TaskExpansionMotionTiming.expandedIdentityVisualScale
             ) < 0.000_001
         )
         #expect(TaskExpansionMotion.expanded.identityOffsetX == -16)
         #expect(TaskExpansionMotion.expanded.identityOffsetY == -12)
-        #expect(TaskExpansionMotion.expanded.detailElapsed == 0.46)
+        #expect(TaskExpansionMotion.expanded.detailElapsed == 0.40)
         #expect(TaskExpansionMotion.expanded.isDetailSettled)
         #expect(TaskExpansionMotion.compact.collapsedOpacity == 1)
     }
 
     @Test func detailCascadeUsesBoundedDiagonalWave() {
-        #expect(TaskMorphCascadeTiming.expansionDelay == 0.34)
+        #expect(TaskMorphCascadeTiming.expansionDelay == 0.30)
         #expect(
             TaskMorphCascadeTiming.expansionDelay + TaskMorphCascadeTiming.rowDuration
                 > TaskExpansionMotionTiming.identityExpansionDuration
@@ -55,10 +55,10 @@ struct HomeMorphSessionTests {
             ) < 0.000_001
         )
         #expect(TaskMorphCascadeTiming.totalDelay(rowCount: 1) == 0)
-        #expect(abs(TaskMorphCascadeTiming.totalDelay(rowCount: 7) - 0.26) < 0.000_001)
-        #expect(abs(TaskMorphCascadeTiming.totalDelay(rowCount: 20) - 0.26) < 0.000_001)
-        #expect(abs(TaskMorphCascadeTiming.collapseTotalDelay(rowCount: 5) - 0.14) < 0.000_001)
-        #expect(abs(TaskMorphCascadeTiming.collapseTotalDelay(rowCount: 20) - 0.14) < 0.000_001)
+        #expect(abs(TaskMorphCascadeTiming.totalDelay(rowCount: 7) - 0.22) < 0.000_001)
+        #expect(abs(TaskMorphCascadeTiming.totalDelay(rowCount: 20) - 0.22) < 0.000_001)
+        #expect(abs(TaskMorphCascadeTiming.collapseTotalDelay(rowCount: 5) - 0.12) < 0.000_001)
+        #expect(abs(TaskMorphCascadeTiming.collapseTotalDelay(rowCount: 20) - 0.12) < 0.000_001)
 
         let start = TaskMorphCascadeValues.resolve(
             elapsed: 0,
@@ -82,27 +82,47 @@ struct HomeMorphSessionTests {
     }
 
     @Test func backgroundWaveCascadesOutwardAndStaysBounded() {
+        #expect(abs(TaskMorphBackgroundWave.expansionDuration - 0.36) < 0.000_001)
         #expect(TaskMorphBackgroundWave.radius(forTaskDelta: nil) == 0)
         #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 0) == 0)
+        #expect(abs(TaskMorphBackgroundWave.radius(forTaskDelta: 1) - 0.35) < 0.000_001)
         #expect(
-            abs(TaskMorphBackgroundWave.radius(forTaskDelta: 1) - 1.30)
+            abs(TaskMorphBackgroundWave.radius(forTaskDelta: -2) - 0.85)
                 < 0.000_001
         )
-        #expect(
-            abs(TaskMorphBackgroundWave.radius(forTaskDelta: -2) - 2.05)
-                < 0.000_001
-        )
+        #expect(abs(TaskMorphBackgroundWave.radius(forTaskDelta: 4) - 2.15) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.radius(forTaskDelta: 8) - 5.95) < 0.000_001)
         #expect(
             TaskMorphBackgroundWave.radius(forTaskDelta: 20)
                 == TaskMorphBackgroundWave.maximumRadius
         )
-        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 1) == 0.92)
-        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 20) == 0.86)
-        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: -1) == -4)
-        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: 1) == 4)
-        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: 20) == 12)
-        #expect(TaskMorphBackgroundWave.delay(forTaskDelta: 2) == 0.025)
-        #expect(TaskMorphBackgroundWave.delay(forTaskDelta: 20) == 0.12)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: -1) == 0.95)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: -20) == 0.87)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 1) == 0.95)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 20) == 0.88)
+        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 1) == 0.60)
+        #expect(abs(TaskMorphBackgroundWave.opacity(forTaskDelta: -2) - 0.545) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.opacity(forTaskDelta: 4) - 0.435) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.opacity(forTaskDelta: 8) - 0.215) < 0.000_001)
+        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 20) == 0.20)
+        #expect(TaskMorphBackgroundWave.headerBlurRadius == 0.5)
+        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: -1) == -8)
+        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: -20) == -24)
+        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: 1) == 12)
+        #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: 20) == 36)
+        #expect(abs(TaskMorphBackgroundWave.delay(forTaskDelta: -1) - 0.015) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.delay(forTaskDelta: -2) - 0.075) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.delay(forTaskDelta: -20) - 0.26) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.delay(forTaskDelta: 1) - 0.02) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.delay(forTaskDelta: 2) - 0.095) < 0.000_001)
+        #expect(abs(TaskMorphBackgroundWave.delay(forTaskDelta: 20) - 0.34) < 0.000_001)
+        #expect(
+            abs(
+                TaskMorphBackgroundWave.expansionDuration
+                    + TaskMorphBackgroundWave.lowerMaximumDelay
+                    - TaskExpansionMotionTiming.expansionDuration
+            ) < 0.000_001
+        )
     }
 
     @Test func detailCollapseSharesTheContinuousLayoutClock() {
@@ -561,11 +581,17 @@ struct HomeMorphSessionTests {
     }
 
     @Test func inlineDetailKeepsStandardListRowSpacing() {
-        let compact = EdgeInsets(top: 8, leading: 28, bottom: 8, trailing: 28)
+        let compact = EdgeInsets(
+            top: TaskMorphListSpacing.compactExternalInset,
+            leading: 28,
+            bottom: TaskMorphListSpacing.compactExternalInset,
+            trailing: 28
+        )
         let expanded = TaskMorphListSpacing.expandedInsets(from: compact)
 
-        #expect(expanded.top == 22)
-        #expect(expanded.bottom == 22)
+        #expect(TaskMorphListSpacing.compactExternalInset == 4)
+        #expect(expanded.top == 18)
+        #expect(expanded.bottom == 18)
         #expect(expanded.leading == compact.leading)
         #expect(expanded.trailing == compact.trailing)
         #expect(TaskMorphListSpacing.fixedExpansionHeightDelta == 28)
@@ -577,13 +603,26 @@ struct HomeMorphSessionTests {
             HomeInlineTaskLayoutMetrics.attributeLeadingInset
                 == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset
         )
-        #expect(HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset == 0)
+        #expect(HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset == 4)
+        #expect(HomeInlineTaskLayoutMetrics.subtaskSpacing == 3)
         #expect(RoutineInlineLayoutMetrics.actionSlotWidth == HomeInlineTaskLayoutMetrics.checkboxSize)
         #expect(RoutineInlineLayoutMetrics.titleLeadingInset == 38)
         #expect(RoutineInlineLayoutMetrics.titleLeadingInset == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset)
-        #expect(RoutineInlineLayoutMetrics.attributeLeadingInset == 0)
+        #expect(RoutineInlineLayoutMetrics.attributeLeadingInset == 4)
         #expect(RoutineInlineLayoutMetrics.attributeMinHeight == HomeInlineTaskLayoutMetrics.attributeMinHeight)
+        #expect(HomeInlineTaskLayoutMetrics.detailTitleOverlap == 8)
+        #expect(HomeInlineTaskLayoutMetrics.detailTopPadding == 0)
+        #expect(HomeInlineTaskLayoutMetrics.attributeTopOverlap == 6)
+        #expect(RoutineInlineLayoutMetrics.detailTitleOverlap == HomeInlineTaskLayoutMetrics.detailTitleOverlap)
+        #expect(RoutineInlineLayoutMetrics.detailTopPadding == HomeInlineTaskLayoutMetrics.detailTopPadding)
+        #expect(RoutineInlineLayoutMetrics.attributeTopOverlap == HomeInlineTaskLayoutMetrics.attributeTopOverlap)
         #expect(TaskAttributeToolbarMetrics.horizontalSpacing == 2)
+        #expect(
+            HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 2)
+                - HomeInlineTaskLayoutMetrics.estimatedDetailHeight(subtaskCount: 1)
+                == HomeInlineTaskLayoutMetrics.rowMinHeight
+                    + HomeInlineTaskLayoutMetrics.subtaskSpacing
+        )
     }
 
     private func todoPlacement(id: UUID) -> TaskMorphPlacement {

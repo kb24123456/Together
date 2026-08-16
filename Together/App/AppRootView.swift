@@ -342,6 +342,18 @@ struct HomeRootContent: View {
             },
             onAddFrameChanged: { dockAddFrame = $0 }
         )
+        .scaleEffect(
+            isDetailDockReceded && reduceMotion == false
+                ? TaskMorphBackgroundWave.dockScale
+                : 1,
+            anchor: .bottom
+        )
+        .opacity(
+            isDetailDockReceded
+                ? TaskMorphBackgroundWave.dockOpacity
+                : 1
+        )
+        .animation(detailDockDepthAnimation, value: isDetailDockReceded)
         .taskMorphBackgroundDepth(
             isDeemphasized: isMorphBackgroundDeemphasized,
             anchor: .bottom,
@@ -350,6 +362,21 @@ struct HomeRootContent: View {
             actsAsDismissTarget: morphSession.isCreationFlow == false,
             onDismiss: morphSession.requestDismissal
         )
+    }
+
+    private var isDetailDockReceded: Bool {
+        isMorphBackgroundDeemphasized && morphSession.isCreationFlow == false
+    }
+
+    private var detailDockDepthAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
+            : .smooth(
+                duration: isDetailDockReceded
+                    ? TaskExpansionMotionTiming.identityExpansionDuration
+                    : TaskExpansionMotionTiming.collapseDuration,
+                extraBounce: 0
+            )
     }
 
     // MARK: - Surface routing
@@ -575,9 +602,11 @@ struct HomeRootContent: View {
         token: HomeMorphSessionToken
     ) {
         detailCollapseCompletionTask?.cancel()
-        let delay: Duration = reduceMotion
-            ? .milliseconds(220)
-            : .milliseconds(360)
+        let delay = Duration.seconds(
+            reduceMotion
+                ? TaskExpansionMotionTiming.reducedMotionDuration
+                : TaskExpansionMotionTiming.collapseDuration
+        )
         detailCollapseCompletionTask = Task { @MainActor in
             try? await Task.sleep(for: delay)
             guard Task.isCancelled == false,
