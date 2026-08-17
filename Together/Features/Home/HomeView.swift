@@ -1006,6 +1006,15 @@ struct HomeView: View {
             .applyCompletedSectionVisibility(
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
+            .offset(y: reduceMotion ? 0 : (isRoutinesModePresented ? 12 : 0))
+            .opacity(isRoutinesModePresented ? 0 : 1)
+            .animation(
+                modeTaskRowAnimation(
+                    index: displayedTodoTaskIDsInVisualOrder.firstIndex(of: entry.itemID) ?? index,
+                    taskCount: displayedTodoTaskIDsInVisualOrder.count
+                ),
+                value: isRoutinesModePresented
+            )
             .taskEdgeFlow(
                 intensity: morphSession.isFocusDepthActive ? 0 : 1,
                 isBaseHidden: isCreationRevealTarget
@@ -1190,6 +1199,18 @@ struct HomeView: View {
         return isRoutinesModePresented
             ? .smooth(duration: 0.24, extraBounce: 0)
             : .smooth(duration: 0.34, extraBounce: 0).delay(0.06)
+    }
+
+    private func modeTaskRowAnimation(index: Int, taskCount: Int) -> Animation {
+        let delay = HomeModeTaskTransitionTiming.delay(
+            for: index,
+            taskCount: taskCount,
+            isPresented: isRoutinesModePresented == false,
+            reduceMotion: reduceMotion
+        )
+        return reduceMotion
+            ? .easeInOut(duration: 0.18)
+            : .smooth(duration: 0.3, extraBounce: 0).delay(delay)
     }
 
     private var routinesTaskSurfaceOffset: CGFloat {

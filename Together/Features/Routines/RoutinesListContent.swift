@@ -3,9 +3,12 @@ import SwiftUI
 import UIKit
 #endif
 
-enum RoutineModeTransitionTiming {
-    static let maximumCascadingRows = 5
+enum HomeModeTaskTransitionTiming {
     static let rowDelay: Double = 0.02
+    static let linearCascadeRowCount = 12
+    static let maximumCascadeDelay: Double = 0.32
+
+    private static let tailHalfDistance = 8.0
 
     static func delay(
         for index: Int,
@@ -14,10 +17,26 @@ enum RoutineModeTransitionTiming {
         reduceMotion: Bool
     ) -> Double {
         guard reduceMotion == false else { return 0 }
-        let visibleCount = min(max(taskCount, 1), maximumCascadingRows)
-        let visibleIndex = min(max(index, 0), visibleCount - 1)
-        let delayIndex = isPresented ? visibleIndex : visibleCount - visibleIndex - 1
-        return Double(delayIndex) * rowDelay
+        let rowCount = max(taskCount, 1)
+        let rowIndex = min(max(index, 0), rowCount - 1)
+        let delayIndex = isPresented ? rowIndex : rowCount - rowIndex - 1
+        return cascadingDelay(for: delayIndex)
+    }
+
+    private static func cascadingDelay(for index: Int) -> Double {
+        let clampedIndex = max(index, 0)
+        let linearEndIndex = linearCascadeRowCount - 1
+        guard clampedIndex > linearEndIndex else {
+            return Double(clampedIndex) * rowDelay
+        }
+
+        // Keep a readable cadence across a phoneful of rows, then compress the
+        // offscreen tail so a large task collection never stalls the switch.
+        let linearEndDelay = Double(linearEndIndex) * rowDelay
+        let tailDistance = Double(clampedIndex - linearEndIndex)
+        let tailProgress = tailDistance / (tailDistance + tailHalfDistance)
+        return linearEndDelay
+            + (maximumCascadeDelay - linearEndDelay) * tailProgress
     }
 }
 
@@ -837,7 +856,7 @@ struct RoutinesListContent: View {
     }
 
     private func modeRowAnimation(index: Int, taskCount: Int) -> Animation {
-        let delay = RoutineModeTransitionTiming.delay(
+        let delay = HomeModeTaskTransitionTiming.delay(
             for: index,
             taskCount: taskCount,
             isPresented: isPresented,

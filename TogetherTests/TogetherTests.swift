@@ -493,30 +493,36 @@ struct TogetherTests {
         #expect(snapshot.tasks.first?.isOverdue == false)
     }
 
-    @Test func routineModeTransitionCascadeIsOrderedAndReversible() {
-        let entryDelays = (0..<7).map {
-            RoutineModeTransitionTiming.delay(
+    @Test func homeModeTaskTransitionCascadeCoversTheFullListAndIsReversible() {
+        let entryDelays = (0..<40).map {
+            HomeModeTaskTransitionTiming.delay(
                 for: $0,
-                taskCount: 7,
+                taskCount: 40,
                 isPresented: true,
                 reduceMotion: false
             )
         }
-        let exitDelays = (0..<5).map {
-            RoutineModeTransitionTiming.delay(
+        let exitDelays = (0..<40).map {
+            HomeModeTaskTransitionTiming.delay(
                 for: $0,
-                taskCount: 7,
+                taskCount: 40,
                 isPresented: false,
                 reduceMotion: false
             )
         }
 
-        #expect(entryDelays == [0, 0.02, 0.04, 0.06, 0.08, 0.08, 0.08])
-        #expect(exitDelays == [0.08, 0.06, 0.04, 0.02, 0])
+        #expect(Array(entryDelays.prefix(5)) == [0, 0.02, 0.04, 0.06, 0.08])
         #expect(
-            RoutineModeTransitionTiming.delay(
+            zip(entryDelays, entryDelays.dropFirst()).allSatisfy { previous, next in
+                previous < next
+            }
+        )
+        #expect(entryDelays[39] < HomeModeTaskTransitionTiming.maximumCascadeDelay)
+        #expect(exitDelays == Array(entryDelays.reversed()))
+        #expect(
+            HomeModeTaskTransitionTiming.delay(
                 for: 3,
-                taskCount: 7,
+                taskCount: 40,
                 isPresented: true,
                 reduceMotion: true
             ) == 0
