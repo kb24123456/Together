@@ -196,7 +196,7 @@ struct RoutinesTaskRow: View {
             ZStack(alignment: .topLeading) {
                 stableTitleStack
 
-                if isDetailPresented == false {
+                if isDetailPresented == false, isCompleted == false {
                     Button {
                         onOpenDetail()
                     } label: {

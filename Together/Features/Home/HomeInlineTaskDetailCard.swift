@@ -399,7 +399,7 @@ struct HomeTaskAttributeFooter: View {
                         icon: "scope",
                         title: "",
                         isConfigured: isFollowed,
-                        tint: isFollowed ? AppTheme.colors.violet : nil,
+                        tint: isFollowed ? AppTheme.colors.sky : nil,
                         isCircular: true,
                         alignsToCardCorner: true,
                         isFocusForeground: true
@@ -484,33 +484,6 @@ struct HomeTaskAttributeFooter: View {
         )
     }
 
-}
-
-struct HomeTaskCompactSummary: View {
-    let entry: HomeTimelineEntry
-    let progress: CGFloat
-    let opacity: CGFloat
-
-    private var content: TaskSharedIdentityContent {
-        TaskSharedIdentityContent.make(entry: entry)
-    }
-
-    private var hasContent: Bool {
-        content.visibleElements.isDisjoint(with: [.progress, .time, .reminder]) == false
-    }
-
-    var body: some View {
-        TaskSharedAttributeBand(
-            content: content,
-            elements: [.time, .reminder, .progress]
-        )
-        .allowsHitTesting(false)
-        .opacity(opacity)
-        .frame(height: hasContent ? 20 * progress : 0, alignment: .top)
-        .padding(.top, hasContent ? AppTheme.spacing.xs * progress : 0)
-        .clipped()
-        .accessibilityHidden(progress < 0.999)
-    }
 }
 
 struct SubtaskCompletionMark: View {

@@ -79,6 +79,14 @@ struct HomeMorphSessionTests {
         #expect(final.progress == 1)
         #expect(final.offset == .zero)
         #expect(final.opacity == 1)
+
+        let midpoint = TaskMorphCascadeValues.resolve(
+            progress: 0.5,
+            reduceMotion: false
+        )
+        #expect(midpoint.offset.width > 7)
+        #expect(midpoint.offset.height > 12)
+        #expect(midpoint.opacity == 0.5)
     }
 
     @Test func backgroundWaveCascadesOutwardAndStaysBounded() {
@@ -223,7 +231,7 @@ struct HomeMorphSessionTests {
         let placement = todoPlacement(id: id)
 
         let token = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: placement, heroSourceFrame: nil)
+            model.beginCreation(domain: .todo, id: id, placement: placement)
         )
 
         #expect(model.subject == .draft(domain: .todo, id: id))
@@ -232,35 +240,109 @@ struct HomeMorphSessionTests {
         #expect(model.placement == placement)
         #expect(model.isCreationFlow)
         #expect(model.isCreationOverlayVisible)
+        #expect(model.isFocusDepthActive)
+        #expect(model.isDetailFocusDepthActive == false)
         #expect(model.isCurrent(token))
     }
 
-    @Test func dockCreationWaitsForExplicitHeroTargetBeforeEditing() throws {
+    @Test func creationNeverActivatesDetailFocusDepthWhileOpeningOrClosing() throws {
         let model = HomeMorphSession()
         let id = UUID()
-        let source = CGRect(x: 320, y: 740, width: 52, height: 52)
-        let target = CGRect(x: 20, y: 240, width: 350, height: 68)
-        let token = try #require(
-            model.beginCreation(
-                domain: .todo,
-                id: id,
-                placement: todoPlacement(id: id),
-                heroSourceFrame: source
-            )
+        _ = try #require(
+            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
         )
 
-        #expect(model.phase == .heroEntering)
-        #expect(model.visualState == .compact)
-        #expect(model.isHeroVisible == false)
+        #expect(model.isDetailFocusDepthActive == false)
 
-        model.recordHeroTargetFrame(target)
-        #expect(model.isHeroVisible)
-        model.setHeroProgress(1, using: token)
-        model.finishHero(using: token)
+        let collapse = try #require(model.beginDiscardCollapse())
+        #expect(model.phase == .collapsing)
+        #expect(model.isFocusDepthActive)
+        #expect(model.isDetailFocusDepthActive == false)
 
+        model.finishDiscard(using: collapse)
+        #expect(model.isFocusDepthActive == false)
+        #expect(model.isDetailFocusDepthActive == false)
+    }
+
+    @Test func activeCreationBackgroundDismissRequestsTheCurrentDraft() throws {
+        let model = HomeMorphSession()
+        let id = UUID()
+        var dismissed: TaskMorphSubject?
+        model.onDismissIntent = { dismissed = $0 }
+        _ = try #require(
+            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
+        )
+
+        model.requestDismissal()
+
+        #expect(dismissed == .draft(domain: .todo, id: id))
         #expect(model.phase == .active)
-        #expect(model.visualState == .editing)
-        #expect(model.subject?.id == id)
+    }
+
+    @Test func creationOverlayTracksKeyboardSafeAreaWithoutRescalingWhenItFits() {
+        let restingFrame = HomeCreationOverlayLayout.editorFrame(
+            containerSize: CGSize(width: 390, height: 844),
+            preferredHeight: 300
+        )
+        let keyboardFrame = HomeCreationOverlayLayout.editorFrame(
+            containerSize: CGSize(width: 390, height: 540),
+            preferredHeight: 300
+        )
+
+        #expect(restingFrame.height == 300)
+        #expect(keyboardFrame.height == 300)
+        #expect(restingFrame.maxY == 844 - HomeCreationOverlayLayout.keyboardGap)
+        #expect(keyboardFrame.maxY == 540 - HomeCreationOverlayLayout.keyboardGap)
+        #expect(restingFrame.width == keyboardFrame.width)
+    }
+
+    @Test func creationOverlayKeepsKeyboardGapWhenAvailableHeightIsConstrained() {
+        let frame = HomeCreationOverlayLayout.editorFrame(
+            containerSize: CGSize(width: 390, height: 360),
+            preferredHeight: 560
+        )
+
+        #expect(frame.minY == HomeCreationOverlayLayout.topInset)
+        #expect(frame.maxY == 360 - HomeCreationOverlayLayout.keyboardGap)
+        #expect(frame.height == 330)
+    }
+
+    @Test func creationOverlayDismissalMovesTheWholeSurfaceBelowTheContainer() {
+        let frame = HomeCreationOverlayLayout.editorFrame(
+            containerSize: CGSize(width: 390, height: 540),
+            preferredHeight: 206
+        )
+        let offset = HomeCreationOverlayLayout.dismissalOffset(
+            frame: frame,
+            containerHeight: 540
+        )
+        let dismissedFrame = frame.offsetBy(dx: 0, dy: offset)
+
+        #expect(dismissedFrame.minY > 540)
+        #expect(dismissedFrame.size == frame.size)
+    }
+
+    @Test func creationOverlayUsesDomainSpecificMinimumHeightsAndNaturalContentGrowth() {
+        #expect(HomeCreationOverlayLayout.minimumEditorHeight(for: .todo) == 206)
+        #expect(HomeCreationOverlayLayout.minimumEditorHeight(for: .periodic) == 174)
+        #expect(
+            HomeCreationOverlayLayout.preferredHeight(
+                measuredContentHeight: 140,
+                domain: .todo
+            ) == 206
+        )
+        #expect(
+            HomeCreationOverlayLayout.preferredHeight(
+                measuredContentHeight: 140,
+                domain: .periodic
+            ) == 174
+        )
+        #expect(
+            HomeCreationOverlayLayout.preferredHeight(
+                measuredContentHeight: 240,
+                domain: .periodic
+            ) == 272
+        )
     }
 
     @Test func onlyOneMorphSubjectCanBeActive() throws {
@@ -310,7 +392,7 @@ struct HomeMorphSessionTests {
             presentationID: id.uuidString
         )
         _ = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: provisional, heroSourceFrame: nil)
+            model.beginCreation(domain: .todo, id: id, placement: provisional)
         )
         let saving = try #require(model.beginSaving())
         let collapse = try #require(
@@ -350,7 +432,7 @@ struct HomeMorphSessionTests {
         }
 
         _ = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id), heroSourceFrame: nil)
+            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
         )
         let saving = try #require(model.beginSaving())
         let collapse = try #require(
@@ -370,24 +452,18 @@ struct HomeMorphSessionTests {
         #expect(completedSubject == subject)
     }
 
-    @Test func staleAnimationCallbackCannotFinishNewerPhase() throws {
+    @Test func stalePhaseTokenCannotChangeNewerPhase() throws {
         let model = HomeMorphSession()
         let id = UUID()
-        let hero = try #require(
-            model.beginCreation(
-                domain: .todo,
-                id: id,
-                placement: todoPlacement(id: id),
-                heroSourceFrame: CGRect(x: 0, y: 0, width: 52, height: 52)
-            )
+        let creation = try #require(
+            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
         )
-        model.recordHeroTargetFrame(CGRect(x: 20, y: 100, width: 350, height: 68))
-        model.finishHero(using: hero)
         let saving = try #require(model.beginSaving())
 
-        model.finishHero(using: hero)
+        model.failSaving(using: creation, message: "过期回调")
 
         #expect(model.phase == .saving)
+        #expect(model.errorMessage == nil)
         #expect(model.isCurrent(saving))
     }
 
@@ -515,10 +591,12 @@ struct HomeMorphSessionTests {
         #expect(model.phase == .active)
         #expect(model.visualState == .compact)
         #expect(model.isFocusDepthActive == false)
+        #expect(model.isDetailFocusDepthActive == false)
 
         #expect(model.activatePreparedExpansion(using: token))
         #expect(model.visualState == .expanded)
         #expect(model.isFocusDepthActive)
+        #expect(model.isDetailFocusDepthActive)
         #expect(model.activatePreparedExpansion(using: token) == false)
     }
 
@@ -541,6 +619,7 @@ struct HomeMorphSessionTests {
         #expect(model.phase == .collapsing)
         #expect(model.visualState == .compact)
         #expect(model.isFocusDepthActive == false)
+        #expect(model.isDetailFocusDepthActive == false)
 
         model.finishCollapse(using: collapse)
         #expect(model.phase == .idle)
@@ -611,7 +690,7 @@ struct HomeMorphSessionTests {
         #expect(RoutineInlineLayoutMetrics.titleLeadingInset == HomeInlineTaskLayoutMetrics.taskTitleLeadingInset)
         #expect(RoutineInlineLayoutMetrics.attributeLeadingInset == 4)
         #expect(RoutineInlineLayoutMetrics.attributeMinHeight == HomeInlineTaskLayoutMetrics.attributeMinHeight)
-        #expect(HomeInlineTaskLayoutMetrics.detailTitleOverlap == 8)
+        #expect(HomeInlineTaskLayoutMetrics.detailTitleOverlap == 20)
         #expect(HomeInlineTaskLayoutMetrics.detailTopPadding == 0)
         #expect(HomeInlineTaskLayoutMetrics.attributeTopOverlap == 6)
         #expect(RoutineInlineLayoutMetrics.detailTitleOverlap == HomeInlineTaskLayoutMetrics.detailTitleOverlap)

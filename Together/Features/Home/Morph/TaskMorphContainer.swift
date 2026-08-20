@@ -3,9 +3,6 @@ import SwiftUI
 private enum TaskMorphSurfaceMetrics {
     static let horizontalInset: CGFloat = 20
     static let verticalInset: CGFloat = 16
-    static let expandedCornerRadius = AppTheme.radius.xl
-    static let compactCornerRadius = AppTheme.radius.lg
-    static let expandedContentScale: CGFloat = 1.05
     static let backgroundContentScale: CGFloat = 0.94
     static let backgroundContentOpacity: CGFloat = 0.62
     static let detailForegroundContentScale: CGFloat = 1.05
@@ -117,8 +114,6 @@ enum TaskMorphBackgroundWave {
     static let headerBlurRadius: CGFloat = 0.5
     static let headerScale: CGFloat = 0.98
     static let headerOpacity: CGFloat = 0.52
-    static let dockScale: CGFloat = 0.98
-    static let dockOpacity: CGFloat = 0.70
 
     static func radius(forTaskDelta delta: Int?) -> CGFloat {
         guard let distance = delta.map(abs), distance > 0 else { return 0 }
@@ -246,11 +241,7 @@ struct TaskMorphCascadeValues: Equatable {
                 max(CGFloat(elapsed / TaskMorphCascadeTiming.timelineDuration), 0),
                 1
             )
-            return TaskMorphCascadeValues(
-                progress: reducedProgress,
-                offset: .zero,
-                opacity: reducedProgress
-            )
+            return resolve(progress: reducedProgress, reduceMotion: true)
         }
 
         let progress: CGFloat
@@ -296,8 +287,16 @@ struct TaskMorphCascadeValues: Equatable {
             )
         }
 
-        let offset = waveOffset(progress: progress)
-        let opacityProgress = smoothStep(progress)
+        return resolve(progress: progress, reduceMotion: false)
+    }
+
+    static func resolve(
+        progress rawProgress: CGFloat,
+        reduceMotion: Bool
+    ) -> TaskMorphCascadeValues {
+        let progress = min(max(rawProgress, 0), 1)
+        let offset = reduceMotion ? CGSize.zero : waveOffset(progress: progress)
+        let opacityProgress = reduceMotion ? progress : smoothStep(progress)
         return TaskMorphCascadeValues(
             progress: progress,
             offset: offset,
@@ -384,10 +383,8 @@ enum TaskMorphFocusFieldStyle {
 struct TaskMorphContainer<Content: View>: View {
     let state: TaskMorphVisualState
     let isActive: Bool
-    let hidesRealSurfaceForHero: Bool
     var isBackgroundDeemphasized = false
     var backgroundFocusDelta: Int? = nil
-    var isBackgroundDimmed = false
     var focusFieldStyle: TaskMorphFocusFieldStyle = .adaptivePrimary
     var onBackgroundTap: (() -> Void)? = nil
     @ViewBuilder let content: (TaskExpansionMotion) -> Content
@@ -404,8 +401,6 @@ struct TaskMorphContainer<Content: View>: View {
                 content(motion)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .opacity(hidesRealSurfaceForHero ? 0 : backgroundContentOpacity * backgroundDimOpacity)
-            .brightness(backgroundBrightness)
             .background {
                 LinearGradient(
                     colors: [
@@ -610,21 +605,8 @@ struct TaskMorphContainer<Content: View>: View {
         )
     }
 
-    private var backgroundContentOpacity: CGFloat {
-        1
-    }
-
     private var isForegroundElevated: Bool {
         reduceMotion == false && motionTarget.isExpanded
-    }
-
-    private var backgroundBrightness: Double {
-        guard isBackgroundDimmed else { return 0 }
-        return colorScheme == .dark ? -0.06 : -0.10
-    }
-
-    private var backgroundDimOpacity: CGFloat {
-        isBackgroundDimmed ? 0.78 : 1
     }
 
     private var detailBackgroundDepthOpacity: CGFloat {
@@ -1100,87 +1082,138 @@ private struct TaskCreationListRevealModifier: ViewModifier {
     }
 }
 
+enum HomeCreationOverlayLayout {
+    static let horizontalInset: CGFloat = 12
+    static let topInset: CGFloat = 14
+    static let keyboardGap: CGFloat = 16
+    static let todoMinimumEditorHeight: CGFloat = 206
+    static let periodicMinimumEditorHeight: CGFloat = 174
+
+    static func minimumEditorHeight(for domain: TaskMorphDomain) -> CGFloat {
+        switch domain {
+        case .todo:
+            todoMinimumEditorHeight
+        case .periodic:
+            periodicMinimumEditorHeight
+        }
+    }
+
+    static func preferredHeight(
+        measuredContentHeight: CGFloat,
+        domain: TaskMorphDomain
+    ) -> CGFloat {
+        max(
+            minimumEditorHeight(for: domain),
+            measuredContentHeight + 2 * TaskMorphSurfaceMetrics.verticalInset
+        )
+    }
+
+    static func editorFrame(
+        containerSize: CGSize,
+        preferredHeight: CGFloat
+    ) -> CGRect {
+        let availableHeight = max(120, containerSize.height - topInset - keyboardGap)
+        let height = min(preferredHeight, availableHeight)
+        let y = max(topInset, containerSize.height - height - keyboardGap)
+        return CGRect(
+            x: horizontalInset,
+            y: y,
+            width: max(120, containerSize.width - horizontalInset * 2),
+            height: height
+        )
+    }
+
+    static func dismissalOffset(
+        frame: CGRect,
+        containerHeight: CGFloat
+    ) -> CGFloat {
+        max(0, containerHeight - frame.minY + 1)
+    }
+}
+
 struct HomeCreationMorphOverlayLayer: View {
     @Bindable var session: HomeMorphSession
 
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var measuredTodoEditorContentHeight: CGFloat = 0
-    @State private var measuredTodoEditorSubjectID: UUID?
+    @State private var measuredEditorContentHeight: CGFloat = 0
+    @State private var measuredEditorSubjectID: UUID?
+    @State private var mountedSubjectID: UUID?
+    @State private var appearedSubjectID: UUID?
 
     var body: some View {
         GeometryReader { proxy in
-            if let subject = session.subject, session.isCreationOverlayVisible {
-                let rootFrame = proxy.frame(in: .global)
-                let editorFrame = editorFrame(in: proxy)
-                let dissolvedFrame = dissolvedFrame(from: editorFrame)
-                let frame = currentFrame(
-                    rootFrame: rootFrame,
-                    editorFrame: editorFrame,
-                    dissolvedFrame: dissolvedFrame
-                )
-
+            if session.isCreationOverlayVisible {
                 Color.clear
                     .contentShape(Rectangle())
-                    .onTapGesture { }
+                    .onTapGesture {
+                        session.requestDismissal()
+                    }
+            }
 
-                Color.black
-                    .opacity(creationScrimOpacity * backgroundScrimProgress)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
+            if let subject = session.subject,
+               session.isCreationOverlayVisible,
+               mountedSubjectID == subject.id {
+                let frame = editorFrame(in: proxy)
+                let appearanceOpacity: CGFloat = appearedSubjectID == subject.id ? 1 : 0
+                let dismissalOffset = reduceMotion ? 0 : HomeCreationOverlayLayout.dismissalOffset(
+                    frame: frame,
+                    containerHeight: proxy.size.height
+                )
 
-                RoundedRectangle(
-                    cornerRadius: surfaceCornerRadius(frame: frame),
-                    style: .continuous
-                )
-                .fill(AppTheme.colors.surface)
-                .overlay {
-                    RoundedRectangle(
-                        cornerRadius: surfaceCornerRadius(frame: frame),
-                        style: .continuous
-                    )
-                    .strokeBorder(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
-                }
-                .opacity(surfaceChromeOpacity)
-                .shadow(
-                    color: .black.opacity(0.2 * surfaceChromeOpacity),
-                    radius: 20 * surfaceChromeOpacity,
-                    y: 9 * surfaceChromeOpacity
-                )
-                .overlay {
-                    editorContent(for: subject)
-                        .padding(.horizontal, TaskMorphSurfaceMetrics.horizontalInset)
-                        .padding(.vertical, TaskMorphSurfaceMetrics.verticalInset)
-                        .scaleEffect(editorContentScale, anchor: .top)
-                        .opacity(editorContentOpacity)
-                        .allowsHitTesting(session.isInteractive)
-                }
-                .overlay {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(AppTheme.colors.title)
-                        .opacity(heroSourceGlyphOpacity)
-                }
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: surfaceCornerRadius(frame: frame),
-                        style: .continuous
-                    )
-                )
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-                .accessibilityElement(children: .contain)
-                .accessibilityAction(.escape) {
-                    session.requestDismissal()
-                }
-                .task(id: globalFrame(editorFrame, in: rootFrame)) {
-                    session.recordHeroTargetFrame(globalFrame(editorFrame, in: rootFrame))
-                    runHeroIfCurrent()
-                }
+                creationSurfaceShape
+                    .fill(AppTheme.colors.surface)
+                    .overlay {
+                        creationSurfaceShape
+                            .stroke(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
+                    }
+                    .overlay {
+                        editorContent(for: subject)
+                            .padding(.horizontal, TaskMorphSurfaceMetrics.horizontalInset)
+                            .padding(.vertical, TaskMorphSurfaceMetrics.verticalInset)
+                            .allowsHitTesting(session.isInteractive)
+                    }
+                    .clipShape(creationSurfaceShape)
+                    .frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY)
+                    .offset(y: session.phase == .collapsing ? dismissalOffset : 0)
+                    .opacity(appearanceOpacity)
+                    .animation(surfaceAppearanceAnimation, value: appearedSubjectID)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityAction(.escape) {
+                        session.requestDismissal()
+                    }
+                    .task(id: subject.id) {
+                        guard session.subject == subject,
+                              session.isCreationOverlayVisible
+                        else { return }
+                        appearedSubjectID = subject.id
+                    }
             }
         }
         .ignoresSafeArea(.container, edges: .all)
+        .task(id: session.subject?.id) {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                mountedSubjectID = nil
+                appearedSubjectID = nil
+            }
+
+            guard let subject = session.subject,
+                  session.isCreationOverlayVisible
+            else { return }
+
+            await Task.yield()
+            guard Task.isCancelled == false,
+                  session.subject == subject,
+                  session.isCreationOverlayVisible
+            else { return }
+
+            withTransaction(transaction) {
+                mountedSubjectID = subject.id
+            }
+        }
     }
 
     @ViewBuilder
@@ -1219,166 +1252,52 @@ struct HomeCreationMorphOverlayLayer: View {
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.height
             } action: { height in
-                guard subject.domain == .todo, height.isFinite, height > 0 else { return }
-                measuredTodoEditorSubjectID = subject.id
-                measuredTodoEditorContentHeight = height
+                guard height.isFinite, height > 0 else { return }
+                guard measuredEditorSubjectID != subject.id
+                        || abs(measuredEditorContentHeight - height) > 0.5
+                else { return }
+
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    measuredEditorSubjectID = subject.id
+                    measuredEditorContentHeight = height
+                }
             }
         }
         .scrollIndicators(.hidden)
     }
 
-    private func runHeroIfCurrent() {
-        guard let token = session.currentToken(), session.phase == .heroEntering else { return }
-        withAnimation(
-            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.92),
-            completionCriteria: .logicallyComplete
-        ) {
-            session.setHeroProgress(1, using: token)
-        } completion: {
-            guard session.isCurrent(token) else { return }
-            session.finishHero(using: token)
-        }
+    private var creationSurfaceShape: ConcentricRectangle {
+        ConcentricRectangle(
+            corners: .concentric(minimum: .fixed(AppTheme.radius.xl)),
+            isUniform: true
+        )
     }
 
-    private var creationScrimOpacity: Double {
-        colorScheme == .dark ? 0.12 : 0.18
+    private var surfaceAppearanceAnimation: Animation {
+        .easeOut(duration: reduceMotion ? 0.12 : 0.14)
     }
 
     private func editorFrame(in proxy: GeometryProxy) -> CGRect {
-        let horizontalInset: CGFloat = 12
-        let verticalInset: CGFloat = 14
-        let availableHeight = max(120, proxy.size.height - verticalInset * 2)
-        let isTodo = session.subject?.domain == .todo
-        let preferredHeight: CGFloat = if isTodo {
-            if measuredTodoEditorSubjectID == session.subject?.id {
-                max(206, measuredTodoEditorContentHeight + 2 * TaskMorphSurfaceMetrics.verticalInset)
-            } else {
-                206
-            }
-        } else {
-            560
-        }
-        let height = min(preferredHeight, availableHeight)
-        let y: CGFloat = if isTodo {
-            max(verticalInset, proxy.size.height - height - 10)
-        } else {
-            max(verticalInset, (proxy.size.height - height) / 2)
-        }
-        return CGRect(
-            x: horizontalInset,
-            y: y,
-            width: max(120, proxy.size.width - horizontalInset * 2),
-            height: height
-        )
-    }
-
-    private func dissolvedFrame(from editorFrame: CGRect) -> CGRect {
-        CGRect(
-            x: editorFrame.minX + editorFrame.width * 0.09,
-            y: editorFrame.midY - 0.5,
-            width: editorFrame.width * 0.82,
-            height: 1
-        )
-    }
-
-    private func currentFrame(
-        rootFrame: CGRect,
-        editorFrame: CGRect,
-        dissolvedFrame: CGRect
-    ) -> CGRect {
-        switch session.phase {
-        case .heroEntering:
-            guard let source = session.heroSourceFrame else { return editorFrame }
-            return interpolatedFrame(
-                from: localFrame(source, in: rootFrame),
-                to: editorFrame,
-                progress: session.heroProgress
+        guard let subject = session.subject else {
+            return HomeCreationOverlayLayout.editorFrame(
+                containerSize: proxy.size,
+                preferredHeight: HomeCreationOverlayLayout.todoMinimumEditorHeight
             )
-        case .active, .saving:
-            return editorFrame
-        case .collapsing:
-            return dissolvedFrame
-        case .relocating, .idle:
-            return dissolvedFrame
         }
-    }
-
-    private func interpolatedFrame(from source: CGRect, to target: CGRect, progress: CGFloat) -> CGRect {
-        CGRect(
-            x: source.minX + (target.minX - source.minX) * progress,
-            y: source.minY + (target.minY - source.minY) * progress,
-            width: source.width + (target.width - source.width) * progress,
-            height: source.height + (target.height - source.height) * progress
+        let preferredHeight: CGFloat = if measuredEditorSubjectID == session.subject?.id {
+            HomeCreationOverlayLayout.preferredHeight(
+                measuredContentHeight: measuredEditorContentHeight,
+                domain: subject.domain
+            )
+        } else {
+            HomeCreationOverlayLayout.minimumEditorHeight(for: subject.domain)
+        }
+        return HomeCreationOverlayLayout.editorFrame(
+            containerSize: proxy.size,
+            preferredHeight: preferredHeight
         )
     }
 
-    private func localFrame(_ globalFrame: CGRect, in rootFrame: CGRect) -> CGRect {
-        globalFrame.offsetBy(dx: -rootFrame.minX, dy: -rootFrame.minY)
-    }
-
-    private func globalFrame(_ localFrame: CGRect, in rootFrame: CGRect) -> CGRect {
-        localFrame.offsetBy(dx: rootFrame.minX, dy: rootFrame.minY)
-    }
-
-    private func surfaceCornerRadius(frame: CGRect) -> CGFloat {
-        if session.phase == .heroEntering {
-            let source = session.heroSourceFrame ?? frame
-            let start = min(source.width, source.height) / 2
-            return start + (TaskMorphSurfaceMetrics.expandedCornerRadius - start) * session.heroProgress
-        }
-        return session.phase == .collapsing
-            ? TaskMorphSurfaceMetrics.compactCornerRadius
-            : TaskMorphSurfaceMetrics.expandedCornerRadius
-    }
-
-    private var surfaceChromeOpacity: CGFloat {
-        switch session.phase {
-        case .heroEntering:
-            1
-        case .collapsing, .relocating, .idle:
-            0
-        case .active, .saving:
-            1
-        }
-    }
-
-    private var backgroundScrimProgress: CGFloat {
-        switch session.phase {
-        case .heroEntering:
-            session.heroProgress
-        case .active, .saving:
-            1
-        case .collapsing, .relocating, .idle:
-            0
-        }
-    }
-
-    private var editorContentOpacity: CGFloat {
-        switch session.phase {
-        case .heroEntering:
-            min(max((session.heroProgress - 0.18) / 0.82, 0), 1)
-        case .active, .saving:
-            1
-        case .collapsing, .idle, .relocating:
-            0
-        }
-    }
-
-    private var editorContentScale: CGFloat {
-        guard reduceMotion == false else { return 1 }
-        return switch session.phase {
-        case .heroEntering:
-            1 + (TaskMorphSurfaceMetrics.expandedContentScale - 1) * session.heroProgress
-        case .active, .saving:
-            TaskMorphSurfaceMetrics.expandedContentScale
-        case .collapsing:
-            0.985
-        case .relocating, .idle:
-            1
-        }
-    }
-
-    private var heroSourceGlyphOpacity: CGFloat {
-        session.phase == .heroEntering ? 1 - session.heroProgress : 0
-    }
 }

@@ -47,7 +47,6 @@ struct ProjectsView: View {
 }
 
 struct ProjectsListContent: View {
-    @Environment(AppContext.self) private var appContext
     @Bindable var viewModel: ProjectsViewModel
     let style: ProjectsPresentationStyle
     let showsHeader: Bool
@@ -61,7 +60,6 @@ struct ProjectsListContent: View {
     @State private var stagedTargetDate = Date()
     @State private var showsArchivedProjects = false
     @State private var hasAppliedEntryExpansion = false
-    @State private var dockHideTask: Task<Void, Never>?
     private let horizontalInset = AppTheme.spacing.xl
     private let expandAnimation = Animation.snappy(duration: 0.42, extraBounce: 0.06)
     private let collapseAnimation = Animation.snappy(duration: 0.28, extraBounce: 0)
@@ -137,11 +135,6 @@ struct ProjectsListContent: View {
         }
         .scrollIndicators(.hidden)
         .applyScrollEdgeProtection()
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y + geo.contentInsets.top
-        } action: { _, newOffset in
-            handleScrollOffsetChange(to: newOffset)
-        }
     }
 
     private var scrollSections: some View {
@@ -166,34 +159,6 @@ struct ProjectsListContent: View {
                     sectionIndex: 2,
                     topInset: 0
                 )
-            }
-        }
-    }
-
-    private func handleScrollOffsetChange(to newOffset: CGFloat) {
-        let homeViewModel = appContext.homeViewModel
-        let shouldHide = newOffset > 30
-
-        dockHideTask?.cancel()
-
-        if shouldHide {
-            if !homeViewModel.isDockHidden {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                    homeViewModel.isDockHidden = true
-                }
-            }
-            dockHideTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1.8))
-                guard !Task.isCancelled else { return }
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                    homeViewModel.isDockHidden = false
-                }
-            }
-        } else {
-            if homeViewModel.isDockHidden {
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
-                    homeViewModel.isDockHidden = false
-                }
             }
         }
     }

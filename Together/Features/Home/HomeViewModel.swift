@@ -151,7 +151,6 @@ final class HomeViewModel {
     var weeklyCompletedEntryCount = 0
     var isPerformingSnooze = false
     var isOverdueSheetPresented = false
-    var isDockHidden = false
 
     init(
         sessionStore: SessionStore,
@@ -471,7 +470,9 @@ final class HomeViewModel {
     }
 
     func presentItemDetail(_ itemID: UUID) {
-        guard let item = items.first(where: { $0.id == itemID }) else { return }
+        guard let item = items.first(where: { $0.id == itemID }),
+              isTimelineCompleted(item) == false
+        else { return }
         selectedItemID = itemID
         let draft = TaskDraft(item: item)
         detailDraft = draft
@@ -1321,8 +1322,10 @@ final class HomeViewModel {
     }
 
     private var primaryIncompleteTimelineItems: [Item] {
-        guard showsOverdueCapsule else { return incompleteTimelineItems }
-        return incompleteTimelineItems.filter { $0.isOverdue(on: selectedDate, calendar: calendar) == false }
+        // Home currently has no rendered overdue-summary entry. Keep overdue
+        // tasks in the normal timeline so that removing that entry can never
+        // turn real persisted tasks into a false empty state.
+        incompleteTimelineItems
     }
 
     private var completedTimelineItems: [Item] {

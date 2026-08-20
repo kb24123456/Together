@@ -4,9 +4,11 @@ import UIKit
 #endif
 
 enum HomeModeTaskTransitionTiming {
-    static let rowDelay: Double = 0.02
-    static let linearCascadeRowCount = 12
-    static let maximumCascadeDelay: Double = 0.32
+    static let revealDelay: Duration = .milliseconds(70)
+    static let rowDuration: Double = 0.24
+    static let rowDelay: Double = 0.05
+    static let linearCascadeRowCount = 8
+    static let maximumCascadeDelay: Double = 0.46
 
     private static let tailHalfDistance = 8.0
 
@@ -40,6 +42,48 @@ enum HomeModeTaskTransitionTiming {
     }
 }
 
+struct HomeModeTaskRevealKey: Hashable {
+    let isPresented: Bool
+    let reduceMotion: Bool
+    let isContentReady: Bool
+}
+
+struct RoutineCycleTaskRevealKey: Hashable {
+    let cycle: PeriodicCycle
+    let isPresented: Bool
+    let reduceMotion: Bool
+    let isContentReady: Bool
+}
+
+struct HomeModeTaskWaveModifier: AnimatableModifier {
+    var progress: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let values = TaskMorphCascadeValues.resolve(
+            progress: progress,
+            reduceMotion: reduceMotion
+        )
+        content
+            .offset(x: values.offset.width, y: values.offset.height)
+            .opacity(values.opacity)
+            .allowsHitTesting(values.progress >= 0.999)
+            .accessibilityHidden(values.progress < 0.999)
+    }
+}
+
+extension View {
+    func homeModeTaskWave(progress: CGFloat) -> some View {
+        modifier(HomeModeTaskWaveModifier(progress: progress))
+    }
+}
+
 private struct RoutinesListLoadKey: Hashable {
     let spaceID: UUID?
     let isPresented: Bool
@@ -56,12 +100,13 @@ struct RoutinesListContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var cycleIndicatorNamespace
-    @State private var cycleTransitionDirection = 1
     @State private var frozenTasks: [PeriodicTask]?
     @State private var frozenTaskStreamPresentation: RoutinesViewModel.TaskStreamPresentation?
     @State private var frozenSummary: RoutineDimensionSummary?
     @State private var frozenStatusMessage: String?
     @State private var frozenSelectedCycle: PeriodicCycle?
+    @State private var modeTaskRowsPresented = false
+    @State private var revealedTaskCycle: PeriodicCycle?
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let rowTopInset = TaskMorphListSpacing.compactExternalInset
@@ -82,7 +127,9 @@ struct RoutinesListContent: View {
                 .onChange(of: viewModel.selectedCycle) { _, cycle in
                     appContext.router.pendingPeriodicCycle = cycle
                     guard morphSession.isActive == false else { return }
-                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) {
+                    var transaction = Transaction()
+                    transaction.animation = nil
+                    withTransaction(transaction) {
                         scrollProxy.scrollTo(listTopAnchor, anchor: .top)
                     }
                 }
@@ -127,6 +174,25 @@ struct RoutinesListContent: View {
             appContext.router.pendingPeriodicCycle = viewModel.selectedCycle
             selectPendingRouterCycleIfNeeded()
         }
+        .task(
+            id: HomeModeTaskRevealKey(
+                isPresented: isPresented,
+                reduceMotion: reduceMotion,
+                isContentReady: isModeTaskContentReady
+            )
+        ) {
+            await updateModeTaskRowsPresentation()
+        }
+        .task(
+            id: RoutineCycleTaskRevealKey(
+                cycle: displayedCycle,
+                isPresented: isPresented,
+                reduceMotion: reduceMotion,
+                isContentReady: isModeTaskContentReady
+            )
+        ) {
+            await updateCycleTaskRowsPresentation()
+        }
         .task(id: viewModel.nextDeferredTaskResumeDate) {
             await refreshWhenNextDeferredTaskResumes()
         }
@@ -139,7 +205,7 @@ struct RoutinesListContent: View {
         }
         .onChange(of: morphSession.phase) { _, phase in
             switch phase {
-            case .heroEntering, .active, .saving, .collapsing:
+            case .active, .saving, .collapsing:
                 if frozenTasks == nil {
                     frozenTasks = viewModel.currentTasks
                     frozenTaskStreamPresentation = viewModel.taskStreamPresentation
@@ -183,9 +249,9 @@ struct RoutinesListContent: View {
         .opacity(isPresented ? 1 : 0)
         .animation(modeHeaderAnimation, value: isPresented)
         .taskMorphBackgroundDepth(
-            isDeemphasized: morphSession.isFocusDepthActive,
+            isDeemphasized: morphSession.isDetailFocusDepthActive,
             anchor: .top,
-            appliesVisualDepth: morphSession.isCreationFlow,
+            appliesVisualDepth: false,
             detailBlurRadius: TaskMorphBackgroundWave.headerBlurRadius,
             onDismiss: morphSession.requestDismissal
         )
@@ -209,7 +275,6 @@ struct RoutinesListContent: View {
         return Button {
             guard morphSession.isActive == false else { return }
             HomeInteractionFeedback.selection()
-            updateCycleTransitionDirection(to: cycle)
             withAnimation(cycleAnimation) {
                 viewModel.selectCycle(cycle)
             }
@@ -266,12 +331,6 @@ struct RoutinesListContent: View {
     private func updateCycleVisibility(_ cycle: PeriodicCycle, isVisible: Bool) {
         guard morphSession.isActive == false else { return }
         HomeInteractionFeedback.selection()
-        if isVisible == false, viewModel.selectedCycle == cycle,
-           let fallback = PeriodicCycle.allCases.first(where: {
-               $0 != cycle && viewModel.persistedVisibleCycles.contains($0)
-           }) {
-            updateCycleTransitionDirection(to: fallback)
-        }
         withAnimation(cycleAnimation) {
             viewModel.setCycle(cycle, isVisible: isVisible)
         }
@@ -350,7 +409,7 @@ struct RoutinesListContent: View {
                 .padding(.bottom, AppTheme.spacing.md)
             }
             .scrollIndicators(.hidden)
-            .applyScrollEdgeProtection()
+            .applyFixedTopScrollEdgeTransition()
             .transaction { transaction in
                 if morphSession.phase == .relocating, morphSession.isCreationFlow == false {
                     // Cycle changes and the destination row are prepared behind
@@ -486,7 +545,6 @@ struct RoutinesListContent: View {
         return TaskMorphContainer(
             state: isActiveMorph ? morphSession.visualState : .compact,
             isActive: isActiveMorph,
-            hidesRealSurfaceForHero: false,
             isBackgroundDeemphasized: morphSession.isFocusDepthActive
                 && morphSession.isCreationFlow == false
                 && isActiveMorph == false
@@ -534,7 +592,7 @@ struct RoutinesListContent: View {
             }
         }
         .overlay {
-            if isActiveMorph, morphSession.phase != .active {
+            if isActiveMorph, viewModel.isCompleted(task) == false, morphSession.phase != .active {
                 Button {
                     toggleInlineDetail(task.id, scrollProxy: scrollProxy)
                 } label: {
@@ -586,15 +644,15 @@ struct RoutinesListContent: View {
             )
         )
         .frame(maxWidth: .infinity, alignment: .leading)
-        .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 12))
-        .opacity(isPresented ? 1 : 0)
+        .homeModeTaskWave(progress: taskRowsPresented ? 1 : 0)
         .animation(
-            modeRowAnimation(index: index, taskCount: taskCount),
-            value: isPresented
+            taskRowWaveAnimation(index: index, taskCount: taskCount),
+            value: taskRowsPresented
         )
         .contextMenu {
             if morphSession.isActive == false {
-                if viewModel.canEditPeriodicTask(task) {
+                if viewModel.isCompleted(task) == false,
+                   viewModel.canEditPeriodicTask(task) {
                     Button {
                         toggleInlineDetail(task.id, scrollProxy: scrollProxy)
                     } label: {
@@ -623,24 +681,7 @@ struct RoutinesListContent: View {
                 }
             }
         }
-        .taskEdgeFlow(
-            intensity: morphSession.isFocusDepthActive ? 0 : 1,
-            isBaseHidden: isCreationRevealTarget
-        )
-        .animation(focusDepthAnimation, value: morphSession.isFocusDepthActive)
         .zIndex(isActiveMorph ? 1 : 0)
-    }
-
-    private var focusDepthAnimation: Animation {
-        if reduceMotion {
-            return .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
-        }
-        return .smooth(
-            duration: morphSession.isFocusDepthActive
-                ? TaskExpansionMotionTiming.identityExpansionDuration
-                : TaskExpansionMotionTiming.collapseDuration,
-            extraBounce: 0
-        )
     }
 
     private func routineTaskRow(
@@ -699,6 +740,11 @@ struct RoutinesListContent: View {
     private func toggleInlineDetail(_ taskID: UUID, scrollProxy: ScrollViewProxy) {
         _ = scrollProxy
         if morphSession.isActive {
+            if let task = viewModel.tasks.first(where: { $0.id == taskID }),
+               viewModel.isCompleted(task) {
+                morphSession.requestDismissal()
+                return
+            }
             if morphSession.phase == .saving,
                morphSession.requestExpansionRetention(domain: .periodic, id: taskID) {
                 return
@@ -709,9 +755,11 @@ struct RoutinesListContent: View {
             morphSession.requestDismissal()
             return
         }
+        guard let task = viewModel.tasks.first(where: { $0.id == taskID }),
+              viewModel.isCompleted(task) == false
+        else { return }
         HomeInteractionFeedback.soft()
-        guard let placement = viewModel.morphPlacement(for: taskID),
-              viewModel.tasks.contains(where: { $0.id == taskID })
+        guard let placement = viewModel.morphPlacement(for: taskID)
         else { return }
         var expansionToken: HomeMorphSessionToken?
         var transaction = Transaction()
@@ -801,7 +849,6 @@ struct RoutinesListContent: View {
 
     private func selectPendingRouterCycleIfNeeded() {
         if let pendingCycle = appContext.router.pendingPeriodicCycle {
-            updateCycleTransitionDirection(to: pendingCycle)
             if viewModel.persistedVisibleCycles.contains(pendingCycle) {
                 viewModel.selectCycle(pendingCycle)
             } else {
@@ -814,7 +861,6 @@ struct RoutinesListContent: View {
 
         let attention = viewModel.attentionSummary(referenceDate: viewModel.referenceDate)
         if let firstAttention = attention.first {
-            updateCycleTransitionDirection(to: firstAttention.0)
             withAnimation(cycleAnimation) {
                 if viewModel.persistedVisibleCycles.contains(firstAttention.0) {
                     viewModel.selectCycle(firstAttention.0)
@@ -825,27 +871,15 @@ struct RoutinesListContent: View {
         }
     }
 
-    private func updateCycleTransitionDirection(to cycle: PeriodicCycle) {
-        guard let currentIndex = PeriodicCycle.allCases.firstIndex(of: viewModel.selectedCycle),
-              let targetIndex = PeriodicCycle.allCases.firstIndex(of: cycle)
-        else {
-            cycleTransitionDirection = 1
-            return
-        }
-        cycleTransitionDirection = targetIndex >= currentIndex ? 1 : -1
-    }
-
     private var cycleAnimation: Animation? {
         reduceMotion ? .easeInOut(duration: 0.16) : .smooth(duration: 0.26, extraBounce: 0)
     }
 
     private var cycleContentTransition: AnyTransition {
         guard reduceMotion == false else { return .opacity }
-        let insertionEdge: Edge = cycleTransitionDirection >= 0 ? .trailing : .leading
-        let removalEdge: Edge = cycleTransitionDirection >= 0 ? .leading : .trailing
         return .asymmetric(
-            insertion: .move(edge: insertionEdge).combined(with: .opacity),
-            removal: .move(edge: removalEdge).combined(with: .opacity)
+            insertion: .identity,
+            removal: .opacity
         )
     }
 
@@ -855,16 +889,66 @@ struct RoutinesListContent: View {
             : .smooth(duration: 0.32, extraBounce: 0).delay(isPresented ? 0.04 : 0)
     }
 
-    private func modeRowAnimation(index: Int, taskCount: Int) -> Animation {
+    private func taskRowWaveAnimation(index: Int, taskCount: Int) -> Animation {
         let delay = HomeModeTaskTransitionTiming.delay(
             for: index,
             taskCount: taskCount,
-            isPresented: isPresented,
+            isPresented: taskRowsPresented,
             reduceMotion: reduceMotion
         )
         return reduceMotion
             ? .easeInOut(duration: 0.18)
-            : .smooth(duration: 0.3, extraBounce: 0).delay(delay)
+            : .linear(duration: HomeModeTaskTransitionTiming.rowDuration).delay(delay)
+    }
+
+    private func updateModeTaskRowsPresentation() async {
+        guard isPresented else {
+            modeTaskRowsPresented = false
+            return
+        }
+        guard isModeTaskContentReady else {
+            modeTaskRowsPresented = false
+            return
+        }
+        guard reduceMotion == false else {
+            modeTaskRowsPresented = true
+            return
+        }
+
+        modeTaskRowsPresented = false
+        try? await Task.sleep(for: HomeModeTaskTransitionTiming.revealDelay)
+        guard Task.isCancelled == false else { return }
+        modeTaskRowsPresented = true
+    }
+
+    private func updateCycleTaskRowsPresentation() async {
+        guard isPresented, isModeTaskContentReady else {
+            revealedTaskCycle = nil
+            return
+        }
+        guard reduceMotion == false else {
+            revealedTaskCycle = displayedCycle
+            return
+        }
+
+        let targetCycle = displayedCycle
+        revealedTaskCycle = nil
+        try? await Task.sleep(for: HomeModeTaskTransitionTiming.revealDelay)
+        guard Task.isCancelled == false, displayedCycle == targetCycle else { return }
+        revealedTaskCycle = targetCycle
+    }
+
+    private var taskRowsPresented: Bool {
+        modeTaskRowsPresented && revealedTaskCycle == displayedCycle
+    }
+
+    private var isModeTaskContentReady: Bool {
+        switch frozenTaskStreamPresentation ?? viewModel.taskStreamPresentation {
+        case .loading:
+            false
+        case .failure, .allEmpty, .cycleEmpty, .content:
+            true
+        }
     }
 
 }

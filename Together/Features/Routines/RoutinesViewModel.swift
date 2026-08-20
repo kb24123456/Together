@@ -737,7 +737,9 @@ final class RoutinesViewModel {
             return
         }
 
-        guard let task = tasks.first(where: { $0.id == taskID }) else { return }
+        guard let task = tasks.first(where: { $0.id == taskID }),
+              isCompleted(task) == false
+        else { return }
         expandedTaskID = taskID
         detailDraft = RoutineInlineDraft(task: task)
     }
@@ -745,7 +747,8 @@ final class RoutinesViewModel {
     @discardableResult
     func presentDetailForMorph(_ taskID: UUID) -> Bool {
         guard expandedTaskID == nil,
-              let task = tasks.first(where: { $0.id == taskID })
+              let task = tasks.first(where: { $0.id == taskID }),
+              isCompleted(task) == false
         else { return false }
         expandedTaskID = taskID
         detailDraft = RoutineInlineDraft(task: task)

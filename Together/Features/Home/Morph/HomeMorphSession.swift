@@ -75,7 +75,6 @@ enum TaskMorphPersistenceResult: Equatable, Sendable {
 
 enum HomeMorphPhase: Equatable, Sendable {
     case idle
-    case heroEntering
     case active
     case saving
     case collapsing
@@ -85,7 +84,7 @@ enum HomeMorphPhase: Equatable, Sendable {
         switch self {
         case .saving, .collapsing, .relocating:
             true
-        case .idle, .heroEntering, .active:
+        case .idle, .active:
             false
         }
     }
@@ -111,9 +110,6 @@ final class HomeMorphSession {
     private(set) var phase: HomeMorphPhase = .idle
     private(set) var placement: TaskMorphPlacement?
     private(set) var errorMessage: String?
-    private(set) var heroSourceFrame: CGRect?
-    private(set) var heroTargetFrame: CGRect?
-    private(set) var heroProgress: CGFloat = 0
     private(set) var isCreationListRevealEnabled = false
     private(set) var isCreationFlow = false
     private(set) var detailPresentationIntent: HomeMorphDetailPresentationIntent = .compact
@@ -130,22 +126,17 @@ final class HomeMorphSession {
     var isCreationOverlayVisible: Bool {
         isCreationFlow && phase != .idle && phase != .relocating
     }
+    var isDetailFocusDepthActive: Bool {
+        isCreationFlow == false && visualState == .expanded
+    }
     var isFocusDepthActive: Bool {
-        if isCreationFlow {
-            return phase != .idle && phase != .relocating
-        }
-        return visualState == .expanded
+        isCreationOverlayVisible || isDetailFocusDepthActive
     }
-    var isHeroVisible: Bool {
-        isCreationFlow && phase == .heroEntering && heroSourceFrame != nil && heroTargetFrame != nil
-    }
-
     @discardableResult
     func beginCreation(
         domain: TaskMorphDomain,
         id: UUID,
-        placement: TaskMorphPlacement,
-        heroSourceFrame: CGRect?
+        placement: TaskMorphPlacement
     ) -> HomeMorphSessionToken? {
         guard phase == .idle else { return nil }
         sessionID = UUID()
@@ -153,19 +144,9 @@ final class HomeMorphSession {
         isCreationFlow = true
         self.placement = placement
         errorMessage = nil
-        heroTargetFrame = nil
-        heroProgress = 0
         isCreationListRevealEnabled = false
         detailSourcePlacement = nil
         detailPresentationIntent = .compact
-
-        if let heroSourceFrame, Self.isValid(frame: heroSourceFrame) {
-            self.heroSourceFrame = heroSourceFrame
-            visualState = .compact
-            return advance(to: .heroEntering)
-        }
-
-        self.heroSourceFrame = nil
         visualState = .editing
         return advance(to: .active)
     }
@@ -182,9 +163,6 @@ final class HomeMorphSession {
         isCreationFlow = false
         self.placement = placement
         errorMessage = nil
-        heroSourceFrame = nil
-        heroTargetFrame = nil
-        heroProgress = 0
         isCreationListRevealEnabled = false
         detailSourcePlacement = placement
         detailPresentationIntent = .expanded
@@ -204,28 +182,6 @@ final class HomeMorphSession {
         else { return false }
         visualState = .expanded
         return true
-    }
-
-    func recordHeroTargetFrame(_ frame: CGRect) {
-        guard phase == .heroEntering,
-              heroTargetFrame == nil,
-              Self.isValid(frame: frame)
-        else { return }
-        heroTargetFrame = frame
-    }
-
-    func setHeroProgress(_ progress: CGFloat, using token: HomeMorphSessionToken) {
-        guard phase == .heroEntering, isCurrent(token) else { return }
-        heroProgress = min(max(progress, 0), 1)
-    }
-
-    func finishHero(using token: HomeMorphSessionToken) {
-        guard phase == .heroEntering, isCurrent(token) else { return }
-        heroProgress = 1
-        heroSourceFrame = nil
-        heroTargetFrame = nil
-        visualState = .editing
-        _ = advance(to: .active)
     }
 
     func requestDismissal() {
@@ -443,21 +399,9 @@ final class HomeMorphSession {
         phase = .idle
         placement = nil
         errorMessage = nil
-        heroSourceFrame = nil
-        heroTargetFrame = nil
-        heroProgress = 0
         isCreationListRevealEnabled = false
         isCreationFlow = false
         detailSourcePlacement = nil
         detailPresentationIntent = .compact
-    }
-
-    private static func isValid(frame: CGRect) -> Bool {
-        frame.origin.x.isFinite
-            && frame.origin.y.isFinite
-            && frame.width.isFinite
-            && frame.height.isFinite
-            && frame.width > 0
-            && frame.height > 0
     }
 }

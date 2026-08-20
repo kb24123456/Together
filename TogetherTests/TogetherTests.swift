@@ -103,6 +103,24 @@ struct TogetherTests {
         #expect(try await repository.fetchItem(itemID: item.id)?.title == "收起前已同步")
     }
 
+    @Test func completedHomeTaskDoesNotOpenInlineDetail() async {
+        let item = makeHomeFilterItem(
+            title: "已经完成",
+            completedAt: .now,
+            status: .completed
+        )
+        let viewModel = makeInlineDetailHomeViewModel(
+            repository: MockItemRepository(items: [item])
+        )
+
+        await viewModel.reload()
+        #expect(viewModel.timelineEntry(for: item.id)?.isCompleted == true)
+        viewModel.presentItemDetail(item.id)
+
+        #expect(viewModel.selectedItemID == nil)
+        #expect(viewModel.detailDraft == nil)
+    }
+
     @Test func inlineTaskCreationKeepsOneUUIDAcrossFailureAndRetry() async throws {
         let sessionStore = SessionStore()
         sessionStore.seedMock(
@@ -511,7 +529,8 @@ struct TogetherTests {
             )
         }
 
-        #expect(Array(entryDelays.prefix(5)) == [0, 0.02, 0.04, 0.06, 0.08])
+        #expect(entryDelays[0] == 0)
+        #expect(abs(entryDelays[4] - 0.20) < 0.000_1)
         #expect(
             zip(entryDelays, entryDelays.dropFirst()).allSatisfy { previous, next in
                 previous < next
@@ -1849,7 +1868,7 @@ struct TogetherTests {
         #expect(viewModel.detailDraft == nil)
     }
 
-    @Test func completedRoutineCanStillOpenInlineDetail() async {
+    @Test func completedRoutineDoesNotOpenInlineDetail() async {
         let periodKey = PeriodicCycleCalculator.periodKey(for: .daily, date: .now)
         let task = makePeriodicTask(
             title: "已经打卡",
@@ -1861,8 +1880,9 @@ struct TogetherTests {
 
         await viewModel.toggleInlineDetail(task.id)
 
-        #expect(viewModel.expandedTaskID == task.id)
-        #expect(viewModel.detailDraft?.title == task.title)
+        #expect(viewModel.expandedTaskID == nil)
+        #expect(viewModel.detailDraft == nil)
+        #expect(viewModel.presentDetailForMorph(task.id) == false)
     }
 
     @Test func homeReloadKeepsTasksWhenWeeklyCompletedCountFails() async throws {
@@ -1893,6 +1913,58 @@ struct TogetherTests {
 
         #expect(viewModel.activeTimelineEntries.map(\.title) == ["未完成仍显示"])
         #expect(viewModel.weeklyCompletedEntryCount == expectedWeeklyCount)
+    }
+
+    @Test func overdueTasksRemainVisibleInActiveTimeline() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
+        var overdue = makeHomeFilterItem(
+            title: "逾期任务仍显示",
+            completedAt: nil,
+            status: .inProgress
+        )
+        overdue.dueAt = yesterday
+        let viewModel = makeInlineDetailHomeViewModel(
+            repository: MockItemRepository(items: [overdue])
+        )
+
+        await viewModel.reload()
+
+        #expect(viewModel.overdueEntryCount == 1)
+        #expect(viewModel.activeTimelineEntries.map(\.itemID) == [overdue.id])
+        #expect(viewModel.activeTimelineSections.flatMap(\.entries).map(\.itemID) == [overdue.id])
+    }
+
+    @Test func overdueSummaryEntryPresentsOnlyWhileViewingToday() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
+        let tomorrow = try #require(calendar.date(byAdding: .day, value: 1, to: todayStart))
+        var overdue = makeHomeFilterItem(
+            title: "逾期入口任务",
+            completedAt: nil,
+            status: .inProgress
+        )
+        overdue.dueAt = yesterday
+        let viewModel = makeInlineDetailHomeViewModel(
+            repository: MockItemRepository(items: [overdue])
+        )
+
+        await viewModel.reload()
+
+        #expect(viewModel.showsOverdueCapsule)
+        #expect(viewModel.isOverdueSheetPresented == false)
+
+        viewModel.presentOverdueSheet()
+        #expect(viewModel.isOverdueSheetPresented)
+
+        viewModel.selectDate(tomorrow)
+        #expect(viewModel.showsOverdueCapsule == false)
+        #expect(viewModel.isOverdueSheetPresented == false)
+
+        viewModel.presentOverdueSheet()
+        #expect(viewModel.isOverdueSheetPresented == false)
     }
 
     @Test func homeTimelineSortsIncompleteTasksByDueDateAscendingBeforeSortOrder() async throws {
@@ -3339,14 +3411,14 @@ struct TogetherTests {
         )
 
         let content = TaskSharedIdentityContent.make(entry: entry)
-        #expect(HomeTimelineSubtitleText.text(for: entry).isEmpty)
+        #expect(HomeTimelineSubtitleText.text(for: entry) == "1/2")
         #expect(content.note == "备注不会盖过子任务")
         #expect(content.visibleElements.contains(.progress))
         #expect(content.completedSubtaskCount == 1)
         #expect(content.totalSubtaskCount == 2)
     }
 
-    @Test func timelineRowDisplayLeavesSubtaskProgressToSharedRing() {
+    @Test func timelineRowDisplayUsesSubtaskProgressAsTextSubtitle() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -3385,12 +3457,12 @@ struct TogetherTests {
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
         let content = TaskSharedIdentityContent.make(entry: entry)
-        #expect(display.primarySubtitle.isEmpty)
+        #expect(display.primarySubtitle == "1/2")
         #expect(display.propertyText == nil)
         #expect(content.visibleElements.contains(.progress))
     }
 
-    @Test func timelineRowDisplayLeavesExplicitTimeToSharedAttributeBand() {
+    @Test func timelineRowDisplayUsesExplicitTimeAsTextSubtitle() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -3414,13 +3486,13 @@ struct TogetherTests {
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
         let content = TaskSharedIdentityContent.make(entry: entry)
-        #expect(display.primarySubtitle.isEmpty)
+        #expect(display.primarySubtitle == "18:30")
         #expect(display.propertyText == nil)
         #expect(content.timeSummary == "18:30")
         #expect(content.visibleElements.contains(.time))
     }
 
-    @Test func timelineRowDisplayKeepsOnlyRealNoteAsSubtitle() {
+    @Test func timelineRowDisplayKeepsNoteBeforeTextProperties() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
             id: itemID,
@@ -3438,13 +3510,21 @@ struct TogetherTests {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: nil,
-            subtasks: [],
+            subtasks: [
+                TaskSubtask(
+                    itemID: itemID,
+                    creatorID: MockDataFactory.currentUserID,
+                    title: "确认反馈",
+                    isCompleted: false,
+                    sortOrder: 0
+                )
+            ],
             subtaskCompletedCount: 0
         )
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
         #expect(display.primarySubtitle == "跟进客户反馈")
-        #expect(display.propertyText == nil)
+        #expect(display.propertyText == "18:30 · 提醒 · 0/1")
 
         let content = TaskSharedIdentityContent.make(entry: entry)
         #expect(content.visibleElements.contains(.time))

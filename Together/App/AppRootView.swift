@@ -14,6 +14,8 @@ struct AppRootView: View {
         ZStack {
             HomeRootContent(morphSession: morphSession)
                 .environment(appContext)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+                .accessibilityHidden(morphSession.isCreationOverlayVisible)
 
             HomeCreationMorphOverlayLayer(session: morphSession)
                 .environment(appContext)
@@ -35,7 +37,6 @@ struct HomeRootContent: View {
     @State private var directOCRProcessingTask: Task<Void, Never>?
     @State private var isPresentingDirectOCRCamera = false
     @State private var frozenRootSurface: RootSurface?
-    @State private var dockAddFrame: CGRect?
     @State private var detailCollapseCompletionTask: Task<Void, Never>?
 
     private var displayedRootSurface: RootSurface {
@@ -43,7 +44,7 @@ struct HomeRootContent: View {
     }
 
     private var isMorphBackgroundDeemphasized: Bool {
-        morphSession.isFocusDepthActive
+        morphSession.isDetailFocusDepthActive
     }
 
     private var isHomeSurfaceVisible: Bool {
@@ -59,35 +60,33 @@ struct HomeRootContent: View {
         @Bindable var router = appContext.router
 
         NavigationStack(path: $rootNavigationPath) {
-                rootSurfaceView(router: router)
-                    .toolbar {
-                        if #available(iOS 26.0, *) {
-                            topToolbar(router: router)
-                                .sharedBackgroundVisibility(.hidden)
-                        } else {
-                            topToolbar(router: router)
-                        }
+            rootSurfaceView(router: router)
+                .toolbar {
+                    if #available(iOS 26.0, *) {
+                        topToolbar(router: router)
+                            .sharedBackgroundVisibility(.hidden)
+                    } else {
+                        topToolbar(router: router)
                     }
-                    .toolbarBackground(.hidden, for: .navigationBar)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .navigationDestination(for: AppRootRoute.self) { route in
-                        switch route {
-                        case .profile:
-                            ProfileView(viewModel: appContext.profileViewModel)
-                        case .completedHistory(let filter):
-                            CompletedHistoryView(
-                                viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
-                            )
-                        }
+
+                    if rootNavigationPath.isEmpty {
+                        bottomToolbar(router: router)
                     }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if rootNavigationPath.isEmpty {
-                    homeBottomDock(router: router)
                 }
-            }
-            .ignoresSafeArea(.keyboard, edges: .bottom)
-            .background(Color.clear)
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(for: AppRootRoute.self) { route in
+                    switch route {
+                    case .profile:
+                        ProfileView(viewModel: appContext.profileViewModel)
+                    case .completedHistory(let filter):
+                        CompletedHistoryView(
+                            viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
+                        )
+                    }
+                }
+        }
+        .background(Color.clear)
         .sheet(item: $activeOCRSourceSession, onDismiss: {
             guard let pendingOCRReviewSession else { return }
             router.activeOCRReviewSession = pendingOCRReviewSession
@@ -162,7 +161,7 @@ struct HomeRootContent: View {
         }
         .onChange(of: morphSession.phase) { _, phase in
             switch phase {
-            case .heroEntering, .active, .saving, .collapsing, .relocating:
+            case .active, .saving, .collapsing, .relocating:
                 if frozenRootSurface == nil {
                     frozenRootSurface = router.currentSurface
                 }
@@ -200,7 +199,7 @@ struct HomeRootContent: View {
             isRootSurfaceVisible: isHomeSurfaceVisible,
             onCreateTaskTapped: {
                 router.pendingComposerTitle = nil
-                beginMorphCreation(domain: .todo, heroSourceFrame: nil)
+                beginMorphCreation(domain: .todo)
             },
             onCompletedHistoryTapped: { filter in
                 rootNavigationPath.append(AppRootRoute.completedHistory(filter))
@@ -212,7 +211,7 @@ struct HomeRootContent: View {
         }
     }
 
-    // MARK: - Navigation toolbar and app-owned bottom dock
+    // MARK: - Navigation toolbars
 
     @ToolbarContentBuilder
     private func topToolbar(router: AppRouter) -> some ToolbarContent {
@@ -270,7 +269,7 @@ struct HomeRootContent: View {
                 isDeemphasized: isMorphBackgroundDeemphasized,
                 anchor: .top,
                 scalesContent: false,
-                appliesVisualDepth: morphSession.isCreationFlow,
+                appliesVisualDepth: false,
                 actsAsDismissTarget: morphSession.isCreationFlow == false,
                 onDismiss: morphSession.requestDismissal
             )
@@ -305,9 +304,64 @@ struct HomeRootContent: View {
                 isDeemphasized: isMorphBackgroundDeemphasized,
                 anchor: .topTrailing,
                 scalesContent: false,
-                appliesVisualDepth: morphSession.isCreationFlow,
+                appliesVisualDepth: false,
                 actsAsDismissTarget: morphSession.isCreationFlow == false,
                 onDismiss: morphSession.requestDismissal
+            )
+        }
+    }
+
+    @ToolbarContentBuilder
+    private func bottomToolbar(router: AppRouter) -> some ToolbarContent {
+        ToolbarItem(placement: .bottomBar) {
+            if isMorphBackgroundDeemphasized {
+                Button(action: morphSession.requestDismissal) {
+                    Label("收起任务详情", systemImage: "doc.text.viewfinder")
+                        .labelStyle(.iconOnly)
+                }
+                .accessibilityIdentifier("together.bottom-toolbar.ocr")
+                .accessibilityHint("保存更改并收起当前任务")
+            } else {
+                Menu {
+                    Button(action: openDirectOCRCamera) {
+                        Label("相机", systemImage: "camera")
+                    }
+                    Button(action: openDirectOCRPhotoPicker) {
+                        Label("照片", systemImage: "photo.on.rectangle")
+                    }
+                } label: {
+                    Label("OCR 导入", systemImage: "doc.text.viewfinder")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(morphSession.isActive)
+                .accessibilityIdentifier("together.bottom-toolbar.ocr")
+                .accessibilityHint("拍摄或选择纸面笔记生成草稿")
+            }
+        }
+
+        ToolbarSpacer(.flexible, placement: .bottomBar)
+
+        ToolbarItem(placement: .bottomBar) {
+            Button {
+                if isMorphBackgroundDeemphasized {
+                    morphSession.requestDismissal()
+                } else {
+                    HomeInteractionFeedback.selection()
+                    openContextualComposer(router: router)
+                }
+            } label: {
+                Label(
+                    isMorphBackgroundDeemphasized ? "收起任务详情" : "新建",
+                    systemImage: "plus"
+                )
+                .labelStyle(.iconOnly)
+            }
+            .disabled(morphSession.isActive && isMorphBackgroundDeemphasized == false)
+            .accessibilityIdentifier("together.bottom-toolbar.add")
+            .accessibilityHint(
+                isMorphBackgroundDeemphasized
+                    ? "保存更改并收起当前任务"
+                    : "在当前视图下新建一项"
             )
         }
     }
@@ -337,58 +391,6 @@ struct HomeRootContent: View {
         .accessibilityHint(isSelected ? "当前模式" : "切换到\(title)任务")
     }
 
-    private func homeBottomDock(router: AppRouter) -> some View {
-        let isAvailable = appContext.homeViewModel.isDockHidden == false
-
-        return HomeBottomDock(
-            showsAuxiliaryVisual: isAvailable,
-            showsAddButtonVisual: isAvailable && morphSession.isCreationOverlayVisible == false,
-            isInteractive: isAvailable && morphSession.isActive == false,
-            onCamera: openDirectOCRCamera,
-            onPhotos: openDirectOCRPhotoPicker,
-            onAdd: {
-                HomeInteractionFeedback.selection()
-                openContextualComposer(router: router)
-            },
-            onAddFrameChanged: { dockAddFrame = $0 }
-        )
-        .scaleEffect(
-            isDetailDockReceded && reduceMotion == false
-                ? TaskMorphBackgroundWave.dockScale
-                : 1,
-            anchor: .bottom
-        )
-        .opacity(
-            isDetailDockReceded
-                ? TaskMorphBackgroundWave.dockOpacity
-                : 1
-        )
-        .animation(detailDockDepthAnimation, value: isDetailDockReceded)
-        .taskMorphBackgroundDepth(
-            isDeemphasized: isMorphBackgroundDeemphasized,
-            anchor: .bottom,
-            scalesContent: false,
-            appliesVisualDepth: morphSession.isCreationFlow,
-            actsAsDismissTarget: morphSession.isCreationFlow == false,
-            onDismiss: morphSession.requestDismissal
-        )
-    }
-
-    private var isDetailDockReceded: Bool {
-        isMorphBackgroundDeemphasized && morphSession.isCreationFlow == false
-    }
-
-    private var detailDockDepthAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
-            : .smooth(
-                duration: isDetailDockReceded
-                    ? TaskExpansionMotionTiming.identityExpansionDuration
-                    : TaskExpansionMotionTiming.collapseDuration,
-                extraBounce: 0
-            )
-    }
-
     // MARK: - Surface routing
 
     private var rootModeAnimation: Animation {
@@ -406,16 +408,15 @@ struct HomeRootContent: View {
         router.pendingComposerTitle = nil
         switch displayedRootSurface {
         case .today, .projects:
-            beginMorphCreation(domain: .todo, heroSourceFrame: reduceMotion ? nil : dockAddFrame)
+            beginMorphCreation(domain: .todo)
         case .routines:
-            beginMorphCreation(domain: .periodic, heroSourceFrame: reduceMotion ? nil : dockAddFrame)
+            beginMorphCreation(domain: .periodic)
         }
     }
 
     private func beginMorphCreation(
         domain: TaskMorphDomain,
-        title: String? = nil,
-        heroSourceFrame: CGRect? = nil
+        title: String? = nil
     ) {
         guard morphSession.isActive == false else { return }
         switch domain {
@@ -434,8 +435,7 @@ struct HomeRootContent: View {
                     provisionalSection: section,
                     index: 0,
                     presentationID: "todo-draft-\(session.id.uuidString)"
-                ),
-                heroSourceFrame: heroSourceFrame
+                )
             )
         case .periodic:
             appContext.routinesViewModel.beginMorphCreation(
@@ -454,8 +454,7 @@ struct HomeRootContent: View {
                     provisionalSection: section,
                     index: 0,
                     presentationID: "periodic-draft-\(session.id.uuidString)"
-                ),
-                heroSourceFrame: heroSourceFrame
+                )
             )
         }
     }
@@ -530,7 +529,7 @@ struct HomeRootContent: View {
             let persisted = TaskMorphSubject.persisted(domain: subject.domain, id: subject.id)
             var collapseToken: HomeMorphSessionToken?
             withAnimation(
-                creationDissolveAnimation,
+                creationExitAnimation,
                 completionCriteria: .logicallyComplete
             ) {
                 collapseToken = morphSession.beginCollapseAfterSave(
@@ -553,7 +552,7 @@ struct HomeRootContent: View {
     private func discardMorphCreation(_ subject: TaskMorphSubject) {
         var collapseToken: HomeMorphSessionToken?
         withAnimation(
-            morphAnimation,
+            creationExitAnimation,
             completionCriteria: .logicallyComplete
         ) {
             collapseToken = morphSession.beginDiscardCollapse()
@@ -727,7 +726,7 @@ struct HomeRootContent: View {
             : .smooth(duration: TaskExpansionMotionTiming.collapseDuration, extraBounce: 0)
     }
 
-    private var creationDissolveAnimation: Animation {
+    private var creationExitAnimation: Animation {
         reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22, extraBounce: 0)
     }
 

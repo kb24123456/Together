@@ -4,7 +4,8 @@ import SwiftUI
 import WidgetKit
 
 private enum TaskFollowWidgetTheme {
-    static let tint = Color(red: 0.44, green: 0.28, blue: 0.91)
+    // Keep every system-hosted follow surface aligned with the app's Baby blue.
+    static let tint = Color(red: 0.42, green: 0.70, blue: 0.98)
 }
 
 struct TaskFollowLiveActivityWidget: Widget {

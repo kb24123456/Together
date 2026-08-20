@@ -76,6 +76,12 @@ enum AppTheme {
         static let sky = Color(red: 0.42, green: 0.70, blue: 0.98)
         static let secondaryAccent = Color(red: 0.86, green: 0.78, blue: 0.67)
         static let coral = Color(red: 0.87, green: 0.48, blue: 0.41)
+        /// Information-bearing overdue text needs stronger light-mode contrast
+        /// than the decorative coral used by flags and completion feedback.
+        static let overdueAccent = Color(
+            light: .init(red: 0.74, green: 0.30, blue: 0.25),
+            dark: .init(red: 0.93, green: 0.60, blue: 0.52)
+        )
         /// Warm rose pink paired with `coral`. Reserved for small celebratory
         /// accents where plain coral is too close to overdue states.
         static let rose = Color(red: 0.93, green: 0.45, blue: 0.62)
@@ -236,6 +242,17 @@ enum AppTheme {
     }
 }
 
+struct AppColorComponents: Sendable {
+    let red: Double
+    let green: Double
+    let blue: Double
+    var opacity: Double = 1
+
+    var color: Color {
+        Color(red: red, green: green, blue: blue, opacity: opacity)
+    }
+}
+
 // MARK: - Adaptive Color Helper
 
 extension Color {
@@ -263,9 +280,18 @@ extension View {
     @ViewBuilder
     func applyHomeScrollEdgeTransition() -> some View {
         if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+        } else {
             self
-                .scrollEdgeEffectStyle(.soft, for: .top)
-                .scrollEdgeEffectStyle(nil, for: .bottom)
+        }
+    }
+
+    @ViewBuilder
+    func applyFixedTopScrollEdgeTransition() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+                .scrollEdgeEffectStyle(nil, for: .top)
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
         } else {
             self
         }
