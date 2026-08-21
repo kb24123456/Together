@@ -121,7 +121,7 @@ struct RoutinesListContent: View {
            let creationTask = viewModel.creationPresentationTask,
            creationTask.cycle == displayedCycle,
            tasks.contains(where: { $0.id == creationTask.id }) == false {
-            tasks.append(creationTask)
+            tasks.insert(creationTask, at: tasks.startIndex)
         }
         return tasks
     }
@@ -151,7 +151,7 @@ struct RoutinesListContent: View {
                         var transaction = Transaction(animation: nil)
                         transaction.disablesAnimations = true
                         withTransaction(transaction) {
-                            scrollProxy.scrollTo(taskID, anchor: .bottom)
+                            scrollProxy.scrollTo(taskID, anchor: .top)
                         }
                         return
                     }

@@ -159,23 +159,36 @@ struct TogetherTests {
         #expect(viewModel.taskCreationSession == nil)
     }
 
-    @Test func inlineTaskCreationAppearsAtBottomOfTransientTodaySectionWithoutChangingCount() throws {
-        let viewModel = makeInlineDetailHomeViewModel(repository: MockItemRepository())
+    @Test func inlineTaskCreationAppearsAtTopOfTodaySectionWithoutChangingCount() async throws {
+        let existingItem = makeReminderTestItem(
+            title: "已有今日任务",
+            dueAt: .now,
+            remindAt: nil
+        )
+        let repository = MockItemRepository(items: [existingItem])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
 
         viewModel.beginTaskCreation()
 
         let session = try #require(viewModel.taskCreationSession)
         let section = try #require(
-            viewModel.timelineSectionsAddingTaskCreationDraft(to: []).first
+            viewModel.timelineSectionsAddingTaskCreationDraft(
+                to: viewModel.activeTimelineSections
+            ).first(where: {
+                Calendar.current.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
+            })
         )
-        let entry = try #require(section.entries.last)
+        let entry = try #require(section.entries.first)
         let placement = try #require(viewModel.taskCreationPlacement())
 
         #expect(Calendar.current.isDateInToday(viewModel.selectedDate))
         #expect(Calendar.current.isDateInToday(session.provisionalDayStart))
-        #expect(section.count == 0)
-        #expect(section.entries.count == 1)
+        #expect(section.count == 1)
+        #expect(section.entries.count == 2)
         #expect(entry.itemID == session.id)
+        #expect(section.entries.dropFirst().first?.itemID == existingItem.id)
         #expect(entry.title.isEmpty)
         #expect(placement.index == 0)
         #expect(placement.presentationID == entry.presentationID)
@@ -1531,8 +1544,11 @@ struct TogetherTests {
     }
 
     @Test func periodicInlineCreationStaysInProvisionalCycleUntilCommitRelocation() async throws {
-        let service = CapturingPeriodicTaskApplicationService(tasks: [])
+        let existingTask = makePeriodicTask(title: "已有每周任务", cycle: .weekly)
+        let service = CapturingPeriodicTaskApplicationService(tasks: [existingTask])
         let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+
+        await viewModel.loadIfNeeded()
 
         viewModel.beginMorphCreation(defaultCycle: .weekly)
         let sessionID = try #require(viewModel.creationSession?.id)
@@ -1543,6 +1559,7 @@ struct TogetherTests {
         #expect(viewModel.creationPresentationTask?.cycle == .weekly)
         #expect(viewModel.activeEditorDraft?.cycle == .monthly)
         #expect(viewModel.creationPlacement()?.provisionalSection == .periodic(cycle: .weekly))
+        #expect(viewModel.creationPlacement()?.index == 0)
 
         guard case .saved(let placement) = await viewModel.commitMorphCreation() else {
             Issue.record("定期任务应保存成功")

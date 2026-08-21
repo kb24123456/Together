@@ -346,7 +346,7 @@ struct HomeView: View {
                                 var transaction = Transaction()
                                 transaction.animation = nil
                                 withTransaction(transaction) {
-                                    scrollProxy.scrollTo(presentationID, anchor: .bottom)
+                                    scrollProxy.scrollTo(presentationID, anchor: .top)
                                 }
                                 await Task.yield()
                                 guard morphSession.activatePreparedCreation(using: token) else { return }

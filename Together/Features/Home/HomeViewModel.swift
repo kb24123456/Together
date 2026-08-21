@@ -1126,7 +1126,7 @@ final class HomeViewModel {
                 context: section.context,
                 count: section.count,
                 isUnscheduled: section.isUnscheduled,
-                entries: section.entries + [entry]
+                entries: [entry] + section.entries
             )
             return result
         }
@@ -1156,15 +1156,9 @@ final class HomeViewModel {
             dayStart: session.provisionalDayStart,
             isUnscheduled: false
         )
-        let index = activeTimelineSections
-            .first(where: {
-                $0.isUnscheduled == false
-                    && calendar.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
-            })?
-            .entries.count ?? 0
         return TaskMorphPlacement(
             provisionalSection: section,
-            index: index,
+            index: 0,
             presentationID: taskCreationPresentationID(session)
         )
     }

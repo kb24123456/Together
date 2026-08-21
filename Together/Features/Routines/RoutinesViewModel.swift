@@ -407,7 +407,7 @@ final class RoutinesViewModel {
         let section = TaskMorphSection.periodic(cycle: session.provisionalCycle)
         return TaskMorphPlacement(
             provisionalSection: section,
-            index: sortedTasks(for: session.provisionalCycle).count,
+            index: 0,
             presentationID: session.id.uuidString
         )
     }
