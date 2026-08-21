@@ -1,5 +1,39 @@
 import SwiftUI
 
+struct HomeModeTimelineWaveSequence: Equatable {
+    let activeTaskIDs: [UUID]
+    let completedTaskIDs: [UUID]
+    let includesWeeklyCompletedSummary: Bool
+
+    var todayCompletedHeaderIndex: Int? {
+        completedTaskIDs.isEmpty ? nil : activeTaskIDs.count
+    }
+
+    var weeklyCompletedSummaryIndex: Int? {
+        guard includesWeeklyCompletedSummary else { return nil }
+        return activeTaskIDs.count
+            + (completedTaskIDs.isEmpty ? 0 : 1)
+            + completedTaskIDs.count
+    }
+
+    var elementCount: Int {
+        activeTaskIDs.count
+            + completedTaskIDs.count
+            + (completedTaskIDs.isEmpty ? 0 : 1)
+            + (includesWeeklyCompletedSummary ? 1 : 0)
+    }
+
+    func taskIndex(for taskID: UUID) -> Int? {
+        if let index = activeTaskIDs.firstIndex(of: taskID) {
+            return index
+        }
+        guard let index = completedTaskIDs.firstIndex(of: taskID) else {
+            return nil
+        }
+        return activeTaskIDs.count + 1 + index
+    }
+}
+
 struct HomeView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,6 +59,7 @@ struct HomeView: View {
     @State private var timelineDateBarSelection = HomeTimelineDateBarSelection()
     @State private var timelineDateBarBoundaryMaxY: CGFloat = 0
     @State private var modeTaskRowsPresented = true
+    @State private var creationKeyboardAlignmentTask: Task<Void, Never>?
 
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset = TaskMorphListSpacing.compactExternalInset
@@ -100,6 +135,13 @@ struct HomeView: View {
             }
         }
         .onChange(of: morphSession.phase) { _, phase in
+            if phase == .idle {
+                creationKeyboardAlignmentTask?.cancel()
+                creationKeyboardAlignmentTask = nil
+            }
+            if phase == .active, morphSession.isCreationFlow {
+                isTimelineReorderingActive = false
+            }
             switch phase {
             case .active, .saving, .collapsing:
                 if frozenActiveSections == nil {
@@ -124,7 +166,11 @@ struct HomeView: View {
             morphSession.recover()
         }
         .accessibilityAction(.escape) {
-            morphSession.requestDismissal()
+            if morphSession.isCreationFlow {
+                morphSession.requestCreationCancellation()
+            } else {
+                morphSession.requestDismissal()
+            }
         }
     }
 
@@ -288,11 +334,38 @@ struct HomeView: View {
                             requestExternalFocus(id, via: scrollProxy)
                         }
                         .task(id: morphSession.phase) {
-                            guard morphSession.phase == .relocating,
-                                  morphSession.isCreationFlow,
-                                  case .persisted(.todo, _) = morphSession.subject,
-                                  let presentationID = morphSession.placement?.presentationID,
+                            guard morphSession.isCreationFlow,
                                   let token = morphSession.currentToken()
+                            else { return }
+
+                            if morphSession.phase == .active,
+                               case .draft(.todo, _) = morphSession.subject,
+                               morphSession.visualState == .compact,
+                               let presentationID = morphSession.placement?.provisionalPresentationID {
+                                await Task.yield()
+                                var transaction = Transaction()
+                                transaction.animation = nil
+                                withTransaction(transaction) {
+                                    scrollProxy.scrollTo(presentationID, anchor: .bottom)
+                                }
+                                await Task.yield()
+                                guard morphSession.activatePreparedCreation(using: token) else { return }
+                                let focusDelay = reduceMotion
+                                    ? TaskExpansionMotionTiming.reducedMotionDuration
+                                    : TaskExpansionMotionTiming.expansionDuration
+                                do {
+                                    try await Task.sleep(for: .seconds(focusDelay))
+                                } catch {
+                                    return
+                                }
+                                guard Task.isCancelled == false else { return }
+                                _ = morphSession.finishCreationExpansion(using: token)
+                                return
+                            }
+
+                            guard morphSession.phase == .relocating,
+                                  case .persisted(.todo, _) = morphSession.subject,
+                                  let presentationID = morphSession.placement?.presentationID
                             else { return }
                             await Task.yield()
                             var transaction = Transaction()
@@ -619,7 +692,8 @@ struct HomeView: View {
         scrollProxy: ScrollViewProxy,
         usesDateBar: Bool
     ) -> some View {
-        ScrollView {
+        let waveSequence = homeModeTimelineWaveSequence
+        return ScrollView {
             LazyVStack(
                 alignment: .leading,
                 spacing: 0,
@@ -648,6 +722,14 @@ struct HomeView: View {
                                 trailing: timelineRowHorizontalInset
                             )
                         )
+                        .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
+                        .animation(
+                            modeTaskRowAnimation(
+                                index: waveSequence.todayCompletedHeaderIndex ?? 0,
+                                taskCount: waveSequence.elementCount
+                            ),
+                            value: modeTaskRowsPresented
+                        )
 
                     completedTimelineSection(scrollProxy: scrollProxy)
                 }
@@ -663,6 +745,14 @@ struct HomeView: View {
                                 trailing: timelineRowHorizontalInset
                             )
                         )
+                        .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
+                        .animation(
+                            modeTaskRowAnimation(
+                                index: waveSequence.weeklyCompletedSummaryIndex ?? 0,
+                                taskCount: waveSequence.elementCount
+                            ),
+                            value: modeTaskRowsPresented
+                        )
                 } else if displayedCompletedEntries.isEmpty {
                     Color.clear
                         .frame(height: max(64, timelineBottomInset))
@@ -672,7 +762,7 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .scrollDisabled(isOverlayModeActive)
         .transaction { transaction in
-            if morphSession.phase == .relocating, morphSession.isCreationFlow == false {
+            if morphSession.phase == .relocating {
                 // The real destination row is established atomically under
                 // the lifted surface. It must not run the timeline's normal
                 // insertion/reordering animation at the same time.
@@ -803,7 +893,11 @@ struct HomeView: View {
     }
 
     private var displayedActiveSections: [HomeTimelineSection] {
-        frozenActiveSections ?? viewModel.activeTimelineSections
+        let sections = frozenActiveSections ?? viewModel.activeTimelineSections
+        guard morphSession.isCreationFlow,
+              morphSession.phase != .relocating
+        else { return sections }
+        return viewModel.timelineSectionsAddingTaskCreationDraft(to: sections)
     }
 
     private var displayedTimelineDateBarSection: HomeTimelineSection? {
@@ -824,9 +918,18 @@ struct HomeView: View {
         } + displayedCompletedEntries.map(\.itemID)
     }
 
+    private var homeModeTimelineWaveSequence: HomeModeTimelineWaveSequence {
+        HomeModeTimelineWaveSequence(
+            activeTaskIDs: displayedActiveSections.flatMap { section in
+                section.entries.map(\.itemID)
+            },
+            completedTaskIDs: displayedCompletedEntries.map(\.itemID),
+            includesWeeklyCompletedSummary: displayedHasWeeklyCompletedEntries
+        )
+    }
+
     private func todoFocusDepthDelta(for itemID: UUID) -> Int? {
         guard morphSession.isFocusDepthActive,
-              morphSession.isCreationFlow == false,
               let subject = morphSession.subject,
               subject.domain == .todo
         else { return nil }
@@ -883,15 +986,16 @@ struct HomeView: View {
         sectionVisibility: CompletedSectionVisibility? = nil,
         scrollProxy: ScrollViewProxy
     ) -> some View {
+        let waveSequence = homeModeTimelineWaveSequence
         ForEach(entries, id: \.presentationID) { entry in
             let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
             let isActiveMorph = morphSession.isActive(.todo, id: entry.itemID)
+            let isCreationDraft = morphSession.isCreationPresentation(.todo, id: entry.itemID)
             let isCreationRevealTarget = morphSession.isCreationListRevealTarget(.todo, id: entry.itemID)
             TaskMorphContainer(
                 state: isActiveMorph ? morphSession.visualState : .compact,
                 isActive: isActiveMorph,
                 isBackgroundDeemphasized: morphSession.isFocusDepthActive
-                    && morphSession.isCreationFlow == false
                     && isActiveMorph == false,
                 backgroundFocusDelta: todoFocusDepthDelta(for: entry.itemID),
                 onBackgroundTap: morphSession.requestDismissal
@@ -909,7 +1013,9 @@ struct HomeView: View {
                         entry: entry,
                         isDetailPresented: isActiveMorph,
                         isDetailExpanded: isExpanded,
-                        motion: isActiveMorph ? motion : .compact
+                        motion: isActiveMorph ? motion : .compact,
+                        isCreationDraft: isCreationDraft,
+                        scrollProxy: scrollProxy
                     )
 
                     if isActiveMorph {
@@ -962,7 +1068,10 @@ struct HomeView: View {
                 }
             }
             .overlay {
-                if isActiveMorph, entry.isCompleted == false, morphSession.phase != .active {
+                if isActiveMorph,
+                   isCreationDraft == false,
+                   entry.isCompleted == false,
+                   morphSession.phase != .active {
                     Button {
                         _ = openInlineTaskDetail(entry)
                     } label: {
@@ -1049,8 +1158,8 @@ struct HomeView: View {
             .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
             .animation(
                 modeTaskRowAnimation(
-                    index: displayedTodoTaskIDsInVisualOrder.firstIndex(of: entry.itemID) ?? index,
-                    taskCount: displayedTodoTaskIDsInVisualOrder.count
+                    index: waveSequence.taskIndex(for: entry.itemID) ?? index,
+                    taskCount: waveSequence.elementCount
                 ),
                 value: modeTaskRowsPresented
             )
@@ -1062,7 +1171,9 @@ struct HomeView: View {
         entry: HomeTimelineEntry,
         isDetailPresented: Bool,
         isDetailExpanded: Bool,
-        motion: TaskExpansionMotion
+        motion: TaskExpansionMotion,
+        isCreationDraft: Bool,
+        scrollProxy: ScrollViewProxy
     ) -> some View {
         HomeTimelineRow(
             entry: entry,
@@ -1076,7 +1187,11 @@ struct HomeView: View {
             expandedNotes: isDetailPresented ? (viewModel.inlineDetailDraft?.notes ?? entry.notes) : entry.notes,
             isEditingNotes: false,
             motion: motion,
+            isCreationDraft: isCreationDraft,
+            creationFocusRequestRevision: morphSession.creationFocusRequestRevision,
+            onSubmitCreation: morphSession.requestCommit,
             onToggleCompletion: {
+                guard isCreationDraft == false else { return }
                 if isDetailPresented {
                     morphSession.requestCompletion()
                 } else {
@@ -1087,17 +1202,59 @@ struct HomeView: View {
                     completeTimelineEntry(entry)
                 }
             },
-            onOpenDetail: { openInlineTaskDetail(entry) },
+            onOpenDetail: {
+                if isCreationDraft {
+                    morphSession.requestCreationFocus()
+                } else {
+                    _ = openInlineTaskDetail(entry)
+                }
+            },
             onUpdateTitle: viewModel.updateDraftTitle,
             onUpdateNotes: viewModel.updateDraftNotes,
             onBeginNoteEditing: {},
             onEndNoteEditing: {},
-            onInlineFocus: { _ in }
+            onInlineFocus: { _ in
+                guard isCreationDraft else { return }
+                alignCreationDraftAboveKeyboard(
+                    entry.presentationID,
+                    scrollProxy: scrollProxy
+                )
+            }
         )
     }
 
+    private func alignCreationDraftAboveKeyboard(
+        _ presentationID: String,
+        scrollProxy: ScrollViewProxy
+    ) {
+        creationKeyboardAlignmentTask?.cancel()
+        creationKeyboardAlignmentTask = Task { @MainActor in
+            do {
+                try await Task.sleep(
+                    for: .seconds(TaskCreationInputTiming.keyboardSettlementDuration)
+                )
+            } catch {
+                return
+            }
+            guard Task.isCancelled == false,
+                  morphSession.phase == .active,
+                  morphSession.isCreationFlow,
+                  morphSession.visualState == .expanded,
+                  morphSession.placement?.provisionalPresentationID == presentationID
+            else { return }
+
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                scrollProxy.scrollTo(presentationID, anchor: .bottom)
+            }
+            creationKeyboardAlignmentTask = nil
+        }
+    }
+
     private var timelineSection: some View {
-        ZStack {
+        let waveSequence = homeModeTimelineWaveSequence
+        return ZStack {
             if hasDisplayedTimelineEntries == false {
                 VStack(spacing: AppTheme.spacing.xl) {
                     VStack(spacing: AppTheme.spacing.md) {
@@ -1155,6 +1312,14 @@ struct HomeView: View {
                                 .foregroundStyle(AppTheme.colors.body.opacity(0.5))
                         }
                         .buttonStyle(.plain)
+                        .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
+                        .animation(
+                            modeTaskRowAnimation(
+                                index: waveSequence.weeklyCompletedSummaryIndex ?? 0,
+                                taskCount: waveSequence.elementCount
+                            ),
+                            value: modeTaskRowsPresented
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -1688,6 +1853,9 @@ struct HomeTimelineRow: View {
     let expandedNotes: String?
     let isEditingNotes: Bool
     let motion: TaskExpansionMotion
+    var isCreationDraft = false
+    var creationFocusRequestRevision: UInt = 0
+    var onSubmitCreation: () -> Void = {}
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
     let onUpdateTitle: (String) -> Void
@@ -1728,6 +1896,8 @@ struct HomeTimelineRow: View {
                 .padding(.vertical, -10)
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
+                .disabled(isCreationDraft)
+                .accessibilityHidden(isCreationDraft)
             } content: {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                     titleContent
@@ -1743,8 +1913,15 @@ struct HomeTimelineRow: View {
         .onAppear {
             titleDraft = expandedTitle
             notesDraft = expandedNotes ?? ""
+            if isCreationDraft {
+                isEditingTitle = true
+            }
             guard shouldPlayCompletionAnimation else { return }
             startCompletionAnimation()
+        }
+        .onChange(of: creationFocusRequestRevision) { _, revision in
+            guard isCreationDraft, isDetailExpanded, revision > 0 else { return }
+            beginTitleEditing()
         }
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue, shouldPlayCompletionAnimation else { return }
@@ -2113,8 +2290,14 @@ struct HomeTimelineRow: View {
             .submitLabel(.done)
             .lineLimit(1...4)
             .focused($isTitleFocused)
+            .onChange(of: titleDraft) { _, title in
+                guard isCreationDraft else { return }
+                onUpdateTitle(title)
+            }
             .onSubmit {
-                commitTitleAfterFocusUpdate()
+                commitTitleAfterFocusUpdate(
+                    then: isCreationDraft ? onSubmitCreation : nil
+                )
             }
             .id(HomeInlineFocusTarget.title.anchorID(for: entry.itemID))
             .onAppear {
@@ -2130,8 +2313,10 @@ struct HomeTimelineRow: View {
                 }
             }
 
-            inlineSaveButton {
-                commitTitleAfterFocusUpdate()
+            if isCreationDraft == false {
+                inlineSaveButton {
+                    commitTitleAfterFocusUpdate()
+                }
             }
         }
     }
@@ -2355,24 +2540,35 @@ private struct WeeklyCompletedSheet: View {
             .refreshable {
                 await onRefresh()
             }
+            .applySoftTopScrollEdgeTransition()
             .navigationTitle("本周已完成")
             .navigationSubtitle("不含今天，共 \(count) 项")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        HomeInteractionFeedback.selection()
-                        onOpenFullHistory()
-                    } label: {
-                        Text("查看全部")
-                    }
-                    .font(.body)
-                    .foregroundStyle(AppTheme.colors.sky)
-                    .frame(minHeight: 44)
+                if #available(iOS 26.0, *) {
+                    weeklyCompletedToolbar
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    weeklyCompletedToolbar
                 }
             }
         }
         .background(AppTheme.colors.background.ignoresSafeArea())
+    }
+
+    @ToolbarContentBuilder
+    private var weeklyCompletedToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                HomeInteractionFeedback.selection()
+                onOpenFullHistory()
+            } label: {
+                Text("查看全部")
+            }
+            .font(.body)
+            .foregroundStyle(AppTheme.colors.sky)
+            .frame(minHeight: 44)
+        }
     }
 
     private var emptyRow: some View {

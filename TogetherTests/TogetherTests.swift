@@ -159,6 +159,34 @@ struct TogetherTests {
         #expect(viewModel.taskCreationSession == nil)
     }
 
+    @Test func inlineTaskCreationAppearsAtBottomOfTransientTodaySectionWithoutChangingCount() throws {
+        let viewModel = makeInlineDetailHomeViewModel(repository: MockItemRepository())
+
+        viewModel.beginTaskCreation()
+
+        let session = try #require(viewModel.taskCreationSession)
+        let section = try #require(
+            viewModel.timelineSectionsAddingTaskCreationDraft(to: []).first
+        )
+        let entry = try #require(section.entries.last)
+        let placement = try #require(viewModel.taskCreationPlacement())
+
+        #expect(Calendar.current.isDateInToday(viewModel.selectedDate))
+        #expect(Calendar.current.isDateInToday(session.provisionalDayStart))
+        #expect(section.count == 0)
+        #expect(section.entries.count == 1)
+        #expect(entry.itemID == session.id)
+        #expect(entry.title.isEmpty)
+        #expect(placement.index == 0)
+        #expect(placement.presentationID == entry.presentationID)
+        #expect(viewModel.isTaskCreationCompletelyEmpty)
+
+        viewModel.updateDraftNotes("保留这条草稿")
+        #expect(viewModel.isTaskCreationTitleEmpty)
+        #expect(viewModel.isTaskCreationCompletelyEmpty == false)
+        #expect(viewModel.inlineDetailDraft?.notes == "保留这条草稿")
+    }
+
     @Test func persistenceFailurePolicyNeverDeletesStoreAutomatically() {
         #expect(PersistenceFailurePolicy.shouldDeleteStoreAfterOpenFailure == false)
     }
@@ -546,6 +574,35 @@ struct TogetherTests {
                 reduceMotion: true
             ) == 0
         )
+    }
+
+    @Test func homeModeTimelineWaveSequenceIncludesCompletedSummariesInVisualOrder() {
+        let activeIDs = [UUID(), UUID()]
+        let completedIDs = [UUID(), UUID()]
+        let sequence = HomeModeTimelineWaveSequence(
+            activeTaskIDs: activeIDs,
+            completedTaskIDs: completedIDs,
+            includesWeeklyCompletedSummary: true
+        )
+
+        #expect(sequence.taskIndex(for: activeIDs[0]) == 0)
+        #expect(sequence.taskIndex(for: activeIDs[1]) == 1)
+        #expect(sequence.todayCompletedHeaderIndex == 2)
+        #expect(sequence.taskIndex(for: completedIDs[0]) == 3)
+        #expect(sequence.taskIndex(for: completedIDs[1]) == 4)
+        #expect(sequence.weeklyCompletedSummaryIndex == 5)
+        #expect(sequence.elementCount == 6)
+
+        let weeklyOnly = HomeModeTimelineWaveSequence(
+            activeTaskIDs: [],
+            completedTaskIDs: [],
+            includesWeeklyCompletedSummary: true
+        )
+        #expect(weeklyOnly.todayCompletedHeaderIndex == nil)
+        #expect(weeklyOnly.weeklyCompletedSummaryIndex == 0)
+        #expect(weeklyOnly.elementCount == 1)
+
+        #expect(sequence.taskIndex(for: UUID()) == nil)
     }
 
     @Test func ocrMediaControlsPreserveDeviceBottomSafeArea() {
@@ -1471,6 +1528,28 @@ struct TogetherTests {
         #expect(descriptor.presentationID == provisionalID.uuidString)
         #expect(descriptor.finalSection == .periodic(cycle: .weekly))
         #expect(viewModel.creationSession?.phase == .committed)
+    }
+
+    @Test func periodicInlineCreationStaysInProvisionalCycleUntilCommitRelocation() async throws {
+        let service = CapturingPeriodicTaskApplicationService(tasks: [])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+
+        viewModel.beginMorphCreation(defaultCycle: .weekly)
+        let sessionID = try #require(viewModel.creationSession?.id)
+        viewModel.updateDraftTitle("月末复盘")
+        viewModel.updateDraftCycle(.monthly)
+
+        #expect(viewModel.creationPresentationTask?.id == sessionID)
+        #expect(viewModel.creationPresentationTask?.cycle == .weekly)
+        #expect(viewModel.activeEditorDraft?.cycle == .monthly)
+        #expect(viewModel.creationPlacement()?.provisionalSection == .periodic(cycle: .weekly))
+
+        guard case .saved(let placement) = await viewModel.commitMorphCreation() else {
+            Issue.record("定期任务应保存成功")
+            return
+        }
+        #expect(placement.finalSection == .periodic(cycle: .monthly))
+        #expect(placement.presentationID == sessionID.uuidString)
     }
 
     @Test func routineDraftClearsTargetDayAndTimeIndependently() async {

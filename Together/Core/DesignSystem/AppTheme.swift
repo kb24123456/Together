@@ -287,6 +287,15 @@ extension View {
     }
 
     @ViewBuilder
+    func applySoftTopScrollEdgeTransition() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
     func applyFixedTopScrollEdgeTransition() -> some View {
         if #available(iOS 26.0, *) {
             self

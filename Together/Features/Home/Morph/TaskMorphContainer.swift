@@ -55,6 +55,13 @@ enum TaskExpansionMotionTiming {
     static let expandedIdentityVisualScale: CGFloat = 1.12
 }
 
+enum TaskCreationInputTiming {
+    /// After the expansion clock settles and the title becomes first responder,
+    /// this pause lets the software keyboard finish updating the ScrollView's
+    /// safe-area viewport before the draft is bottom-aligned.
+    static let keyboardSettlementDuration: TimeInterval = 0.36
+}
+
 enum TaskMorphCascadeTiming {
     /// Detail rows may enter while the identity is moving, but the first row
     /// must not settle before the identity reaches its 460ms endpoint.
@@ -85,20 +92,14 @@ enum TaskMorphBackgroundWave {
     /// Keep each row's compositor-only movement shorter than the identity
     /// motion so adjacent delays remain visually legible as an outward wave.
     static let expansionDuration: TimeInterval = 0.36
-    static let adjacentRadius: CGFloat = 0.50
-    private static let progressiveRadiusOrigin: CGFloat = 0.35
-    static let radiusStep: CGFloat = 0.50
-    static let radiusAcceleration: CGFloat = 0.10
-    static let maximumRadius: CGFloat = 6.0
+    static let uniformRadius: CGFloat = 1.45
     static let adjacentScale: CGFloat = 0.95
     static let scaleStep: CGFloat = 0.03
     static let minimumScale: CGFloat = 0.87
     static let lowerAdjacentScale: CGFloat = 0.95
     static let lowerScaleStep: CGFloat = 0.025
     static let lowerMinimumScale: CGFloat = 0.88
-    static let adjacentOpacity: CGFloat = 0.60
-    static let opacityStep: CGFloat = 0.055
-    static let minimumOpacity: CGFloat = 0.20
+    static let uniformOpacity: CGFloat = 0.49
     static let upperAdjacentOffset: CGFloat = 8
     static let upperOffsetStep: CGFloat = 4
     static let upperMaximumOffset: CGFloat = 24
@@ -117,13 +118,7 @@ enum TaskMorphBackgroundWave {
 
     static func radius(forTaskDelta delta: Int?) -> CGFloat {
         guard let distance = delta.map(abs), distance > 0 else { return 0 }
-        guard distance > 1 else { return adjacentRadius }
-        let steps = CGFloat(distance - 1)
-        let acceleratedGrowth = radiusAcceleration * steps * max(steps - 1, 0) / 2
-        return min(
-            maximumRadius,
-            progressiveRadiusOrigin + steps * radiusStep + acceleratedGrowth
-        )
+        return uniformRadius
     }
 
     static func scale(forTaskDelta delta: Int?) -> CGFloat {
@@ -144,10 +139,7 @@ enum TaskMorphBackgroundWave {
         guard let distance = delta.map(abs), distance > 0 else {
             return TaskMorphSurfaceMetrics.detailFallbackBackgroundOpacity
         }
-        return max(
-            minimumOpacity,
-            adjacentOpacity - CGFloat(distance - 1) * opacityStep
-        )
+        return uniformOpacity
     }
 
     static func offsetY(forTaskDelta delta: Int?) -> CGFloat {
@@ -1080,224 +1072,4 @@ private struct TaskCreationListRevealModifier: ViewModifier {
             }
         }
     }
-}
-
-enum HomeCreationOverlayLayout {
-    static let horizontalInset: CGFloat = 12
-    static let topInset: CGFloat = 14
-    static let keyboardGap: CGFloat = 16
-    static let todoMinimumEditorHeight: CGFloat = 206
-    static let periodicMinimumEditorHeight: CGFloat = 174
-
-    static func minimumEditorHeight(for domain: TaskMorphDomain) -> CGFloat {
-        switch domain {
-        case .todo:
-            todoMinimumEditorHeight
-        case .periodic:
-            periodicMinimumEditorHeight
-        }
-    }
-
-    static func preferredHeight(
-        measuredContentHeight: CGFloat,
-        domain: TaskMorphDomain
-    ) -> CGFloat {
-        max(
-            minimumEditorHeight(for: domain),
-            measuredContentHeight + 2 * TaskMorphSurfaceMetrics.verticalInset
-        )
-    }
-
-    static func editorFrame(
-        containerSize: CGSize,
-        preferredHeight: CGFloat
-    ) -> CGRect {
-        let availableHeight = max(120, containerSize.height - topInset - keyboardGap)
-        let height = min(preferredHeight, availableHeight)
-        let y = max(topInset, containerSize.height - height - keyboardGap)
-        return CGRect(
-            x: horizontalInset,
-            y: y,
-            width: max(120, containerSize.width - horizontalInset * 2),
-            height: height
-        )
-    }
-
-    static func dismissalOffset(
-        frame: CGRect,
-        containerHeight: CGFloat
-    ) -> CGFloat {
-        max(0, containerHeight - frame.minY + 1)
-    }
-}
-
-struct HomeCreationMorphOverlayLayer: View {
-    @Bindable var session: HomeMorphSession
-
-    @Environment(AppContext.self) private var appContext
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var measuredEditorContentHeight: CGFloat = 0
-    @State private var measuredEditorSubjectID: UUID?
-    @State private var mountedSubjectID: UUID?
-    @State private var appearedSubjectID: UUID?
-
-    var body: some View {
-        GeometryReader { proxy in
-            if session.isCreationOverlayVisible {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        session.requestDismissal()
-                    }
-            }
-
-            if let subject = session.subject,
-               session.isCreationOverlayVisible,
-               mountedSubjectID == subject.id {
-                let frame = editorFrame(in: proxy)
-                let appearanceOpacity: CGFloat = appearedSubjectID == subject.id ? 1 : 0
-                let dismissalOffset = reduceMotion ? 0 : HomeCreationOverlayLayout.dismissalOffset(
-                    frame: frame,
-                    containerHeight: proxy.size.height
-                )
-
-                creationSurfaceShape
-                    .fill(AppTheme.colors.surface)
-                    .overlay {
-                        creationSurfaceShape
-                            .stroke(AppTheme.colors.body.opacity(0.06), lineWidth: 0.5)
-                    }
-                    .overlay {
-                        editorContent(for: subject)
-                            .padding(.horizontal, TaskMorphSurfaceMetrics.horizontalInset)
-                            .padding(.vertical, TaskMorphSurfaceMetrics.verticalInset)
-                            .allowsHitTesting(session.isInteractive)
-                    }
-                    .clipShape(creationSurfaceShape)
-                    .frame(width: frame.width, height: frame.height)
-                    .position(x: frame.midX, y: frame.midY)
-                    .offset(y: session.phase == .collapsing ? dismissalOffset : 0)
-                    .opacity(appearanceOpacity)
-                    .animation(surfaceAppearanceAnimation, value: appearedSubjectID)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityAction(.escape) {
-                        session.requestDismissal()
-                    }
-                    .task(id: subject.id) {
-                        guard session.subject == subject,
-                              session.isCreationOverlayVisible
-                        else { return }
-                        appearedSubjectID = subject.id
-                    }
-            }
-        }
-        .ignoresSafeArea(.container, edges: .all)
-        .task(id: session.subject?.id) {
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                mountedSubjectID = nil
-                appearedSubjectID = nil
-            }
-
-            guard let subject = session.subject,
-                  session.isCreationOverlayVisible
-            else { return }
-
-            await Task.yield()
-            guard Task.isCancelled == false,
-                  session.subject == subject,
-                  session.isCreationOverlayVisible
-            else { return }
-
-            withTransaction(transaction) {
-                mountedSubjectID = subject.id
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func editorContent(for subject: TaskMorphSubject) -> some View {
-        ScrollView {
-            Group {
-                switch subject.domain {
-                case .todo:
-                    if let creation = appContext.homeViewModel.taskCreationSession,
-                       creation.id == subject.id {
-                        HomeTaskCreationCard(
-                            viewModel: appContext.homeViewModel,
-                            session: creation,
-                            isExpanded: true,
-                            isInteractive: session.isInteractive,
-                            onDiscard: { session.requestDismissal() },
-                            onCommit: { session.requestCommit() }
-                        )
-                        .id(creation.id)
-                    }
-                case .periodic:
-                    if let creation = appContext.routinesViewModel.creationSession,
-                       creation.id == subject.id {
-                        PeriodicTaskCreationCard(
-                            viewModel: appContext.routinesViewModel,
-                            session: creation,
-                            isInteractive: session.isInteractive,
-                            onDiscard: { session.requestDismissal() },
-                            onCommit: { session.requestCommit() }
-                        )
-                        .id(creation.id)
-                    }
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.height
-            } action: { height in
-                guard height.isFinite, height > 0 else { return }
-                guard measuredEditorSubjectID != subject.id
-                        || abs(measuredEditorContentHeight - height) > 0.5
-                else { return }
-
-                var transaction = Transaction(animation: nil)
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    measuredEditorSubjectID = subject.id
-                    measuredEditorContentHeight = height
-                }
-            }
-        }
-        .scrollIndicators(.hidden)
-    }
-
-    private var creationSurfaceShape: ConcentricRectangle {
-        ConcentricRectangle(
-            corners: .concentric(minimum: .fixed(AppTheme.radius.xl)),
-            isUniform: true
-        )
-    }
-
-    private var surfaceAppearanceAnimation: Animation {
-        .easeOut(duration: reduceMotion ? 0.12 : 0.14)
-    }
-
-    private func editorFrame(in proxy: GeometryProxy) -> CGRect {
-        guard let subject = session.subject else {
-            return HomeCreationOverlayLayout.editorFrame(
-                containerSize: proxy.size,
-                preferredHeight: HomeCreationOverlayLayout.todoMinimumEditorHeight
-            )
-        }
-        let preferredHeight: CGFloat = if measuredEditorSubjectID == session.subject?.id {
-            HomeCreationOverlayLayout.preferredHeight(
-                measuredContentHeight: measuredEditorContentHeight,
-                domain: subject.domain
-            )
-        } else {
-            HomeCreationOverlayLayout.minimumEditorHeight(for: subject.domain)
-        }
-        return HomeCreationOverlayLayout.editorFrame(
-            containerSize: proxy.size,
-            preferredHeight: preferredHeight
-        )
-    }
-
 }

@@ -9,7 +9,6 @@ enum TaskMorphDomain: String, Equatable, Hashable, Sendable {
 
 enum TaskMorphVisualState: Equatable, Sendable {
     case compact
-    case editing
     case expanded
 }
 
@@ -46,18 +45,24 @@ enum TaskMorphSection: Equatable, Hashable, Sendable {
 struct TaskMorphPlacement: Equatable, Hashable, Sendable {
     let provisionalSection: TaskMorphSection
     let finalSection: TaskMorphSection
+    let provisionalIndex: Int
     let index: Int
+    let provisionalPresentationID: String
     let presentationID: String
 
     init(
         provisionalSection: TaskMorphSection,
         finalSection: TaskMorphSection? = nil,
+        provisionalIndex: Int? = nil,
         index: Int,
+        provisionalPresentationID: String? = nil,
         presentationID: String
     ) {
         self.provisionalSection = provisionalSection
         self.finalSection = finalSection ?? provisionalSection
+        self.provisionalIndex = provisionalIndex ?? index
         self.index = index
+        self.provisionalPresentationID = provisionalPresentationID ?? presentationID
         self.presentationID = presentationID
     }
 
@@ -112,10 +117,13 @@ final class HomeMorphSession {
     private(set) var errorMessage: String?
     private(set) var isCreationListRevealEnabled = false
     private(set) var isCreationFlow = false
+    private(set) var isCreationInputReady = false
+    private(set) var creationFocusRequestRevision: UInt = 0
     private(set) var detailPresentationIntent: HomeMorphDetailPresentationIntent = .compact
     private var detailSourcePlacement: TaskMorphPlacement?
 
     @ObservationIgnored var onDismissIntent: ((TaskMorphSubject) -> Void)?
+    @ObservationIgnored var onCreationCancelIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCommitIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCompletionIntent: ((TaskMorphSubject) -> Void)?
     @ObservationIgnored var onCreationRevealCompletionIntent: ((TaskMorphSubject, HomeMorphSessionToken) -> Void)?
@@ -123,14 +131,11 @@ final class HomeMorphSession {
 
     var isActive: Bool { phase != .idle }
     var isInteractive: Bool { phase == .active }
-    var isCreationOverlayVisible: Bool {
-        isCreationFlow && phase != .idle && phase != .relocating
-    }
     var isDetailFocusDepthActive: Bool {
-        isCreationFlow == false && visualState == .expanded
+        visualState == .expanded
     }
     var isFocusDepthActive: Bool {
-        isCreationOverlayVisible || isDetailFocusDepthActive
+        isDetailFocusDepthActive
     }
     @discardableResult
     func beginCreation(
@@ -145,10 +150,51 @@ final class HomeMorphSession {
         self.placement = placement
         errorMessage = nil
         isCreationListRevealEnabled = false
+        isCreationInputReady = false
         detailSourcePlacement = nil
         detailPresentationIntent = .compact
-        visualState = .editing
+        visualState = .compact
         return advance(to: .active)
+    }
+
+    @discardableResult
+    func activatePreparedCreation(using token: HomeMorphSessionToken) -> Bool {
+        guard phase == .active,
+              isCreationFlow,
+              isCurrent(token),
+              subject?.isDraft == true,
+              visualState == .compact
+        else { return false }
+        visualState = .expanded
+        return true
+    }
+
+    /// Called by the real draft row after SwiftUI has mounted its morph
+    /// container. This keeps a lazily-created row from first appearing with an
+    /// already-expanded trigger and remaining at the animator's compact value.
+    func activateMountedCreationPresentation(
+        domain: TaskMorphDomain,
+        id: UUID
+    ) -> HomeMorphSessionToken? {
+        guard subject == .draft(domain: domain, id: id),
+              let token = currentToken(),
+              activatePreparedCreation(using: token)
+        else { return nil }
+        return token
+    }
+
+    @discardableResult
+    func finishCreationExpansion(using token: HomeMorphSessionToken) -> Bool {
+        guard phase == .active,
+              isCreationFlow,
+              isCurrent(token),
+              subject?.isDraft == true,
+              visualState == .expanded,
+              isCreationInputReady == false
+        else { return false }
+        isCreationInputReady = true
+        creationFocusRequestRevision &+= 1
+        return true
     }
 
     @discardableResult
@@ -164,6 +210,7 @@ final class HomeMorphSession {
         self.placement = placement
         errorMessage = nil
         isCreationListRevealEnabled = false
+        isCreationInputReady = false
         detailSourcePlacement = placement
         detailPresentationIntent = .expanded
         // First establish ownership while the real container is still compact.
@@ -191,6 +238,16 @@ final class HomeMorphSession {
         }
         guard phase == .active else { return }
         onDismissIntent?(subject)
+    }
+
+    func requestCreationCancellation() {
+        guard phase == .active, isCreationFlow, let subject else { return }
+        onCreationCancelIntent?(subject)
+    }
+
+    func requestCreationFocus() {
+        guard phase == .active, isCreationFlow, isCreationInputReady else { return }
+        creationFocusRequestRevision &+= 1
     }
 
     func requestCommit() {
@@ -239,6 +296,14 @@ final class HomeMorphSession {
         _ = advance(to: .active)
     }
 
+    func showCreationValidationError(_ message: String) {
+        guard phase == .active, isCreationFlow else { return }
+        errorMessage = message
+        if isCreationInputReady {
+            creationFocusRequestRevision &+= 1
+        }
+    }
+
     func beginCollapseAfterSave(
         using token: HomeMorphSessionToken,
         persistedSubject: TaskMorphSubject? = nil,
@@ -253,7 +318,9 @@ final class HomeMorphSession {
             placement = TaskMorphPlacement(
                 provisionalSection: placement?.provisionalSection ?? finalPlacement.provisionalSection,
                 finalSection: finalPlacement.finalSection,
+                provisionalIndex: placement?.provisionalIndex,
                 index: finalPlacement.index,
+                provisionalPresentationID: placement?.provisionalPresentationID,
                 presentationID: finalPlacement.presentationID
             )
         }
@@ -261,6 +328,7 @@ final class HomeMorphSession {
         if isCreationFlow == false {
             detailPresentationIntent = .compact
         }
+        isCreationInputReady = false
         visualState = .compact
         return advance(to: .collapsing)
     }
@@ -268,6 +336,7 @@ final class HomeMorphSession {
     func beginDiscardCollapse() -> HomeMorphSessionToken? {
         guard phase == .active, subject?.isDraft == true else { return nil }
         errorMessage = nil
+        isCreationInputReady = false
         visualState = .compact
         return advance(to: .collapsing)
     }
@@ -343,6 +412,13 @@ final class HomeMorphSession {
         return detailSourcePlacement.requiresRelocation(to: placement)
     }
 
+    var creationRequiresRelocation: Bool {
+        guard isCreationFlow, let placement else { return true }
+        return placement.provisionalSection != placement.finalSection
+            || placement.provisionalIndex != placement.index
+            || placement.provisionalPresentationID != placement.presentationID
+    }
+
     func requestDetailCollapseCompletion(
         _ subject: TaskMorphSubject,
         using token: HomeMorphSessionToken
@@ -362,10 +438,16 @@ final class HomeMorphSession {
     }
 
     func isActive(_ domain: TaskMorphDomain, id: UUID) -> Bool {
-        isCreationFlow == false
-            && subject?.domain == domain
+        subject?.domain == domain
             && subject?.id == id
             && isActive
+    }
+
+    func isCreationPresentation(_ domain: TaskMorphDomain, id: UUID) -> Bool {
+        isCreationFlow
+            && phase != .relocating
+            && subject?.domain == domain
+            && subject?.id == id
     }
 
     func isCreationListRevealTarget(_ domain: TaskMorphDomain, id: UUID) -> Bool {
@@ -401,6 +483,8 @@ final class HomeMorphSession {
         errorMessage = nil
         isCreationListRevealEnabled = false
         isCreationFlow = false
+        isCreationInputReady = false
+        creationFocusRequestRevision = 0
         detailSourcePlacement = nil
         detailPresentationIntent = .compact
     }

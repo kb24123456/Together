@@ -95,6 +95,13 @@ struct RoutineInlineDraft: Equatable {
         reminderRules = task.reminderRules
     }
 
+    init(draft: PeriodicTaskDraft) {
+        title = draft.title
+        notes = draft.notes ?? ""
+        cycle = draft.cycle
+        reminderRules = draft.reminderRules
+    }
+
     var periodicTaskDraft: PeriodicTaskDraft {
         PeriodicTaskDraft(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -176,6 +183,8 @@ enum PeriodicTaskCreationPhase: Equatable, Sendable {
 
 struct PeriodicTaskCreationSession: Equatable, Sendable, Identifiable {
     let id: UUID
+    let provisionalCycle: PeriodicCycle
+    let initialDraft: PeriodicTaskDraft
     var draft: PeriodicTaskDraft
     var phase: PeriodicTaskCreationPhase
     var errorMessage: String?
@@ -237,12 +246,37 @@ final class RoutinesViewModel {
 
     func beginMorphCreation(defaultCycle: PeriodicCycle? = nil) {
         guard creationSession == nil, expandedTaskID == nil else { return }
+        let cycle = defaultCycle ?? selectedCycle
+        let draft = PeriodicTaskDraft(cycle: cycle)
         creationSession = PeriodicTaskCreationSession(
             id: UUID(),
-            draft: PeriodicTaskDraft(cycle: defaultCycle ?? selectedCycle),
+            provisionalCycle: cycle,
+            initialDraft: draft,
+            draft: draft,
             phase: .editing,
             errorMessage: nil
         )
+    }
+
+    var activeEditorDraft: RoutineInlineDraft? {
+        if let creationSession {
+            return RoutineInlineDraft(draft: creationSession.draft)
+        }
+        return detailDraft
+    }
+
+    var isCreationTitleEmpty: Bool {
+        creationSession?.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+    }
+
+    var isCreationCompletelyEmpty: Bool {
+        guard let session = creationSession else { return true }
+        var draft = session.draft
+        var initial = session.initialDraft
+        draft.title = ""
+        initial.title = ""
+        return session.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && draft == initial
     }
 
     func updateCreationDraft(_ mutation: (inout PeriodicTaskDraft) -> Void) {
@@ -347,6 +381,35 @@ final class RoutinesViewModel {
 
     var currentTasks: [PeriodicTask] {
         sortedTasks(for: selectedCycle)
+    }
+
+    var creationPresentationTask: PeriodicTask? {
+        guard let session = creationSession else { return nil }
+        let draft = session.draft
+        return PeriodicTask(
+            id: session.id,
+            spaceID: sessionStore.currentSpace?.id,
+            creatorID: sessionStore.currentUser?.id ?? session.id,
+            title: draft.title,
+            notes: draft.notes,
+            cycle: session.provisionalCycle,
+            reminderRules: draft.reminderRules,
+            completions: [],
+            sortOrder: .greatestFiniteMagnitude,
+            isActive: true,
+            createdAt: .now,
+            updatedAt: .now
+        )
+    }
+
+    func creationPlacement() -> TaskMorphPlacement? {
+        guard let session = creationSession else { return nil }
+        let section = TaskMorphSection.periodic(cycle: session.provisionalCycle)
+        return TaskMorphPlacement(
+            provisionalSection: section,
+            index: sortedTasks(for: session.provisionalCycle).count,
+            presentationID: session.id.uuidString
+        )
     }
 
     var nextDeferredTaskResumeDate: Date? {
@@ -761,23 +824,25 @@ final class RoutinesViewModel {
     }
 
     func updateDraftTitle(_ title: String) {
-        detailDraft?.title = title
+        mutateEditorDraft { $0.title = title }
     }
 
     func updateDraftNotes(_ notes: String) {
-        detailDraft?.notes = notes
+        mutateEditorDraft { $0.notes = notes }
     }
 
     func updateDraftCycle(_ cycle: PeriodicCycle) {
-        detailDraft?.cycle = cycle
-        if let first = detailDraft?.reminderRules.first {
+        guard var draft = activeEditorDraft else { return }
+        draft.cycle = cycle
+        if let first = draft.reminderRules.first {
             let normalized = Self.normalizedRule(first, for: cycle)
-            detailDraft?.reminderRules = normalized.isEmpty ? [] : [normalized]
+            draft.reminderRules = normalized.isEmpty ? [] : [normalized]
         }
+        replaceEditorDraft(draft)
     }
 
     func updateDraftReminderRule(_ rule: PeriodicReminderRule) {
-        detailDraft?.reminderRules = rule.isEmpty ? [] : [rule]
+        mutateEditorDraft { $0.reminderRules = rule.isEmpty ? [] : [rule] }
     }
 
     func updateDraftTargetDay(_ timing: PeriodicReminderRule.Timing) {
@@ -847,13 +912,29 @@ final class RoutinesViewModel {
     }
 
     func clearDraftReminderRule() {
-        detailDraft?.reminderRules = []
+        mutateEditorDraft { $0.reminderRules = [] }
     }
 
     private func mutateDraftRule(_ mutation: (inout PeriodicReminderRule) -> Void) {
-        var rule = detailDraft?.reminderRules.first ?? PeriodicReminderRule()
+        guard var draft = activeEditorDraft else { return }
+        var rule = draft.reminderRules.first ?? PeriodicReminderRule()
         mutation(&rule)
-        detailDraft?.reminderRules = rule.isEmpty ? [] : [rule]
+        draft.reminderRules = rule.isEmpty ? [] : [rule]
+        replaceEditorDraft(draft)
+    }
+
+    private func mutateEditorDraft(_ mutation: (inout RoutineInlineDraft) -> Void) {
+        guard var draft = activeEditorDraft else { return }
+        mutation(&draft)
+        replaceEditorDraft(draft)
+    }
+
+    private func replaceEditorDraft(_ draft: RoutineInlineDraft) {
+        if creationSession != nil {
+            updateCreationDraft { $0 = draft.periodicTaskDraft }
+        } else {
+            detailDraft = draft
+        }
     }
 
     @discardableResult

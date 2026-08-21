@@ -97,6 +97,8 @@ enum HomeTaskCreationPhase: Equatable, Sendable {
 struct HomeTaskCreationSession: Equatable, Sendable, Identifiable {
     let id: UUID
     let createdAt: Date
+    let provisionalDayStart: Date
+    let initialDraft: TaskDraft
     var draft: TaskDraft
     var phase: HomeTaskCreationPhase
     var errorMessage: String?
@@ -172,11 +174,15 @@ final class HomeViewModel {
 
     func beginTaskCreation() {
         guard taskCreationSession == nil, selectedItemID == nil else { return }
-        let day = calendar.startOfDay(for: selectedDate)
+        let day = calendar.startOfDay(for: .now)
+        selectedDate = day
+        let draft = TaskDraft(title: "", dueAt: day)
         taskCreationSession = HomeTaskCreationSession(
             id: UUID(),
             createdAt: .now,
-            draft: TaskDraft(title: "", dueAt: day),
+            provisionalDayStart: day,
+            initialDraft: draft,
+            draft: draft,
             phase: .editing,
             errorMessage: nil
         )
@@ -289,7 +295,21 @@ final class HomeViewModel {
     }
 
     var inlineDetailDraft: TaskDraft? {
-        detailDraft
+        taskCreationSession?.draft ?? detailDraft
+    }
+
+    var isTaskCreationTitleEmpty: Bool {
+        taskCreationSession?.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+    }
+
+    var isTaskCreationCompletelyEmpty: Bool {
+        guard let session = taskCreationSession else { return true }
+        var draft = session.draft
+        var initial = session.initialDraft
+        draft.title = ""
+        initial.title = ""
+        return session.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && draft == initial
     }
 
     var canEditSelectedItem: Bool {
@@ -514,15 +534,15 @@ final class HomeViewModel {
     }
 
     func updateDraftTitle(_ title: String) {
-        detailDraft?.title = title
+        mutateInlineDraft { $0.title = title }
     }
 
     func updateDraftNotes(_ notes: String) {
-        detailDraft?.notes = notes.isEmpty ? nil : notes
+        mutateInlineDraft { $0.notes = notes.isEmpty ? nil : notes }
     }
 
     func setDraftDueDateEnabled(_ enabled: Bool) {
-        guard var draft = detailDraft else { return }
+        guard var draft = inlineDetailDraft else { return }
         if enabled {
             if draft.hasExplicitTime {
                 let current = draft.dueAt ?? defaultDueDate()
@@ -539,30 +559,30 @@ final class HomeViewModel {
             draft.dueAt = nil
             draft.hasExplicitTime = false
         }
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func updateDraftDueDate(_ dueDate: Date) {
-        guard var draft = detailDraft else { return }
+        guard var draft = inlineDetailDraft else { return }
         if draft.hasExplicitTime {
             let existing = draft.dueAt ?? defaultDueDate()
             draft.dueAt = merge(date: dueDate, timeSource: existing)
         } else {
             draft.dueAt = dateOnlyDueDate(for: dueDate)
         }
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func updateDraftDueTime(_ dueTime: Date) {
-        guard var draft = detailDraft else { return }
+        guard var draft = inlineDetailDraft else { return }
         let existing = draft.dueAt ?? defaultDueDate()
         draft.dueAt = merge(date: existing, timeSource: dueTime)
         draft.hasExplicitTime = true
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func updateDraftSchedule(date: Date, time: Date?) {
-        guard var draft = detailDraft else { return }
+        guard var draft = inlineDetailDraft else { return }
 
         let reminderLeadTime: TimeInterval? = {
             guard
@@ -590,7 +610,7 @@ final class HomeViewModel {
         } else if time == nil {
             draft.remindAt = nil
         }
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func updateDraftSchedule(
@@ -598,30 +618,30 @@ final class HomeViewModel {
         time: Date?,
         reminderOffset: TimeInterval?
     ) {
-        guard var draft = detailDraft else { return }
+        guard var draft = inlineDetailDraft else { return }
         applySchedule(
             date: date,
             time: time,
             reminderOffset: reminderOffset,
             to: &draft
         )
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func clearDraftDueTime() {
-        guard var draft = detailDraft, let dueAt = draft.dueAt else { return }
+        guard var draft = inlineDetailDraft, let dueAt = draft.dueAt else { return }
         draft.dueAt = dateOnlyDueDate(for: dueAt)
         draft.hasExplicitTime = false
         draft.remindAt = nil
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func updateDraftReminder(_ remindAt: Date) {
-        detailDraft?.remindAt = remindAt
+        mutateInlineDraft { $0.remindAt = remindAt }
     }
 
     func updateDraftUrgent(_ isUrgent: Bool) {
-        detailDraft?.isUrgent = isUrgent
+        mutateInlineDraft { $0.isUrgent = isUrgent }
     }
 
     func isUpdatingTaskFollow(_ itemID: UUID) -> Bool {
@@ -665,35 +685,49 @@ final class HomeViewModel {
 
     func addDetailDraftSubtask(title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false, var draft = detailDraft else { return }
+        guard trimmed.isEmpty == false, var draft = inlineDetailDraft else { return }
         draft.subtasks.append(TaskSubtaskDraft(title: trimmed, sortOrder: draft.subtasks.count))
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func toggleDetailDraftSubtask(_ subtaskID: UUID) {
-        guard var draft = detailDraft,
+        guard var draft = inlineDetailDraft,
               let index = draft.subtasks.firstIndex(where: { $0.id == subtaskID })
         else { return }
         draft.subtasks[index].isCompleted.toggle()
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func updateDetailDraftSubtask(_ subtaskID: UUID, title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false, var draft = detailDraft,
+        guard trimmed.isEmpty == false, var draft = inlineDetailDraft,
               let index = draft.subtasks.firstIndex(where: { $0.id == subtaskID })
         else { return }
         draft.subtasks[index].title = trimmed
-        detailDraft = draft
+        replaceInlineDraft(draft)
     }
 
     func deleteDetailDraftSubtask(_ subtaskID: UUID) {
-        guard var draft = detailDraft else { return }
+        guard var draft = inlineDetailDraft else { return }
         draft.subtasks.removeAll { $0.id == subtaskID }
         for index in draft.subtasks.indices {
             draft.subtasks[index].sortOrder = index
         }
-        detailDraft = draft
+        replaceInlineDraft(draft)
+    }
+
+    private func mutateInlineDraft(_ mutation: (inout TaskDraft) -> Void) {
+        guard var draft = inlineDetailDraft else { return }
+        mutation(&draft)
+        replaceInlineDraft(draft)
+    }
+
+    private func replaceInlineDraft(_ draft: TaskDraft) {
+        if taskCreationSession != nil {
+            updateTaskCreationDraft { $0 = draft }
+        } else {
+            detailDraft = draft
+        }
     }
 
     func saveDetailDraft() async {
@@ -1071,6 +1105,68 @@ final class HomeViewModel {
 
     var activeTimelineSections: [HomeTimelineSection] {
         makeActiveTimelineSections(from: primaryIncompleteTimelineItems)
+    }
+
+    func timelineSectionsAddingTaskCreationDraft(
+        to sections: [HomeTimelineSection]
+    ) -> [HomeTimelineSection] {
+        guard let session = taskCreationSession else { return sections }
+        let entry = taskCreationTimelineEntry(session)
+        var result = sections
+
+        if let index = result.firstIndex(where: {
+            $0.isUnscheduled == false
+                && calendar.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
+        }) {
+            let section = result[index]
+            result[index] = HomeTimelineSection(
+                id: section.id,
+                dayStart: section.dayStart,
+                title: section.title,
+                context: section.context,
+                count: section.count,
+                isUnscheduled: section.isUnscheduled,
+                entries: section.entries + [entry]
+            )
+            return result
+        }
+
+        let draftSection = HomeTimelineSection(
+            id: "scheduled-\(Int(session.provisionalDayStart.timeIntervalSince1970))",
+            dayStart: session.provisionalDayStart,
+            title: timelineSectionTitle(for: session.provisionalDayStart),
+            context: timelineSectionContext(
+                for: session.provisionalDayStart,
+                isUnscheduled: false
+            ),
+            count: 0,
+            isUnscheduled: false,
+            entries: [entry]
+        )
+        let insertionIndex = result.firstIndex {
+            $0.isUnscheduled || $0.dayStart > session.provisionalDayStart
+        } ?? result.endIndex
+        result.insert(draftSection, at: insertionIndex)
+        return result
+    }
+
+    func taskCreationPlacement() -> TaskMorphPlacement? {
+        guard let session = taskCreationSession else { return nil }
+        let section = TaskMorphSection.todo(
+            dayStart: session.provisionalDayStart,
+            isUnscheduled: false
+        )
+        let index = activeTimelineSections
+            .first(where: {
+                $0.isUnscheduled == false
+                    && calendar.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
+            })?
+            .entries.count ?? 0
+        return TaskMorphPlacement(
+            provisionalSection: section,
+            index: index,
+            presentationID: taskCreationPresentationID(session)
+        )
     }
 
     var completedTimelineEntries: [HomeTimelineEntry] {
@@ -1570,6 +1666,70 @@ final class HomeViewModel {
             subtasks: sortedSubtasks,
             subtaskCompletedCount: sortedSubtasks.filter(\.isCompleted).count
         )
+    }
+
+    private func taskCreationTimelineEntry(
+        _ session: HomeTaskCreationSession
+    ) -> HomeTimelineEntry {
+        let draft = session.draft
+        let creatorID = sessionStore.currentUser?.id ?? session.id
+        let subtasks = draft.subtasks.map { subtask in
+            TaskSubtask(
+                id: subtask.id,
+                itemID: session.id,
+                creatorID: creatorID,
+                title: subtask.title,
+                isCompleted: subtask.isCompleted,
+                sortOrder: subtask.sortOrder,
+                updatedAt: session.createdAt,
+                sourceTaskID: subtask.sourceTaskID,
+                sourceNotes: subtask.sourceNotes,
+                sourceDueAt: subtask.sourceDueAt,
+                sourceHasExplicitTime: subtask.sourceHasExplicitTime,
+                sourceRemindAt: subtask.sourceRemindAt,
+                sourceCreatedAt: subtask.sourceCreatedAt,
+                sourceCompletedAt: subtask.sourceCompletedAt
+            )
+        }
+        let timeText: String = if draft.hasExplicitTime, let dueAt = draft.dueAt {
+            dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+        } else {
+            ""
+        }
+        let reminderText = draft.remindAt.map {
+            TaskSharedAttributeText.reminderLead(
+                dueAt: draft.dueAt,
+                hasExplicitTime: draft.hasExplicitTime,
+                remindAt: $0,
+                calendar: calendar
+            )
+        } ?? ""
+
+        return HomeTimelineEntry(
+            id: session.id,
+            presentationID: taskCreationPresentationID(session),
+            title: draft.title,
+            notes: draft.notes,
+            timeText: timeText,
+            reminderText: reminderText,
+            statusText: "",
+            isUrgent: draft.isUrgent,
+            isMuted: false,
+            isCompleted: false,
+            timingUrgency: .normal,
+            relationText: nil,
+            primaryAvatar: nil,
+            secondaryAvatar: nil,
+            lastActionAt: session.createdAt,
+            subtasks: subtasks,
+            subtaskCompletedCount: subtasks.filter(\.isCompleted).count
+        )
+    }
+
+    private func taskCreationPresentationID(
+        _ session: HomeTaskCreationSession
+    ) -> String {
+        "active-scheduled-\(Int(session.provisionalDayStart.timeIntervalSince1970))-\(session.id.uuidString)"
     }
 
     private func timelinePresentationID(for item: Item, isCompleted: Bool) -> String {

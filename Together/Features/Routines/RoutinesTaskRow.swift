@@ -54,6 +54,9 @@ struct RoutinesTaskRow: View {
     let isDetailCollapsing: Bool
     let expansionMotion: TaskExpansionMotion
     let cascadeRowCount: Int
+    var isCreationDraft = false
+    var creationFocusRequestRevision: UInt = 0
+    var onSubmitCreation: () -> Void = {}
     let onOpenDetail: () -> Void
     let onToggleCompletion: () -> Void
     let onDismissDetail: () -> Void
@@ -122,8 +125,15 @@ struct RoutinesTaskRow: View {
         .onAppear {
             titleDraft = draftTitle
             notesDraft = visibleNotes
+            if isCreationDraft {
+                isEditingTitle = true
+            }
             guard shouldPlayCompletionAnimation else { return }
             startCompletionAnimation()
+        }
+        .onChange(of: creationFocusRequestRevision) { _, revision in
+            guard isCreationDraft, isDetailExpanded, revision > 0 else { return }
+            beginTitleEditing()
         }
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue, shouldPlayCompletionAnimation else { return }
@@ -234,6 +244,8 @@ struct RoutinesTaskRow: View {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .disabled(isCreationDraft)
+        .accessibilityHidden(isCreationDraft)
         .accessibilityLabel(isCompleted ? "标记为未完成" : "完成定期任务")
     }
 
@@ -351,11 +363,11 @@ struct RoutinesTaskRow: View {
     }
 
     private var visibleNotes: String {
-        isDetailPresented ? (viewModel.detailDraft?.notes ?? "") : (task.notes ?? "")
+        isDetailPresented ? (viewModel.activeEditorDraft?.notes ?? "") : (task.notes ?? "")
     }
 
     private var visibleTargetText: String {
-        guard isDetailPresented, let draft = viewModel.detailDraft else {
+        guard isDetailPresented, let draft = viewModel.activeEditorDraft else {
             return RoutineTaskPropertyText.text(for: task)
         }
         guard let rule = draft.reminderRules.first else { return "" }
@@ -382,8 +394,14 @@ struct RoutinesTaskRow: View {
                 .submitLabel(.done)
                 .lineLimit(1...4)
                 .focused($isTitleFocused)
+                .onChange(of: titleDraft) { _, title in
+                    guard isCreationDraft else { return }
+                    viewModel.updateDraftTitle(title)
+                }
                 .onSubmit {
-                    commitTitleAfterFocusUpdate()
+                    commitTitleAfterFocusUpdate(
+                        then: isCreationDraft ? onSubmitCreation : nil
+                    )
                 }
                 .id(RoutineInlineFocusTarget.title.anchorID(for: task.id))
                 .onChange(of: isTitleFocused) { _, focused in
@@ -394,8 +412,10 @@ struct RoutinesTaskRow: View {
                     }
                 }
 
-            inlineSaveButton(accessibilityLabel: "保存定期任务标题") {
-                commitTitleAfterFocusUpdate()
+            if isCreationDraft == false {
+                inlineSaveButton(accessibilityLabel: "保存定期任务标题") {
+                    commitTitleAfterFocusUpdate()
+                }
             }
         }
     }
@@ -410,8 +430,11 @@ struct RoutinesTaskRow: View {
         }
     }
 
-    private func commitTitleAfterFocusUpdate() {
-        guard isEditingTitle || isTitleFocused else { return }
+    private func commitTitleAfterFocusUpdate(then action: (() -> Void)? = nil) {
+        guard isEditingTitle || isTitleFocused else {
+            action?()
+            return
+        }
         isCommittingTitle = true
         Task { @MainActor in
             titleDraft = TextInputSnapshotReader.resolvedText(fallback: titleDraft)
@@ -426,6 +449,7 @@ struct RoutinesTaskRow: View {
             }
             isEditingTitle = false
             isCommittingTitle = false
+            action?()
         }
     }
 
@@ -469,7 +493,7 @@ struct RoutinesTaskRow: View {
     }
 
     private var draftTitle: String {
-        isDetailPresented ? (viewModel.detailDraft?.title ?? task.title) : task.title
+        isDetailPresented ? (viewModel.activeEditorDraft?.title ?? task.title) : task.title
     }
 
     private var subtitleColor: Color {
@@ -652,7 +676,7 @@ private struct RoutinesInlineDetailView: View {
         }
         .padding(.top, RoutineInlineLayoutMetrics.detailTopPadding)
         .padding(.bottom, RoutineInlineLayoutMetrics.detailBottomPadding)
-        .onAppear { notesDraft = viewModel.detailDraft?.notes ?? task.notes ?? "" }
+        .onAppear { notesDraft = viewModel.activeEditorDraft?.notes ?? task.notes ?? "" }
         .onChange(of: isExpanded) { _, expanded in
             guard expanded == false, isEditingNotes else { return }
             commitNotes()
@@ -694,7 +718,7 @@ private struct RoutinesInlineDetailView: View {
             } else {
                 Button {
                     HomeInteractionFeedback.selection()
-                    notesDraft = viewModel.detailDraft?.notes ?? task.notes ?? ""
+                    notesDraft = viewModel.activeEditorDraft?.notes ?? task.notes ?? ""
                     isEditingNotes = true
                     onFocus(.notes)
                     Task { @MainActor in
@@ -718,7 +742,7 @@ private struct RoutinesInlineDetailView: View {
     }
 
     private var notesTitle: String {
-        let notes = viewModel.detailDraft?.notes ?? task.notes ?? ""
+        let notes = viewModel.activeEditorDraft?.notes ?? task.notes ?? ""
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "添加备注" : trimmed
     }
@@ -967,11 +991,11 @@ private struct RoutinesInlineDetailView: View {
     }
 
     private var draftCycle: PeriodicCycle {
-        viewModel.detailDraft?.cycle ?? task.cycle
+        viewModel.activeEditorDraft?.cycle ?? task.cycle
     }
 
     private var currentRule: PeriodicReminderRule? {
-        viewModel.detailDraft?.reminderRules.first
+        viewModel.activeEditorDraft?.reminderRules.first
     }
 
     private var targetDayTitle: String {

@@ -11,16 +11,9 @@ struct AppRootView: View {
     @State private var morphSession = HomeMorphSession()
 
     var body: some View {
-        ZStack {
-            HomeRootContent(morphSession: morphSession)
-                .environment(appContext)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
-                .accessibilityHidden(morphSession.isCreationOverlayVisible)
-
-            HomeCreationMorphOverlayLayer(session: morphSession)
-                .environment(appContext)
-        }
-        .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
+        HomeRootContent(morphSession: morphSession)
+            .environment(appContext)
+            .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
     }
 }
 
@@ -38,6 +31,7 @@ struct HomeRootContent: View {
     @State private var isPresentingDirectOCRCamera = false
     @State private var frozenRootSurface: RootSurface?
     @State private var detailCollapseCompletionTask: Task<Void, Never>?
+    @State private var pendingCreationDomain: TaskMorphDomain?
 
     private var displayedRootSurface: RootSurface {
         frozenRootSurface ?? appContext.router.currentSurface
@@ -167,6 +161,11 @@ struct HomeRootContent: View {
                 }
             case .idle:
                 frozenRootSurface = nil
+                if let pendingCreationDomain {
+                    self.pendingCreationDomain = nil
+                    beginMorphCreation(domain: pendingCreationDomain)
+                    return
+                }
                 synchronizePendingRootRoutes(router: router)
             }
         }
@@ -177,6 +176,7 @@ struct HomeRootContent: View {
         .onDisappear {
             detailCollapseCompletionTask?.cancel()
             morphSession.onDismissIntent = nil
+            morphSession.onCreationCancelIntent = nil
             morphSession.onCommitIntent = nil
             morphSession.onCompletionIntent = nil
             morphSession.onCreationRevealCompletionIntent = nil
@@ -270,13 +270,17 @@ struct HomeRootContent: View {
                 anchor: .top,
                 scalesContent: false,
                 appliesVisualDepth: false,
-                actsAsDismissTarget: morphSession.isCreationFlow == false,
+                actsAsDismissTarget: true,
                 onDismiss: morphSession.requestDismissal
             )
         }
 
         ToolbarItem(placement: .topBarTrailing) {
             Button {
+                if morphSession.isActive {
+                    morphSession.requestDismissal()
+                    return
+                }
                 HomeInteractionFeedback.selection()
                 openProfile(router: router)
             } label: {
@@ -305,7 +309,7 @@ struct HomeRootContent: View {
                 anchor: .topTrailing,
                 scalesContent: false,
                 appliesVisualDepth: false,
-                actsAsDismissTarget: morphSession.isCreationFlow == false,
+                actsAsDismissTarget: true,
                 onDismiss: morphSession.requestDismissal
             )
         }
@@ -343,24 +347,16 @@ struct HomeRootContent: View {
 
         ToolbarItem(placement: .bottomBar) {
             Button {
-                if isMorphBackgroundDeemphasized {
-                    morphSession.requestDismissal()
-                } else {
-                    HomeInteractionFeedback.selection()
-                    openContextualComposer(router: router)
-                }
+                HomeInteractionFeedback.selection()
+                openContextualComposer(router: router)
             } label: {
-                Label(
-                    isMorphBackgroundDeemphasized ? "收起任务详情" : "新建",
-                    systemImage: "plus"
-                )
+                Label("新建", systemImage: "plus")
                 .labelStyle(.iconOnly)
             }
-            .disabled(morphSession.isActive && isMorphBackgroundDeemphasized == false)
             .accessibilityIdentifier("together.bottom-toolbar.add")
             .accessibilityHint(
-                isMorphBackgroundDeemphasized
-                    ? "保存更改并收起当前任务"
+                morphSession.isActive
+                    ? "保存并收起当前任务后新建一项"
                     : "在当前视图下新建一项"
             )
         }
@@ -375,11 +371,10 @@ struct HomeRootContent: View {
         Button {
             selectRootSurface(surface, router: router)
         } label: {
-            Text(title)
-                .font(.headline.weight(isSelected ? .semibold : .regular))
-                .foregroundStyle(
-                    isSelected ? AppTheme.colors.title : AppTheme.colors.textTertiary
-                )
+            HomeModeSelectionLabel(
+                title: title,
+                isSelected: isSelected
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
@@ -418,24 +413,30 @@ struct HomeRootContent: View {
         domain: TaskMorphDomain,
         title: String? = nil
     ) {
-        guard morphSession.isActive == false else { return }
+        if morphSession.isActive {
+            if morphSession.isCreationFlow,
+               morphSession.subject?.domain == domain,
+               isCurrentCreationCompletelyEmpty(domain: domain) {
+                morphSession.requestCreationFocus()
+                return
+            }
+            pendingCreationDomain = domain
+            morphSession.requestDismissal()
+            return
+        }
         switch domain {
         case .todo:
             appContext.homeViewModel.beginTaskCreation()
             if let title, title.isEmpty == false {
                 appContext.homeViewModel.updateTaskCreationDraft { $0.title = title }
             }
-            guard let session = appContext.homeViewModel.taskCreationSession else { return }
-            let dayStart = Calendar.current.startOfDay(for: appContext.homeViewModel.selectedDate)
-            let section = TaskMorphSection.todo(dayStart: dayStart, isUnscheduled: false)
+            guard let session = appContext.homeViewModel.taskCreationSession,
+                  let placement = appContext.homeViewModel.taskCreationPlacement()
+            else { return }
             _ = morphSession.beginCreation(
                 domain: .todo,
                 id: session.id,
-                placement: TaskMorphPlacement(
-                    provisionalSection: section,
-                    index: 0,
-                    presentationID: "todo-draft-\(session.id.uuidString)"
-                )
+                placement: placement
             )
         case .periodic:
             appContext.routinesViewModel.beginMorphCreation(
@@ -444,17 +445,13 @@ struct HomeRootContent: View {
             if let title, title.isEmpty == false {
                 appContext.routinesViewModel.updateCreationDraft { $0.title = title }
             }
-            guard let session = appContext.routinesViewModel.creationSession else { return }
-            let cycle = appContext.routinesViewModel.selectedCycle
-            let section = TaskMorphSection.periodic(cycle: cycle)
+            guard let session = appContext.routinesViewModel.creationSession,
+                  let placement = appContext.routinesViewModel.creationPlacement()
+            else { return }
             _ = morphSession.beginCreation(
                 domain: .periodic,
                 id: session.id,
-                placement: TaskMorphPlacement(
-                    provisionalSection: section,
-                    index: 0,
-                    presentationID: "periodic-draft-\(session.id.uuidString)"
-                )
+                placement: placement
             )
         }
     }
@@ -482,6 +479,10 @@ struct HomeRootContent: View {
         morphSession.onDismissIntent = { subject in
             dismissMorph(subject)
         }
+        morphSession.onCreationCancelIntent = { subject in
+            pendingCreationDomain = nil
+            discardMorphCreation(subject)
+        }
         morphSession.onCommitIntent = { subject in
             commitMorphCreation(subject)
         }
@@ -498,7 +499,24 @@ struct HomeRootContent: View {
 
     private func dismissMorph(_ subject: TaskMorphSubject) {
         if subject.isDraft {
-            discardMorphCreation(subject)
+            switch subject.domain {
+            case .todo:
+                if appContext.homeViewModel.isTaskCreationTitleEmpty == false {
+                    commitMorphCreation(subject)
+                } else if appContext.homeViewModel.isTaskCreationCompletelyEmpty {
+                    discardMorphCreation(subject)
+                } else {
+                    morphSession.showCreationValidationError("请输入任务标题。")
+                }
+            case .periodic:
+                if appContext.routinesViewModel.isCreationTitleEmpty == false {
+                    commitMorphCreation(subject)
+                } else if appContext.routinesViewModel.isCreationCompletelyEmpty {
+                    discardMorphCreation(subject)
+                } else {
+                    morphSession.showCreationValidationError("请输入定期任务标题。")
+                }
+            }
         } else {
             saveAndCollapseMorph(subject, completesTask: false)
         }
@@ -528,43 +546,98 @@ struct HomeRootContent: View {
         case .saved(let finalPlacement):
             let persisted = TaskMorphSubject.persisted(domain: subject.domain, id: subject.id)
             var collapseToken: HomeMorphSessionToken?
-            withAnimation(
-                creationExitAnimation,
-                completionCriteria: .logicallyComplete
-            ) {
+            withAnimation(detailCollapseAnimation) {
                 collapseToken = morphSession.beginCollapseAfterSave(
                     using: token,
                     persistedSubject: persisted,
                     finalPlacement: finalPlacement
                 )
-            } completion: {
-                guard let collapseToken else { return }
-                var transaction = Transaction()
-                transaction.animation = nil
-                withTransaction(transaction) {
-                    guard morphSession.beginRelocating(using: collapseToken) != nil else { return }
-                    prepareCreationLanding(subject)
-                }
             }
+            guard let collapseToken else { return }
+            scheduleCreationCollapseCompletion(subject, token: collapseToken, wasCommitted: true)
         }
     }
 
     private func discardMorphCreation(_ subject: TaskMorphSubject) {
         var collapseToken: HomeMorphSessionToken?
-        withAnimation(
-            creationExitAnimation,
-            completionCriteria: .logicallyComplete
-        ) {
+        withAnimation(detailCollapseAnimation) {
             collapseToken = morphSession.beginDiscardCollapse()
-        } completion: {
-            guard let collapseToken else { return }
-            switch subject.domain {
-            case .todo:
-                appContext.homeViewModel.discardTaskCreation()
-            case .periodic:
-                appContext.routinesViewModel.discardMorphCreation()
+        }
+        guard let collapseToken else { return }
+        scheduleCreationCollapseCompletion(subject, token: collapseToken, wasCommitted: false)
+    }
+
+    private func scheduleCreationCollapseCompletion(
+        _ subject: TaskMorphSubject,
+        token: HomeMorphSessionToken,
+        wasCommitted: Bool
+    ) {
+        detailCollapseCompletionTask?.cancel()
+        let delay = Duration.seconds(
+            reduceMotion
+                ? TaskExpansionMotionTiming.reducedMotionDuration
+                : TaskExpansionMotionTiming.collapseDuration
+        )
+        detailCollapseCompletionTask = Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard Task.isCancelled == false,
+                  morphSession.isCurrent(token),
+                  morphSession.phase == .collapsing,
+                  morphSession.visualState == .compact
+            else { return }
+            finalizeCreationCollapse(subject, token: token, wasCommitted: wasCommitted)
+        }
+    }
+
+    private func finalizeCreationCollapse(
+        _ subject: TaskMorphSubject,
+        token: HomeMorphSessionToken,
+        wasCommitted: Bool
+    ) {
+        guard wasCommitted else {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                switch subject.domain {
+                case .todo:
+                    appContext.homeViewModel.discardTaskCreation()
+                case .periodic:
+                    appContext.routinesViewModel.discardMorphCreation()
+                }
+                morphSession.finishDiscard(using: token)
             }
-            morphSession.finishDiscard(using: collapseToken)
+            return
+        }
+
+        guard morphSession.creationRequiresRelocation else {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                finalizeCommittedCreation(subject)
+                morphSession.finishCollapse(using: token)
+            }
+            return
+        }
+
+        guard morphSession.beginRelocating(using: token) != nil else { return }
+        prepareCreationLanding(subject)
+    }
+
+    private func finalizeCommittedCreation(_ subject: TaskMorphSubject) {
+        switch subject.domain {
+        case .todo:
+            appContext.homeViewModel.finalizeCommittedTaskCreation()
+        case .periodic:
+            appContext.routinesViewModel.finalizeMorphCreation()
+        }
+    }
+
+    private func isCurrentCreationCompletelyEmpty(domain: TaskMorphDomain) -> Bool {
+        switch domain {
+        case .todo:
+            appContext.homeViewModel.isTaskCreationCompletelyEmpty
+        case .periodic:
+            appContext.routinesViewModel.isCreationCompletelyEmpty
         }
     }
 
@@ -726,10 +799,6 @@ struct HomeRootContent: View {
             : .smooth(duration: TaskExpansionMotionTiming.collapseDuration, extraBounce: 0)
     }
 
-    private var creationExitAnimation: Animation {
-        reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22, extraBounce: 0)
-    }
-
     private func openDirectOCRPhotoPicker() {
         HomeInteractionFeedback.selection()
         directOCRProcessingTask?.cancel()
@@ -803,7 +872,10 @@ struct HomeRootContent: View {
     }
 
     private func selectRootSurface(_ surface: RootSurface, router: AppRouter) {
-        guard morphSession.isActive == false else { return }
+        if morphSession.isActive {
+            morphSession.requestDismissal()
+            return
+        }
         guard router.isProfilePresented == false else { return }
         guard router.activeComposer == nil else { return }
         guard surface == .today || surface == .routines else { return }
@@ -833,6 +905,67 @@ struct HomeRootContent: View {
 
 }
 
+private struct HomeModeSelectionLabel: View {
+    let title: String
+    let isSelected: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private enum Metrics {
+        static let inactiveFontSize: CGFloat = 17
+        static let activeFontSize: CGFloat = 21.5
+        static let transitionDuration = 0.26
+
+        static let inactiveHiddenScale = activeFontSize / inactiveFontSize
+        static let activeHiddenScale = inactiveFontSize / activeFontSize
+    }
+
+    var body: some View {
+        ZStack {
+            Text(title)
+                .font(
+                    AppTheme.typography.scaled(
+                        Metrics.inactiveFontSize,
+                        weight: .regular,
+                        relativeTo: .headline
+                    )
+                )
+                .foregroundStyle(AppTheme.colors.textTertiary)
+                .scaleEffect(inactiveScale)
+                .opacity(isSelected ? 0 : 1)
+
+            Text(title)
+                .font(
+                    AppTheme.typography.scaled(
+                        Metrics.activeFontSize,
+                        weight: .bold,
+                        relativeTo: .headline
+                    )
+                )
+                .foregroundStyle(AppTheme.colors.title)
+                .scaleEffect(activeScale)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .animation(selectionAnimation, value: isSelected)
+    }
+
+    private var inactiveScale: CGFloat {
+        guard reduceMotion == false else { return 1 }
+        return isSelected ? Metrics.inactiveHiddenScale : 1
+    }
+
+    private var activeScale: CGFloat {
+        guard reduceMotion == false else { return 1 }
+        return isSelected ? 1 : Metrics.activeHiddenScale
+    }
+
+    private var selectionAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.16)
+            : .smooth(duration: Metrics.transitionDuration, extraBounce: 0)
+    }
+}
+
 private struct HomeModePlainButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -849,6 +982,6 @@ private struct HomeModePlainButtonStyle: ButtonStyle {
         }
         return isPressed
             ? .easeOut(duration: 0.09)
-            : .smooth(duration: 0.18, extraBounce: 0.14)
+            : .smooth(duration: 0.18, extraBounce: 0)
     }
 }
