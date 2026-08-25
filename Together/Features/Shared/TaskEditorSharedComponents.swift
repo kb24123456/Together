@@ -58,6 +58,7 @@ struct TaskAttributeLabel: View {
     var horizontalPadding: CGFloat = 11
     var isFocusForeground = false
     var fillsAvailableWidth = false
+    var usesLightweightBackground = false
 
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.colorScheme) private var colorScheme
@@ -75,9 +76,7 @@ struct TaskAttributeLabel: View {
             }
         }
         .foregroundStyle(
-            tint ?? (isConfigured
-                ? AppTheme.colors.title.opacity(isFocusForeground ? 0.84 : 0.76)
-                : AppTheme.colors.body.opacity(isFocusForeground ? 0.62 : 0.52))
+            tint ?? foregroundColor
         )
         .padding(.horizontal, isCircular ? 0 : horizontalPadding)
         .frame(width: isCircular ? 34 : nil, height: 34)
@@ -109,12 +108,31 @@ struct TaskAttributeLabel: View {
         return AnyShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
+    private var foregroundColor: Color {
+        if isFocusForeground, colorScheme == .light {
+            return isConfigured
+                ? AppTheme.colors.taskFocusBody
+                : AppTheme.colors.taskFocusPlaceholder
+        }
+        if isConfigured {
+            return AppTheme.colors.title.opacity(isFocusForeground ? 0.84 : 0.76)
+        }
+        return AppTheme.colors.body.opacity(
+            isFocusForeground
+                ? (colorScheme == .dark ? 0.62 : 0.84)
+                : 0.52
+        )
+    }
+
     private var backgroundFill: Color {
 #if canImport(UIKit)
         Color(
-            uiColor: colorSchemeContrast == .increased
-                ? .systemFill
-                : .secondarySystemFill
+            uiColor: {
+                if colorSchemeContrast == .increased {
+                    return usesLightweightBackground ? .secondarySystemFill : .systemFill
+                }
+                return usesLightweightBackground ? .tertiarySystemFill : .secondarySystemFill
+            }()
         )
 #else
         AppTheme.colors.pillSurface
@@ -129,6 +147,249 @@ struct TaskMorphAttributeButtonStyle: ButtonStyle {
             .brightness(configuration.isPressed ? -0.035 : 0)
             .opacity(configuration.isPressed ? 0.9 : 1)
             .animation(.smooth(duration: 0.14, extraBounce: 0), value: configuration.isPressed)
+    }
+}
+
+struct TaskCreationActionRow: View {
+    static let minimumHeight: CGFloat = 44
+
+    let isTitleValid: Bool
+    let isInputReady: Bool
+    let phase: HomeMorphPhase
+    let isSaveAcknowledged: Bool
+    let onCancel: () -> Void
+    let onAdd: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(spacing: AppTheme.spacing.xs) {
+            Button {
+                HomeInteractionFeedback.selection()
+                onCancel()
+            } label: {
+                Text("取消")
+                    .font(AppTheme.typography.scaled(15, weight: .semibold, relativeTo: .subheadline))
+                    .foregroundStyle(cancelForegroundColor)
+                    .frame(minWidth: 64, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(TaskCreationCancelButtonStyle())
+            .disabled(canCancel == false)
+
+            Rectangle()
+                .fill(Color.primary.opacity(0.11))
+                .frame(width: 1, height: 16)
+                .accessibilityHidden(true)
+
+            Button(action: onAdd) {
+                TaskCreationAddMorphLabel(
+                    isSaving: phase == .saving,
+                    isSaveAcknowledged: isSaveAcknowledged,
+                    foregroundStyle: addForegroundColor,
+                    reduceMotion: reduceMotion
+                )
+                .frame(minWidth: 64, minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(TaskCreationAddButtonStyle())
+            .disabled(canAdd == false)
+            .accessibilityLabel(isSaveAcknowledged ? "已添加" : "添加任务")
+            .accessibilityHint(isTitleValid ? "保存当前草稿" : "请先输入任务标题")
+        }
+        .frame(maxWidth: .infinity, minHeight: Self.minimumHeight)
+        .animation(
+            reduceMotion
+                ? .easeInOut(duration: 0.12)
+                : .smooth(duration: 0.16, extraBounce: 0),
+            value: isTitleValid
+        )
+    }
+
+    private var canCancel: Bool {
+        phase == .active && isInputReady
+    }
+
+    private var canAdd: Bool {
+        canCancel && isTitleValid
+    }
+
+    private var addForegroundColor: Color {
+        if canAdd || phase == .saving || isSaveAcknowledged {
+            return colorScheme == .light ? AppTheme.colors.taskFocusTitle : AppTheme.colors.body
+        }
+        return AppTheme.colors.body.opacity(0.28)
+    }
+
+    private var cancelForegroundColor: Color {
+        colorScheme == .light
+            ? AppTheme.colors.taskFocusBody
+            : AppTheme.colors.body.opacity(0.72)
+    }
+}
+
+private struct TaskCreationAddMorphLabel: View {
+    let isSaving: Bool
+    let isSaveAcknowledged: Bool
+    let foregroundStyle: Color
+    let reduceMotion: Bool
+
+    var body: some View {
+        if reduceMotion {
+            reducedMotionLabel
+        } else {
+            KeyframeAnimator(
+                initialValue: MorphValues(),
+                trigger: isSaveAcknowledged
+            ) { values in
+                morphLabel(values)
+            } keyframes: { _ in
+                KeyframeTrack(\.labelOpacity) {
+                    CubicKeyframe(0.76, duration: 0.07)
+                    CubicKeyframe(0, duration: 0.11)
+                    LinearKeyframe(0, duration: 0.26)
+                }
+                KeyframeTrack(\.labelHorizontalScale) {
+                    CubicKeyframe(0.82, duration: 0.10)
+                    CubicKeyframe(0.42, duration: 0.08)
+                    LinearKeyframe(0.42, duration: 0.26)
+                }
+                KeyframeTrack(\.labelBlur) {
+                    CubicKeyframe(0.16, duration: 0.10)
+                    CubicKeyframe(0.40, duration: 0.08)
+                    LinearKeyframe(0.40, duration: 0.26)
+                }
+                KeyframeTrack(\.checkTrim) {
+                    LinearKeyframe(0, duration: 0.08)
+                    CubicKeyframe(1, duration: 0.36)
+                }
+                KeyframeTrack(\.checkOpacity) {
+                    LinearKeyframe(0, duration: 0.06)
+                    CubicKeyframe(1, duration: 0.08)
+                    LinearKeyframe(1, duration: 0.30)
+                }
+                KeyframeTrack(\.checkScale) {
+                    LinearKeyframe(0.82, duration: 0.06)
+                    CubicKeyframe(1, duration: 0.30)
+                    LinearKeyframe(1, duration: 0.08)
+                }
+                KeyframeTrack(\.checkRotation) {
+                    LinearKeyframe(-2.4, duration: 0.06)
+                    CubicKeyframe(0, duration: 0.30)
+                    LinearKeyframe(0, duration: 0.08)
+                }
+                KeyframeTrack(\.checkVerticalOffset) {
+                    LinearKeyframe(1.8, duration: 0.06)
+                    CubicKeyframe(0, duration: 0.30)
+                    LinearKeyframe(0, duration: 0.08)
+                }
+            }
+        }
+    }
+
+    private var reducedMotionLabel: some View {
+        ZStack {
+            Text("添加")
+                .opacity(isSaveAcknowledged ? 0 : savingOpacity)
+
+            TaskCreationCheckmarkShape()
+                .stroke(
+                    foregroundStyle,
+                    style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
+                )
+                .frame(width: 24, height: 24)
+                .opacity(isSaveAcknowledged ? 1 : 0)
+        }
+        .font(AppTheme.typography.scaled(15, weight: .semibold, relativeTo: .subheadline))
+        .foregroundStyle(foregroundStyle)
+        .animation(.easeInOut(duration: 0.12), value: isSaveAcknowledged)
+        .animation(.easeInOut(duration: 0.12), value: isSaving)
+    }
+
+    private func morphLabel(_ values: MorphValues) -> some View {
+        ZStack {
+            Text("添加")
+                .opacity(values.labelOpacity * savingOpacity)
+                .scaleEffect(x: values.labelHorizontalScale, y: 1, anchor: .center)
+                .blur(radius: values.labelBlur)
+
+            TaskCreationCheckmarkShape()
+                .trim(from: 0, to: values.checkTrim)
+                .stroke(
+                    foregroundStyle,
+                    style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
+                )
+                .frame(width: 24, height: 24)
+                .opacity(values.checkOpacity)
+                .scaleEffect(values.checkScale)
+                .rotationEffect(.degrees(values.checkRotation))
+                .offset(y: values.checkVerticalOffset)
+        }
+        .font(AppTheme.typography.scaled(15, weight: .semibold, relativeTo: .subheadline))
+        .foregroundStyle(foregroundStyle)
+        .animation(.smooth(duration: 0.12, extraBounce: 0), value: isSaving)
+    }
+
+    private var savingOpacity: Double {
+        isSaving ? 0.76 : 1
+    }
+
+    private struct MorphValues {
+        var labelOpacity: Double = 1
+        var labelHorizontalScale: CGFloat = 1
+        var labelBlur: CGFloat = 0
+        var checkTrim: CGFloat = 0
+        var checkOpacity: Double = 0
+        var checkScale: CGFloat = 0.82
+        var checkRotation: Double = -2.4
+        var checkVerticalOffset: CGFloat = 1.8
+    }
+}
+
+private struct TaskCreationCheckmarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.width * 0.14, y: rect.height * 0.52))
+        path.addLine(to: CGPoint(x: rect.width * 0.40, y: rect.height * 0.76))
+        path.addLine(to: CGPoint(x: rect.width * 0.84, y: rect.height * 0.28))
+        return path
+    }
+}
+
+private struct TaskCreationCancelButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.97 : 1))
+            .opacity(configuration.isPressed ? 0.58 : 1)
+            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
+    }
+}
+
+private struct TaskCreationAddButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? 0.96 : 1))
+            .opacity(configuration.isPressed ? 0.90 : 1)
+            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
+    }
+}
+
+struct TaskCreationValidationNudge: GeometryEffect {
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        let offset = sin(progress * .pi * 4) * 3 * (1 - progress)
+        return ProjectionTransform(CGAffineTransform(translationX: offset, y: 0))
     }
 }
 

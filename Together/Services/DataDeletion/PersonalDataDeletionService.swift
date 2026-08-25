@@ -125,6 +125,7 @@ final class PersonalDataDeletionService {
 
     private func deleteManifestFromStore() throws {
         let context = ModelContext(container)
+        for value in try context.fetch(FetchDescriptor<PersistentTaskLifecycleEvent>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentItemOccurrenceCompletion>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentTaskSubtask>()) { context.delete(value) }
         for value in try context.fetch(FetchDescriptor<PersistentProjectSubtask>()) { context.delete(value) }
@@ -182,7 +183,8 @@ private struct PersonalDataDeletionManifest {
             try context.fetchCount(FetchDescriptor<PersistentTaskSubtask>()),
             try context.fetchCount(FetchDescriptor<PersistentItemOccurrenceCompletion>()),
             try context.fetchCount(FetchDescriptor<PersistentTaskList>()),
-            try context.fetchCount(FetchDescriptor<PersistentProjectSubtask>())
+            try context.fetchCount(FetchDescriptor<PersistentProjectSubtask>()),
+            try context.fetchCount(FetchDescriptor<PersistentTaskLifecycleEvent>())
         ]
         return PersonalDataDeletionManifest(
             itemIDs: Set(items.map(\.id)),

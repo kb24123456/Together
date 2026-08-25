@@ -7,9 +7,9 @@ enum AppTheme {
     enum colors {
         // MARK: - Backgrounds & Surfaces
 
-        /// Neutral cool white keeps large task-list surfaces clear without erasing
-        /// the warm character carried by avatars and semantic accents.
-        static let background = Color(light: .init(red: 0.980, green: 0.984, blue: 0.988),
+        /// Primary light canvases use true system white. Atmosphere belongs to
+        /// the optional particle layer rather than a permanent cool-gray cast.
+        static let background = Color(light: .white,
                                       dark: .init(red: 0.11, green: 0.11, blue: 0.12))
 
         static let backgroundSoft = Color(light: .init(red: 0.989, green: 0.992, blue: 0.996),
@@ -48,6 +48,17 @@ enum AppTheme {
 
         static let textTertiary = Color(light: .init(red: 0.70, green: 0.70, blue: 0.70),
                                         dark: .init(red: 0.46, green: 0.46, blue: 0.48))
+
+        /// Active task details use a tighter near-black hierarchy in light mode
+        /// so the expanded row reads as the current foreground surface.
+        static let taskFocusTitle = Color(light: .init(red: 0.07, green: 0.075, blue: 0.08),
+                                          dark: .init(red: 0.95, green: 0.95, blue: 0.96))
+
+        static let taskFocusBody = Color(light: .init(red: 0.18, green: 0.19, blue: 0.20),
+                                         dark: .init(red: 0.72, green: 0.72, blue: 0.74))
+
+        static let taskFocusPlaceholder = Color(light: .init(red: 0.31, green: 0.32, blue: 0.33),
+                                                dark: .init(red: 0.72, green: 0.72, blue: 0.74))
 
         /// body 层级派生（Wave 5 design system 统一）— 替代散落在各页面的 `body.opacity(0.7x)` 硬编码。
         /// 用于 section 内副标 / 弱副信息。
@@ -137,7 +148,7 @@ enum AppTheme {
 
         // MARK: - Background Gradient
 
-        static let gradientBottom = Color(light: .init(red: 0.974, green: 0.978, blue: 0.982),
+        static let gradientBottom = Color(light: .white,
                                           dark: .init(red: 0.125, green: 0.125, blue: 0.132))
     }
 
@@ -279,6 +290,15 @@ extension View {
 
     @ViewBuilder
     func applyHomeScrollEdgeTransition() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func applySoftScrollEdgeTransition() -> some View {
         if #available(iOS 26.0, *) {
             self.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
         } else {

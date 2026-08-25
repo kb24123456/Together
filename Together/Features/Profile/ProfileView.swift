@@ -10,6 +10,7 @@ struct ProfileView: View {
     @Namespace private var profileTransition
 
     var body: some View {
+        @Bindable var appearanceManager = appContext.appearanceManager
         @Bindable var ambientBackgroundSettings = appContext.ambientBackgroundSettings
 
         ScrollView {
@@ -29,6 +30,19 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
 
                 ProfileFlatSection(title: "显示") {
+                    ProfileFlatOptionRow(
+                        title: "外观",
+                        value: appearanceManager.mode.title,
+                        systemImage: "circle.lefthalf.filled"
+                    ) {
+                        Picker("外观", selection: $appearanceManager.mode) {
+                            ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                                Text(mode.title)
+                                    .tag(mode)
+                            }
+                        }
+                    }
+
                     ProfileFlatToggleRow(
                         title: "动态背景",
                         systemImage: "sparkles"
@@ -72,19 +86,20 @@ struct ProfileView: View {
                             }
 
                             ProfileFlatToggleRow(
-                                title: "每日汇总",
-                                systemImage: "sunset"
+                                title: "每日摘要",
+                                systemImage: "clock"
                             ) {
                                 HStack(spacing: AppTheme.spacing.sm) {
-                                    Text("18:00")
+                                    Text("09:00 · 18:00")
                                         .font(AppTheme.typography.sized(15, weight: .medium))
                                         .foregroundStyle(AppTheme.colors.body.opacity(0.58))
 
-                                    Toggle("每日汇总", isOn: Binding(
+                                    Toggle("每日摘要", isOn: Binding(
                                         get: { viewModel.dailySummaryEnabled },
                                         set: { viewModel.updateDailySummaryEnabled($0) }
                                     ))
                                     .labelsHidden()
+                                    .accessibilityHint("每天早上九点发送今日待完成数量，晚上六点发送剩余未完成数量")
                                 }
                             }
 
@@ -101,6 +116,15 @@ struct ProfileView: View {
                 }
 
                 ProfileFlatSection(title: "整理") {
+
+                    NavigationLink(value: ProfileRoute.planningReview) {
+                        ProfileFlatValueRow(
+                            title: "计划复盘",
+                            value: planningReviewSubtitle,
+                            systemImage: "chart.bar.doc.horizontal"
+                        )
+                    }
+                    .buttonStyle(.plain)
 
                     ProfileFlatToggleRow(
                         title: "已完成自动归档",
@@ -186,7 +210,7 @@ struct ProfileView: View {
             .padding(.top, AppTheme.spacing.md)
             .padding(.bottom, AppTheme.spacing.xxl * 2)
         }
-        .applyScrollEdgeProtection()
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("我")
         .navigationBarTitleDisplayMode(.inline)
@@ -208,6 +232,11 @@ struct ProfileView: View {
                 .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel(initialFilter: .all))
+            case .planningReview:
+                PlanningReviewView(
+                    loadReview: viewModel.planningReview,
+                    loadTaskReview: viewModel.taskLifecycleReview
+                )
             case .accountDeletion:
                 ProfileAccountDeletionView(viewModel: viewModel)
             case .about:
@@ -248,8 +277,15 @@ struct ProfileView: View {
     }
 
     private func openAppSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
         openURL(url)
+    }
+
+    private var planningReviewSubtitle: String {
+        if Calendar.current.component(.weekday, from: .now) == 6 {
+            return "本周可回顾"
+        }
+        return "本周 \(viewModel.weeklyPlanningReviewCompletionCount) 项"
     }
 }
 

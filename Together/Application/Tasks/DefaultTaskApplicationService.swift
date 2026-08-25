@@ -50,6 +50,12 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
 
     func createTask(id itemID: UUID, in spaceID: UUID, actorID: UUID, draft: TaskDraft) async throws -> Item {
         let now = Date.now
+        let schedule = normalizedSchedule(
+            dueAt: draft.dueAt,
+            hasExplicitTime: draft.hasExplicitTime,
+            remindAt: draft.remindAt,
+            referenceDate: now
+        )
         let item = Item(
             id: itemID,
             spaceID: spaceID,
@@ -59,9 +65,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: draft.notes,
             locationText: nil,
-            dueAt: draft.dueAt,
-            hasExplicitTime: draft.hasExplicitTime,
-            remindAt: draft.remindAt,
+            dueAt: schedule.dueAt,
+            hasExplicitTime: schedule.hasExplicitTime,
+            remindAt: schedule.remindAt,
             status: draft.status,
             lastActionByUserID: actorID,
             lastActionAt: now,
@@ -101,10 +107,16 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         item.notes = draft.notes
         item.listID = draft.listID
         item.projectID = draft.projectID
-        item.dueAt = draft.dueAt
-        item.remindAt = draft.remindAt
+        let schedule = normalizedSchedule(
+            dueAt: draft.dueAt,
+            hasExplicitTime: draft.hasExplicitTime,
+            remindAt: draft.remindAt,
+            referenceDate: .now
+        )
+        item.dueAt = schedule.dueAt
+        item.remindAt = schedule.remindAt
         item.status = draft.status
-        item.hasExplicitTime = draft.hasExplicitTime
+        item.hasExplicitTime = schedule.hasExplicitTime
         item.isUrgent = draft.isUrgent
         item.isDraft = draft.isDraft
         item.repeatRule = nil
@@ -169,8 +181,15 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         guard SoloPermissionService.canEditTask(item, actorID: actorID) else {
             throw PermissionError.notCreator
         }
-        item.dueAt = dueAt
-        item.remindAt = remindAt
+        let schedule = normalizedSchedule(
+            dueAt: dueAt,
+            hasExplicitTime: item.hasExplicitTime,
+            remindAt: remindAt,
+            referenceDate: .now
+        )
+        item.dueAt = schedule.dueAt
+        item.hasExplicitTime = schedule.hasExplicitTime
+        item.remindAt = schedule.remindAt
         item.updatedAt = .now
 
         let saved = try await itemRepository.saveItem(item)
@@ -184,6 +203,26 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
         )
         await syncReminderState(for: saved, in: spaceID)
         return saved
+    }
+
+    private func normalizedSchedule(
+        dueAt: Date?,
+        hasExplicitTime: Bool,
+        remindAt: Date?,
+        referenceDate: Date
+    ) -> (dueAt: Date, hasExplicitTime: Bool, remindAt: Date?) {
+        guard let dueAt else {
+            return (
+                calendar.startOfDay(for: referenceDate),
+                false,
+                nil
+            )
+        }
+        return (
+            dueAt,
+            hasExplicitTime,
+            remindAt
+        )
     }
 
     func snoozeTask(
@@ -444,35 +483,18 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
     }
 
     private func snoozeDueDate(for item: Item, option: TaskSnoozeOption, now: Date) -> Date? {
-        switch option {
-        case .tomorrow:
-            let baseDate = item.dueAt ?? now
-            if item.hasExplicitTime, let dueAt = item.dueAt {
-                return calendar.date(byAdding: .day, value: 1, to: dueAt) ?? dueAt
-            }
-            let tomorrow = calendar.date(byAdding: .day, value: 1, to: baseDate) ?? baseDate
-            return calendar.startOfDay(for: tomorrow)
-        case let .minutes(minutes):
-            let baseDate = item.dueAt.map { max($0, now) } ?? now
-            let future = baseDate.addingTimeInterval(TimeInterval(minutes * 60))
-            let roundedMinute = Int((Double(calendar.component(.minute, from: future)) / 5.0).rounded()) * 5
-            let minuteOverflow = roundedMinute / 60
-            let normalizedMinute = roundedMinute % 60
-            let normalizedHour = (calendar.component(.hour, from: future) + minuteOverflow) % 24
-            return calendar.date(
-                bySettingHour: normalizedHour,
-                minute: normalizedMinute,
-                second: 0,
-                of: future
-            ) ?? future
-        case let .custom(date, _):
-            return date
-        }
+        TaskSnoozeDateCalculator.dueDate(
+            currentDueAt: item.dueAt,
+            hasExplicitTime: item.hasExplicitTime,
+            option: option,
+            now: now,
+            calendar: calendar
+        )
     }
 
     private func hasExplicitTime(for item: Item, option: TaskSnoozeOption) -> Bool {
         switch option {
-        case .tomorrow:
+        case .tomorrow, .nextMonday:
             return item.hasExplicitTime
         case .minutes:
             return true

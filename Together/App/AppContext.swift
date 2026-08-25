@@ -60,13 +60,13 @@ final class AppContext {
         container: AppContainer,
         sessionStore: SessionStore,
         router: AppRouter,
-        appearanceManager: AppearanceManager = AppearanceManager(),
+        appearanceManager: AppearanceManager? = nil,
         cloudImportConvergenceDelays: [Duration] = [.milliseconds(800), .seconds(4)]
     ) {
         self.container = container
         self.sessionStore = sessionStore
         self.router = router
-        self.appearanceManager = appearanceManager
+        self.appearanceManager = appearanceManager ?? AppearanceManager()
         self.ambientBackgroundSettings = AmbientBackgroundSettings()
         self.cloudImportConvergenceDelays = cloudImportConvergenceDelays
 
@@ -163,8 +163,23 @@ final class AppContext {
     private func finishIdentityBootstrap(user: User, space: Space) async {
         sessionStore.applyPersonalIdentity(user: user, space: space)
         await migrateLegacyProjectsIfNeeded()
+        await normalizeMissingTaskDatesIfNeeded(referenceDate: .now)
         await restorePersistedUserProfileIfNeeded()
         hasBootstrapped = true
+    }
+
+    private func normalizeMissingTaskDatesIfNeeded(referenceDate: Date) async {
+        guard let spaceID = sessionStore.currentSpace?.id else { return }
+        do {
+            _ = try await container.itemRepository.normalizeMissingTaskDates(
+                spaceID: spaceID,
+                referenceDate: referenceDate
+            )
+        } catch {
+            appContextLogger.error(
+                "[TaskDateNormalization] failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     func migrateLegacyProjectsIfNeeded() async {
@@ -213,6 +228,8 @@ final class AppContext {
         guard hasCompletedPostLaunchWork, hasEnteredBackgroundSinceLaunch else { return }
         hasEnteredBackgroundSinceLaunch = false
         await homeViewModel.reload(reason: .sync)
+        await profileViewModel.refreshNotificationAuthorization()
+        await syncReminderNotifications()
         await refreshTodayWidgetSnapshot()
         if let spaceID = sessionStore.currentSpace?.id {
             _ = await taskFollowActivityCoordinator.reconcileAfterAppBecameActive(spaceID: spaceID)
@@ -280,6 +297,12 @@ final class AppContext {
     }
 
     func handleNotificationResponse(_ response: UNNotificationResponse) async {
+        if let target = AppNotification.parseIdentifier(response.notification.request.identifier),
+           target.targetType.isDailySummary {
+            await handleDeepLink(.today)
+            return
+        }
+
         guard let taskID = taskID(from: response.notification.request.content.userInfo) else { return }
 
         switch response.actionIdentifier {
@@ -311,11 +334,7 @@ final class AppContext {
             homeViewModel.clearExternalRouteFailure()
             router.resetToToday()
         case .newTask:
-            pendingDeepLinkTaskID = nil
-            pendingHighlightTaskID = nil
-            homeViewModel.clearExternalRouteFailure()
-            router.resetToToday()
-            router.activeComposer = .newTask
+            requestTaskCreation()
         case .task(let taskID):
             router.resetToToday()
             await homeViewModel.reload(reason: .sync)
@@ -352,6 +371,14 @@ final class AppContext {
         return id
     }
 
+    func requestTaskCreation(title: String? = nil) {
+        pendingDeepLinkTaskID = nil
+        pendingHighlightTaskID = nil
+        homeViewModel.clearExternalRouteFailure()
+        router.resetToToday()
+        router.requestComposer(.newTask, title: title)
+    }
+
     private func configureCallbacks() {
         homeViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
@@ -374,9 +401,8 @@ final class AppContext {
         }
         homeViewModel.onConvertToPeriodicTask = { [weak self] title in
             guard let self else { return }
-            router.pendingComposerTitle = title
             router.pendingPeriodicCycle = nil
-            router.activeComposer = .newPeriodicTask
+            router.requestComposer(.newPeriodicTask, title: title)
         }
         profileViewModel.onTaskMutated = { [weak self] spaceID in
             self?.syncAfterMutation(spaceID: spaceID)
@@ -404,6 +430,10 @@ final class AppContext {
     private func syncReminderNotificationsIfNeeded() async {
         guard hasSyncedReminderNotifications == false else { return }
         hasSyncedReminderNotifications = true
+        await syncReminderNotifications()
+    }
+
+    private func syncReminderNotifications() async {
         guard let spaceID = sessionStore.currentSpace?.id else { return }
         StartupTrace.mark("AppContext.reminderSync.fetch.begin")
         let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
@@ -411,6 +441,7 @@ final class AppContext {
         let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
         StartupTrace.mark("AppContext.reminderSync.projectsFetched count=\(projects.count)")
         await container.reminderScheduler.resync(
+            spaceID: spaceID,
             tasks: tasks,
             projects: projects,
             includeTaskReminders: sessionStore.currentUser?.preferences.taskReminderEnabled ?? true,
@@ -452,6 +483,7 @@ final class AppContext {
         while true {
             try? await Task.sleep(for: Self.reloadAfterSyncCoalescingDelay)
             let appliedRevision = reloadAfterSyncRevision
+            await normalizeMissingTaskDatesIfNeeded(referenceDate: .now)
             await homeViewModel.reload(reason: .sync)
             await projectsViewModel.load()
             await routinesViewModel.reload()
@@ -460,6 +492,7 @@ final class AppContext {
             guard appliedRevision == reloadAfterSyncRevision else { continue }
             break
         }
+        await syncReminderNotifications()
         reloadAfterSyncTask = nil
         finishStartupRestorePresentation()
     }

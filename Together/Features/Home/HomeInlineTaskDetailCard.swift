@@ -7,6 +7,8 @@ struct HomeInlineTaskDetailCard: View {
     let isCollapsing: Bool
     let cascadeElapsed: TimeInterval
     let cascadeRowCount: Int
+    let creationFocusDismissalRevision: UInt
+    let creationCommitRequestRevision: UInt
 
     @State private var newSubtaskTitle = ""
     @State private var notesDraft = ""
@@ -17,6 +19,7 @@ struct HomeInlineTaskDetailCard: View {
     @State private var isEditingNotes = false
     @State private var isCommittingNotes = false
     @FocusState private var focusedField: FocusedField?
+    @Environment(\.colorScheme) private var colorScheme
 
     private enum FocusedField: Hashable {
         case existingSubtask(UUID)
@@ -58,6 +61,7 @@ struct HomeInlineTaskDetailCard: View {
                     )
             } else {
                 disclosureButton(title: "添加子任务", systemImage: "plus") {
+                    HomeInteractionFeedback.selection()
                     showsSubtaskComposer = true
                     Task { @MainActor in
                         await Task.yield()
@@ -71,6 +75,14 @@ struct HomeInlineTaskDetailCard: View {
                     isCollapsing: isCollapsing
                 )
             }
+
+            TaskLifecycleInlineSection(createdAt: entry.createdAt)
+                .taskMorphCascade(
+                    elapsed: cascadeElapsed,
+                    index: subtasks.count + 2,
+                    rowCount: cascadeRowCount,
+                    isCollapsing: isCollapsing
+                )
         }
         .padding(.top, HomeInlineTaskLayoutMetrics.detailTopPadding)
         .padding(.bottom, HomeInlineTaskLayoutMetrics.detailBottomPadding)
@@ -84,6 +96,14 @@ struct HomeInlineTaskDetailCard: View {
             else { return }
             commitExistingSubtask(id)
         }
+        .onChange(of: creationFocusDismissalRevision) { _, revision in
+            guard revision > 0 else { return }
+            focusedField = nil
+        }
+        .onChange(of: creationCommitRequestRevision) { _, revision in
+            guard revision > 0 else { return }
+            flushFocusedInputForCreationCommit()
+        }
         .onChange(of: viewModel.inlineDetailDraft?.subtasks) { _, subtasks in
             guard let activeSubtaskID,
                   subtasks?.contains(where: { $0.id == activeSubtaskID }) == true
@@ -95,7 +115,8 @@ struct HomeInlineTaskDetailCard: View {
         }
         .onAppear { notesDraft = viewModel.inlineDetailDraft?.notes ?? entry.notes ?? "" }
         .onChange(of: isExpanded) { _, expanded in
-            guard expanded == false, isEditingNotes else { return }
+            guard expanded == false else { return }
+            guard isEditingNotes else { return }
             commitNotes()
         }
     }
@@ -113,11 +134,12 @@ struct HomeInlineTaskDetailCard: View {
             HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
                 Image(systemName: "note.text")
                     .font(AppTheme.typography.sized(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                    .foregroundStyle(AppTheme.colors.body.opacity(secondaryActionIconOpacity))
                     .frame(width: HomeInlineTaskLayoutMetrics.checkboxSize, height: 32)
 
                 TextField("添加备注", text: $notesDraft, axis: .vertical)
                     .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+                    .foregroundStyle(taskFocusBodyColor)
                     .lineLimit(1...4)
                     .focused($focusedField, equals: .notes)
                     .submitLabel(.done)
@@ -160,7 +182,11 @@ struct HomeInlineTaskDetailCard: View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(isPlaceholder ? 0.68 : 0.76))
+                .foregroundStyle(
+                    AppTheme.colors.body.opacity(
+                        isPlaceholder ? secondaryActionIconOpacity : secondaryActionValueIconOpacity
+                    )
+                )
                 .frame(
                     width: HomeInlineTaskLayoutMetrics.checkboxSize,
                     height: 32
@@ -169,7 +195,7 @@ struct HomeInlineTaskDetailCard: View {
             Button(action: action) {
                 Text(title)
                     .font(AppTheme.typography.sized(15, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(isPlaceholder ? 0.72 : 0.82))
+                    .foregroundStyle(disclosureTextColor(isPlaceholder: isPlaceholder))
                     .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                     .contentShape(Rectangle())
             }
@@ -182,6 +208,9 @@ struct HomeInlineTaskDetailCard: View {
     private func subtaskRow(_ subtask: TaskSubtaskDraft) -> some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Button {
+                subtask.isCompleted
+                    ? HomeInteractionFeedback.selection()
+                    : HomeInteractionFeedback.completion()
                 viewModel.toggleDetailDraftSubtask(subtask.id)
             } label: {
                 SubtaskCompletionMark(isCompleted: subtask.isCompleted)
@@ -196,12 +225,14 @@ struct HomeInlineTaskDetailCard: View {
             if activeSubtaskID == subtask.id {
                 TextField("子任务标题", text: $activeSubtaskTitle)
                     .font(AppTheme.typography.sized(15, weight: .medium))
+                    .foregroundStyle(taskFocusBodyColor)
                     .strikethrough(subtask.isCompleted)
                     .focused($focusedField, equals: .existingSubtask(subtask.id))
                     .submitLabel(.done)
                     .onSubmit { commitExistingSubtaskAfterSnapshot(subtask.id) }
 
                 Button("确认") {
+                    HomeInteractionFeedback.selection()
                     commitExistingSubtaskAfterSnapshot(subtask.id)
                 }
                 .font(AppTheme.typography.sized(13, weight: .semibold))
@@ -211,6 +242,7 @@ struct HomeInlineTaskDetailCard: View {
                 .buttonStyle(.plain)
 
                 Button(role: .destructive) {
+                    HomeInteractionFeedback.delete()
                     viewModel.deleteDetailDraftSubtask(subtask.id)
                     activeSubtaskID = nil
                     focusedField = nil
@@ -223,6 +255,7 @@ struct HomeInlineTaskDetailCard: View {
                 .accessibilityLabel("删除子任务")
             } else {
                 Button {
+                    HomeInteractionFeedback.selection()
                     activeSubtaskID = subtask.id
                     activeSubtaskTitle = subtask.title
                     Task { @MainActor in
@@ -232,7 +265,7 @@ struct HomeInlineTaskDetailCard: View {
                 } label: {
                     Text(subtask.title)
                         .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.title)
+                        .foregroundStyle(taskFocusBodyColor)
                         .strikethrough(subtask.isCompleted)
                         .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
                         .contentShape(Rectangle())
@@ -247,7 +280,7 @@ struct HomeInlineTaskDetailCard: View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
             Image(systemName: "plus")
                 .font(AppTheme.typography.sized(14, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                .foregroundStyle(AppTheme.colors.body.opacity(secondaryActionIconOpacity))
                 .frame(
                     width: HomeInlineTaskLayoutMetrics.checkboxSize,
                     height: 32
@@ -255,6 +288,7 @@ struct HomeInlineTaskDetailCard: View {
 
             TextField("添加子任务", text: $newSubtaskTitle)
                 .font(AppTheme.typography.sized(15, weight: .medium))
+                .foregroundStyle(taskFocusBodyColor)
                 .focused($focusedField, equals: .newSubtask)
                 .submitLabel(.done)
                 .onSubmit(addSubtaskAfterSnapshot)
@@ -279,6 +313,62 @@ struct HomeInlineTaskDetailCard: View {
         isCommittingNotes = false
     }
 
+    private func flushFocusedInputForCreationCommit() {
+        switch focusedField {
+        case .notes:
+            commitNotes()
+        case .existingSubtask(let id):
+            activeSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: activeSubtaskTitle)
+            let trimmed = activeSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty == false {
+                viewModel.updateDetailDraftSubtask(id, title: trimmed)
+            }
+            activeSubtaskID = nil
+            activeSubtaskTitle = ""
+            focusedField = nil
+        case .newSubtask:
+            newSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: newSubtaskTitle)
+            let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty == false {
+                viewModel.addDetailDraftSubtask(title: trimmed)
+                newSubtaskTitle = ""
+                showsSubtaskComposer = false
+            }
+            focusedField = nil
+        case nil:
+            break
+        }
+    }
+
+    private var secondaryActionIconOpacity: CGFloat {
+        colorScheme == .dark ? 0.68 : 0.76
+    }
+
+    private var secondaryActionValueIconOpacity: CGFloat {
+        colorScheme == .dark ? 0.76 : 0.82
+    }
+
+    private var secondaryActionTextOpacity: CGFloat {
+        colorScheme == .dark ? 0.72 : 0.84
+    }
+
+    private var secondaryActionValueTextOpacity: CGFloat {
+        colorScheme == .dark ? 0.82 : 0.88
+    }
+
+    private var taskFocusBodyColor: Color {
+        colorScheme == .light ? AppTheme.colors.taskFocusBody : AppTheme.colors.title
+    }
+
+    private func disclosureTextColor(isPlaceholder: Bool) -> Color {
+        guard colorScheme == .light else {
+            return AppTheme.colors.body.opacity(
+                isPlaceholder ? secondaryActionTextOpacity : secondaryActionValueTextOpacity
+            )
+        }
+        return isPlaceholder ? AppTheme.colors.taskFocusPlaceholder : AppTheme.colors.taskFocusBody
+    }
+
     private func addSubtaskAfterSnapshot() {
         Task { @MainActor in
             newSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: newSubtaskTitle)
@@ -295,6 +385,7 @@ struct HomeInlineTaskDetailCard: View {
             return
         }
         viewModel.addDetailDraftSubtask(title: trimmed)
+        HomeInteractionFeedback.selection()
         newSubtaskTitle = ""
         showsSubtaskComposer = false
     }
@@ -318,6 +409,45 @@ struct HomeInlineTaskDetailCard: View {
         viewModel.updateDetailDraftSubtask(id, title: trimmed)
         activeSubtaskID = nil
         activeSubtaskTitle = ""
+    }
+}
+
+private struct TaskLifecycleInlineSection: View {
+    let createdAt: Date
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            Divider()
+                .frame(maxWidth: 148)
+                .opacity(colorSchemeContrast == .increased ? 0.46 : 0.20)
+
+            HStack(spacing: 4) {
+                Image(systemName: "hourglass")
+                    .font(AppTheme.typography.scaled(9, weight: .regular, relativeTo: .caption2))
+                    .accessibilityHidden(true)
+
+                Text(elapsedSummary)
+                    .font(AppTheme.typography.scaled(11, weight: .regular, relativeTo: .caption2))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .multilineTextAlignment(.trailing)
+            }
+            .foregroundStyle(
+                AppTheme.colors.body.opacity(colorSchemeContrast == .increased ? 0.78 : 0.44)
+            )
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(elapsedSummary)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.top, 7)
+        .padding(.trailing, 6)
+        .padding(.bottom, 3)
+    }
+
+    private var elapsedSummary: String {
+        "创建至今 \(TaskLifecycleFormatting.relativeDuration(since: createdAt))"
     }
 }
 
@@ -383,7 +513,8 @@ struct HomeTaskAttributeFooter: View {
                     tint: viewModel.inlineDetailDraft?.isUrgent == true ? AppTheme.colors.coral : nil,
                     isCircular: true,
                     alignsToCardCorner: true,
-                    isFocusForeground: true
+                    isFocusForeground: true,
+                    usesLightweightBackground: true
                 )
             }
             .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -402,7 +533,8 @@ struct HomeTaskAttributeFooter: View {
                         tint: isFollowed ? AppTheme.colors.sky : nil,
                         isCircular: true,
                         alignsToCardCorner: true,
-                        isFocusForeground: true
+                        isFocusForeground: true,
+                        usesLightweightBackground: true
                     )
                 }
                 .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -443,7 +575,8 @@ struct HomeTaskAttributeFooter: View {
                 usesContinuousCapsule: true,
                 alignsToCardCorner: true,
                 horizontalPadding: 8,
-                isFocusForeground: true
+                isFocusForeground: true,
+                usesLightweightBackground: true
             )
         }
         .buttonStyle(TaskMorphAttributeButtonStyle())

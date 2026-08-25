@@ -10,6 +10,19 @@ private enum TaskMorphSurfaceMetrics {
     static let reducedMotionDetailBackgroundOpacity: CGFloat = 0.65
 }
 
+enum TaskMorphFocusField {
+    static let lightParticleRetention: CGFloat = 0.18
+    static let increasedContrastLightParticleRetention: CGFloat = 0.10
+
+    static var lightOverlayOpacity: CGFloat {
+        1 - lightParticleRetention
+    }
+
+    static var increasedContrastLightOverlayOpacity: CGFloat {
+        1 - increasedContrastLightParticleRetention
+    }
+}
+
 enum TaskMorphListSpacing {
     /// Keep compact rows dense while preserving the row content's own 44pt
     /// interaction target.
@@ -56,10 +69,56 @@ enum TaskExpansionMotionTiming {
 }
 
 enum TaskCreationInputTiming {
-    /// After the expansion clock settles and the title becomes first responder,
-    /// this pause lets the software keyboard finish updating the ScrollView's
-    /// safe-area viewport before the draft is bottom-aligned.
-    static let keyboardSettlementDuration: TimeInterval = 0.36
+    /// Gives the title focus and keyboard-safe viewport a brief head start
+    /// before the one-shot draft pre-position begins.
+    static let prepositionLeadDuration: TimeInterval = 0.14
+    /// Moves the compact draft toward its final expanded position while the
+    /// disclosure animation starts, avoiding both an idle gap and a second jump.
+    static let prepositionDuration: TimeInterval = 0.22
+    /// Keeps the saved draft mounted long enough for the add label to converge
+    /// into the drawn checkmark before the existing reverse morph begins.
+    static let saveAcknowledgementDuration: TimeInterval = 0.44
+}
+
+enum TaskCreationMountTiming {
+    static let fadeDuration: TimeInterval = 0.16
+    static let layoutDuration: TimeInterval = 0.22
+    static let reducedMotionFadeDuration: TimeInterval = 0.12
+    static let reducedMotionLayoutDuration: TimeInterval = 0.12
+    static let removalLayoutDuration = TaskExpansionMotionTiming.collapseDuration
+    static let removalFadeDuration: TimeInterval = 0.12
+    static let removalFadeDelay: TimeInterval = 0.20
+    static let reducedMotionRemovalLayoutDuration = TaskExpansionMotionTiming.reducedMotionDuration
+    static let reducedMotionRemovalFadeDuration: TimeInterval = 0.12
+    static let reducedMotionRemovalFadeDelay: TimeInterval = 0.10
+}
+
+struct TaskCreationExpansionReserve: View {
+    let expandedHeightDelta: CGFloat
+    let expansionProgress: CGFloat
+
+    var body: some View {
+        Color.clear
+            .frame(height: Self.height(
+                expandedHeightDelta: expandedHeightDelta,
+                expansionProgress: expansionProgress
+            ))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    static func height(
+        expandedHeightDelta: CGFloat,
+        expansionProgress: CGFloat
+    ) -> CGFloat {
+        max(0, expandedHeightDelta) * (1 - min(max(expansionProgress, 0), 1))
+    }
+}
+
+enum TaskCreationKeyboardLayout {
+    /// Keeps the action row visually separate from the software keyboard while
+    /// still reading as one continuous editing surface.
+    static let bottomClearance: CGFloat = 10
 }
 
 enum TaskMorphCascadeTiming {
@@ -92,14 +151,16 @@ enum TaskMorphBackgroundWave {
     /// Keep each row's compositor-only movement shorter than the identity
     /// motion so adjacent delays remain visually legible as an outward wave.
     static let expansionDuration: TimeInterval = 0.36
-    static let uniformRadius: CGFloat = 1.45
+    static let lightUniformRadius: CGFloat = 0.8
+    static let darkUniformRadius: CGFloat = 1.45
     static let adjacentScale: CGFloat = 0.95
     static let scaleStep: CGFloat = 0.03
     static let minimumScale: CGFloat = 0.87
     static let lowerAdjacentScale: CGFloat = 0.95
     static let lowerScaleStep: CGFloat = 0.025
     static let lowerMinimumScale: CGFloat = 0.88
-    static let uniformOpacity: CGFloat = 0.49
+    static let lightUniformOpacity: CGFloat = 0.52
+    static let darkUniformOpacity: CGFloat = 0.49
     static let upperAdjacentOffset: CGFloat = 8
     static let upperOffsetStep: CGFloat = 4
     static let upperMaximumOffset: CGFloat = 24
@@ -112,13 +173,14 @@ enum TaskMorphBackgroundWave {
     static let lowerInitialDelay: TimeInterval = 0.02
     static let lowerRowDelay: TimeInterval = 0.075
     static let lowerMaximumDelay: TimeInterval = 0.34
-    static let headerBlurRadius: CGFloat = 0.5
+    static let lightHeaderBlurRadius: CGFloat = lightUniformRadius
+    static let darkHeaderBlurRadius: CGFloat = 0.5
     static let headerScale: CGFloat = 0.98
     static let headerOpacity: CGFloat = 0.52
 
-    static func radius(forTaskDelta delta: Int?) -> CGFloat {
+    static func radius(forTaskDelta delta: Int?, isDarkAppearance: Bool) -> CGFloat {
         guard let distance = delta.map(abs), distance > 0 else { return 0 }
-        return uniformRadius
+        return isDarkAppearance ? darkUniformRadius : lightUniformRadius
     }
 
     static func scale(forTaskDelta delta: Int?) -> CGFloat {
@@ -135,11 +197,17 @@ enum TaskMorphBackgroundWave {
         )
     }
 
-    static func opacity(forTaskDelta delta: Int?) -> CGFloat {
+    static func opacity(forTaskDelta delta: Int?, isDarkAppearance: Bool) -> CGFloat {
         guard let distance = delta.map(abs), distance > 0 else {
-            return TaskMorphSurfaceMetrics.detailFallbackBackgroundOpacity
+            return isDarkAppearance
+                ? TaskMorphSurfaceMetrics.detailFallbackBackgroundOpacity
+                : lightUniformOpacity
         }
-        return uniformOpacity
+        return isDarkAppearance ? darkUniformOpacity : lightUniformOpacity
+    }
+
+    static func headerBlurRadius(isDarkAppearance: Bool) -> CGFloat {
+        isDarkAppearance ? darkHeaderBlurRadius : lightHeaderBlurRadius
     }
 
     static func offsetY(forTaskDelta delta: Int?) -> CGFloat {
@@ -383,6 +451,7 @@ struct TaskMorphContainer<Content: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         KeyframeAnimator(
@@ -406,7 +475,7 @@ struct TaskMorphContainer<Content: View>: View {
                 )
                 .padding(.horizontal, -28)
                 .padding(.vertical, -52)
-                .opacity(isForegroundElevated ? 1 : 0)
+                .opacity(isFocusFieldVisible ? 1 : 0)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }
@@ -419,7 +488,7 @@ struct TaskMorphContainer<Content: View>: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("收起任务详情")
-                    .accessibilityHint("保存更改并收起当前任务")
+                    .accessibilityHint("结束当前输入或收起任务详情")
                 }
             }
             .accessibilityElement(children: .contain)
@@ -587,6 +656,7 @@ struct TaskMorphContainer<Content: View>: View {
         .opacity(detailBackgroundDepthOpacity)
         .blur(radius: detailBackgroundBlurRadius)
         .animation(foregroundDepthAnimation, value: isForegroundElevated)
+        .animation(focusFieldAnimation, value: isFocusFieldVisible)
         .animation(detailBackgroundDepthAnimation, value: backgroundWaveTarget)
     }
 
@@ -601,25 +671,48 @@ struct TaskMorphContainer<Content: View>: View {
         reduceMotion == false && motionTarget.isExpanded
     }
 
+    private var isFocusFieldVisible: Bool {
+        motionTarget.isExpanded
+    }
+
     private var detailBackgroundDepthOpacity: CGFloat {
         guard isBackgroundDeemphasized else { return 1 }
+        if colorSchemeContrast == .increased {
+            return reduceMotion ? 0.75 : 0.65
+        }
         return reduceMotion
             ? TaskMorphSurfaceMetrics.reducedMotionDetailBackgroundOpacity
-            : TaskMorphBackgroundWave.opacity(forTaskDelta: backgroundFocusDelta)
+            : TaskMorphBackgroundWave.opacity(
+                forTaskDelta: backgroundFocusDelta,
+                isDarkAppearance: colorScheme == .dark
+            )
     }
 
     private var focusFieldColor: Color {
         switch focusFieldStyle {
         case .adaptivePrimary:
-            Color.primary.opacity(colorScheme == .dark ? 0.025 : 0.035)
+            if colorScheme == .dark {
+                Color.primary.opacity(0.025)
+            } else {
+                Color.white.opacity(lightFocusOverlayOpacity)
+            }
         case .subtleLight:
-            Color.white.opacity(colorScheme == .dark ? 0.025 : 0.018)
+            Color.white.opacity(colorScheme == .dark ? 0.025 : lightFocusOverlayOpacity)
         }
+    }
+
+    private var lightFocusOverlayOpacity: CGFloat {
+        colorSchemeContrast == .increased
+            ? TaskMorphFocusField.increasedContrastLightOverlayOpacity
+            : TaskMorphFocusField.lightOverlayOpacity
     }
 
     private var detailBackgroundBlurRadius: CGFloat {
         guard isBackgroundDeemphasized, reduceMotion == false else { return 0 }
-        return TaskMorphBackgroundWave.radius(forTaskDelta: backgroundFocusDelta)
+        return TaskMorphBackgroundWave.radius(
+            forTaskDelta: backgroundFocusDelta,
+            isDarkAppearance: colorScheme == .dark
+        )
     }
 
     private var detailBackgroundOffsetY: CGFloat {
@@ -666,6 +759,21 @@ struct TaskMorphContainer<Content: View>: View {
         )
     }
 
+    private var focusFieldAnimation: Animation {
+        if reduceMotion {
+            return .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
+        }
+        return .timingCurve(
+            0.20,
+            0,
+            0.16,
+            1,
+            duration: isFocusFieldVisible
+                ? TaskExpansionMotionTiming.identityExpansionDuration
+                : TaskExpansionMotionTiming.collapseDuration
+        )
+    }
+
 }
 
 private struct TaskMorphBackgroundWaveTarget: Equatable {
@@ -685,6 +793,7 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     func body(content: Content) -> some View {
         let usesDetailHeaderDepth = isDeemphasized
@@ -707,12 +816,14 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
                 isDeemphasized && appliesVisualDepth
                     ? TaskMorphSurfaceMetrics.backgroundContentOpacity
                     : usesDetailHeaderDepth
-                        ? TaskMorphBackgroundWave.headerOpacity
+                        ? colorSchemeContrast == .increased
+                            ? 0.65
+                            : TaskMorphBackgroundWave.headerOpacity
                         : 1
             )
             .brightness(
                 isDeemphasized && appliesVisualDepth
-                    ? (colorScheme == .dark ? -0.06 : -0.10)
+                    ? (colorScheme == .dark ? -0.06 : 0)
                     : 0
             )
             .blur(
@@ -729,7 +840,7 @@ private struct TaskMorphBackgroundDepthModifier: ViewModifier {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("收起任务详情")
-                    .accessibilityHint("保存更改并收起当前任务")
+                    .accessibilityHint("结束当前输入或收起任务详情")
                 }
             }
             .animation(backgroundDepthAnimation, value: isDeemphasized)
@@ -965,6 +1076,163 @@ extension View {
                 onCompleted: onCompleted
             )
         )
+    }
+
+    func taskCreationMountTransition(
+        isCreationDraft: Bool,
+        isDiscarding: Bool
+    ) -> some View {
+        modifier(
+            TaskCreationMountTransitionModifier(
+                isCreationDraft: isCreationDraft,
+                isDiscarding: isDiscarding
+            )
+        )
+    }
+}
+
+private struct TaskCreationMountTransitionModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let isCreationDraft: Bool
+    let isDiscarding: Bool
+
+    @State private var naturalHeight: CGFloat = 0
+    @State private var layoutProgress: CGFloat = 0
+    @State private var opacityProgress: Double = 0
+    @State private var isLayoutSettled = false
+    @State private var hasStarted = false
+    @State private var hasStartedDiscard = false
+    @State private var mountTask: Task<Void, Never>?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isCreationDraft {
+            content
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    guard naturalHeight == 0,
+                          height.isFinite,
+                          height > 0
+                    else { return }
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        naturalHeight = height
+                    }
+                    startIfReady()
+                    startDiscardIfReady()
+                }
+                .frame(
+                    height: isLayoutSettled ? nil : naturalHeight * layoutProgress,
+                    alignment: .top
+                )
+                .modifier(
+                    TaskMorphConditionalClipModifier(
+                        progress: isLayoutSettled ? 1 : layoutProgress
+                    )
+                )
+                .opacity(opacityProgress)
+                .onAppear {
+                    startIfReady()
+                    startDiscardIfReady()
+                }
+                .onChange(of: isDiscarding) { _, isDiscarding in
+                    guard isDiscarding else { return }
+                    startDiscardIfReady()
+                }
+                .onDisappear {
+                    mountTask?.cancel()
+                    mountTask = nil
+                }
+        } else {
+            content
+        }
+    }
+
+    private var layoutAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: TaskCreationMountTiming.reducedMotionLayoutDuration)
+            : .smooth(duration: TaskCreationMountTiming.layoutDuration, extraBounce: 0)
+    }
+
+    private var fadeAnimation: Animation {
+        .easeOut(
+            duration: reduceMotion
+                ? TaskCreationMountTiming.reducedMotionFadeDuration
+                : TaskCreationMountTiming.fadeDuration
+        )
+    }
+
+    private var removalLayoutAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: TaskCreationMountTiming.reducedMotionRemovalLayoutDuration)
+            : .smooth(duration: TaskCreationMountTiming.removalLayoutDuration, extraBounce: 0)
+    }
+
+    private var removalFadeAnimation: Animation {
+        let duration = reduceMotion
+            ? TaskCreationMountTiming.reducedMotionRemovalFadeDuration
+            : TaskCreationMountTiming.removalFadeDuration
+        let delay = reduceMotion
+            ? TaskCreationMountTiming.reducedMotionRemovalFadeDelay
+            : TaskCreationMountTiming.removalFadeDelay
+        return .easeIn(duration: duration).delay(delay)
+    }
+
+    private func startIfReady() {
+        guard isCreationDraft,
+              isDiscarding == false,
+              naturalHeight > 0,
+              hasStarted == false
+        else { return }
+
+        hasStarted = true
+        mountTask?.cancel()
+        mountTask = Task { @MainActor in
+            await Task.yield()
+            guard Task.isCancelled == false else { return }
+            withAnimation(fadeAnimation) {
+                opacityProgress = 1
+            }
+            withAnimation(
+                layoutAnimation,
+                completionCriteria: .logicallyComplete
+            ) {
+                layoutProgress = 1
+            } completion: {
+                guard Task.isCancelled == false else { return }
+                isLayoutSettled = true
+                mountTask = nil
+            }
+        }
+    }
+
+    private func startDiscardIfReady() {
+        guard isCreationDraft,
+              isDiscarding,
+              naturalHeight > 0,
+              hasStartedDiscard == false
+        else { return }
+
+        hasStartedDiscard = true
+        mountTask?.cancel()
+        mountTask = nil
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isLayoutSettled = false
+        }
+
+        withAnimation(removalLayoutAnimation) {
+            layoutProgress = 0
+        }
+        withAnimation(removalFadeAnimation) {
+            opacityProgress = 0
+        }
     }
 }
 

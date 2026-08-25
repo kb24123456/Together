@@ -8,6 +8,7 @@ protocol ReminderSchedulerProtocol: Sendable {
     func removeProjectReminder(for projectID: UUID) async
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async
     func resync(
+        spaceID: UUID?,
         tasks: [Item],
         projects: [Project],
         includeTaskReminders: Bool,
@@ -24,10 +25,26 @@ protocol ReminderSchedulerProtocol: Sendable {
 extension ReminderSchedulerProtocol {
     func resync(tasks: [Item], projects: [Project]) async {
         await resync(
+            spaceID: tasks.compactMap(\.spaceID).first ?? projects.compactMap(\.spaceID).first,
             tasks: tasks,
             projects: projects,
             includeTaskReminders: true,
             includeDailySummary: true
+        )
+    }
+
+    func resync(
+        tasks: [Item],
+        projects: [Project],
+        includeTaskReminders: Bool,
+        includeDailySummary: Bool
+    ) async {
+        await resync(
+            spaceID: tasks.compactMap(\.spaceID).first ?? projects.compactMap(\.spaceID).first,
+            tasks: tasks,
+            projects: projects,
+            includeTaskReminders: includeTaskReminders,
+            includeDailySummary: includeDailySummary
         )
     }
 }

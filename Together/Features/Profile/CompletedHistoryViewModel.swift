@@ -189,6 +189,10 @@ final class CompletedHistoryViewModel {
         didFailLoading == false && (hasLoaded == false || (isLoading && items.isEmpty))
     }
 
+    func lifecycleReview(itemID: UUID) async throws -> TaskLifecycleReview {
+        try await itemRepository.fetchTaskLifecycleReview(itemID: itemID)
+    }
+
     func loadIfNeeded() async {
         guard hasLoaded == false else { return }
         await reload()

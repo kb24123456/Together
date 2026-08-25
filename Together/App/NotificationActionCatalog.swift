@@ -62,7 +62,7 @@ enum NotificationActionCatalog {
         switch targetType {
         case .item:
             return taskCategoryIdentifier
-        default:
+        case .project, .periodicTask, .dailySummary, .dailyMorningSummary, .dailyEveningSummary:
             return genericCategoryIdentifier
         }
     }

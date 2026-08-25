@@ -9,6 +9,11 @@ struct CompletedHistoryView: View {
         self._viewModel = State(initialValue: viewModel)
     }
 
+    private struct ReviewRoute: Hashable {
+        let itemID: UUID
+        let title: String
+    }
+
     var body: some View {
         @Bindable var bindableViewModel = viewModel
 
@@ -24,13 +29,16 @@ struct CompletedHistoryView: View {
                     sectionHeader(section.title)
 
                     ForEach(section.items) { item in
-                        CompletedTaskRow(
-                            item: item,
-                            subtitle: viewModel.subtitle(for: item),
-                            trailingText: trailingText(for: item),
-                            showsArchivedDate: viewModel.isArchived(item),
-                            archivedDateText: viewModel.archivedDateText(for: item)
-                        )
+                        NavigationLink(value: ReviewRoute(itemID: item.id, title: item.title)) {
+                            CompletedTaskRow(
+                                item: item,
+                                subtitle: viewModel.subtitle(for: item),
+                                trailingText: trailingText(for: item),
+                                showsArchivedDate: viewModel.isArchived(item),
+                                archivedDateText: viewModel.archivedDateText(for: item)
+                            )
+                        }
+                        .buttonStyle(.plain)
                         .listRowInsets(
                             EdgeInsets(
                                 top: AppTheme.spacing.sm,
@@ -82,6 +90,7 @@ struct CompletedHistoryView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("已完成")
         .navigationSubtitle(viewModel.selectedFilter.navigationSubtitle)
@@ -101,6 +110,13 @@ struct CompletedHistoryView: View {
             }
         }
         .searchable(text: $bindableViewModel.searchText, prompt: "搜索")
+        .navigationDestination(for: ReviewRoute.self) { route in
+            TaskLifecycleReviewView(
+                itemID: route.itemID,
+                fallbackTitle: route.title,
+                loadReview: viewModel.lifecycleReview
+            )
+        }
         .sheet(isPresented: $isPreciseFilterPresented) {
             NavigationStack {
                 CompletedHistoryPreciseFilterSheet(

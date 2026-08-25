@@ -119,6 +119,9 @@ final class HomeMorphSession {
     private(set) var isCreationFlow = false
     private(set) var isCreationInputReady = false
     private(set) var creationFocusRequestRevision: UInt = 0
+    private(set) var creationFocusDismissalRevision: UInt = 0
+    private(set) var creationCommitRequestRevision: UInt = 0
+    private(set) var isCreationSaveAcknowledged = false
     private(set) var detailPresentationIntent: HomeMorphDetailPresentationIntent = .compact
     private var detailSourcePlacement: TaskMorphPlacement?
 
@@ -131,6 +134,9 @@ final class HomeMorphSession {
 
     var isActive: Bool { phase != .idle }
     var isInteractive: Bool { phase == .active }
+    var isDiscardingCreationDraft: Bool {
+        isCreationFlow && phase == .collapsing && subject?.isDraft == true
+    }
     var isDetailFocusDepthActive: Bool {
         visualState == .expanded
     }
@@ -151,6 +157,9 @@ final class HomeMorphSession {
         errorMessage = nil
         isCreationListRevealEnabled = false
         isCreationInputReady = false
+        creationFocusDismissalRevision = 0
+        creationCommitRequestRevision = 0
+        isCreationSaveAcknowledged = false
         detailSourcePlacement = nil
         detailPresentationIntent = .compact
         visualState = .compact
@@ -169,6 +178,20 @@ final class HomeMorphSession {
         return true
     }
 
+    @discardableResult
+    func prepareCreationInput(using token: HomeMorphSessionToken) -> Bool {
+        guard phase == .active,
+              isCreationFlow,
+              isCurrent(token),
+              subject?.isDraft == true,
+              visualState == .compact,
+              isCreationInputReady == false
+        else { return false }
+        isCreationInputReady = true
+        creationFocusRequestRevision &+= 1
+        return true
+    }
+
     /// Called by the real draft row after SwiftUI has mounted its morph
     /// container. This keeps a lazily-created row from first appearing with an
     /// already-expanded trigger and remaining at the animator's compact value.
@@ -181,20 +204,6 @@ final class HomeMorphSession {
               activatePreparedCreation(using: token)
         else { return nil }
         return token
-    }
-
-    @discardableResult
-    func finishCreationExpansion(using token: HomeMorphSessionToken) -> Bool {
-        guard phase == .active,
-              isCreationFlow,
-              isCurrent(token),
-              subject?.isDraft == true,
-              visualState == .expanded,
-              isCreationInputReady == false
-        else { return false }
-        isCreationInputReady = true
-        creationFocusRequestRevision &+= 1
-        return true
     }
 
     @discardableResult
@@ -211,6 +220,9 @@ final class HomeMorphSession {
         errorMessage = nil
         isCreationListRevealEnabled = false
         isCreationInputReady = false
+        creationFocusDismissalRevision = 0
+        creationCommitRequestRevision = 0
+        isCreationSaveAcknowledged = false
         detailSourcePlacement = placement
         detailPresentationIntent = .expanded
         // First establish ownership while the real container is still compact.
@@ -233,11 +245,20 @@ final class HomeMorphSession {
 
     func requestDismissal() {
         guard let subject else { return }
+        if isCreationFlow {
+            requestCreationKeyboardDismissal()
+            return
+        }
         if subject.isDraft == false {
             detailPresentationIntent = .compact
         }
         guard phase == .active else { return }
         onDismissIntent?(subject)
+    }
+
+    func requestCreationKeyboardDismissal() {
+        guard phase == .active, isCreationFlow else { return }
+        creationFocusDismissalRevision &+= 1
     }
 
     func requestCreationCancellation() {
@@ -252,7 +273,18 @@ final class HomeMorphSession {
 
     func requestCommit() {
         guard phase == .active, let subject, subject.isDraft else { return }
-        onCommitIntent?(subject)
+        creationCommitRequestRevision &+= 1
+        let requestRevision = creationCommitRequestRevision
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            await Task.yield()
+            guard let self,
+                  self.phase == .active,
+                  self.subject == subject,
+                  self.creationCommitRequestRevision == requestRevision
+            else { return }
+            self.onCommitIntent?(subject)
+        }
     }
 
     func requestCompletion() {
@@ -287,12 +319,14 @@ final class HomeMorphSession {
     func beginSaving() -> HomeMorphSessionToken? {
         guard phase == .active, subject != nil else { return nil }
         errorMessage = nil
+        isCreationSaveAcknowledged = false
         return advance(to: .saving)
     }
 
     func failSaving(using token: HomeMorphSessionToken, message: String) {
         guard phase == .saving, isCurrent(token) else { return }
         errorMessage = message
+        isCreationSaveAcknowledged = false
         _ = advance(to: .active)
     }
 
@@ -302,6 +336,18 @@ final class HomeMorphSession {
         if isCreationInputReady {
             creationFocusRequestRevision &+= 1
         }
+    }
+
+    func clearCreationError() {
+        guard phase == .active, isCreationFlow else { return }
+        errorMessage = nil
+    }
+
+    @discardableResult
+    func acknowledgeCreationSave(using token: HomeMorphSessionToken) -> Bool {
+        guard phase == .saving, isCreationFlow, isCurrent(token) else { return false }
+        isCreationSaveAcknowledged = true
+        return true
     }
 
     func beginCollapseAfterSave(
@@ -485,6 +531,9 @@ final class HomeMorphSession {
         isCreationFlow = false
         isCreationInputReady = false
         creationFocusRequestRevision = 0
+        creationFocusDismissalRevision = 0
+        creationCommitRequestRevision = 0
+        isCreationSaveAcknowledged = false
         detailSourcePlacement = nil
         detailPresentationIntent = .compact
     }

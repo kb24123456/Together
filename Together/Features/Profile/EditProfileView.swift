@@ -22,6 +22,7 @@ struct EditProfileView: View {
             .padding(.top, AppTheme.spacing.lg)
             .padding(.bottom, AppTheme.spacing.xxl)
         }
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle(viewModel.navigationTitle)
         .navigationBarTitleDisplayMode(.inline)

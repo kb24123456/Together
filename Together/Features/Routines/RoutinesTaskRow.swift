@@ -55,8 +55,13 @@ struct RoutinesTaskRow: View {
     let expansionMotion: TaskExpansionMotion
     let cascadeRowCount: Int
     var isCreationDraft = false
+    var deletionVisualState: TaskDeletionVisualState? = nil
     var creationFocusRequestRevision: UInt = 0
+    var creationFocusDismissalRevision: UInt = 0
+    var creationCommitRequestRevision: UInt = 0
+    var creationValidationMessage: String? = nil
     var onSubmitCreation: () -> Void = {}
+    var onCreationTitleChanged: (String) -> Void = { _ in }
     let onOpenDetail: () -> Void
     let onToggleCompletion: () -> Void
     let onDismissDetail: () -> Void
@@ -64,6 +69,7 @@ struct RoutinesTaskRow: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNotesFocused: Bool
     @AccessibilityFocusState private var isTitleAccessibilityFocused: Bool
@@ -86,6 +92,7 @@ struct RoutinesTaskRow: View {
     @State private var rowVerticalOffset: CGFloat = 0
     @State private var rowOpacity = 1.0
     @State private var reopeningCheckmarkOpacity = 1.0
+    @State private var validationNudgeProgress: CGFloat = 1
 
     private var isCompleted: Bool {
         viewModel.isCompleted(task)
@@ -112,6 +119,8 @@ struct RoutinesTaskRow: View {
                         isCollapsing: isDetailCollapsing
                     ),
                     cascadeRowCount: cascadeRowCount,
+                    creationFocusDismissalRevision: creationFocusDismissalRevision,
+                    creationCommitRequestRevision: creationCommitRequestRevision,
                     onDismiss: onDismissDetail,
                     onFocus: onInlineFocus
                 )
@@ -122,18 +131,35 @@ struct RoutinesTaskRow: View {
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
+        .accessibilityHidden(deletionVisualState != nil)
         .onAppear {
             titleDraft = draftTitle
             notesDraft = visibleNotes
             if isCreationDraft {
                 isEditingTitle = true
+                if creationFocusRequestRevision > 0 {
+                    beginTitleEditing()
+                }
             }
             guard shouldPlayCompletionAnimation else { return }
             startCompletionAnimation()
         }
         .onChange(of: creationFocusRequestRevision) { _, revision in
-            guard isCreationDraft, isDetailExpanded, revision > 0 else { return }
+            guard isCreationDraft, revision > 0 else { return }
             beginTitleEditing()
+        }
+        .onChange(of: creationFocusDismissalRevision) { _, revision in
+            guard isCreationDraft, revision > 0 else { return }
+            commitTitleAfterFocusUpdate()
+            commitNotesAfterFocusUpdate()
+        }
+        .onChange(of: creationCommitRequestRevision) { _, revision in
+            guard isCreationDraft, revision > 0 else { return }
+            flushCreationTitleForCommit()
+        }
+        .onChange(of: creationValidationMessage) { _, message in
+            guard isCreationDraft, message != nil else { return }
+            playCreationValidationFeedback()
         }
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue, shouldPlayCompletionAnimation else { return }
@@ -199,12 +225,15 @@ struct RoutinesTaskRow: View {
             completionButton
                 .padding(.horizontal, -8)
                 .padding(.vertical, -10)
+                .scaleEffect(resolvedDeletionVisualState.controlScale)
+                .opacity(resolvedDeletionVisualState.controlOpacity)
                 .alignmentGuide(.taskTitleCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }
 
             ZStack(alignment: .topLeading) {
                 stableTitleStack
+                    .taskDeletionTypographyEffect(resolvedDeletionVisualState)
 
                 if isDetailPresented == false, isCompleted == false {
                     Button {
@@ -227,6 +256,10 @@ struct RoutinesTaskRow: View {
             x: expansionMotion.identityOffsetX,
             y: expansionMotion.identityOffsetY
         )
+    }
+
+    private var resolvedDeletionVisualState: TaskDeletionVisualState {
+        deletionVisualState ?? .idle(taskID: task.id)
     }
 
     private var completionButton: some View {
@@ -283,6 +316,13 @@ struct RoutinesTaskRow: View {
                     .accessibilityHidden(isDetailPresented == false)
                     .accessibilityLabel("编辑定期任务标题")
                 }
+            }
+            if isCreationDraft, let creationValidationMessage {
+                Text(creationValidationMessage)
+                    .font(AppTheme.typography.scaled(12, weight: .medium, relativeTo: .caption1))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
             }
             if isDetailPresented {
                 TaskMorphMeasuredRegion(
@@ -377,7 +417,7 @@ struct RoutinesTaskRow: View {
     private func titleText(_ title: String, lineLimit: Int?) -> some View {
         Text(title)
             .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
-            .foregroundStyle(isCompleted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+            .foregroundStyle(titleColor)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : lineLimit)
             .fixedSize(horizontal: false, vertical: true)
             .alignmentGuide(.taskTitleCenter) { dimensions in
@@ -387,16 +427,21 @@ struct RoutinesTaskRow: View {
 
     private var expandedTitleEditor: some View {
         HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
-            TextField("定期任务标题", text: $titleDraft, axis: .vertical)
+            TextField(
+                "定期任务标题",
+                text: $titleDraft,
+                axis: isCreationDraft ? .horizontal : .vertical
+            )
                 .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
-                .foregroundStyle(AppTheme.colors.title)
+                .foregroundStyle(titleColor)
                 .textInputAutocapitalization(.sentences)
                 .submitLabel(.done)
-                .lineLimit(1...4)
+                .lineLimit(isCreationDraft ? 1...1 : 1...4)
                 .focused($isTitleFocused)
                 .onChange(of: titleDraft) { _, title in
                     guard isCreationDraft else { return }
                     viewModel.updateDraftTitle(title)
+                    onCreationTitleChanged(title)
                 }
                 .onSubmit {
                     commitTitleAfterFocusUpdate(
@@ -418,6 +463,28 @@ struct RoutinesTaskRow: View {
                 }
             }
         }
+        .modifier(
+            TaskCreationValidationNudge(
+                progress: reduceMotion ? 1 : validationNudgeProgress
+            )
+        )
+    }
+
+    private func playCreationValidationFeedback() {
+        HomeInteractionFeedback.validation()
+        guard reduceMotion == false else {
+            beginTitleEditing()
+            return
+        }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            validationNudgeProgress = 0
+        }
+        withAnimation(.linear(duration: 0.16)) {
+            validationNudgeProgress = 1
+        }
+        beginTitleEditing()
     }
 
     private func beginTitleEditing() {
@@ -451,6 +518,18 @@ struct RoutinesTaskRow: View {
             isCommittingTitle = false
             action?()
         }
+    }
+
+    private func flushCreationTitleForCommit() {
+        titleDraft = TextInputSnapshotReader.resolvedText(fallback: titleDraft)
+        isCommittingTitle = true
+        isTitleFocused = false
+        let trimmed = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        viewModel.updateDraftTitle(trimmed)
+        onCreationTitleChanged(trimmed)
+        titleDraft = trimmed
+        isEditingTitle = false
+        isCommittingTitle = false
     }
 
     private func beginNotesEditing() {
@@ -497,7 +576,17 @@ struct RoutinesTaskRow: View {
     }
 
     private var subtitleColor: Color {
-        AppTheme.colors.body.opacity(isCompleted ? 0.4 : 0.74)
+        if isDetailPresented, colorScheme == .light, isCompleted == false {
+            return AppTheme.colors.taskFocusBody
+        }
+        return AppTheme.colors.body.opacity(isCompleted ? 0.4 : 0.74)
+    }
+
+    private var titleColor: Color {
+        if isDetailPresented, colorScheme == .light, isCompleted == false {
+            return AppTheme.colors.taskFocusTitle
+        }
+        return isCompleted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title
     }
 
     // MARK: - Completion badge
@@ -647,10 +736,13 @@ private struct RoutinesInlineDetailView: View {
     let isCollapsing: Bool
     let cascadeElapsed: TimeInterval
     let cascadeRowCount: Int
+    let creationFocusDismissalRevision: UInt
+    let creationCommitRequestRevision: UInt
     let onDismiss: () -> Void
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @State private var notesDraft = ""
     @State private var isEditingNotes = false
     @State private var isCommittingNotes = false
@@ -681,6 +773,14 @@ private struct RoutinesInlineDetailView: View {
             guard expanded == false, isEditingNotes else { return }
             commitNotes()
         }
+        .onChange(of: creationFocusDismissalRevision) { _, revision in
+            guard revision > 0 else { return }
+            commitNotes()
+        }
+        .onChange(of: creationCommitRequestRevision) { _, revision in
+            guard revision > 0 else { return }
+            commitNotes()
+        }
         .accessibilityAction(named: "收起定期任务详情") {
             onDismiss()
         }
@@ -700,6 +800,7 @@ private struct RoutinesInlineDetailView: View {
             if isEditingNotes {
                 TextField("添加备注", text: $notesDraft, axis: .vertical)
                     .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+                    .foregroundStyle(taskFocusBodyColor)
                     .lineLimit(1...4)
                     .focused($isNotesFocused)
                     .submitLabel(.done)
@@ -728,7 +829,7 @@ private struct RoutinesInlineDetailView: View {
                 } label: {
                     Text(notesTitle)
                         .font(AppTheme.typography.sized(15, weight: .medium))
-                        .foregroundStyle(AppTheme.colors.body.opacity(notesTitle == "添加备注" ? 0.72 : 0.82))
+                        .foregroundStyle(notesTextColor)
                         .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                         .contentShape(Rectangle())
                 }
@@ -749,6 +850,19 @@ private struct RoutinesInlineDetailView: View {
 
     private var notesIcon: String {
         notesTitle == "添加备注" ? "plus" : "note.text"
+    }
+
+    private var taskFocusBodyColor: Color {
+        colorScheme == .light ? AppTheme.colors.taskFocusBody : AppTheme.colors.title
+    }
+
+    private var notesTextColor: Color {
+        guard colorScheme == .light else {
+            return AppTheme.colors.body.opacity(notesTitle == "添加备注" ? 0.72 : 0.82)
+        }
+        return notesTitle == "添加备注"
+            ? AppTheme.colors.taskFocusPlaceholder
+            : AppTheme.colors.taskFocusBody
     }
 
     private func commitNotes() {

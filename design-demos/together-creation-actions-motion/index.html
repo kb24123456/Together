@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Together · 创建动作组动效</title>
+  <!--
+    ASSUMPTIONS
+    - 用户已认可居中的双文字动作组与黑白视觉方向。
+    - 本 Demo 只验证动作组的进入、启用、按压与成功确认。
+    - 背景使用已确认的高保真静帧；不模拟任务持久化或完整列表收起。
+    - 画面中的轻音效只代替真机触觉，生产 App 不新增可听声音。
+
+    MOTION REASONING
+    - 动作组作为一个整体进入，不让“取消”和“添加”分别飞入。
+    - 添加状态只在固定槽位内变化，避免宽度和布局抖动。
+    - 只使用 transform / opacity，拒绝弹跳、发光和循环呼吸。
+    - 成功勾号停在清晰末帧，便于逐帧审查。
+  -->
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background: #0b0b0c;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0b0c;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    .stage-shell {
+      position: relative;
+      width: 851px;
+      height: 1848px;
+      transform-origin: center center;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .action-eraser {
+      position: absolute;
+      left: 246px;
+      top: 762px;
+      width: 360px;
+      height: 124px;
+      background: #fff;
+      box-shadow: 0 0 28px 22px rgba(255, 255, 255, 0.995);
+      pointer-events: none;
+    }
+
+    .action-group {
+      position: absolute;
+      left: 50%;
+      top: 772px;
+      width: 304px;
+      height: 96px;
+      display: grid;
+      grid-template-columns: 135px 34px 135px;
+      align-items: center;
+      transform-origin: center center;
+      will-change: transform, opacity;
+    }
+
+    .action-slot {
+      position: relative;
+      height: 96px;
+      display: grid;
+      place-items: center;
+      color: #131315;
+      user-select: none;
+      will-change: transform, opacity;
+    }
+
+    .cancel-label,
+    .add-label {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      white-space: nowrap;
+      line-height: 1;
+      text-rendering: geometricPrecision;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .cancel-label {
+      font-size: 29px;
+      font-weight: 550;
+      color: rgba(19, 19, 21, 0.54);
+    }
+
+    .add-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 29px;
+      font-weight: 650;
+      color: rgb(19, 19, 21);
+      transform-origin: center center;
+      will-change: transform, opacity, color, filter;
+    }
+
+    .add-glyph {
+      display: inline-block;
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    .hairline-wrap {
+      width: 34px;
+      height: 96px;
+      display: grid;
+      place-items: center;
+    }
+
+    .hairline {
+      width: 2px;
+      height: 25px;
+      border-radius: 1px;
+      background: rgba(19, 19, 21, 0.13);
+    }
+
+    .success-mark {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 46px;
+      height: 46px;
+      overflow: visible;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .success-path {
+      fill: none;
+      stroke: #111113;
+      stroke-width: 3.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      vector-effect: non-scaling-stroke;
+      will-change: stroke-dashoffset;
+    }
+
+    .watermark {
+      position: absolute;
+      right: 24px;
+      bottom: 20px;
+      z-index: 20;
+      color: rgba(20, 20, 22, 0.28);
+      font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: 0.14em;
+      pointer-events: none;
+    }
+
+    .controls {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      width: min(720px, calc(100vw - 32px));
+      transform: translateX(-50%);
+      display: grid;
+      grid-template-columns: auto auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 14px;
+      background: rgba(20,20,22,0.82);
+      backdrop-filter: blur(18px);
+      color: #fff;
+      z-index: 100;
+    }
+
+    .controls button {
+      min-width: 58px;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 9px;
+      background: rgba(255,255,255,0.10);
+      color: #fff;
+      font: 500 13px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+      cursor: pointer;
+    }
+
+    .controls input { width: 100%; accent-color: #fff; }
+    .timecode { min-width: 78px; text-align: right; font: 12px/1 ui-monospace, monospace; color: rgba(255,255,255,.66); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .action-group, .add-label, .success-mark { transform: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main id="stage" class="stage-shell" aria-label="Together 创建动作组动效演示">
+    <img class="screen" src="background.png" alt="Together 创建任务高保真界面">
+    <div class="action-eraser" aria-hidden="true"></div>
+
+    <div id="actionGroup" class="action-group">
+      <div id="cancelSlot" class="action-slot">
+        <span class="cancel-label">取消</span>
+      </div>
+
+      <div class="hairline-wrap" aria-hidden="true">
+        <span class="hairline"></span>
+      </div>
+
+      <div id="addSlot" class="action-slot">
+        <span id="addLabel" class="add-label">
+          <span id="addGlyphOne" class="add-glyph">添</span><span id="addGlyphTwo" class="add-glyph">加</span>
+        </span>
+        <svg id="successMark" class="success-mark" viewBox="0 0 48 48" aria-hidden="true">
+          <path id="successPath" class="success-path" pathLength="1" d="M13 25 L21 33 L38 16"></path>
+        </svg>
+      </div>
+    </div>
+
+    <div class="watermark">Created by Huashu-Design</div>
+  </main>
+
+  <div class="controls no-record" data-role="chrome">
+    <button id="toggle" type="button">暂停</button>
+    <button id="replay" type="button">重播</button>
+    <input id="scrubber" type="range" min="0" max="3.7" step="0.001" value="0" aria-label="播放进度">
+    <div id="timecode" class="timecode">0.00 / 3.70</div>
+  </div>
+
+  <script>
+    (() => {
+      const DURATION = 3.7;
+      const stage = document.getElementById('stage');
+      const group = document.getElementById('actionGroup');
+      const addSlot = document.getElementById('addSlot');
+      const addLabel = document.getElementById('addLabel');
+      const addGlyphOne = document.getElementById('addGlyphOne');
+      const addGlyphTwo = document.getElementById('addGlyphTwo');
+      const successMark = document.getElementById('successMark');
+      const successPath = document.getElementById('successPath');
+      const toggle = document.getElementById('toggle');
+      const replay = document.getElementById('replay');
+      const scrubber = document.getElementById('scrubber');
+      const timecode = document.getElementById('timecode');
+
+      let time = 0;
+      let playing = false;
+      let lastTick = null;
+
+      const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+      const local = (t, start, duration) => clamp((t - start) / duration);
+      const expoOut = t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+      const smoothStep = t => t * t * (3 - 2 * t);
+      const mix = (from, to, progress) => from + (to - from) * progress;
+      const critical = t => {
+        const end = 1 - Math.exp(-7) * 8;
+        return clamp((1 - Math.exp(-7 * t) * (1 + 7 * t)) / end);
+      };
+
+      function render(t) {
+        time = clamp(t, 0, DURATION - 0.001);
+
+        const entered = expoOut(local(time, 0.12, 0.30));
+        const enabled = smoothStep(local(time, 0.66, 0.16));
+        const pressDown = smoothStep(local(time, 1.50, 0.08));
+        const pressUp = smoothStep(local(time, 1.58, 0.14));
+        const pressAmount = clamp(pressDown - pressUp);
+
+        // 没有进度态。保存回执抵达后，“添加”自身先向中心收束，
+        // 同一墨迹从收束点写成勾号，再以接近临界阻尼的曲线落定。
+        const saving = smoothStep(local(time, 1.74, 0.08));
+        const condense = smoothStep(local(time, 1.80, 0.20));
+        const inkTransfer = smoothStep(local(time, 1.91, 0.12));
+        const checkDraw = smoothStep(local(time, 1.97, 0.27));
+        const checkSettle = critical(local(time, 2.08, 0.30));
+
+        const groupX = mix(18, 0, entered);
+        const groupY = mix(28, 0, entered);
+        group.style.opacity = entered.toFixed(4);
+        group.style.transform = `translate(calc(-50% + ${groupX.toFixed(2)}px), ${groupY.toFixed(2)}px)`;
+
+        const enabledScale = mix(0.96, 1, enabled);
+        const pressScale = mix(1, 0.96, pressAmount);
+        const pressOpacity = mix(1, 0.78, pressAmount);
+        addSlot.style.transform = `scale(${(enabledScale * pressScale).toFixed(4)})`;
+        addSlot.style.opacity = pressOpacity.toFixed(4);
+
+        const gray = Math.round(mix(151, 19, enabled));
+        addLabel.style.color = `rgb(${gray}, ${gray}, ${gray + 2})`;
+        addLabel.style.fontWeight = String(Math.round(mix(520, 650, enabled)));
+
+        const labelOpacity = (1 - inkTransfer) * mix(1, 0.76, saving);
+        addLabel.style.opacity = labelOpacity.toFixed(4);
+        addLabel.style.transform = `translateY(${mix(0, 0.9, condense).toFixed(3)}px) scaleX(${mix(1, 0.42, condense).toFixed(4)})`;
+        addLabel.style.filter = `blur(${mix(0, 0.40, condense).toFixed(3)}px)`;
+        addGlyphOne.style.transform = `translateX(${mix(0, 2.8, condense).toFixed(3)}px) rotate(${mix(0, 0.7, condense).toFixed(3)}deg)`;
+        addGlyphTwo.style.transform = `translateX(${mix(0, -2.8, condense).toFixed(3)}px) rotate(${mix(0, -0.7, condense).toFixed(3)}deg)`;
+
+        const markOpacity = clamp(checkDraw * 5);
+        successMark.style.opacity = markOpacity.toFixed(4);
+        successMark.style.transform = `translate(-50%, -50%) translateY(${mix(1.8, 0, checkSettle).toFixed(3)}px) rotate(${mix(-2.4, 0, checkSettle).toFixed(3)}deg) scale(${mix(0.82, 1, checkSettle).toFixed(4)})`;
+        successPath.style.strokeDashoffset = (1 - checkDraw).toFixed(4);
+        successPath.style.strokeWidth = mix(3.45, 3.2, checkSettle).toFixed(3);
+
+        scrubber.value = String(time);
+        timecode.textContent = `${time.toFixed(2)} / ${DURATION.toFixed(2)}`;
+      }
+
+      function fit() {
+        const controlReserve = window.__recording || window.__seekRender ? 0 : 72;
+        const availableWidth = window.innerWidth;
+        const availableHeight = window.innerHeight - controlReserve;
+        const scale = Math.min(availableWidth / 851, availableHeight / 1848);
+        stage.style.transform = `scale(${scale})`;
+      }
+
+      function tick(now) {
+        if (lastTick === null) {
+          lastTick = now;
+          window.__ready = true;
+          render(0);
+          requestAnimationFrame(tick);
+          return;
+        }
+
+        const delta = (now - lastTick) / 1000;
+        lastTick = now;
+
+        if (playing) {
+          let next = time + delta;
+          if (next >= DURATION) {
+            if (window.__recording) {
+              next = DURATION - 0.001;
+              playing = false;
+            } else {
+              next = 0;
+            }
+          }
+          render(next);
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      window.__seek = value => {
+        time = clamp(Number(value) || 0, 0, DURATION - 0.001);
+        lastTick = null;
+        render(time);
+      };
+
+      toggle.addEventListener('click', () => {
+        playing = !playing;
+        toggle.textContent = playing ? '暂停' : '播放';
+        lastTick = null;
+      });
+
+      replay.addEventListener('click', () => {
+        render(0);
+        playing = true;
+        toggle.textContent = '暂停';
+        lastTick = null;
+      });
+
+      scrubber.addEventListener('input', event => {
+        playing = false;
+        toggle.textContent = '播放';
+        render(Number(event.target.value));
+        lastTick = null;
+      });
+
+      window.addEventListener('resize', fit);
+
+      document.fonts.ready.then(() => {
+        fit();
+        render(0);
+        if (window.__seekRender) {
+          playing = false;
+          window.__ready = true;
+          return;
+        }
+        playing = true;
+        requestAnimationFrame(tick);
+      });
+    })();
+  </script>
+</body>
+</html>

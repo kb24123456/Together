@@ -41,9 +41,17 @@ enum TogetherSchemaV3: VersionedSchema {
     }
 }
 
+enum TogetherSchemaV4: VersionedSchema {
+    static let versionIdentifier = Schema.Version(4, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        TogetherSchemaV3.models + [PersistentTaskLifecycleEvent.self]
+    }
+}
+
 enum TogetherMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [TogetherSchemaV1.self, TogetherSchemaV2.self, TogetherSchemaV3.self]
+        [TogetherSchemaV1.self, TogetherSchemaV2.self, TogetherSchemaV3.self, TogetherSchemaV4.self]
     }
 
     static var stages: [MigrationStage] {
@@ -61,6 +69,10 @@ enum TogetherMigrationPlan: SchemaMigrationPlan {
             MigrationStage.lightweight(
                 fromVersion: TogetherSchemaV2.self,
                 toVersion: TogetherSchemaV3.self
+            ),
+            MigrationStage.lightweight(
+                fromVersion: TogetherSchemaV3.self,
+                toVersion: TogetherSchemaV4.self
             ),
         ]
     }

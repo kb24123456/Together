@@ -405,9 +405,12 @@ final class RoutinesViewModel {
     func creationPlacement() -> TaskMorphPlacement? {
         guard let session = creationSession else { return nil }
         let section = TaskMorphSection.periodic(cycle: session.provisionalCycle)
+        let provisionalIndex = sortedTasks(for: session.provisionalCycle)
+            .prefix(while: { isCompleted($0) == false })
+            .count
         return TaskMorphPlacement(
             provisionalSection: section,
-            index: 0,
+            index: provisionalIndex,
             presentationID: session.id.uuidString
         )
     }
@@ -1090,20 +1093,30 @@ final class RoutinesViewModel {
     }
 
     func deleteTask(taskID: UUID) async {
+        guard await persistTaskDeletion(taskID: taskID) else { return }
+        finalizeTaskDeletionPresentation(taskID: taskID)
+    }
+
+    func persistTaskDeletion(taskID: UUID) async -> Bool {
         guard let spaceID = sessionStore.currentSpace?.id,
-              let actorID = sessionStore.currentUser?.id else { return }
+              let actorID = sessionStore.currentUser?.id else { return false }
         do {
             try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID, actorID: actorID)
-            tasks.removeAll { $0.id == taskID }
-            if expandedTaskID == taskID {
-                expandedTaskID = nil
-                detailDraft = nil
-            }
-            cacheCurrentTasks()
+            return true
         } catch {
             operationErrorMessage = "定期任务删除失败，请重试。"
             await load()
+            return false
         }
+    }
+
+    func finalizeTaskDeletionPresentation(taskID: UUID) {
+        tasks.removeAll { $0.id == taskID }
+        if expandedTaskID == taskID {
+            expandedTaskID = nil
+            detailDraft = nil
+        }
+        cacheCurrentTasks()
     }
 
     func refreshReferenceDate() {

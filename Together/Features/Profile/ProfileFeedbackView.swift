@@ -70,6 +70,7 @@ struct ProfileFeedbackView: View {
             .frame(maxWidth: .infinity)
             .padding(.bottom, AppTheme.spacing.xxl)
         }
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("意见反馈")
         .navigationBarTitleDisplayMode(.inline)

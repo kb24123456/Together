@@ -11,6 +11,7 @@ struct AppNotification: Identifiable, Hashable, Sendable {
     var body: String
     var scheduledAt: Date
     var deliveredAt: Date?
+    var recurrence: NotificationRecurrence = .none
 
     nonisolated var identifier: String {
         Self.identifier(for: targetType, targetID: targetID)

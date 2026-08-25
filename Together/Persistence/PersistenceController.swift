@@ -90,7 +90,7 @@ struct PersistenceController {
     }
 
     private static func makeContainer(inMemory: Bool) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TogetherSchemaV3.self)
+        let schema = Schema(versionedSchema: TogetherSchemaV4.self)
         let configuration: ModelConfiguration
 
         if inMemory {

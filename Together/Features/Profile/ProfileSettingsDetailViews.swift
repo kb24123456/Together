@@ -38,7 +38,7 @@ struct ProfileSyncRecoveryView: View {
             .padding(.top, AppTheme.spacing.lg)
             .padding(.bottom, AppTheme.spacing.xxl)
         }
-        .applyScrollEdgeProtection()
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("iCloud 同步")
         .navigationBarTitleDisplayMode(.inline)

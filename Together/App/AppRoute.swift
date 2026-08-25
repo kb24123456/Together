@@ -31,6 +31,7 @@ enum RoutinesRoute: Hashable {
 enum ProfileRoute: Hashable {
     case editProfile
     case completedHistory
+    case planningReview
     case accountDeletion
     case about
 }

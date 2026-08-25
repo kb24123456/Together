@@ -50,6 +50,24 @@ final class MockItemRepository: ItemRepositoryProtocol {
         return homeItemsFetchTransform(fetchedItems)
     }
 
+    func normalizeMissingTaskDates(spaceID: UUID?, referenceDate: Date) async throws -> Int {
+        let normalizedDate = calendar.startOfDay(for: referenceDate)
+        var normalizedCount = 0
+        for index in items.indices where items[index].spaceID == spaceID
+            && items[index].isArchived == false
+            && items[index].repeatRule == nil
+            && items[index].dueAt == nil
+            && items[index].completedAt == nil
+            && items[index].status != .completed {
+            items[index].dueAt = normalizedDate
+            items[index].hasExplicitTime = false
+            items[index].remindAt = nil
+            items[index].updatedAt = referenceDate
+            normalizedCount += 1
+        }
+        return normalizedCount
+    }
+
     func fetchArchivedCompletedItems(
         spaceID: UUID?,
         searchText: String?,

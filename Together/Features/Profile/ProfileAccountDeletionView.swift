@@ -37,6 +37,7 @@ struct ProfileAccountDeletionView: View {
             .padding(.top, AppTheme.spacing.lg)
             .padding(.bottom, AppTheme.spacing.xxl)
         }
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("删除数据")
         .navigationBarTitleDisplayMode(.inline)

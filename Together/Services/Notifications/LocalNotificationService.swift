@@ -34,7 +34,7 @@ struct LocalNotificationService: NotificationServiceProtocol {
 
     func schedule(_ notifications: [AppNotification]) async throws {
         for notification in notifications {
-            guard notification.scheduledAt > .now else {
+            if notification.recurrence == .none, notification.scheduledAt <= .now {
                 await cancel([notification.identifier])
                 continue
             }
@@ -45,11 +45,21 @@ struct LocalNotificationService: NotificationServiceProtocol {
             content.sound = .default
             content.categoryIdentifier = NotificationActionCatalog.categoryIdentifier(for: notification.targetType)
 
-            let components = calendar.dateComponents(
-                [.year, .month, .day, .hour, .minute, .second],
-                from: notification.scheduledAt
-            )
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let trigger: UNCalendarNotificationTrigger
+            switch notification.recurrence {
+            case .none:
+                let components = calendar.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .second],
+                    from: notification.scheduledAt
+                )
+                trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            case .daily:
+                let components = calendar.dateComponents(
+                    [.hour, .minute],
+                    from: notification.scheduledAt
+                )
+                trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+            }
             let request = UNNotificationRequest(
                 identifier: notification.identifier,
                 content: content,

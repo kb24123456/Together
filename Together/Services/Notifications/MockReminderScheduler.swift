@@ -14,6 +14,7 @@ actor MockReminderScheduler: ReminderSchedulerProtocol {
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {}
 
     func resync(
+        spaceID: UUID?,
         tasks: [Item],
         projects: [Project],
         includeTaskReminders: Bool,

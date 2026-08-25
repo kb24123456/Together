@@ -14,16 +14,19 @@ enum OCRMediaLayout {
 enum OCRSourceKind: Hashable {
     case camera
     case photos
+    case pasteText
 }
 
 @MainActor
 @Observable
 final class OCRSourceSheetSession: Identifiable {
     let id = UUID()
+    let source: OCRSourceKind?
     let viewModel: OCRImportViewModel
     let availableHeight: CGFloat
 
     init(source: OCRSourceKind) {
+        self.source = source
         availableHeight = OCRWindowMetrics.availableHeight
         viewModel = OCRImportViewModel()
         viewModel.reset()
@@ -32,10 +35,13 @@ final class OCRSourceSheetSession: Identifiable {
             viewModel.showCamera()
         case .photos:
             viewModel.showPhotos()
+        case .pasteText:
+            viewModel.showPasteText()
         }
     }
 
     init(viewModel: OCRImportViewModel) {
+        source = nil
         availableHeight = OCRWindowMetrics.availableHeight
         self.viewModel = viewModel
     }
@@ -75,12 +81,12 @@ struct OCRSourceSheet: View {
         GeometryReader { proxy in
             content(bottomSafeAreaInset: proxy.safeAreaInsets.bottom)
                 .frame(width: proxy.size.width, height: proxy.size.height)
-                .background(.black)
+                .background(sourceBackground)
                 .ignoresSafeArea()
         }
         .presentationDetents(availableDetents, selection: $selectedDetent)
         .presentationDragIndicator(.visible)
-        .presentationBackground(.black)
+        .presentationBackground(sourceBackground)
         .presentationContentInteraction(.scrolls)
         .interactiveDismissDisabled(viewModel.isRecognizing)
         .photosPicker(
@@ -111,11 +117,17 @@ struct OCRSourceSheet: View {
         session.viewModel
     }
 
+    private var sourceBackground: Color {
+        session.source == .pasteText
+            ? Color(uiColor: .systemBackground)
+            : .black
+    }
+
     private var availableDetents: Set<PresentationDetent> {
         switch viewModel.flowState {
         case .photos:
             [.large]
-        case .sourcePicker, .camera, .processing, .review, .failed:
+        case .sourcePicker, .camera, .pasteText, .processing, .review, .failed:
             [.medium, .large]
         }
     }
@@ -132,6 +144,13 @@ struct OCRSourceSheet: View {
                         .tint(.white)
                         .foregroundStyle(.white)
                 }
+        case .pasteText:
+            OCRTextPasteView(
+                errorMessage: viewModel.errorMessage,
+                onPaste: { payloads in
+                    viewModel.processText(payloads.joined(separator: "\n"))
+                }
+            )
         case .processing, .review:
             OCRAttachmentProcessingView(sourceImage: viewModel.sourceImage)
         case .failed:
@@ -166,6 +185,9 @@ struct OCRSourceSheet: View {
             if isPresentingSystemPhotoPicker == false {
                 isPresentingSystemPhotoPicker = true
             }
+        case .pasteText:
+            selectedDetent = .medium
+            isPresentingSystemPhotoPicker = false
         case .review:
             guard didHandOffReview == false else { return }
             didHandOffReview = true
@@ -194,6 +216,52 @@ struct OCRSourceSheet: View {
                 dismiss()
             }
         }
+    }
+}
+
+private struct OCRTextPasteView: View {
+    let errorMessage: String?
+    let onPaste: ([String]) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: AppTheme.spacing.lg) {
+                Image(systemName: "doc.on.clipboard")
+                    .font(AppTheme.typography.sized(32, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.bodySecondary)
+                    .accessibilityHidden(true)
+
+                VStack(spacing: AppTheme.spacing.sm) {
+                    Text("粘贴多行文字")
+                        .font(AppTheme.typography.textStyle(.title3, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.title)
+
+                    Text("每一行会先转换为可编辑草稿，确认后才写入任务。")
+                        .font(AppTheme.typography.body)
+                        .foregroundStyle(AppTheme.colors.bodySecondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                PasteButton(payloadType: String.self, onPaste: onPaste)
+                    .controlSize(.large)
+                    .accessibilityHint("读取你主动粘贴的文字并生成任务草稿")
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(AppTheme.typography.textStyle(.footnote))
+                        .foregroundStyle(AppTheme.colors.danger)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.vertical, AppTheme.spacing.xxl)
+            .frame(maxWidth: .infinity)
+        }
+        .contentMargins(.horizontal, AppTheme.spacing.xl, for: .scrollContent)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
+        .applySoftTopScrollEdgeTransition()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemBackground))
     }
 }
 

@@ -37,6 +37,8 @@ struct HomeModeTimelineWaveSequence: Equatable {
 struct HomeView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var viewModel: HomeViewModel
     @Bindable var morphSession: HomeMorphSession
     @Bindable var projectsViewModel: ProjectsViewModel
@@ -59,7 +61,7 @@ struct HomeView: View {
     @State private var timelineDateBarSelection = HomeTimelineDateBarSelection()
     @State private var timelineDateBarBoundaryMaxY: CGFloat = 0
     @State private var modeTaskRowsPresented = true
-    @State private var creationKeyboardAlignmentTask: Task<Void, Never>?
+    @State private var taskDeletionSession = TaskDeletionAnimationSession()
 
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset = TaskMorphListSpacing.compactExternalInset
@@ -128,6 +130,20 @@ struct HomeView: View {
         .onAppear {
             isCompletedSectionVisible = true
         }
+        .onDisappear {
+            taskDeletionSession.interrupt()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active else { return }
+            taskDeletionSession.interrupt()
+        }
+        .onChange(of: reduceMotion) { _, _ in
+            taskDeletionSession.interrupt()
+        }
+        .onChange(of: isRoutinesModePresented) { _, isPresented in
+            guard isPresented else { return }
+            taskDeletionSession.interrupt()
+        }
         .onChange(of: appContext.startupRestorePresentationState) { oldValue, newValue in
             guard oldValue.isVisible, newValue == .idle else { return }
             Task {
@@ -135,10 +151,6 @@ struct HomeView: View {
             }
         }
         .onChange(of: morphSession.phase) { _, phase in
-            if phase == .idle {
-                creationKeyboardAlignmentTask?.cancel()
-                creationKeyboardAlignmentTask = nil
-            }
             if phase == .active, morphSession.isCreationFlow {
                 isTimelineReorderingActive = false
             }
@@ -181,6 +193,10 @@ struct HomeView: View {
             isParticleMotionSuppressed: isAmbientParticleMotionSuppressed,
             isSurfaceVisible: isRootSurfaceVisible
         )
+    }
+
+    private var detailHeaderBlurRadius: CGFloat {
+        TaskMorphBackgroundWave.headerBlurRadius(isDarkAppearance: colorScheme == .dark)
     }
 
     private var isAmbientParticleMotionSuppressed: Bool {
@@ -333,7 +349,10 @@ struct HomeView: View {
                             guard let id = appContext.consumePendingHighlightTaskID() else { return }
                             requestExternalFocus(id, via: scrollProxy)
                         }
-                        .task(id: morphSession.phase) {
+                        // A new draft can return to `.active` in the same render turn that
+                        // the previous creation finishes. Use the session token so that
+                        // sequential drafts cannot reuse the previous expansion task ID.
+                        .task(id: morphSession.currentToken()) {
                             guard morphSession.isCreationFlow,
                                   let token = morphSession.currentToken()
                             else { return }
@@ -343,23 +362,29 @@ struct HomeView: View {
                                morphSession.visualState == .compact,
                                let presentationID = morphSession.placement?.provisionalPresentationID {
                                 await Task.yield()
-                                var transaction = Transaction()
-                                transaction.animation = nil
-                                withTransaction(transaction) {
-                                    scrollProxy.scrollTo(presentationID, anchor: .top)
-                                }
-                                await Task.yield()
-                                guard morphSession.activatePreparedCreation(using: token) else { return }
-                                let focusDelay = reduceMotion
-                                    ? TaskExpansionMotionTiming.reducedMotionDuration
-                                    : TaskExpansionMotionTiming.expansionDuration
+                                guard Task.isCancelled == false,
+                                      morphSession.prepareCreationInput(using: token)
+                                else { return }
                                 do {
-                                    try await Task.sleep(for: .seconds(focusDelay))
+                                    try await Task.sleep(
+                                        for: .seconds(TaskCreationInputTiming.prepositionLeadDuration)
+                                    )
                                 } catch {
                                     return
                                 }
-                                guard Task.isCancelled == false else { return }
-                                _ = morphSession.finishCreationExpansion(using: token)
+                                guard Task.isCancelled == false,
+                                      morphSession.isCurrent(token),
+                                      morphSession.phase == .active,
+                                      morphSession.visualState == .compact,
+                                      morphSession.placement?.provisionalPresentationID == presentationID
+                                else { return }
+                                withAnimation(reduceMotion ? nil : .smooth(duration: TaskCreationInputTiming.prepositionDuration, extraBounce: 0)) {
+                                    scrollProxy.scrollTo(presentationID, anchor: .bottom)
+                                }
+                                guard Task.isCancelled == false,
+                                      morphSession.isCurrent(token)
+                                else { return }
+                                guard morphSession.activatePreparedCreation(using: token) else { return }
                                 return
                             }
 
@@ -579,13 +604,17 @@ struct HomeView: View {
         return true
     }
 
-    private func estimatedDetailDisclosureHeight(for entry: HomeTimelineEntry) -> CGFloat {
+    private func estimatedDetailDisclosureHeight(
+        for entry: HomeTimelineEntry,
+        includesCreationActions: Bool
+    ) -> CGFloat {
         // Measured geometry replaces this estimate as soon as it is available,
         // including after Dynamic Type changes. Keep the fallback synchronized
         // with the compact overlap metrics to avoid a roomy first frame.
         HomeInlineTaskLayoutMetrics.estimatedDetailHeight(
             subtaskCount: entry.subtasks.count,
-            note: entry.notes
+            note: entry.notes,
+            includesCreationActions: includesCreationActions
         )
     }
 
@@ -621,7 +650,7 @@ struct HomeView: View {
 
     private func standardTimelineForeground(scrollProxy: ScrollViewProxy) -> some View {
         VStack(spacing: 0) {
-            if viewModel.showsOverdueCapsule {
+            if #unavailable(iOS 26.0), viewModel.showsOverdueCapsule {
                 overdueSummaryButton
                     .zIndex(2)
             }
@@ -633,8 +662,13 @@ struct HomeView: View {
                         usesDateBar: true
                     )
                         .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) {
-                            if let section = displayedTimelineDateBarSection {
-                                timelineDateBar(section)
+                            VStack(spacing: 0) {
+                                if viewModel.showsOverdueCapsule {
+                                    overdueSummaryButton
+                                }
+                                if let section = displayedTimelineDateBarSection {
+                                    timelineDateBar(section)
+                                }
                             }
                         }
                         .applyHomeScrollEdgeTransition()
@@ -683,7 +717,7 @@ struct HomeView: View {
         .taskMorphBackgroundDepth(
             isDeemphasized: morphSession.isDetailFocusDepthActive,
             appliesVisualDepth: false,
-            detailBlurRadius: TaskMorphBackgroundWave.headerBlurRadius,
+            detailBlurRadius: detailHeaderBlurRadius,
             onDismiss: morphSession.requestDismissal
         )
     }
@@ -755,10 +789,18 @@ struct HomeView: View {
                         )
                 } else if displayedCompletedEntries.isEmpty {
                     Color.clear
-                        .frame(height: max(64, timelineBottomInset))
+                        .frame(
+                            height: isCreationDraftPresentedInList
+                                ? 0
+                                : max(64, timelineBottomInset)
+                        )
                 }
             }
         }
+        .defaultScrollAnchor(
+            isCreationDraftPresentedInList ? .bottom : .top,
+            for: .alignment
+        )
         .scrollIndicators(.hidden)
         .scrollDisabled(isOverlayModeActive)
         .transaction { transaction in
@@ -770,6 +812,12 @@ struct HomeView: View {
             }
         }
         .safeAreaPadding(.top, 0)
+        .safeAreaPadding(
+            .bottom,
+            isCreationDraftPresentedInList
+                ? TaskCreationKeyboardLayout.bottomClearance
+                : 0
+        )
     }
 
     @ViewBuilder
@@ -802,7 +850,7 @@ struct HomeView: View {
                     isDeemphasized: morphSession.isDetailFocusDepthActive,
                     anchor: .leading,
                     appliesVisualDepth: false,
-                    detailBlurRadius: TaskMorphBackgroundWave.headerBlurRadius,
+                    detailBlurRadius: detailHeaderBlurRadius,
                     onDismiss: morphSession.requestDismissal
                 )
         } else {
@@ -824,7 +872,7 @@ struct HomeView: View {
                 isDeemphasized: morphSession.isDetailFocusDepthActive,
                 anchor: .leading,
                 appliesVisualDepth: false,
-                detailBlurRadius: TaskMorphBackgroundWave.headerBlurRadius,
+                detailBlurRadius: detailHeaderBlurRadius,
                 onDismiss: morphSession.requestDismissal
             )
     }
@@ -841,7 +889,7 @@ struct HomeView: View {
                 isDeemphasized: morphSession.isDetailFocusDepthActive,
                 anchor: .leading,
                 appliesVisualDepth: false,
-                detailBlurRadius: TaskMorphBackgroundWave.headerBlurRadius,
+                detailBlurRadius: detailHeaderBlurRadius,
                 onDismiss: morphSession.requestDismissal
             )
     }
@@ -894,10 +942,13 @@ struct HomeView: View {
 
     private var displayedActiveSections: [HomeTimelineSection] {
         let sections = frozenActiveSections ?? viewModel.activeTimelineSections
-        guard morphSession.isCreationFlow,
-              morphSession.phase != .relocating
+        guard isCreationDraftPresentedInList
         else { return sections }
         return viewModel.timelineSectionsAddingTaskCreationDraft(to: sections)
+    }
+
+    private var isCreationDraftPresentedInList: Bool {
+        morphSession.isCreationFlow && morphSession.phase != .relocating
     }
 
     private var displayedTimelineDateBarSection: HomeTimelineSection? {
@@ -944,6 +995,7 @@ struct HomeView: View {
     private var hasDisplayedTimelineEntries: Bool {
         displayedActiveSections.contains { $0.entries.isEmpty == false }
             || displayedCompletedEntries.isEmpty == false
+            || viewModel.showsOverdueCapsule
     }
 
     private var displayedHasWeeklyCompletedEntries: Bool {
@@ -973,7 +1025,7 @@ struct HomeView: View {
         .taskMorphBackgroundDepth(
             isDeemphasized: morphSession.isDetailFocusDepthActive,
             appliesVisualDepth: false,
-            detailBlurRadius: TaskMorphBackgroundWave.headerBlurRadius,
+            detailBlurRadius: detailHeaderBlurRadius,
             onDismiss: morphSession.requestDismissal
         )
     }
@@ -992,6 +1044,9 @@ struct HomeView: View {
             let isActiveMorph = morphSession.isActive(.todo, id: entry.itemID)
             let isCreationDraft = morphSession.isCreationPresentation(.todo, id: entry.itemID)
             let isCreationRevealTarget = morphSession.isCreationListRevealTarget(.todo, id: entry.itemID)
+            let deletionVisualState = taskDeletionSession.activeTaskID == entry.itemID
+                ? taskDeletionSession.visualState(for: entry.itemID)
+                : nil
             TaskMorphContainer(
                 state: isActiveMorph ? morphSession.visualState : .compact,
                 isActive: isActiveMorph,
@@ -1002,12 +1057,28 @@ struct HomeView: View {
             ) { motion in
                 let isExpanded = isActiveMorph && morphSession.visualState == .expanded
                 let detailSubtaskCount = viewModel.inlineDetailDraft?.subtasks.count ?? 0
+                let showsCreationActions = isActiveMorph && morphSession.isCreationFlow
+                let showsTitleValidationError = showsCreationActions
+                    && viewModel.isTaskCreationTitleEmpty
+                    && morphSession.errorMessage != nil
                 let hasMorphError = morphSession.errorMessage != nil
-                let cascadeRowCount = detailSubtaskCount + 3 + (hasMorphError ? 1 : 0)
+                    && showsTitleValidationError == false
+                let cascadeRowCount = detailSubtaskCount
+                    + 4
+                    + (hasMorphError ? 1 : 0)
+                    + (showsCreationActions ? 1 : 0)
                 let isCollapsing = isActiveMorph
                     && morphSession.phase == .collapsing
                     && morphSession.visualState == .compact
                 let cascadeElapsed = motion.cascadeElapsed(isCollapsing: isCollapsing)
+                let estimatedDisclosureHeight = estimatedDetailDisclosureHeight(
+                    for: entry,
+                    includesCreationActions: showsCreationActions
+                )
+                let creationExpansionHeightDelta = max(
+                    0,
+                    estimatedDisclosureHeight - HomeInlineTaskLayoutMetrics.detailTitleOverlap
+                ) + TaskMorphListSpacing.fixedExpansionHeightDelta
                 VStack(alignment: .leading, spacing: 0) {
                     timelineRow(
                         entry: entry,
@@ -1015,6 +1086,10 @@ struct HomeView: View {
                         isDetailExpanded: isExpanded,
                         motion: isActiveMorph ? motion : .compact,
                         isCreationDraft: isCreationDraft,
+                        deletionVisualState: deletionVisualState,
+                        creationValidationMessage: showsTitleValidationError
+                            ? morphSession.errorMessage
+                            : nil,
                         scrollProxy: scrollProxy
                     )
 
@@ -1023,7 +1098,7 @@ struct HomeView: View {
                             progress: motion.layoutProgress,
                             isInteractive: isExpanded
                                 && morphSession.phase == .active,
-                            estimatedHeight: estimatedDetailDisclosureHeight(for: entry)
+                            estimatedHeight: estimatedDisclosureHeight
                         ) {
                             VStack(alignment: .leading, spacing: 0) {
                                 HomeInlineTaskDetailCard(
@@ -1032,7 +1107,9 @@ struct HomeView: View {
                                     isExpanded: isExpanded,
                                     isCollapsing: isCollapsing,
                                     cascadeElapsed: cascadeElapsed,
-                                    cascadeRowCount: cascadeRowCount
+                                    cascadeRowCount: cascadeRowCount,
+                                    creationFocusDismissalRevision: morphSession.creationFocusDismissalRevision,
+                                    creationCommitRequestRevision: morphSession.creationCommitRequestRevision
                                 )
 
                                 HomeTaskAttributeFooter(
@@ -1043,12 +1120,13 @@ struct HomeView: View {
                                 .padding(.top, -HomeInlineTaskLayoutMetrics.attributeTopOverlap)
                                 .taskMorphCascade(
                                     elapsed: cascadeElapsed,
-                                    index: detailSubtaskCount + 2,
+                                    index: detailSubtaskCount + 3,
                                     rowCount: cascadeRowCount,
                                     isCollapsing: isCollapsing
                                 )
 
                                 if let error = morphSession.errorMessage {
+                                    if showsTitleValidationError == false {
                                     Label(error, systemImage: "exclamationmark.circle.fill")
                                         .font(AppTheme.typography.sized(13, weight: .medium))
                                         .foregroundStyle(.red)
@@ -1056,14 +1134,40 @@ struct HomeView: View {
                                         .padding(.top, AppTheme.spacing.sm)
                                         .taskMorphCascade(
                                             elapsed: cascadeElapsed,
-                                            index: detailSubtaskCount + 3,
+                                            index: detailSubtaskCount + 4,
                                             rowCount: cascadeRowCount,
                                             isCollapsing: isCollapsing
                                         )
+                                    }
+                                }
+
+                                if showsCreationActions {
+                                    TaskCreationActionRow(
+                                        isTitleValid: viewModel.isTaskCreationTitleEmpty == false,
+                                        isInputReady: morphSession.isCreationInputReady,
+                                        phase: morphSession.phase,
+                                        isSaveAcknowledged: morphSession.isCreationSaveAcknowledged,
+                                        onCancel: morphSession.requestCreationCancellation,
+                                        onAdd: morphSession.requestCommit
+                                    )
+                                    .padding(.top, AppTheme.spacing.sm)
+                                    .taskMorphCascade(
+                                        elapsed: cascadeElapsed,
+                                        index: detailSubtaskCount + 4 + (hasMorphError ? 1 : 0),
+                                        rowCount: cascadeRowCount,
+                                        isCollapsing: isCollapsing
+                                    )
                                 }
                             }
                         }
                         .padding(.top, -HomeInlineTaskLayoutMetrics.detailTitleOverlap)
+                    }
+
+                    if isCreationDraft {
+                        TaskCreationExpansionReserve(
+                            expandedHeightDelta: creationExpansionHeightDelta,
+                            expansionProgress: isCollapsing ? 1 : motion.layoutProgress
+                        )
                     }
                 }
             }
@@ -1085,25 +1189,38 @@ struct HomeView: View {
             }
             .modifier(
                 TimelineSwipeActionsModifier(
-                    isEnabled: entry.isCompleted == false && morphSession.isActive == false,
+                    isEnabled: entry.isCompleted == false
+                        && morphSession.isActive == false
+                        && taskDeletionSession.isBusy == false,
                     canDelete: viewModel.canDeleteItem(entry.itemID),
+                    snoozeTitle: viewModel.primarySnoozeTitle,
                     onSnooze: {
                         HomeInteractionFeedback.selection()
                         Task { await viewModel.snoozeItem(entry.itemID) }
                     },
                     onDelete: {
-                        HomeInteractionFeedback.delete()
-                        Task { await viewModel.deleteItem(entry.itemID) }
+                        requestTaskDeletion(entry.itemID)
                     }
                 )
             )
             .contextMenu {
-                if entry.isCompleted == false, morphSession.isActive == false {
+                if entry.isCompleted == false,
+                   morphSession.isActive == false,
+                   taskDeletionSession.isBusy == false {
                     Button {
                         HomeInteractionFeedback.selection()
-                        Task { await viewModel.snoozeItem(entry.itemID) }
+                        Task { await viewModel.snoozeItemToTomorrow(entry.itemID) }
                     } label: {
                         Label("推迟到明天", systemImage: "calendar.badge.clock")
+                    }
+
+                    if viewModel.isFriday {
+                        Button {
+                            HomeInteractionFeedback.selection()
+                            Task { await viewModel.snoozeItemToNextMonday(entry.itemID) }
+                        } label: {
+                            Label("推迟到下周一", systemImage: "calendar.badge.clock")
+                        }
                     }
 
                     Button {
@@ -1115,8 +1232,7 @@ struct HomeView: View {
 
                     if viewModel.canDeleteItem(entry.itemID) {
                         Button(role: .destructive) {
-                            HomeInteractionFeedback.delete()
-                            Task { await viewModel.deleteItem(entry.itemID) }
+                            requestTaskDeletion(entry.itemID)
                         } label: {
                             Label("删除", systemImage: "trash")
                         }
@@ -1133,6 +1249,10 @@ struct HomeView: View {
                     bottom: timelineRowVerticalInset,
                     trailing: timelineRowHorizontalInset
                 )
+            )
+            .taskCreationMountTransition(
+                isCreationDraft: isCreationDraft,
+                isDiscarding: morphSession.isDiscardingCreationDraft
             )
             .taskCreationListReveal(
                 isTarget: isCreationRevealTarget,
@@ -1163,7 +1283,14 @@ struct HomeView: View {
                 ),
                 value: modeTaskRowsPresented
             )
-            .zIndex(isActiveMorph ? 1 : 0)
+            .allowsHitTesting(taskDeletionSession.isBusy == false)
+            .onDisappear {
+                guard taskDeletionSession.activeTaskID == entry.itemID,
+                      taskDeletionSession.phase != .collapsing
+                else { return }
+                taskDeletionSession.interrupt()
+            }
+            .zIndex(isActiveMorph ? 2 : (deletionVisualState == nil ? 0 : 1))
         }
     }
 
@@ -1173,6 +1300,8 @@ struct HomeView: View {
         isDetailExpanded: Bool,
         motion: TaskExpansionMotion,
         isCreationDraft: Bool,
+        deletionVisualState: TaskDeletionVisualState?,
+        creationValidationMessage: String?,
         scrollProxy: ScrollViewProxy
     ) -> some View {
         HomeTimelineRow(
@@ -1188,7 +1317,11 @@ struct HomeView: View {
             isEditingNotes: false,
             motion: motion,
             isCreationDraft: isCreationDraft,
+            deletionVisualState: deletionVisualState,
             creationFocusRequestRevision: morphSession.creationFocusRequestRevision,
+            creationFocusDismissalRevision: morphSession.creationFocusDismissalRevision,
+            creationCommitRequestRevision: morphSession.creationCommitRequestRevision,
+            creationValidationMessage: creationValidationMessage,
             onSubmitCreation: morphSession.requestCommit,
             onToggleCompletion: {
                 guard isCreationDraft == false else { return }
@@ -1209,47 +1342,32 @@ struct HomeView: View {
                     _ = openInlineTaskDetail(entry)
                 }
             },
-            onUpdateTitle: viewModel.updateDraftTitle,
+            onUpdateTitle: { title in
+                viewModel.updateDraftTitle(title)
+                if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    morphSession.clearCreationError()
+                }
+            },
             onUpdateNotes: viewModel.updateDraftNotes,
             onBeginNoteEditing: {},
             onEndNoteEditing: {},
-            onInlineFocus: { _ in
-                guard isCreationDraft else { return }
-                alignCreationDraftAboveKeyboard(
-                    entry.presentationID,
-                    scrollProxy: scrollProxy
-                )
-            }
+            onInlineFocus: { _ in }
         )
     }
 
-    private func alignCreationDraftAboveKeyboard(
-        _ presentationID: String,
-        scrollProxy: ScrollViewProxy
-    ) {
-        creationKeyboardAlignmentTask?.cancel()
-        creationKeyboardAlignmentTask = Task { @MainActor in
-            do {
-                try await Task.sleep(
-                    for: .seconds(TaskCreationInputTiming.keyboardSettlementDuration)
-                )
-            } catch {
-                return
+    private func requestTaskDeletion(_ itemID: UUID) {
+        guard taskDeletionSession.isBusy == false else { return }
+        HomeInteractionFeedback.delete()
+        taskDeletionSession.requestDeletion(
+            taskID: itemID,
+            environment: .current(reduceMotion: reduceMotion),
+            persist: {
+                await viewModel.persistItemDeletion(itemID)
+            },
+            finalize: {
+                viewModel.finalizeItemDeletionPresentation(itemID)
             }
-            guard Task.isCancelled == false,
-                  morphSession.phase == .active,
-                  morphSession.isCreationFlow,
-                  morphSession.visualState == .expanded,
-                  morphSession.placement?.provisionalPresentationID == presentationID
-            else { return }
-
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                scrollProxy.scrollTo(presentationID, anchor: .bottom)
-            }
-            creationKeyboardAlignmentTask = nil
-        }
+        )
     }
 
     private var timelineSection: some View {
@@ -1531,11 +1649,14 @@ enum HomeInlineTaskLayoutMetrics {
     static let detailTopPadding: CGFloat = 0
     static let attributeTopOverlap: CGFloat = 6
     static let detailBottomPadding: CGFloat = 0
+    static let lifecycleInlineHeight: CGFloat = 28
+    static let creationActionHeight: CGFloat = 44
 
     static func estimatedDetailHeight(
         subtaskCount: Int,
         showsAddNote: Bool = true,
-        note: String? = nil
+        note: String? = nil,
+        includesCreationActions: Bool = false
     ) -> CGFloat {
         let leadingRowCount = showsAddNote ? 1 : 0
         let rowCount = max(subtaskCount + leadingRowCount + 2, 1)
@@ -1554,6 +1675,9 @@ enum HomeInlineTaskLayoutMetrics {
             + spacings
             + subtaskSpacings
             - attributeTopOverlap
+            + lifecycleInlineHeight
+            + (includesCreationActions ? creationActionHeight + AppTheme.spacing.sm : 0)
+            + detailVerticalSpacing
             + detailBottomPadding
     }
 
@@ -1638,11 +1762,13 @@ struct HomeTimelineRowDisplayText: Equatable {
 
 struct TaskSharedElementVisual: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     let element: TaskSharedElement
     let content: TaskSharedIdentityContent
     var titleLineLimit: Int? = 2
     var noteLineLimit: Int? = nil
     var noteFontSize: CGFloat = 15
+    var usesTaskFocusText = false
 
     @ViewBuilder
     var body: some View {
@@ -1746,11 +1872,17 @@ struct TaskSharedElementVisual: View {
     }
 
     private var subtitleColor: Color {
-        AppTheme.colors.body.opacity(content.isMuted ? 0.4 : 0.74)
+        if usesTaskFocusText, colorScheme == .light, content.isMuted == false {
+            return AppTheme.colors.taskFocusBody
+        }
+        return AppTheme.colors.body.opacity(content.isMuted ? 0.4 : 0.74)
     }
 
     private var titleColor: Color {
-        content.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title
+        if usesTaskFocusText, colorScheme == .light, content.isMuted == false {
+            return AppTheme.colors.taskFocusTitle
+        }
+        return content.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title
     }
 }
 
@@ -1842,6 +1974,7 @@ private struct HomeTimelineRowShell<Symbol: View, Content: View>: View {
 
 struct HomeTimelineRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     let entry: HomeTimelineEntry
     let isAnimatingCompletion: Bool
     let isAnimatingReopening: Bool
@@ -1854,7 +1987,11 @@ struct HomeTimelineRow: View {
     let isEditingNotes: Bool
     let motion: TaskExpansionMotion
     var isCreationDraft = false
+    var deletionVisualState: TaskDeletionVisualState? = nil
     var creationFocusRequestRevision: UInt = 0
+    var creationFocusDismissalRevision: UInt = 0
+    var creationCommitRequestRevision: UInt = 0
+    var creationValidationMessage: String? = nil
     var onSubmitCreation: () -> Void = {}
     let onToggleCompletion: () -> Void
     let onOpenDetail: () -> Void
@@ -1884,6 +2021,7 @@ struct HomeTimelineRow: View {
     @State private var isEditingTitle = false
     @State private var isCommittingTitle = false
     @State private var isCommittingNotes = false
+    @State private var validationNudgeProgress: CGFloat = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1898,11 +2036,14 @@ struct HomeTimelineRow: View {
                 .contentShape(Rectangle())
                 .disabled(isCreationDraft)
                 .accessibilityHidden(isCreationDraft)
+                .scaleEffect(resolvedDeletionVisualState.controlScale)
+                .opacity(resolvedDeletionVisualState.controlOpacity)
             } content: {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                     titleContent
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .taskDeletionTypographyEffect(resolvedDeletionVisualState)
             }
             .scaleEffect(motion.identityScale, anchor: .topLeading)
             .offset(x: motion.identityOffsetX, y: motion.identityOffsetY)
@@ -1910,18 +2051,35 @@ struct HomeTimelineRow: View {
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
+        .accessibilityHidden(deletionVisualState != nil)
         .onAppear {
             titleDraft = expandedTitle
             notesDraft = expandedNotes ?? ""
             if isCreationDraft {
                 isEditingTitle = true
+                if creationFocusRequestRevision > 0 {
+                    beginTitleEditing()
+                }
             }
             guard shouldPlayCompletionAnimation else { return }
             startCompletionAnimation()
         }
         .onChange(of: creationFocusRequestRevision) { _, revision in
-            guard isCreationDraft, isDetailExpanded, revision > 0 else { return }
+            guard isCreationDraft, revision > 0 else { return }
             beginTitleEditing()
+        }
+        .onChange(of: creationFocusDismissalRevision) { _, revision in
+            guard isCreationDraft, revision > 0 else { return }
+            commitTitleAfterFocusUpdate()
+            commitNotesAfterFocusUpdate()
+        }
+        .onChange(of: creationCommitRequestRevision) { _, revision in
+            guard isCreationDraft, revision > 0 else { return }
+            flushCreationTitleForCommit()
+        }
+        .onChange(of: creationValidationMessage) { _, message in
+            guard isCreationDraft, message != nil else { return }
+            playCreationValidationFeedback()
         }
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue, shouldPlayCompletionAnimation else { return }
@@ -1993,6 +2151,10 @@ struct HomeTimelineRow: View {
                 isTitleAccessibilityFocused = true
             }
         }
+    }
+
+    private var resolvedDeletionVisualState: TaskDeletionVisualState {
+        deletionVisualState ?? .idle(taskID: entry.itemID)
     }
 
     private var shouldPlayCompletionAnimation: Bool {
@@ -2129,6 +2291,14 @@ struct HomeTimelineRow: View {
                 dimensions[VerticalAlignment.center]
             }
 
+            if isCreationDraft, let creationValidationMessage {
+                Text(creationValidationMessage)
+                    .font(AppTheme.typography.scaled(12, weight: .medium, relativeTo: .caption1))
+                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
+
             if hasCompactContent {
                 if isDetailPresented {
                     TaskMorphMeasuredRegion(
@@ -2189,7 +2359,8 @@ struct HomeTimelineRow: View {
             TaskSharedElementVisual(
                 element: .title,
                 content: sharedIdentityContent,
-                titleLineLimit: lineLimit
+                titleLineLimit: lineLimit,
+                usesTaskFocusText: isDetailPresented
             )
 
             if isDetailPresented == false,
@@ -2282,13 +2453,13 @@ struct HomeTimelineRow: View {
             TextField(
                 "任务标题",
                 text: $titleDraft,
-                axis: .vertical
+                axis: isCreationDraft ? .horizontal : .vertical
             )
             .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
-            .foregroundStyle(entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title)
+            .foregroundStyle(expandedTitleColor)
             .textInputAutocapitalization(.sentences)
             .submitLabel(.done)
-            .lineLimit(1...4)
+            .lineLimit(isCreationDraft ? 1...1 : 1...4)
             .focused($isTitleFocused)
             .onChange(of: titleDraft) { _, title in
                 guard isCreationDraft else { return }
@@ -2319,6 +2490,28 @@ struct HomeTimelineRow: View {
                 }
             }
         }
+        .modifier(
+            TaskCreationValidationNudge(
+                progress: reduceMotion ? 1 : validationNudgeProgress
+            )
+        )
+    }
+
+    private func playCreationValidationFeedback() {
+        HomeInteractionFeedback.validation()
+        guard reduceMotion == false else {
+            beginTitleEditing()
+            return
+        }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            validationNudgeProgress = 0
+        }
+        withAnimation(.linear(duration: 0.16)) {
+            validationNudgeProgress = 1
+        }
+        beginTitleEditing()
     }
 
     private func inlineSaveButton(action: @escaping () -> Void) -> some View {
@@ -2352,6 +2545,17 @@ struct HomeTimelineRow: View {
         }
     }
 
+    private func flushCreationTitleForCommit() {
+        titleDraft = TextInputSnapshotReader.resolvedText(fallback: titleDraft)
+        isCommittingTitle = true
+        isTitleFocused = false
+        let trimmed = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        onUpdateTitle(trimmed)
+        titleDraft = trimmed
+        isEditingTitle = false
+        isCommittingTitle = false
+    }
+
     private func commitTitle() {
         let trimmed = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false, trimmed != expandedTitle else { return }
@@ -2373,7 +2577,17 @@ struct HomeTimelineRow: View {
     }
 
     private var subtitleColor: Color {
-        AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.74)
+        if isDetailPresented, colorScheme == .light, entry.isMuted == false {
+            return AppTheme.colors.taskFocusBody
+        }
+        return AppTheme.colors.body.opacity(entry.isMuted ? 0.4 : 0.74)
+    }
+
+    private var expandedTitleColor: Color {
+        if isDetailPresented, colorScheme == .light, entry.isMuted == false {
+            return AppTheme.colors.taskFocusTitle
+        }
+        return entry.isMuted ? AppTheme.colors.body.opacity(0.45) : AppTheme.colors.title
     }
 
     @ViewBuilder
@@ -2453,6 +2667,7 @@ struct HomeTimelineRow: View {
 private struct TimelineSwipeActionsModifier: ViewModifier {
     let isEnabled: Bool
     let canDelete: Bool
+    let snoozeTitle: String
     let onSnooze: () -> Void
     let onDelete: () -> Void
 
@@ -2464,7 +2679,7 @@ private struct TimelineSwipeActionsModifier: ViewModifier {
                     Button {
                         onSnooze()
                     } label: {
-                        Label("推迟到明天", systemImage: "calendar.badge.clock")
+                        Label(snoozeTitle, systemImage: "calendar.badge.clock")
                     }
                     .tint(AppTheme.colors.sky)
 
@@ -2666,10 +2881,15 @@ private struct WeeklyCompletedSection: Identifiable {
 
 private struct HomeOverdueSummarySheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var viewModel: HomeViewModel
     @State private var displayedEntries: [HomeOverdueEntry] = []
     @State private var animatingCompletionIDs: Set<UUID> = []
     @State private var reschedulingIDs: Set<UUID> = []
+    @State private var isReschedulingAll = false
+    @State private var batchFailureCount = 0
+    @State private var batchProgressCompleted = 0
+    @State private var batchProgressTotal = 0
 
     private var entries: [HomeOverdueEntry] {
         viewModel.overdueSummaryEntries
@@ -2691,10 +2911,12 @@ private struct HomeOverdueSummarySheet: View {
             syncDisplayedEntries(with: entries)
         }
         .onChange(of: entries) { _, newValue in
+            guard isReschedulingAll == false else { return }
             syncDisplayedEntries(with: newValue)
             dismissIfFinished()
         }
         .onChange(of: viewModel.overdueEntryCount) { _, newValue in
+            guard isReschedulingAll == false else { return }
             guard newValue == 0 else { return }
             dismissIfFinished()
         }
@@ -2705,22 +2927,70 @@ private struct HomeOverdueSummarySheet: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: AppTheme.spacing.md) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
-                Text("逾期任务")
-                    .font(AppTheme.typography.sized(24, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.title)
-
-                Text("统一在这里处理所有已逾期任务")
-                    .font(AppTheme.typography.sized(13, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
-
-                Text("共 \(entries.count) 项")
-                    .font(AppTheme.typography.sized(12, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.coral.opacity(0.84))
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: AppTheme.spacing.md) {
+                headerSummary
+                Spacer(minLength: AppTheme.spacing.md)
+                rescheduleAllButton
             }
-            Spacer(minLength: 0)
+
+            VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                headerSummary
+                rescheduleAllButton
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
+    }
+
+    private var headerSummary: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+            Text("逾期任务")
+                .font(AppTheme.typography.sized(24, weight: .bold))
+                .foregroundStyle(AppTheme.colors.title)
+
+            Text("统一在这里处理所有已逾期任务")
+                .font(AppTheme.typography.sized(13, weight: .medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.62))
+
+            Text(batchFailureCount > 0 ? "\(batchFailureCount) 项失败，可重试" : "共 \(displayedEntries.count) 项")
+                .font(AppTheme.typography.sized(12, weight: .semibold))
+                .foregroundStyle(AppTheme.colors.coral.opacity(0.84))
+        }
+    }
+
+    private var rescheduleAllButton: some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            Task {
+                await handleRescheduleAllToToday()
+            }
+        } label: {
+            HStack(spacing: AppTheme.spacing.xs) {
+                if isReschedulingAll {
+                    ProgressView(
+                        value: Double(batchProgressCompleted),
+                        total: Double(max(batchProgressTotal, 1))
+                    )
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                }
+                Text("全部改到今天")
+            }
+            .font(.body.weight(.semibold))
+            .foregroundStyle(AppTheme.colors.sky)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .buttonStyle(.plain)
+        .disabled(isReschedulingAll || displayedEntries.isEmpty)
+        .accessibilityLabel(isReschedulingAll ? "正在全部改到今天" : "全部改到今天")
+        .accessibilityValue(
+            isReschedulingAll
+                ? "已处理 \(batchProgressCompleted) 项，共 \(batchProgressTotal) 项"
+                : ""
+        )
+        .accessibilityHint("将当前所有逾期任务迁移到今天")
     }
 
     private var overdueList: some View {
@@ -2755,6 +3025,7 @@ private struct HomeOverdueSummarySheet: View {
                         primaryAvatar: nil,
                         secondaryAvatar: nil,
                         lastActionAt: nil,
+                        createdAt: entry.createdAt,
                         subtasks: [],
                         subtaskCompletedCount: 0
                     ),
@@ -2788,6 +3059,12 @@ private struct HomeOverdueSummarySheet: View {
                     .padding(.leading, HomeInlineTaskLayoutMetrics.actionSlotWidth + AppTheme.spacing.md)
             }
             .padding(.vertical, AppTheme.spacing.sm)
+            .transition(
+                reduceMotion
+                    ? .opacity
+                    : .opacity.combined(with: .move(edge: .top))
+            )
+            .allowsHitTesting(isReschedulingAll == false)
         }
     }
 
@@ -2809,7 +3086,7 @@ private struct HomeOverdueSummarySheet: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(reschedulingIDs.contains(entry.id))
+        .disabled(reschedulingIDs.contains(entry.id) || isReschedulingAll)
         .accessibilityLabel("将逾期任务改到今天")
     }
 
@@ -2823,6 +3100,9 @@ private struct HomeOverdueSummarySheet: View {
         withAnimation(.bouncy(duration: 0.54, extraBounce: 0.08)) {
             displayedEntries.removeAll { $0.id == itemID }
         }
+        if batchFailureCount > 0 {
+            batchFailureCount = displayedEntries.count
+        }
 
         _ = await completionTask
         animatingCompletionIDs.remove(itemID)
@@ -2832,14 +3112,51 @@ private struct HomeOverdueSummarySheet: View {
     private func handleRescheduleToToday(for itemID: UUID) async {
         guard reschedulingIDs.insert(itemID).inserted else { return }
 
-        await viewModel.rescheduleOverdueItemToToday(itemID)
+        let didSucceed = await viewModel.rescheduleOverdueItemToToday(itemID)
+        guard didSucceed else {
+            reschedulingIDs.remove(itemID)
+            return
+        }
 
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .smooth(duration: 0.26)) {
             displayedEntries.removeAll { $0.id == itemID }
+        }
+        if batchFailureCount > 0 {
+            batchFailureCount = displayedEntries.count
         }
 
         reschedulingIDs.remove(itemID)
         dismissIfFinished()
+    }
+
+    private func handleRescheduleAllToToday() async {
+        guard isReschedulingAll == false, displayedEntries.isEmpty == false else { return }
+        isReschedulingAll = true
+        batchFailureCount = 0
+        batchProgressCompleted = 0
+        batchProgressTotal = displayedEntries.count
+
+        let result = await viewModel.rescheduleAllOverdueItemsToToday { completedCount, totalCount in
+            batchProgressCompleted = completedCount
+            batchProgressTotal = totalCount
+        }
+        let succeededIDs = Set(result.succeededIDs)
+        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : .smooth(duration: 0.28)) {
+            displayedEntries.removeAll { succeededIDs.contains($0.id) }
+        }
+
+        if result.succeededIDs.isEmpty == false, reduceMotion == false {
+            try? await Task.sleep(for: .milliseconds(220))
+        }
+
+        batchFailureCount = result.failedIDs.count
+        isReschedulingAll = false
+        batchProgressCompleted = 0
+        batchProgressTotal = 0
+        syncDisplayedEntries(with: entries)
+        if result.isCompleteSuccess {
+            dismissIfFinished()
+        }
     }
 
     private func syncDisplayedEntries(with sourceEntries: [HomeOverdueEntry]) {
@@ -2849,7 +3166,8 @@ private struct HomeOverdueSummarySheet: View {
         for entry in displayedEntries {
             if let updatedEntry = remainingEntries.removeValue(forKey: entry.id) {
                 nextEntries.append(updatedEntry)
-            } else if animatingCompletionIDs.contains(entry.id) {
+            } else if animatingCompletionIDs.contains(entry.id)
+                || reschedulingIDs.contains(entry.id) {
                 nextEntries.append(entry)
             }
         }
@@ -2860,6 +3178,9 @@ private struct HomeOverdueSummarySheet: View {
         }
 
         displayedEntries = nextEntries
+        if batchFailureCount > displayedEntries.count {
+            batchFailureCount = displayedEntries.count
+        }
     }
 
     private func dismissIfFinished() {

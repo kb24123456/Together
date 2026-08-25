@@ -18,6 +18,149 @@ struct TogetherTests {
         UserDefaults.standard.removeObject(forKey: "together.routines.visibleOptionalCycles")
     }
 
+    @Test func taskLifecycleScheduleClassifierUsesCommittedNetChanges() {
+        let baseline = Date(timeIntervalSince1970: 1_800_000_000)
+        let later = baseline.addingTimeInterval(86_400)
+
+        #expect(TaskLifecycleEventClassifier.classifyScheduleChange(
+            from: TaskScheduleSnapshot(dueAt: nil, hasExplicitTime: false),
+            to: TaskScheduleSnapshot(dueAt: baseline, hasExplicitTime: false),
+            hasRecordedSchedule: false
+        ) == .firstScheduled)
+        #expect(TaskLifecycleEventClassifier.classifyScheduleChange(
+            from: TaskScheduleSnapshot(dueAt: baseline, hasExplicitTime: false),
+            to: TaskScheduleSnapshot(dueAt: later, hasExplicitTime: false),
+            hasRecordedSchedule: true
+        ) == .postponed)
+        #expect(TaskLifecycleEventClassifier.classifyScheduleChange(
+            from: TaskScheduleSnapshot(dueAt: baseline, hasExplicitTime: false),
+            to: TaskScheduleSnapshot(dueAt: nil, hasExplicitTime: false),
+            hasRecordedSchedule: true
+        ) == .scheduleCleared)
+        #expect(TaskLifecycleEventClassifier.classifyScheduleChange(
+            from: TaskScheduleSnapshot(dueAt: nil, hasExplicitTime: false),
+            to: TaskScheduleSnapshot(dueAt: later, hasExplicitTime: false),
+            hasRecordedSchedule: true
+        ) == .rescheduled)
+    }
+
+    @Test func dateOnlyPlanCountsThroughEndOfLocalDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let dueDay = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20)))
+        let lateEvening = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 20, hour: 23, minute: 59)))
+        let nextDay = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 21)))
+        let schedule = TaskScheduleSnapshot(dueAt: dueDay, hasExplicitTime: false)
+
+        #expect(TaskLifecycleMetrics.isOnTime(completedAt: lateEvening, schedule: schedule, calendar: calendar))
+        #expect(TaskLifecycleMetrics.isOnTime(completedAt: nextDay, schedule: schedule, calendar: calendar) == false)
+    }
+
+    @Test func adaptiveSnoozeUsesActionDayAndPreservesExplicitTime() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let friday = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 21, hour: 15)))
+        let staleDue = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 19, hour: 9, minute: 30)))
+        let tomorrow = TaskSnoozeDateCalculator.dueDate(
+            currentDueAt: staleDue,
+            hasExplicitTime: true,
+            option: .tomorrow,
+            now: friday,
+            calendar: calendar
+        )
+        let monday = TaskSnoozeDateCalculator.dueDate(
+            currentDueAt: staleDue,
+            hasExplicitTime: true,
+            option: .nextMonday,
+            now: friday,
+            calendar: calendar
+        )
+
+        #expect(calendar.dateComponents([.year, .month, .day, .hour, .minute], from: tomorrow)
+            == DateComponents(year: 2030, month: 6, day: 22, hour: 9, minute: 30))
+        #expect(calendar.dateComponents([.year, .month, .day, .hour, .minute], from: monday)
+            == DateComponents(year: 2030, month: 6, day: 24, hour: 9, minute: 30))
+    }
+
+    @Test func taskLifecycleEventsAreAtomicWithTaskMutationsAndDeletedWithTask() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let repository = LocalItemRepository(container: container)
+        var item = makeHomeFilterItem(title: "履历任务", completedAt: nil, status: .inProgress, createdAt: .now)
+        item.subtasks = [
+            TaskSubtask(
+                itemID: item.id,
+                creatorID: item.creatorID,
+                title: "仍未完成",
+                isCompleted: false,
+                sortOrder: 0
+            )
+        ]
+
+        item = try await repository.saveItem(item)
+        let firstDue = Date.now.addingTimeInterval(86_400)
+        item.dueAt = firstDue
+        item.hasExplicitTime = true
+        item = try await repository.saveItem(item)
+        item.dueAt = firstDue.addingTimeInterval(86_400)
+        item = try await repository.saveItem(item)
+        _ = try await repository.markCompleted(
+            itemID: item.id,
+            actorID: item.creatorID,
+            referenceDate: .now
+        )
+        _ = try await repository.markIncomplete(
+            itemID: item.id,
+            actorID: item.creatorID,
+            referenceDate: .now
+        )
+
+        let review = try await repository.fetchTaskLifecycleReview(itemID: item.id)
+        #expect(review.historyCoverage == .complete)
+        #expect(review.events.map(\.kind) == [.created, .firstScheduled, .postponed, .completed, .reopened])
+        #expect(review.postponeCount == 1)
+        #expect(review.reopenCount == 1)
+        #expect(review.events.first(where: { $0.kind == .completed })?.incompleteSubtaskCount == 1)
+
+        try await repository.deleteItem(itemID: item.id)
+        let context = ModelContext(container)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentTaskLifecycleEvent>()) == 0)
+    }
+
+    @Test func missingTaskDateNormalizationIsIdempotentAndDoesNotCreateLifecycleEvents() async throws {
+        let container = makeTaskSubtaskModelContainer()
+        let context = ModelContext(container)
+        let item = makeHomeFilterItem(title: "历史无日期任务", completedAt: nil, status: .inProgress)
+        var completed = makeHomeFilterItem(
+            title: "已完成旧记录",
+            completedAt: .now,
+            status: .completed
+        )
+        completed.dueAt = nil
+        context.insert(PersistentItem(item: item))
+        context.insert(PersistentItem(item: completed))
+        try context.save()
+
+        let repository = LocalItemRepository(container: container)
+        let referenceDate = Date(timeIntervalSince1970: 1_900_000_000)
+        let expectedDate = Calendar.current.startOfDay(for: referenceDate)
+
+        #expect(try await repository.normalizeMissingTaskDates(
+            spaceID: item.spaceID,
+            referenceDate: referenceDate
+        ) == 1)
+        #expect(try await repository.normalizeMissingTaskDates(
+            spaceID: item.spaceID,
+            referenceDate: referenceDate
+        ) == 0)
+
+        let normalized = try #require(try await repository.fetchItem(itemID: item.id))
+        #expect(normalized.dueAt == expectedDate)
+        #expect(normalized.hasExplicitTime == false)
+        #expect(normalized.remindAt == nil)
+        #expect(try await repository.fetchItem(itemID: completed.id)?.dueAt == nil)
+        #expect(try context.fetchCount(FetchDescriptor<PersistentTaskLifecycleEvent>()) == 0)
+    }
+
     @Test func taskSharedIdentityShowsOnlyConfiguredAttributes() {
         let itemID = UUID()
         let entry = HomeTimelineEntry(
@@ -36,6 +179,7 @@ struct TogetherTests {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: nil,
+            createdAt: .distantPast,
             subtasks: [
                 TaskSubtask(
                     itemID: itemID,
@@ -159,7 +303,7 @@ struct TogetherTests {
         #expect(viewModel.taskCreationSession == nil)
     }
 
-    @Test func inlineTaskCreationAppearsAtTopOfTodaySectionWithoutChangingCount() async throws {
+    @Test func inlineTaskCreationAppearsAtEndOfTodaySectionWithoutChangingCount() async throws {
         let existingItem = makeReminderTestItem(
             title: "已有今日任务",
             dueAt: .now,
@@ -180,7 +324,7 @@ struct TogetherTests {
                 Calendar.current.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
             })
         )
-        let entry = try #require(section.entries.first)
+        let entry = try #require(section.entries.last)
         let placement = try #require(viewModel.taskCreationPlacement())
 
         #expect(Calendar.current.isDateInToday(viewModel.selectedDate))
@@ -188,9 +332,9 @@ struct TogetherTests {
         #expect(section.count == 1)
         #expect(section.entries.count == 2)
         #expect(entry.itemID == session.id)
-        #expect(section.entries.dropFirst().first?.itemID == existingItem.id)
+        #expect(section.entries.first?.itemID == existingItem.id)
         #expect(entry.title.isEmpty)
-        #expect(placement.index == 0)
+        #expect(placement.index == 1)
         #expect(placement.presentationID == entry.presentationID)
         #expect(viewModel.isTaskCreationCompletelyEmpty)
 
@@ -630,10 +774,13 @@ struct TogetherTests {
     @Test func ocrSourceSheetSessionStartsFromSelectedMenuAction() {
         let cameraSession = OCRSourceSheetSession(source: .camera)
         let photosSession = OCRSourceSheetSession(source: .photos)
+        let pasteTextSession = OCRSourceSheetSession(source: .pasteText)
 
         #expect(cameraSession.viewModel.flowState == .camera)
         #expect(photosSession.viewModel.flowState == .photos)
+        #expect(pasteTextSession.viewModel.flowState == .pasteText)
         #expect(cameraSession.viewModel !== photosSession.viewModel)
+        #expect(photosSession.viewModel !== pasteTextSession.viewModel)
     }
 
     @Test func itemStateMachineCompletesInProgressTask() async throws {
@@ -908,6 +1055,44 @@ struct TogetherTests {
         #expect(draft.taskDrafts.count == 1)
         #expect(draft.taskDrafts.first?.title == "搬家准备")
         #expect(draft.taskDrafts.first?.subtasks.map(\.title) == ["预约搬家公司", "打包厨房"])
+    }
+
+    @Test func ocrParserPreservesTopLevelSourceOrder() {
+        let draft = OCRImportDraftParser.parse(rawText: """
+        先买牛奶
+        搬家准备:
+        - 预约搬家公司
+        - 打包厨房
+        """)
+
+        #expect(draft.taskDrafts.map(\.title) == ["先买牛奶", "搬家准备"])
+        #expect(draft.taskDrafts.last?.subtasks.map(\.title) == ["预约搬家公司", "打包厨房"])
+    }
+
+    @Test func ocrViewModelCreatesReviewFromPastedMultilineText() {
+        let viewModel = OCRImportViewModel()
+
+        viewModel.showPasteText()
+        viewModel.processText("""
+        1. 买牛奶
+        2. 整理周报
+        """)
+
+        #expect(viewModel.flowState == .review)
+        #expect(viewModel.draft.status == .needsReview)
+        #expect(viewModel.draft.taskDrafts.map(\.title) == ["买牛奶", "整理周报"])
+    }
+
+    @Test func ocrViewModelKeepsPasteSurfaceForBlankText() {
+        let viewModel = OCRImportViewModel()
+
+        viewModel.showPasteText()
+        viewModel.processText("  \n\n ")
+
+        #expect(viewModel.flowState == .pasteText)
+        #expect(viewModel.draft.status == .failed)
+        #expect(viewModel.draft.taskDrafts.isEmpty)
+        #expect(viewModel.errorMessage == "剪贴板中没有可导入的文字。")
     }
 
     @MainActor
@@ -1559,7 +1744,7 @@ struct TogetherTests {
         #expect(viewModel.creationPresentationTask?.cycle == .weekly)
         #expect(viewModel.activeEditorDraft?.cycle == .monthly)
         #expect(viewModel.creationPlacement()?.provisionalSection == .periodic(cycle: .weekly))
-        #expect(viewModel.creationPlacement()?.index == 0)
+        #expect(viewModel.creationPlacement()?.index == 1)
 
         guard case .saved(let placement) = await viewModel.commitMorphCreation() else {
             Issue.record("定期任务应保存成功")
@@ -2011,12 +2196,12 @@ struct TogetherTests {
         #expect(viewModel.weeklyCompletedEntryCount == expectedWeeklyCount)
     }
 
-    @Test func overdueTasksRemainVisibleInActiveTimeline() async throws {
+    @Test func overdueTasksAppearOnlyInOverdueSummaryWhileViewingToday() async throws {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
         let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
         var overdue = makeHomeFilterItem(
-            title: "逾期任务仍显示",
+            title: "逾期任务只进汇总",
             completedAt: nil,
             status: .inProgress
         )
@@ -2028,8 +2213,9 @@ struct TogetherTests {
         await viewModel.reload()
 
         #expect(viewModel.overdueEntryCount == 1)
-        #expect(viewModel.activeTimelineEntries.map(\.itemID) == [overdue.id])
-        #expect(viewModel.activeTimelineSections.flatMap(\.entries).map(\.itemID) == [overdue.id])
+        #expect(viewModel.overdueSummaryEntries.map(\.id) == [overdue.id])
+        #expect(viewModel.activeTimelineEntries.isEmpty)
+        #expect(viewModel.activeTimelineSections.isEmpty)
     }
 
     @Test func overdueSummaryEntryPresentsOnlyWhileViewingToday() async throws {
@@ -2090,15 +2276,15 @@ struct TogetherTests {
         #expect(viewModel.activeTimelineEntries.map(\.title) == ["更早截止", "更晚截止"])
     }
 
-    @Test func activeTimelineSectionsGroupByDueDateThenCreatedDate() async throws {
+    @Test func activeTimelineSectionsDefensivelyTreatMissingDateAsToday() async throws {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
         let yesterdayStart = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
         let tomorrowStart = try #require(calendar.date(byAdding: .day, value: 1, to: todayStart))
         let tomorrowTime = try #require(calendar.date(bySettingHour: 18, minute: 30, second: 0, of: tomorrowStart))
 
-        let unscheduled = makeHomeFilterItem(
-            title: "无截止按创建日",
+        let missingDate = makeHomeFilterItem(
+            title: "旧数据归入今天",
             completedAt: nil,
             status: .inProgress,
             createdAt: yesterdayStart
@@ -2114,17 +2300,17 @@ struct TogetherTests {
         timed.sortOrder = 1
 
         let viewModel = makeInlineDetailHomeViewModel(
-            repository: MockItemRepository(items: [unscheduled, timed, scheduled])
+            repository: MockItemRepository(items: [missingDate, timed, scheduled])
         )
 
         await viewModel.reload()
 
         let sections = viewModel.activeTimelineSections
         #expect(sections.count == 2)
-        #expect(sections.map(\.isUnscheduled) == [false, true])
-        #expect(sections.map(\.dayStart) == [tomorrowStart, yesterdayStart])
-        #expect(sections[0].entries.map(\.title) == ["有截止按截止日", "有时间仍在截止日组"])
-        #expect(sections[1].entries.map(\.title) == ["无截止按创建日"])
+        #expect(sections.map(\.isUnscheduled) == [false, false])
+        #expect(sections.map(\.dayStart) == [todayStart, tomorrowStart])
+        #expect(sections[0].entries.map(\.title) == ["旧数据归入今天"])
+        #expect(sections[1].entries.map(\.title) == ["有截止按截止日", "有时间仍在截止日组"])
     }
 
     @Test func urgentTasksLeadEachDateGroupInCreationOrder() async throws {
@@ -2285,6 +2471,80 @@ struct TogetherTests {
         #expect(taskApplicationService.capturedRescheduleRemindAt == nil)
         #expect(viewModel.overdueEntryCount == 0)
         #expect(viewModel.activeTimelineEntries.map(\.title) == ["逾期任务"])
+    }
+
+    @Test func overdueReschedulePreservesFutureReminderLead() async throws {
+        let calendar = Calendar.current
+        let now = Date.now
+        let todayStart = calendar.startOfDay(for: now)
+        let laterTodaySource = now.addingTimeInterval(7_200)
+        let targetTime = try #require(calendar.date(
+            bySettingHour: calendar.component(.hour, from: laterTodaySource),
+            minute: calendar.component(.minute, from: laterTodaySource),
+            second: 0,
+            of: todayStart
+        ))
+        let yesterdayTime = try #require(calendar.date(byAdding: .day, value: -1, to: targetTime))
+        var overdue = makeHomeFilterItem(title: "保留提醒", completedAt: nil, status: .inProgress)
+        overdue.dueAt = yesterdayTime
+        overdue.hasExplicitTime = true
+        overdue.remindAt = yesterdayTime.addingTimeInterval(-1)
+
+        var saved = overdue
+        saved.dueAt = targetTime
+        saved.remindAt = targetTime.addingTimeInterval(-1)
+
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let service = CapturingTaskApplicationService()
+        service.rescheduleItemToReturn = saved
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: service,
+            itemRepository: MockItemRepository(items: [overdue])
+        )
+        await viewModel.reload()
+
+        #expect(await viewModel.rescheduleOverdueItemToToday(overdue.id))
+        let capturedDueAt = try #require(service.capturedRescheduleDueAt)
+        #expect(service.capturedRescheduleRemindAt == capturedDueAt.addingTimeInterval(-1))
+    }
+
+    @Test func bulkOverdueRescheduleKeepsFailuresInSheetSource() async throws {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
+        var succeeds = makeHomeFilterItem(title: "迁移成功", completedAt: nil, status: .inProgress)
+        succeeds.dueAt = yesterday
+        var fails = makeHomeFilterItem(title: "迁移失败", completedAt: nil, status: .inProgress)
+        fails.dueAt = yesterday
+
+        var saved = succeeds
+        saved.dueAt = todayStart
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let service = CapturingTaskApplicationService()
+        service.rescheduleItemsToReturn[succeeds.id] = saved
+        service.rescheduleFailureIDs.insert(fails.id)
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: service,
+            itemRepository: MockItemRepository(items: [succeeds, fails])
+        )
+        await viewModel.reload()
+
+        let result = await viewModel.rescheduleAllOverdueItemsToToday()
+
+        #expect(Set(result.succeededIDs) == [succeeds.id])
+        #expect(Set(result.failedIDs) == [fails.id])
+        #expect(viewModel.overdueSummaryEntries.map(\.id) == [fails.id])
+        #expect(viewModel.activeTimelineEntries.map(\.id) == [succeeds.id])
     }
 
     @Test func weeklyCompletedSheetExcludesTodayAndSortsDescending() async throws {
@@ -2638,30 +2898,89 @@ struct TogetherTests {
         #expect(notifications.first?.scheduledAt == dueAt)
     }
 
-    @Test func dailySummarySchedulesIncompleteTasksWithoutDueDateAtSixPM() async throws {
+    @Test func dailySummariesUseTodayScopeAtNineAMAndSixPM() async throws {
         let calendar = gregorianCalendar()
         let notificationService = CapturingNotificationService()
-        let scheduler = LocalReminderScheduler(notificationService: notificationService, calendar: calendar)
-        let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)))
-        var completedNoDueItem = makeReminderTestItem(title: "已完成无到期任务", dueAt: nil, remindAt: nil)
-        completedNoDueItem.status = .completed
-        completedNoDueItem.completedAt = .now
+        let now = try #require(calendar.date(
+            from: DateComponents(year: 2030, month: 6, day: 14, hour: 8)
+        ))
+        let overdueAt = try #require(calendar.date(
+            from: DateComponents(year: 2030, month: 6, day: 13, hour: 16)
+        ))
+        let dueToday = try #require(calendar.date(
+            from: DateComponents(year: 2030, month: 6, day: 14, hour: 16)
+        ))
+        let dueTomorrow = try #require(calendar.date(
+            from: DateComponents(year: 2030, month: 6, day: 15, hour: 16)
+        ))
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            calendar: calendar,
+            now: { now }
+        )
+        var completedToday = makeReminderTestItem(
+            title: "已完成的今日任务",
+            dueAt: dueToday,
+            hasExplicitTime: true,
+            remindAt: nil
+        )
+        completedToday.status = .completed
+        completedToday.completedAt = now
 
         await scheduler.resync(
+            spaceID: MockDataFactory.singleSpaceID,
             tasks: [
-                makeReminderTestItem(title: "无到期任务 A", dueAt: nil, remindAt: nil),
-                makeReminderTestItem(title: "无到期任务 B", dueAt: nil, remindAt: nil),
-                makeReminderTestItem(title: "有到期任务", dueAt: dueAt, hasExplicitTime: true, remindAt: nil),
-                completedNoDueItem
+                makeReminderTestItem(title: "逾期任务", dueAt: overdueAt, hasExplicitTime: true, remindAt: nil),
+                makeReminderTestItem(title: "今日任务", dueAt: dueToday, hasExplicitTime: true, remindAt: nil),
+                makeReminderTestItem(title: "未来任务", dueAt: dueTomorrow, hasExplicitTime: true, remindAt: nil),
+                makeReminderTestItem(title: "无日期任务", dueAt: nil, remindAt: nil),
+                completedToday
             ],
-            projects: []
+            projects: [],
+            includeTaskReminders: true,
+            includeDailySummary: true
         )
 
-        let notifications = await notificationService.scheduledNotifications()
-        let summary = try #require(notifications.first { $0.title == "今天还有 2 件事没完成" })
-        let components = calendar.dateComponents([.hour, .minute], from: summary.scheduledAt)
-        #expect(components.hour == 18)
-        #expect(components.minute == 0)
+        let summaries = await notificationService.scheduledNotifications().filter {
+            $0.targetType.isDailySummary
+        }
+        let morning = try #require(summaries.first { $0.targetType == .dailyMorningSummary })
+        let evening = try #require(summaries.first { $0.targetType == .dailyEveningSummary })
+
+        #expect(summaries.count == 2)
+        #expect(morning.title == "今天有 2 项任务需要完成")
+        #expect(morning.body == "其中 1 项已逾期，打开 Together 查看")
+        #expect(evening.title == "今天还有 2 项任务没有完成")
+        #expect(evening.body == "其中 1 项已逾期，打开 Together 查看")
+        #expect(morning.recurrence == .daily)
+        #expect(evening.recurrence == .daily)
+        #expect(calendar.component(.hour, from: morning.scheduledAt) == 9)
+        #expect(calendar.component(.hour, from: evening.scheduledAt) == 18)
+    }
+
+    @Test func dailySummariesStillDeliverAnExplicitZeroState() async throws {
+        let calendar = gregorianCalendar()
+        let notificationService = CapturingNotificationService()
+        let now = try #require(calendar.date(
+            from: DateComponents(year: 2030, month: 6, day: 14, hour: 8)
+        ))
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            calendar: calendar,
+            now: { now }
+        )
+
+        await scheduler.resync(
+            spaceID: MockDataFactory.singleSpaceID,
+            tasks: [],
+            projects: [],
+            includeTaskReminders: true,
+            includeDailySummary: true
+        )
+
+        let summaries = await notificationService.scheduledNotifications()
+        #expect(summaries.first { $0.targetType == .dailyMorningSummary }?.title == "今天没有待完成任务")
+        #expect(summaries.first { $0.targetType == .dailyEveningSummary }?.title == "今天的任务已全部完成")
     }
 
     @Test func dailySummaryCanBeExcludedFromReminderResync() async throws {
@@ -2669,6 +2988,7 @@ struct TogetherTests {
         let scheduler = LocalReminderScheduler(notificationService: notificationService, calendar: gregorianCalendar())
 
         await scheduler.resync(
+            spaceID: MockDataFactory.singleSpaceID,
             tasks: [
                 makeReminderTestItem(title: "无到期任务", dueAt: nil, remindAt: nil)
             ],
@@ -2676,9 +2996,15 @@ struct TogetherTests {
             includeTaskReminders: true,
             includeDailySummary: false
         )
+        await scheduler.syncDailySummary(
+            for: MockDataFactory.singleSpaceID,
+            tasks: [makeReminderTestItem(title: "今日任务", dueAt: .now, remindAt: nil)]
+        )
 
         #expect(notificationService.scheduledNotifications().isEmpty)
         #expect(notificationService.cancelledIdentifiers().contains { $0.hasPrefix("local.dailySummary.") })
+        #expect(notificationService.cancelledIdentifiers().contains { $0.hasPrefix("local.dailyMorningSummary.") })
+        #expect(notificationService.cancelledIdentifiers().contains { $0.hasPrefix("local.dailyEveningSummary.") })
     }
 
     @Test func disablingTaskRemindersCancelsNotificationAndAlarmDelivery() async throws {
@@ -2696,6 +3022,7 @@ struct TogetherTests {
         try await alarmService.schedule(id: item.id, title: item.title, at: remindAt)
 
         await scheduler.resync(
+            spaceID: item.spaceID,
             tasks: [item],
             projects: [],
             includeTaskReminders: false,
@@ -2708,6 +3035,8 @@ struct TogetherTests {
         #expect(notificationService.scheduledNotifications().isEmpty)
         #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .item, targetID: item.id)))
         #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .dailySummary, targetID: spaceID)))
+        #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .dailyMorningSummary, targetID: spaceID)))
+        #expect(notificationService.cancelledIdentifiers().contains(AppNotification.identifier(for: .dailyEveningSummary, targetID: spaceID)))
         #expect(await alarmService.scheduled[item.id] == nil)
     }
 
@@ -2928,6 +3257,37 @@ struct TogetherTests {
 
         #expect(created.subtasks.map(\.title) == ["第一步", "第二步"])
         #expect(created.subtasks.map(\.isCompleted) == [true, false])
+    }
+
+    @Test func ordinaryTaskWritesNormalizeMissingDateToToday() async throws {
+        let service = makeTaskSubtaskApplicationService()
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(
+                title: "日期必填任务",
+                dueAt: nil,
+                hasExplicitTime: true,
+                remindAt: .now.addingTimeInterval(3_600)
+            )
+        )
+
+        let dueAt = try #require(created.dueAt)
+        #expect(Calendar.current.isDateInToday(dueAt))
+        #expect(created.hasExplicitTime == false)
+        #expect(created.remindAt == nil)
+
+        let rescheduled = try await service.rescheduleTask(
+            in: MockDataFactory.singleSpaceID,
+            taskID: created.id,
+            actorID: MockDataFactory.currentUserID,
+            dueAt: nil,
+            remindAt: .now.addingTimeInterval(3_600)
+        )
+        let rescheduledDueAt = try #require(rescheduled.dueAt)
+        #expect(Calendar.current.isDateInToday(rescheduledDueAt))
+        #expect(rescheduled.hasExplicitTime == false)
+        #expect(rescheduled.remindAt == nil)
     }
 
     @Test func updatingTaskDraftReplacesSubtasksAndFiltersEmptyTitles() async throws {
@@ -3487,6 +3847,7 @@ struct TogetherTests {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: nil,
+            createdAt: .distantPast,
             subtasks: [
                 TaskSubtask(
                     itemID: itemID,
@@ -3532,6 +3893,7 @@ struct TogetherTests {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: nil,
+            createdAt: .distantPast,
             subtasks: [
                 TaskSubtask(
                     itemID: itemID,
@@ -3576,6 +3938,7 @@ struct TogetherTests {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: nil,
+            createdAt: .distantPast,
             subtasks: [],
             subtaskCompletedCount: 0
         )
@@ -3606,6 +3969,7 @@ struct TogetherTests {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: nil,
+            createdAt: .distantPast,
             subtasks: [
                 TaskSubtask(
                     itemID: itemID,
@@ -3645,6 +4009,7 @@ struct TogetherTests {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: nil,
+            createdAt: .distantPast,
             subtasks: [],
             subtaskCompletedCount: 0
         )
@@ -3868,7 +4233,8 @@ private func makeTaskSubtaskModelContainer() -> ModelContainer {
         PersistentTaskFollow.self,
         PersistentTaskSubtask.self,
         PersistentItemOccurrenceCompletion.self,
-        PersistentPeriodicTask.self
+        PersistentPeriodicTask.self,
+        PersistentTaskLifecycleEvent.self
     ])
     let configuration = ModelConfiguration(
         "TogetherTests-\(UUID().uuidString)",
@@ -4037,6 +4403,7 @@ private final class DeletionTestReminderScheduler: ReminderSchedulerProtocol {
     func removeProjectReminder(for projectID: UUID) async {}
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {}
     func resync(
+        spaceID: UUID?,
         tasks: [Item],
         projects: [Project],
         includeTaskReminders: Bool,
@@ -4315,6 +4682,8 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
     var capturedRescheduleDueAt: Date?
     var capturedRescheduleRemindAt: Date?
     var rescheduleItemToReturn: Item?
+    var rescheduleItemsToReturn: [UUID: Item] = [:]
+    var rescheduleFailureIDs: Set<UUID> = []
     var tasksToReturn: [Item] = []
     var capturesCreates = false
     var createdDrafts: [TaskDraft] = []
@@ -4398,6 +4767,12 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
     ) async throws -> Item {
         capturedRescheduleDueAt = dueAt
         capturedRescheduleRemindAt = remindAt
+        if rescheduleFailureIDs.contains(taskID) {
+            throw RepositoryError.invalidInput("reschedule failed")
+        }
+        if let item = rescheduleItemsToReturn[taskID] {
+            return item
+        }
         if let rescheduleItemToReturn {
             return rescheduleItemToReturn
         }

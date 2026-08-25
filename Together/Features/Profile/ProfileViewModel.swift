@@ -21,6 +21,7 @@ final class ProfileViewModel {
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
     var deletionErrorMessage: String?
+    var weeklyPlanningReviewCompletionCount = 0
     var onProfileSaved: ((_ user: User) -> Void)?
     var onPersonalDataDeleted: ((_ user: User, _ space: Space) -> Void)?
 
@@ -143,11 +144,38 @@ final class ProfileViewModel {
         async let cloudStatus = ICloudStatusService.checkStatus()
         notificationAuthorization = await notifStatus
         iCloudStatus = await cloudStatus
+        if let spaceID = sessionStore.currentSpace?.id,
+           let review = try? await itemRepository.fetchPlanningReview(
+               spaceID: spaceID,
+               range: .week,
+               referenceDate: .now
+           ) {
+            weeklyPlanningReviewCompletionCount = review.completionCount
+        }
         loadState = .loaded
+    }
+
+    func planningReview(
+        range: PlanningReviewRange,
+        referenceDate: Date = .now
+    ) async throws -> PlanningReviewSnapshot {
+        try await itemRepository.fetchPlanningReview(
+            spaceID: sessionStore.currentSpace?.id,
+            range: range,
+            referenceDate: referenceDate
+        )
+    }
+
+    func taskLifecycleReview(itemID: UUID) async throws -> TaskLifecycleReview {
+        try await itemRepository.fetchTaskLifecycleReview(itemID: itemID)
     }
 
     func checkICloudStatus() async {
         iCloudStatus = await ICloudStatusService.checkStatus()
+    }
+
+    func refreshNotificationAuthorization() async {
+        notificationAuthorization = await notificationService.authorizationStatus()
     }
 
     @discardableResult
@@ -194,7 +222,13 @@ final class ProfileViewModel {
         guard var user = sessionStore.currentUser else { return }
         user.preferences.dailySummaryEnabled = isEnabled && user.preferences.taskReminderEnabled
         applyUpdatedPreferences(user.preferences, to: user)
-        Task { await resyncReminderNotifications() }
+        Task {
+            if isEnabled, notificationAuthorization != .authorized {
+                await requestNotifications()
+            } else {
+                await resyncReminderNotifications()
+            }
+        }
     }
 
     func updateTaskReminderEnabled(_ isEnabled: Bool) {
@@ -263,6 +297,7 @@ final class ProfileViewModel {
         let tasks = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
         await reminderScheduler.resync(
+            spaceID: spaceID,
             tasks: tasks,
             projects: projects,
             includeTaskReminders: taskReminderEnabled,

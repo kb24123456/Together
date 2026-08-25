@@ -67,6 +67,7 @@ struct ProfileAboutView: View {
             .padding(.horizontal, AppTheme.spacing.md)
             .padding(.bottom, AppTheme.spacing.xxl)
         }
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("关于 Together")
         .navigationBarTitleDisplayMode(.inline)

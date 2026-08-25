@@ -106,53 +106,46 @@ enum OCRImportDraftParser {
             )
         }
 
-        let groupedTaskDrafts = parseGroupedTaskDrafts(from: lines)
-        let consumedGroupedLines = Set(groupedTaskDrafts.flatMap { task in
-            [task.sourceText].compactMap { $0 } + task.subtasks.compactMap(\.sourceText)
-        })
-        let taskDrafts = lines
-            .filter { consumedGroupedLines.contains($0) == false }
-            .map { OCRImportTaskDraft(title: $0, sourceText: $0) }
+        let taskDrafts = parseTaskDrafts(from: lines)
 
         return OCRImportDraft(
             rawText: rawText,
             createdAt: now,
             updatedAt: now,
             status: .needsReview,
-            taskDrafts: groupedTaskDrafts + taskDrafts
+            taskDrafts: taskDrafts
         )
     }
 
-    private nonisolated static func parseGroupedTaskDrafts(from lines: [String]) -> [OCRImportTaskDraft] {
+    private nonisolated static func parseTaskDrafts(from lines: [String]) -> [OCRImportTaskDraft] {
         var tasks: [OCRImportTaskDraft] = []
         var index = 0
 
         while index < lines.count {
             let line = lines[index]
-            guard let projectName = projectTitle(from: line) else {
-                index += 1
-                continue
-            }
+            if let groupTitle = projectTitle(from: line) {
+                var subtasks: [OCRImportSubtaskDraft] = []
+                var next = index + 1
+                while next < lines.count, projectTitle(from: lines[next]) == nil {
+                    subtasks.append(OCRImportSubtaskDraft(title: lines[next], sourceText: lines[next]))
+                    next += 1
+                }
 
-            var subtasks: [OCRImportSubtaskDraft] = []
-            var next = index + 1
-            while next < lines.count, projectTitle(from: lines[next]) == nil {
-                subtasks.append(OCRImportSubtaskDraft(title: lines[next], sourceText: lines[next]))
-                next += 1
-            }
-
-            if subtasks.isEmpty == false {
-                tasks.append(
-                    OCRImportTaskDraft(
-                        title: projectName,
-                        sourceText: line,
-                        subtasks: subtasks
+                if subtasks.isEmpty == false {
+                    tasks.append(
+                        OCRImportTaskDraft(
+                            title: groupTitle,
+                            sourceText: line,
+                            subtasks: subtasks
+                        )
                     )
-                )
-                index = next
-            } else {
-                index += 1
+                    index = next
+                    continue
+                }
             }
+
+            tasks.append(OCRImportTaskDraft(title: line, sourceText: line))
+            index += 1
         }
 
         return tasks

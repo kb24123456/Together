@@ -37,6 +37,7 @@ struct HomeTimelineEntry: Identifiable, Hashable {
     let primaryAvatar: HomeAvatar?
     let secondaryAvatar: HomeAvatar?
     let lastActionAt: Date?
+    let createdAt: Date
     let subtasks: [TaskSubtask]
     let subtaskCompletedCount: Int
 
@@ -62,6 +63,16 @@ struct HomeOverdueEntry: Identifiable, Hashable {
     let title: String
     let detailText: String
     let timeText: String
+    let createdAt: Date
+}
+
+struct HomeOverdueBatchRescheduleResult: Equatable, Sendable {
+    let succeededIDs: [UUID]
+    let failedIDs: [UUID]
+
+    var isCompleteSuccess: Bool {
+        failedIDs.isEmpty
+    }
 }
 
 enum HomeTimelineTimingUrgency: Hashable {
@@ -541,27 +552,6 @@ final class HomeViewModel {
         mutateInlineDraft { $0.notes = notes.isEmpty ? nil : notes }
     }
 
-    func setDraftDueDateEnabled(_ enabled: Bool) {
-        guard var draft = inlineDetailDraft else { return }
-        if enabled {
-            if draft.hasExplicitTime {
-                let current = draft.dueAt ?? defaultDueDate()
-                draft.dueAt = calendar.date(
-                    bySettingHour: calendar.component(.hour, from: current),
-                    minute: calendar.component(.minute, from: current),
-                    second: 0,
-                    of: selectedDate
-                )
-            } else {
-                draft.dueAt = dateOnlyDueDate(for: selectedDate)
-            }
-        } else {
-            draft.dueAt = nil
-            draft.hasExplicitTime = false
-        }
-        replaceInlineDraft(draft)
-    }
-
     func updateDraftDueDate(_ dueDate: Date) {
         guard var draft = inlineDetailDraft else { return }
         if draft.hasExplicitTime {
@@ -922,10 +912,15 @@ final class HomeViewModel {
     }
 
     func deleteItem(_ itemID: UUID) async {
+        guard await persistItemDeletion(itemID) else { return }
+        finalizeItemDeletionPresentation(itemID)
+    }
+
+    func persistItemDeletion(_ itemID: UUID) async -> Bool {
         guard
             let spaceID = sessionStore.currentSpace?.id,
             let actorID = sessionStore.currentUser?.id
-        else { return }
+        else { return false }
 
         do {
             try await taskApplicationService.deleteTask(
@@ -933,17 +928,21 @@ final class HomeViewModel {
                 taskID: itemID,
                 actorID: actorID
             )
-            items.removeAll { $0.id == itemID }
-            if selectedItemID == itemID {
-                dismissItemDetail()
-            }
-            if overdueEntryCount == 0 {
-                isOverdueSheetPresented = false
-            }
             emitTaskMutation(spaceID: spaceID)
+            return true
         } catch {
             presentOperationError("任务删除失败，请重试。")
-            return
+            return false
+        }
+    }
+
+    func finalizeItemDeletionPresentation(_ itemID: UUID) {
+        items.removeAll { $0.id == itemID }
+        if selectedItemID == itemID {
+            dismissItemDetail()
+        }
+        if overdueEntryCount == 0 {
+            isOverdueSheetPresented = false
         }
     }
 
@@ -1022,31 +1021,102 @@ final class HomeViewModel {
     }
 
     func snoozeItem(_ itemID: UUID) async {
+        await snoozeItem(itemID, using: primarySnoozeOption)
+    }
+
+    func snoozeItemToTomorrow(_ itemID: UUID) async {
         await snoozeItem(itemID, using: .tomorrow)
     }
 
-    func rescheduleOverdueItemToToday(_ itemID: UUID) async {
+    func snoozeItemToNextMonday(_ itemID: UUID) async {
+        await snoozeItem(itemID, using: .nextMonday)
+    }
+
+    var primarySnoozeTitle: String {
+        isFriday ? "推迟到下周一" : "推迟到明天"
+    }
+
+    var isFriday: Bool {
+        calendar.component(.weekday, from: .now) == 6
+    }
+
+    private var primarySnoozeOption: TaskSnoozeOption {
+        isFriday ? .nextMonday : .tomorrow
+    }
+
+    @discardableResult
+    func rescheduleOverdueItemToToday(_ itemID: UUID) async -> Bool {
         guard
             let spaceID = sessionStore.currentSpace?.id,
             let actorID = sessionStore.currentUser?.id,
             let item = item(for: itemID)
-        else { return }
+        else { return false }
 
         do {
+            let schedule = returnToTodaySchedule(for: item)
             let saved = try await taskApplicationService.rescheduleTask(
                 in: spaceID,
                 taskID: itemID,
                 actorID: actorID,
-                dueAt: returnToTodayDueDate(for: item),
-                remindAt: nil
+                dueAt: schedule.dueAt,
+                remindAt: schedule.remindAt
             )
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            withAnimation(.smooth(duration: 0.28)) {
                 replaceItemPreservingOrder(saved)
             }
             emitTaskMutation(spaceID: spaceID)
+            return true
         } catch {
             presentOperationError("任务时间调整失败，请重试。")
+            return false
         }
+    }
+
+    func rescheduleAllOverdueItemsToToday(
+        onProgress: (_ completedCount: Int, _ totalCount: Int) -> Void = { _, _ in }
+    ) async -> HomeOverdueBatchRescheduleResult {
+        guard
+            let spaceID = sessionStore.currentSpace?.id,
+            let actorID = sessionStore.currentUser?.id
+        else {
+            return HomeOverdueBatchRescheduleResult(succeededIDs: [], failedIDs: [])
+        }
+
+        let candidates = overdueTimelineItems
+        let totalCount = candidates.count
+        var savedItems: [Item] = []
+        var failedIDs: [UUID] = []
+
+        for (index, item) in candidates.enumerated() {
+            do {
+                let schedule = returnToTodaySchedule(for: item)
+                let saved = try await taskApplicationService.rescheduleTask(
+                    in: spaceID,
+                    taskID: item.id,
+                    actorID: actorID,
+                    dueAt: schedule.dueAt,
+                    remindAt: schedule.remindAt
+                )
+                savedItems.append(saved)
+            } catch {
+                failedIDs.append(item.id)
+            }
+            onProgress(index + 1, totalCount)
+        }
+
+        if savedItems.isEmpty == false {
+            withAnimation(.smooth(duration: 0.28)) {
+                for saved in savedItems {
+                    replaceItemPreservingOrder(saved)
+                }
+            }
+            emitTaskMutation(spaceID: spaceID)
+        }
+
+        return HomeOverdueBatchRescheduleResult(
+            succeededIDs: savedItems.map(\.id),
+            failedIDs: failedIDs
+        )
     }
 
     func weekdayLabel(for date: Date) -> String {
@@ -1126,7 +1196,7 @@ final class HomeViewModel {
                 context: section.context,
                 count: section.count,
                 isUnscheduled: section.isUnscheduled,
-                entries: [entry] + section.entries
+                entries: section.entries + [entry]
             )
             return result
         }
@@ -1156,9 +1226,16 @@ final class HomeViewModel {
             dayStart: session.provisionalDayStart,
             isUnscheduled: false
         )
+        let provisionalIndex = activeTimelineSections
+            .first(where: {
+                $0.isUnscheduled == false
+                    && calendar.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
+            })?
+            .entries
+            .count ?? 0
         return TaskMorphPlacement(
             provisionalSection: section,
-            index: 0,
+            index: provisionalIndex,
             presentationID: taskCreationPresentationID(session)
         )
     }
@@ -1305,17 +1382,33 @@ final class HomeViewModel {
         calendar.date(bySettingHour: 18, minute: 0, second: 0, of: selectedDate) ?? selectedDate
     }
 
-    private func returnToTodayDueDate(for item: Item) -> Date {
+    private func returnToTodaySchedule(
+        for item: Item,
+        now: Date = .now
+    ) -> (dueAt: Date, remindAt: Date?) {
+        let dueAt = returnToTodayDueDate(for: item, now: now)
+        guard item.hasExplicitTime,
+              let previousDueAt = item.dueAt,
+              let previousRemindAt = item.remindAt
+        else { return (dueAt, nil) }
+
+        let recalculatedReminder = dueAt.addingTimeInterval(
+            previousRemindAt.timeIntervalSince(previousDueAt)
+        )
+        return (dueAt, recalculatedReminder > now ? recalculatedReminder : nil)
+    }
+
+    private func returnToTodayDueDate(for item: Item, now: Date = .now) -> Date {
         guard item.hasExplicitTime, let dueAt = item.dueAt else {
             return dateOnlyDueDate(for: selectedDate)
         }
 
         let candidate = merge(date: selectedDate, timeSource: dueAt)
-        guard candidate <= Date.now else { return candidate }
+        guard candidate <= now else { return candidate }
 
         let selectedDayStart = calendar.startOfDay(for: selectedDate)
-        let nextHour = calendar.dateInterval(of: .hour, for: Date.now)?.end
-            ?? Date.now.addingTimeInterval(3_600)
+        let nextHour = calendar.dateInterval(of: .hour, for: now)?.end
+            ?? now.addingTimeInterval(3_600)
         if calendar.isDate(nextHour, inSameDayAs: selectedDate) {
             return nextHour
         }
@@ -1323,7 +1416,7 @@ final class HomeViewModel {
         let selectedDayEnd = calendar
             .date(byAdding: .day, value: 1, to: selectedDayStart)
             .flatMap { calendar.date(byAdding: .second, value: -1, to: $0) }
-        if let selectedDayEnd, selectedDayEnd > Date.now {
+        if let selectedDayEnd, selectedDayEnd > now {
             return selectedDayEnd
         }
 
@@ -1412,10 +1505,10 @@ final class HomeViewModel {
     }
 
     private var primaryIncompleteTimelineItems: [Item] {
-        // Home currently has no rendered overdue-summary entry. Keep overdue
-        // tasks in the normal timeline so that removing that entry can never
-        // turn real persisted tasks into a false empty state.
-        incompleteTimelineItems
+        guard showsOverdueCapsule else { return incompleteTimelineItems }
+        return incompleteTimelineItems.filter {
+            $0.isOverdue(on: selectedDate, calendar: calendar) == false
+        }
     }
 
     private var completedTimelineItems: [Item] {
@@ -1484,9 +1577,11 @@ final class HomeViewModel {
             )
         }
 
+        // `dueAt == nil` 仅作为旧数据/同步窗口的防御性兼容；产品语义中
+        // 普通任务始终属于今天，不再生成“未排期”分组。
         return ActiveTimelineSectionKey(
-            dayStart: calendar.startOfDay(for: item.createdAt),
-            isUnscheduled: true
+            dayStart: calendar.startOfDay(for: selectedDate),
+            isUnscheduled: false
         )
     }
 
@@ -1657,6 +1752,7 @@ final class HomeViewModel {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: item.lastActionAt,
+            createdAt: item.createdAt,
             subtasks: sortedSubtasks,
             subtaskCompletedCount: sortedSubtasks.filter(\.isCompleted).count
         )
@@ -1715,6 +1811,7 @@ final class HomeViewModel {
             primaryAvatar: nil,
             secondaryAvatar: nil,
             lastActionAt: session.createdAt,
+            createdAt: session.createdAt,
             subtasks: subtasks,
             subtaskCompletedCount: subtasks.filter(\.isCompleted).count
         )
@@ -1739,7 +1836,8 @@ final class HomeViewModel {
             id: item.id,
             title: item.title,
             detailText: overdueDetailText(for: item),
-            timeText: timeText(for: item)
+            timeText: timeText(for: item),
+            createdAt: item.createdAt
         )
     }
 

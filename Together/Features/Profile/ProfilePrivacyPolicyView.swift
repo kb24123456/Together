@@ -60,6 +60,7 @@ struct ProfilePrivacyPolicyView: View {
             .padding(.top, AppTheme.spacing.lg)
             .padding(.bottom, AppTheme.spacing.xxl)
         }
+        .applySoftScrollEdgeTransition()
         .background(AppTheme.colors.background.ignoresSafeArea())
         .navigationTitle("隐私政策")
         .navigationBarTitleDisplayMode(.inline)

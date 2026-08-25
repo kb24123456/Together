@@ -6,13 +6,14 @@ enum OCRImportFlowState: Hashable {
     case sourcePicker
     case camera
     case photos
+    case pasteText
     case processing
     case review
     case failed
 
     var prefersLargeDetent: Bool {
         switch self {
-        case .sourcePicker:
+        case .sourcePicker, .pasteText:
             return false
         case .camera, .photos, .processing, .review, .failed:
             return true
@@ -23,7 +24,7 @@ enum OCRImportFlowState: Hashable {
         switch self {
         case .camera, .photos:
             return true
-        case .sourcePicker, .processing, .review, .failed:
+        case .sourcePicker, .pasteText, .processing, .review, .failed:
             return false
         }
     }
@@ -153,6 +154,28 @@ final class OCRImportViewModel {
     func showPhotos() {
         errorMessage = nil
         flowState = .photos
+    }
+
+    func showPasteText() {
+        sourceImage = nil
+        errorMessage = nil
+        flowState = .pasteText
+    }
+
+    func processText(_ rawText: String) {
+        sourceImage = nil
+        errorMessage = nil
+
+        let parsed = OCRImportDraftParser.parse(rawText: rawText)
+        draft = parsed
+        guard parsed.taskDrafts.isEmpty == false else {
+            errorMessage = "剪贴板中没有可导入的文字。"
+            draft.status = .failed
+            flowState = .pasteText
+            return
+        }
+
+        flowState = .review
     }
 
     func processImage(_ image: UIImage) async {

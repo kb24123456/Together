@@ -87,4 +87,12 @@ enum HomeInteractionFeedback {
         generator.impactOccurred(intensity: 0.92)
         #endif
     }
+
+    static func validation() {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.72)
+        #endif
+    }
 }

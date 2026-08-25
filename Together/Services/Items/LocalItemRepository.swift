@@ -29,6 +29,39 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return try hydrateItems(from: records, context: context)
     }
 
+    func normalizeMissingTaskDates(spaceID: UUID?, referenceDate: Date) async throws -> Int {
+        let context = ModelContext(container)
+        let normalizedDate = calendar.startOfDay(for: referenceDate)
+        let records = try activeRecords(spaceID: spaceID, context: context).filter {
+            $0.repeatRuleData == nil
+                && $0.dueAt == nil
+                && $0.completedAt == nil
+                && $0.statusRawValue != ItemStatus.completed.rawValue
+        }
+        guard records.isEmpty == false else { return 0 }
+
+        for record in records {
+            record.dueAt = normalizedDate
+            record.hasExplicitTime = false
+            record.remindAt = nil
+            record.updatedAt = referenceDate
+        }
+        try context.save()
+
+        for record in records {
+            guard let recordSpaceID = record.spaceID else { continue }
+            await syncCoordinator?.recordLocalChange(
+                SyncChange(
+                    entityKind: .task,
+                    operation: .upsert,
+                    recordID: record.id,
+                    spaceID: recordSpaceID
+                )
+            )
+        }
+        return records.count
+    }
+
     func fetchArchivedCompletedItems(
         spaceID: UUID?,
         searchText: String?,
@@ -219,6 +252,130 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         return try occurrenceCompletionMap(itemIDs: itemIDs, itemRecords: itemRecords, context: context)
     }
 
+    func fetchTaskLifecycleReview(itemID: UUID) async throws -> TaskLifecycleReview {
+        let context = ModelContext(container)
+        guard let record = try fetchRecord(itemID: itemID, context: context),
+              record.isLocallyDeleted == false
+        else {
+            throw RepositoryError.notFound
+        }
+
+        let events = lifecycleEvents(
+            from: try lifecycleEventRecords(itemIDs: [itemID], context: context)
+        )
+        return lifecycleReview(record: record, events: events)
+    }
+
+    func fetchPlanningReview(
+        spaceID: UUID?,
+        range: PlanningReviewRange,
+        referenceDate: Date
+    ) async throws -> PlanningReviewSnapshot {
+        let context = ModelContext(container)
+        let interval = range.interval(containing: referenceDate, calendar: calendar)
+        let completed = try completedRecords(spaceID: spaceID, context: context).filter { record in
+            guard record.repeatRuleData == nil,
+                  record.isLocallyDeleted == false,
+                  let completedAt = record.completedAt
+            else { return false }
+            return interval.contains(completedAt)
+        }
+        let active = try activeRecords(spaceID: spaceID, context: context).filter { record in
+            record.repeatRuleData == nil
+                && record.isLocallyDeleted == false
+                && record.completedAt == nil
+                && record.statusRawValue != ItemStatus.completed.rawValue
+        }
+        let currentTaskIDs = Array(Set((completed + active).map(\.id)))
+        let eventsByTask = Dictionary(
+            grouping: lifecycleEvents(
+                from: try lifecycleEventRecords(itemIDs: currentTaskIDs, context: context)
+            ),
+            by: \.taskID
+        )
+
+        let current = makePlanningSnapshot(
+            range: range,
+            interval: interval,
+            completed: completed,
+            active: active,
+            eventsByTask: eventsByTask,
+            referenceDate: referenceDate
+        )
+
+        guard let previousStart = calendar.date(
+            byAdding: range == .week ? .weekOfYear : .month,
+            value: -1,
+            to: interval.start
+        ) else { return current }
+        let previousInterval = DateInterval(start: previousStart, end: interval.start)
+        let previousCompleted = try completedRecords(spaceID: spaceID, context: context).filter { record in
+            guard record.repeatRuleData == nil,
+                  record.isLocallyDeleted == false,
+                  let completedAt = record.completedAt
+            else { return false }
+            return previousInterval.contains(completedAt)
+        }
+        let previousIDs = previousCompleted.map(\.id)
+        let previousEvents = Dictionary(
+            grouping: lifecycleEvents(
+                from: try lifecycleEventRecords(itemIDs: previousIDs, context: context)
+            ),
+            by: \.taskID
+        )
+        let previous = makePlanningSnapshot(
+            range: range,
+            interval: previousInterval,
+            completed: previousCompleted,
+            active: [],
+            eventsByTask: previousEvents,
+            referenceDate: referenceDate
+        )
+
+        guard current.validDurationSampleCount >= 5,
+              previous.validDurationSampleCount >= 5
+        else { return current }
+        var trends: [PlanningTrend] = []
+        if let currentMedian = current.medianCompletionDuration,
+           let previousMedian = previous.medianCompletionDuration {
+            trends.append(PlanningTrend(
+                metric: .medianCompletionDuration,
+                delta: currentMedian - previousMedian
+            ))
+        }
+        if current.firstPlanSampleCount >= 5,
+           previous.firstPlanSampleCount >= 5,
+           let currentRate = current.firstPlanOnTimeRate,
+           let previousRate = previous.firstPlanOnTimeRate {
+            trends.append(PlanningTrend(metric: .firstPlanOnTimeRate, delta: currentRate - previousRate))
+        }
+        if current.postponementSampleCount >= 5,
+           previous.postponementSampleCount >= 5,
+           let currentRate = current.postponedProportion,
+           let previousRate = previous.postponedProportion {
+            trends.append(PlanningTrend(metric: .postponedProportion, delta: currentRate - previousRate))
+        }
+
+        return PlanningReviewSnapshot(
+            range: current.range,
+            interval: current.interval,
+            completionCount: current.completionCount,
+            validDurationSampleCount: current.validDurationSampleCount,
+            medianCompletionDuration: current.medianCompletionDuration,
+            firstPlanSampleCount: current.firstPlanSampleCount,
+            firstPlanOnTimeRate: current.firstPlanOnTimeRate,
+            finalPlanSampleCount: current.finalPlanSampleCount,
+            finalPlanOnTimeRate: current.finalPlanOnTimeRate,
+            postponementSampleCount: current.postponementSampleCount,
+            postponedCompletionCount: current.postponedCompletionCount,
+            postponedProportion: current.postponedProportion,
+            unscheduledCompletionCount: current.unscheduledCompletionCount,
+            riskItems: current.riskItems,
+            noteworthyItems: current.noteworthyItems,
+            trends: trends
+        )
+    }
+
     func isCompleted(itemID: UUID, on referenceDate: Date) async throws -> Bool {
         let context = ModelContext(container)
         guard let record = try fetchRecord(itemID: itemID, context: context) else {
@@ -245,6 +402,10 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         )
 
         var item = try hydratedItem(from: record, context: context)
+        let wasCompleted = item.status == .completed || item.completedAt != nil
+        if item.repeatRule == nil, wasCompleted {
+            return item
+        }
         if item.repeatRule == nil {
             item.status = ItemStateMachine.nextStatus(
                 from: item.status,
@@ -270,6 +431,19 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.updatedAt = .now
         record.update(from: item)
         try upsertTaskFollow(for: item, context: context)
+        if item.repeatRule == nil, wasCompleted == false {
+            insertLifecycleEvent(
+                kind: .completed,
+                item: item,
+                occurredAt: item.completedAt ?? .now,
+                newSchedule: TaskScheduleSnapshot(
+                    dueAt: item.dueAt,
+                    hasExplicitTime: item.hasExplicitTime
+                ),
+                incompleteSubtaskCount: item.subtasks.count(where: { $0.isCompleted == false }),
+                context: context
+            )
+        }
         try context.save()
 
         ItemStatusDiagnosisLog.markCompletedSaved(
@@ -301,6 +475,10 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         }
 
         var item = try hydratedItem(from: record, context: context)
+        let wasCompleted = item.status == .completed || item.completedAt != nil
+        if item.repeatRule == nil, wasCompleted == false {
+            return item
+        }
         if item.repeatRule == nil {
             item.completedAt = nil
             if item.status == .completed {
@@ -320,6 +498,14 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         item.updatedAt = .now
         record.update(from: item)
         try upsertTaskFollow(for: item, context: context)
+        if item.repeatRule == nil, wasCompleted {
+            insertLifecycleEvent(
+                kind: .reopened,
+                item: item,
+                occurredAt: item.updatedAt,
+                context: context
+            )
+        }
         try context.save()
 
         if let sid = record.spaceID {
@@ -339,12 +525,60 @@ actor LocalItemRepository: ItemRepositoryProtocol {
 
         let subtaskChanges: SubtaskChangeSet
         if let record = try fetchRecord(itemID: item.id, context: context) {
+            let oldSchedule = TaskScheduleSnapshot(
+                dueAt: record.dueAt,
+                hasExplicitTime: record.hasExplicitTime
+            )
+            let hasRecordedSchedule = try hasRecordedLifecycleSchedule(
+                itemID: item.id,
+                context: context
+            )
             try migrateLegacyRecurringCompletionIfNeeded(record: record, context: context)
             record.update(from: savedItem)
             subtaskChanges = try replaceSubtasks(for: savedItem, context: context)
+            if savedItem.repeatRule == nil {
+                let newSchedule = TaskScheduleSnapshot(
+                    dueAt: savedItem.dueAt,
+                    hasExplicitTime: savedItem.hasExplicitTime
+                )
+                if let kind = TaskLifecycleEventClassifier.classifyScheduleChange(
+                    from: oldSchedule,
+                    to: newSchedule,
+                    hasRecordedSchedule: hasRecordedSchedule
+                ) {
+                    insertLifecycleEvent(
+                        kind: kind,
+                        item: savedItem,
+                        occurredAt: savedItem.updatedAt,
+                        oldSchedule: oldSchedule,
+                        newSchedule: newSchedule,
+                        context: context
+                    )
+                }
+            }
         } else {
             context.insert(PersistentItem(item: savedItem))
             subtaskChanges = try replaceSubtasks(for: savedItem, context: context)
+            if savedItem.repeatRule == nil {
+                insertLifecycleEvent(
+                    kind: .created,
+                    item: savedItem,
+                    occurredAt: savedItem.createdAt,
+                    context: context
+                )
+                if savedItem.dueAt != nil {
+                    insertLifecycleEvent(
+                        kind: .firstScheduled,
+                        item: savedItem,
+                        occurredAt: savedItem.createdAt,
+                        newSchedule: TaskScheduleSnapshot(
+                            dueAt: savedItem.dueAt,
+                            hasExplicitTime: savedItem.hasExplicitTime
+                        ),
+                        context: context
+                    )
+                }
+            }
         }
         try upsertTaskFollow(for: savedItem, context: context)
 
@@ -539,6 +773,9 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         let occurrenceRecords = try fetchOccurrenceRecords(itemIDs: [itemID], context: context)
         for occurrenceRecord in occurrenceRecords {
             context.delete(occurrenceRecord)
+        }
+        for eventRecord in try lifecycleEventRecords(itemIDs: [itemID], context: context) {
+            context.delete(eventRecord)
         }
         let subtaskRecords = try subtaskRecords(for: itemID, in: context)
         for subtaskRecord in subtaskRecords {
@@ -1203,6 +1440,259 @@ actor LocalItemRepository: ItemRepositoryProtocol {
         for record in existing where calendar.isDate(record.occurrenceDate, inSameDayAs: occurrenceDate) {
             context.delete(record)
         }
+    }
+
+    private func insertLifecycleEvent(
+        kind: TaskLifecycleEventKind,
+        item: Item,
+        occurredAt: Date,
+        oldSchedule: TaskScheduleSnapshot? = nil,
+        newSchedule: TaskScheduleSnapshot? = nil,
+        incompleteSubtaskCount: Int? = nil,
+        context: ModelContext
+    ) {
+        context.insert(
+            PersistentTaskLifecycleEvent(
+                taskID: item.id,
+                spaceID: item.spaceID,
+                kindRawValue: kind.rawValue,
+                occurredAt: occurredAt,
+                oldDueAt: oldSchedule?.dueAt,
+                newDueAt: newSchedule?.dueAt,
+                oldHasExplicitTime: oldSchedule?.hasExplicitTime,
+                newHasExplicitTime: newSchedule?.hasExplicitTime,
+                incompleteSubtaskCount: incompleteSubtaskCount
+            )
+        )
+    }
+
+    private func lifecycleEventRecords(
+        itemIDs: [UUID],
+        context: ModelContext
+    ) throws -> [PersistentTaskLifecycleEvent] {
+        guard itemIDs.isEmpty == false else { return [] }
+        let descriptor = FetchDescriptor<PersistentTaskLifecycleEvent>(
+            predicate: #Predicate<PersistentTaskLifecycleEvent> { itemIDs.contains($0.taskID) },
+            sortBy: [SortDescriptor(\PersistentTaskLifecycleEvent.occurredAt, order: .forward)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    private func hasRecordedLifecycleSchedule(itemID: UUID, context: ModelContext) throws -> Bool {
+        try lifecycleEventRecords(itemIDs: [itemID], context: context).contains { record in
+            [
+                TaskLifecycleEventKind.firstScheduled,
+                .postponed,
+                .movedEarlier,
+                .scheduleCleared,
+                .rescheduled,
+            ].map(\.rawValue).contains(record.kindRawValue)
+        }
+    }
+
+    private func lifecycleEvents(
+        from records: [PersistentTaskLifecycleEvent]
+    ) -> [TaskLifecycleEvent] {
+        let mapped = records.compactMap { record -> TaskLifecycleEvent? in
+            guard let kind = TaskLifecycleEventKind(rawValue: record.kindRawValue) else { return nil }
+            return TaskLifecycleEvent(
+                id: record.id,
+                taskID: record.taskID,
+                kind: kind,
+                occurredAt: record.occurredAt,
+                oldDueAt: record.oldDueAt,
+                newDueAt: record.newDueAt,
+                oldHasExplicitTime: record.oldHasExplicitTime,
+                newHasExplicitTime: record.newHasExplicitTime,
+                incompleteSubtaskCount: record.incompleteSubtaskCount
+            )
+        }.sorted { lhs, rhs in
+            if lhs.occurredAt != rhs.occurredAt { return lhs.occurredAt < rhs.occurredAt }
+            let lhsRank = TaskLifecycleEventKind.allCases.firstIndex(of: lhs.kind) ?? 0
+            let rhsRank = TaskLifecycleEventKind.allCases.firstIndex(of: rhs.kind) ?? 0
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
+        var seenIDs = Set<UUID>()
+        var hasCreated = false
+        var hasFirstSchedule = false
+        var isCompleted = false
+        return mapped.filter { event in
+            guard seenIDs.insert(event.id).inserted else { return false }
+            switch event.kind {
+            case .created:
+                guard hasCreated == false else { return false }
+                hasCreated = true
+            case .firstScheduled:
+                guard hasFirstSchedule == false else { return false }
+                hasFirstSchedule = true
+            case .completed:
+                guard isCompleted == false else { return false }
+                isCompleted = true
+            case .reopened:
+                guard isCompleted else { return false }
+                isCompleted = false
+            case .postponed, .movedEarlier, .scheduleCleared, .rescheduled:
+                break
+            }
+            return true
+        }
+    }
+
+    private func lifecycleReview(
+        record: PersistentItem,
+        events: [TaskLifecycleEvent]
+    ) -> TaskLifecycleReview {
+        TaskLifecycleReview(
+            taskID: record.id,
+            title: record.title,
+            createdAt: record.createdAt,
+            completedAt: record.completedAt,
+            currentDueAt: record.dueAt,
+            currentHasExplicitTime: record.hasExplicitTime,
+            historyCoverage: events.contains(where: { $0.kind == .created }) ? .complete : .sinceFeatureUpdate,
+            events: events
+        )
+    }
+
+    private func makePlanningSnapshot(
+        range: PlanningReviewRange,
+        interval: DateInterval,
+        completed: [PersistentItem],
+        active: [PersistentItem],
+        eventsByTask: [UUID: [TaskLifecycleEvent]],
+        referenceDate: Date
+    ) -> PlanningReviewSnapshot {
+        let reviews = completed.map { record in
+            lifecycleReview(record: record, events: eventsByTask[record.id, default: []])
+        }
+        let durations = reviews.compactMap(\.completionDuration)
+        let firstPlanSamples = reviews.compactMap { review -> Bool? in
+            guard review.historyCoverage == .complete,
+                  let completedAt = review.completedAt,
+                  let schedule = review.firstSchedule
+            else { return nil }
+            return TaskLifecycleMetrics.isOnTime(
+                completedAt: completedAt,
+                schedule: schedule,
+                calendar: calendar
+            )
+        }
+        let finalPlanSamples = reviews.compactMap { review -> Bool? in
+            guard let completedAt = review.completedAt,
+                  let schedule = review.finalSchedule
+            else { return nil }
+            return TaskLifecycleMetrics.isOnTime(
+                completedAt: completedAt,
+                schedule: schedule,
+                calendar: calendar
+            )
+        }
+        let postponementSamples = reviews.filter { $0.historyCoverage == .complete }
+        let postponedCount = postponementSamples.count(where: { $0.postponeCount > 0 })
+        let unscheduledCount = reviews.count(where: { $0.finalSchedule == nil })
+        let noteworthyItems = reviews.compactMap { review -> PlanningNoteworthyItem? in
+            if review.postponeCount > 0 {
+                return PlanningNoteworthyItem(
+                    id: review.taskID,
+                    title: review.title,
+                    reason: .postponed(
+                        count: review.postponeCount,
+                        cumulativeDuration: review.cumulativePostponement,
+                        coverage: review.historyCoverage
+                    )
+                )
+            }
+            if review.reopenCount > 0 {
+                return PlanningNoteworthyItem(
+                    id: review.taskID,
+                    title: review.title,
+                    reason: .reopened(count: review.reopenCount, coverage: review.historyCoverage)
+                )
+            }
+            guard let duration = review.completionDuration else { return nil }
+            return PlanningNoteworthyItem(
+                id: review.taskID,
+                title: review.title,
+                reason: .completionDuration(duration)
+            )
+        }.sorted { lhs, rhs in
+            noteworthyRank(lhs.reason) > noteworthyRank(rhs.reason)
+        }
+        let risks = active.compactMap { record -> PlanningRiskItem? in
+            let events = eventsByTask[record.id, default: []]
+            let kind: PlanningRiskKind?
+            if isLifecycleOverdue(record: record, referenceDate: referenceDate) {
+                kind = .overdue
+            } else if events.contains(where: { $0.kind == .postponed }) {
+                kind = .postponedUncompleted
+            } else {
+                kind = nil
+            }
+            guard let kind else { return nil }
+            return PlanningRiskItem(
+                id: record.id,
+                title: record.title,
+                kind: kind,
+                dueAt: record.dueAt,
+                hasExplicitTime: record.hasExplicitTime
+            )
+        }.sorted { lhs, rhs in
+            let order: [PlanningRiskKind] = [.overdue, .postponedUncompleted]
+            let lhsRank = order.firstIndex(of: lhs.kind) ?? order.count
+            let rhsRank = order.firstIndex(of: rhs.kind) ?? order.count
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
+            return (lhs.dueAt ?? .distantFuture) < (rhs.dueAt ?? .distantFuture)
+        }
+
+        return PlanningReviewSnapshot(
+            range: range,
+            interval: interval,
+            completionCount: reviews.count,
+            validDurationSampleCount: durations.count,
+            medianCompletionDuration: TaskLifecycleMetrics.median(durations),
+            firstPlanSampleCount: firstPlanSamples.count,
+            firstPlanOnTimeRate: rate(for: firstPlanSamples),
+            finalPlanSampleCount: finalPlanSamples.count,
+            finalPlanOnTimeRate: rate(for: finalPlanSamples),
+            postponementSampleCount: postponementSamples.count,
+            postponedCompletionCount: postponedCount,
+            postponedProportion: postponementSamples.isEmpty
+                ? nil
+                : Double(postponedCount) / Double(postponementSamples.count),
+            unscheduledCompletionCount: unscheduledCount,
+            riskItems: risks,
+            noteworthyItems: Array(noteworthyItems.prefix(5)),
+            trends: []
+        )
+    }
+
+    private func rate(for samples: [Bool]) -> Double? {
+        guard samples.isEmpty == false else { return nil }
+        return Double(samples.count(where: { $0 })) / Double(samples.count)
+    }
+
+    private func noteworthyRank(_ reason: PlanningNoteworthyReason) -> Double {
+        switch reason {
+        case let .postponed(count, cumulativeDuration, _):
+            1_000_000_000 + Double(count) * 10_000_000 + cumulativeDuration
+        case let .reopened(count, _):
+            500_000_000 + Double(count) * 10_000_000
+        case let .completionDuration(duration):
+            duration
+        }
+    }
+
+    private func isLifecycleOverdue(record: PersistentItem, referenceDate: Date) -> Bool {
+        guard let dueAt = record.dueAt else { return false }
+        if record.hasExplicitTime { return dueAt < referenceDate }
+        let endOfDueDay = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: dueAt)
+        ) ?? dueAt
+        return endOfDueDay <= referenceDate
     }
 
     private func normalizedOccurrenceDate(for date: Date) -> Date {

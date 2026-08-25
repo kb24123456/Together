@@ -107,6 +107,9 @@ private struct TodayWidgetCompletionStore {
     private struct TaskRecord {
         let primaryKey: Int64
         let hasRepeatRule: Bool
+        let isCompleted: Bool
+        let dueAt: Date?
+        let hasExplicitTime: Bool
     }
 
     private nonisolated func completeInTransaction(
@@ -138,10 +141,20 @@ private struct TodayWidgetCompletionStore {
                 database: database
             )
         } else {
+            guard record.isCompleted == false else { return }
             try markSingleTaskCompleted(
                 recordPrimaryKey: record.primaryKey,
                 actorID: sharedContext.actorID,
                 completedAt: completedAt,
+                database: database
+            )
+            try insertLifecycleCompletionEvent(
+                taskID: taskID,
+                spaceID: sharedContext.spaceID,
+                completedAt: completedAt,
+                dueAt: record.dueAt,
+                hasExplicitTime: record.hasExplicitTime,
+                incompleteSubtaskCount: try incompleteSubtaskCount(taskID: taskID, database: database),
                 database: database
             )
         }
@@ -160,7 +173,7 @@ private struct TodayWidgetCompletionStore {
         database: OpaquePointer
     ) throws -> TaskRecord? {
         let sql = """
-        SELECT Z_PK, ZREPEATRULEDATA
+        SELECT Z_PK, ZREPEATRULEDATA, ZCOMPLETEDAT, ZSTATUSRAWVALUE, ZDUEAT, ZHASEXPLICITTIME
         FROM ZPERSISTENTITEM
         WHERE ZID = ?
           AND ZSPACEID = ?
@@ -181,8 +194,75 @@ private struct TodayWidgetCompletionStore {
 
             return TaskRecord(
                 primaryKey: sqlite3_column_int64(statement, 0),
-                hasRepeatRule: sqlite3_column_type(statement, 1) != SQLITE_NULL
+                hasRepeatRule: sqlite3_column_type(statement, 1) != SQLITE_NULL,
+                isCompleted: sqlite3_column_type(statement, 2) != SQLITE_NULL
+                    || columnText(statement, 3) == "completed",
+                dueAt: columnDate(statement, 4),
+                hasExplicitTime: sqlite3_column_int(statement, 5) != 0
             )
+        }
+    }
+
+    private nonisolated func insertLifecycleCompletionEvent(
+        taskID: UUID,
+        spaceID: UUID,
+        completedAt: Date,
+        dueAt: Date?,
+        hasExplicitTime: Bool,
+        incompleteSubtaskCount: Int,
+        database: OpaquePointer
+    ) throws {
+        let table = "ZPERSISTENTTASKLIFECYCLEEVENT"
+        for column in [
+            "ZID", "ZTASKID", "ZSPACEID", "ZKINDRAWVALUE", "ZOCCURREDAT", "ZSCHEMAVERSION",
+            "ZNEWDUEAT", "ZNEWHASEXPLICITTIME", "ZINCOMPLETESUBTASKCOUNT",
+        ] {
+            guard try tableHasColumn(table, columnName: column, database: database) else {
+                throw TodayWidgetCompletionError.schemaMismatch("Missing \(table).\(column)")
+            }
+        }
+
+        let primaryKey = try nextPrimaryKey(
+            entityName: "PersistentTaskLifecycleEvent",
+            database: database
+        )
+        let sql = """
+        INSERT INTO ZPERSISTENTTASKLIFECYCLEEVENT
+        (Z_PK, Z_ENT, Z_OPT, ZSCHEMAVERSION, ZINCOMPLETESUBTASKCOUNT, ZNEWHASEXPLICITTIME,
+         ZOCCURREDAT, ZNEWDUEAT, ZID, ZTASKID, ZSPACEID, ZKINDRAWVALUE)
+        VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        try withStatement(sql, database: database) { statement in
+            sqlite3_bind_int64(statement, 1, primaryKey.value)
+            sqlite3_bind_int64(statement, 2, Int64(primaryKey.entityID))
+            sqlite3_bind_int64(statement, 3, Int64(incompleteSubtaskCount))
+            sqlite3_bind_int(statement, 4, hasExplicitTime ? 1 : 0)
+            bind(date: completedAt, at: 5, statement: statement)
+            bind(optionalDate: dueAt, at: 6, statement: statement)
+            bind(uuid: UUID(), at: 7, statement: statement)
+            bind(uuid: taskID, at: 8, statement: statement)
+            bind(uuid: spaceID, at: 9, statement: statement)
+            bind(text: "completed", at: 10, statement: statement)
+            try stepDone(statement, database: database)
+        }
+    }
+
+    private nonisolated func incompleteSubtaskCount(
+        taskID: UUID,
+        database: OpaquePointer
+    ) throws -> Int {
+        let sql = """
+        SELECT COUNT(*)
+        FROM ZPERSISTENTTASKSUBTASK
+        WHERE ZITEMID = ?
+          AND COALESCE(ZISCOMPLETED, 0) = 0
+          AND COALESCE(ZISLOCALLYDELETED, 0) = 0
+        """
+        return try withStatement(sql, database: database) { statement in
+            bind(uuid: taskID, at: 1, statement: statement)
+            guard sqlite3_step(statement) == SQLITE_ROW else { throw sqliteFailure(database) }
+            return Int(sqlite3_column_int64(statement, 0))
         }
     }
 
@@ -577,6 +657,19 @@ private struct TodayWidgetCompletionStore {
 
     private nonisolated func bind(date: Date, at index: Int32, statement: OpaquePointer) {
         sqlite3_bind_double(statement, index, date.timeIntervalSinceReferenceDate)
+    }
+
+    private nonisolated func bind(optionalDate: Date?, at index: Int32, statement: OpaquePointer) {
+        guard let optionalDate else {
+            sqlite3_bind_null(statement, index)
+            return
+        }
+        bind(date: optionalDate, at: index, statement: statement)
+    }
+
+    private nonisolated func columnDate(_ statement: OpaquePointer, _ index: Int32) -> Date? {
+        guard sqlite3_column_type(statement, index) != SQLITE_NULL else { return nil }
+        return Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, index))
     }
 
     private nonisolated func columnText(_ statement: OpaquePointer, _ index: Int32) -> String? {

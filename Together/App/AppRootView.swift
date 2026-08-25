@@ -32,6 +32,7 @@ struct HomeRootContent: View {
     @State private var frozenRootSurface: RootSurface?
     @State private var detailCollapseCompletionTask: Task<Void, Never>?
     @State private var pendingCreationDomain: TaskMorphDomain?
+    @State private var appIntentHandoffCenter = AppIntentHandoffCenter.shared
 
     private var displayedRootSurface: RootSurface {
         frozenRootSurface ?? appContext.router.currentSurface
@@ -150,8 +151,15 @@ struct HomeRootContent: View {
         .onChange(of: router.rootResetRevision) { _, _ in
             rootNavigationPath = NavigationPath()
         }
-        .onChange(of: router.activeComposer?.id) { _, _ in
+        .onChange(of: router.composerRequestRevision) { _, _ in
             synchronizeComposerPresentation(router: router)
+        }
+        .onChange(of: appIntentHandoffCenter.taskCreationRequestRevision) { _, _ in
+            acceptNextSystemTaskCreationIfPossible(router: router)
+        }
+        .onChange(of: appContext.sessionStore.isAppLocked) { _, isLocked in
+            guard isLocked == false else { return }
+            acceptNextSystemTaskCreationIfPossible(router: router)
         }
         .onChange(of: morphSession.phase) { _, phase in
             switch phase {
@@ -167,11 +175,13 @@ struct HomeRootContent: View {
                     return
                 }
                 synchronizePendingRootRoutes(router: router)
+                acceptNextSystemTaskCreationIfPossible(router: router)
             }
         }
         .onAppear {
             configureMorphCallbacks()
             synchronizeComposerPresentation(router: router)
+            acceptNextSystemTaskCreationIfPossible(router: router)
         }
         .onDisappear {
             detailCollapseCompletionTask?.cancel()
@@ -198,7 +208,6 @@ struct HomeRootContent: View {
             isRoutinesModePresented: displayedRootSurface == .routines,
             isRootSurfaceVisible: isHomeSurfaceVisible,
             onCreateTaskTapped: {
-                router.pendingComposerTitle = nil
                 beginMorphCreation(domain: .todo)
             },
             onCompletedHistoryTapped: { filter in
@@ -320,11 +329,18 @@ struct HomeRootContent: View {
         ToolbarItem(placement: .bottomBar) {
             if isMorphBackgroundDeemphasized {
                 Button(action: morphSession.requestDismissal) {
-                    Label("收起任务详情", systemImage: "doc.text.viewfinder")
+                    Label(
+                        morphSession.isCreationFlow ? "收起键盘" : "收起任务详情",
+                        systemImage: "doc.text.viewfinder"
+                    )
                         .labelStyle(.iconOnly)
                 }
                 .accessibilityIdentifier("together.bottom-toolbar.ocr")
-                .accessibilityHint("保存更改并收起当前任务")
+                .accessibilityHint(
+                    morphSession.isCreationFlow
+                        ? "保留当前草稿并结束输入"
+                        : "保存更改并收起当前任务"
+                )
             } else {
                 Menu {
                     Button(action: openDirectOCRCamera) {
@@ -333,13 +349,16 @@ struct HomeRootContent: View {
                     Button(action: openDirectOCRPhotoPicker) {
                         Label("照片", systemImage: "photo.on.rectangle")
                     }
+                    Button(action: openDirectOCRTextPaste) {
+                        Label("粘贴文字", systemImage: "doc.on.clipboard")
+                    }
                 } label: {
                     Label("OCR 导入", systemImage: "doc.text.viewfinder")
                         .labelStyle(.iconOnly)
                 }
                 .disabled(morphSession.isActive)
                 .accessibilityIdentifier("together.bottom-toolbar.ocr")
-                .accessibilityHint("拍摄或选择纸面笔记生成草稿")
+                .accessibilityHint("拍摄、选择照片或粘贴多行文字生成草稿")
             }
         }
 
@@ -356,7 +375,9 @@ struct HomeRootContent: View {
             .accessibilityIdentifier("together.bottom-toolbar.add")
             .accessibilityHint(
                 morphSession.isActive
-                    ? "保存并收起当前任务后新建一项"
+                    ? (morphSession.isCreationFlow
+                        ? "请先添加或取消当前草稿"
+                        : "保存并收起当前任务后新建一项")
                     : "在当前视图下新建一项"
             )
         }
@@ -400,7 +421,6 @@ struct HomeRootContent: View {
     }
 
     private func openContextualComposer(router: AppRouter) {
-        router.pendingComposerTitle = nil
         switch displayedRootSurface {
         case .today, .projects:
             beginMorphCreation(domain: .todo)
@@ -414,10 +434,8 @@ struct HomeRootContent: View {
         title: String? = nil
     ) {
         if morphSession.isActive {
-            if morphSession.isCreationFlow,
-               morphSession.subject?.domain == domain,
-               isCurrentCreationCompletelyEmpty(domain: domain) {
-                morphSession.requestCreationFocus()
+            if morphSession.isCreationFlow {
+                morphSession.requestCreationKeyboardDismissal()
                 return
             }
             pendingCreationDomain = domain
@@ -458,13 +476,13 @@ struct HomeRootContent: View {
 
     private func synchronizeComposerPresentation(router: AppRouter) {
         guard let route = router.activeComposer else { return }
+
         guard morphSession.isActive == false else {
             morphSession.requestDismissal()
             return
         }
         let title = router.pendingComposerTitle
-        router.activeComposer = nil
-        router.pendingComposerTitle = nil
+        router.clearComposerRequest()
         switch route {
         case .newTask:
             beginMorphCreation(domain: .todo, title: title)
@@ -473,6 +491,16 @@ struct HomeRootContent: View {
         case .newProject:
             break
         }
+        acceptNextSystemTaskCreationIfPossible(router: router)
+    }
+
+    private func acceptNextSystemTaskCreationIfPossible(router: AppRouter) {
+        guard appContext.sessionStore.isAppLocked == false,
+              router.activeComposer == nil,
+              let request = appIntentHandoffCenter.consumeNextTaskCreation()
+        else { return }
+
+        appContext.requestTaskCreation(title: request.title)
     }
 
     private func configureMorphCallbacks() {
@@ -499,30 +527,23 @@ struct HomeRootContent: View {
 
     private func dismissMorph(_ subject: TaskMorphSubject) {
         if subject.isDraft {
-            switch subject.domain {
-            case .todo:
-                if appContext.homeViewModel.isTaskCreationTitleEmpty == false {
-                    commitMorphCreation(subject)
-                } else if appContext.homeViewModel.isTaskCreationCompletelyEmpty {
-                    discardMorphCreation(subject)
-                } else {
-                    morphSession.showCreationValidationError("请输入任务标题。")
-                }
-            case .periodic:
-                if appContext.routinesViewModel.isCreationTitleEmpty == false {
-                    commitMorphCreation(subject)
-                } else if appContext.routinesViewModel.isCreationCompletelyEmpty {
-                    discardMorphCreation(subject)
-                } else {
-                    morphSession.showCreationValidationError("请输入定期任务标题。")
-                }
-            }
+            morphSession.requestCreationKeyboardDismissal()
         } else {
             saveAndCollapseMorph(subject, completesTask: false)
         }
     }
 
     private func commitMorphCreation(_ subject: TaskMorphSubject) {
+        let isTitleEmpty = switch subject.domain {
+        case .todo:
+            appContext.homeViewModel.isTaskCreationTitleEmpty
+        case .periodic:
+            appContext.routinesViewModel.isCreationTitleEmpty
+        }
+        guard isTitleEmpty == false else {
+            morphSession.showCreationValidationError("请输入任务标题")
+            return
+        }
         guard subject.isDraft, let token = morphSession.beginSaving() else { return }
         Task { @MainActor in
             let result: TaskMorphPersistenceResult = switch subject.domain {
@@ -544,6 +565,15 @@ struct HomeRootContent: View {
         case .failed(let message):
             morphSession.failSaving(using: token, message: message)
         case .saved(let finalPlacement):
+            guard morphSession.acknowledgeCreationSave(using: token) else { return }
+            try? await Task.sleep(
+                for: .seconds(TaskCreationInputTiming.saveAcknowledgementDuration)
+            )
+            guard Task.isCancelled == false,
+                  morphSession.isCurrent(token),
+                  morphSession.phase == .saving
+            else { return }
+            HomeInteractionFeedback.completion()
             let persisted = TaskMorphSubject.persisted(domain: subject.domain, id: subject.id)
             var collapseToken: HomeMorphSessionToken?
             withAnimation(detailCollapseAnimation) {
@@ -629,15 +659,6 @@ struct HomeRootContent: View {
             appContext.homeViewModel.finalizeCommittedTaskCreation()
         case .periodic:
             appContext.routinesViewModel.finalizeMorphCreation()
-        }
-    }
-
-    private func isCurrentCreationCompletelyEmpty(domain: TaskMorphDomain) -> Bool {
-        switch domain {
-        case .todo:
-            appContext.homeViewModel.isTaskCreationCompletelyEmpty
-        case .periodic:
-            appContext.routinesViewModel.isCreationCompletelyEmpty
         }
     }
 
@@ -810,6 +831,12 @@ struct HomeRootContent: View {
         HomeInteractionFeedback.selection()
         directOCRProcessingTask?.cancel()
         isPresentingDirectOCRCamera = true
+    }
+
+    private func openDirectOCRTextPaste() {
+        HomeInteractionFeedback.selection()
+        directOCRProcessingTask?.cancel()
+        activeOCRSourceSession = OCRSourceSheetSession(source: .pasteText)
     }
 
     private func handleDirectOCRCapture(_ image: UIImage) {

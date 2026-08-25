@@ -4,17 +4,21 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     private let notificationService: NotificationServiceProtocol
     private let routineAlarmService: RoutineAlarmServiceProtocol
     private let calendar: Calendar
+    private let now: @Sendable () -> Date
     private let searchWindowDays = 730
     private var taskRemindersEnabled = true
+    private var dailySummariesEnabled = false
 
     init(
         notificationService: NotificationServiceProtocol,
         routineAlarmService: RoutineAlarmServiceProtocol = LocalRoutineAlarmService(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        now: @escaping @Sendable () -> Date = { .now }
     ) {
         self.notificationService = notificationService
         self.routineAlarmService = routineAlarmService
         self.calendar = calendar
+        self.now = now
     }
 
     func syncTaskReminder(for item: Item) async {
@@ -90,32 +94,42 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     }
 
     func syncDailySummary(for spaceID: UUID, tasks: [Item]) async {
-        guard taskRemindersEnabled else {
-            await notificationService.cancel([AppNotification.identifier(for: .dailySummary, targetID: spaceID)])
+        guard taskRemindersEnabled, dailySummariesEnabled else {
+            await notificationService.cancel(dailySummaryIdentifiers(for: spaceID))
             return
         }
 
-        if let notification = makeDailySummaryNotification(spaceID: spaceID, tasks: tasks, now: .now) {
-            try? await notificationService.schedule([notification])
-        } else {
-            await notificationService.cancel([AppNotification.identifier(for: .dailySummary, targetID: spaceID)])
-        }
+        let notifications = makeDailySummaryNotifications(
+            spaceID: spaceID,
+            tasks: tasks,
+            now: now()
+        )
+        try? await notificationService.schedule(notifications)
+        await notificationService.cancel([
+            AppNotification.identifier(for: .dailySummary, targetID: spaceID)
+        ])
     }
 
     func resync(
+        spaceID: UUID?,
         tasks: [Item],
         projects: [Project],
         includeTaskReminders: Bool,
         includeDailySummary: Bool
     ) async {
         taskRemindersEnabled = includeTaskReminders
+        dailySummariesEnabled = includeTaskReminders && includeDailySummary
         let projectNotifications = includeTaskReminders
             ? projects.compactMap(makeProjectNotification(for:))
             : []
-        let spaceIDs = Set(tasks.compactMap(\.spaceID) + projects.compactMap(\.spaceID))
-        let dailySummaryNotifications = includeDailySummary
-            ? spaceIDs.compactMap { spaceID in
-                makeDailySummaryNotification(spaceID: spaceID, tasks: tasks, now: .now)
+        let spaceIDs = Set(
+            tasks.compactMap(\.spaceID)
+                + projects.compactMap(\.spaceID)
+                + [spaceID].compactMap { $0 }
+        )
+        let dailySummaryNotifications = dailySummariesEnabled
+            ? spaceIDs.flatMap { spaceID in
+                makeDailySummaryNotifications(spaceID: spaceID, tasks: tasks, now: now())
             }
             : []
 
@@ -132,7 +146,7 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         let desiredIdentifiers = Set((projectNotifications + dailySummaryNotifications).map(\.identifier))
         let allIdentifiers = Set(
             projects.map { AppNotification.identifier(for: .project, targetID: $0.id) }
-            + spaceIDs.map { AppNotification.identifier(for: .dailySummary, targetID: $0) }
+            + spaceIDs.flatMap(dailySummaryIdentifiers(for:))
         )
         let staleIdentifiers = Array(allIdentifiers.subtracting(desiredIdentifiers))
         await notificationService.cancel(staleIdentifiers)
@@ -217,29 +231,77 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         )
     }
 
-    private func makeDailySummaryNotification(spaceID: UUID, tasks: [Item], now: Date) -> AppNotification? {
-        let incompleteNoDueCount = tasks.filter { item in
-            item.spaceID == spaceID
-                && item.isArchived == false
-                && item.dueAt == nil
-                && item.status != .completed
-                && item.completedAt == nil
-        }.count
+    private func makeDailySummaryNotifications(
+        spaceID: UUID,
+        tasks: [Item],
+        now: Date
+    ) -> [AppNotification] {
+        [
+            makeDailySummaryNotification(
+                kind: .morning,
+                spaceID: spaceID,
+                tasks: tasks,
+                now: now
+            ),
+            makeDailySummaryNotification(
+                kind: .evening,
+                spaceID: spaceID,
+                tasks: tasks,
+                now: now
+            )
+        ]
+    }
 
-        guard incompleteNoDueCount > 0 else { return nil }
-        guard let scheduledAt = nextDailySummaryDate(now: now) else { return nil }
+    private func makeDailySummaryNotification(
+        kind: DailySummaryKind,
+        spaceID: UUID,
+        tasks: [Item],
+        now: Date
+    ) -> AppNotification {
+        let scheduledAt = nextDailySummaryDate(hour: kind.hour, now: now)
+        let summary = dailyTaskSummary(
+            spaceID: spaceID,
+            tasks: tasks,
+            referenceDate: scheduledAt
+        )
 
         return AppNotification(
             id: UUID(),
             spaceID: spaceID,
             targetID: spaceID,
-            targetType: .dailySummary,
+            targetType: kind.targetType,
             channel: .localNotification,
             status: .scheduled,
-            title: "今天还有 \(incompleteNoDueCount) 件事没完成",
-            body: "打开 Together 收尾没有到期时间的待办",
+            title: kind.title(remainingCount: summary.remainingCount),
+            body: kind.body(
+                remainingCount: summary.remainingCount,
+                overdueCount: summary.overdueCount
+            ),
             scheduledAt: scheduledAt,
-            deliveredAt: nil
+            deliveredAt: nil,
+            recurrence: .daily
+        )
+    }
+
+    private func dailyTaskSummary(
+        spaceID: UUID,
+        tasks: [Item],
+        referenceDate: Date
+    ) -> (remainingCount: Int, overdueCount: Int) {
+        let remaining = tasks.filter { item in
+            item.spaceID == spaceID
+                && item.isArchived == false
+                && item.status != .completed
+                && item.isCompleted(on: referenceDate, calendar: calendar) == false
+                && item.appearsOnHome(
+                    for: referenceDate,
+                    includeOverdue: true,
+                    calendar: calendar
+                )
+        }
+        return (
+            remaining.count,
+            remaining.filter { $0.isOverdue(on: referenceDate, calendar: calendar) }.count
         )
     }
 
@@ -276,16 +338,62 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         return nil
     }
 
-    private func nextDailySummaryDate(now: Date) -> Date? {
-        let todaySummary = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now)
+    private func nextDailySummaryDate(hour: Int, now: Date) -> Date {
+        let todaySummary = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now)
         if let todaySummary, todaySummary > now {
             return todaySummary
         }
 
-        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) else {
-            return nil
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+    }
+
+    private func dailySummaryIdentifiers(for spaceID: UUID) -> [String] {
+        [
+            AppNotification.identifier(for: .dailySummary, targetID: spaceID),
+            AppNotification.identifier(for: .dailyMorningSummary, targetID: spaceID),
+            AppNotification.identifier(for: .dailyEveningSummary, targetID: spaceID)
+        ]
+    }
+
+    private enum DailySummaryKind {
+        case morning
+        case evening
+
+        var hour: Int {
+            switch self {
+            case .morning: 9
+            case .evening: 18
+            }
         }
-        return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: tomorrow)
+
+        var targetType: ReminderTargetType {
+            switch self {
+            case .morning: .dailyMorningSummary
+            case .evening: .dailyEveningSummary
+            }
+        }
+
+        func title(remainingCount: Int) -> String {
+            switch (self, remainingCount) {
+            case (.morning, 0): "今天没有待完成任务"
+            case (.morning, _): "今天有 \(remainingCount) 项任务需要完成"
+            case (.evening, 0): "今天的任务已全部完成"
+            case (.evening, _): "今天还有 \(remainingCount) 项任务没有完成"
+            }
+        }
+
+        func body(remainingCount: Int, overdueCount: Int) -> String {
+            if overdueCount > 0 {
+                return "其中 \(overdueCount) 项已逾期，打开 Together 查看"
+            }
+            return switch (self, remainingCount) {
+            case (.morning, 0): "轻松开始今天"
+            case (.morning, _): "打开 Together，开始今天的安排"
+            case (.evening, 0): "辛苦了，明天继续"
+            case (.evening, _): "打开 Together，查看今天剩余的待办"
+            }
+        }
     }
 
     private func normalizedScheduledDate(_ scheduledAt: Date, now: Date) -> Date? {

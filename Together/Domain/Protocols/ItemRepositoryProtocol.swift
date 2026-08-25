@@ -63,6 +63,15 @@ protocol ItemRepositoryProtocol: Sendable {
     func restoreArchivedItem(itemID: UUID) async throws -> Item
     func fetchItem(itemID: UUID) async throws -> Item?
     func fetchOccurrenceCompletions(itemIDs: [UUID]) async throws -> [UUID: [ItemOccurrenceCompletion]]
+    /// 将历史未完成普通任务中缺失的计划日期归一化到指定日期。
+    /// 这是数据兼容迁移，不应生成任务生命周期事件。
+    func normalizeMissingTaskDates(spaceID: UUID?, referenceDate: Date) async throws -> Int
+    func fetchTaskLifecycleReview(itemID: UUID) async throws -> TaskLifecycleReview
+    func fetchPlanningReview(
+        spaceID: UUID?,
+        range: PlanningReviewRange,
+        referenceDate: Date
+    ) async throws -> PlanningReviewSnapshot
     func isCompleted(itemID: UUID, on referenceDate: Date) async throws -> Bool
     func markCompleted(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
     func markIncomplete(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
@@ -115,5 +124,29 @@ extension ItemRepositoryProtocol {
 
     func markIncomplete(itemID: UUID, actorID: UUID) async throws -> Item {
         try await markIncomplete(itemID: itemID, actorID: actorID, referenceDate: .now)
+    }
+
+    func fetchTaskLifecycleReview(itemID: UUID) async throws -> TaskLifecycleReview {
+        guard let item = try await fetchItem(itemID: itemID) else {
+            throw RepositoryError.notFound
+        }
+        return TaskLifecycleReview(
+            taskID: item.id,
+            title: item.title,
+            createdAt: item.createdAt,
+            completedAt: item.completedAt,
+            currentDueAt: item.dueAt,
+            currentHasExplicitTime: item.hasExplicitTime,
+            historyCoverage: .sinceFeatureUpdate,
+            events: []
+        )
+    }
+
+    func fetchPlanningReview(
+        spaceID: UUID?,
+        range: PlanningReviewRange,
+        referenceDate: Date
+    ) async throws -> PlanningReviewSnapshot {
+        .empty(range: range, referenceDate: referenceDate)
     }
 }
