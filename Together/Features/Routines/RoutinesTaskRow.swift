@@ -55,7 +55,6 @@ struct RoutinesTaskRow: View {
     let expansionMotion: TaskExpansionMotion
     let cascadeRowCount: Int
     var isCreationDraft = false
-    var deletionVisualState: TaskDeletionVisualState? = nil
     var creationFocusRequestRevision: UInt = 0
     var creationFocusDismissalRevision: UInt = 0
     var creationCommitRequestRevision: UInt = 0
@@ -131,7 +130,6 @@ struct RoutinesTaskRow: View {
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
-        .accessibilityHidden(deletionVisualState != nil)
         .onAppear {
             titleDraft = draftTitle
             notesDraft = visibleNotes
@@ -225,15 +223,12 @@ struct RoutinesTaskRow: View {
             completionButton
                 .padding(.horizontal, -8)
                 .padding(.vertical, -10)
-                .scaleEffect(resolvedDeletionVisualState.controlScale)
-                .opacity(resolvedDeletionVisualState.controlOpacity)
                 .alignmentGuide(.taskTitleCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }
 
             ZStack(alignment: .topLeading) {
                 stableTitleStack
-                    .taskDeletionTypographyEffect(resolvedDeletionVisualState)
 
                 if isDetailPresented == false, isCompleted == false {
                     Button {
@@ -256,10 +251,6 @@ struct RoutinesTaskRow: View {
             x: expansionMotion.identityOffsetX,
             y: expansionMotion.identityOffsetY
         )
-    }
-
-    private var resolvedDeletionVisualState: TaskDeletionVisualState {
-        deletionVisualState ?? .idle(taskID: task.id)
     }
 
     private var completionButton: some View {

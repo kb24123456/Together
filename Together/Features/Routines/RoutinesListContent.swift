@@ -100,7 +100,6 @@ struct RoutinesListContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.scenePhase) private var scenePhase
     @Namespace private var cycleIndicatorNamespace
     @State private var frozenTasks: [PeriodicTask]?
     @State private var frozenTaskStreamPresentation: RoutinesViewModel.TaskStreamPresentation?
@@ -109,7 +108,7 @@ struct RoutinesListContent: View {
     @State private var frozenSelectedCycle: PeriodicCycle?
     @State private var modeTaskRowsPresented = false
     @State private var revealedTaskCycle: PeriodicCycle?
-    @State private var taskDeletionSession = TaskDeletionAnimationSession()
+    @State private var deletingTaskIDs: Set<UUID> = []
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let rowTopInset = TaskMorphListSpacing.compactExternalInset
@@ -217,19 +216,10 @@ struct RoutinesListContent: View {
         }
         .onChange(of: isPresented) { _, newValue in
             guard newValue == false else { return }
-            taskDeletionSession.interrupt()
             viewModel.clearTemporaryCycleIfNeeded()
         }
         .onDisappear {
-            taskDeletionSession.interrupt()
             viewModel.clearTemporaryCycleIfNeeded()
-        }
-        .onChange(of: scenePhase) { _, phase in
-            guard phase != .active else { return }
-            taskDeletionSession.interrupt()
-        }
-        .onChange(of: reduceMotion) { _, _ in
-            taskDeletionSession.interrupt()
         }
         .onChange(of: morphSession.phase) { _, phase in
             switch phase {
@@ -616,9 +606,6 @@ struct RoutinesListContent: View {
         let isActiveMorph = morphSession.isActive(.periodic, id: task.id)
         let isCreationDraft = morphSession.isCreationPresentation(.periodic, id: task.id)
         let isCreationRevealTarget = morphSession.isCreationListRevealTarget(.periodic, id: task.id)
-        let deletionVisualState = taskDeletionSession.activeTaskID == task.id
-            ? taskDeletionSession.visualState(for: task.id)
-            : nil
         return TaskMorphContainer(
             state: isActiveMorph ? morphSession.visualState : .compact,
             isActive: isActiveMorph,
@@ -659,7 +646,6 @@ struct RoutinesListContent: View {
                     motion: isActiveMorph ? motion : .compact,
                     cascadeRowCount: cascadeRowCount,
                     isCreationDraft: isCreationDraft,
-                    deletionVisualState: deletionVisualState,
                     creationValidationMessage: showsTitleValidationError
                         ? morphSession.errorMessage
                         : nil,
@@ -762,8 +748,7 @@ struct RoutinesListContent: View {
         }
         .modifier(
             RoutineSwipeActionsModifier(
-                isEnabled: morphSession.isActive == false
-                    && taskDeletionSession.isBusy == false,
+                isEnabled: morphSession.isActive == false,
                 canDelete: viewModel.canDeletePeriodicTask(task),
                 onDefer: {
                     HomeInteractionFeedback.selection()
@@ -772,7 +757,7 @@ struct RoutinesListContent: View {
                     }
                 },
                 onDelete: {
-                    requestTaskDeletion(task)
+                    requestTaskDeletion(task.id)
                 }
             )
         )
@@ -783,8 +768,7 @@ struct RoutinesListContent: View {
             value: taskRowsPresented
         )
         .contextMenu {
-            if morphSession.isActive == false,
-               taskDeletionSession.isBusy == false {
+            if morphSession.isActive == false {
                 if viewModel.isCompleted(task) == false,
                    viewModel.canEditPeriodicTask(task) {
                     Button {
@@ -805,21 +789,18 @@ struct RoutinesListContent: View {
                     }
 
                     Button(role: .destructive) {
-                        requestTaskDeletion(task)
+                        requestTaskDeletion(task.id)
                     } label: {
                         Label("删除", systemImage: "trash")
                     }
                 }
             }
         }
-        .allowsHitTesting(taskDeletionSession.isBusy == false)
-        .onDisappear {
-            guard taskDeletionSession.activeTaskID == task.id,
-                  taskDeletionSession.phase != .collapsing
-            else { return }
-            taskDeletionSession.interrupt()
-        }
-        .zIndex(isActiveMorph ? 2 : (deletionVisualState == nil ? 0 : 1))
+        .applyTaskRemovalTransition(
+            isDeleting: deletingTaskIDs.contains(task.id),
+            transition: taskRemovalTransition
+        )
+        .zIndex(isActiveMorph ? 2 : 0)
     }
 
     private func routineTaskRow(
@@ -830,7 +811,6 @@ struct RoutinesListContent: View {
         motion: TaskExpansionMotion,
         cascadeRowCount: Int,
         isCreationDraft: Bool,
-        deletionVisualState: TaskDeletionVisualState?,
         creationValidationMessage: String?,
         scrollProxy: ScrollViewProxy
     ) -> some View {
@@ -845,7 +825,6 @@ struct RoutinesListContent: View {
             expansionMotion: motion,
             cascadeRowCount: cascadeRowCount,
             isCreationDraft: isCreationDraft,
-            deletionVisualState: deletionVisualState,
             creationFocusRequestRevision: morphSession.creationFocusRequestRevision,
             creationFocusDismissalRevision: morphSession.creationFocusDismissalRevision,
             creationCommitRequestRevision: morphSession.creationCommitRequestRevision,
@@ -880,19 +859,28 @@ struct RoutinesListContent: View {
         )
     }
 
-    private func requestTaskDeletion(_ task: PeriodicTask) {
-        guard taskDeletionSession.isBusy == false else { return }
+    private func requestTaskDeletion(_ taskID: UUID) {
+        guard deletingTaskIDs.insert(taskID).inserted else { return }
         HomeInteractionFeedback.delete()
-        taskDeletionSession.requestDeletion(
-            taskID: task.id,
-            environment: .current(reduceMotion: reduceMotion),
-            persist: {
-                await viewModel.persistTaskDeletion(taskID: task.id)
-            },
-            finalize: {
-                viewModel.finalizeTaskDeletionPresentation(taskID: task.id)
-            }
-        )
+        Task { @MainActor in
+            defer { deletingTaskIDs.remove(taskID) }
+            await viewModel.deleteTask(
+                taskID: taskID,
+                removalAnimation: taskRemovalAnimation
+            )
+        }
+    }
+
+    private var taskRemovalAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .smooth(duration: 0.20, extraBounce: 0)
+    }
+
+    private var taskRemovalTransition: AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .opacity.combined(with: .move(edge: .top))
     }
 
     private func stageAndExpandMountedCreationDraft(
@@ -1194,6 +1182,20 @@ private struct RoutineSwipeActionsModifier: ViewModifier {
                 }
         } else {
             content
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyTaskRemovalTransition(
+        isDeleting: Bool,
+        transition: AnyTransition
+    ) -> some View {
+        if isDeleting {
+            self.transition(transition)
+        } else {
+            self
         }
     }
 }

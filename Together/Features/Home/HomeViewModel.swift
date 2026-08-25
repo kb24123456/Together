@@ -911,16 +911,14 @@ final class HomeViewModel {
         onConvertToProject?(title)
     }
 
-    func deleteItem(_ itemID: UUID) async {
-        guard await persistItemDeletion(itemID) else { return }
-        finalizeItemDeletionPresentation(itemID)
-    }
-
-    func persistItemDeletion(_ itemID: UUID) async -> Bool {
+    func deleteItem(
+        _ itemID: UUID,
+        removalAnimation: Animation? = nil
+    ) async {
         guard
             let spaceID = sessionStore.currentSpace?.id,
             let actorID = sessionStore.currentUser?.id
-        else { return false }
+        else { return }
 
         do {
             try await taskApplicationService.deleteTask(
@@ -928,21 +926,24 @@ final class HomeViewModel {
                 taskID: itemID,
                 actorID: actorID
             )
+            let removeFromPresentation = {
+                self.items.removeAll { $0.id == itemID }
+                if self.selectedItemID == itemID {
+                    self.dismissItemDetail()
+                }
+                if self.overdueEntryCount == 0 {
+                    self.isOverdueSheetPresented = false
+                }
+            }
+            if let removalAnimation {
+                withAnimation(removalAnimation, removeFromPresentation)
+            } else {
+                removeFromPresentation()
+            }
             emitTaskMutation(spaceID: spaceID)
-            return true
         } catch {
             presentOperationError("任务删除失败，请重试。")
-            return false
-        }
-    }
-
-    func finalizeItemDeletionPresentation(_ itemID: UUID) {
-        items.removeAll { $0.id == itemID }
-        if selectedItemID == itemID {
-            dismissItemDetail()
-        }
-        if overdueEntryCount == 0 {
-            isOverdueSheetPresented = false
+            return
         }
     }
 

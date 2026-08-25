@@ -1092,31 +1092,31 @@ final class RoutinesViewModel {
         }
     }
 
-    func deleteTask(taskID: UUID) async {
-        guard await persistTaskDeletion(taskID: taskID) else { return }
-        finalizeTaskDeletionPresentation(taskID: taskID)
-    }
-
-    func persistTaskDeletion(taskID: UUID) async -> Bool {
+    func deleteTask(
+        taskID: UUID,
+        removalAnimation: Animation? = nil
+    ) async {
         guard let spaceID = sessionStore.currentSpace?.id,
-              let actorID = sessionStore.currentUser?.id else { return false }
+              let actorID = sessionStore.currentUser?.id else { return }
         do {
             try await periodicTaskApplicationService.deleteTask(in: spaceID, taskID: taskID, actorID: actorID)
-            return true
+            let removeFromPresentation = {
+                self.tasks.removeAll { $0.id == taskID }
+                if self.expandedTaskID == taskID {
+                    self.expandedTaskID = nil
+                    self.detailDraft = nil
+                }
+            }
+            if let removalAnimation {
+                withAnimation(removalAnimation, removeFromPresentation)
+            } else {
+                removeFromPresentation()
+            }
+            cacheCurrentTasks()
         } catch {
             operationErrorMessage = "定期任务删除失败，请重试。"
             await load()
-            return false
         }
-    }
-
-    func finalizeTaskDeletionPresentation(taskID: UUID) {
-        tasks.removeAll { $0.id == taskID }
-        if expandedTaskID == taskID {
-            expandedTaskID = nil
-            detailDraft = nil
-        }
-        cacheCurrentTasks()
     }
 
     func refreshReferenceDate() {

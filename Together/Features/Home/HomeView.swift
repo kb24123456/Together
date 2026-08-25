@@ -38,7 +38,6 @@ struct HomeView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.scenePhase) private var scenePhase
     @Bindable var viewModel: HomeViewModel
     @Bindable var morphSession: HomeMorphSession
     @Bindable var projectsViewModel: ProjectsViewModel
@@ -61,7 +60,7 @@ struct HomeView: View {
     @State private var timelineDateBarSelection = HomeTimelineDateBarSelection()
     @State private var timelineDateBarBoundaryMaxY: CGFloat = 0
     @State private var modeTaskRowsPresented = true
-    @State private var taskDeletionSession = TaskDeletionAnimationSession()
+    @State private var deletingTaskIDs: Set<UUID> = []
 
     private let timelineRowHorizontalInset: CGFloat = AppTheme.spacing.xl
     private let timelineRowVerticalInset = TaskMorphListSpacing.compactExternalInset
@@ -129,20 +128,6 @@ struct HomeView: View {
         }
         .onAppear {
             isCompletedSectionVisible = true
-        }
-        .onDisappear {
-            taskDeletionSession.interrupt()
-        }
-        .onChange(of: scenePhase) { _, phase in
-            guard phase != .active else { return }
-            taskDeletionSession.interrupt()
-        }
-        .onChange(of: reduceMotion) { _, _ in
-            taskDeletionSession.interrupt()
-        }
-        .onChange(of: isRoutinesModePresented) { _, isPresented in
-            guard isPresented else { return }
-            taskDeletionSession.interrupt()
         }
         .onChange(of: appContext.startupRestorePresentationState) { oldValue, newValue in
             guard oldValue.isVisible, newValue == .idle else { return }
@@ -1044,9 +1029,6 @@ struct HomeView: View {
             let isActiveMorph = morphSession.isActive(.todo, id: entry.itemID)
             let isCreationDraft = morphSession.isCreationPresentation(.todo, id: entry.itemID)
             let isCreationRevealTarget = morphSession.isCreationListRevealTarget(.todo, id: entry.itemID)
-            let deletionVisualState = taskDeletionSession.activeTaskID == entry.itemID
-                ? taskDeletionSession.visualState(for: entry.itemID)
-                : nil
             TaskMorphContainer(
                 state: isActiveMorph ? morphSession.visualState : .compact,
                 isActive: isActiveMorph,
@@ -1086,7 +1068,6 @@ struct HomeView: View {
                         isDetailExpanded: isExpanded,
                         motion: isActiveMorph ? motion : .compact,
                         isCreationDraft: isCreationDraft,
-                        deletionVisualState: deletionVisualState,
                         creationValidationMessage: showsTitleValidationError
                             ? morphSession.errorMessage
                             : nil,
@@ -1190,8 +1171,7 @@ struct HomeView: View {
             .modifier(
                 TimelineSwipeActionsModifier(
                     isEnabled: entry.isCompleted == false
-                        && morphSession.isActive == false
-                        && taskDeletionSession.isBusy == false,
+                        && morphSession.isActive == false,
                     canDelete: viewModel.canDeleteItem(entry.itemID),
                     snoozeTitle: viewModel.primarySnoozeTitle,
                     onSnooze: {
@@ -1205,8 +1185,7 @@ struct HomeView: View {
             )
             .contextMenu {
                 if entry.isCompleted == false,
-                   morphSession.isActive == false,
-                   taskDeletionSession.isBusy == false {
+                   morphSession.isActive == false {
                     Button {
                         HomeInteractionFeedback.selection()
                         Task { await viewModel.snoozeItemToTomorrow(entry.itemID) }
@@ -1271,7 +1250,12 @@ struct HomeView: View {
                     viewModel.completeInsertionAnimation(for: entry.itemID)
                 }
             )
-            .applyTransition(rowTransition)
+            .applyTransition(
+                rowTransition,
+                removal: deletingTaskIDs.contains(entry.itemID)
+                    ? taskRemovalTransition
+                    : .opacity
+            )
             .applyCompletedSectionVisibility(
                 sectionVisibility.map { $0.rowVisibility(for: index) }
             )
@@ -1283,14 +1267,7 @@ struct HomeView: View {
                 ),
                 value: modeTaskRowsPresented
             )
-            .allowsHitTesting(taskDeletionSession.isBusy == false)
-            .onDisappear {
-                guard taskDeletionSession.activeTaskID == entry.itemID,
-                      taskDeletionSession.phase != .collapsing
-                else { return }
-                taskDeletionSession.interrupt()
-            }
-            .zIndex(isActiveMorph ? 2 : (deletionVisualState == nil ? 0 : 1))
+            .zIndex(isActiveMorph ? 2 : 0)
         }
     }
 
@@ -1300,7 +1277,6 @@ struct HomeView: View {
         isDetailExpanded: Bool,
         motion: TaskExpansionMotion,
         isCreationDraft: Bool,
-        deletionVisualState: TaskDeletionVisualState?,
         creationValidationMessage: String?,
         scrollProxy: ScrollViewProxy
     ) -> some View {
@@ -1317,7 +1293,6 @@ struct HomeView: View {
             isEditingNotes: false,
             motion: motion,
             isCreationDraft: isCreationDraft,
-            deletionVisualState: deletionVisualState,
             creationFocusRequestRevision: morphSession.creationFocusRequestRevision,
             creationFocusDismissalRevision: morphSession.creationFocusDismissalRevision,
             creationCommitRequestRevision: morphSession.creationCommitRequestRevision,
@@ -1356,18 +1331,27 @@ struct HomeView: View {
     }
 
     private func requestTaskDeletion(_ itemID: UUID) {
-        guard taskDeletionSession.isBusy == false else { return }
+        guard deletingTaskIDs.insert(itemID).inserted else { return }
         HomeInteractionFeedback.delete()
-        taskDeletionSession.requestDeletion(
-            taskID: itemID,
-            environment: .current(reduceMotion: reduceMotion),
-            persist: {
-                await viewModel.persistItemDeletion(itemID)
-            },
-            finalize: {
-                viewModel.finalizeItemDeletionPresentation(itemID)
-            }
-        )
+        Task { @MainActor in
+            defer { deletingTaskIDs.remove(itemID) }
+            await viewModel.deleteItem(
+                itemID,
+                removalAnimation: taskRemovalAnimation
+            )
+        }
+    }
+
+    private var taskRemovalAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .smooth(duration: 0.20, extraBounce: 0)
+    }
+
+    private var taskRemovalTransition: AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .opacity.combined(with: .move(edge: .top))
     }
 
     private var timelineSection: some View {
@@ -1987,7 +1971,6 @@ struct HomeTimelineRow: View {
     let isEditingNotes: Bool
     let motion: TaskExpansionMotion
     var isCreationDraft = false
-    var deletionVisualState: TaskDeletionVisualState? = nil
     var creationFocusRequestRevision: UInt = 0
     var creationFocusDismissalRevision: UInt = 0
     var creationCommitRequestRevision: UInt = 0
@@ -2036,14 +2019,11 @@ struct HomeTimelineRow: View {
                 .contentShape(Rectangle())
                 .disabled(isCreationDraft)
                 .accessibilityHidden(isCreationDraft)
-                .scaleEffect(resolvedDeletionVisualState.controlScale)
-                .opacity(resolvedDeletionVisualState.controlOpacity)
             } content: {
                 VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
                     titleContent
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .taskDeletionTypographyEffect(resolvedDeletionVisualState)
             }
             .scaleEffect(motion.identityScale, anchor: .topLeading)
             .offset(x: motion.identityOffsetX, y: motion.identityOffsetY)
@@ -2051,7 +2031,6 @@ struct HomeTimelineRow: View {
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
         .opacity(rowOpacity)
-        .accessibilityHidden(deletionVisualState != nil)
         .onAppear {
             titleDraft = expandedTitle
             notesDraft = expandedNotes ?? ""
@@ -2151,10 +2130,6 @@ struct HomeTimelineRow: View {
                 isTitleAccessibilityFocused = true
             }
         }
-    }
-
-    private var resolvedDeletionVisualState: TaskDeletionVisualState {
-        deletionVisualState ?? .idle(taskID: entry.itemID)
     }
 
     private var shouldPlayCompletionAnimation: Bool {
@@ -3263,9 +3238,12 @@ private struct CompletedRowCascadeModifier: ViewModifier {
 
 private extension View {
     @ViewBuilder
-    func applyTransition(_ transition: AnyTransition?) -> some View {
+    func applyTransition(
+        _ transition: AnyTransition?,
+        removal: AnyTransition = .opacity
+    ) -> some View {
         if let transition {
-            self.transition(.asymmetric(insertion: transition, removal: .opacity))
+            self.transition(.asymmetric(insertion: transition, removal: removal))
         } else {
             self
         }
