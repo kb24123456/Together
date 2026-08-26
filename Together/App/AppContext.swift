@@ -27,7 +27,6 @@ final class AppContext {
     let appearanceManager: AppearanceManager
     let ambientBackgroundSettings: AmbientBackgroundSettings
     let homeViewModel: HomeViewModel
-    let projectsViewModel: ProjectsViewModel
     let profileViewModel: ProfileViewModel
     let routinesViewModel: RoutinesViewModel
 
@@ -84,10 +83,6 @@ final class AppContext {
             sessionStore: sessionStore,
             taskApplicationService: container.taskApplicationService,
             itemRepository: container.itemRepository
-        )
-        self.projectsViewModel = ProjectsViewModel(
-            sessionStore: sessionStore,
-            projectRepository: container.projectRepository
         )
         self.routinesViewModel = RoutinesViewModel(
             sessionStore: sessionStore,
@@ -415,11 +410,9 @@ final class AppContext {
             guard let self else { return }
             router.currentSurface = .today
             routinesViewModel.restoreCachedTasksForCurrentSpace()
-            projectsViewModel.projects = []
             Task {
                 await self.homeViewModel.reload(reason: .sync)
                 await self.routinesViewModel.reload()
-                await self.projectsViewModel.load()
             }
         }
         homeViewModel.onRetryExternalTaskRoute = { [weak self] taskID in
@@ -485,7 +478,6 @@ final class AppContext {
             let appliedRevision = reloadAfterSyncRevision
             await normalizeMissingTaskDatesIfNeeded(referenceDate: .now)
             await homeViewModel.reload(reason: .sync)
-            await projectsViewModel.load()
             await routinesViewModel.reload()
             await refreshTodayWidgetSnapshot()
             await reconcileFollowActivity(reason: .dataChanged)

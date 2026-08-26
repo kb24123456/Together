@@ -84,13 +84,10 @@
 - 摘要内容在 App 启动、回到前台、任务变更、设置变更与 CloudKit 成功导入后重算；时区和自然日边界使用注入的 `Calendar`，禁止固定加减 24 小时。重复通知在 App 长期未运行时只能保留最近一次重算内容，这是 iOS 本地通知无法在触发瞬间读取 SwiftData 的平台边界，不得声称为服务端实时统计。
 - “任务提醒”关闭时同时取消任务提醒、早间摘要、晚间总结与旧摘要；“每日摘要”关闭后，后续任务写入不得重新安排摘要。通知权限只在用户主动开启相关功能时按需请求；拒绝后由 Profile 就地进入系统通知设置。
 
-### 3.7 App Intents 与系统快捷创建
-- 系统快捷创建只在主 App target 中提供一个薄层 `AppIntent` 与一个 `AppShortcutsProvider`。意图使用当前 SDK 的 `supportedModes = .foreground(.immediate)`，不使用已弃用的 `openAppWhenRun`，也不新增 App Intents extension、`AppEntity`、Core Spotlight 内容索引或后台数据库写入。
-- `perform()` 只能规范化可选单行标题并把不可变请求交给主线程内的单一内存 handoff；不得直接访问 SwiftData、CloudKit、repository、Widget snapshot 或 `HomeMorphSession`。系统层与 App UI 的交接只能经过一个明确的根路由入口。
-- handoff 必须支持 App 冷启动和应用锁：请求在当前进程内按 FIFO 暂存，只有 `AppContext` ready、应用锁解除且根路由没有尚未接收的 composer 请求时才消费。请求一旦交给 `AppRouter`，后续创建、验证、保存与失败恢复全部复用现有列表内 Draft 和 `HomeMorphSession`。
-- `AppRouter` 的快捷创建请求必须带唯一请求身份，不能只观察 `.newTask` 枚举值，否则连续两个同类型请求可能因值未变化而丢失。任一时刻只允许一个请求进入现有 Morph 状态机；当前保存失败时不得消费或覆盖后续请求。
-- 标题规范化必须是可单测的纯函数：去除首尾空白，将连续 Unicode 空白与换行合并为一个普通空格，空结果转为 `nil`。不得做自然语言日期识别、任务拆分或 Apple 智能推断。
-- App Shortcut 标题、说明、参数、短标题和中文建议短语使用 `LocalizedStringResource`；每条 Siri / Spotlight phrase 必须包含 `\(.applicationName)`，并保持短、动词优先、可直接理解。
+### 3.7 App Intents 边界
+- 当前不注册用于新建任务的 `AppIntent`、`AppShortcutsProvider`、Siri / Spotlight phrase 或进程内 handoff 队列。应用内创建继续由 `AppRouter`、列表内 Draft 与 `HomeMorphSession` 负责；`together://new-task` 仍作为 Widget 等现有入口的前台深链。
+- Widget 完成与 Live Activity 完成仍保留各自的 `AppIntent`，并继续遵守统一应用层完成语义、最小共享事务、失败关闭和回到 App 的既有约束。
+- 未经新的产品决策与完整系统入口验收，不得重新增加系统级创建 Shortcut、`AppEntity`、Core Spotlight 内容索引或后台数据库写入。
 
 ## 4. 架构原则
 - 业务逻辑与 View 分离。

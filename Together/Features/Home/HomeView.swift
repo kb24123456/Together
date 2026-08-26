@@ -40,9 +40,7 @@ struct HomeView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Bindable var viewModel: HomeViewModel
     @Bindable var morphSession: HomeMorphSession
-    @Bindable var projectsViewModel: ProjectsViewModel
     @Bindable var routinesViewModel: RoutinesViewModel
-    let isProjectModePresented: Bool
     let isRoutinesModePresented: Bool
     var isRootSurfaceVisible = true
     let onCreateTaskTapped: () -> Void
@@ -264,13 +262,6 @@ struct HomeView: View {
                 .allowsHitTesting(!isOverlayModeActive)
                 .accessibilityHidden(isOverlayModeActive)
                 .animation(taskSurfaceModeAnimation, value: isRoutinesModePresented)
-                .animation(modeFadeAnimation, value: isProjectModePresented)
-
-            if isProjectModePresented {
-                projectsModeContent
-                    .transition(.opacity.combined(with: .offset(y: 10)))
-                    .allowsHitTesting(true)
-            }
 
             if isRoutinesModePresented {
                 routinesModeContent
@@ -278,7 +269,6 @@ struct HomeView: View {
                     .allowsHitTesting(true)
             }
         }
-        .animation(projectModeAnimation, value: isProjectModePresented)
     }
 
     private var tasksContent: some View {
@@ -600,17 +590,6 @@ struct HomeView: View {
             subtaskCount: entry.subtasks.count,
             note: entry.notes,
             includesCreationActions: includesCreationActions
-        )
-    }
-
-    private var projectsModeContent: some View {
-        ProjectsListContent(
-            viewModel: projectsViewModel,
-            style: .screen,
-            showsHeader: false,
-            isPresented: isProjectModePresented,
-            contentTopPadding: 14,
-            contentBottomPadding: 104
         )
     }
 
@@ -1535,14 +1514,8 @@ struct HomeView: View {
         return 2
     }
 
-    private var projectModeAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: 0.2)
-            : .spring(response: 0.4, dampingFraction: 0.86)
-    }
-
     private var isOverlayModeActive: Bool {
-        isProjectModePresented || isRoutinesModePresented
+        isRoutinesModePresented
     }
 
     private var timelineTransition: AnyTransition {
@@ -1596,9 +1569,7 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
     return HomeView(
         viewModel: context.homeViewModel,
         morphSession: HomeMorphSession(),
-        projectsViewModel: context.projectsViewModel,
         routinesViewModel: context.routinesViewModel,
-        isProjectModePresented: false,
         isRoutinesModePresented: false,
         onCreateTaskTapped: {},
         onCompletedHistoryTapped: { _ in }

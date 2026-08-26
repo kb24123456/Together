@@ -253,17 +253,6 @@ enum AppTheme {
     }
 }
 
-struct AppColorComponents: Sendable {
-    let red: Double
-    let green: Double
-    let blue: Double
-    var opacity: Double = 1
-
-    var color: Color {
-        Color(red: red, green: green, blue: blue, opacity: opacity)
-    }
-}
-
 // MARK: - Adaptive Color Helper
 
 extension Color {

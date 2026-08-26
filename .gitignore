@@ -4,6 +4,8 @@
 # Xcode
 build/
 DerivedData/
+.deriveddata/
+Together.xcodeproj/-Xcc/
 *.xcuserstate
 xcuserdata/
 *.xcscmblueprint

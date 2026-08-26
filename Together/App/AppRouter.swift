@@ -17,10 +17,6 @@ final class AppRouter {
     /// Consumed (reset to false) after being read.
     var shouldAutoSelectPendingCycle = false
 
-    var isProjectModePresented: Bool {
-        currentSurface == .projects
-    }
-
     var isRoutinesModePresented: Bool {
         currentSurface == .routines
     }

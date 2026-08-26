@@ -539,7 +539,7 @@ struct TogetherTests {
 
         await appContext.restorePersistedUserProfileIfNeeded()
 
-        let mergeCallCount = await profileRepository.mergedUserCallCount
+        let mergeCallCount = profileRepository.mergedUserCallCount
         #expect(appContext.sessionStore.currentUser?.avatarAsset == .photo(fileName: "asset-restored-avatar.jpg"))
         #expect(mergeCallCount == 1)
     }
@@ -556,7 +556,7 @@ struct TogetherTests {
         let convergenceTask = await appContext.handleSuccessfulCloudImport()
         await convergenceTask.value
 
-        let mergeCallCount = await profileRepository.mergedUserCallCount
+        let mergeCallCount = profileRepository.mergedUserCallCount
         #expect(mergeCallCount == 3)
     }
 
@@ -3591,27 +3591,6 @@ struct TogetherTests {
         #expect(dates.last == calendar.date(from: DateComponents(year: 2026, month: 8, day: 8)))
     }
 
-    @Test func customTimePickerScaleWrapsAndSnapsInFiveMinuteIntervals() throws {
-        let calendar = gregorianCalendar()
-        let date = try #require(
-            calendar.date(from: DateComponents(year: 2026, month: 8, day: 11, hour: 23, minute: 58))
-        )
-
-        #expect(CustomTimePickerScale.slot(for: date, calendar: calendar) == 0)
-        #expect(CustomTimePickerScale.wrappedSlot(-1) == CustomTimePickerScale.slotCount - 1)
-
-        let snapped = CustomTimePickerScale.date(for: -1, on: date, calendar: calendar)
-        #expect(calendar.component(.hour, from: snapped) == 23)
-        #expect(calendar.component(.minute, from: snapped) == 55)
-        #expect(
-            CustomTimePickerScale.projectedStepDelta(
-                translation: -20,
-                predictedTranslation: -500,
-                tickSpacing: 14
-            ) == CustomTimePickerScale.maximumProjectedStepDelta
-        )
-    }
-
     @Test func unifiedExistingTaskSchedulePreservesReminderLeadAndClearsReminderWithTime() async throws {
         let calendar = Calendar.current
         let dueAt = try #require(
@@ -4154,7 +4133,8 @@ private func makeOCRAppContext(
     )
 }
 
-private actor StartupProfileRestoreRepository: UserProfileRepositoryProtocol {
+@MainActor
+private final class StartupProfileRestoreRepository: UserProfileRepositoryProtocol {
     private let restoredUser: User
     private(set) var mergedUserCallCount = 0
 

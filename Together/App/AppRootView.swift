@@ -32,7 +32,6 @@ struct HomeRootContent: View {
     @State private var frozenRootSurface: RootSurface?
     @State private var detailCollapseCompletionTask: Task<Void, Never>?
     @State private var pendingCreationDomain: TaskMorphDomain?
-    @State private var appIntentHandoffCenter = AppIntentHandoffCenter.shared
 
     private var displayedRootSurface: RootSurface {
         frozenRootSurface ?? appContext.router.currentSurface
@@ -154,13 +153,6 @@ struct HomeRootContent: View {
         .onChange(of: router.composerRequestRevision) { _, _ in
             synchronizeComposerPresentation(router: router)
         }
-        .onChange(of: appIntentHandoffCenter.taskCreationRequestRevision) { _, _ in
-            acceptNextSystemTaskCreationIfPossible(router: router)
-        }
-        .onChange(of: appContext.sessionStore.isAppLocked) { _, isLocked in
-            guard isLocked == false else { return }
-            acceptNextSystemTaskCreationIfPossible(router: router)
-        }
         .onChange(of: morphSession.phase) { _, phase in
             switch phase {
             case .active, .saving, .collapsing, .relocating:
@@ -175,13 +167,11 @@ struct HomeRootContent: View {
                     return
                 }
                 synchronizePendingRootRoutes(router: router)
-                acceptNextSystemTaskCreationIfPossible(router: router)
             }
         }
         .onAppear {
             configureMorphCallbacks()
             synchronizeComposerPresentation(router: router)
-            acceptNextSystemTaskCreationIfPossible(router: router)
         }
         .onDisappear {
             detailCollapseCompletionTask?.cancel()
@@ -202,9 +192,7 @@ struct HomeRootContent: View {
         HomeView(
             viewModel: appContext.homeViewModel,
             morphSession: morphSession,
-            projectsViewModel: appContext.projectsViewModel,
             routinesViewModel: appContext.routinesViewModel,
-            isProjectModePresented: false,
             isRoutinesModePresented: displayedRootSurface == .routines,
             isRootSurfaceVisible: isHomeSurfaceVisible,
             onCreateTaskTapped: {
@@ -214,10 +202,6 @@ struct HomeRootContent: View {
                 rootNavigationPath.append(AppRootRoute.completedHistory(filter))
             }
         )
-        .task(id: router.currentSurface) {
-            guard router.currentSurface == .projects else { return }
-            router.currentSurface = .today
-        }
     }
 
     // MARK: - Navigation toolbars
@@ -422,7 +406,7 @@ struct HomeRootContent: View {
 
     private func openContextualComposer(router: AppRouter) {
         switch displayedRootSurface {
-        case .today, .projects:
+        case .today:
             beginMorphCreation(domain: .todo)
         case .routines:
             beginMorphCreation(domain: .periodic)
@@ -488,19 +472,7 @@ struct HomeRootContent: View {
             beginMorphCreation(domain: .todo, title: title)
         case .newPeriodicTask:
             beginMorphCreation(domain: .periodic, title: title)
-        case .newProject:
-            break
         }
-        acceptNextSystemTaskCreationIfPossible(router: router)
-    }
-
-    private func acceptNextSystemTaskCreationIfPossible(router: AppRouter) {
-        guard appContext.sessionStore.isAppLocked == false,
-              router.activeComposer == nil,
-              let request = appIntentHandoffCenter.consumeNextTaskCreation()
-        else { return }
-
-        appContext.requestTaskCreation(title: request.title)
     }
 
     private func configureMorphCallbacks() {

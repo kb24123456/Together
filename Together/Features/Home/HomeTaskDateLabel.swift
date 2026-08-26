@@ -27,12 +27,6 @@ enum HomeTaskDateLabel {
     }
 }
 
-enum HomeCompletedDisplayRange {
-    static func workweek(for date: Date, calendar: Calendar = .current) -> Range<Date> {
-        CompletedTaskRange.workweek.bounds(for: date, calendar: calendar).requiredRange
-    }
-}
-
 enum CompletedTaskRange: Hashable, Sendable {
     case today
     case workweekExcludingToday
