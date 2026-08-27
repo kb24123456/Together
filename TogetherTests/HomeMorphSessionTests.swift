@@ -5,25 +5,56 @@ import Testing
 @MainActor
 @Suite("Home morph session")
 struct HomeMorphSessionTests {
+    @Test func taskCreationDestinationKeepsStableIdentityAndDomain() {
+        let todoID = UUID()
+        let periodicID = UUID()
+
+        #expect(TaskCreationDestination.todo(todoID).id == todoID)
+        #expect(TaskCreationDestination.todo(todoID).domain == .todo)
+        #expect(TaskCreationDestination.periodic(periodicID).id == periodicID)
+        #expect(TaskCreationDestination.periodic(periodicID).domain == .periodic)
+    }
+
+    @Test func taskDetailRouteKeepsStableIdentityAndUsesSettledPageGeometry() {
+        let todoID = UUID()
+        let periodicID = UUID()
+        let firstPresentationID = UUID()
+        let secondPresentationID = UUID()
+        let firstPresentation = TaskDetailPresentation(
+            id: firstPresentationID,
+            route: .todo(todoID)
+        )
+        let secondPresentation = TaskDetailPresentation(
+            id: secondPresentationID,
+            route: .todo(todoID)
+        )
+
+        #expect(TaskDetailRoute.todo(todoID).id == todoID)
+        #expect(TaskDetailRoute.todo(todoID).domain == .todo)
+        #expect(TaskDetailRoute.periodic(periodicID).id == periodicID)
+        #expect(TaskDetailRoute.periodic(periodicID).domain == .periodic)
+        #expect(firstPresentation.route == secondPresentation.route)
+        #expect(firstPresentation.id == firstPresentationID)
+        #expect(secondPresentation.id == secondPresentationID)
+        #expect(firstPresentation.id != secondPresentation.id)
+        #expect(firstPresentation.canReleaseSharedDraft(while: nil))
+        #expect(firstPresentation.canReleaseSharedDraft(while: firstPresentation))
+        #expect(firstPresentation.canReleaseSharedDraft(while: secondPresentation) == false)
+        #expect(secondPresentation.canReleaseSharedDraft(while: secondPresentation))
+        #expect(TaskExpansionMotion.navigationDetail.layoutProgress == 1)
+        #expect(TaskExpansionMotion.navigationDetail.compactHeightProgress == 0)
+        #expect(TaskExpansionMotion.navigationDetail.identityScale == 1)
+        #expect(TaskExpansionMotion.navigationDetail.identityOffsetX == 0)
+        #expect(TaskExpansionMotion.navigationDetail.identityOffsetY == 0)
+        #expect(TaskExpansionMotion.navigationDetail.isDetailSettled)
+    }
+
     @Test func inlineExpansionUsesIndependentPhysicalTracks() {
         #expect(TaskExpansionMotionTiming.expansionDuration == 0.70)
         #expect(TaskExpansionMotionTiming.identityExpansionDuration == 0.46)
         #expect(TaskExpansionMotionTiming.collapseDuration == 0.32)
         #expect(TaskExpansionMotionTiming.reducedMotionDuration == 0.22)
         #expect(TaskExpansionMotionTiming.layoutDuration == 0.46)
-        #expect(TaskCreationInputTiming.prepositionLeadDuration == 0.14)
-        #expect(TaskCreationInputTiming.prepositionDuration == 0.22)
-        #expect(TaskCreationInputTiming.saveAcknowledgementDuration == 0.44)
-        #expect(TaskCreationMountTiming.fadeDuration == 0.16)
-        #expect(TaskCreationMountTiming.layoutDuration == 0.22)
-        #expect(TaskCreationMountTiming.reducedMotionFadeDuration == 0.12)
-        #expect(TaskCreationMountTiming.reducedMotionLayoutDuration == 0.12)
-        #expect(TaskCreationMountTiming.removalLayoutDuration == 0.32)
-        #expect(TaskCreationMountTiming.removalFadeDuration == 0.12)
-        #expect(TaskCreationMountTiming.removalFadeDelay == 0.20)
-        #expect(TaskCreationMountTiming.reducedMotionRemovalLayoutDuration == 0.22)
-        #expect(TaskCreationMountTiming.reducedMotionRemovalFadeDuration == 0.12)
-        #expect(TaskCreationMountTiming.reducedMotionRemovalFadeDelay == 0.10)
         #expect(
             abs(
                 TaskExpansionMotionTiming.identityTroughDuration
@@ -52,24 +83,6 @@ struct HomeMorphSessionTests {
         #expect(TaskExpansionMotion.expanded.detailElapsed == 0.40)
         #expect(TaskExpansionMotion.expanded.isDetailSettled)
         #expect(TaskExpansionMotion.compact.collapsedOpacity == 1)
-        #expect(
-            TaskCreationExpansionReserve.height(
-                expandedHeightDelta: 130,
-                expansionProgress: 0
-            ) == 130
-        )
-        #expect(
-            TaskCreationExpansionReserve.height(
-                expandedHeightDelta: 130,
-                expansionProgress: 0.5
-            ) == 65
-        )
-        #expect(
-            TaskCreationExpansionReserve.height(
-                expandedHeightDelta: 130,
-                expansionProgress: 1
-            ) == 0
-        )
     }
 
     @Test func detailCascadeUsesBoundedDiagonalWave() {
@@ -124,23 +137,31 @@ struct HomeMorphSessionTests {
         #expect(abs(TaskMorphBackgroundWave.expansionDuration - 0.36) < 0.000_001)
         #expect(TaskMorphBackgroundWave.radius(forTaskDelta: nil, isDarkAppearance: false) == 0)
         #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 0, isDarkAppearance: true) == 0)
-        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 1, isDarkAppearance: false) == 0.8)
-        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: -1, isDarkAppearance: false) == 0.8)
-        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: -2, isDarkAppearance: false) == 0.8)
-        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 4, isDarkAppearance: true) == 1.45)
-        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 8, isDarkAppearance: true) == 1.45)
-        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 20, isDarkAppearance: true) == 1.45)
-        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: -1) == 0.95)
-        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: -20) == 0.87)
-        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 1) == 0.95)
-        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 20) == 0.88)
-        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 1, isDarkAppearance: false) == 0.52)
-        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: -2, isDarkAppearance: false) == 0.52)
-        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 4, isDarkAppearance: true) == 0.49)
-        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 8, isDarkAppearance: true) == 0.49)
-        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 20, isDarkAppearance: true) == 0.49)
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 1, isDarkAppearance: false) == 1.4)
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: -1, isDarkAppearance: false) == 1.4)
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: -2, isDarkAppearance: false) == 1.4)
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 4, isDarkAppearance: true) == 2.0)
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 8, isDarkAppearance: true) == 2.0)
+        #expect(TaskMorphBackgroundWave.radius(forTaskDelta: 20, isDarkAppearance: true) == 2.0)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: nil) == 1)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 0) == 1)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: -1) == 0.84)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: -20) == 0.84)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 1) == 0.84)
+        #expect(TaskMorphBackgroundWave.scale(forTaskDelta: 20) == 0.84)
+        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 1, isDarkAppearance: false) == 0.68)
+        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: -2, isDarkAppearance: false) == 0.68)
+        #expect(TaskMorphBackgroundWave.lightUniformTextOpacity == 0.42)
+        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 4, isDarkAppearance: true) == 0.40)
+        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 8, isDarkAppearance: true) == 0.40)
+        #expect(TaskMorphBackgroundWave.opacity(forTaskDelta: 20, isDarkAppearance: true) == 0.40)
         #expect(TaskMorphBackgroundWave.headerBlurRadius(isDarkAppearance: false) == 0.8)
         #expect(TaskMorphBackgroundWave.headerBlurRadius(isDarkAppearance: true) == 0.5)
+        #expect(TaskMorphBackgroundWave.headerOpacity(isDarkAppearance: false) == 0.34)
+        #expect(TaskMorphBackgroundWave.headerOpacity(isDarkAppearance: true) == 0.52)
+        #expect(TaskMorphBackgroundWave.dateHeaderScale == 0.84)
+        #expect(TaskMorphBackgroundWave.dateHeaderBlurRadius(isDarkAppearance: false) == 1.4)
+        #expect(TaskMorphBackgroundWave.dateHeaderBlurRadius(isDarkAppearance: true) == 2.0)
         #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: -1) == -8)
         #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: -20) == -24)
         #expect(TaskMorphBackgroundWave.offsetY(forTaskDelta: 1) == 12)
@@ -165,6 +186,10 @@ struct HomeMorphSessionTests {
         #expect(TaskMorphFocusField.lightOverlayOpacity == 0.82)
         #expect(TaskMorphFocusField.increasedContrastLightParticleRetention == 0.10)
         #expect(TaskMorphFocusField.increasedContrastLightOverlayOpacity == 0.90)
+        #expect(TaskMorphFocusField.lightVerticalExpansion == 28)
+        #expect(TaskMorphFocusField.darkVerticalExpansion == 52)
+        #expect(TaskMorphFocusField.verticalExpansion(isDarkAppearance: false) == 28)
+        #expect(TaskMorphFocusField.verticalExpansion(isDarkAppearance: true) == 52)
     }
 
     @Test func detailCollapseSharesTheContinuousLayoutClock() {
@@ -258,173 +283,6 @@ struct HomeMorphSessionTests {
         #expect(selection.crossedSectionIDs.isEmpty)
     }
 
-    @Test func inlineCreationUsesFinalIdentityAndExpandsAfterInsertion() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let placement = todoPlacement(id: id)
-
-        let token = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: placement)
-        )
-
-        #expect(model.subject == .draft(domain: .todo, id: id))
-        #expect(model.visualState == .compact)
-        #expect(model.phase == .active)
-        #expect(model.placement == placement)
-        #expect(model.isCreationFlow)
-        #expect(model.isCreationPresentation(.todo, id: id))
-        #expect(model.isFocusDepthActive == false)
-        #expect(model.isDetailFocusDepthActive == false)
-        #expect(model.isCurrent(token))
-
-        #expect(model.prepareCreationInput(using: token))
-        #expect(model.visualState == .compact)
-        #expect(model.isCreationInputReady)
-        #expect(model.creationFocusRequestRevision == 1)
-        #expect(model.prepareCreationInput(using: token) == false)
-
-        model.requestCreationFocus()
-        #expect(model.creationFocusRequestRevision == 2)
-
-        #expect(model.activatePreparedCreation(using: token))
-        #expect(model.visualState == .expanded)
-        #expect(model.isFocusDepthActive)
-    }
-
-    @Test func inlineCreationUsesDetailFocusDepthOnlyWhileExpanded() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let token = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
-        )
-
-        #expect(model.isDetailFocusDepthActive == false)
-        #expect(model.activatePreparedCreation(using: token))
-        #expect(model.isDetailFocusDepthActive)
-
-        let collapse = try #require(model.beginDiscardCollapse())
-        #expect(model.phase == .collapsing)
-        #expect(model.isDiscardingCreationDraft)
-        #expect(model.isFocusDepthActive == false)
-        #expect(model.isDetailFocusDepthActive == false)
-
-        model.finishDiscard(using: collapse)
-        #expect(model.isDiscardingCreationDraft == false)
-        #expect(model.isFocusDepthActive == false)
-        #expect(model.isDetailFocusDepthActive == false)
-    }
-
-    @Test func sequentialCreationsUseDistinctPresentationTaskIdentity() throws {
-        let model = HomeMorphSession()
-        let firstID = UUID()
-        let first = try #require(
-            model.beginCreation(domain: .todo, id: firstID, placement: todoPlacement(id: firstID))
-        )
-        let collapse = try #require(model.beginDiscardCollapse())
-        model.finishDiscard(using: collapse)
-
-        let secondID = UUID()
-        let second = try #require(
-            model.beginCreation(domain: .todo, id: secondID, placement: todoPlacement(id: secondID))
-        )
-
-        #expect(first.sessionID != second.sessionID)
-        #expect(first != second)
-        #expect(model.phase == .active)
-        #expect(model.visualState == .compact)
-        #expect(model.activatePreparedCreation(using: first) == false)
-        #expect(model.activatePreparedCreation(using: second))
-    }
-
-    @Test func mountedCreationPresentationActivatesOnlyItsCurrentDraftIdentity() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let token = try #require(
-            model.beginCreation(
-                domain: .periodic,
-                id: id,
-                placement: periodicPlacement(id: id)
-            )
-        )
-
-        #expect(
-            model.activateMountedCreationPresentation(domain: .periodic, id: UUID()) == nil
-        )
-        #expect(model.visualState == .compact)
-        #expect(model.prepareCreationInput(using: token))
-
-        _ = try #require(
-            model.activateMountedCreationPresentation(domain: .periodic, id: id)
-        )
-        #expect(model.visualState == .expanded)
-        #expect(model.isCreationInputReady)
-    }
-
-    @Test func staleCreationInputPreparationCannotActivateInput() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let token = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
-        )
-
-        _ = try #require(model.beginDiscardCollapse())
-
-        #expect(model.prepareCreationInput(using: token) == false)
-        #expect(model.isCreationInputReady == false)
-        #expect(model.creationFocusRequestRevision == 0)
-    }
-
-    @Test func activeCreationBackgroundDismissOnlyRequestsKeyboardDismissal() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        var dismissed: TaskMorphSubject?
-        model.onDismissIntent = { dismissed = $0 }
-        _ = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
-        )
-
-        model.requestDismissal()
-
-        #expect(dismissed == nil)
-        #expect(model.creationFocusDismissalRevision == 1)
-        #expect(model.phase == .active)
-    }
-
-    @Test func creationSaveAcknowledgementRequiresCurrentSavingToken() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let creation = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
-        )
-
-        #expect(model.acknowledgeCreationSave(using: creation) == false)
-        let saving = try #require(model.beginSaving())
-        #expect(model.acknowledgeCreationSave(using: saving))
-        #expect(model.isCreationSaveAcknowledged)
-
-        model.failSaving(using: saving, message: "保存失败")
-        #expect(model.isCreationSaveAcknowledged == false)
-    }
-
-    @Test func creationCommitWaitsForInputFlushRevision() async throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        var committedSubject: TaskMorphSubject?
-        model.onCommitIntent = { committedSubject = $0 }
-        _ = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
-        )
-
-        model.requestCommit()
-
-        #expect(model.creationCommitRequestRevision == 1)
-        #expect(committedSubject == nil)
-        await Task.yield()
-        await Task.yield()
-        await Task.yield()
-        #expect(committedSubject == .draft(domain: .todo, id: id))
-    }
-
     @Test func onlyOneMorphSubjectCanBeActive() throws {
         let model = HomeMorphSession()
         let firstID = UUID()
@@ -461,129 +319,16 @@ struct HomeMorphSessionTests {
         #expect(model.errorMessage == "保存失败")
     }
 
-    @Test func creationDissolvesBeforeListRevealAndKeepsUUID() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let provisional = todoPlacement(id: id)
-        let final = TaskMorphPlacement(
-            provisionalSection: provisional.provisionalSection,
-            finalSection: .todo(dayStart: Date(timeIntervalSince1970: 86_400), isUnscheduled: false),
-            index: 3,
-            presentationID: id.uuidString
-        )
-        _ = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: provisional)
-        )
-        let saving = try #require(model.beginSaving())
-        let collapse = try #require(
-            model.beginCollapseAfterSave(
-                using: saving,
-                persistedSubject: .persisted(domain: .todo, id: id),
-                finalPlacement: final
-            )
-        )
-
-        #expect(model.phase == .collapsing)
-        #expect(model.visualState == .compact)
-        #expect(model.subject == .persisted(domain: .todo, id: id))
-        #expect(model.placement?.provisionalSection == provisional.provisionalSection)
-        #expect(model.placement?.finalSection == final.finalSection)
-        #expect(model.creationRequiresRelocation)
-
-        let relocating = try #require(model.beginRelocating(using: collapse))
-        #expect(model.phase == .relocating)
-        #expect(model.isCreationListRevealTarget(.todo, id: id))
-        #expect(model.isCreationListRevealEnabled == false)
-        model.enableCreationListReveal(using: relocating)
-        #expect(model.isCreationListRevealEnabled)
-        #expect(model.isFocusDepthActive == false)
-        model.finishRelocating(using: relocating)
-        #expect(model.phase == .idle)
-        #expect(model.isCreationFlow == false)
-    }
-
-    @Test func inlineCreationAtSamePlacementCanSwapToPersistedRowAtomically() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let placement = todoPlacement(id: id)
-        _ = try #require(model.beginCreation(domain: .todo, id: id, placement: placement))
-        let saving = try #require(model.beginSaving())
-        let collapse = try #require(
-            model.beginCollapseAfterSave(
-                using: saving,
-                persistedSubject: .persisted(domain: .todo, id: id),
-                finalPlacement: placement
-            )
-        )
-
-        #expect(model.creationRequiresRelocation == false)
-        #expect(model.isDiscardingCreationDraft == false)
-        model.finishCollapse(using: collapse)
-        #expect(model.phase == .idle)
-    }
-
-    @Test func explicitCreationCancellationAndRefocusAreIndependentFromDismissal() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        var cancelled: TaskMorphSubject?
-        var dismissed: TaskMorphSubject?
-        model.onCreationCancelIntent = { cancelled = $0 }
-        model.onDismissIntent = { dismissed = $0 }
-        let token = try #require(
-            model.beginCreation(domain: .periodic, id: id, placement: periodicPlacement(id: id))
-        )
-        #expect(model.prepareCreationInput(using: token))
-        #expect(model.activatePreparedCreation(using: token))
-        let initialFocusRevision = model.creationFocusRequestRevision
-
-        model.requestCreationFocus()
-        model.requestCreationCancellation()
-
-        #expect(model.creationFocusRequestRevision == initialFocusRevision + 1)
-        #expect(cancelled == .draft(domain: .periodic, id: id))
-        #expect(dismissed == nil)
-        #expect(model.phase == .active)
-    }
-
-    @Test func creationRevealCompletionRequiresEnabledCurrentPhase() throws {
-        let model = HomeMorphSession()
-        let id = UUID()
-        let subject = TaskMorphSubject.persisted(domain: .todo, id: id)
-        var completedSubject: TaskMorphSubject?
-        model.onCreationRevealCompletionIntent = { subject, _ in
-            completedSubject = subject
-        }
-
-        _ = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
-        )
-        let saving = try #require(model.beginSaving())
-        let collapse = try #require(
-            model.beginCollapseAfterSave(
-                using: saving,
-                persistedSubject: subject,
-                finalPlacement: todoPlacement(id: id)
-            )
-        )
-        let relocating = try #require(model.beginRelocating(using: collapse))
-
-        model.requestCreationRevealCompletion(subject, using: relocating)
-        #expect(completedSubject == nil)
-
-        model.enableCreationListReveal(using: relocating)
-        model.requestCreationRevealCompletion(subject, using: relocating)
-        #expect(completedSubject == subject)
-    }
-
     @Test func stalePhaseTokenCannotChangeNewerPhase() throws {
         let model = HomeMorphSession()
         let id = UUID()
-        let creation = try #require(
-            model.beginCreation(domain: .todo, id: id, placement: todoPlacement(id: id))
+        let expansion = try #require(
+            model.prepareExpansion(domain: .todo, id: id, placement: todoPlacement(id: id))
         )
+        #expect(model.activatePreparedExpansion(using: expansion))
         let saving = try #require(model.beginSaving())
 
-        model.failSaving(using: creation, message: "过期回调")
+        model.failSaving(using: expansion, message: "过期回调")
 
         #expect(model.phase == .saving)
         #expect(model.errorMessage == nil)

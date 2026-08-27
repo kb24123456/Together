@@ -1,5 +1,10 @@
 import Foundation
 
+enum TaskCreationPersistenceResult: Equatable, Sendable {
+    case saved(UUID)
+    case failed(message: String)
+}
+
 struct TaskDraft: Hashable, Sendable {
     var title: String
     var notes: String?
@@ -10,6 +15,7 @@ struct TaskDraft: Hashable, Sendable {
     var remindAt: Date?
     var status: ItemStatus
     var isUrgent: Bool
+    var shouldFollowOnCreation: Bool
     var isDraft: Bool
     var subtasks: [TaskSubtaskDraft]
 
@@ -23,6 +29,7 @@ struct TaskDraft: Hashable, Sendable {
         remindAt: Date? = nil,
         status: ItemStatus = .inProgress,
         isUrgent: Bool = false,
+        shouldFollowOnCreation: Bool = false,
         isDraft: Bool = false,
         subtasks: [TaskSubtaskDraft] = []
     ) {
@@ -35,6 +42,7 @@ struct TaskDraft: Hashable, Sendable {
         self.remindAt = remindAt
         self.status = status
         self.isUrgent = isUrgent
+        self.shouldFollowOnCreation = shouldFollowOnCreation
         self.isDraft = isDraft
         self.subtasks = subtasks
     }

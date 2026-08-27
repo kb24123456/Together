@@ -282,7 +282,7 @@ struct TogetherTests {
         let provisionalID = try #require(viewModel.taskCreationSession?.id)
         viewModel.updateTaskCreationDraft { $0.title = "稳定身份任务" }
 
-        guard case .failed = await viewModel.commitTaskCreationForMorph() else {
+        guard case .failed = await viewModel.commitTaskCreation() else {
             Issue.record("首次保存应失败")
             return
         }
@@ -291,11 +291,11 @@ struct TogetherTests {
         #expect(viewModel.taskCreationSession?.errorMessage != nil)
 
         service.capturesCreates = true
-        guard case .saved(let descriptor) = await viewModel.commitTaskCreationForMorph() else {
+        guard case .saved(let createdID) = await viewModel.commitTaskCreation() else {
             Issue.record("重试保存应成功")
             return
         }
-        #expect(descriptor.presentationID.contains(provisionalID.uuidString))
+        #expect(createdID == provisionalID)
         #expect(service.createdTaskIDs == [provisionalID])
         #expect(viewModel.taskCreationSession?.phase == .committed)
         #expect(viewModel.taskCreationSession?.id == provisionalID)
@@ -303,45 +303,36 @@ struct TogetherTests {
         #expect(viewModel.taskCreationSession == nil)
     }
 
-    @Test func inlineTaskCreationAppearsAtEndOfTodaySectionWithoutChangingCount() async throws {
-        let existingItem = makeReminderTestItem(
-            title: "已有今日任务",
-            dueAt: .now,
-            remindAt: nil
+    @Test func taskCreationCarriesFollowIntentAndRequestsLiveActivityReconciliation() async throws {
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
         )
-        let repository = MockItemRepository(items: [existingItem])
-        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
-
-        await viewModel.reload()
+        let service = CapturingTaskApplicationService()
+        service.capturesCreates = true
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: service,
+            itemRepository: MockItemRepository()
+        )
+        var reconciledSpaceID: UUID?
+        viewModel.onTaskFollowChanged = { reconciledSpaceID = $0 }
 
         viewModel.beginTaskCreation()
+        viewModel.updateTaskCreationDraft {
+            $0.title = "创建时关注"
+            $0.shouldFollowOnCreation = true
+        }
 
-        let session = try #require(viewModel.taskCreationSession)
-        let section = try #require(
-            viewModel.timelineSectionsAddingTaskCreationDraft(
-                to: viewModel.activeTimelineSections
-            ).first(where: {
-                Calendar.current.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
-            })
-        )
-        let entry = try #require(section.entries.last)
-        let placement = try #require(viewModel.taskCreationPlacement())
+        guard case .saved = await viewModel.commitTaskCreation() else {
+            Issue.record("关注任务应创建成功")
+            return
+        }
 
-        #expect(Calendar.current.isDateInToday(viewModel.selectedDate))
-        #expect(Calendar.current.isDateInToday(session.provisionalDayStart))
-        #expect(section.count == 1)
-        #expect(section.entries.count == 2)
-        #expect(entry.itemID == session.id)
-        #expect(section.entries.first?.itemID == existingItem.id)
-        #expect(entry.title.isEmpty)
-        #expect(placement.index == 1)
-        #expect(placement.presentationID == entry.presentationID)
-        #expect(viewModel.isTaskCreationCompletelyEmpty)
-
-        viewModel.updateDraftNotes("保留这条草稿")
-        #expect(viewModel.isTaskCreationTitleEmpty)
-        #expect(viewModel.isTaskCreationCompletelyEmpty == false)
-        #expect(viewModel.inlineDetailDraft?.notes == "保留这条草稿")
+        #expect(service.createdDrafts.first?.shouldFollowOnCreation == true)
+        #expect(viewModel.taskCreationSession?.draft.shouldFollowOnCreation == true)
+        #expect(reconciledSpaceID == MockDataFactory.singleSpaceID)
     }
 
     @Test func persistenceFailurePolicyNeverDeletesStoreAutomatically() {
@@ -1708,50 +1699,46 @@ struct TogetherTests {
         let service = CapturingPeriodicTaskApplicationService(tasks: [])
         let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
 
-        viewModel.beginMorphCreation(defaultCycle: .weekly)
+        viewModel.beginTaskCreation(defaultCycle: .weekly)
         let provisionalID = try #require(viewModel.creationSession?.id)
         viewModel.updateCreationDraft { $0.title = "稳定身份定期任务" }
 
-        let result = await viewModel.commitMorphCreation()
-        let descriptor: TaskMorphPlacement
+        let result = await viewModel.commitTaskCreation()
+        let createdID: UUID
         switch result {
         case .saved(let value):
-            descriptor = value
+            createdID = value
         case .failed(let message):
             Issue.record(Comment(rawValue: message))
             return
         }
 
         #expect(service.tasks.last?.id == provisionalID)
-        #expect(descriptor.presentationID == provisionalID.uuidString)
-        #expect(descriptor.finalSection == .periodic(cycle: .weekly))
+        #expect(createdID == provisionalID)
+        #expect(service.tasks.last?.cycle == .weekly)
         #expect(viewModel.creationSession?.phase == .committed)
     }
 
-    @Test func periodicInlineCreationStaysInProvisionalCycleUntilCommitRelocation() async throws {
+    @Test func periodicCreationCommitsToEditedCycleWithStableIdentity() async throws {
         let existingTask = makePeriodicTask(title: "已有每周任务", cycle: .weekly)
         let service = CapturingPeriodicTaskApplicationService(tasks: [existingTask])
         let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
 
         await viewModel.loadIfNeeded()
 
-        viewModel.beginMorphCreation(defaultCycle: .weekly)
+        viewModel.beginTaskCreation(defaultCycle: .weekly)
         let sessionID = try #require(viewModel.creationSession?.id)
         viewModel.updateDraftTitle("月末复盘")
         viewModel.updateDraftCycle(.monthly)
 
-        #expect(viewModel.creationPresentationTask?.id == sessionID)
-        #expect(viewModel.creationPresentationTask?.cycle == .weekly)
         #expect(viewModel.activeEditorDraft?.cycle == .monthly)
-        #expect(viewModel.creationPlacement()?.provisionalSection == .periodic(cycle: .weekly))
-        #expect(viewModel.creationPlacement()?.index == 1)
 
-        guard case .saved(let placement) = await viewModel.commitMorphCreation() else {
+        guard case .saved(let createdID) = await viewModel.commitTaskCreation() else {
             Issue.record("定期任务应保存成功")
             return
         }
-        #expect(placement.finalSection == .periodic(cycle: .monthly))
-        #expect(placement.presentationID == sessionID.uuidString)
+        #expect(createdID == sessionID)
+        #expect(service.tasks.last?.cycle == .monthly)
     }
 
     @Test func routineDraftClearsTargetDayAndTimeIndependently() async {
@@ -3290,6 +3277,27 @@ struct TogetherTests {
         #expect(rescheduled.remindAt == nil)
     }
 
+    @Test func ordinaryTaskCreationPersistsFollowState() async throws {
+        let repository = makeTaskSubtaskItemRepository()
+        let service = DefaultTaskApplicationService(
+            itemRepository: repository,
+            syncCoordinator: NoOpSyncCoordinator(),
+            reminderScheduler: MockReminderScheduler()
+        )
+
+        let created = try await service.createTask(
+            in: MockDataFactory.singleSpaceID,
+            actorID: MockDataFactory.currentUserID,
+            draft: TaskDraft(title: "创建时关注", shouldFollowOnCreation: true)
+        )
+        let persisted = try #require(await repository.fetchItem(itemID: created.id))
+
+        #expect(created.isFollowed)
+        #expect(created.followedAt != nil)
+        #expect(persisted.isFollowed)
+        #expect(persisted.followedAt != nil)
+    }
+
     @Test func updatingTaskDraftReplacesSubtasksAndFiltersEmptyTitles() async throws {
         let service = makeTaskSubtaskApplicationService()
         let created = try await service.createTask(
@@ -4720,7 +4728,9 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
             sortOrder: now.timeIntervalSinceReferenceDate,
             isUrgent: draft.isUrgent,
             isDraft: draft.isDraft,
-            repeatRule: nil
+            repeatRule: nil,
+            isFollowed: draft.shouldFollowOnCreation,
+            followedAt: draft.shouldFollowOnCreation ? now : nil
         )
     }
 

@@ -8,10 +8,9 @@ private enum AppRootRoute: Hashable {
 
 struct AppRootView: View {
     @Environment(AppContext.self) private var appContext
-    @State private var morphSession = HomeMorphSession()
 
     var body: some View {
-        HomeRootContent(morphSession: morphSession)
+        HomeRootContent()
             .environment(appContext)
             .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
     }
@@ -21,7 +20,6 @@ struct HomeRootContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Bindable var morphSession: HomeMorphSession
     @State private var rootNavigationPath = NavigationPath()
     @State private var activeOCRSourceSession: OCRSourceSheetSession?
     @State private var pendingOCRReviewSession: OCRReviewSession?
@@ -29,25 +27,25 @@ struct HomeRootContent: View {
     @State private var directOCRPhotoPickerSelection: [PhotosPickerItem] = []
     @State private var directOCRProcessingTask: Task<Void, Never>?
     @State private var isPresentingDirectOCRCamera = false
-    @State private var frozenRootSurface: RootSurface?
-    @State private var detailCollapseCompletionTask: Task<Void, Never>?
-    @State private var pendingCreationDomain: TaskMorphDomain?
+    @State private var taskCreationDestination: TaskCreationDestination?
+    @State private var pendingCreatedTaskReveal: TaskCreationDestination?
+    @State private var activeTaskDetailPresentation: TaskDetailPresentation?
+    @Namespace private var taskCreationTransition
+    @Namespace private var taskDetailTransition
 
     private var displayedRootSurface: RootSurface {
-        frozenRootSurface ?? appContext.router.currentSurface
-    }
-
-    private var isMorphBackgroundDeemphasized: Bool {
-        morphSession.isDetailFocusDepthActive
+        appContext.router.currentSurface
     }
 
     private var isHomeSurfaceVisible: Bool {
         rootNavigationPath.isEmpty
+            && activeTaskDetailPresentation == nil
             && activeOCRSourceSession == nil
             && pendingOCRReviewSession == nil
             && appContext.router.activeOCRReviewSession == nil
             && isPresentingDirectOCRPhotoPicker == false
             && isPresentingDirectOCRCamera == false
+            && taskCreationDestination == nil
     }
 
     var body: some View {
@@ -55,6 +53,7 @@ struct HomeRootContent: View {
 
         NavigationStack(path: $rootNavigationPath) {
             rootSurfaceView(router: router)
+                .allowsHitTesting(activeTaskDetailPresentation == nil)
                 .toolbar {
                     if #available(iOS 26.0, *) {
                         topToolbar(router: router)
@@ -63,9 +62,7 @@ struct HomeRootContent: View {
                         topToolbar(router: router)
                     }
 
-                    if rootNavigationPath.isEmpty {
-                        bottomToolbar(router: router)
-                    }
+                    bottomToolbar(router: router)
                 }
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .navigationBarTitleDisplayMode(.inline)
@@ -129,16 +126,18 @@ struct HomeRootContent: View {
             )
             .ignoresSafeArea()
         }
+        .fullScreenCover(item: $activeTaskDetailPresentation) { presentation in
+            taskDetailView(presentation: presentation)
+        }
+        .fullScreenCover(item: $taskCreationDestination, onDismiss: revealCreatedTaskIfNeeded) { destination in
+            taskCreationView(destination: destination)
+        }
         .environment(\.symbolVariants, .none)
         .font(AppTheme.typography.body)
         .tint(AppTheme.colors.title)
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
         .onChange(of: router.isProfilePresented) { _, isPresented in
             guard isPresented else { return }
-            guard morphSession.isActive == false else {
-                morphSession.requestDismissal()
-                return
-            }
             guard rootNavigationPath.count == 0 else { return }
             rootNavigationPath.append(AppRootRoute.profile)
         }
@@ -153,34 +152,8 @@ struct HomeRootContent: View {
         .onChange(of: router.composerRequestRevision) { _, _ in
             synchronizeComposerPresentation(router: router)
         }
-        .onChange(of: morphSession.phase) { _, phase in
-            switch phase {
-            case .active, .saving, .collapsing, .relocating:
-                if frozenRootSurface == nil {
-                    frozenRootSurface = router.currentSurface
-                }
-            case .idle:
-                frozenRootSurface = nil
-                if let pendingCreationDomain {
-                    self.pendingCreationDomain = nil
-                    beginMorphCreation(domain: pendingCreationDomain)
-                    return
-                }
-                synchronizePendingRootRoutes(router: router)
-            }
-        }
         .onAppear {
-            configureMorphCallbacks()
             synchronizeComposerPresentation(router: router)
-        }
-        .onDisappear {
-            detailCollapseCompletionTask?.cancel()
-            morphSession.onDismissIntent = nil
-            morphSession.onCreationCancelIntent = nil
-            morphSession.onCommitIntent = nil
-            morphSession.onCompletionIntent = nil
-            morphSession.onCreationRevealCompletionIntent = nil
-            morphSession.onDetailCollapseCompletionIntent = nil
         }
         .task {
             StartupTrace.mark("AppRootView.visible")
@@ -191,13 +164,14 @@ struct HomeRootContent: View {
     private func rootSurfaceView(router: AppRouter) -> some View {
         HomeView(
             viewModel: appContext.homeViewModel,
-            morphSession: morphSession,
             routinesViewModel: appContext.routinesViewModel,
             isRoutinesModePresented: displayedRootSurface == .routines,
             isRootSurfaceVisible: isHomeSurfaceVisible,
             onCreateTaskTapped: {
-                beginMorphCreation(domain: .todo)
+                presentTaskCreation(domain: .todo)
             },
+            taskDetailTransition: taskDetailTransition,
+            onOpenTaskDetail: openTaskDetail,
             onCompletedHistoryTapped: { filter in
                 rootNavigationPath.append(AppRootRoute.completedHistory(filter))
             }
@@ -258,22 +232,10 @@ struct HomeRootContent: View {
                         .accessibilityAddTraits(.isHeader)
                 }
             }
-            .taskMorphBackgroundDepth(
-                isDeemphasized: isMorphBackgroundDeemphasized,
-                anchor: .top,
-                scalesContent: false,
-                appliesVisualDepth: false,
-                actsAsDismissTarget: true,
-                onDismiss: morphSession.requestDismissal
-            )
         }
 
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                if morphSession.isActive {
-                    morphSession.requestDismissal()
-                    return
-                }
                 HomeInteractionFeedback.selection()
                 openProfile(router: router)
             } label: {
@@ -297,53 +259,28 @@ struct HomeRootContent: View {
             .buttonStyle(.plain)
             .accessibilityLabel("打开个人页")
             .accessibilityHint("查看个人资料和设置")
-            .taskMorphBackgroundDepth(
-                isDeemphasized: isMorphBackgroundDeemphasized,
-                anchor: .topTrailing,
-                scalesContent: false,
-                appliesVisualDepth: false,
-                actsAsDismissTarget: true,
-                onDismiss: morphSession.requestDismissal
-            )
         }
     }
 
     @ToolbarContentBuilder
     private func bottomToolbar(router: AppRouter) -> some ToolbarContent {
         ToolbarItem(placement: .bottomBar) {
-            if isMorphBackgroundDeemphasized {
-                Button(action: morphSession.requestDismissal) {
-                    Label(
-                        morphSession.isCreationFlow ? "收起键盘" : "收起任务详情",
-                        systemImage: "doc.text.viewfinder"
-                    )
-                        .labelStyle(.iconOnly)
+            Menu {
+                Button(action: openDirectOCRCamera) {
+                    Label("相机", systemImage: "camera")
                 }
-                .accessibilityIdentifier("together.bottom-toolbar.ocr")
-                .accessibilityHint(
-                    morphSession.isCreationFlow
-                        ? "保留当前草稿并结束输入"
-                        : "保存更改并收起当前任务"
-                )
-            } else {
-                Menu {
-                    Button(action: openDirectOCRCamera) {
-                        Label("相机", systemImage: "camera")
-                    }
-                    Button(action: openDirectOCRPhotoPicker) {
-                        Label("照片", systemImage: "photo.on.rectangle")
-                    }
-                    Button(action: openDirectOCRTextPaste) {
-                        Label("粘贴文字", systemImage: "doc.on.clipboard")
-                    }
-                } label: {
-                    Label("OCR 导入", systemImage: "doc.text.viewfinder")
-                        .labelStyle(.iconOnly)
+                Button(action: openDirectOCRPhotoPicker) {
+                    Label("照片", systemImage: "photo.on.rectangle")
                 }
-                .disabled(morphSession.isActive)
-                .accessibilityIdentifier("together.bottom-toolbar.ocr")
-                .accessibilityHint("拍摄、选择照片或粘贴多行文字生成草稿")
+                Button(action: openDirectOCRTextPaste) {
+                    Label("粘贴文字", systemImage: "doc.on.clipboard")
+                }
+            } label: {
+                Label("OCR 导入", systemImage: "doc.text.viewfinder")
+                    .labelStyle(.iconOnly)
             }
+            .accessibilityIdentifier("together.bottom-toolbar.ocr")
+            .accessibilityHint("拍摄、选择照片或粘贴多行文字生成草稿")
         }
 
         ToolbarSpacer(.flexible, placement: .bottomBar)
@@ -356,14 +293,12 @@ struct HomeRootContent: View {
                 Label("新建", systemImage: "plus")
                 .labelStyle(.iconOnly)
             }
-            .accessibilityIdentifier("together.bottom-toolbar.add")
-            .accessibilityHint(
-                morphSession.isActive
-                    ? (morphSession.isCreationFlow
-                        ? "请先添加或取消当前草稿"
-                        : "保存并收起当前任务后新建一项")
-                    : "在当前视图下新建一项"
+            .matchedTransitionSource(
+                id: TaskCreationTransitionSource.addButton,
+                in: taskCreationTransition
             )
+            .accessibilityIdentifier("together.bottom-toolbar.add")
+            .accessibilityHint("在当前视图下新建一项")
         }
     }
 
@@ -407,389 +342,187 @@ struct HomeRootContent: View {
     private func openContextualComposer(router: AppRouter) {
         switch displayedRootSurface {
         case .today:
-            beginMorphCreation(domain: .todo)
+            presentTaskCreation(domain: .todo)
         case .routines:
-            beginMorphCreation(domain: .periodic)
+            presentTaskCreation(domain: .periodic)
         }
     }
 
-    private func beginMorphCreation(
+    private func openTaskDetail(_ route: TaskDetailRoute) {
+        guard rootNavigationPath.isEmpty,
+              taskCreationDestination == nil,
+              activeTaskDetailPresentation == nil
+        else { return }
+
+        let didPrepare: Bool
+        switch route {
+        case .todo(let id):
+            guard appContext.homeViewModel.timelineEntry(for: id)?.isCompleted == false else { return }
+            appContext.homeViewModel.presentItemDetail(id)
+            appContext.homeViewModel.markDetailForExpandedEditing()
+            didPrepare = appContext.homeViewModel.selectedItemID == id
+        case .periodic(let id):
+            didPrepare = appContext.routinesViewModel.presentDetailForMorph(id)
+        }
+
+        guard didPrepare else { return }
+        let presentation = TaskDetailPresentation(route: route)
+        activeTaskDetailPresentation = presentation
+        HomeInteractionFeedback.soft()
+    }
+
+    @ViewBuilder
+    private func taskDetailView(presentation: TaskDetailPresentation) -> some View {
+        let route = presentation.route
+        let detail = TaskDetailView(
+            presentation: presentation,
+            homeViewModel: appContext.homeViewModel,
+            routinesViewModel: appContext.routinesViewModel,
+            onDidDisappear: finishTaskDetailPresentation
+        )
+
+        if reduceMotion {
+            detail.navigationTransition(.automatic)
+        } else {
+            detail.navigationTransition(
+                .zoom(
+                    sourceID: route,
+                    in: taskDetailTransition
+                )
+            )
+        }
+    }
+
+    @MainActor
+    private func finishTaskDetailPresentation(
+        _ presentation: TaskDetailPresentation
+    ) {
+        guard ownsTaskDetailDraft(for: presentation) else { return }
+        releaseTaskDetailPresentation(presentation)
+    }
+
+    @MainActor
+    private func releaseTaskDetailPresentation(_ presentation: TaskDetailPresentation) {
+        guard ownsTaskDetailDraft(for: presentation) else { return }
+
+        switch presentation.route {
+        case .todo:
+            appContext.homeViewModel.dismissItemDetail()
+        case .periodic:
+            appContext.routinesViewModel.finishMorphDetail()
+        }
+        if activeTaskDetailPresentation?.id == presentation.id {
+            activeTaskDetailPresentation = nil
+        }
+    }
+
+    private func ownsTaskDetailDraft(for presentation: TaskDetailPresentation) -> Bool {
+        guard presentation.canReleaseSharedDraft(
+            while: activeTaskDetailPresentation
+        ) else { return false }
+
+        return switch presentation.route {
+        case .todo(let id):
+            appContext.homeViewModel.selectedItemID == id
+        case .periodic(let id):
+            appContext.routinesViewModel.expandedTaskID == id
+        }
+    }
+
+    private func presentTaskCreation(
         domain: TaskMorphDomain,
         title: String? = nil
     ) {
-        if morphSession.isActive {
-            if morphSession.isCreationFlow {
-                morphSession.requestCreationKeyboardDismissal()
-                return
-            }
-            pendingCreationDomain = domain
-            morphSession.requestDismissal()
-            return
-        }
+        guard taskCreationDestination == nil else { return }
         switch domain {
         case .todo:
             appContext.homeViewModel.beginTaskCreation()
             if let title, title.isEmpty == false {
                 appContext.homeViewModel.updateTaskCreationDraft { $0.title = title }
             }
-            guard let session = appContext.homeViewModel.taskCreationSession,
-                  let placement = appContext.homeViewModel.taskCreationPlacement()
-            else { return }
-            _ = morphSession.beginCreation(
-                domain: .todo,
-                id: session.id,
-                placement: placement
-            )
+            guard let session = appContext.homeViewModel.taskCreationSession else { return }
+            taskCreationDestination = .todo(session.id)
         case .periodic:
-            appContext.routinesViewModel.beginMorphCreation(
+            appContext.routinesViewModel.beginTaskCreation(
                 defaultCycle: appContext.router.pendingPeriodicCycle ?? appContext.routinesViewModel.selectedCycle
             )
             if let title, title.isEmpty == false {
                 appContext.routinesViewModel.updateCreationDraft { $0.title = title }
             }
-            guard let session = appContext.routinesViewModel.creationSession,
-                  let placement = appContext.routinesViewModel.creationPlacement()
-            else { return }
-            _ = morphSession.beginCreation(
-                domain: .periodic,
-                id: session.id,
-                placement: placement
-            )
+            guard let session = appContext.routinesViewModel.creationSession else { return }
+            taskCreationDestination = .periodic(session.id)
         }
     }
 
     private func synchronizeComposerPresentation(router: AppRouter) {
         guard let route = router.activeComposer else { return }
 
-        guard morphSession.isActive == false else {
-            morphSession.requestDismissal()
+        guard taskCreationDestination == nil else {
+            router.clearComposerRequest()
             return
         }
         let title = router.pendingComposerTitle
         router.clearComposerRequest()
         switch route {
         case .newTask:
-            beginMorphCreation(domain: .todo, title: title)
+            presentTaskCreation(domain: .todo, title: title)
         case .newPeriodicTask:
-            beginMorphCreation(domain: .periodic, title: title)
+            presentTaskCreation(domain: .periodic, title: title)
         }
     }
 
-    private func configureMorphCallbacks() {
-        morphSession.onDismissIntent = { subject in
-            dismissMorph(subject)
-        }
-        morphSession.onCreationCancelIntent = { subject in
-            pendingCreationDomain = nil
-            discardMorphCreation(subject)
-        }
-        morphSession.onCommitIntent = { subject in
-            commitMorphCreation(subject)
-        }
-        morphSession.onCompletionIntent = { subject in
-            saveAndCollapseMorph(subject, completesTask: true)
-        }
-        morphSession.onCreationRevealCompletionIntent = { subject, token in
-            finalizeCreationReveal(subject, token: token)
-        }
-        morphSession.onDetailCollapseCompletionIntent = { subject, token in
-            finalizeDetailCollapse(subject, token: token)
-        }
-    }
-
-    private func dismissMorph(_ subject: TaskMorphSubject) {
-        if subject.isDraft {
-            morphSession.requestCreationKeyboardDismissal()
-        } else {
-            saveAndCollapseMorph(subject, completesTask: false)
-        }
-    }
-
-    private func commitMorphCreation(_ subject: TaskMorphSubject) {
-        let isTitleEmpty = switch subject.domain {
-        case .todo:
-            appContext.homeViewModel.isTaskCreationTitleEmpty
-        case .periodic:
-            appContext.routinesViewModel.isCreationTitleEmpty
-        }
-        guard isTitleEmpty == false else {
-            morphSession.showCreationValidationError("请输入任务标题")
-            return
-        }
-        guard subject.isDraft, let token = morphSession.beginSaving() else { return }
-        Task { @MainActor in
-            let result: TaskMorphPersistenceResult = switch subject.domain {
-            case .todo:
-                await appContext.homeViewModel.commitTaskCreationForMorph()
-            case .periodic:
-                await appContext.routinesViewModel.commitMorphCreation()
-            }
-            await handleCreationSaveResult(result, subject: subject, token: token)
-        }
-    }
-
-    private func handleCreationSaveResult(
-        _ result: TaskMorphPersistenceResult,
-        subject: TaskMorphSubject,
-        token: HomeMorphSessionToken
-    ) async {
-        switch result {
-        case .failed(let message):
-            morphSession.failSaving(using: token, message: message)
-        case .saved(let finalPlacement):
-            guard morphSession.acknowledgeCreationSave(using: token) else { return }
-            try? await Task.sleep(
-                for: .seconds(TaskCreationInputTiming.saveAcknowledgementDuration)
+    @ViewBuilder
+    private func taskCreationView(destination: TaskCreationDestination) -> some View {
+        if reduceMotion {
+            TaskCreationView(
+                destination: destination,
+                homeViewModel: appContext.homeViewModel,
+                routinesViewModel: appContext.routinesViewModel,
+                onCancel: { taskCreationDestination = nil },
+                onCreated: completeTaskCreation
             )
-            guard Task.isCancelled == false,
-                  morphSession.isCurrent(token),
-                  morphSession.phase == .saving
-            else { return }
-            HomeInteractionFeedback.completion()
-            let persisted = TaskMorphSubject.persisted(domain: subject.domain, id: subject.id)
-            var collapseToken: HomeMorphSessionToken?
-            withAnimation(detailCollapseAnimation) {
-                collapseToken = morphSession.beginCollapseAfterSave(
-                    using: token,
-                    persistedSubject: persisted,
-                    finalPlacement: finalPlacement
+            .navigationTransition(.automatic)
+        } else {
+            TaskCreationView(
+                destination: destination,
+                homeViewModel: appContext.homeViewModel,
+                routinesViewModel: appContext.routinesViewModel,
+                onCancel: { taskCreationDestination = nil },
+                onCreated: completeTaskCreation
+            )
+            .navigationTransition(
+                .zoom(
+                    sourceID: TaskCreationTransitionSource.addButton,
+                    in: taskCreationTransition
                 )
-            }
-            guard let collapseToken else { return }
-            scheduleCreationCollapseCompletion(subject, token: collapseToken, wasCommitted: true)
+            )
         }
     }
 
-    private func discardMorphCreation(_ subject: TaskMorphSubject) {
-        var collapseToken: HomeMorphSessionToken?
-        withAnimation(detailCollapseAnimation) {
-            collapseToken = morphSession.beginDiscardCollapse()
+    private func completeTaskCreation(domain: TaskMorphDomain, id: UUID) {
+        pendingCreatedTaskReveal = switch domain {
+        case .todo:
+            .todo(id)
+        case .periodic:
+            .periodic(id)
         }
-        guard let collapseToken else { return }
-        scheduleCreationCollapseCompletion(subject, token: collapseToken, wasCommitted: false)
+        taskCreationDestination = nil
     }
 
-    private func scheduleCreationCollapseCompletion(
-        _ subject: TaskMorphSubject,
-        token: HomeMorphSessionToken,
-        wasCommitted: Bool
-    ) {
-        detailCollapseCompletionTask?.cancel()
-        let delay = Duration.seconds(
-            reduceMotion
-                ? TaskExpansionMotionTiming.reducedMotionDuration
-                : TaskExpansionMotionTiming.collapseDuration
-        )
-        detailCollapseCompletionTask = Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard Task.isCancelled == false,
-                  morphSession.isCurrent(token),
-                  morphSession.phase == .collapsing,
-                  morphSession.visualState == .compact
-            else { return }
-            finalizeCreationCollapse(subject, token: token, wasCommitted: wasCommitted)
-        }
-    }
-
-    private func finalizeCreationCollapse(
-        _ subject: TaskMorphSubject,
-        token: HomeMorphSessionToken,
-        wasCommitted: Bool
-    ) {
-        guard wasCommitted else {
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                switch subject.domain {
-                case .todo:
-                    appContext.homeViewModel.discardTaskCreation()
-                case .periodic:
-                    appContext.routinesViewModel.discardMorphCreation()
-                }
-                morphSession.finishDiscard(using: token)
-            }
+    private func revealCreatedTaskIfNeeded() {
+        guard let pendingCreatedTaskReveal else {
+            // Interactive dismissal is equivalent to the explicit cancel action.
+            appContext.homeViewModel.discardTaskCreation()
+            appContext.routinesViewModel.discardTaskCreation()
             return
         }
-
-        guard morphSession.creationRequiresRelocation else {
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                finalizeCommittedCreation(subject)
-                morphSession.finishCollapse(using: token)
-            }
-            return
+        self.pendingCreatedTaskReveal = nil
+        switch pendingCreatedTaskReveal {
+        case .todo(let id):
+            appContext.homeViewModel.revealCommittedTaskCreation(id)
+        case .periodic(let id):
+            appContext.routinesViewModel.revealCommittedTaskCreation(id)
         }
-
-        guard morphSession.beginRelocating(using: token) != nil else { return }
-        prepareCreationLanding(subject)
-    }
-
-    private func finalizeCommittedCreation(_ subject: TaskMorphSubject) {
-        switch subject.domain {
-        case .todo:
-            appContext.homeViewModel.finalizeCommittedTaskCreation()
-        case .periodic:
-            appContext.routinesViewModel.finalizeMorphCreation()
-        }
-    }
-
-    private func saveAndCollapseMorph(_ subject: TaskMorphSubject, completesTask: Bool) {
-        guard subject.isDraft == false, let token = morphSession.beginSaving() else { return }
-        Task { @MainActor in
-            let result: TaskMorphPersistenceResult
-            switch (subject.domain, completesTask) {
-            case (.todo, false):
-                result = await appContext.homeViewModel.saveDetailForMorph()
-            case (.todo, true):
-                result = await appContext.homeViewModel.completeDetailForMorph()
-            case (.periodic, false):
-                result = await appContext.routinesViewModel.saveDetailForMorph()
-            case (.periodic, true):
-                result = await appContext.routinesViewModel.completeDetailForMorph()
-            }
-            switch result {
-            case .failed(let message):
-                morphSession.failSaving(using: token, message: message)
-            case .saved(let placement):
-                if morphSession.detailPresentationIntent == .expanded {
-                    _ = morphSession.finishSavingKeepingDetail(
-                        using: token,
-                        finalPlacement: placement
-                    )
-                    return
-                }
-                var collapseToken: HomeMorphSessionToken?
-                withAnimation(detailCollapseAnimation) {
-                    collapseToken = morphSession.beginDetailCollapseAfterSave(
-                        using: token,
-                        finalPlacement: placement
-                    )
-                }
-                guard let collapseToken else { return }
-                scheduleDetailCollapseCompletion(subject, token: collapseToken)
-            }
-        }
-    }
-
-    private func scheduleDetailCollapseCompletion(
-        _ subject: TaskMorphSubject,
-        token: HomeMorphSessionToken
-    ) {
-        detailCollapseCompletionTask?.cancel()
-        let delay = Duration.seconds(
-            reduceMotion
-                ? TaskExpansionMotionTiming.reducedMotionDuration
-                : TaskExpansionMotionTiming.collapseDuration
-        )
-        detailCollapseCompletionTask = Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard Task.isCancelled == false,
-                  morphSession.isCurrent(token),
-                  morphSession.phase == .collapsing,
-                  morphSession.visualState == .compact
-            else { return }
-            morphSession.requestDetailCollapseCompletion(subject, using: token)
-        }
-    }
-
-    private func finalizeDetailCollapse(
-        _ subject: TaskMorphSubject,
-        token: HomeMorphSessionToken
-    ) {
-        guard morphSession.phase == .collapsing,
-              morphSession.isCurrent(token),
-              morphSession.subject == subject
-        else { return }
-
-        guard morphSession.detailRequiresRelocation else {
-            finishDetailWithoutRelocation(subject, collapse: token)
-            return
-        }
-
-        guard let relocation = morphSession.beginRelocating(using: token) else { return }
-        relocateAndClearDetail(subject)
-        Task { @MainActor in
-            await Task.yield()
-            guard morphSession.isCurrent(relocation) else { return }
-            withAnimation(relocationAnimation) {
-                morphSession.finishRelocating(using: relocation)
-            }
-        }
-    }
-
-    private func finishDetailWithoutRelocation(
-        _ subject: TaskMorphSubject,
-        collapse: HomeMorphSessionToken
-    ) {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            switch subject.domain {
-            case .todo:
-                appContext.homeViewModel.dismissItemDetail()
-            case .periodic:
-                appContext.routinesViewModel.finishMorphDetail()
-            }
-            morphSession.finishCollapse(using: collapse)
-        }
-    }
-
-    private func prepareCreationLanding(_ subject: TaskMorphSubject) {
-        switch subject.domain {
-        case .todo:
-            appContext.homeViewModel.relocateMorphItem(subject.id)
-        case .periodic:
-            appContext.routinesViewModel.relocateMorphTask(subject.id)
-        }
-    }
-
-    private func finalizeCreationReveal(
-        _ subject: TaskMorphSubject,
-        token: HomeMorphSessionToken
-    ) {
-        guard morphSession.isCurrent(token),
-              morphSession.phase == .relocating,
-              morphSession.subject == subject
-        else { return }
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            switch subject.domain {
-            case .todo:
-                appContext.homeViewModel.finalizeCommittedTaskCreation()
-            case .periodic:
-                appContext.routinesViewModel.finalizeMorphCreation()
-            }
-            morphSession.finishRelocating(using: token)
-        }
-    }
-
-    private func relocateAndClearDetail(_ subject: TaskMorphSubject) {
-        switch subject.domain {
-        case .todo:
-            appContext.homeViewModel.relocateMorphItem(subject.id)
-            appContext.homeViewModel.dismissItemDetail()
-        case .periodic:
-            appContext.routinesViewModel.relocateMorphTask(subject.id)
-            appContext.routinesViewModel.finishMorphDetail()
-        }
-    }
-
-    private var morphAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: 0.14)
-            : .smooth(duration: 0.35, extraBounce: 0)
-    }
-
-    private var relocationAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.14) : .smooth(duration: 0.28, extraBounce: 0)
-    }
-
-    private var detailCollapseAnimation: Animation {
-        reduceMotion
-            ? .easeInOut(duration: TaskExpansionMotionTiming.reducedMotionDuration)
-            : .smooth(duration: TaskExpansionMotionTiming.collapseDuration, extraBounce: 0)
     }
 
     private func openDirectOCRPhotoPicker() {
@@ -871,10 +604,6 @@ struct HomeRootContent: View {
     }
 
     private func selectRootSurface(_ surface: RootSurface, router: AppRouter) {
-        if morphSession.isActive {
-            morphSession.requestDismissal()
-            return
-        }
         guard router.isProfilePresented == false else { return }
         guard router.activeComposer == nil else { return }
         guard surface == .today || surface == .routines else { return }
@@ -884,21 +613,6 @@ struct HomeRootContent: View {
 
         withAnimation(rootModeAnimation) {
             router.currentSurface = surface
-        }
-    }
-
-    private func synchronizePendingRootRoutes(router: AppRouter) {
-        guard morphSession.isActive == false else { return }
-        if router.isProfilePresented, rootNavigationPath.count == 0 {
-            rootNavigationPath.append(AppRootRoute.profile)
-        }
-        synchronizeComposerPresentation(router: router)
-    }
-
-    private func schedulePendingRootRoutes(router: AppRouter) {
-        Task { @MainActor in
-            await Task.yield()
-            synchronizePendingRootRoutes(router: router)
         }
     }
 

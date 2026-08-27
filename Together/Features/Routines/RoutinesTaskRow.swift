@@ -54,13 +54,9 @@ struct RoutinesTaskRow: View {
     let isDetailCollapsing: Bool
     let expansionMotion: TaskExpansionMotion
     let cascadeRowCount: Int
-    var isCreationDraft = false
-    var creationFocusRequestRevision: UInt = 0
-    var creationFocusDismissalRevision: UInt = 0
-    var creationCommitRequestRevision: UInt = 0
-    var creationValidationMessage: String? = nil
-    var onSubmitCreation: () -> Void = {}
-    var onCreationTitleChanged: (String) -> Void = { _ in }
+    let requestsInitialTitleFocus: Bool
+    let taskDetailTransition: Namespace.ID?
+    let inputCommitRequestRevision: UInt
     let onOpenDetail: () -> Void
     let onToggleCompletion: () -> Void
     let onDismissDetail: () -> Void
@@ -69,6 +65,7 @@ struct RoutinesTaskRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.taskMorphBackgroundTextOpacity) private var backgroundTextOpacity
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNotesFocused: Bool
     @AccessibilityFocusState private var isTitleAccessibilityFocused: Bool
@@ -78,6 +75,7 @@ struct RoutinesTaskRow: View {
     @State private var isCommittingTitle = false
     @State private var isEditingNotes = false
     @State private var isCommittingNotes = false
+    @State private var didRequestInitialTitleFocus = false
     @State private var completionAnimationCount = 0
     @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
@@ -91,7 +89,54 @@ struct RoutinesTaskRow: View {
     @State private var rowVerticalOffset: CGFloat = 0
     @State private var rowOpacity = 1.0
     @State private var reopeningCheckmarkOpacity = 1.0
-    @State private var validationNudgeProgress: CGFloat = 1
+
+    init(
+        task: PeriodicTask,
+        viewModel: RoutinesViewModel,
+        isAnimatingCompletion: Bool,
+        isAnimatingReopening: Bool,
+        isDetailPresented: Bool,
+        isDetailExpanded: Bool,
+        isDetailCollapsing: Bool,
+        expansionMotion: TaskExpansionMotion,
+        cascadeRowCount: Int,
+        requestsInitialTitleFocus: Bool,
+        taskDetailTransition: Namespace.ID? = nil,
+        inputCommitRequestRevision: UInt = 0,
+        onOpenDetail: @escaping () -> Void,
+        onToggleCompletion: @escaping () -> Void,
+        onDismissDetail: @escaping () -> Void,
+        onInlineFocus: @escaping (RoutineInlineFocusTarget) -> Void
+    ) {
+        self.task = task
+        _viewModel = Bindable(wrappedValue: viewModel)
+        self.isAnimatingCompletion = isAnimatingCompletion
+        self.isAnimatingReopening = isAnimatingReopening
+        self.isDetailPresented = isDetailPresented
+        self.isDetailExpanded = isDetailExpanded
+        self.isDetailCollapsing = isDetailCollapsing
+        self.expansionMotion = expansionMotion
+        self.cascadeRowCount = cascadeRowCount
+        self.requestsInitialTitleFocus = requestsInitialTitleFocus
+        self.taskDetailTransition = taskDetailTransition
+        self.inputCommitRequestRevision = inputCommitRequestRevision
+        self.onOpenDetail = onOpenDetail
+        self.onToggleCompletion = onToggleCompletion
+        self.onDismissDetail = onDismissDetail
+        self.onInlineFocus = onInlineFocus
+
+        let initialTitle = isDetailPresented
+            ? (viewModel.activeEditorDraft?.title ?? task.title)
+            : task.title
+        let initialNotes = isDetailPresented
+            ? (viewModel.activeEditorDraft?.notes ?? "")
+            : (task.notes ?? "")
+        _titleDraft = State(initialValue: initialTitle)
+        _notesDraft = State(initialValue: initialNotes)
+        _isEditingTitle = State(
+            initialValue: requestsInitialTitleFocus && isDetailPresented
+        )
+    }
 
     private var isCompleted: Bool {
         viewModel.isCompleted(task)
@@ -118,8 +163,7 @@ struct RoutinesTaskRow: View {
                         isCollapsing: isDetailCollapsing
                     ),
                     cascadeRowCount: cascadeRowCount,
-                    creationFocusDismissalRevision: creationFocusDismissalRevision,
-                    creationCommitRequestRevision: creationCommitRequestRevision,
+                    usesGlobalConfirmation: requestsInitialTitleFocus,
                     onDismiss: onDismissDetail,
                     onFocus: onInlineFocus
                 )
@@ -133,31 +177,23 @@ struct RoutinesTaskRow: View {
         .onAppear {
             titleDraft = draftTitle
             notesDraft = visibleNotes
-            if isCreationDraft {
-                isEditingTitle = true
-                if creationFocusRequestRevision > 0 {
-                    beginTitleEditing()
-                }
-            }
             guard shouldPlayCompletionAnimation else { return }
             startCompletionAnimation()
         }
-        .onChange(of: creationFocusRequestRevision) { _, revision in
-            guard isCreationDraft, revision > 0 else { return }
-            beginTitleEditing()
+        .task {
+            guard requestsInitialTitleFocus,
+                  didRequestInitialTitleFocus == false
+            else { return }
+            didRequestInitialTitleFocus = true
+            await Task.yield()
+            guard Task.isCancelled == false, isDetailPresented else { return }
+            onInlineFocus(.title)
+            isTitleFocused = true
         }
-        .onChange(of: creationFocusDismissalRevision) { _, revision in
-            guard isCreationDraft, revision > 0 else { return }
+        .onChange(of: inputCommitRequestRevision) { _, revision in
+            guard revision > 0 else { return }
             commitTitleAfterFocusUpdate()
             commitNotesAfterFocusUpdate()
-        }
-        .onChange(of: creationCommitRequestRevision) { _, revision in
-            guard isCreationDraft, revision > 0 else { return }
-            flushCreationTitleForCommit()
-        }
-        .onChange(of: creationValidationMessage) { _, message in
-            guard isCreationDraft, message != nil else { return }
-            playCreationValidationFeedback()
         }
         .onChange(of: isAnimatingCompletion) { _, newValue in
             guard newValue, shouldPlayCompletionAnimation else { return }
@@ -268,8 +304,6 @@ struct RoutinesTaskRow: View {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
-        .disabled(isCreationDraft)
-        .accessibilityHidden(isCreationDraft)
         .accessibilityLabel(isCompleted ? "标记为未完成" : "完成定期任务")
     }
 
@@ -299,7 +333,10 @@ struct RoutinesTaskRow: View {
                                 titleText(task.title, lineLimit: 2)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(
+                            maxWidth: isDetailPresented ? .infinity : nil,
+                            alignment: .leading
+                        )
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -307,13 +344,6 @@ struct RoutinesTaskRow: View {
                     .accessibilityHidden(isDetailPresented == false)
                     .accessibilityLabel("编辑定期任务标题")
                 }
-            }
-            if isCreationDraft, let creationValidationMessage {
-                Text(creationValidationMessage)
-                    .font(AppTheme.typography.scaled(12, weight: .medium, relativeTo: .caption1))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.62))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(.opacity)
             }
             if isDetailPresented {
                 TaskMorphMeasuredRegion(
@@ -337,7 +367,13 @@ struct RoutinesTaskRow: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: isDetailPresented ? .infinity : nil, alignment: .leading)
+        .opacity(backgroundTextOpacity)
+        .taskDetailMatchedTransitionSource(
+            .periodic(task.id),
+            in: taskDetailTransition,
+            isEnabled: isDetailPresented == false
+        )
     }
 
     @ViewBuilder
@@ -359,8 +395,10 @@ struct RoutinesTaskRow: View {
                         }
                     }
 
-                inlineSaveButton(accessibilityLabel: "保存定期任务备注") {
-                    commitNotesAfterFocusUpdate()
+                if requestsInitialTitleFocus == false {
+                    inlineSaveButton(accessibilityLabel: "保存定期任务备注") {
+                        commitNotesAfterFocusUpdate()
+                    }
                 }
             }
         } else if visibleNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
@@ -421,23 +459,20 @@ struct RoutinesTaskRow: View {
             TextField(
                 "定期任务标题",
                 text: $titleDraft,
-                axis: isCreationDraft ? .horizontal : .vertical
+                axis: .vertical
             )
                 .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
                 .foregroundStyle(titleColor)
                 .textInputAutocapitalization(.sentences)
                 .submitLabel(.done)
-                .lineLimit(isCreationDraft ? 1...1 : 1...4)
+                .lineLimit(1...4)
                 .focused($isTitleFocused)
                 .onChange(of: titleDraft) { _, title in
-                    guard isCreationDraft else { return }
+                    guard isDetailPresented else { return }
                     viewModel.updateDraftTitle(title)
-                    onCreationTitleChanged(title)
                 }
                 .onSubmit {
-                    commitTitleAfterFocusUpdate(
-                        then: isCreationDraft ? onSubmitCreation : nil
-                    )
+                    commitTitleAfterFocusUpdate()
                 }
                 .id(RoutineInlineFocusTarget.title.anchorID(for: task.id))
                 .onChange(of: isTitleFocused) { _, focused in
@@ -448,34 +483,12 @@ struct RoutinesTaskRow: View {
                     }
                 }
 
-            if isCreationDraft == false {
+            if requestsInitialTitleFocus == false {
                 inlineSaveButton(accessibilityLabel: "保存定期任务标题") {
                     commitTitleAfterFocusUpdate()
                 }
             }
         }
-        .modifier(
-            TaskCreationValidationNudge(
-                progress: reduceMotion ? 1 : validationNudgeProgress
-            )
-        )
-    }
-
-    private func playCreationValidationFeedback() {
-        HomeInteractionFeedback.validation()
-        guard reduceMotion == false else {
-            beginTitleEditing()
-            return
-        }
-        var transaction = Transaction(animation: nil)
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            validationNudgeProgress = 0
-        }
-        withAnimation(.linear(duration: 0.16)) {
-            validationNudgeProgress = 1
-        }
-        beginTitleEditing()
     }
 
     private func beginTitleEditing() {
@@ -509,18 +522,6 @@ struct RoutinesTaskRow: View {
             isCommittingTitle = false
             action?()
         }
-    }
-
-    private func flushCreationTitleForCommit() {
-        titleDraft = TextInputSnapshotReader.resolvedText(fallback: titleDraft)
-        isCommittingTitle = true
-        isTitleFocused = false
-        let trimmed = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        viewModel.updateDraftTitle(trimmed)
-        onCreationTitleChanged(trimmed)
-        titleDraft = trimmed
-        isEditingTitle = false
-        isCommittingTitle = false
     }
 
     private func beginNotesEditing() {
@@ -727,8 +728,7 @@ private struct RoutinesInlineDetailView: View {
     let isCollapsing: Bool
     let cascadeElapsed: TimeInterval
     let cascadeRowCount: Int
-    let creationFocusDismissalRevision: UInt
-    let creationCommitRequestRevision: UInt
+    let usesGlobalConfirmation: Bool
     let onDismiss: () -> Void
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
@@ -764,14 +764,6 @@ private struct RoutinesInlineDetailView: View {
             guard expanded == false, isEditingNotes else { return }
             commitNotes()
         }
-        .onChange(of: creationFocusDismissalRevision) { _, revision in
-            guard revision > 0 else { return }
-            commitNotes()
-        }
-        .onChange(of: creationCommitRequestRevision) { _, revision in
-            guard revision > 0 else { return }
-            commitNotes()
-        }
         .accessibilityAction(named: "收起定期任务详情") {
             onDismiss()
         }
@@ -801,12 +793,14 @@ private struct RoutinesInlineDetailView: View {
                         viewModel.updateDraftNotes(notes)
                     }
 
-                Button("确认", action: commitNotes)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.sky)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .padding(.vertical, -6)
-                    .buttonStyle(.plain)
+                if usesGlobalConfirmation == false {
+                    Button("确认", action: commitNotes)
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.sky)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .padding(.vertical, -6)
+                        .buttonStyle(.plain)
+                }
             } else {
                 Button {
                     HomeInteractionFeedback.selection()

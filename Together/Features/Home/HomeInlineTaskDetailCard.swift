@@ -7,8 +7,9 @@ struct HomeInlineTaskDetailCard: View {
     let isCollapsing: Bool
     let cascadeElapsed: TimeInterval
     let cascadeRowCount: Int
-    let creationFocusDismissalRevision: UInt
-    let creationCommitRequestRevision: UInt
+    var usesGlobalConfirmation = false
+    var inputCommitRequestRevision: UInt = 0
+    var onTransientInputChange: (Bool) -> Void = { _ in }
 
     @State private var newSubtaskTitle = ""
     @State private var notesDraft = ""
@@ -96,14 +97,6 @@ struct HomeInlineTaskDetailCard: View {
             else { return }
             commitExistingSubtask(id)
         }
-        .onChange(of: creationFocusDismissalRevision) { _, revision in
-            guard revision > 0 else { return }
-            focusedField = nil
-        }
-        .onChange(of: creationCommitRequestRevision) { _, revision in
-            guard revision > 0 else { return }
-            flushFocusedInputForCreationCommit()
-        }
         .onChange(of: viewModel.inlineDetailDraft?.subtasks) { _, subtasks in
             guard let activeSubtaskID,
                   subtasks?.contains(where: { $0.id == activeSubtaskID }) == true
@@ -112,6 +105,10 @@ struct HomeInlineTaskDetailCard: View {
                 activeSubtaskTitle = ""
                 return
             }
+        }
+        .onChange(of: inputCommitRequestRevision) { _, revision in
+            guard revision > 0 else { return }
+            flushFocusedInputForCommit()
         }
         .onAppear { notesDraft = viewModel.inlineDetailDraft?.notes ?? entry.notes ?? "" }
         .onChange(of: isExpanded) { _, expanded in
@@ -149,12 +146,14 @@ struct HomeInlineTaskDetailCard: View {
                         viewModel.updateDraftNotes(notes)
                     }
 
-                Button("确认", action: commitNotes)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.sky)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .padding(.vertical, -6)
-                    .buttonStyle(.plain)
+                if usesGlobalConfirmation == false {
+                    Button("确认", action: commitNotes)
+                        .font(AppTheme.typography.sized(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.colors.sky)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .padding(.vertical, -6)
+                        .buttonStyle(.plain)
+                }
             }
         } else {
             let notes = viewModel.inlineDetailDraft?.notes ?? entry.notes ?? ""
@@ -229,17 +228,22 @@ struct HomeInlineTaskDetailCard: View {
                     .strikethrough(subtask.isCompleted)
                     .focused($focusedField, equals: .existingSubtask(subtask.id))
                     .submitLabel(.done)
+                    .onChange(of: activeSubtaskTitle) { _, title in
+                        viewModel.updateDetailDraftSubtask(subtask.id, title: title)
+                    }
                     .onSubmit { commitExistingSubtaskAfterSnapshot(subtask.id) }
 
-                Button("确认") {
-                    HomeInteractionFeedback.selection()
-                    commitExistingSubtaskAfterSnapshot(subtask.id)
+                if usesGlobalConfirmation == false {
+                    Button("确认") {
+                        HomeInteractionFeedback.selection()
+                        commitExistingSubtaskAfterSnapshot(subtask.id)
+                    }
+                    .font(AppTheme.typography.sized(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.sky)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .padding(.vertical, -6)
+                    .buttonStyle(.plain)
                 }
-                .font(AppTheme.typography.sized(13, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.sky)
-                .frame(minWidth: 44, minHeight: 44)
-                .padding(.vertical, -6)
-                .buttonStyle(.plain)
 
                 Button(role: .destructive) {
                     HomeInteractionFeedback.delete()
@@ -292,6 +296,11 @@ struct HomeInlineTaskDetailCard: View {
                 .focused($focusedField, equals: .newSubtask)
                 .submitLabel(.done)
                 .onSubmit(addSubtaskAfterSnapshot)
+                .onChange(of: newSubtaskTitle) { _, title in
+                    onTransientInputChange(
+                        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                    )
+                }
 
             Button("添加", action: addSubtaskAfterSnapshot)
                 .font(AppTheme.typography.sized(13, weight: .semibold))
@@ -311,33 +320,6 @@ struct HomeInlineTaskDetailCard: View {
         viewModel.updateDraftNotes(notesDraft)
         isEditingNotes = false
         isCommittingNotes = false
-    }
-
-    private func flushFocusedInputForCreationCommit() {
-        switch focusedField {
-        case .notes:
-            commitNotes()
-        case .existingSubtask(let id):
-            activeSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: activeSubtaskTitle)
-            let trimmed = activeSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty == false {
-                viewModel.updateDetailDraftSubtask(id, title: trimmed)
-            }
-            activeSubtaskID = nil
-            activeSubtaskTitle = ""
-            focusedField = nil
-        case .newSubtask:
-            newSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: newSubtaskTitle)
-            let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty == false {
-                viewModel.addDetailDraftSubtask(title: trimmed)
-                newSubtaskTitle = ""
-                showsSubtaskComposer = false
-            }
-            focusedField = nil
-        case nil:
-            break
-        }
     }
 
     private var secondaryActionIconOpacity: CGFloat {
@@ -387,7 +369,29 @@ struct HomeInlineTaskDetailCard: View {
         viewModel.addDetailDraftSubtask(title: trimmed)
         HomeInteractionFeedback.selection()
         newSubtaskTitle = ""
+        onTransientInputChange(false)
         showsSubtaskComposer = false
+    }
+
+    private func flushFocusedInputForCommit() {
+        switch focusedField {
+        case .notes:
+            commitNotes()
+        case .existingSubtask(let id):
+            activeSubtaskTitle = TextInputSnapshotReader.resolvedText(
+                fallback: activeSubtaskTitle
+            )
+            focusedField = nil
+            commitExistingSubtask(id)
+        case .newSubtask:
+            newSubtaskTitle = TextInputSnapshotReader.resolvedText(
+                fallback: newSubtaskTitle
+            )
+            focusedField = nil
+            addSubtask()
+        case nil:
+            break
+        }
     }
 
     private func commitExistingSubtaskAfterSnapshot(_ id: UUID) {
@@ -456,61 +460,113 @@ struct HomeTaskAttributeFooter: View {
     @Bindable var viewModel: HomeViewModel
     let isExpanded: Bool
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var schedulePresentation: ExistingTaskScheduleEditorPresentation?
 
     var body: some View {
         expandedControls
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .allowsHitTesting(isExpanded)
-        .sheet(item: $schedulePresentation) { presentation in
-            DateTimePickerSheet(
-                presentation: presentation,
-                selectionFeedback: HomeInteractionFeedback.selection,
-                onChange: { draft in
-                    viewModel.updateDraftSchedule(
-                        date: draft.selectedDate,
-                        time: draft.selectedTime,
-                        reminderOffset: draft.reminderOffset
-                    )
-                }
-            )
-        }
+            .sheet(item: $schedulePresentation) { presentation in
+                DateTimePickerSheet(
+                    presentation: presentation,
+                    selectionFeedback: HomeInteractionFeedback.selection,
+                    onChange: { draft in
+                        viewModel.updateDraftSchedule(
+                            date: draft.selectedDate,
+                            time: draft.selectedTime,
+                            reminderOffset: draft.reminderOffset
+                        )
+                    }
+                )
+            }
     }
 
     private var expandedControls: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                intrinsicAttributeToolbar
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: TaskAttributeToolbarMetrics.horizontalSpacing) {
+                        attributeControls(fillsAvailableWidth: true)
+                    }
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: TaskAttributeToolbarMetrics.rowHeight
+                    )
+
+                    intrinsicAttributeToolbar
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset)
+    }
+
+    private var intrinsicAttributeToolbar: some View {
         TaskAttributeToolbarRail {
-            attributeButton(
-                title: dateTitle,
-                systemImage: "calendar",
-                isConfigured: viewModel.inlineDetailDraft?.dueAt != nil
-            ) {
-                openSchedule()
-            }
-            attributeButton(
-                title: timeTitle,
-                systemImage: "clock",
-                isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true
-            ) {
-                openSchedule()
-            }
+            attributeControls(fillsAvailableWidth: false)
+        }
+    }
 
-            attributeButton(
-                title: reminderTitle,
-                systemImage: "bell",
-                isConfigured: viewModel.inlineDetailDraft?.remindAt != nil
-            ) {
-                openSchedule()
-            }
+    @ViewBuilder
+    private func attributeControls(fillsAvailableWidth: Bool) -> some View {
+        attributeButton(
+            title: dateTitle,
+            systemImage: "calendar",
+            isConfigured: viewModel.inlineDetailDraft?.dueAt != nil,
+            fillsAvailableWidth: fillsAvailableWidth
+        ) {
+            openSchedule()
+        }
+        attributeButton(
+            title: timeTitle,
+            systemImage: "clock",
+            isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true,
+            fillsAvailableWidth: fillsAvailableWidth
+        ) {
+            openSchedule()
+        }
 
+        attributeButton(
+            title: reminderTitle,
+            systemImage: "bell",
+            isConfigured: viewModel.inlineDetailDraft?.remindAt != nil,
+            fillsAvailableWidth: fillsAvailableWidth
+        ) {
+            openSchedule()
+        }
+
+        Button {
+            HomeInteractionFeedback.selection()
+            viewModel.updateDraftUrgent(!(viewModel.inlineDetailDraft?.isUrgent ?? false))
+        } label: {
+            TaskAttributeLabel(
+                icon: viewModel.inlineDetailDraft?.isUrgent == true ? "flag.fill" : "flag",
+                title: "",
+                isConfigured: viewModel.inlineDetailDraft?.isUrgent == true,
+                tint: viewModel.inlineDetailDraft?.isUrgent == true ? AppTheme.colors.coral : nil,
+                isCircular: true,
+                alignsToCardCorner: true,
+                isFocusForeground: true,
+                usesLightweightBackground: true
+            )
+        }
+        .buttonStyle(TaskMorphAttributeButtonStyle())
+        .accessibilityLabel("紧急")
+        .accessibilityValue(viewModel.inlineDetailDraft?.isUrgent == true ? "已开启" : "已关闭")
+
+        if canShowFollowButton {
             Button {
                 HomeInteractionFeedback.selection()
-                viewModel.updateDraftUrgent(!(viewModel.inlineDetailDraft?.isUrgent ?? false))
+                Task { await viewModel.toggleTaskFollow(entry.itemID) }
             } label: {
                 TaskAttributeLabel(
-                    icon: viewModel.inlineDetailDraft?.isUrgent == true ? "flag.fill" : "flag",
+                    icon: "scope",
                     title: "",
-                    isConfigured: viewModel.inlineDetailDraft?.isUrgent == true,
-                    tint: viewModel.inlineDetailDraft?.isUrgent == true ? AppTheme.colors.coral : nil,
+                    isConfigured: isFollowed,
+                    tint: isFollowed ? AppTheme.colors.sky : nil,
                     isCircular: true,
                     alignsToCardCorner: true,
                     isFocusForeground: true,
@@ -518,35 +574,11 @@ struct HomeTaskAttributeFooter: View {
                 )
             }
             .buttonStyle(TaskMorphAttributeButtonStyle())
-            .accessibilityLabel("紧急")
-            .accessibilityValue(viewModel.inlineDetailDraft?.isUrgent == true ? "已开启" : "已关闭")
-
-            if canShowFollowButton {
-                Button {
-                    HomeInteractionFeedback.selection()
-                    Task { await viewModel.toggleTaskFollow(entry.itemID) }
-                } label: {
-                    TaskAttributeLabel(
-                        icon: "scope",
-                        title: "",
-                        isConfigured: isFollowed,
-                        tint: isFollowed ? AppTheme.colors.sky : nil,
-                        isCircular: true,
-                        alignsToCardCorner: true,
-                        isFocusForeground: true,
-                        usesLightweightBackground: true
-                    )
-                }
-                .buttonStyle(TaskMorphAttributeButtonStyle())
-                .disabled(viewModel.isUpdatingTaskFollow(entry.itemID))
-                .accessibilityLabel(isFollowed ? "已关注" : "关注任务")
-                .accessibilityValue(isFollowed ? "已开启" : "已关闭")
-                .accessibilityHint(isFollowed ? "轻点取消关注" : "轻点在实时活动中关注此任务")
-            }
-
+            .disabled(viewModel.isUpdatingTaskFollow(entry.itemID))
+            .accessibilityLabel(isFollowed ? "已关注" : "关注任务")
+            .accessibilityValue(isFollowed ? "已开启" : "已关闭")
+            .accessibilityHint(isFollowed ? "轻点取消关注" : "轻点在实时活动中关注此任务")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset)
     }
 
     private var isFollowed: Bool {
@@ -562,6 +594,7 @@ struct HomeTaskAttributeFooter: View {
         title: String,
         systemImage: String,
         isConfigured: Bool,
+        fillsAvailableWidth: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -576,9 +609,11 @@ struct HomeTaskAttributeFooter: View {
                 alignsToCardCorner: true,
                 horizontalPadding: 8,
                 isFocusForeground: true,
+                fillsAvailableWidth: fillsAvailableWidth,
                 usesLightweightBackground: true
             )
         }
+        .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)
         .buttonStyle(TaskMorphAttributeButtonStyle())
     }
 

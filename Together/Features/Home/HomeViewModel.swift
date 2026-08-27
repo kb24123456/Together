@@ -107,9 +107,6 @@ enum HomeTaskCreationPhase: Equatable, Sendable {
 
 struct HomeTaskCreationSession: Equatable, Sendable, Identifiable {
     let id: UUID
-    let createdAt: Date
-    let provisionalDayStart: Date
-    let initialDraft: TaskDraft
     var draft: TaskDraft
     var phase: HomeTaskCreationPhase
     var errorMessage: String?
@@ -179,10 +176,6 @@ final class HomeViewModel {
         sessionStore.currentUser?.id
     }
 
-    var isTaskCreationActive: Bool {
-        taskCreationSession != nil
-    }
-
     func beginTaskCreation() {
         guard taskCreationSession == nil, selectedItemID == nil else { return }
         let day = calendar.startOfDay(for: .now)
@@ -190,9 +183,6 @@ final class HomeViewModel {
         let draft = TaskDraft(title: "", dueAt: day)
         taskCreationSession = HomeTaskCreationSession(
             id: UUID(),
-            createdAt: .now,
-            provisionalDayStart: day,
-            initialDraft: draft,
             draft: draft,
             phase: .editing,
             errorMessage: nil
@@ -226,7 +216,7 @@ final class HomeViewModel {
         taskCreationSession = nil
     }
 
-    func commitTaskCreationForMorph() async -> TaskMorphPersistenceResult {
+    func commitTaskCreation() async -> TaskCreationPersistenceResult {
         guard
             var session = taskCreationSession,
             session.phase == .editing,
@@ -250,12 +240,12 @@ final class HomeViewModel {
             )
             replaceItem(created)
             emitTaskMutation(spaceID: spaceID)
+            if created.isFollowed {
+                onTaskFollowChanged?(spaceID)
+            }
             session.phase = .committed
             taskCreationSession = session
-            guard let descriptor = morphPlacement(for: created.id) else {
-                return .failed(message: "任务已保存，但暂时无法定位到列表。")
-            }
-            return .saved(descriptor)
+            return .saved(created.id)
         } catch {
             session.phase = .editing
             session.errorMessage = "保存失败，请重试。"
@@ -309,20 +299,6 @@ final class HomeViewModel {
         taskCreationSession?.draft ?? detailDraft
     }
 
-    var isTaskCreationTitleEmpty: Bool {
-        taskCreationSession?.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
-    }
-
-    var isTaskCreationCompletelyEmpty: Bool {
-        guard let session = taskCreationSession else { return true }
-        var draft = session.draft
-        var initial = session.initialDraft
-        draft.title = ""
-        initial.title = ""
-        return session.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && draft == initial
-    }
-
     var canEditSelectedItem: Bool {
         guard let item = selectedItem, let userID = sessionStore.currentUser?.id else { return true }
         return SoloPermissionService.canEditTask(item, actorID: userID)
@@ -345,6 +321,12 @@ final class HomeViewModel {
 
     func completeInsertionAnimation(for itemID: UUID) {
         insertedItemIDs.remove(itemID)
+    }
+
+    func revealCommittedTaskCreation(_ itemID: UUID) {
+        guard taskCreationSession == nil, item(for: itemID) != nil else { return }
+        relocateMorphItem(itemID)
+        insertedItemIDs.insert(itemID)
     }
 
     var hasUnsavedDetailChanges: Bool {
@@ -1178,69 +1160,6 @@ final class HomeViewModel {
         makeActiveTimelineSections(from: primaryIncompleteTimelineItems)
     }
 
-    func timelineSectionsAddingTaskCreationDraft(
-        to sections: [HomeTimelineSection]
-    ) -> [HomeTimelineSection] {
-        guard let session = taskCreationSession else { return sections }
-        let entry = taskCreationTimelineEntry(session)
-        var result = sections
-
-        if let index = result.firstIndex(where: {
-            $0.isUnscheduled == false
-                && calendar.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
-        }) {
-            let section = result[index]
-            result[index] = HomeTimelineSection(
-                id: section.id,
-                dayStart: section.dayStart,
-                title: section.title,
-                context: section.context,
-                count: section.count,
-                isUnscheduled: section.isUnscheduled,
-                entries: section.entries + [entry]
-            )
-            return result
-        }
-
-        let draftSection = HomeTimelineSection(
-            id: "scheduled-\(Int(session.provisionalDayStart.timeIntervalSince1970))",
-            dayStart: session.provisionalDayStart,
-            title: timelineSectionTitle(for: session.provisionalDayStart),
-            context: timelineSectionContext(
-                for: session.provisionalDayStart,
-                isUnscheduled: false
-            ),
-            count: 0,
-            isUnscheduled: false,
-            entries: [entry]
-        )
-        let insertionIndex = result.firstIndex {
-            $0.isUnscheduled || $0.dayStart > session.provisionalDayStart
-        } ?? result.endIndex
-        result.insert(draftSection, at: insertionIndex)
-        return result
-    }
-
-    func taskCreationPlacement() -> TaskMorphPlacement? {
-        guard let session = taskCreationSession else { return nil }
-        let section = TaskMorphSection.todo(
-            dayStart: session.provisionalDayStart,
-            isUnscheduled: false
-        )
-        let provisionalIndex = activeTimelineSections
-            .first(where: {
-                $0.isUnscheduled == false
-                    && calendar.isDate($0.dayStart, inSameDayAs: session.provisionalDayStart)
-            })?
-            .entries
-            .count ?? 0
-        return TaskMorphPlacement(
-            provisionalSection: section,
-            index: provisionalIndex,
-            presentationID: taskCreationPresentationID(session)
-        )
-    }
-
     var completedTimelineEntries: [HomeTimelineEntry] {
         return completedTimelineItems.map(makeTimelineEntry)
     }
@@ -1757,71 +1676,6 @@ final class HomeViewModel {
             subtasks: sortedSubtasks,
             subtaskCompletedCount: sortedSubtasks.filter(\.isCompleted).count
         )
-    }
-
-    private func taskCreationTimelineEntry(
-        _ session: HomeTaskCreationSession
-    ) -> HomeTimelineEntry {
-        let draft = session.draft
-        let creatorID = sessionStore.currentUser?.id ?? session.id
-        let subtasks = draft.subtasks.map { subtask in
-            TaskSubtask(
-                id: subtask.id,
-                itemID: session.id,
-                creatorID: creatorID,
-                title: subtask.title,
-                isCompleted: subtask.isCompleted,
-                sortOrder: subtask.sortOrder,
-                updatedAt: session.createdAt,
-                sourceTaskID: subtask.sourceTaskID,
-                sourceNotes: subtask.sourceNotes,
-                sourceDueAt: subtask.sourceDueAt,
-                sourceHasExplicitTime: subtask.sourceHasExplicitTime,
-                sourceRemindAt: subtask.sourceRemindAt,
-                sourceCreatedAt: subtask.sourceCreatedAt,
-                sourceCompletedAt: subtask.sourceCompletedAt
-            )
-        }
-        let timeText: String = if draft.hasExplicitTime, let dueAt = draft.dueAt {
-            dueAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
-        } else {
-            ""
-        }
-        let reminderText = draft.remindAt.map {
-            TaskSharedAttributeText.reminderLead(
-                dueAt: draft.dueAt,
-                hasExplicitTime: draft.hasExplicitTime,
-                remindAt: $0,
-                calendar: calendar
-            )
-        } ?? ""
-
-        return HomeTimelineEntry(
-            id: session.id,
-            presentationID: taskCreationPresentationID(session),
-            title: draft.title,
-            notes: draft.notes,
-            timeText: timeText,
-            reminderText: reminderText,
-            statusText: "",
-            isUrgent: draft.isUrgent,
-            isMuted: false,
-            isCompleted: false,
-            timingUrgency: .normal,
-            relationText: nil,
-            primaryAvatar: nil,
-            secondaryAvatar: nil,
-            lastActionAt: session.createdAt,
-            createdAt: session.createdAt,
-            subtasks: subtasks,
-            subtaskCompletedCount: subtasks.filter(\.isCompleted).count
-        )
-    }
-
-    private func taskCreationPresentationID(
-        _ session: HomeTaskCreationSession
-    ) -> String {
-        "active-scheduled-\(Int(session.provisionalDayStart.timeIntervalSince1970))-\(session.id.uuidString)"
     }
 
     private func timelinePresentationID(for item: Item, isCompleted: Bool) -> String {

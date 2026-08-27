@@ -183,8 +183,6 @@ enum PeriodicTaskCreationPhase: Equatable, Sendable {
 
 struct PeriodicTaskCreationSession: Equatable, Sendable, Identifiable {
     let id: UUID
-    let provisionalCycle: PeriodicCycle
-    let initialDraft: PeriodicTaskDraft
     var draft: PeriodicTaskDraft
     var phase: PeriodicTaskCreationPhase
     var errorMessage: String?
@@ -211,6 +209,7 @@ final class RoutinesViewModel {
     private var completingTaskIDs: Set<UUID> = []
     private var animatingCompletionTaskIDs: Set<UUID> = []
     private var animatingReopeningTaskIDs: Set<UUID> = []
+    private var insertedTaskIDs: Set<UUID> = []
     private var temporaryVisibleCycle: PeriodicCycle?
 
     private var loadedSpaceID: UUID?
@@ -244,14 +243,12 @@ final class RoutinesViewModel {
         operationErrorMessage = nil
     }
 
-    func beginMorphCreation(defaultCycle: PeriodicCycle? = nil) {
+    func beginTaskCreation(defaultCycle: PeriodicCycle? = nil) {
         guard creationSession == nil, expandedTaskID == nil else { return }
         let cycle = defaultCycle ?? selectedCycle
         let draft = PeriodicTaskDraft(cycle: cycle)
         creationSession = PeriodicTaskCreationSession(
             id: UUID(),
-            provisionalCycle: cycle,
-            initialDraft: draft,
             draft: draft,
             phase: .editing,
             errorMessage: nil
@@ -265,20 +262,6 @@ final class RoutinesViewModel {
         return detailDraft
     }
 
-    var isCreationTitleEmpty: Bool {
-        creationSession?.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
-    }
-
-    var isCreationCompletelyEmpty: Bool {
-        guard let session = creationSession else { return true }
-        var draft = session.draft
-        var initial = session.initialDraft
-        draft.title = ""
-        initial.title = ""
-        return session.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && draft == initial
-    }
-
     func updateCreationDraft(_ mutation: (inout PeriodicTaskDraft) -> Void) {
         guard var session = creationSession, session.phase == .editing else { return }
         mutation(&session.draft)
@@ -286,12 +269,12 @@ final class RoutinesViewModel {
         creationSession = session
     }
 
-    func discardMorphCreation() {
+    func discardTaskCreation() {
         guard creationSession?.phase == .editing else { return }
         creationSession = nil
     }
 
-    func commitMorphCreation() async -> TaskMorphPersistenceResult {
+    func commitTaskCreation() async -> TaskCreationPersistenceResult {
         guard var session = creationSession, session.phase == .editing else {
             return .failed(message: "当前无法创建定期任务。")
         }
@@ -311,15 +294,28 @@ final class RoutinesViewModel {
 
         session.phase = .committed
         creationSession = session
-        guard let descriptor = morphPlacement(for: created.id) else {
-            return .failed(message: "任务已保存，但暂时无法定位到列表。")
-        }
-        return .saved(descriptor)
+        return .saved(created.id)
     }
 
-    func finalizeMorphCreation() {
+    func finalizeTaskCreation() {
         guard creationSession?.phase == .committed else { return }
         creationSession = nil
+    }
+
+    func revealCommittedTaskCreation(_ taskID: UUID) {
+        guard creationSession == nil,
+              tasks.contains(where: { $0.id == taskID })
+        else { return }
+        relocateMorphTask(taskID)
+        insertedTaskIDs.insert(taskID)
+    }
+
+    func isAnimatingInsertion(taskID: UUID) -> Bool {
+        insertedTaskIDs.contains(taskID)
+    }
+
+    func completeInsertionAnimation(taskID: UUID) {
+        insertedTaskIDs.remove(taskID)
     }
 
     init(
@@ -381,38 +377,6 @@ final class RoutinesViewModel {
 
     var currentTasks: [PeriodicTask] {
         sortedTasks(for: selectedCycle)
-    }
-
-    var creationPresentationTask: PeriodicTask? {
-        guard let session = creationSession else { return nil }
-        let draft = session.draft
-        return PeriodicTask(
-            id: session.id,
-            spaceID: sessionStore.currentSpace?.id,
-            creatorID: sessionStore.currentUser?.id ?? session.id,
-            title: draft.title,
-            notes: draft.notes,
-            cycle: session.provisionalCycle,
-            reminderRules: draft.reminderRules,
-            completions: [],
-            sortOrder: .greatestFiniteMagnitude,
-            isActive: true,
-            createdAt: .now,
-            updatedAt: .now
-        )
-    }
-
-    func creationPlacement() -> TaskMorphPlacement? {
-        guard let session = creationSession else { return nil }
-        let section = TaskMorphSection.periodic(cycle: session.provisionalCycle)
-        let provisionalIndex = sortedTasks(for: session.provisionalCycle)
-            .prefix(while: { isCompleted($0) == false })
-            .count
-        return TaskMorphPlacement(
-            provisionalSection: section,
-            index: provisionalIndex,
-            presentationID: session.id.uuidString
-        )
     }
 
     var nextDeferredTaskResumeDate: Date? {

@@ -82,7 +82,9 @@ actor DefaultTaskApplicationService: TaskApplicationServiceProtocol {
             sortOrder: now.timeIntervalSinceReferenceDate,
             isUrgent: draft.isUrgent,
             isDraft: draft.isDraft,
-            repeatRule: nil
+            repeatRule: nil,
+            isFollowed: draft.shouldFollowOnCreation,
+            followedAt: draft.shouldFollowOnCreation ? now : nil
         )
 
         let saved = try await itemRepository.saveItem(item)

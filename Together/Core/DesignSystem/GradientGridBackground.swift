@@ -3,6 +3,7 @@ import SwiftUI
 struct GradientGridBackground: View {
     var showsAmbientParticles = false
     var ambientParticlesEnabled = true
+    var ambientParticlesOpacity: CGFloat = 1
     var isParticleMotionSuppressed = false
     var isSurfaceVisible = true
 
@@ -24,6 +25,7 @@ struct GradientGridBackground: View {
                     isMotionSuppressed: isParticleMotionSuppressed,
                     isSurfaceVisible: isSurfaceVisible
                 )
+                .opacity(ambientParticlesOpacity)
             }
         }
         .ignoresSafeArea()
