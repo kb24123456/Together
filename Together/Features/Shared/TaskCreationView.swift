@@ -146,15 +146,6 @@ struct TaskCreationView: View {
                 }
             )
         }
-        .alert("无法使用闹钟", isPresented: $routinesViewModel.showsAlarmAuthorizationDeniedAlert) {
-            Button("取消", role: .cancel) {}
-            Button("打开设置") {
-                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                UIApplication.shared.open(url)
-            }
-        } message: {
-            Text("请在系统设置中允许 Together 使用闹钟；当前提醒方式保持不变。")
-        }
         .task {
             await Task.yield()
             guard isSaving == false else { return }
@@ -454,30 +445,19 @@ struct TaskCreationView: View {
     }
 
     private var periodicAttributeToolbar: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                TaskAttributeToolbarRail {
-                    periodicAttributeControls
-                }
-            } else {
-                HStack(spacing: TaskAttributeToolbarMetrics.horizontalSpacing) {
-                    periodicAttributeControls
-                }
-                .frame(maxWidth: .infinity)
-            }
+        TaskAttributeAdaptiveRail {
+            periodicAttributeControls
         }
     }
 
     @ViewBuilder
     private var periodicAttributeControls: some View {
         periodicCycleMenu
-            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? nil : .infinity)
         periodicTargetDayControl
-            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? nil : .infinity)
         InlineTimePickerControl(
             selection: periodicRule?.hasTargetTime == true ? periodicTimeDate : nil,
             fallbackSelection: .now,
-            fillsAvailableWidth: dynamicTypeSize.isAccessibilitySize == false,
+            fillsAvailableWidth: false,
             onCommit: { value in
                 if let value {
                     let components = Calendar.current.dateComponents([.hour, .minute], from: value)
@@ -489,9 +469,7 @@ struct TaskCreationView: View {
                 }
             }
         )
-        .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? nil : .infinity)
         periodicReminderMenu
-            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? nil : .infinity)
     }
 
     private var periodicCycleMenu: some View {
@@ -601,29 +579,16 @@ struct TaskCreationView: View {
             }
 
             Divider()
-            periodicReminderOption("目标时刻", minutes: 0)
+            periodicReminderOption("准时", minutes: 0)
             periodicReminderOption("提前 5 分钟", minutes: 5)
             periodicReminderOption("提前 15 分钟", minutes: 15)
             periodicReminderOption("提前 30 分钟", minutes: 30)
             periodicReminderOption("提前 1 小时", minutes: 60)
             periodicReminderOption("提前 1 天", minutes: 1_440)
 
-            if periodicRule?.hasReminder == true {
-                Divider()
-                Button {
-                    Task { await routinesViewModel.updateDraftReminderDelivery(.notification) }
-                } label: {
-                    Label("普通通知", systemImage: periodicRule?.reminderDelivery == .alarm ? "bell" : "checkmark")
-                }
-                Button {
-                    Task { await routinesViewModel.updateDraftReminderDelivery(.alarm) }
-                } label: {
-                    Label("原生闹钟", systemImage: periodicRule?.reminderDelivery == .alarm ? "checkmark" : "alarm")
-                }
-            }
         } label: {
             periodicSettingLabel(
-                icon: periodicRule?.reminderDelivery == .alarm ? "alarm" : "bell",
+                icon: "bell",
                 title: periodicReminderTitle,
                 isConfigured: periodicRule?.hasReminder == true
             )
@@ -657,7 +622,7 @@ struct TaskCreationView: View {
             usesContinuousCapsule: true,
             horizontalPadding: 8,
             isFocusForeground: true,
-            fillsAvailableWidth: dynamicTypeSize.isAccessibilitySize == false,
+            fillsAvailableWidth: false,
             usesLightweightBackground: true
         )
     }
@@ -691,20 +656,26 @@ struct TaskCreationView: View {
             case .dayOfPeriod(let day) where day >= 31: return "最后一天"
             case .dayOfPeriod(let day): return "\(day)号"
             case .businessDayOfPeriod(let day): return "第\(day)工作日"
+            case .daysBeforeEnd(1): return "最后一天"
             case .daysBeforeEnd(let days): return "提前\(days)天"
+            case .weekdayOfMonth(let ordinal, let weekday):
+                return "\(ordinal.title)\(RoutineTargetText.absoluteWeekdayText(for: weekday))"
+            case .lastBusinessDay: return "最后工作日"
             }
         case .quarterly, .yearly:
             switch timing {
             case .dayOfPeriod(let day): return "第\(day)天"
             case .businessDayOfPeriod(let day): return "第\(day)工作日"
+            case .daysBeforeEnd(1): return "最后一天"
             case .daysBeforeEnd(let days): return "提前\(days)天"
+            case .lastBusinessDay: return "最后工作日"
+            case .weekdayOfMonth: return "目标日"
             }
         }
     }
 
     private var periodicReminderTitle: String {
         guard let rule = periodicRule, rule.hasReminder else { return "提醒" }
-        if rule.reminderDelivery == .alarm { return "闹钟" }
         switch rule.reminderLeadMinutes {
         case 0: return "准时"
         case 5: return "提前5分"

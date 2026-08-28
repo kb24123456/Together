@@ -84,7 +84,7 @@ float2 ambientHash22(float2 p) {
 
             float opacityNoise = ambientHash12(cellID + layerSeed + 211.7);
             float opacityRandom = opacityNoise * opacityNoise;
-            float lightOpacity = mix(0.20, 0.28, opacityRandom);
+            float lightOpacity = mix(0.22, 0.32, opacityRandom);
             float darkOpacity = mix(0.10, 0.20, opacityRandom);
             float particleOpacity = mix(lightOpacity, darkOpacity, darkAppearance);
             accumulatedAlpha += circleAlpha * particleOpacity;
@@ -94,7 +94,7 @@ float2 ambientHash22(float2 p) {
     float normalizedY = position.y / size.y;
     float topFade = smoothstep(0.0, 0.10, normalizedY);
     float bottomFade = 1.0 - smoothstep(0.84, 1.0, normalizedY);
-    float maximumAlpha = mix(0.28, 0.20, darkAppearance);
+    float maximumAlpha = mix(0.32, 0.20, darkAppearance);
     float alpha = min(accumulatedAlpha, maximumAlpha)
         * topFade
         * bottomFade

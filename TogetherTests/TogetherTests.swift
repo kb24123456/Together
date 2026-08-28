@@ -227,6 +227,14 @@ struct TogetherTests {
                 calendar: calendar
             ) == "30 分钟前"
         )
+        #expect(
+            TaskSharedAttributeText.reminderLead(
+                dueAt: dueAt,
+                hasExplicitTime: true,
+                remindAt: dueAt,
+                calendar: calendar
+            ) == "准时提醒"
+        )
     }
 
     @Test func inlineDetailSaveRefreshesRowSummaryBeforeCollapse() async throws {
@@ -733,19 +741,22 @@ struct TogetherTests {
             includesWeeklyCompletedSummary: true
         )
 
-        #expect(sequence.taskIndex(for: activeIDs[0]) == 0)
-        #expect(sequence.taskIndex(for: activeIDs[1]) == 1)
-        #expect(sequence.todayCompletedHeaderIndex == 2)
-        #expect(sequence.taskIndex(for: completedIDs[0]) == 3)
-        #expect(sequence.taskIndex(for: completedIDs[1]) == 4)
-        #expect(sequence.weeklyCompletedSummaryIndex == 5)
-        #expect(sequence.elementCount == 6)
+        #expect(sequence.dateHeaderIndex == 0)
+        #expect(sequence.taskIndex(for: activeIDs[0]) == 1)
+        #expect(sequence.taskIndex(for: activeIDs[1]) == 2)
+        #expect(sequence.todayCompletedHeaderIndex == 3)
+        #expect(sequence.taskIndex(for: completedIDs[0]) == 4)
+        #expect(sequence.taskIndex(for: completedIDs[1]) == 5)
+        #expect(sequence.weeklyCompletedSummaryIndex == 6)
+        #expect(sequence.elementCount == 7)
 
         let weeklyOnly = HomeModeTimelineWaveSequence(
             activeTaskIDs: [],
             completedTaskIDs: [],
-            includesWeeklyCompletedSummary: true
+            includesWeeklyCompletedSummary: true,
+            includesDateHeader: false
         )
+        #expect(weeklyOnly.dateHeaderIndex == nil)
         #expect(weeklyOnly.todayCompletedHeaderIndex == nil)
         #expect(weeklyOnly.weeklyCompletedSummaryIndex == 0)
         #expect(weeklyOnly.elementCount == 1)
@@ -1587,6 +1598,104 @@ struct TogetherTests {
         #expect(decoded.reminderDelivery == nil)
     }
 
+    @Test func monthlyWeekdayAndLastBusinessDayRulesProduceExpectedTargets() throws {
+        var calendar = gregorianCalendar()
+        calendar.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+        let january = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 1, day: 15))
+        )
+        let may = try #require(
+            calendar.date(from: DateComponents(year: 2026, month: 5, day: 15))
+        )
+
+        let firstMonday = try #require(
+            PeriodicCycleCalculator.reminderTriggerDate(
+                rule: PeriodicReminderRule(
+                    timing: .weekdayOfMonth(ordinal: .first, weekday: 2),
+                    hour: 9,
+                    minute: 30
+                ),
+                cycle: .monthly,
+                date: january,
+                calendar: calendar
+            )
+        )
+        let lastFriday = try #require(
+            PeriodicCycleCalculator.reminderTriggerDate(
+                rule: PeriodicReminderRule(
+                    timing: .weekdayOfMonth(ordinal: .last, weekday: 6),
+                    hour: 18,
+                    minute: 0
+                ),
+                cycle: .monthly,
+                date: january,
+                calendar: calendar
+            )
+        )
+        let lastBusinessDay = try #require(
+            PeriodicCycleCalculator.reminderTriggerDate(
+                rule: PeriodicReminderRule(
+                    timing: .lastBusinessDay,
+                    hour: 17,
+                    minute: 45
+                ),
+                cycle: .monthly,
+                date: may,
+                calendar: calendar
+            )
+        )
+
+        #expect(
+            calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: firstMonday
+            ) == DateComponents(year: 2026, month: 1, day: 5, hour: 9, minute: 30)
+        )
+        #expect(
+            calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: lastFriday
+            ) == DateComponents(year: 2026, month: 1, day: 30, hour: 18, minute: 0)
+        )
+        #expect(
+            calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: lastBusinessDay
+            ) == DateComponents(year: 2026, month: 5, day: 29, hour: 17, minute: 45)
+        )
+    }
+
+    @Test func newPeriodicTimingRulesRoundTripAndNormalizeSafely() throws {
+        let weekdayRule = PeriodicReminderRule(
+            timing: .weekdayOfMonth(ordinal: .last, weekday: 6),
+            hour: 9,
+            minute: 15
+        )
+        let decodedWeekdayRule = try JSONDecoder().decode(
+            PeriodicReminderRule.self,
+            from: JSONEncoder().encode(weekdayRule)
+        )
+        let lastBusinessDayRule = PeriodicReminderRule(
+            timing: .lastBusinessDay,
+            hour: 9,
+            minute: 15
+        )
+        let decodedLastBusinessDayRule = try JSONDecoder().decode(
+            PeriodicReminderRule.self,
+            from: JSONEncoder().encode(lastBusinessDayRule)
+        )
+
+        #expect(decodedWeekdayRule == weekdayRule)
+        #expect(decodedLastBusinessDayRule == lastBusinessDayRule)
+        #expect(
+            RoutinesViewModel.normalizedRule(weekdayRule, for: .quarterly).timing == nil
+        )
+        #expect(
+            RoutinesViewModel.normalizedRule(lastBusinessDayRule, for: .yearly).timing
+                == .lastBusinessDay
+        )
+    }
+
     @Test func dailyTimeOnlyRuleProducesReminderOnCurrentDay() throws {
         var calendar = gregorianCalendar()
         calendar.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
@@ -1745,7 +1854,14 @@ struct TogetherTests {
         let task = makePeriodicTask(
             title: "分别清空",
             cycle: .weekly,
-            reminderRules: [PeriodicReminderRule(timing: .dayOfPeriod(3), hour: 18, minute: 30)]
+            reminderRules: [
+                PeriodicReminderRule(
+                    timing: .dayOfPeriod(3),
+                    hour: 18,
+                    minute: 30,
+                    reminderLeadMinutes: 15
+                )
+            ]
         )
         let viewModel = makeRoutinesViewModel()
         viewModel.tasks = [task]
@@ -1761,6 +1877,8 @@ struct TogetherTests {
         #expect(viewModel.detailDraft?.reminderRules.first?.timing == .dayOfPeriod(5))
         #expect(viewModel.detailDraft?.reminderRules.first?.hour == nil)
         #expect(viewModel.detailDraft?.reminderRules.first?.minute == nil)
+        #expect(viewModel.detailDraft?.reminderRules.first?.reminderLeadMinutes == nil)
+        #expect(viewModel.detailDraft?.reminderRules.first?.reminderDelivery == nil)
     }
 
     @Test func routineIndependentTargetClearsPersistOnlyAfterCollapse() async throws {
@@ -3088,6 +3206,66 @@ struct TogetherTests {
         #expect(notificationService.scheduledNotifications().count == 1)
     }
 
+    @Test func reminderDeliveryPreferenceDefaultsToAppleAlarmAndPersistsSelection() async throws {
+        let suiteName = "TogetherTests.ReminderDelivery.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let scheduler = LocalReminderScheduler(
+            notificationService: CapturingNotificationService(),
+            routineAlarmService: MockRoutineAlarmService(status: .authorized),
+            deliveryPreferences: ReminderDeliveryPreferences(defaults: defaults),
+            calendar: gregorianCalendar()
+        )
+        #expect(await scheduler.reminderDeliveryPreference() == .alarm)
+
+        await scheduler.updateReminderDeliveryPreference(.notification)
+        let restoredScheduler = LocalReminderScheduler(
+            notificationService: CapturingNotificationService(),
+            routineAlarmService: MockRoutineAlarmService(status: .authorized),
+            deliveryPreferences: ReminderDeliveryPreferences(defaults: defaults),
+            calendar: gregorianCalendar()
+        )
+        #expect(await restoredScheduler.reminderDeliveryPreference() == .notification)
+    }
+
+    @Test func globalNotificationPreferenceOverridesLegacyPerTaskAlarmValue() async throws {
+        let calendar = gregorianCalendar()
+        let notificationService = CapturingNotificationService()
+        let alarmService = MockRoutineAlarmService(status: .authorized)
+        let suiteName = "TogetherTests.NotificationOverride.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let scheduler = LocalReminderScheduler(
+            notificationService: notificationService,
+            routineAlarmService: alarmService,
+            deliveryPreferences: ReminderDeliveryPreferences(defaults: defaults),
+            calendar: calendar
+        )
+        await scheduler.updateReminderDeliveryPreference(.notification)
+        let referenceDate = try #require(
+            calendar.date(from: DateComponents(year: 2030, month: 6, day: 18, hour: 8))
+        )
+        let task = makePeriodicTask(
+            title: "统一普通通知",
+            cycle: .daily,
+            reminderRules: [
+                PeriodicReminderRule(
+                    hour: 18,
+                    minute: 30,
+                    reminderLeadMinutes: 0,
+                    reminderDelivery: .alarm
+                )
+            ]
+        )
+
+        await scheduler.syncPeriodicTaskReminder(for: task, referenceDate: referenceDate)
+
+        #expect(notificationService.scheduledNotifications().count == 1)
+        #expect(await alarmService.scheduled[task.id] == nil)
+    }
+
     @Test func taskWithoutExplicitTimeDoesNotScheduleAlarm() async throws {
         let calendar = gregorianCalendar()
         let dueAt = try #require(calendar.date(from: DateComponents(year: 2030, month: 6, day: 14)))
@@ -3188,9 +3366,13 @@ struct TogetherTests {
     @Test func deferredRoutineReminderMovesToDeferredDayAndDeletionCancelsItsRealIdentifier() async throws {
         let calendar = gregorianCalendar()
         let notificationService = CapturingNotificationService()
+        let suiteName = "TogetherTests.DeferredReminder.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let scheduler = LocalReminderScheduler(
             notificationService: notificationService,
             routineAlarmService: MockRoutineAlarmService(status: .authorized),
+            deliveryPreferences: ReminderDeliveryPreferences(defaults: defaults),
             calendar: calendar
         )
         let deferredUntil = try #require(
@@ -3210,6 +3392,7 @@ struct TogetherTests {
             ]
         )
         task.deferredUntil = deferredUntil
+        await scheduler.updateReminderDeliveryPreference(.notification)
 
         await scheduler.syncPeriodicTaskReminder(for: task, referenceDate: deferredUntil)
 
@@ -3855,7 +4038,7 @@ struct TogetherTests {
         )
 
         let content = TaskSharedIdentityContent.make(entry: entry)
-        #expect(HomeTimelineSubtitleText.text(for: entry) == "1/2")
+        #expect(HomeTimelineSubtitleText.text(for: entry) == "子任务 1/2")
         #expect(content.note == "备注不会盖过子任务")
         #expect(content.visibleElements.contains(.progress))
         #expect(content.completedSubtaskCount == 1)
@@ -3902,7 +4085,7 @@ struct TogetherTests {
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
         let content = TaskSharedIdentityContent.make(entry: entry)
-        #expect(display.primarySubtitle == "1/2")
+        #expect(display.primarySubtitle == "子任务 1/2")
         #expect(display.propertyText == nil)
         #expect(content.visibleElements.contains(.progress))
     }
@@ -3971,7 +4154,7 @@ struct TogetherTests {
 
         let display = HomeTimelineRowDisplayText.text(for: entry)
         #expect(display.primarySubtitle == "跟进客户反馈")
-        #expect(display.propertyText == "18:30 · 提醒 · 0/1")
+        #expect(display.propertyText == "18:30 · 提醒 · 子任务 0/1")
 
         let content = TaskSharedIdentityContent.make(entry: entry)
         #expect(content.visibleElements.contains(.time))
@@ -4399,6 +4582,8 @@ private final class DeletionTestReminderScheduler: ReminderSchedulerProtocol {
     ) async {}
     func syncPeriodicTaskReminder(for task: PeriodicTask, referenceDate: Date) async {}
     func removePeriodicTaskReminder(for taskID: UUID) async { removedPeriodicTaskIDs.insert(taskID) }
+    func reminderDeliveryPreference() async -> PeriodicReminderDelivery { .alarm }
+    func updateReminderDeliveryPreference(_ delivery: PeriodicReminderDelivery) async {}
     func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
     func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus { .authorized }
     func periodicAlarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }

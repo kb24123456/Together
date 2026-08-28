@@ -40,11 +40,31 @@ enum PeriodicReminderDelivery: String, Codable, Hashable, Sendable {
     case alarm
 }
 
+enum PeriodicMonthWeekOrdinal: Int, CaseIterable, Codable, Hashable, Sendable {
+    case first = 1
+    case second = 2
+    case third = 3
+    case fourth = 4
+    case last = -1
+
+    nonisolated var title: String {
+        switch self {
+        case .first: "第一个"
+        case .second: "第二个"
+        case .third: "第三个"
+        case .fourth: "第四个"
+        case .last: "最后一个"
+        }
+    }
+}
+
 struct PeriodicReminderRule: Codable, Hashable, Sendable {
     enum Timing: Codable, Hashable, Sendable {
         case dayOfPeriod(Int)
         case businessDayOfPeriod(Int)
         case daysBeforeEnd(Int)
+        case weekdayOfMonth(ordinal: PeriodicMonthWeekOrdinal, weekday: Int)
+        case lastBusinessDay
     }
 
     var timing: Timing?
@@ -64,6 +84,8 @@ struct PeriodicReminderRule: Codable, Hashable, Sendable {
         self.hour = hour
         self.minute = minute
         self.reminderLeadMinutes = reminderLeadMinutes
+        // Retain the historical payload for older app versions. Current delivery
+        // behavior comes from the device-level scheduler preference.
         self.reminderDelivery = reminderLeadMinutes == nil ? nil : (reminderDelivery ?? .notification)
     }
 
@@ -109,6 +131,8 @@ struct PeriodicReminderRule: Codable, Hashable, Sendable {
                 forKey: .reminderDelivery
             )
         } else {
+            // Keep the historical payload value stable. Delivery is now a global,
+            // device-level preference and this field is decoded only for compatibility.
             reminderDelivery = reminderLeadMinutes == nil ? nil : .notification
         }
     }

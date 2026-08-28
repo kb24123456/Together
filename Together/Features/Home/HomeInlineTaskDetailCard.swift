@@ -460,7 +460,6 @@ struct HomeTaskAttributeFooter: View {
     @Bindable var viewModel: HomeViewModel
     let isExpanded: Bool
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var schedulePresentation: ExistingTaskScheduleEditorPresentation?
 
     var body: some View {
@@ -483,31 +482,11 @@ struct HomeTaskAttributeFooter: View {
     }
 
     private var expandedControls: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                intrinsicAttributeToolbar
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: TaskAttributeToolbarMetrics.horizontalSpacing) {
-                        attributeControls(fillsAvailableWidth: true)
-                    }
-                    .frame(
-                        maxWidth: .infinity,
-                        minHeight: TaskAttributeToolbarMetrics.rowHeight
-                    )
-
-                    intrinsicAttributeToolbar
-                }
-            }
+        TaskAttributeAdaptiveRail {
+            attributeControls(fillsAvailableWidth: false)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, HomeInlineTaskLayoutMetrics.expandedAttributeLeadingInset)
-    }
-
-    private var intrinsicAttributeToolbar: some View {
-        TaskAttributeToolbarRail {
-            attributeControls(fillsAvailableWidth: false)
-        }
     }
 
     @ViewBuilder
@@ -610,7 +589,8 @@ struct HomeTaskAttributeFooter: View {
                 horizontalPadding: 8,
                 isFocusForeground: true,
                 fillsAvailableWidth: fillsAvailableWidth,
-                usesLightweightBackground: true
+                usesLightweightBackground: true,
+                animatesTitleChanges: true
             )
         }
         .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)

@@ -49,7 +49,7 @@ enum RoutineReminderText {
         guard let leadMinutes = rule.reminderLeadMinutes else { return "" }
         let timing: String
         switch leadMinutes {
-        case 0: timing = "目标时刻"
+        case 0: timing = "准时"
         case 5: timing = "提前 5 分钟"
         case 15: timing = "提前 15 分钟"
         case 30: timing = "提前 30 分钟"
@@ -57,8 +57,7 @@ enum RoutineReminderText {
         case 1_440: timing = "提前 1 天"
         default: timing = "提前 \(leadMinutes) 分钟"
         }
-        let delivery = rule.reminderDelivery == .alarm ? "闹钟" : "提醒"
-        return "\(timing) · \(delivery)"
+        return timing
     }
 }
 
@@ -143,7 +142,11 @@ enum RoutineTargetText {
             case .dayOfPeriod(let day)? where day >= 31: "每月最后一天"
             case .dayOfPeriod(let day)?: "每月 \(day) 号"
             case .businessDayOfPeriod(let day)?: "每月第 \(day) 个工作日"
+            case .daysBeforeEnd(1)?: "每月最后一天"
             case .daysBeforeEnd(let days)?: "月底前 \(days) 天"
+            case .weekdayOfMonth(let ordinal, let weekday)?:
+                "每月\(ordinal.title)\(absoluteWeekdayText(for: weekday))"
+            case .lastBusinessDay?: "每月最后一个工作日"
             case nil: nil
             }
             return combinedTargetText(dayText: dayText, timeText: time)
@@ -151,7 +154,10 @@ enum RoutineTargetText {
             let dayText: String? = switch rule.timing {
             case .dayOfPeriod(let day)?: "第 \(day) 天"
             case .businessDayOfPeriod(let day)?: "第 \(day) 个工作日"
+            case .daysBeforeEnd(1)?: "周期最后一天"
             case .daysBeforeEnd(let days)?: "周期结束前 \(days) 天"
+            case .lastBusinessDay?: "周期最后一个工作日"
+            case .weekdayOfMonth?: nil
             case nil: nil
             }
             return combinedTargetText(dayText: dayText, timeText: time)
@@ -172,6 +178,11 @@ enum RoutineTargetText {
         let clamped = max(1, min(7, dayOfPeriod))
         let weekday = ((calendar.firstWeekday - 1 + clamped - 1) % 7) + 1
         return names[weekday - 1]
+    }
+
+    static func absoluteWeekdayText(for weekday: Int) -> String {
+        let names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+        return names[max(1, min(7, weekday)) - 1]
     }
 }
 
@@ -203,7 +214,6 @@ final class RoutinesViewModel {
     var expandedTaskID: UUID?
     var detailDraft: RoutineInlineDraft?
     var creationSession: PeriodicTaskCreationSession?
-    var showsAlarmAuthorizationDeniedAlert = false
     private(set) var persistedVisibleCycles: Set<PeriodicCycle>
     private var pendingCompletedTask: PeriodicTask?
     private var completingTaskIDs: Set<UUID> = []
@@ -831,6 +841,8 @@ final class RoutinesViewModel {
         mutateDraftRule {
             $0.hour = nil
             $0.minute = nil
+            $0.reminderLeadMinutes = nil
+            $0.reminderDelivery = nil
         }
     }
 
@@ -840,36 +852,9 @@ final class RoutinesViewModel {
             if leadMinutes == nil {
                 $0.reminderDelivery = nil
             } else if $0.reminderDelivery == nil {
+                // Compatibility-only field; the scheduler's global preference is authoritative.
                 $0.reminderDelivery = .notification
             }
-        }
-    }
-
-    func updateDraftReminderDelivery(_ delivery: PeriodicReminderDelivery) async {
-        if delivery == .alarm {
-            guard await canUseAlarmDelivery() else { return }
-        }
-
-        mutateDraftRule {
-            guard $0.reminderLeadMinutes != nil else { return }
-            $0.reminderDelivery = delivery
-        }
-    }
-
-    func canUseAlarmDelivery() async -> Bool {
-        do {
-            let status = await periodicTaskApplicationService.alarmAuthorizationStatus()
-            let resolvedStatus = status == .notDetermined
-                ? try await periodicTaskApplicationService.requestAlarmAuthorization()
-                : status
-            guard resolvedStatus == .authorized else {
-                showsAlarmAuthorizationDeniedAlert = true
-                return false
-            }
-            return true
-        } catch {
-            showsAlarmAuthorizationDeniedAlert = true
-            return false
         }
     }
 
@@ -1109,12 +1094,17 @@ final class RoutinesViewModel {
         case let (.monthly, .dayOfPeriod(day)): return .dayOfPeriod(max(1, min(31, day)))
         case let (.monthly, .businessDayOfPeriod(day)): return .businessDayOfPeriod(max(1, min(20, day)))
         case let (.monthly, .daysBeforeEnd(days)): return .daysBeforeEnd(max(1, min(30, days)))
+        case let (.monthly, .weekdayOfMonth(ordinal, weekday)):
+            return .weekdayOfMonth(ordinal: ordinal, weekday: max(1, min(7, weekday)))
+        case (.monthly, .lastBusinessDay): return .lastBusinessDay
         case let (.quarterly, .dayOfPeriod(day)): return .dayOfPeriod(max(1, min(90, day)))
         case let (.quarterly, .businessDayOfPeriod(day)): return .businessDayOfPeriod(max(1, min(20, day)))
         case let (.quarterly, .daysBeforeEnd(days)): return .daysBeforeEnd(max(1, min(89, days)))
+        case (.quarterly, .lastBusinessDay): return .lastBusinessDay
         case let (.yearly, .dayOfPeriod(day)): return .dayOfPeriod(max(1, min(365, day)))
         case let (.yearly, .businessDayOfPeriod(day)): return .businessDayOfPeriod(max(1, min(260, day)))
         case let (.yearly, .daysBeforeEnd(days)): return .daysBeforeEnd(max(1, min(364, days)))
+        case (.yearly, .lastBusinessDay): return .lastBusinessDay
         default: return nil
         }
     }

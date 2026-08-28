@@ -4,20 +4,43 @@ struct HomeModeTimelineWaveSequence: Equatable {
     let activeTaskIDs: [UUID]
     let completedTaskIDs: [UUID]
     let includesWeeklyCompletedSummary: Bool
+    let includesDateHeader: Bool
+
+    init(
+        activeTaskIDs: [UUID],
+        completedTaskIDs: [UUID],
+        includesWeeklyCompletedSummary: Bool,
+        includesDateHeader: Bool = true
+    ) {
+        self.activeTaskIDs = activeTaskIDs
+        self.completedTaskIDs = completedTaskIDs
+        self.includesWeeklyCompletedSummary = includesWeeklyCompletedSummary
+        self.includesDateHeader = includesDateHeader
+    }
+
+    var dateHeaderIndex: Int? {
+        includesDateHeader ? 0 : nil
+    }
+
+    private var leadingElementCount: Int {
+        includesDateHeader ? 1 : 0
+    }
 
     var todayCompletedHeaderIndex: Int? {
-        completedTaskIDs.isEmpty ? nil : activeTaskIDs.count
+        completedTaskIDs.isEmpty ? nil : leadingElementCount + activeTaskIDs.count
     }
 
     var weeklyCompletedSummaryIndex: Int? {
         guard includesWeeklyCompletedSummary else { return nil }
-        return activeTaskIDs.count
+        return leadingElementCount
+            + activeTaskIDs.count
             + (completedTaskIDs.isEmpty ? 0 : 1)
             + completedTaskIDs.count
     }
 
     var elementCount: Int {
-        activeTaskIDs.count
+        leadingElementCount
+            + activeTaskIDs.count
             + completedTaskIDs.count
             + (completedTaskIDs.isEmpty ? 0 : 1)
             + (includesWeeklyCompletedSummary ? 1 : 0)
@@ -25,12 +48,12 @@ struct HomeModeTimelineWaveSequence: Equatable {
 
     func taskIndex(for taskID: UUID) -> Int? {
         if let index = activeTaskIDs.firstIndex(of: taskID) {
-            return index
+            return leadingElementCount + index
         }
         guard let index = completedTaskIDs.firstIndex(of: taskID) else {
             return nil
         }
-        return activeTaskIDs.count + 1 + index
+        return leadingElementCount + activeTaskIDs.count + 1 + index
     }
 }
 
@@ -142,7 +165,6 @@ struct HomeView: View {
     private var isAmbientParticleMotionSuppressed: Bool {
         viewModel.isOverdueSheetPresented
             || viewModel.isWeeklyCompletedSheetPresented
-            || routinesViewModel.showsAlarmAuthorizationDeniedAlert
     }
 
     private var showsStartupRestoreStatus: Bool {
@@ -626,25 +648,51 @@ struct HomeView: View {
     }
 
     private func timelineDateBar(_ section: HomeTimelineSection) -> some View {
-        timelineSectionHeaderLayout(section)
-            .contentTransition(reduceMotion ? .opacity : .numericText())
-            .animation(timelineDateBarContentAnimation, value: section.id)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.frame(in: .global).maxY
-            } action: { maxY in
-                guard abs(maxY - timelineDateBarBoundaryMaxY) > 0.5 else { return }
-                timelineDateBarBoundaryMaxY = maxY
-            }
+        let waveSequence = homeModeTimelineWaveSequence
+        return ZStack(alignment: .leading) {
+            timelineSectionHeaderLayout(section)
+                .contentTransition(reduceMotion ? .opacity : .numericText())
+                .animation(timelineDateBarContentAnimation, value: section.id)
+                .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
+                .animation(
+                    modeTaskRowAnimation(
+                        index: waveSequence.dateHeaderIndex ?? 0,
+                        taskCount: waveSequence.elementCount
+                    ),
+                    value: modeTaskRowsPresented
+                )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.frame(in: .global).maxY
+        } action: { maxY in
+            guard abs(maxY - timelineDateBarBoundaryMaxY) > 0.5 else { return }
+            timelineDateBarBoundaryMaxY = maxY
+        }
+    }
+
+    @ViewBuilder
+    private func timelineSectionHeader(_ section: HomeTimelineSection) -> some View {
+        if section.id == displayedActiveSections.first?.id {
+            let waveSequence = homeModeTimelineWaveSequence
+            timelineSectionHeaderLayout(section)
+                .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
+                .animation(
+                    modeTaskRowAnimation(
+                        index: waveSequence.dateHeaderIndex ?? 0,
+                        taskCount: waveSequence.elementCount
+                    ),
+                    value: modeTaskRowsPresented
+                )
+        } else {
+            timelineSectionHeaderLayout(section)
+        }
     }
 
     private var timelineDateBarContentAnimation: Animation {
         reduceMotion
             ? .easeInOut(duration: 0.14)
             : .smooth(duration: 0.26, extraBounce: 0)
-    }
-
-    private func timelineSectionHeader(_ section: HomeTimelineSection) -> some View {
-        timelineSectionHeaderLayout(section)
     }
 
     private func timelineSectionHeaderLayout(_ section: HomeTimelineSection) -> some View {
@@ -715,7 +763,8 @@ struct HomeView: View {
                 section.entries.map(\.itemID)
             },
             completedTaskIDs: displayedCompletedEntries.map(\.itemID),
-            includesWeeklyCompletedSummary: displayedHasWeeklyCompletedEntries
+            includesWeeklyCompletedSummary: displayedHasWeeklyCompletedEntries,
+            includesDateHeader: displayedTimelineDateBarSection != nil
         )
     }
 
@@ -1271,7 +1320,7 @@ enum HomeTimelineSubtitleText {
         }
 
         if entry.subtasks.isEmpty == false {
-            components.append("\(entry.subtaskCompletedCount)/\(entry.subtasks.count)")
+            components.append("子任务 \(entry.subtaskCompletedCount)/\(entry.subtasks.count)")
         }
 
         return components.joined(separator: " · ")
@@ -1904,7 +1953,7 @@ struct HomeTimelineRow: View {
             }
 
             if let displayPropertyText {
-                subtitleText(displayPropertyText)
+                propertySubtitleText(displayPropertyText)
             }
         }
         .frame(maxWidth: isDetailPresented ? .infinity : nil, alignment: .leading)
@@ -2006,12 +2055,26 @@ struct HomeTimelineRow: View {
             .allowsHitTesting(isDetailPresented)
             .accessibilityLabel("编辑备注")
         } else {
-            subtitleText(displaySubtitle)
+            propertySubtitleText(displaySubtitle)
         }
     }
 
     private func subtitleText(_ text: String) -> some View {
         Text(text)
+            .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+            .foregroundStyle(subtitleColor)
+            .lineLimit(isDetailPresented ? nil : 2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: isDetailPresented ? .infinity : nil, alignment: .leading)
+    }
+
+    private func propertySubtitleText(_ text: String) -> some View {
+        var attributedText = AttributedString(text)
+        if let labelRange = attributedText.range(of: "子任务 ") {
+            attributedText[labelRange].foregroundColor = subtitleColor.opacity(0.72)
+        }
+
+        return Text(attributedText)
             .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
             .foregroundStyle(subtitleColor)
             .lineLimit(isDetailPresented ? nil : 2)

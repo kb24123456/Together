@@ -67,6 +67,39 @@ struct ProfileView: View {
                     if viewModel.taskReminderEnabled {
                         VStack(spacing: 0) {
                             ProfileFlatOptionRow(
+                                title: "提醒方式",
+                                value: viewModel.reminderDelivery == .alarm ? "Apple 闹钟" : "普通通知",
+                                systemImage: viewModel.reminderDelivery == .alarm ? "alarm" : "bell"
+                            ) {
+                                Picker(
+                                    "提醒方式",
+                                    selection: Binding(
+                                        get: { viewModel.reminderDelivery },
+                                        set: { viewModel.updateReminderDelivery($0) }
+                                    )
+                                ) {
+                                    Text("Apple 闹钟").tag(PeriodicReminderDelivery.alarm)
+                                    Text("普通通知").tag(PeriodicReminderDelivery.notification)
+                                }
+                            }
+
+                            if viewModel.reminderDelivery == .alarm,
+                               viewModel.alarmAuthorization == .notDetermined {
+                                ProfileInlineNotice(
+                                    message: "允许 Apple 闹钟后，定时提醒可在静音或专注模式下响铃。",
+                                    actionTitle: "允许",
+                                    action: viewModel.requestAppleAlarmAuthorization
+                                )
+                            } else if viewModel.reminderDelivery == .alarm,
+                                      viewModel.alarmAuthorization == .denied {
+                                ProfileInlineNotice(
+                                    message: "Apple 闹钟权限已关闭，将自动改用普通通知。",
+                                    actionTitle: "前往设置",
+                                    action: openAlarmSettings
+                                )
+                            }
+
+                            ProfileFlatOptionRow(
                                 title: "临近窗口",
                                 value: viewModel.taskUrgencyLabel(minutes: viewModel.taskUrgencyWindowMinutes),
                                 systemImage: "timer"
@@ -278,6 +311,11 @@ struct ProfileView: View {
 
     private func openAppSettings() {
         guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+        openURL(url)
+    }
+
+    private func openAlarmSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         openURL(url)
     }
 

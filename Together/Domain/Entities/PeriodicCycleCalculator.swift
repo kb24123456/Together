@@ -179,6 +179,22 @@ enum PeriodicCycleCalculator {
 
         case .daysBeforeEnd(let days):
             baseDate = calendar.date(byAdding: .day, value: -days, to: periodEnd)
+
+        case .weekdayOfMonth(let ordinal, let weekday):
+            baseDate = weekdayOfMonth(
+                ordinal: ordinal,
+                weekday: weekday,
+                periodStart: periodStart,
+                periodEnd: periodEnd,
+                calendar: calendar
+            )
+
+        case .lastBusinessDay:
+            baseDate = lastBusinessDay(
+                before: periodEnd,
+                notBefore: periodStart,
+                calendar: calendar
+            )
         }
 
         guard let base = baseDate else { return nil }
@@ -213,6 +229,65 @@ enum PeriodicCycleCalculator {
             currentDate = next
         }
 
+        return nil
+    }
+
+    private nonisolated static func weekdayOfMonth(
+        ordinal: PeriodicMonthWeekOrdinal,
+        weekday: Int,
+        periodStart: Date,
+        periodEnd: Date,
+        calendar: Calendar
+    ) -> Date? {
+        let normalizedWeekday = max(1, min(7, weekday))
+
+        if ordinal == .last {
+            guard var candidate = calendar.date(byAdding: .day, value: -1, to: periodEnd) else {
+                return nil
+            }
+            while candidate >= periodStart {
+                if calendar.component(.weekday, from: candidate) == normalizedWeekday {
+                    return candidate
+                }
+                guard let previous = calendar.date(byAdding: .day, value: -1, to: candidate) else {
+                    return nil
+                }
+                candidate = previous
+            }
+            return nil
+        }
+
+        let firstWeekday = calendar.component(.weekday, from: periodStart)
+        let leadingDays = (normalizedWeekday - firstWeekday + 7) % 7
+        let weekOffset = (ordinal.rawValue - 1) * 7
+        guard let candidate = calendar.date(
+            byAdding: .day,
+            value: leadingDays + weekOffset,
+            to: periodStart
+        ), candidate < periodEnd else {
+            return nil
+        }
+        return candidate
+    }
+
+    private nonisolated static func lastBusinessDay(
+        before periodEnd: Date,
+        notBefore periodStart: Date,
+        calendar: Calendar
+    ) -> Date? {
+        guard var candidate = calendar.date(byAdding: .day, value: -1, to: periodEnd) else {
+            return nil
+        }
+        while candidate >= periodStart {
+            let weekday = calendar.component(.weekday, from: candidate)
+            if weekday != 1 && weekday != 7 {
+                return candidate
+            }
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: candidate) else {
+                return nil
+            }
+            candidate = previous
+        }
         return nil
     }
 }

@@ -39,7 +39,8 @@ struct TaskAttributeButton: View {
                 tint: tint,
                 usesContinuousCapsule: true,
                 horizontalPadding: 8,
-                fillsAvailableWidth: fillsAvailableWidth
+                fillsAvailableWidth: fillsAvailableWidth,
+                animatesTitleChanges: true
             )
         }
         .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)
@@ -111,7 +112,8 @@ struct TaskAttributeLabel: View {
         let text = Text(title)
             .font(AppTheme.typography.sized(13, weight: .semibold))
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
+            .minimumScaleFactor(0.85)
+            .fixedSize(horizontal: fillsAvailableWidth == false, vertical: false)
 
         if animatesTitleChanges {
             text.contentTransition(reduceMotion ? .opacity : .numericText())
@@ -470,36 +472,48 @@ struct DateTimePickerSheet: View {
 
     private var reminderRow: some View {
         DateTimePickerSettingRow(icon: "bell", title: "提醒") {
-            Menu {
-                reminderMenuButton(title: "无提醒", offset: nil)
-                Divider()
+            Picker(selection: reminderOffsetSelection) {
+                Text("无提醒").tag(nil as TimeInterval?)
                 ForEach(DateTimePickerReminderOption.all) { option in
-                    reminderMenuButton(title: option.title, offset: option.offset)
+                    Text(option.title).tag(Optional(option.offset))
                 }
             } label: {
                 HStack(spacing: AppTheme.spacing.xs) {
-                    Text(reminderValueTitle)
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(
-                            draft.hasExplicitTime
-                                ? AppTheme.colors.body
-                                : AppTheme.colors.textTertiary
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.76)
-                        .contentTransition(
-                            draft.reminderOffset == nil
-                                ? .opacity
-                                : .numericText()
-                        )
+                    if draft.hasExplicitTime {
+                        Text(reminderValueTitle)
+                            .font(.callout.weight(.medium))
+                            .foregroundStyle(AppTheme.colors.body)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.76)
+                            .contentTransition(
+                                draft.reminderOffset == nil
+                                    ? .opacity
+                                    : .numericText()
+                            )
+                            .transition(
+                                .blurReplace
+                                    .combined(with: .scale(0.94, anchor: .trailing))
+                            )
+                    } else {
+                        Text("需先设置时间")
+                            .font(.callout.weight(.medium))
+                            .foregroundStyle(AppTheme.colors.textTertiary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.76)
+                            .transition(
+                                .blurReplace
+                                    .combined(with: .scale(0.94, anchor: .trailing))
+                            )
+                    }
 
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.colors.textTertiary)
                 }
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
+            .pickerStyle(.menu)
             .buttonStyle(.plain)
             .disabled(draft.hasExplicitTime == false)
             .accessibilityLabel("提醒")
@@ -508,20 +522,18 @@ struct DateTimePickerSheet: View {
         }
     }
 
-    private func reminderMenuButton(title: String, offset: TimeInterval?) -> some View {
-        Button {
-            selectionFeedback()
-            performStateChange {
-                draft.selectReminderOffset(offset)
-                publishChange()
+    private var reminderOffsetSelection: Binding<TimeInterval?> {
+        Binding(
+            get: { draft.reminderOffset },
+            set: { offset in
+                guard offset != draft.reminderOffset else { return }
+                selectionFeedback()
+                performStateChange {
+                    draft.selectReminderOffset(offset)
+                    publishChange()
+                }
             }
-        } label: {
-            if draft.reminderOffset == offset {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
-            }
-        }
+        )
     }
 
     private var reminderValueTitle: String {
@@ -1244,6 +1256,7 @@ struct InlineTimePickerControl: View {
         guard let selection else { return "未设置时间" }
         return "时间，\(TaskAttributeValueText.time(selection))"
     }
+
 }
 
 private struct InlineTimePickerPopover: View {
@@ -1420,6 +1433,26 @@ struct TaskAttributeToolbarRail<Content: View>: View {
         .defaultScrollAnchor(.leading)
         .frame(height: TaskAttributeToolbarMetrics.rowHeight)
         .accessibilityElement(children: .contain)
+    }
+}
+
+struct TaskAttributeAdaptiveRail<Content: View>: View {
+    var horizontalSpacing = TaskAttributeToolbarMetrics.horizontalSpacing
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: horizontalSpacing) {
+                content()
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minHeight: TaskAttributeToolbarMetrics.rowHeight)
+
+            TaskAttributeToolbarRail(horizontalSpacing: horizontalSpacing) {
+                content()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -3545,8 +3578,8 @@ struct TaskEditorSingleColumnTimeWheel: View {
                 selectionCapsuleFill: selectionCapsuleFill,
                 showsIcon: showsSelectionIcon
             )
-                .padding(.horizontal, AppTheme.spacing.md) // 18→16
-                .allowsHitTesting(false)
+            .padding(.horizontal, AppTheme.spacing.md)
+            .allowsHitTesting(false)
         }
     }
 }
@@ -3648,7 +3681,10 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
                 tableView.contentInset = UIEdgeInsets(top: inset, left: 0, bottom: inset, right: 0)
                 tableView.scrollIndicatorInsets = tableView.contentInset
                 if let lastCenteredRow {
-                    tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: lastCenteredRow, in: tableView)), animated: false)
+                    tableView.setContentOffset(
+                        CGPoint(x: 0, y: offsetY(forRow: lastCenteredRow, in: tableView)),
+                        animated: false
+                    )
                 } else {
                     configureInitialSelection(for: tableView)
                 }
@@ -3695,7 +3731,10 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
         func configureInitialSelection(for tableView: TaskEditorSingleColumnTimeTableView) {
             let row = targetRow(for: parent.selection)
             lastCenteredRow = row
-            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: row, in: tableView)), animated: false)
+            tableView.setContentOffset(
+                CGPoint(x: 0, y: offsetY(forRow: row, in: tableView)),
+                animated: false
+            )
             updateVisibleCells(in: tableView)
         }
 
@@ -3705,7 +3744,10 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
             let targetRow = targetRow(for: targetDate, preferredRow: centeredRow)
             guard targetRow != centeredRow else { return }
             isProgrammaticScroll = true
-            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: targetRow, in: tableView)), animated: true)
+            tableView.setContentOffset(
+                CGPoint(x: 0, y: offsetY(forRow: targetRow, in: tableView)),
+                animated: true
+            )
             isProgrammaticScroll = false
         }
 
@@ -3733,7 +3775,10 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
             let row = nearestRow(in: tableView)
             recenterIfNeeded(tableView, around: row)
             isProgrammaticScroll = true
-            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: row, in: tableView)), animated: animated)
+            tableView.setContentOffset(
+                CGPoint(x: 0, y: offsetY(forRow: row, in: tableView)),
+                animated: animated
+            )
             isProgrammaticScroll = false
             lastCenteredRow = row
             let centeredDate = date(for: row)
@@ -3787,7 +3832,10 @@ private struct TaskEditorSingleColumnTimeWheelRepresentable: UIViewRepresentable
             let middleCycle = TaskEditorSingleColumnTimeWheelMetrics.loopMultiplier / 2
             guard abs(cycle - middleCycle) > 20 else { return }
             let centeredRow = (row % slotCount) + middleCycle * slotCount
-            tableView.setContentOffset(CGPoint(x: 0, y: offsetY(forRow: centeredRow, in: tableView)), animated: false)
+            tableView.setContentOffset(
+                CGPoint(x: 0, y: offsetY(forRow: centeredRow, in: tableView)),
+                animated: false
+            )
             lastCenteredRow = centeredRow
         }
     }
@@ -3831,7 +3879,7 @@ private struct TaskEditorSingleColumnTimeSelectionCapsule: View {
             HStack(spacing: AppTheme.spacing.sm) {
                 if showsIcon {
                     Image(systemName: "clock.fill")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded)) // design: .rounded intentional
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.colors.body.opacity(0.82))
                 }
 

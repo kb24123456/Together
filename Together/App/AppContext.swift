@@ -96,6 +96,7 @@ final class AppContext {
             taskApplicationService: container.taskApplicationService,
             taskListRepository: container.taskListRepository,
             projectRepository: container.projectRepository,
+            periodicTaskRepository: container.periodicTaskRepository,
             reminderScheduler: container.reminderScheduler,
             personalDataDeletionService: container.personalDataDeletionService,
             biometricAuthService: container.biometricAuthService
@@ -432,6 +433,7 @@ final class AppContext {
         let tasks = (try? await container.itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         StartupTrace.mark("AppContext.reminderSync.tasksFetched count=\(tasks.count)")
         let projects = (try? await container.projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        let periodicTasks = (try? await container.periodicTaskRepository.fetchActiveTasks(spaceID: spaceID)) ?? []
         StartupTrace.mark("AppContext.reminderSync.projectsFetched count=\(projects.count)")
         await container.reminderScheduler.resync(
             spaceID: spaceID,
@@ -444,6 +446,9 @@ final class AppContext {
                 sessionStore.currentUser?.preferences.dailySummaryEnabled ?? false
             )
         )
+        for task in periodicTasks {
+            await container.reminderScheduler.syncPeriodicTaskReminder(for: task, referenceDate: .now)
+        }
         StartupTrace.mark("AppContext.reminderSync.resync.end")
     }
 

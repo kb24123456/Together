@@ -1,24 +1,49 @@
 import Foundation
 
+nonisolated final class ReminderDeliveryPreferences: @unchecked Sendable {
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    var delivery: PeriodicReminderDelivery {
+        defaults.string(forKey: LocalReminderScheduler.reminderDeliveryDefaultsKey)
+            .flatMap(PeriodicReminderDelivery.init(rawValue:))
+            ?? .alarm
+    }
+
+    func update(_ delivery: PeriodicReminderDelivery) {
+        defaults.set(delivery.rawValue, forKey: LocalReminderScheduler.reminderDeliveryDefaultsKey)
+    }
+}
+
 actor LocalReminderScheduler: ReminderSchedulerProtocol {
+    nonisolated static let reminderDeliveryDefaultsKey = "together.reminders.delivery"
+
     private let notificationService: NotificationServiceProtocol
     private let routineAlarmService: RoutineAlarmServiceProtocol
+    private let deliveryPreferences: ReminderDeliveryPreferences
     private let calendar: Calendar
     private let now: @Sendable () -> Date
     private let searchWindowDays = 730
     private var taskRemindersEnabled = true
     private var dailySummariesEnabled = false
+    private var preferredReminderDelivery: PeriodicReminderDelivery
 
     init(
         notificationService: NotificationServiceProtocol,
         routineAlarmService: RoutineAlarmServiceProtocol = LocalRoutineAlarmService(),
+        deliveryPreferences: ReminderDeliveryPreferences = ReminderDeliveryPreferences(),
         calendar: Calendar = .current,
         now: @escaping @Sendable () -> Date = { .now }
     ) {
         self.notificationService = notificationService
         self.routineAlarmService = routineAlarmService
+        self.deliveryPreferences = deliveryPreferences
         self.calendar = calendar
         self.now = now
+        self.preferredReminderDelivery = deliveryPreferences.delivery
     }
 
     func syncTaskReminder(for item: Item) async {
@@ -172,7 +197,7 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
     }
 
     private func shouldPreferAlarm(for item: Item) -> Bool {
-        guard item.repeatRule == nil else { return false }
+        guard preferredReminderDelivery == .alarm else { return false }
         guard item.isArchived == false else { return false }
         guard item.status != .completed, item.completedAt == nil else { return false }
         guard item.hasExplicitTime else { return false }
@@ -495,6 +520,15 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
         await routineAlarmService.cancel(id: taskID)
     }
 
+    func reminderDeliveryPreference() async -> PeriodicReminderDelivery {
+        preferredReminderDelivery
+    }
+
+    func updateReminderDeliveryPreference(_ delivery: PeriodicReminderDelivery) async {
+        preferredReminderDelivery = delivery
+        deliveryPreferences.update(delivery)
+    }
+
     func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus {
         await routineAlarmService.authorizationStatus()
     }
@@ -535,7 +569,7 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
                 if earliest == nil || triggerDate < earliest!.date {
                     earliest = PeriodicReminderSchedule(
                         date: triggerDate,
-                        delivery: rule.reminderDelivery ?? .notification
+                        delivery: preferredReminderDelivery
                     )
                 }
             }
@@ -572,7 +606,7 @@ actor LocalReminderScheduler: ReminderSchedulerProtocol {
             if earliest == nil || scheduledDate < earliest!.date {
                 earliest = PeriodicReminderSchedule(
                     date: scheduledDate,
-                    delivery: rule.reminderDelivery ?? .notification
+                    delivery: preferredReminderDelivery
                 )
             }
         }

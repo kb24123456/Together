@@ -194,7 +194,7 @@ struct TaskDetailView: View {
         if let task = routinesViewModel.tasks.first(where: { $0.id == id }),
            routinesViewModel.detailDraft != nil {
             ScrollView {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
+                VStack(alignment: .leading, spacing: 0) {
                     RoutinesTaskRow(
                         task: task,
                         viewModel: routinesViewModel,
@@ -204,8 +204,9 @@ struct TaskDetailView: View {
                         isDetailExpanded: true,
                         isDetailCollapsing: false,
                         expansionMotion: .navigationDetail,
-                        cascadeRowCount: 2,
+                        cascadeRowCount: 1,
                         requestsInitialTitleFocus: true,
+                        showsAttributeToolbar: false,
                         inputCommitRequestRevision: inputCommitRequestRevision,
                         onOpenDetail: {},
                         onToggleCompletion: {
@@ -225,6 +226,16 @@ struct TaskDetailView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .safeAreaBar(edge: .bottom, alignment: .leading, spacing: 0) {
+                PeriodicTaskAttributeFooter(
+                    task: task,
+                    viewModel: routinesViewModel,
+                    isExpanded: isClosing == false
+                )
+                .padding(.horizontal, AppTheme.spacing.xl)
+                .padding(.top, AppTheme.spacing.xs)
+                .padding(.bottom, AppTheme.spacing.sm)
+            }
         } else {
             unavailableDetail
         }

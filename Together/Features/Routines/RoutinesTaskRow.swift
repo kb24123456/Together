@@ -55,6 +55,7 @@ struct RoutinesTaskRow: View {
     let expansionMotion: TaskExpansionMotion
     let cascadeRowCount: Int
     let requestsInitialTitleFocus: Bool
+    let showsAttributeToolbar: Bool
     let taskDetailTransition: Namespace.ID?
     let inputCommitRequestRevision: UInt
     let onOpenDetail: () -> Void
@@ -62,8 +63,8 @@ struct RoutinesTaskRow: View {
     let onDismissDetail: () -> Void
     let onInlineFocus: (RoutineInlineFocusTarget) -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.taskMorphBackgroundTextOpacity) private var backgroundTextOpacity
     @FocusState private var isTitleFocused: Bool
@@ -101,6 +102,7 @@ struct RoutinesTaskRow: View {
         expansionMotion: TaskExpansionMotion,
         cascadeRowCount: Int,
         requestsInitialTitleFocus: Bool,
+        showsAttributeToolbar: Bool = true,
         taskDetailTransition: Namespace.ID? = nil,
         inputCommitRequestRevision: UInt = 0,
         onOpenDetail: @escaping () -> Void,
@@ -118,6 +120,7 @@ struct RoutinesTaskRow: View {
         self.expansionMotion = expansionMotion
         self.cascadeRowCount = cascadeRowCount
         self.requestsInitialTitleFocus = requestsInitialTitleFocus
+        self.showsAttributeToolbar = showsAttributeToolbar
         self.taskDetailTransition = taskDetailTransition
         self.inputCommitRequestRevision = inputCommitRequestRevision
         self.onOpenDetail = onOpenDetail
@@ -164,12 +167,18 @@ struct RoutinesTaskRow: View {
                     ),
                     cascadeRowCount: cascadeRowCount,
                     usesGlobalConfirmation: requestsInitialTitleFocus,
+                    showsAttributeToolbar: showsAttributeToolbar,
                     onDismiss: onDismissDetail,
                     onFocus: onInlineFocus
                 )
                 .id(RoutineInlineFocusTarget.detail.anchorID(for: task.id))
             }
-            .padding(.top, -RoutineInlineLayoutMetrics.detailTitleOverlap)
+            .padding(
+                .top,
+                expansionMotion == .navigationDetail
+                    ? AppTheme.spacing.sm
+                    : -RoutineInlineLayoutMetrics.detailTitleOverlap
+            )
         }
         .scaleEffect(rowScale, anchor: .center)
         .offset(y: rowVerticalOffset)
@@ -729,10 +738,10 @@ private struct RoutinesInlineDetailView: View {
     let cascadeElapsed: TimeInterval
     let cascadeRowCount: Int
     let usesGlobalConfirmation: Bool
+    let showsAttributeToolbar: Bool
     let onDismiss: () -> Void
     let onFocus: (RoutineInlineFocusTarget) -> Void
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
     @State private var notesDraft = ""
     @State private var isEditingNotes = false
@@ -748,14 +757,16 @@ private struct RoutinesInlineDetailView: View {
                     rowCount: cascadeRowCount,
                     isCollapsing: isCollapsing
                 )
-            attributeToolbar
-                .padding(.top, -RoutineInlineLayoutMetrics.attributeTopOverlap)
-                .taskMorphCascade(
-                    elapsed: cascadeElapsed,
-                    index: 1,
-                    rowCount: cascadeRowCount,
-                    isCollapsing: isCollapsing
-                )
+            if showsAttributeToolbar {
+                attributeToolbar
+                    .padding(.top, -RoutineInlineLayoutMetrics.attributeTopOverlap)
+                    .taskMorphCascade(
+                        elapsed: cascadeElapsed,
+                        index: 1,
+                        rowCount: cascadeRowCount,
+                        isCollapsing: isCollapsing
+                    )
+            }
         }
         .padding(.top, RoutineInlineLayoutMetrics.detailTopPadding)
         .padding(.bottom, RoutineInlineLayoutMetrics.detailBottomPadding)
@@ -860,40 +871,19 @@ private struct RoutinesInlineDetailView: View {
         isCommittingNotes = false
     }
 
-    @ViewBuilder
     private var attributeToolbar: some View {
-        if usesEqualWidthAttributeToolbar {
-            HStack(spacing: TaskAttributeToolbarMetrics.horizontalSpacing) {
-                attributeToolbarControls
-            }
-            .frame(
-                maxWidth: .infinity,
-                minHeight: TaskAttributeToolbarMetrics.rowHeight
-            )
-            .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
-        } else {
-            TaskAttributeToolbarRail {
-                attributeToolbarControls
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
+        TaskAttributeAdaptiveRail {
+            attributeToolbarControls
         }
+        .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
     }
 
     @ViewBuilder
     private var attributeToolbarControls: some View {
         cycleMenu
-            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
         targetDayControl
-            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
         targetTimeControl
-            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
         reminderMenu
-            .frame(maxWidth: usesEqualWidthAttributeToolbar ? .infinity : nil)
-    }
-
-    private var usesEqualWidthAttributeToolbar: Bool {
-        dynamicTypeSize.isAccessibilitySize == false
     }
 
     private var reminderMenu: some View {
@@ -909,31 +899,16 @@ private struct RoutinesInlineDetailView: View {
             }
 
             Divider()
-            reminderOption("目标时刻", minutes: 0)
+            reminderOption("准时", minutes: 0)
             reminderOption("提前 5 分钟", minutes: 5)
             reminderOption("提前 15 分钟", minutes: 15)
             reminderOption("提前 30 分钟", minutes: 30)
             reminderOption("提前 1 小时", minutes: 60)
             reminderOption("提前 1 天", minutes: 1_440)
 
-            if currentRule?.hasReminder == true {
-                Divider()
-                Button {
-                    Task { await viewModel.updateDraftReminderDelivery(.notification) }
-                } label: {
-                    Label("普通通知", systemImage: currentRule?.reminderDelivery == .alarm ? "bell" : "checkmark")
-                }
-                if #available(iOS 26.0, *) {
-                    Button {
-                        Task { await viewModel.updateDraftReminderDelivery(.alarm) }
-                    } label: {
-                        Label("原生闹钟", systemImage: currentRule?.reminderDelivery == .alarm ? "checkmark" : "alarm")
-                    }
-                }
-            }
         } label: {
             settingMenuLabel(
-                icon: currentRule?.reminderDelivery == .alarm ? "alarm" : "bell",
+                icon: "bell",
                 title: reminderTitle,
                 isConfigured: currentRule?.hasReminder == true
             )
@@ -1009,7 +984,7 @@ private struct RoutinesInlineDetailView: View {
         InlineTimePickerControl(
             selection: currentRule?.hasTargetTime == true ? timeDate : nil,
             fallbackSelection: .now,
-            fillsAvailableWidth: usesEqualWidthAttributeToolbar,
+            fillsAvailableWidth: false,
             onCommit: { value in
                 if let value {
                     updateDraftTime(value)
@@ -1028,7 +1003,7 @@ private struct RoutinesInlineDetailView: View {
             usesContinuousCapsule: true,
             horizontalPadding: 8,
             isFocusForeground: true,
-            fillsAvailableWidth: usesEqualWidthAttributeToolbar
+            fillsAvailableWidth: false
         )
     }
 
@@ -1040,7 +1015,7 @@ private struct RoutinesInlineDetailView: View {
             usesContinuousCapsule: true,
             horizontalPadding: 8,
             isFocusForeground: true,
-            fillsAvailableWidth: usesEqualWidthAttributeToolbar
+            fillsAvailableWidth: false
         )
     }
 
@@ -1112,20 +1087,26 @@ private struct RoutinesInlineDetailView: View {
             case .dayOfPeriod(let day) where day >= 31: return "最后一天"
             case .dayOfPeriod(let day): return "\(day)号"
             case .businessDayOfPeriod(let day): return "第\(day)工作日"
+            case .daysBeforeEnd(1): return "最后一天"
             case .daysBeforeEnd(let days): return "提前\(days)天"
+            case .weekdayOfMonth(let ordinal, let weekday):
+                return "\(ordinal.title)\(RoutineTargetText.absoluteWeekdayText(for: weekday))"
+            case .lastBusinessDay: return "最后工作日"
             }
         case .quarterly, .yearly:
             switch timing {
             case .dayOfPeriod(let day): return "第\(day)天"
             case .businessDayOfPeriod(let day): return "第\(day)工作日"
+            case .daysBeforeEnd(1): return "最后一天"
             case .daysBeforeEnd(let days): return "提前\(days)天"
+            case .lastBusinessDay: return "最后工作日"
+            case .weekdayOfMonth: return "目标日"
             }
         }
     }
 
     private var reminderTitle: String {
         guard let rule = currentRule, rule.hasReminder else { return "提醒" }
-        if rule.reminderDelivery == .alarm { return "闹钟" }
         guard let minutes = rule.reminderLeadMinutes else { return "提醒" }
         switch minutes {
         case 0: return "准时"
@@ -1148,5 +1129,805 @@ private struct RoutinesInlineDetailView: View {
         let components = Calendar.current.dateComponents([.hour, .minute], from: date)
         guard let hour = components.hour, let minute = components.minute else { return }
         viewModel.updateDraftTargetTime(hour: hour, minute: minute)
+    }
+}
+
+struct PeriodicTaskAttributeFooter: View {
+    let task: PeriodicTask
+    @Bindable var viewModel: RoutinesViewModel
+    let isExpanded: Bool
+
+    @State private var isAttributeSheetPresented = false
+
+    var body: some View {
+        expandedControls
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .allowsHitTesting(isExpanded)
+            .sheet(isPresented: $isAttributeSheetPresented) {
+                PeriodicTaskAttributeSheet(task: task, viewModel: viewModel)
+            }
+    }
+
+    private var expandedControls: some View {
+        TaskAttributeAdaptiveRail {
+            attributeControls(fillsAvailableWidth: false)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, RoutineInlineLayoutMetrics.attributeLeadingInset)
+    }
+
+    @ViewBuilder
+    private func attributeControls(fillsAvailableWidth: Bool) -> some View {
+        attributeButton(
+            title: cycle.title,
+            systemImage: "arrow.triangle.2.circlepath",
+            isConfigured: true,
+            fillsAvailableWidth: fillsAvailableWidth,
+            accessibilityLabel: "周期，当前为\(cycle.title)"
+        )
+        attributeButton(
+            title: PeriodicTaskAttributeText.targetDayTitle(cycle: cycle, rule: rule),
+            systemImage: "calendar",
+            isConfigured: cycle == .daily || rule?.hasTargetDay == true,
+            fillsAvailableWidth: fillsAvailableWidth,
+            accessibilityLabel: "目标日，当前为\(PeriodicTaskAttributeText.targetDayTitle(cycle: cycle, rule: rule))"
+        )
+        attributeButton(
+            title: PeriodicTaskAttributeText.targetTimeTitle(rule: rule),
+            systemImage: "clock",
+            isConfigured: rule?.hasTargetTime == true,
+            fillsAvailableWidth: fillsAvailableWidth,
+            accessibilityLabel: "目标时间，当前为\(PeriodicTaskAttributeText.targetTimeTitle(rule: rule))"
+        )
+        attributeButton(
+            title: PeriodicTaskAttributeText.reminderTitle(rule: rule),
+            systemImage: "bell",
+            isConfigured: rule?.hasReminder == true,
+            fillsAvailableWidth: fillsAvailableWidth,
+            accessibilityLabel: "提醒，当前为\(PeriodicTaskAttributeText.reminderTitle(rule: rule))"
+        )
+    }
+
+    private func attributeButton(
+        title: String,
+        systemImage: String,
+        isConfigured: Bool,
+        fillsAvailableWidth: Bool,
+        accessibilityLabel: String
+    ) -> some View {
+        Button {
+            HomeInteractionFeedback.selection()
+            isAttributeSheetPresented = true
+        } label: {
+            TaskAttributeLabel(
+                icon: systemImage,
+                title: title,
+                isConfigured: isConfigured,
+                usesContinuousCapsule: true,
+                alignsToCardCorner: true,
+                horizontalPadding: 8,
+                isFocusForeground: true,
+                fillsAvailableWidth: fillsAvailableWidth,
+                usesLightweightBackground: true,
+                animatesTitleChanges: true
+            )
+        }
+        .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)
+        .buttonStyle(TaskMorphAttributeButtonStyle())
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("轻点编辑定期任务属性")
+    }
+
+    private var cycle: PeriodicCycle {
+        viewModel.activeEditorDraft?.cycle ?? task.cycle
+    }
+
+    private var rule: PeriodicReminderRule? {
+        viewModel.activeEditorDraft?.reminderRules.first ?? task.reminderRules.first
+    }
+
+}
+
+private struct PeriodicTaskAttributeSheet: View {
+    let task: PeriodicTask
+    @Bindable var viewModel: RoutinesViewModel
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView {
+                    sheetContent
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+            } else {
+                sheetContent
+            }
+        }
+        .background(AppTheme.colors.surface)
+        .accessibilityAction(.escape) {
+            dismiss()
+        }
+        .presentationContentInteraction(.scrolls)
+        .presentationDetents([sheetDetent])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(AppTheme.colors.surface)
+    }
+
+    private var sheetDetent: PresentationDetent {
+        guard dynamicTypeSize.isAccessibilitySize == false else { return .large }
+
+        let standardRowCount = 4
+        let visibleRowCount = usesMonthlyWeekdayRule ? standardRowCount + 1 : standardRowCount
+        let rowsHeight = CGFloat(standardRowCount) * PeriodicTaskAttributeSheetLayout.rowHeight
+            + (usesMonthlyWeekdayRule ? PeriodicTaskAttributeSheetLayout.stackedRowHeight : 0)
+        let spacingHeight = CGFloat(visibleRowCount - 1)
+            * PeriodicTaskAttributeSheetLayout.rowSpacing
+        return .height(rowsHeight + spacingHeight + AppTheme.spacing.md * 2)
+    }
+
+    private var sheetContent: some View {
+        VStack(spacing: PeriodicTaskAttributeSheetLayout.rowSpacing) {
+            cycleRow
+            targetDayRow
+
+            if usesMonthlyWeekdayRule {
+                monthlyWeekdayRuleRow
+                    .transition(
+                        .blurReplace
+                            .combined(with: .scale(0.96, anchor: .trailing))
+                            .combined(with: .opacity)
+                    )
+            }
+
+            targetTimeRow
+            reminderRow
+        }
+        .padding(.horizontal, AppTheme.spacing.xl)
+        .padding(.vertical, AppTheme.spacing.md)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var cycleRow: some View {
+        PeriodicTaskAttributeSettingRow(
+            icon: "arrow.triangle.2.circlepath",
+            title: "周期"
+        ) {
+            Picker(selection: cycleBinding) {
+                ForEach(PeriodicCycle.allCases, id: \.self) { option in
+                    Text(option.title).tag(option)
+                }
+            } label: {
+                valueLabel(cycle.title)
+            }
+            .pickerStyle(.menu)
+            .buttonStyle(.plain)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel("周期")
+            .accessibilityValue(cycle.title)
+        }
+    }
+
+    @ViewBuilder
+    private var targetDayRow: some View {
+        PeriodicTaskAttributeSettingRow(icon: "calendar", title: "目标日") {
+            if cycle == .daily {
+                Text("每天")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(AppTheme.colors.body)
+                    .frame(minHeight: 44)
+                    .accessibilityLabel("目标日")
+                    .accessibilityValue("每天")
+            } else {
+                Picker(selection: targetDayChoiceBinding) {
+                    ForEach(targetDayOptions) { option in
+                        Text(option.title).tag(option.choice)
+                    }
+                } label: {
+                    valueLabel(
+                        PeriodicTaskAttributeText.targetDayTitle(cycle: cycle, rule: rule)
+                    )
+                }
+                .pickerStyle(.menu)
+                .buttonStyle(.plain)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityLabel("目标日")
+                .accessibilityValue(
+                    PeriodicTaskAttributeText.targetDayTitle(cycle: cycle, rule: rule)
+                )
+            }
+        }
+    }
+
+    private var monthlyWeekdayRuleRow: some View {
+        PeriodicTaskAttributeSettingRow(
+            icon: "calendar.badge.clock",
+            title: "重复方式",
+            layout: .stacked
+        ) {
+            HStack(spacing: AppTheme.spacing.xs) {
+                Picker(selection: monthlyOrdinalBinding) {
+                    ForEach(PeriodicMonthWeekOrdinal.allCases, id: \.self) { ordinal in
+                        Text(ordinal.title).tag(ordinal)
+                    }
+                } label: {
+                    compactSelectorLabel(monthlyOrdinal.title)
+                }
+                .pickerStyle(.menu)
+                .buttonStyle(.plain)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityLabel("每月第几个星期")
+                .accessibilityValue(monthlyOrdinal.title)
+
+                Picker(selection: monthlyWeekdayBinding) {
+                    ForEach(Self.monthlyWeekdays, id: \.self) { weekday in
+                        Text(RoutineTargetText.absoluteWeekdayText(for: weekday)).tag(weekday)
+                    }
+                } label: {
+                    compactSelectorLabel(
+                        RoutineTargetText.absoluteWeekdayText(for: monthlyWeekday)
+                    )
+                }
+                .pickerStyle(.menu)
+                .buttonStyle(.plain)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .accessibilityLabel("星期")
+                .accessibilityValue(
+                    RoutineTargetText.absoluteWeekdayText(for: monthlyWeekday)
+                )
+            }
+        }
+    }
+
+    private var targetTimeRow: some View {
+        PeriodicTaskAttributeSettingRow(icon: "clock", title: "目标时间") {
+            HStack(spacing: AppTheme.spacing.xs) {
+                if rule?.hasTargetTime == true {
+                    DatePicker(
+                        "目标时间",
+                        selection: targetTimeBinding,
+                        displayedComponents: .hourAndMinute
+                    )
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .tint(AppTheme.colors.coral)
+                    .frame(minHeight: 44)
+                    .contentTransition(.numericText())
+                    .transition(
+                        .blurReplace
+                            .combined(with: .scale(0.94, anchor: .trailing))
+                    )
+                    .accessibilityValue(
+                        PeriodicTaskAttributeText.targetTimeTitle(rule: rule)
+                    )
+
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        performTimeControlStateChange {
+                            viewModel.clearDraftTargetTime()
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(AppTheme.colors.textTertiary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .transition(
+                        .blurReplace
+                            .combined(with: .offset(x: -14))
+                            .combined(with: .scale(0.68, anchor: .leading))
+                            .combined(with: .opacity)
+                    )
+                    .accessibilityLabel("清除目标时间")
+                    .accessibilityHint("同时清除提醒")
+                } else {
+                    Button {
+                        HomeInteractionFeedback.selection()
+                        performTimeControlStateChange {
+                            updateTargetTime(.now)
+                        }
+                    } label: {
+                        HStack(spacing: AppTheme.spacing.xs) {
+                            Text("添加时间")
+                                .font(.callout.weight(.medium))
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(AppTheme.colors.body)
+                        .padding(.horizontal, AppTheme.spacing.sm)
+                        .frame(minHeight: 36)
+                        .background(AppTheme.colors.pillSurface, in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .transition(
+                        .blurReplace
+                            .combined(with: .scale(0.94, anchor: .trailing))
+                    )
+                    .accessibilityHint("添加后可使用系统时间选择器修改")
+                }
+            }
+        }
+    }
+
+    private var reminderRow: some View {
+        PeriodicTaskAttributeSettingRow(
+            icon: "bell",
+            title: "提醒"
+        ) {
+            Picker(selection: reminderLeadBinding) {
+                Text("无提醒").tag(nil as Int?)
+                ForEach(Self.reminderOptions) { option in
+                    Text(option.title).tag(Optional(option.minutes))
+                }
+            } label: {
+                reminderValueLabel
+            }
+            .pickerStyle(.menu)
+            .buttonStyle(.plain)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(canConfigureReminder == false)
+            .accessibilityLabel("提醒")
+            .accessibilityValue(
+                canConfigureReminder ? reminderValueTitle : "需先设置目标"
+            )
+            .accessibilityHint(
+                canConfigureReminder
+                    ? "轻点选择提醒时间"
+                    : "需要先设置完整目标"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var reminderValueLabel: some View {
+        if canConfigureReminder {
+            valueLabel(reminderValueTitle)
+                .transition(
+                    .blurReplace
+                        .combined(with: .scale(0.94, anchor: .trailing))
+                )
+        } else {
+            valueLabel("需先设置目标", isEnabled: false)
+                .transition(
+                    .blurReplace
+                        .combined(with: .scale(0.94, anchor: .trailing))
+                )
+        }
+    }
+
+    private func compactSelectorLabel(_ title: String) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.callout.weight(.medium))
+                .lineLimit(1)
+            Image(systemName: "chevron.down")
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(AppTheme.colors.body)
+        .padding(.horizontal, AppTheme.spacing.sm)
+        .frame(minHeight: 36)
+        .background(AppTheme.colors.pillSurface, in: Capsule(style: .continuous))
+    }
+
+    private func valueLabel(_ title: String, isEnabled: Bool = true) -> some View {
+        HStack(spacing: AppTheme.spacing.xs) {
+            Text(title)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(
+                    isEnabled ? AppTheme.colors.body : AppTheme.colors.textTertiary
+                )
+                .lineLimit(1)
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.colors.textTertiary)
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+
+    private var cycleBinding: Binding<PeriodicCycle> {
+        Binding(
+            get: { cycle },
+            set: { newCycle in
+                guard newCycle != cycle else { return }
+                HomeInteractionFeedback.selection()
+                performContentStateChange {
+                    viewModel.updateDraftCycle(newCycle)
+                }
+            }
+        )
+    }
+
+    private var targetDayChoiceBinding: Binding<PeriodicTargetDayChoice> {
+        Binding(
+            get: { targetDayChoice },
+            set: { choice in
+                guard choice != targetDayChoice else { return }
+                HomeInteractionFeedback.selection()
+                performContentStateChange {
+                    switch choice {
+                    case .none:
+                        viewModel.clearDraftTargetDay()
+                    case .timing(let timing):
+                        viewModel.updateDraftTargetDay(timing)
+                    case .monthlyWeekday:
+                        viewModel.updateDraftTargetDay(
+                            .weekdayOfMonth(ordinal: .first, weekday: 2)
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    private var monthlyOrdinalBinding: Binding<PeriodicMonthWeekOrdinal> {
+        Binding(
+            get: { monthlyOrdinal },
+            set: { ordinal in
+                guard ordinal != monthlyOrdinal else { return }
+                HomeInteractionFeedback.selection()
+                performContentStateChange {
+                    viewModel.updateDraftTargetDay(
+                        .weekdayOfMonth(ordinal: ordinal, weekday: monthlyWeekday)
+                    )
+                }
+            }
+        )
+    }
+
+    private var monthlyWeekdayBinding: Binding<Int> {
+        Binding(
+            get: { monthlyWeekday },
+            set: { weekday in
+                guard weekday != monthlyWeekday else { return }
+                HomeInteractionFeedback.selection()
+                performContentStateChange {
+                    viewModel.updateDraftTargetDay(
+                        .weekdayOfMonth(ordinal: monthlyOrdinal, weekday: weekday)
+                    )
+                }
+            }
+        )
+    }
+
+    private var reminderLeadBinding: Binding<Int?> {
+        Binding(
+            get: { rule?.reminderLeadMinutes },
+            set: { minutes in
+                guard minutes != rule?.reminderLeadMinutes else { return }
+                HomeInteractionFeedback.selection()
+                performContentStateChange {
+                    viewModel.updateDraftReminder(leadMinutes: minutes)
+                }
+            }
+        )
+    }
+
+    private var targetTimeBinding: Binding<Date> {
+        Binding(
+            get: { targetTimeDate },
+            set: updateTargetTime
+        )
+    }
+
+    private func updateTargetTime(_ date: Date) {
+        let rounded = ExistingTaskScheduleEditorPolicy.roundedTime(date, on: date)
+        let components = Calendar.current.dateComponents([.hour, .minute], from: rounded)
+        guard let hour = components.hour, let minute = components.minute else { return }
+        viewModel.updateDraftTargetTime(hour: hour, minute: minute)
+    }
+
+    private func performContentStateChange(_ update: () -> Void) {
+        if reduceMotion {
+            update()
+        } else {
+            withAnimation(.smooth(duration: 0.22), update)
+        }
+    }
+
+    private func performTimeControlStateChange(_ update: () -> Void) {
+        if reduceMotion {
+            update()
+        } else {
+            withAnimation(.spring(duration: 0.42, bounce: 0.04), update)
+        }
+    }
+
+    private var targetTimeDate: Date {
+        Calendar.current.date(
+            from: DateComponents(hour: rule?.hour, minute: rule?.minute)
+        ) ?? .now
+    }
+
+    private var cycle: PeriodicCycle {
+        viewModel.activeEditorDraft?.cycle ?? task.cycle
+    }
+
+    private var rule: PeriodicReminderRule? {
+        viewModel.activeEditorDraft?.reminderRules.first ?? task.reminderRules.first
+    }
+
+    private var canConfigureReminder: Bool {
+        rule?.hasCompleteTarget(for: cycle) == true
+    }
+
+    private var reminderValueTitle: String {
+        guard rule?.hasReminder == true else { return "无提醒" }
+        return PeriodicTaskAttributeText.reminderTitle(rule: rule)
+    }
+
+    private var targetDayChoice: PeriodicTargetDayChoice {
+        guard let timing = rule?.timing else { return .none }
+        if cycle == .monthly {
+            switch timing {
+            case .weekdayOfMonth:
+                return .monthlyWeekday
+            case .dayOfPeriod(let day) where day >= 31:
+                return .timing(.daysBeforeEnd(1))
+            default:
+                break
+            }
+        }
+        return .timing(timing)
+    }
+
+    private var targetDayOptions: [PeriodicTargetDayOption] {
+        var options: [PeriodicTargetDayOption] = [
+            PeriodicTargetDayOption(title: "不设置目标日", choice: .none)
+        ]
+        switch cycle {
+        case .daily:
+            break
+        case .weekly:
+            options += (1...7).map { day in
+                PeriodicTargetDayOption(
+                    title: RoutineTargetText.weekdayText(for: day),
+                    choice: .timing(.dayOfPeriod(day))
+                )
+            }
+        case .monthly:
+            options += [
+                PeriodicTargetDayOption(title: "每月 1 号", choice: .timing(.dayOfPeriod(1))),
+                PeriodicTargetDayOption(title: "每月 15 号", choice: .timing(.dayOfPeriod(15))),
+                PeriodicTargetDayOption(title: "每月最后一天", choice: .timing(.daysBeforeEnd(1))),
+                PeriodicTargetDayOption(title: "每月首个工作日", choice: .timing(.businessDayOfPeriod(1))),
+                PeriodicTargetDayOption(title: "每月最后一个工作日", choice: .timing(.lastBusinessDay)),
+                PeriodicTargetDayOption(
+                    title: targetDayChoice == .monthlyWeekday
+                        ? PeriodicTaskAttributeText.targetDayTitle(cycle: cycle, rule: rule)
+                        : "按周次与周几…",
+                    choice: .monthlyWeekday
+                )
+            ]
+        case .quarterly:
+            options += [
+                PeriodicTargetDayOption(title: "季度第 1 天", choice: .timing(.dayOfPeriod(1))),
+                PeriodicTargetDayOption(title: "季度第 45 天", choice: .timing(.dayOfPeriod(45))),
+                PeriodicTargetDayOption(title: "季度最后一天", choice: .timing(.daysBeforeEnd(1))),
+                PeriodicTargetDayOption(title: "季度首个工作日", choice: .timing(.businessDayOfPeriod(1))),
+                PeriodicTargetDayOption(title: "季度最后一个工作日", choice: .timing(.lastBusinessDay)),
+                PeriodicTargetDayOption(title: "季度结束前 14 天", choice: .timing(.daysBeforeEnd(14)))
+            ]
+        case .yearly:
+            options += [
+                PeriodicTargetDayOption(title: "年度第 1 天", choice: .timing(.dayOfPeriod(1))),
+                PeriodicTargetDayOption(title: "年度第 183 天", choice: .timing(.dayOfPeriod(183))),
+                PeriodicTargetDayOption(title: "年度最后一天", choice: .timing(.daysBeforeEnd(1))),
+                PeriodicTargetDayOption(title: "年度首个工作日", choice: .timing(.businessDayOfPeriod(1))),
+                PeriodicTargetDayOption(title: "年度最后一个工作日", choice: .timing(.lastBusinessDay)),
+                PeriodicTargetDayOption(title: "年度结束前 30 天", choice: .timing(.daysBeforeEnd(30)))
+            ]
+        }
+
+        if options.contains(where: { $0.choice == targetDayChoice }) == false,
+           targetDayChoice != .none {
+            options.append(
+                PeriodicTargetDayOption(
+                    title: PeriodicTaskAttributeText.targetDayTitle(cycle: cycle, rule: rule),
+                    choice: targetDayChoice
+                )
+            )
+        }
+        return options
+    }
+
+    private var usesMonthlyWeekdayRule: Bool {
+        guard cycle == .monthly, case .weekdayOfMonth = rule?.timing else { return false }
+        return true
+    }
+
+    private var monthlyOrdinal: PeriodicMonthWeekOrdinal {
+        guard case .weekdayOfMonth(let ordinal, _) = rule?.timing else { return .first }
+        return ordinal
+    }
+
+    private var monthlyWeekday: Int {
+        guard case .weekdayOfMonth(_, let weekday) = rule?.timing else { return 2 }
+        return weekday
+    }
+
+    private static let monthlyWeekdays = [2, 3, 4, 5, 6, 7, 1]
+
+    private static let reminderOptions = [
+        PeriodicReminderOption(title: "准时", minutes: 0),
+        PeriodicReminderOption(title: "提前 5 分钟", minutes: 5),
+        PeriodicReminderOption(title: "提前 15 分钟", minutes: 15),
+        PeriodicReminderOption(title: "提前 30 分钟", minutes: 30),
+        PeriodicReminderOption(title: "提前 1 小时", minutes: 60),
+        PeriodicReminderOption(title: "提前 1 天", minutes: 1_440)
+    ]
+}
+
+private enum PeriodicTargetDayChoice: Hashable {
+    case none
+    case timing(PeriodicReminderRule.Timing)
+    case monthlyWeekday
+}
+
+private struct PeriodicTargetDayOption: Identifiable {
+    let title: String
+    let choice: PeriodicTargetDayChoice
+
+    var id: PeriodicTargetDayChoice { choice }
+}
+
+private enum PeriodicTaskAttributeSheetLayout {
+    static let rowHeight: CGFloat = 52
+    static let stackedRowHeight: CGFloat = 72
+    static let rowSpacing: CGFloat = 2
+}
+
+private enum PeriodicTaskAttributeRowLayout: Equatable {
+    case adaptive
+    case stacked
+}
+
+private struct PeriodicReminderOption: Identifiable {
+    let title: String
+    let minutes: Int
+
+    var id: Int { minutes }
+}
+
+private struct PeriodicTaskAttributeSettingRow<Trailing: View>: View {
+    let icon: String
+    let title: String
+    let layout: PeriodicTaskAttributeRowLayout
+    let trailing: Trailing
+
+    init(
+        icon: String,
+        title: String,
+        layout: PeriodicTaskAttributeRowLayout = .adaptive,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.icon = icon
+        self.title = title
+        self.layout = layout
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        rowContent
+            .frame(
+                maxWidth: .infinity,
+                minHeight: layout == .stacked
+                    ? PeriodicTaskAttributeSheetLayout.stackedRowHeight
+                    : PeriodicTaskAttributeSheetLayout.rowHeight
+            )
+    }
+
+    @ViewBuilder
+    private var rowContent: some View {
+        switch layout {
+        case .adaptive:
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AppTheme.spacing.md) {
+                    leadingLabel
+                    Spacer(minLength: AppTheme.spacing.md)
+                    trailing
+                        .layoutPriority(1)
+                }
+
+                stackedContent
+            }
+        case .stacked:
+            stackedContent
+        }
+    }
+
+    private var stackedContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+            leadingLabel
+            trailing
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private var leadingLabel: some View {
+        HStack(spacing: AppTheme.spacing.sm) {
+            Image(systemName: icon)
+                .font(.body.weight(.medium))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.68))
+                .frame(width: 20)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(.body.weight(.medium))
+                .foregroundStyle(AppTheme.colors.title)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+private enum PeriodicTaskAttributeText {
+    static func targetDayTitle(
+        cycle: PeriodicCycle,
+        rule: PeriodicReminderRule?
+    ) -> String {
+        guard let timing = rule?.timing else {
+            return cycle == .daily ? "每天" : "目标日"
+        }
+        switch cycle {
+        case .daily:
+            return "每天"
+        case .weekly:
+            if case .dayOfPeriod(let day) = timing {
+                return RoutineTargetText.weekdayText(for: day)
+            }
+            return "目标日"
+        case .monthly:
+            switch timing {
+            case .dayOfPeriod(let day) where day >= 31: return "最后一天"
+            case .dayOfPeriod(let day): return "\(day)号"
+            case .businessDayOfPeriod(let day): return "第\(day)工作日"
+            case .daysBeforeEnd(1): return "最后一天"
+            case .daysBeforeEnd(let days): return "提前\(days)天"
+            case .weekdayOfMonth(let ordinal, let weekday):
+                return "\(ordinal.title)\(RoutineTargetText.absoluteWeekdayText(for: weekday))"
+            case .lastBusinessDay: return "最后工作日"
+            }
+        case .quarterly, .yearly:
+            switch timing {
+            case .dayOfPeriod(let day): return "第\(day)天"
+            case .businessDayOfPeriod(let day): return "第\(day)工作日"
+            case .daysBeforeEnd(1): return "最后一天"
+            case .daysBeforeEnd(let days): return "提前\(days)天"
+            case .lastBusinessDay: return "最后工作日"
+            case .weekdayOfMonth: return "目标日"
+            }
+        }
+    }
+
+    static func targetTimeTitle(rule: PeriodicReminderRule?) -> String {
+        guard let hour = rule?.hour, let minute = rule?.minute else { return "时间" }
+        return String(format: "%02d:%02d", hour, minute)
+    }
+
+    static func reminderTitle(rule: PeriodicReminderRule?) -> String {
+        guard let rule, rule.hasReminder else { return "提醒" }
+        switch rule.reminderLeadMinutes {
+        case 0: return "准时"
+        case 5: return "提前5分"
+        case 15: return "提前15分"
+        case 30: return "提前30分"
+        case 60: return "提前1时"
+        case 1_440: return "提前1天"
+        default: return "提醒"
+        }
     }
 }

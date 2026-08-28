@@ -69,6 +69,7 @@ enum TaskSharedAttributeText {
         let seconds = max(0, effectiveDueAt.timeIntervalSince(remindAt))
         let minutes = Int((seconds / 60).rounded())
 
+        if minutes == 0 { return "准时提醒" }
         if minutes < 60 { return "\(minutes) 分钟前" }
         if minutes.isMultiple(of: 1_440) { return "\(minutes / 1_440) 天前" }
         if minutes.isMultiple(of: 60) { return "\(minutes / 60) 小时前" }

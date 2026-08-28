@@ -11,6 +11,7 @@ final class ProfileViewModel {
     private let taskApplicationService: TaskApplicationServiceProtocol
     private let taskListRepository: TaskListRepositoryProtocol
     private let projectRepository: ProjectRepositoryProtocol
+    private let periodicTaskRepository: PeriodicTaskRepositoryProtocol
     private let reminderScheduler: ReminderSchedulerProtocol
     private let personalDataDeletionService: PersonalDataDeletionService
     private let biometricAuthService: BiometricAuthServiceProtocol
@@ -18,12 +19,15 @@ final class ProfileViewModel {
     var onTaskMutated: ((_ spaceID: UUID) -> Void)?
     var loadState: LoadableState = .idle
     var notificationAuthorization: NotificationAuthorizationStatus = .notDetermined
+    var alarmAuthorization: RoutineAlarmAuthorizationStatus = .notDetermined
+    var reminderDelivery: PeriodicReminderDelivery = .alarm
     var iCloudStatus: ICloudStatus = .couldNotDetermine
     var isAccountDeletionInProgress: Bool = false
     var deletionErrorMessage: String?
     var weeklyPlanningReviewCompletionCount = 0
     var onProfileSaved: ((_ user: User) -> Void)?
     var onPersonalDataDeleted: ((_ user: User, _ space: Space) -> Void)?
+    private var reminderDeliveryUpdateRevision = 0
 
     init(
         sessionStore: SessionStore,
@@ -33,6 +37,7 @@ final class ProfileViewModel {
         taskApplicationService: TaskApplicationServiceProtocol,
         taskListRepository: TaskListRepositoryProtocol,
         projectRepository: ProjectRepositoryProtocol,
+        periodicTaskRepository: PeriodicTaskRepositoryProtocol,
         reminderScheduler: ReminderSchedulerProtocol,
         personalDataDeletionService: PersonalDataDeletionService,
         biometricAuthService: BiometricAuthServiceProtocol = BiometricAuthService()
@@ -44,6 +49,7 @@ final class ProfileViewModel {
         self.taskApplicationService = taskApplicationService
         self.taskListRepository = taskListRepository
         self.projectRepository = projectRepository
+        self.periodicTaskRepository = periodicTaskRepository
         self.reminderScheduler = reminderScheduler
         self.personalDataDeletionService = personalDataDeletionService
         self.biometricAuthService = biometricAuthService
@@ -141,8 +147,12 @@ final class ProfileViewModel {
     func load() async {
         loadState = .loading
         async let notifStatus = notificationService.authorizationStatus()
+        async let alarmStatus = reminderScheduler.alarmAuthorizationStatus()
+        async let deliveryPreference = reminderScheduler.reminderDeliveryPreference()
         async let cloudStatus = ICloudStatusService.checkStatus()
         notificationAuthorization = await notifStatus
+        alarmAuthorization = await alarmStatus
+        reminderDelivery = await deliveryPreference
         iCloudStatus = await cloudStatus
         if let spaceID = sessionStore.currentSpace?.id,
            let review = try? await itemRepository.fetchPlanningReview(
@@ -248,6 +258,35 @@ final class ProfileViewModel {
         }
     }
 
+    func updateReminderDelivery(_ delivery: PeriodicReminderDelivery) {
+        reminderDeliveryUpdateRevision &+= 1
+        let revision = reminderDeliveryUpdateRevision
+        if delivery == .notification {
+            reminderDelivery = .notification
+        }
+        Task {
+            if delivery == .alarm {
+                guard await authorizeAppleAlarmIfNeeded() else { return }
+            }
+            guard revision == reminderDeliveryUpdateRevision else { return }
+            reminderDelivery = delivery
+            await reminderScheduler.updateReminderDeliveryPreference(delivery)
+            await resyncReminderNotifications()
+        }
+    }
+
+    func requestAppleAlarmAuthorization() {
+        reminderDeliveryUpdateRevision &+= 1
+        let revision = reminderDeliveryUpdateRevision
+        Task {
+            guard await authorizeAppleAlarmIfNeeded() else { return }
+            guard revision == reminderDeliveryUpdateRevision else { return }
+            reminderDelivery = .alarm
+            await reminderScheduler.updateReminderDeliveryPreference(.alarm)
+            await resyncReminderNotifications()
+        }
+    }
+
     func makeCompletedHistoryViewModel(
         initialFilter: CompletedHistoryFilter = .week
     ) -> CompletedHistoryViewModel {
@@ -296,6 +335,7 @@ final class ProfileViewModel {
         let spaceID = sessionStore.currentSpace?.id
         let tasks = (try? await itemRepository.fetchActiveItems(spaceID: spaceID)) ?? []
         let projects = (try? await projectRepository.fetchProjects(spaceID: spaceID)) ?? []
+        let periodicTasks = (try? await periodicTaskRepository.fetchActiveTasks(spaceID: spaceID)) ?? []
         await reminderScheduler.resync(
             spaceID: spaceID,
             tasks: tasks,
@@ -303,6 +343,21 @@ final class ProfileViewModel {
             includeTaskReminders: taskReminderEnabled,
             includeDailySummary: taskReminderEnabled && dailySummaryEnabled
         )
+        for task in periodicTasks {
+            await reminderScheduler.syncPeriodicTaskReminder(for: task, referenceDate: .now)
+        }
+    }
+
+    private func authorizeAppleAlarmIfNeeded() async -> Bool {
+        let currentStatus = await reminderScheduler.alarmAuthorizationStatus()
+        let resolvedStatus: RoutineAlarmAuthorizationStatus
+        if currentStatus == .notDetermined {
+            resolvedStatus = (try? await reminderScheduler.requestAlarmAuthorization()) ?? .denied
+        } else {
+            resolvedStatus = currentStatus
+        }
+        alarmAuthorization = resolvedStatus
+        return resolvedStatus == .authorized
     }
 
     private func applyUpdatedPreferences(_ preferences: NotificationSettings, to user: User) {

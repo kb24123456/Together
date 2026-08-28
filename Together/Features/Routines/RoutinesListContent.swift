@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 enum HomeModeTaskTransitionTiming {
     static let revealDelay: Duration = .milliseconds(70)
@@ -101,8 +98,10 @@ struct RoutinesListContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var cycleIndicatorNamespace
+    @State private var modePeriodHeaderPresented = false
     @State private var modeTaskRowsPresented = false
     @State private var revealedTaskCycle: PeriodicCycle?
+    @State private var taskWaveLeadingElementCount = 1
     @State private var deletingTaskIDs: Set<UUID> = []
 
     private let rowHorizontalInset: CGFloat = AppTheme.spacing.xl
@@ -135,15 +134,6 @@ struct RoutinesListContent: View {
                 GradientGridBackground()
             }
         }
-        .alert("无法使用原生闹钟", isPresented: $viewModel.showsAlarmAuthorizationDeniedAlert) {
-            Button("取消", role: .cancel) {}
-            Button("打开设置") {
-                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                UIApplication.shared.open(url)
-            }
-        } message: {
-            Text("请在系统设置中允许 Together 使用闹钟；当前提醒方式保持不变。")
-        }
         .task(
             id: RoutinesListLoadKey(
                 spaceID: appContext.sessionStore.currentSpace?.id,
@@ -154,6 +144,15 @@ struct RoutinesListContent: View {
             await viewModel.loadIfNeeded()
             appContext.router.pendingPeriodicCycle = viewModel.selectedCycle
             selectPendingRouterCycleIfNeeded()
+        }
+        .task(
+            id: HomeModeTaskRevealKey(
+                isPresented: isPresented,
+                reduceMotion: reduceMotion,
+                isContentReady: true
+            )
+        ) {
+            await updateModePeriodHeaderPresentation()
         }
         .task(
             id: HomeModeTaskRevealKey(
@@ -297,6 +296,15 @@ struct RoutinesListContent: View {
                 .font(AppTheme.typography.sized(13, weight: .semibold))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .homeModeTaskWave(progress: modePeriodHeaderPresented ? 1 : 0)
+            .animation(
+                taskWaveAnimation(
+                    index: 0,
+                    elementCount: max(currentTasks.count + 1, 1),
+                    isPresented: modePeriodHeaderPresented
+                ),
+                value: modePeriodHeaderPresented
+            )
 
             Gauge(value: summary.completionProgress, in: 0...1) {
                 Text("完成进度")
@@ -515,7 +523,11 @@ struct RoutinesListContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .homeModeTaskWave(progress: taskRowsPresented ? 1 : 0)
         .animation(
-            taskRowWaveAnimation(index: index, taskCount: taskCount),
+            taskWaveAnimation(
+                index: index + taskWaveLeadingElementCount,
+                elementCount: taskCount + taskWaveLeadingElementCount,
+                isPresented: taskRowsPresented
+            ),
             value: taskRowsPresented
         )
         .contextMenu {
@@ -734,16 +746,36 @@ struct RoutinesListContent: View {
             : .smooth(duration: 0.32, extraBounce: 0).delay(isPresented ? 0.04 : 0)
     }
 
-    private func taskRowWaveAnimation(index: Int, taskCount: Int) -> Animation {
+    private func taskWaveAnimation(
+        index: Int,
+        elementCount: Int,
+        isPresented: Bool
+    ) -> Animation {
         let delay = HomeModeTaskTransitionTiming.delay(
             for: index,
-            taskCount: taskCount,
-            isPresented: taskRowsPresented,
+            taskCount: elementCount,
+            isPresented: isPresented,
             reduceMotion: reduceMotion
         )
         return reduceMotion
             ? .easeInOut(duration: 0.18)
             : .linear(duration: HomeModeTaskTransitionTiming.rowDuration).delay(delay)
+    }
+
+    private func updateModePeriodHeaderPresentation() async {
+        guard isPresented else {
+            modePeriodHeaderPresented = false
+            return
+        }
+        guard reduceMotion == false else {
+            modePeriodHeaderPresented = true
+            return
+        }
+
+        modePeriodHeaderPresented = false
+        try? await Task.sleep(for: HomeModeTaskTransitionTiming.revealDelay)
+        guard Task.isCancelled == false else { return }
+        modePeriodHeaderPresented = true
     }
 
     private func updateModeTaskRowsPresentation() async {
@@ -756,10 +788,12 @@ struct RoutinesListContent: View {
             return
         }
         guard reduceMotion == false else {
+            taskWaveLeadingElementCount = 1
             modeTaskRowsPresented = true
             return
         }
 
+        taskWaveLeadingElementCount = 1
         modeTaskRowsPresented = false
         try? await Task.sleep(for: HomeModeTaskTransitionTiming.revealDelay)
         guard Task.isCancelled == false else { return }
@@ -771,12 +805,17 @@ struct RoutinesListContent: View {
             revealedTaskCycle = nil
             return
         }
+        guard modeTaskRowsPresented else {
+            revealedTaskCycle = displayedCycle
+            return
+        }
         guard reduceMotion == false else {
             revealedTaskCycle = displayedCycle
             return
         }
 
         let targetCycle = displayedCycle
+        taskWaveLeadingElementCount = 0
         revealedTaskCycle = nil
         try? await Task.sleep(for: HomeModeTaskTransitionTiming.revealDelay)
         guard Task.isCancelled == false, displayedCycle == targetCycle else { return }

@@ -301,6 +301,7 @@ struct OCRTaskDraftEditor: View {
     let onOpenMenu: (TaskEditorMenu) -> Void
     let onSplitSubtask: (UUID) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var newSubtaskTitle = ""
     @FocusState private var isNewSubtaskFocused: Bool
 
@@ -414,6 +415,7 @@ struct OCRTaskDraftEditor: View {
                     .font(AppTheme.typography.sized(HomeInlineTaskLayoutMetrics.attributeTextSize, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
+                    .contentTransition(reduceMotion ? .opacity : .numericText())
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .foregroundStyle(AppTheme.colors.title.opacity(isEnabled ? 0.72 : 0.32))

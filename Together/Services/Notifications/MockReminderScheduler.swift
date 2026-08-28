@@ -25,6 +25,10 @@ actor MockReminderScheduler: ReminderSchedulerProtocol {
 
     func removePeriodicTaskReminder(for taskID: UUID) async {}
 
+    func reminderDeliveryPreference() async -> PeriodicReminderDelivery { .alarm }
+
+    func updateReminderDeliveryPreference(_ delivery: PeriodicReminderDelivery) async {}
+
     func alarmAuthorizationStatus() async -> RoutineAlarmAuthorizationStatus { .authorized }
 
     func requestAlarmAuthorization() async throws -> RoutineAlarmAuthorizationStatus { .authorized }
