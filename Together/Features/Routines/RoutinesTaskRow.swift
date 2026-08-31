@@ -1136,15 +1136,24 @@ struct PeriodicTaskAttributeFooter: View {
     let task: PeriodicTask
     @Bindable var viewModel: RoutinesViewModel
     let isExpanded: Bool
+    let allowsZoomTransition: Bool
 
-    @State private var isAttributeSheetPresented = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var attributeTransition
+    @State private var attributeSheetPresentation: TaskAttributeEditorTransitionPresentation?
 
     var body: some View {
         expandedControls
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .allowsHitTesting(isExpanded)
-            .sheet(isPresented: $isAttributeSheetPresented) {
+            .sheet(item: $attributeSheetPresentation) { presentation in
                 PeriodicTaskAttributeSheet(task: task, viewModel: viewModel)
+                    .taskAttributeEditorNavigationTransition(
+                        from: presentation.source,
+                        in: attributeTransition,
+                        reduceMotion: reduceMotion,
+                        allowsZoomTransition: presentation.allowsZoomTransition
+                    )
             }
     }
 
@@ -1163,6 +1172,7 @@ struct PeriodicTaskAttributeFooter: View {
             systemImage: "arrow.triangle.2.circlepath",
             isConfigured: true,
             fillsAvailableWidth: fillsAvailableWidth,
+            transitionSource: .periodicCycle,
             accessibilityLabel: "周期，当前为\(cycle.title)"
         )
         attributeButton(
@@ -1170,6 +1180,7 @@ struct PeriodicTaskAttributeFooter: View {
             systemImage: "calendar",
             isConfigured: cycle == .daily || rule?.hasTargetDay == true,
             fillsAvailableWidth: fillsAvailableWidth,
+            transitionSource: .periodicTargetDay,
             accessibilityLabel: "目标日，当前为\(PeriodicTaskAttributeText.targetDayTitle(cycle: cycle, rule: rule))"
         )
         attributeButton(
@@ -1177,6 +1188,7 @@ struct PeriodicTaskAttributeFooter: View {
             systemImage: "clock",
             isConfigured: rule?.hasTargetTime == true,
             fillsAvailableWidth: fillsAvailableWidth,
+            transitionSource: .periodicTargetTime,
             accessibilityLabel: "目标时间，当前为\(PeriodicTaskAttributeText.targetTimeTitle(rule: rule))"
         )
         attributeButton(
@@ -1184,6 +1196,7 @@ struct PeriodicTaskAttributeFooter: View {
             systemImage: "bell",
             isConfigured: rule?.hasReminder == true,
             fillsAvailableWidth: fillsAvailableWidth,
+            transitionSource: .periodicReminder,
             accessibilityLabel: "提醒，当前为\(PeriodicTaskAttributeText.reminderTitle(rule: rule))"
         )
     }
@@ -1193,11 +1206,15 @@ struct PeriodicTaskAttributeFooter: View {
         systemImage: String,
         isConfigured: Bool,
         fillsAvailableWidth: Bool,
+        transitionSource: TaskAttributeEditorTransitionSource,
         accessibilityLabel: String
     ) -> some View {
         Button {
             HomeInteractionFeedback.selection()
-            isAttributeSheetPresented = true
+            attributeSheetPresentation = TaskAttributeEditorTransitionPresentation(
+                source: transitionSource,
+                allowsZoomTransition: allowsZoomTransition
+            )
         } label: {
             TaskAttributeLabel(
                 icon: systemImage,
@@ -1209,7 +1226,9 @@ struct PeriodicTaskAttributeFooter: View {
                 isFocusForeground: true,
                 fillsAvailableWidth: fillsAvailableWidth,
                 usesLightweightBackground: true,
-                animatesTitleChanges: true
+                animatesTitleChanges: true,
+                transitionSource: transitionSource,
+                transitionNamespace: attributeTransition
             )
         }
         .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)

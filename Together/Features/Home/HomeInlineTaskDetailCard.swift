@@ -459,7 +459,10 @@ struct HomeTaskAttributeFooter: View {
     let entry: HomeTimelineEntry
     @Bindable var viewModel: HomeViewModel
     let isExpanded: Bool
+    let allowsZoomTransition: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var attributeTransition
     @State private var schedulePresentation: ExistingTaskScheduleEditorPresentation?
 
     var body: some View {
@@ -478,6 +481,12 @@ struct HomeTaskAttributeFooter: View {
                         )
                     }
                 )
+                .taskAttributeEditorNavigationTransition(
+                    from: presentation.transitionSource,
+                    in: attributeTransition,
+                    reduceMotion: reduceMotion,
+                    allowsZoomTransition: presentation.allowsZoomTransition
+                )
             }
     }
 
@@ -495,26 +504,29 @@ struct HomeTaskAttributeFooter: View {
             title: dateTitle,
             systemImage: "calendar",
             isConfigured: viewModel.inlineDetailDraft?.dueAt != nil,
-            fillsAvailableWidth: fillsAvailableWidth
+            fillsAvailableWidth: fillsAvailableWidth,
+            transitionSource: .date
         ) {
-            openSchedule()
+            openSchedule(from: .date)
         }
         attributeButton(
             title: timeTitle,
             systemImage: "clock",
             isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true,
-            fillsAvailableWidth: fillsAvailableWidth
+            fillsAvailableWidth: fillsAvailableWidth,
+            transitionSource: .time
         ) {
-            openSchedule()
+            openSchedule(from: .time)
         }
 
         attributeButton(
             title: reminderTitle,
             systemImage: "bell",
             isConfigured: viewModel.inlineDetailDraft?.remindAt != nil,
-            fillsAvailableWidth: fillsAvailableWidth
+            fillsAvailableWidth: fillsAvailableWidth,
+            transitionSource: .reminder
         ) {
-            openSchedule()
+            openSchedule(from: .reminder)
         }
 
         Button {
@@ -574,6 +586,7 @@ struct HomeTaskAttributeFooter: View {
         systemImage: String,
         isConfigured: Bool,
         fillsAvailableWidth: Bool,
+        transitionSource: TaskAttributeEditorTransitionSource,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -590,7 +603,9 @@ struct HomeTaskAttributeFooter: View {
                 isFocusForeground: true,
                 fillsAvailableWidth: fillsAvailableWidth,
                 usesLightweightBackground: true,
-                animatesTitleChanges: true
+                animatesTitleChanges: true,
+                transitionSource: transitionSource,
+                transitionNamespace: attributeTransition
             )
         }
         .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)
@@ -622,13 +637,15 @@ struct HomeTaskAttributeFooter: View {
         )
     }
 
-    private func openSchedule() {
+    private func openSchedule(from transitionSource: TaskAttributeEditorTransitionSource) {
         let draft = viewModel.inlineDetailDraft
         schedulePresentation = ExistingTaskScheduleEditorPresentation(
             dueAt: draft?.dueAt,
             hasExplicitTime: draft?.hasExplicitTime ?? false,
             remindAt: draft?.remindAt,
-            fallbackDate: viewModel.selectedDate
+            fallbackDate: viewModel.selectedDate,
+            transitionSource: transitionSource,
+            allowsZoomTransition: allowsZoomTransition
         )
     }
 

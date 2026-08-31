@@ -36,6 +36,7 @@ struct TaskCreationView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focusedField: FocusedField?
+    @Namespace private var attributeTransition
     @State private var title: String
     @State private var notes: String
     @State private var newSubtaskTitle = ""
@@ -144,6 +145,12 @@ struct TaskCreationView: View {
                 onChange: { draft in
                     pendingTodoScheduleDraft = draft
                 }
+            )
+            .taskAttributeEditorNavigationTransition(
+                from: presentation.transitionSource,
+                in: attributeTransition,
+                reduceMotion: reduceMotion,
+                allowsZoomTransition: presentation.allowsZoomTransition
             )
         }
         .task {
@@ -264,25 +271,28 @@ struct TaskCreationView: View {
             creationAttributeButton(
                 title: todoDateTitle,
                 systemImage: "calendar",
-                isConfigured: homeViewModel.taskCreationSession?.draft.dueAt != nil
+                isConfigured: homeViewModel.taskCreationSession?.draft.dueAt != nil,
+                transitionSource: .date
             ) {
-                openSchedule()
+                openSchedule(from: .date)
             }
 
             creationAttributeButton(
                 title: todoTimeTitle,
                 systemImage: "clock",
-                isConfigured: homeViewModel.taskCreationSession?.draft.hasExplicitTime == true
+                isConfigured: homeViewModel.taskCreationSession?.draft.hasExplicitTime == true,
+                transitionSource: .time
             ) {
-                openSchedule()
+                openSchedule(from: .time)
             }
 
             creationAttributeButton(
                 title: todoReminderTitle,
                 systemImage: "bell",
-                isConfigured: homeViewModel.taskCreationSession?.draft.remindAt != nil
+                isConfigured: homeViewModel.taskCreationSession?.draft.remindAt != nil,
+                transitionSource: .reminder
             ) {
-                openSchedule()
+                openSchedule(from: .reminder)
             }
 
             Button {
@@ -337,6 +347,7 @@ struct TaskCreationView: View {
         title: String,
         systemImage: String,
         isConfigured: Bool,
+        transitionSource: TaskAttributeEditorTransitionSource,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -351,7 +362,9 @@ struct TaskCreationView: View {
                 horizontalPadding: 8,
                 isFocusForeground: true,
                 usesLightweightBackground: true,
-                animatesTitleChanges: true
+                animatesTitleChanges: true,
+                transitionSource: transitionSource,
+                transitionNamespace: attributeTransition
             )
         }
         .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -712,14 +725,16 @@ struct TaskCreationView: View {
         )
     }
 
-    private func openSchedule() {
+    private func openSchedule(from transitionSource: TaskAttributeEditorTransitionSource) {
         let draft = homeViewModel.taskCreationSession?.draft
         pendingTodoScheduleDraft = nil
         schedulePresentation = ExistingTaskScheduleEditorPresentation(
             dueAt: draft?.dueAt,
             hasExplicitTime: draft?.hasExplicitTime ?? false,
             remindAt: draft?.remindAt,
-            fallbackDate: homeViewModel.selectedDate
+            fallbackDate: homeViewModel.selectedDate,
+            transitionSource: transitionSource,
+            allowsZoomTransition: focusedField == nil
         )
     }
 

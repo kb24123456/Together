@@ -22,6 +22,42 @@ enum InlineAttributeEditor: String, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
+enum TaskAttributeEditorTransitionSource: Hashable, Identifiable {
+    case date
+    case time
+    case reminder
+    case periodicCycle
+    case periodicTargetDay
+    case periodicTargetTime
+    case periodicReminder
+
+    var id: Self { self }
+}
+
+extension View {
+    @ViewBuilder
+    func taskAttributeEditorNavigationTransition(
+        from source: TaskAttributeEditorTransitionSource,
+        in namespace: Namespace.ID,
+        reduceMotion: Bool,
+        allowsZoomTransition: Bool
+    ) -> some View {
+        if reduceMotion || allowsZoomTransition == false {
+            navigationTransition(.automatic)
+        } else {
+            navigationTransition(
+                .zoom(sourceID: source, in: namespace)
+            )
+        }
+    }
+}
+
+struct TaskAttributeEditorTransitionPresentation: Identifiable {
+    let id = UUID()
+    let source: TaskAttributeEditorTransitionSource
+    let allowsZoomTransition: Bool
+}
+
 struct TaskAttributeButton: View {
     let icon: String
     let title: String
@@ -61,12 +97,32 @@ struct TaskAttributeLabel: View {
     var fillsAvailableWidth = false
     var usesLightweightBackground = false
     var animatesTitleChanges = false
+    var transitionSource: TaskAttributeEditorTransitionSource? = nil
+    var transitionNamespace: Namespace.ID? = nil
 
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        transitionSourceLabel
+            .frame(
+                minWidth: 44,
+                minHeight: 44,
+                alignment: alignsToCardCorner ? .bottom : .center
+            )
+            .contentShape(Rectangle())
+            .animation(
+                animatesTitleChanges
+                    ? (reduceMotion
+                        ? .easeInOut(duration: 0.16)
+                        : .smooth(duration: 0.26, extraBounce: 0))
+                    : nil,
+                value: title
+            )
+    }
+
+    private var visibleLabel: some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(AppTheme.typography.sized(14, weight: .semibold))
@@ -91,20 +147,23 @@ struct TaskAttributeLabel: View {
                     .fill(tint.opacity(colorScheme == .dark ? 0.16 : 0.09))
             }
         }
-        .frame(
-            minWidth: 44,
-            minHeight: 44,
-            alignment: alignsToCardCorner ? .bottom : .center
-        )
-        .contentShape(Rectangle())
-        .animation(
-            animatesTitleChanges
-                ? (reduceMotion
-                    ? .easeInOut(duration: 0.16)
-                    : .smooth(duration: 0.26, extraBounce: 0))
-                : nil,
-            value: title
-        )
+    }
+
+    @ViewBuilder
+    private var transitionSourceLabel: some View {
+        if let transitionSource, let transitionNamespace {
+            visibleLabel
+                .matchedTransitionSource(
+                    id: transitionSource,
+                    in: transitionNamespace
+                ) { source in
+                    source.clipShape(
+                        RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    )
+                }
+        } else {
+            visibleLabel
+        }
     }
 
     @ViewBuilder
@@ -202,12 +261,16 @@ enum ExistingTaskScheduleEditorPolicy {
 struct ExistingTaskScheduleEditorPresentation: Identifiable {
     let id = UUID()
     let initialDraft: ExistingTaskScheduleDraft
+    let transitionSource: TaskAttributeEditorTransitionSource
+    let allowsZoomTransition: Bool
 
     init(
         dueAt: Date?,
         hasExplicitTime: Bool,
         remindAt: Date?,
-        fallbackDate: Date
+        fallbackDate: Date,
+        transitionSource: TaskAttributeEditorTransitionSource = .date,
+        allowsZoomTransition: Bool = true
     ) {
         initialDraft = ExistingTaskScheduleDraft(
             dueAt: dueAt,
@@ -215,6 +278,8 @@ struct ExistingTaskScheduleEditorPresentation: Identifiable {
             remindAt: remindAt,
             fallbackDate: fallbackDate
         )
+        self.transitionSource = transitionSource
+        self.allowsZoomTransition = allowsZoomTransition
     }
 }
 
