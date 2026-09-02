@@ -1149,10 +1149,6 @@ final class HomeViewModel {
         completedEntryCount > 0
     }
 
-    var completedVisibilityButtonTitle: String {
-        "本周已完成"
-    }
-
     var activeTimelineEntries: [HomeTimelineEntry] {
         primaryIncompleteTimelineItems.map(makeTimelineEntry)
     }

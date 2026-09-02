@@ -14,7 +14,7 @@ struct ProfileView: View {
         @Bindable var ambientBackgroundSettings = appContext.ambientBackgroundSettings
 
         ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xxl) {
+            VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.section) {
                 NavigationLink(value: ProfileRoute.editProfile) {
                     ProfileCompactIdentityRow(
                         name: appContext.sessionStore.currentUser?.displayName ?? viewModel.profileCardPrimaryName,
@@ -28,6 +28,7 @@ struct ProfileView: View {
                     .matchedTransitionSource(id: ProfileTransitionSource.profileCard, in: profileTransition)
                 }
                 .buttonStyle(.plain)
+                .padding(.bottom, AppTheme.hierarchy.spacing.component)
 
                 ProfileFlatSection(title: "显示") {
                     ProfileFlatOptionRow(
@@ -122,9 +123,9 @@ struct ProfileView: View {
                                 title: "每日摘要",
                                 systemImage: "clock"
                             ) {
-                                HStack(spacing: AppTheme.spacing.sm) {
+                                HStack(spacing: AppTheme.hierarchy.spacing.related) {
                                     Text("09:00 · 18:00")
-                                        .font(AppTheme.typography.sized(15, weight: .medium))
+                                        .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
                                         .foregroundStyle(AppTheme.colors.body.opacity(0.58))
 
                                     Toggle("每日摘要", isOn: Binding(
@@ -335,8 +336,10 @@ private struct ProfileCompactIdentityRow: View {
     let name: String
     let avatar: ProfileCardAvatar
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(spacing: AppTheme.spacing.md) {
+        HStack(spacing: AppTheme.hierarchy.spacing.component) {
             UserAvatarView(
                 avatarAsset: avatar.avatarAsset,
                 displayName: avatar.displayName,
@@ -348,17 +351,18 @@ private struct ProfileCompactIdentityRow: View {
             )
 
             Text(name)
-                .font(AppTheme.typography.sized(22, weight: .medium))
+                .font(AppTheme.typography.hierarchy(.title, weight: .medium))
                 .foregroundStyle(AppTheme.colors.title)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Spacer(minLength: AppTheme.spacing.md)
+            Spacer(minLength: AppTheme.hierarchy.spacing.component)
 
             Image(systemName: "chevron.right")
                 .font(AppTheme.typography.sized(13, weight: .bold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.36))
         }
-        .padding(.vertical, AppTheme.spacing.lg)
+        .padding(.vertical, AppTheme.hierarchy.spacing.component)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(name)

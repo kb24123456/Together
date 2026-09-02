@@ -4,6 +4,7 @@ import SwiftUI
 private enum AppRootRoute: Hashable {
     case profile
     case completedHistory(CompletedHistoryFilter)
+    case planningReview
 }
 
 struct AppRootView: View {
@@ -19,6 +20,7 @@ struct AppRootView: View {
 struct HomeRootContent: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var rootNavigationPath = NavigationPath()
     @State private var activeOCRSourceSession: OCRSourceSheetSession?
@@ -30,6 +32,9 @@ struct HomeRootContent: View {
     @State private var taskCreationDestination: TaskCreationDestination?
     @State private var pendingCreatedTaskReveal: TaskCreationDestination?
     @State private var activeTaskDetailPresentation: TaskDetailPresentation?
+    @State private var isWeeklyReviewMenuPresented = false
+    @State private var weeklyReviewMenuSourceFrame: CGRect = .zero
+    @AccessibilityFocusState private var weeklyReviewMenuFocus: HomeWeeklyReviewMenuFocus?
     @Namespace private var taskCreationTransition
     @Namespace private var taskDetailTransition
 
@@ -51,31 +56,42 @@ struct HomeRootContent: View {
     var body: some View {
         @Bindable var router = appContext.router
 
-        NavigationStack(path: $rootNavigationPath) {
-            rootSurfaceView(router: router)
-                .allowsHitTesting(activeTaskDetailPresentation == nil)
-                .toolbar {
-                    if #available(iOS 26.0, *) {
-                        topToolbar(router: router)
-                            .sharedBackgroundVisibility(.hidden)
-                    } else {
-                        topToolbar(router: router)
-                    }
+        ZStack {
+            NavigationStack(path: $rootNavigationPath) {
+                rootSurfaceView(router: router)
+                    .allowsHitTesting(activeTaskDetailPresentation == nil)
+                    .toolbar {
+                        if #available(iOS 26.0, *) {
+                            topToolbar(router: router)
+                                .sharedBackgroundVisibility(.hidden)
+                        } else {
+                            topToolbar(router: router)
+                        }
 
-                    bottomToolbar(router: router)
-                }
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationDestination(for: AppRootRoute.self) { route in
-                    switch route {
-                    case .profile:
-                        ProfileView(viewModel: appContext.profileViewModel)
-                    case .completedHistory(let filter):
-                        CompletedHistoryView(
-                            viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
-                        )
+                        bottomToolbar(router: router)
                     }
-                }
+                    .toolbarBackground(.hidden, for: .navigationBar)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationDestination(for: AppRootRoute.self) { route in
+                        switch route {
+                        case .profile:
+                            ProfileView(viewModel: appContext.profileViewModel)
+                        case .completedHistory(let filter):
+                            CompletedHistoryView(
+                                viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
+                            )
+                        case .planningReview:
+                            PlanningReviewView(
+                                loadReview: appContext.profileViewModel.planningReview,
+                                loadTaskReview: appContext.profileViewModel.taskLifecycleReview
+                            )
+                        }
+                    }
+            }
+            .accessibilityHidden(isWeeklyReviewMenuPresented)
+
+            weeklyReviewMenuOverlay
+                .zIndex(20)
         }
         .background(Color.clear)
         .sheet(item: $activeOCRSourceSession, onDismiss: {
@@ -167,6 +183,9 @@ struct HomeRootContent: View {
             routinesViewModel: appContext.routinesViewModel,
             isRoutinesModePresented: displayedRootSurface == .routines,
             isRootSurfaceVisible: isHomeSurfaceVisible,
+            isWeeklyReviewMenuPresented: $isWeeklyReviewMenuPresented,
+            weeklyReviewMenuSourceFrame: $weeklyReviewMenuSourceFrame,
+            weeklyReviewMenuFocus: $weeklyReviewMenuFocus,
             onCreateTaskTapped: {
                 presentTaskCreation(domain: .todo)
             },
@@ -176,6 +195,147 @@ struct HomeRootContent: View {
                 rootNavigationPath.append(AppRootRoute.completedHistory(filter))
             }
         )
+    }
+
+    private var weeklyReviewMenuOverlay: some View {
+        GeometryReader { proxy in
+            let containerFrame = proxy.frame(in: .global)
+            let menuWidth = HomeWeeklyReviewMenuLayout.actionWidth(
+                containerWidth: proxy.size.width,
+                usesAccessibilityLayout: dynamicTypeSize.isAccessibilitySize
+            )
+            let menuOrigin = HomeWeeklyReviewMenuLayout.actionOrigin(
+                sourceFrame: weeklyReviewMenuSourceFrame,
+                containerFrame: containerFrame,
+                containerWidth: proxy.size.width,
+                actionWidth: menuWidth
+            )
+
+            ZStack(alignment: .topLeading) {
+                weeklyReviewMenuBackdrop
+
+                if weeklyReviewMenuSourceFrame != .zero {
+                    weeklyReviewSpeedDialActions
+                        .frame(width: menuWidth)
+                        .offset(x: menuOrigin.x, y: menuOrigin.y)
+                        .zIndex(1)
+                }
+            }
+        }
+        .allowsHitTesting(isWeeklyReviewMenuPresented)
+        .accessibilityHidden(!isWeeklyReviewMenuPresented)
+    }
+
+    @ViewBuilder
+    private var weeklyReviewMenuBackdrop: some View {
+        if reduceMotion || reduceTransparency {
+            Color(uiColor: .systemBackground)
+                .opacity(isWeeklyReviewMenuPresented ? 0.86 : 0)
+                .animation(weeklyReviewMenuAnimation, value: isWeeklyReviewMenuPresented)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    dismissWeeklyReviewMenu(restoresAccessibilityFocus: true)
+                }
+                .ignoresSafeArea()
+        } else {
+            Rectangle()
+                .fill(.thinMaterial)
+                .opacity(isWeeklyReviewMenuPresented ? 0.45 : 0)
+                .animation(weeklyReviewMenuAnimation, value: isWeeklyReviewMenuPresented)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    dismissWeeklyReviewMenu(restoresAccessibilityFocus: true)
+                }
+                .ignoresSafeArea()
+        }
+    }
+
+    private var weeklyReviewSpeedDialActions: some View {
+        VStack(alignment: .trailing, spacing: HomeWeeklyReviewMenuLayout.rowSpacing) {
+            weeklyReviewSpeedDialRow(
+                index: 0,
+                title: "本周已完成"
+            ) {
+                dismissWeeklyReviewMenu(restoresAccessibilityFocus: false)
+                HomeInteractionFeedback.selection()
+                Task {
+                    await appContext.homeViewModel.presentWeeklyCompletedSheet()
+                }
+            }
+            .accessibilityFocused($weeklyReviewMenuFocus, equals: .completed)
+
+            weeklyReviewSpeedDialRow(
+                index: 1,
+                title: "计划复盘"
+            ) {
+                dismissWeeklyReviewMenu(restoresAccessibilityFocus: false)
+                HomeInteractionFeedback.selection()
+                rootNavigationPath.append(AppRootRoute.planningReview)
+            }
+            .accessibilityFocused($weeklyReviewMenuFocus, equals: .planningReview)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("本周回顾菜单")
+    }
+
+    private func weeklyReviewSpeedDialRow(
+        index: Int,
+        title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(AppTheme.typography.scaled(15, weight: .semibold, relativeTo: .body))
+                .foregroundStyle(AppTheme.colors.title)
+                .fontDesign(.rounded)
+                .lineLimit(1)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: weeklyReviewMenuRowHeight,
+                    alignment: .trailing
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HomeWeeklyReviewMenuRowButtonStyle(reduceMotion: reduceMotion))
+        .opacity(isWeeklyReviewMenuPresented ? 1 : 0)
+        .scaleEffect(
+            reduceMotion || isWeeklyReviewMenuPresented ? 1 : 0.42,
+            anchor: .trailing
+        )
+        .offset(
+            y: isWeeklyReviewMenuPresented
+                ? 0
+                : -CGFloat(index) * (weeklyReviewMenuRowHeight + HomeWeeklyReviewMenuLayout.rowSpacing)
+        )
+        .animation(weeklyReviewMenuItemAnimation, value: isWeeklyReviewMenuPresented)
+        .zIndex(Double(2 - index))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint("打开\(title)")
+    }
+
+    private var weeklyReviewMenuRowHeight: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 56 : HomeWeeklyReviewMenuLayout.rowHeight
+    }
+
+    private var weeklyReviewMenuItemAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.14)
+            : .smooth(duration: 0.27, extraBounce: 0)
+    }
+
+    private var weeklyReviewMenuAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.14)
+            : .smooth(duration: 0.22, extraBounce: 0)
+    }
+
+    private func dismissWeeklyReviewMenu(restoresAccessibilityFocus: Bool) {
+        guard isWeeklyReviewMenuPresented else { return }
+        isWeeklyReviewMenuPresented = false
+        if restoresAccessibilityFocus {
+            weeklyReviewMenuFocus = .trigger
+        }
     }
 
     // MARK: - Navigation toolbars

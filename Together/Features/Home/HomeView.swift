@@ -57,18 +57,59 @@ struct HomeModeTimelineWaveSequence: Equatable {
     }
 }
 
+struct HomeWeeklyReviewMenuLayout: Equatable {
+    static let regularWidth: CGFloat = 112
+    static let accessibilityWidth: CGFloat = 196
+    static let screenInset: CGFloat = 12
+    static let rowHeight: CGFloat = 44
+    static let rowSpacing: CGFloat = 4
+
+    static func actionWidth(
+        containerWidth: CGFloat,
+        usesAccessibilityLayout: Bool
+    ) -> CGFloat {
+        min(
+            usesAccessibilityLayout ? accessibilityWidth : regularWidth,
+            max(0, containerWidth - (screenInset * 2))
+        )
+    }
+
+    static func actionOrigin(
+        sourceFrame: CGRect,
+        containerFrame: CGRect,
+        containerWidth: CGFloat,
+        actionWidth: CGFloat
+    ) -> CGPoint {
+        let desiredX = sourceFrame.maxX - containerFrame.minX - actionWidth
+        let maximumX = max(screenInset, containerWidth - actionWidth - screenInset)
+        return CGPoint(
+            x: min(max(screenInset, desiredX), maximumX),
+            y: max(0, sourceFrame.minY - containerFrame.minY)
+        )
+    }
+}
+
+enum HomeWeeklyReviewMenuFocus: Hashable {
+    case trigger
+    case completed
+    case planningReview
+}
+
 struct HomeView: View {
     @Environment(AppContext.self) private var appContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Bindable var viewModel: HomeViewModel
     @Bindable var routinesViewModel: RoutinesViewModel
     let isRoutinesModePresented: Bool
     var isRootSurfaceVisible = true
+    @Binding var isWeeklyReviewMenuPresented: Bool
+    @Binding var weeklyReviewMenuSourceFrame: CGRect
+    @AccessibilityFocusState.Binding var weeklyReviewMenuFocus: HomeWeeklyReviewMenuFocus?
     let onCreateTaskTapped: () -> Void
     let taskDetailTransition: Namespace.ID
     let onOpenTaskDetail: (TaskDetailRoute) -> Void
     let onCompletedHistoryTapped: (CompletedHistoryFilter) -> Void
-    @State private var isCompletedVisibilityButtonCompressed = false
     @State private var isCompletedSectionVisible = true
     @State private var highlightedTaskID: UUID?
     @State private var isTimelineReorderingActive = false
@@ -145,6 +186,15 @@ struct HomeView: View {
         .onAppear {
             isCompletedSectionVisible = true
         }
+        .onDisappear {
+            isWeeklyReviewMenuPresented = false
+        }
+        .onChange(of: isRoutinesModePresented) { _, _ in
+            dismissWeeklyReviewMenu(restoresAccessibilityFocus: false)
+        }
+        .onChange(of: viewModel.selectedDateKey) { _, _ in
+            dismissWeeklyReviewMenu(restoresAccessibilityFocus: false)
+        }
         .onChange(of: appContext.startupRestorePresentationState) { oldValue, newValue in
             guard oldValue.isVisible, newValue == .idle else { return }
             Task {
@@ -165,6 +215,7 @@ struct HomeView: View {
     private var isAmbientParticleMotionSuppressed: Bool {
         viewModel.isOverdueSheetPresented
             || viewModel.isWeeklyCompletedSheetPresented
+            || isWeeklyReviewMenuPresented
     }
 
     private var showsStartupRestoreStatus: Bool {
@@ -519,11 +570,11 @@ struct HomeView: View {
         } label: {
             HStack(spacing: AppTheme.spacing.xs) {
                 Text("当前已逾期")
-                    .font(AppTheme.typography.scaled(13, weight: .semibold, relativeTo: .footnote))
+                    .font(AppTheme.typography.hierarchy(.supporting, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.86))
 
                 Text(verbatim: String(viewModel.overdueEntryCount))
-                    .font(AppTheme.typography.scaled(13, weight: .bold, relativeTo: .footnote))
+                    .font(AppTheme.typography.hierarchy(.supporting, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(AppTheme.colors.overdueAccent)
                     .contentTransition(reduceMotion ? .opacity : .numericText())
@@ -566,9 +617,9 @@ struct HomeView: View {
                     todayCompletedHeader
                         .padding(
                             EdgeInsets(
-                                top: 12,
+                                top: AppTheme.hierarchy.spacing.component,
                                 leading: timelineRowHorizontalInset,
-                                bottom: 10,
+                                bottom: AppTheme.hierarchy.spacing.related,
                                 trailing: timelineRowHorizontalInset
                             )
                         )
@@ -584,12 +635,14 @@ struct HomeView: View {
                     completedTimelineSection(scrollProxy: scrollProxy)
                 }
 
-                if displayedHasWeeklyCompletedEntries {
+                if displaysWeeklyCompletedFallback {
                     completedVisibilityButton
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(
                             EdgeInsets(
-                                top: displayedCompletedEntries.isEmpty ? 12 : 4,
+                                top: displayedCompletedEntries.isEmpty
+                                    ? AppTheme.hierarchy.spacing.component
+                                    : AppTheme.hierarchy.spacing.related,
                                 leading: timelineRowHorizontalInset,
                                 bottom: timelineBottomInset,
                                 trailing: timelineRowHorizontalInset
@@ -649,25 +702,133 @@ struct HomeView: View {
 
     private func timelineDateBar(_ section: HomeTimelineSection) -> some View {
         let waveSequence = homeModeTimelineWaveSequence
-        return ZStack(alignment: .leading) {
-            timelineSectionHeaderLayout(section)
-                .contentTransition(reduceMotion ? .opacity : .numericText())
-                .animation(timelineDateBarContentAnimation, value: section.id)
-                .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
-                .animation(
-                    modeTaskRowAnimation(
-                        index: waveSequence.dateHeaderIndex ?? 0,
-                        taskCount: waveSequence.elementCount
-                    ),
-                    value: modeTaskRowsPresented
-                )
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 0) {
+                    timelineDateBarTitle(section, waveSequence: waveSequence)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        weeklyReviewMenuTrigger
+                    }
+                }
+                .padding(.horizontal, timelineRowHorizontalInset)
+                .padding(.vertical, AppTheme.spacing.xs)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: AppTheme.spacing.sm) {
+                    timelineDateBarTitle(section, waveSequence: waveSequence)
+
+                    Spacer(minLength: AppTheme.spacing.sm)
+
+                    weeklyReviewMenuTrigger
+                }
+                .padding(.horizontal, timelineRowHorizontalInset)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.frame(in: .global).maxY
         } action: { maxY in
             guard abs(maxY - timelineDateBarBoundaryMaxY) > 0.5 else { return }
             timelineDateBarBoundaryMaxY = maxY
+        }
+    }
+
+    private func timelineDateBarTitle(
+        _ section: HomeTimelineSection,
+        waveSequence: HomeModeTimelineWaveSequence
+    ) -> some View {
+        HomeTimelineDateSectionHeaderContent(section: section)
+            .contentTransition(reduceMotion ? .opacity : .numericText())
+            .animation(timelineDateBarContentAnimation, value: section.id)
+            .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
+            .animation(
+                modeTaskRowAnimation(
+                    index: waveSequence.dateHeaderIndex ?? 0,
+                    taskCount: waveSequence.elementCount
+                ),
+                value: modeTaskRowsPresented
+            )
+    }
+
+    private var weeklyReviewMenuTrigger: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                toggleWeeklyReviewMenu()
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: AppTheme.hierarchy.spacing.inline) {
+                    Text("本周")
+
+                    Text(verbatim: String(displayedWeeklyCompletedEntryCount))
+                        .monospacedDigit()
+                        .contentTransition(reduceMotion ? .opacity : .numericText())
+
+                    Image(systemName: "chevron.down")
+                        .font(AppTheme.typography.scaled(8, weight: .semibold, relativeTo: .caption2))
+                        .accessibilityHidden(true)
+                }
+                .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
+                .fontDesign(.rounded)
+                .foregroundStyle(AppTheme.colors.textTertiary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(HomeWeeklyReviewTriggerButtonStyle(reduceMotion: reduceMotion))
+            .opacity(isWeeklyReviewMenuPresented ? 0 : 1)
+            .scaleEffect(
+                reduceMotion || !isWeeklyReviewMenuPresented ? 1 : 0.72,
+                anchor: .trailing
+            )
+            .accessibilityFocused($weeklyReviewMenuFocus, equals: .trigger)
+            .accessibilityLabel("本周已完成")
+            .accessibilityValue(
+                "\(displayedWeeklyCompletedEntryCount) 项，菜单\(isWeeklyReviewMenuPresented ? "已展开" : "已收起")"
+            )
+            .accessibilityHint(isWeeklyReviewMenuPresented ? "轻点收起菜单" : "轻点查看本周完成与计划复盘")
+        }
+        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+        .background {
+            Color.clear
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .global)
+                } action: { frame in
+                    guard frame != weeklyReviewMenuSourceFrame else { return }
+                    weeklyReviewMenuSourceFrame = frame
+                }
+        }
+        .animation(timelineDateBarContentAnimation, value: displayedWeeklyCompletedEntryCount)
+        .animation(weeklyReviewMenuAnimation, value: isWeeklyReviewMenuPresented)
+    }
+
+    private var weeklyReviewMenuAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.14)
+            : .smooth(duration: 0.22, extraBounce: 0)
+    }
+
+    private func toggleWeeklyReviewMenu() {
+        HomeInteractionFeedback.selection()
+        let willPresent = !isWeeklyReviewMenuPresented
+        isWeeklyReviewMenuPresented = willPresent
+
+        if willPresent {
+            Task { @MainActor in
+                await Task.yield()
+                weeklyReviewMenuFocus = .completed
+            }
+        } else {
+            weeklyReviewMenuFocus = .trigger
+        }
+    }
+
+    private func dismissWeeklyReviewMenu(restoresAccessibilityFocus: Bool) {
+        guard isWeeklyReviewMenuPresented else { return }
+        isWeeklyReviewMenuPresented = false
+        if restoresAccessibilityFocus {
+            weeklyReviewMenuFocus = .trigger
         }
     }
 
@@ -698,7 +859,7 @@ struct HomeView: View {
     private func timelineSectionHeaderLayout(_ section: HomeTimelineSection) -> some View {
         HomeTimelineDateSectionHeader(section: section)
             .padding(.horizontal, timelineRowHorizontalInset)
-            .padding(.vertical, 8)
+            .padding(.vertical, AppTheme.hierarchy.spacing.related)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
     }
@@ -763,7 +924,7 @@ struct HomeView: View {
                 section.entries.map(\.itemID)
             },
             completedTaskIDs: displayedCompletedEntries.map(\.itemID),
-            includesWeeklyCompletedSummary: displayedHasWeeklyCompletedEntries,
+            includesWeeklyCompletedSummary: displaysWeeklyCompletedFallback,
             includesDateHeader: displayedTimelineDateBarSection != nil
         )
     }
@@ -782,14 +943,22 @@ struct HomeView: View {
         viewModel.weeklyCompletedEntryCount
     }
 
+    private var displaysWeeklyCompletedFallback: Bool {
+        guard displayedHasWeeklyCompletedEntries else { return false }
+        if #available(iOS 26.0, *) {
+            return displayedTimelineDateBarSection == nil
+        }
+        return true
+    }
+
     private var todayCompletedHeader: some View {
-        HStack(spacing: AppTheme.spacing.xs) {
+        HStack(spacing: AppTheme.hierarchy.spacing.related) {
             Text("今天已完成")
-                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .font(AppTheme.typography.hierarchy(.supporting, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.58))
 
             Text("\(displayedCompletedEntries.count)")
-                .font(AppTheme.typography.sized(11, weight: .bold))
+                .font(AppTheme.typography.hierarchy(.micro, weight: .bold))
                 .foregroundStyle(AppTheme.colors.body.opacity(0.46))
                 .frame(minWidth: 20, minHeight: 20)
                 .background(
@@ -1008,22 +1177,7 @@ struct HomeView: View {
                     .buttonStyle(.plain)
 
                     if displayedHasWeeklyCompletedEntries {
-                        Button {
-                            HomeInteractionFeedback.selection()
-                            isCompletedVisibilityButtonCompressed = true
-                            Task { @MainActor in
-                                try? await Task.sleep(for: .milliseconds(110))
-                                isCompletedVisibilityButtonCompressed = false
-                            }
-                            Task {
-                                await viewModel.presentWeeklyCompletedSheet()
-                            }
-                        } label: {
-                            Text("本周已完成 \(displayedWeeklyCompletedEntryCount) 项")
-                                .font(AppTheme.typography.sized(13, weight: .medium))
-                                .foregroundStyle(AppTheme.colors.body.opacity(0.5))
-                        }
-                        .buttonStyle(.plain)
+                        completedVisibilityButton
                         .homeModeTaskWave(progress: modeTaskRowsPresented ? 1 : 0)
                         .animation(
                             modeTaskRowAnimation(
@@ -1048,44 +1202,18 @@ struct HomeView: View {
     private var completedVisibilityButton: some View {
         Button {
             HomeInteractionFeedback.selection()
-            isCompletedVisibilityButtonCompressed = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(110))
-                isCompletedVisibilityButtonCompressed = false
-            }
             Task {
                 await viewModel.presentWeeklyCompletedSheet()
             }
         } label: {
-            HStack(spacing: AppTheme.spacing.xs) {
-                Text(viewModel.completedVisibilityButtonTitle)
-                    .font(AppTheme.typography.sized(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.76))
-
-                Text("\(viewModel.weeklyCompletedEntryCount)")
-                    .font(AppTheme.typography.sized(11, weight: .bold))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.56))
-                    .frame(minWidth: 20, minHeight: 20)
-                    .background(
-                        Circle()
-                            .fill(AppTheme.colors.background.opacity(0.8))
-                    )
-            }
-            .padding(.leading, AppTheme.spacing.md) // normalized 14→16
-            .padding(.trailing, AppTheme.spacing.sm)
-            .padding(.vertical, AppTheme.spacing.xs) // normalized 7→6
-            .background(
-                Capsule(style: .continuous)
-                    .fill(AppTheme.colors.surfaceElevated)
-            )
+            Text("本周已完成 \(displayedWeeklyCompletedEntryCount) 项")
+                .font(AppTheme.typography.scaled(13, weight: .medium, relativeTo: .footnote))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.58))
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .scaleEffect(
-            x: isCompletedVisibilityButtonCompressed ? 0.92 : 1,
-            y: isCompletedVisibilityButtonCompressed ? 0.88 : 1,
-            anchor: .center
-        )
-        .animation(.bouncy(duration: 0.54, extraBounce: 0.28), value: isCompletedVisibilityButtonCompressed)
+        .accessibilityHint("打开本周已完成任务")
     }
 
     private var modeFadeAnimation: Animation {
@@ -1175,6 +1303,38 @@ struct HomeView: View {
 
 }
 
+private struct HomeWeeklyReviewTriggerButtonStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(reduceMotion || !configuration.isPressed ? 1 : 0.96)
+            .opacity(configuration.isPressed ? 0.76 : 1)
+            .animation(
+                reduceMotion
+                    ? .easeInOut(duration: 0.10)
+                    : .smooth(duration: 0.16, extraBounce: 0),
+                value: configuration.isPressed
+            )
+    }
+}
+
+struct HomeWeeklyReviewMenuRowButtonStyle: ButtonStyle {
+    let reduceMotion: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(reduceMotion || !configuration.isPressed ? 1 : 0.96, anchor: .trailing)
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .animation(
+                reduceMotion
+                    ? .easeInOut(duration: 0.10)
+                    : .smooth(duration: 0.16, extraBounce: 0),
+                value: configuration.isPressed
+            )
+    }
+}
+
 #if DEBUG
 #Preview("Home Default") {
     makeHomePreview()
@@ -1202,6 +1362,9 @@ private func makeHomePreview(selectedDateOffset: Int? = nil) -> some View {
 
 private struct HomePreviewContainer: View {
     let context: AppContext
+    @State private var isWeeklyReviewMenuPresented = false
+    @State private var weeklyReviewMenuSourceFrame: CGRect = .zero
+    @AccessibilityFocusState private var weeklyReviewMenuFocus: HomeWeeklyReviewMenuFocus?
     @Namespace private var taskDetailTransition
 
     var body: some View {
@@ -1209,6 +1372,9 @@ private struct HomePreviewContainer: View {
             viewModel: context.homeViewModel,
             routinesViewModel: context.routinesViewModel,
             isRoutinesModePresented: false,
+            isWeeklyReviewMenuPresented: $isWeeklyReviewMenuPresented,
+            weeklyReviewMenuSourceFrame: $weeklyReviewMenuSourceFrame,
+            weeklyReviewMenuFocus: $weeklyReviewMenuFocus,
             onCreateTaskTapped: {},
             taskDetailTransition: taskDetailTransition,
             onOpenTaskDetail: { _ in },
@@ -1374,7 +1540,7 @@ struct TaskSharedElementVisual: View {
             completionMark
         case .title:
             Text(content.title)
-                .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
+                .font(AppTheme.typography.hierarchy(.primary, weight: .semibold))
                 .foregroundStyle(titleColor)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : titleLineLimit)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1508,13 +1674,13 @@ struct HomeTimelineDateBarSelection: Equatable {
     }
 }
 
-private struct HomeTimelineDateSectionHeader: View {
+private struct HomeTimelineDateSectionHeaderContent: View {
     let section: HomeTimelineSection
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: AppTheme.hierarchy.spacing.related) {
             Text(section.title)
-                .font(AppTheme.typography.scaled(22, weight: .semibold, relativeTo: .title2))
+                .font(AppTheme.typography.hierarchy(.title, weight: .semibold))
                 .fontDesign(.rounded)
                 .foregroundStyle(AppTheme.colors.title)
                 .lineLimit(1)
@@ -1528,15 +1694,25 @@ private struct HomeTimelineDateSectionHeader: View {
 
                 Text("项")
             }
-            .font(AppTheme.typography.scaled(12, weight: .medium, relativeTo: .caption1))
+            .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
             .fontDesign(.rounded)
             .foregroundStyle(AppTheme.colors.textTertiary)
             .lineLimit(1)
+        }
+        .frame(minHeight: 28, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
 
+private struct HomeTimelineDateSectionHeader: View {
+    let section: HomeTimelineSection
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            HomeTimelineDateSectionHeaderContent(section: section)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1672,7 +1848,7 @@ struct HomeTimelineRow: View {
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
             } content: {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
                     titleContent
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1859,7 +2035,7 @@ struct HomeTimelineRow: View {
     }
 
     private var titleStack: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+        VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
             Group {
                 if isEditingTitle {
                     expandedTitleEditor
@@ -1907,7 +2083,7 @@ struct HomeTimelineRow: View {
     }
 
     private var compactContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+        VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
             if showsSubtitle {
                 subtitleContent
             }
@@ -1976,7 +2152,7 @@ struct HomeTimelineRow: View {
         if isDetailPresented, isEditingNotes {
             HStack(alignment: .center, spacing: AppTheme.spacing.sm) {
                 TextField("添加备注", text: $notesDraft, axis: .vertical)
-                    .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+                    .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
                     .foregroundStyle(subtitleColor)
                     .lineLimit(1...4)
                     .textInputAutocapitalization(.sentences)
@@ -2021,7 +2197,7 @@ struct HomeTimelineRow: View {
 
     private func subtitleText(_ text: String) -> some View {
         Text(text)
-            .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+            .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
             .foregroundStyle(subtitleColor)
             .lineLimit(isDetailPresented ? nil : 2)
             .fixedSize(horizontal: false, vertical: true)
@@ -2035,7 +2211,7 @@ struct HomeTimelineRow: View {
         }
 
         return Text(attributedText)
-            .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+            .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
             .foregroundStyle(subtitleColor)
             .lineLimit(isDetailPresented ? nil : 2)
             .fixedSize(horizontal: false, vertical: true)
@@ -2060,7 +2236,7 @@ struct HomeTimelineRow: View {
                 text: $titleDraft,
                 axis: .vertical
             )
-            .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
+            .font(AppTheme.typography.hierarchy(.primary, weight: .semibold))
             .foregroundStyle(expandedTitleColor)
             .textInputAutocapitalization(.sentences)
             .submitLabel(.done)

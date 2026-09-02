@@ -32,7 +32,7 @@ enum TaskMorphFocusField {
 enum TaskMorphListSpacing {
     /// Keep compact rows dense while preserving the row content's own 44pt
     /// interaction target.
-    static let compactExternalInset: CGFloat = 4
+    static let compactExternalInset = AppTheme.hierarchy.spacing.inline
 
     /// Persisted details remain part of the continuous list and keep the row's
     /// standard external padding plus a symmetric focus-depth breathing space.

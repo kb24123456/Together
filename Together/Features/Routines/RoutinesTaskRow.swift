@@ -306,7 +306,7 @@ struct RoutinesTaskRow: View {
 
     @ViewBuilder
     private var stableTitleStack: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+        VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
             Group {
                 if isDetailPresented, isEditingTitle {
                     expandedTitleEditor
@@ -347,7 +347,7 @@ struct RoutinesTaskRow: View {
                     progress: expansionMotion.compactHeightProgress,
                     isInteractive: false
                 ) {
-                    VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                    VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
                         subtitleText(rowDisplayText.primarySubtitle)
                         if let propertyText = rowDisplayText.propertyText {
                             subtitleText(propertyText)
@@ -356,7 +356,7 @@ struct RoutinesTaskRow: View {
                     .opacity(expansionMotion.collapsedOpacity)
                 }
             } else {
-                VStack(alignment: .leading, spacing: AppTheme.spacing.xxs) {
+                VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
                     subtitleText(rowDisplayText.primarySubtitle)
                     if let propertyText = rowDisplayText.propertyText {
                         subtitleText(propertyText)
@@ -413,7 +413,7 @@ struct RoutinesTaskRow: View {
 
     private func subtitleText(_ text: String) -> some View {
         Text(text)
-            .font(AppTheme.typography.scaled(14, weight: .medium, relativeTo: .subheadline))
+            .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
             .foregroundStyle(subtitleColor)
             .lineLimit(2)
     }
@@ -442,7 +442,7 @@ struct RoutinesTaskRow: View {
 
     private func titleText(_ title: String, lineLimit: Int?) -> some View {
         Text(title)
-            .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
+            .font(AppTheme.typography.hierarchy(.primary, weight: .semibold))
             .foregroundStyle(titleColor)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : lineLimit)
             .fixedSize(horizontal: false, vertical: true)
@@ -458,7 +458,7 @@ struct RoutinesTaskRow: View {
                 text: $titleDraft,
                 axis: .vertical
             )
-                .font(AppTheme.typography.scaled(17, weight: .semibold, relativeTo: .headline))
+                .font(AppTheme.typography.hierarchy(.primary, weight: .semibold))
                 .foregroundStyle(titleColor)
                 .textInputAutocapitalization(.sentences)
                 .submitLabel(.done)

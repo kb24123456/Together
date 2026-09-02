@@ -732,7 +732,7 @@ struct TogetherTests {
         )
     }
 
-    @Test func homeModeTimelineWaveSequenceIncludesCompletedSummariesInVisualOrder() {
+    @Test func homeModeTimelineWaveSequenceIncludesCompletedFallbackInVisualOrder() {
         let activeIDs = [UUID(), UUID()]
         let completedIDs = [UUID(), UUID()]
         let sequence = HomeModeTimelineWaveSequence(
@@ -750,6 +750,14 @@ struct TogetherTests {
         #expect(sequence.weeklyCompletedSummaryIndex == 6)
         #expect(sequence.elementCount == 7)
 
+        let dateBarEntry = HomeModeTimelineWaveSequence(
+            activeTaskIDs: activeIDs,
+            completedTaskIDs: completedIDs,
+            includesWeeklyCompletedSummary: false
+        )
+        #expect(dateBarEntry.weeklyCompletedSummaryIndex == nil)
+        #expect(dateBarEntry.elementCount == 6)
+
         let weeklyOnly = HomeModeTimelineWaveSequence(
             activeTaskIDs: [],
             completedTaskIDs: [],
@@ -762,6 +770,40 @@ struct TogetherTests {
         #expect(weeklyOnly.elementCount == 1)
 
         #expect(sequence.taskIndex(for: UUID()) == nil)
+    }
+
+    @Test func weeklyReviewMenuLayoutKeepsSpeedDialNearItsSourceAndInsideTheHomeSurface() {
+        let containerFrame = CGRect(x: 0, y: 96, width: 390, height: 700)
+        let sourceFrame = CGRect(x: 300, y: 130, width: 62, height: 44)
+        let regularWidth = HomeWeeklyReviewMenuLayout.actionWidth(
+            containerWidth: containerFrame.width,
+            usesAccessibilityLayout: false
+        )
+        let origin = HomeWeeklyReviewMenuLayout.actionOrigin(
+            sourceFrame: sourceFrame,
+            containerFrame: containerFrame,
+            containerWidth: containerFrame.width,
+            actionWidth: regularWidth
+        )
+
+        #expect(regularWidth == 112)
+        #expect(origin.x == 250)
+        #expect(origin.y == 34)
+        #expect(sourceFrame.minX - origin.x == 50)
+
+        let leadingOrigin = HomeWeeklyReviewMenuLayout.actionOrigin(
+            sourceFrame: CGRect(x: 2, y: 130, width: 44, height: 44),
+            containerFrame: containerFrame,
+            containerWidth: containerFrame.width,
+            actionWidth: regularWidth
+        )
+        #expect(leadingOrigin.x == HomeWeeklyReviewMenuLayout.screenInset)
+
+        let narrowAccessibilityWidth = HomeWeeklyReviewMenuLayout.actionWidth(
+            containerWidth: 250,
+            usesAccessibilityLayout: true
+        )
+        #expect(narrowAccessibilityWidth == 196)
     }
 
     @Test func ocrMediaControlsPreserveDeviceBottomSafeArea() {
@@ -1407,7 +1449,6 @@ struct TogetherTests {
 
         await viewModel.reload()
 
-        #expect(viewModel.completedVisibilityButtonTitle == "本周已完成")
         #expect(viewModel.completedTimelineEntries.map(\.title) == ["今天完成"])
         #expect(viewModel.weeklyCompletedEntryCount == (weeklyCompleted == nil ? 0 : 1))
     }

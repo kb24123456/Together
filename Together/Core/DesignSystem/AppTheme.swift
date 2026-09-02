@@ -4,6 +4,47 @@ import UIKit
 #endif
 
 enum AppTheme {
+    /// A compact hierarchy shared by task lists and Profile. Type steps follow
+    /// an approximately 1.25x progression after optical rounding; spacing uses
+    /// a 4pt grid with larger jumps between semantic groups.
+    enum hierarchy {
+        enum TextLevel {
+            case micro
+            case supporting
+            case primary
+            case title
+            case display
+
+            fileprivate var pointSize: CGFloat {
+                switch self {
+                case .micro: 11
+                case .supporting: 14
+                case .primary: 17
+                case .title: 22
+                case .display: 28
+                }
+            }
+
+            fileprivate var relativeTextStyle: UIFont.TextStyle {
+                switch self {
+                case .micro: .caption2
+                case .supporting: .subheadline
+                case .primary: .headline
+                case .title: .title2
+                case .display: .title1
+                }
+            }
+        }
+
+        enum spacing {
+            static let inline: CGFloat = 4
+            static let related: CGFloat = 8
+            static let component: CGFloat = 16
+            static let section: CGFloat = 32
+            static let page: CGFloat = 48
+        }
+    }
+
     enum colors {
         // MARK: - Backgrounds & Surfaces
 
@@ -225,6 +266,17 @@ enum AppTheme {
         ) -> Font {
             let metrics = UIFontMetrics(forTextStyle: textStyle)
             return Font(metrics.scaledFont(for: uiFont(size: size, weight: weight)))
+        }
+
+        static func hierarchy(
+            _ level: AppTheme.hierarchy.TextLevel,
+            weight: UIFont.Weight = .regular
+        ) -> Font {
+            scaled(
+                level.pointSize,
+                weight: weight,
+                relativeTo: level.relativeTextStyle
+            )
         }
 
         /// Editorial large-display helper. Pins weight to `.light` so name card titles

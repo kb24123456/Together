@@ -188,13 +188,13 @@ struct RoutinesListContent: View {
     // MARK: - Fixed dimension header
 
     private var fixedDimensionHeader: some View {
-        VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
+        VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.component) {
             cycleRail
             periodHeader
         }
         .padding(.horizontal, AppTheme.spacing.xl)
-        .padding(.top, contentTopPadding + AppTheme.spacing.xs)
-        .padding(.bottom, AppTheme.spacing.sm)
+        .padding(.top, contentTopPadding + AppTheme.hierarchy.spacing.related)
+        .padding(.bottom, AppTheme.hierarchy.spacing.component)
         .frame(maxWidth: .infinity, alignment: .leading)
         .offset(y: reduceMotion ? 0 : (isPresented ? 0 : 10))
         .opacity(isPresented ? 1 : 0)
@@ -222,9 +222,9 @@ struct RoutinesListContent: View {
                 viewModel.selectCycle(cycle)
             }
         } label: {
-            VStack(spacing: AppTheme.spacing.xs) {
+            VStack(spacing: AppTheme.hierarchy.spacing.inline) {
                 Text(cycle.title)
-                    .font(AppTheme.typography.sized(15, weight: isSelected ? .bold : .semibold))
+                    .font(AppTheme.typography.hierarchy(.supporting, weight: isSelected ? .bold : .semibold))
                     .foregroundStyle(isSelected ? AppTheme.colors.title : AppTheme.colors.body.opacity(0.48))
 
                 ZStack {
@@ -258,7 +258,7 @@ struct RoutinesListContent: View {
                 .disabled(isVisible && viewModel.canHideCycle(cycle) == false)
             }
         } label: {
-            VStack(spacing: AppTheme.spacing.xs) {
+            VStack(spacing: AppTheme.hierarchy.spacing.inline) {
                 Image(systemName: "ellipsis")
                     .font(AppTheme.typography.sized(15, weight: .semibold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.48))
@@ -280,20 +280,20 @@ struct RoutinesListContent: View {
 
     private var periodHeader: some View {
         let summary = viewModel.summary(for: displayedCycle)
-        return HStack(alignment: .center, spacing: AppTheme.spacing.lg) {
-            VStack(alignment: .leading, spacing: AppTheme.spacing.xs) {
+        return HStack(alignment: .center, spacing: AppTheme.hierarchy.spacing.component) {
+            VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.related) {
                 Text(displayedCycle.currentPeriodPrefix)
-                    .font(AppTheme.typography.sized(19, weight: .bold))
+                    .font(AppTheme.typography.hierarchy(.title, weight: .bold))
                     .foregroundStyle(AppTheme.colors.title.opacity(0.78))
 
-                HStack(spacing: AppTheme.spacing.sm) {
+                HStack(spacing: AppTheme.hierarchy.spacing.related) {
                     Text("\(summary.pendingCount) 项未完成")
                         .foregroundStyle(AppTheme.colors.body.opacity(0.52))
 
                     Text(daysRemainingText(summary))
                         .foregroundStyle(AppTheme.colors.textTertiary)
                 }
-                .font(AppTheme.typography.sized(13, weight: .semibold))
+                .font(AppTheme.typography.hierarchy(.supporting, weight: .semibold))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .homeModeTaskWave(progress: modePeriodHeaderPresented ? 1 : 0)
@@ -310,7 +310,7 @@ struct RoutinesListContent: View {
                 Text("完成进度")
             } currentValueLabel: {
                 Text("\(summary.completedCount)/\(summary.totalCount)")
-                    .font(AppTheme.typography.sized(12, weight: .bold))
+                    .font(AppTheme.typography.hierarchy(.micro, weight: .bold))
                     .monospacedDigit()
                     .minimumScaleFactor(0.75)
             }
