@@ -64,6 +64,8 @@ struct TaskAttributeButton: View {
     let isConfigured: Bool
     var tint: Color? = nil
     var fillsAvailableWidth = false
+    var iconEffect: TaskAttributeIconEffect = .none
+    var iconEffectTrigger = 0
     let action: () -> Void
 
     var body: some View {
@@ -76,12 +78,21 @@ struct TaskAttributeButton: View {
                 usesContinuousCapsule: true,
                 horizontalPadding: 8,
                 fillsAvailableWidth: fillsAvailableWidth,
-                animatesTitleChanges: true
+                animatesTitleChanges: true,
+                iconEffect: iconEffect,
+                iconEffectTrigger: iconEffectTrigger
             )
         }
         .frame(maxWidth: fillsAvailableWidth ? .infinity : nil)
         .buttonStyle(TaskMorphAttributeButtonStyle())
     }
+}
+
+enum TaskAttributeIconEffect {
+    case none
+    case replace
+    case rotate
+    case wiggle
 }
 
 struct TaskAttributeLabel: View {
@@ -97,6 +108,8 @@ struct TaskAttributeLabel: View {
     var fillsAvailableWidth = false
     var usesLightweightBackground = false
     var animatesTitleChanges = false
+    var iconEffect: TaskAttributeIconEffect = .none
+    var iconEffectTrigger = 0
     var transitionSource: TaskAttributeEditorTransitionSource? = nil
     var transitionNamespace: Namespace.ID? = nil
 
@@ -124,9 +137,7 @@ struct TaskAttributeLabel: View {
 
     private var visibleLabel: some View {
         HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(AppTheme.typography.sized(14, weight: .semibold))
-                .frame(width: 16)
+            iconView
 
             if title.isEmpty == false {
                 titleText
@@ -146,6 +157,34 @@ struct TaskAttributeLabel: View {
                 backgroundShape
                     .fill(tint.opacity(colorScheme == .dark ? 0.16 : 0.09))
             }
+        }
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        let image = Image(systemName: icon)
+            .font(AppTheme.typography.sized(14, weight: .semibold))
+            .frame(width: 16)
+
+        switch iconEffect {
+        case .none:
+            image
+        case .replace:
+            image.contentTransition(
+                .symbolEffect(.replace.magic(fallback: .replace.downUp))
+            )
+        case .rotate:
+            image.symbolEffect(
+                .rotate.clockwise,
+                options: .nonRepeating,
+                value: iconEffectTrigger
+            )
+        case .wiggle:
+            image.symbolEffect(
+                .wiggle.byLayer,
+                options: .nonRepeating,
+                value: iconEffectTrigger
+            )
         }
     }
 
@@ -1266,6 +1305,7 @@ struct InlineTimePickerControl: View {
     let selection: Date?
     let fallbackSelection: Date
     let fillsAvailableWidth: Bool
+    let iconEffectTrigger: Int
     let onWillPresent: () -> Void
     let onDidDismiss: () -> Void
     let onCommit: (Date?) -> Void
@@ -1276,6 +1316,7 @@ struct InlineTimePickerControl: View {
         selection: Date?,
         fallbackSelection: Date,
         fillsAvailableWidth: Bool = false,
+        iconEffectTrigger: Int = 0,
         onWillPresent: @escaping () -> Void = {},
         onDidDismiss: @escaping () -> Void = {},
         onCommit: @escaping (Date?) -> Void
@@ -1283,6 +1324,7 @@ struct InlineTimePickerControl: View {
         self.selection = selection
         self.fallbackSelection = fallbackSelection
         self.fillsAvailableWidth = fillsAvailableWidth
+        self.iconEffectTrigger = iconEffectTrigger
         self.onWillPresent = onWillPresent
         self.onDidDismiss = onDidDismiss
         self.onCommit = onCommit
@@ -1293,7 +1335,9 @@ struct InlineTimePickerControl: View {
             icon: "clock",
             title: selection.map(TaskAttributeValueText.time) ?? "时间",
             isConfigured: selection != nil,
-            fillsAvailableWidth: fillsAvailableWidth
+            fillsAvailableWidth: fillsAvailableWidth,
+            iconEffect: .rotate,
+            iconEffectTrigger: iconEffectTrigger
         ) {
             onWillPresent()
             isPopoverPresented = true

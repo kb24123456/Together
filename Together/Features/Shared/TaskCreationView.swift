@@ -44,6 +44,10 @@ struct TaskCreationView: View {
     @State private var editingSubtaskTitle = ""
     @State private var schedulePresentation: ExistingTaskScheduleEditorPresentation?
     @State private var pendingTodoScheduleDraft: ExistingTaskScheduleDraft?
+    @State private var initialTodoScheduleDraft: ExistingTaskScheduleDraft?
+    @State private var timeIconEffectTrigger = 0
+    @State private var reminderIconEffectTrigger = 0
+    @State private var hasPendingPeriodicTimeIconEffect = false
     @State private var errorMessage: String?
     @State private var isSaving = false
 
@@ -108,7 +112,7 @@ struct TaskCreationView: View {
                     .padding(.top, AppTheme.spacing.xs)
                     .padding(.bottom, AppTheme.spacing.sm)
             }
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .background(AppTheme.colors.background.ignoresSafeArea())
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -281,7 +285,9 @@ struct TaskCreationView: View {
                 title: todoTimeTitle,
                 systemImage: "clock",
                 isConfigured: homeViewModel.taskCreationSession?.draft.hasExplicitTime == true,
-                transitionSource: .time
+                transitionSource: .time,
+                iconEffect: .rotate,
+                iconEffectTrigger: timeIconEffectTrigger
             ) {
                 openSchedule(from: .time)
             }
@@ -290,7 +296,9 @@ struct TaskCreationView: View {
                 title: todoReminderTitle,
                 systemImage: "bell",
                 isConfigured: homeViewModel.taskCreationSession?.draft.remindAt != nil,
-                transitionSource: .reminder
+                transitionSource: .reminder,
+                iconEffect: .wiggle,
+                iconEffectTrigger: reminderIconEffectTrigger
             ) {
                 openSchedule(from: .reminder)
             }
@@ -308,7 +316,8 @@ struct TaskCreationView: View {
                     tint: isUrgent ? AppTheme.colors.coral : nil,
                     isCircular: true,
                     isFocusForeground: true,
-                    usesLightweightBackground: true
+                    usesLightweightBackground: true,
+                    iconEffect: .replace
                 )
             }
             .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -348,6 +357,8 @@ struct TaskCreationView: View {
         systemImage: String,
         isConfigured: Bool,
         transitionSource: TaskAttributeEditorTransitionSource,
+        iconEffect: TaskAttributeIconEffect = .none,
+        iconEffectTrigger: Int = 0,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -363,6 +374,8 @@ struct TaskCreationView: View {
                 isFocusForeground: true,
                 usesLightweightBackground: true,
                 animatesTitleChanges: true,
+                iconEffect: iconEffect,
+                iconEffectTrigger: iconEffectTrigger,
                 transitionSource: transitionSource,
                 transitionNamespace: attributeTransition
             )
@@ -471,16 +484,9 @@ struct TaskCreationView: View {
             selection: periodicRule?.hasTargetTime == true ? periodicTimeDate : nil,
             fallbackSelection: .now,
             fillsAvailableWidth: false,
-            onCommit: { value in
-                if let value {
-                    let components = Calendar.current.dateComponents([.hour, .minute], from: value)
-                    if let hour = components.hour, let minute = components.minute {
-                        routinesViewModel.updateDraftTargetTime(hour: hour, minute: minute)
-                    }
-                } else {
-                    routinesViewModel.clearDraftTargetTime()
-                }
-            }
+            iconEffectTrigger: timeIconEffectTrigger,
+            onDidDismiss: triggerPendingPeriodicTimeIconEffect,
+            onCommit: updatePeriodicTime
         )
         periodicReminderMenu
     }
@@ -582,7 +588,7 @@ struct TaskCreationView: View {
     private var periodicReminderMenu: some View {
         Menu {
             Button {
-                routinesViewModel.updateDraftReminder(leadMinutes: nil)
+                updatePeriodicReminder(leadMinutes: nil)
             } label: {
                 if periodicRule?.hasReminder == true {
                     Text("关闭提醒")
@@ -603,7 +609,9 @@ struct TaskCreationView: View {
             periodicSettingLabel(
                 icon: "bell",
                 title: periodicReminderTitle,
-                isConfigured: periodicRule?.hasReminder == true
+                isConfigured: periodicRule?.hasReminder == true,
+                iconEffect: .wiggle,
+                iconEffectTrigger: reminderIconEffectTrigger
             )
         }
         .buttonStyle(.plain)
@@ -613,7 +621,7 @@ struct TaskCreationView: View {
 
     private func periodicReminderOption(_ title: String, minutes: Int) -> some View {
         Button {
-            routinesViewModel.updateDraftReminder(leadMinutes: minutes)
+            updatePeriodicReminder(leadMinutes: minutes)
         } label: {
             if periodicRule?.reminderLeadMinutes == minutes {
                 Label(title, systemImage: "checkmark")
@@ -626,7 +634,9 @@ struct TaskCreationView: View {
     private func periodicSettingLabel(
         icon: String,
         title: String,
-        isConfigured: Bool
+        isConfigured: Bool,
+        iconEffect: TaskAttributeIconEffect = .none,
+        iconEffectTrigger: Int = 0
     ) -> some View {
         TaskAttributeLabel(
             icon: icon,
@@ -636,8 +646,39 @@ struct TaskCreationView: View {
             horizontalPadding: 8,
             isFocusForeground: true,
             fillsAvailableWidth: false,
-            usesLightweightBackground: true
+            usesLightweightBackground: true,
+            iconEffect: iconEffect,
+            iconEffectTrigger: iconEffectTrigger
         )
+    }
+
+    private func updatePeriodicTime(_ value: Date?) {
+        let previousHour = periodicRule?.hour
+        let previousMinute = periodicRule?.minute
+
+        if let value {
+            let components = Calendar.current.dateComponents([.hour, .minute], from: value)
+            guard let hour = components.hour, let minute = components.minute else { return }
+            guard previousHour != hour || previousMinute != minute else { return }
+            routinesViewModel.updateDraftTargetTime(hour: hour, minute: minute)
+        } else {
+            guard previousHour != nil || previousMinute != nil else { return }
+            routinesViewModel.clearDraftTargetTime()
+        }
+
+        hasPendingPeriodicTimeIconEffect = true
+    }
+
+    private func updatePeriodicReminder(leadMinutes: Int?) {
+        guard periodicRule?.reminderLeadMinutes != leadMinutes else { return }
+        routinesViewModel.updateDraftReminder(leadMinutes: leadMinutes)
+        reminderIconEffectTrigger += 1
+    }
+
+    private func triggerPendingPeriodicTimeIconEffect() {
+        guard hasPendingPeriodicTimeIconEffect else { return }
+        hasPendingPeriodicTimeIconEffect = false
+        timeIconEffectTrigger += 1
     }
 
     private var periodicCycle: PeriodicCycle {
@@ -728,7 +769,7 @@ struct TaskCreationView: View {
     private func openSchedule(from transitionSource: TaskAttributeEditorTransitionSource) {
         let draft = homeViewModel.taskCreationSession?.draft
         pendingTodoScheduleDraft = nil
-        schedulePresentation = ExistingTaskScheduleEditorPresentation(
+        let presentation = ExistingTaskScheduleEditorPresentation(
             dueAt: draft?.dueAt,
             hasExplicitTime: draft?.hasExplicitTime ?? false,
             remindAt: draft?.remindAt,
@@ -736,11 +777,18 @@ struct TaskCreationView: View {
             transitionSource: transitionSource,
             allowsZoomTransition: focusedField == nil
         )
+        initialTodoScheduleDraft = presentation.initialDraft
+        schedulePresentation = presentation
     }
 
     private func applyPendingTodoSchedule() {
-        guard let draft = pendingTodoScheduleDraft else { return }
+        guard let draft = pendingTodoScheduleDraft else {
+            initialTodoScheduleDraft = nil
+            return
+        }
+        let initialDraft = initialTodoScheduleDraft
         pendingTodoScheduleDraft = nil
+        initialTodoScheduleDraft = nil
 
         let update = {
             homeViewModel.updateTaskCreationSchedule(
@@ -753,6 +801,13 @@ struct TaskCreationView: View {
             withAnimation(.easeInOut(duration: 0.16), update)
         } else {
             withAnimation(.smooth(duration: 0.26, extraBounce: 0), update)
+        }
+
+        if initialDraft?.selectedTime != draft.selectedTime {
+            timeIconEffectTrigger += 1
+        }
+        if initialDraft?.reminderOffset != draft.reminderOffset {
+            reminderIconEffectTrigger += 1
         }
     }
 

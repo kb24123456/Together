@@ -265,51 +265,13 @@ extension Color {
     }
 }
 
-// MARK: - Scroll Edge Protection
+// MARK: - Scroll Edge Effect
 
 extension View {
     @ViewBuilder
-    func applyScrollEdgeProtection() -> some View {
-        if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(nil, for: [.top, .bottom])
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
-    func applyHomeScrollEdgeTransition() -> some View {
-        if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
     func applySoftScrollEdgeTransition() -> some View {
         if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
-    func applySoftTopScrollEdgeTransition() -> some View {
-        if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.soft, for: .top)
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
-    func applyFixedTopScrollEdgeTransition() -> some View {
-        if #available(iOS 26.0, *) {
-            self
-                .scrollEdgeEffectStyle(nil, for: .top)
-                .scrollEdgeEffectStyle(.soft, for: .bottom)
+            self.scrollEdgeEffectStyle(.soft, for: .all)
         } else {
             self
         }

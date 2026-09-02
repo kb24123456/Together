@@ -19,16 +19,25 @@ struct ProfileSyncRecoveryView: View {
                         Task { await viewModel.checkICloudStatus() }
                     } label: {
                         ProfileFlatValueRow(
-                            title: "检查 iCloud 状态",
+                            title: viewModel.isCheckingICloudStatus ? "正在检查 iCloud 状态" : "检查 iCloud 状态",
                             value: "",
                             systemImage: "arrow.clockwise",
-                            trailingSymbol: ""
+                            trailingSymbol: "",
+                            rotatesSystemImage: viewModel.isCheckingICloudStatus
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(viewModel.isCheckingICloudStatus)
+                    .accessibilityLabel(
+                        viewModel.isCheckingICloudStatus ? "正在检查 iCloud 状态" : "检查 iCloud 状态"
+                    )
                 }
 
-                Text(viewModel.iCloudStatusDescription(for: viewModel.iCloudStatus))
+                Text(
+                    viewModel.isCheckingICloudStatus
+                        ? "正在向系统查询当前设备的 iCloud 可用状态。"
+                        : viewModel.iCloudStatusDescription(for: viewModel.iCloudStatus)
+                )
                     .font(AppTheme.typography.sized(14, weight: .medium))
                     .foregroundStyle(AppTheme.colors.textTertiary)
                     .lineSpacing(4)

@@ -689,7 +689,8 @@ final class RoutinesViewModel {
 
             if isCompleted(updated) {
                 animatingCompletionTaskIDs.insert(taskID)
-                try? await Task.sleep(for: .milliseconds(320))
+                // Let Draw On finish, then hold the completed mark briefly before migration.
+                try? await Task.sleep(for: .milliseconds(680))
                 withAnimation(.smooth(duration: 0.28, extraBounce: 0)) {
                     replaceTask(updated)
                 }

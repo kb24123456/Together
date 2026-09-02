@@ -77,18 +77,10 @@ struct RoutinesTaskRow: View {
     @State private var isEditingNotes = false
     @State private var isCommittingNotes = false
     @State private var didRequestInitialTitleFocus = false
-    @State private var completionAnimationCount = 0
-    @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
     @State private var badgeFillScale: CGFloat = 0.5
     @State private var badgeFillOpacity = 0.0
-    @State private var badgeAuraScale: CGFloat = 0.86
-    @State private var badgeAuraOpacity = 0.0
-    @State private var completionCheckmarkScale: CGFloat = 1
-    @State private var completionCheckmarkOpacity = 1.0
-    @State private var rowScale: CGFloat = 1
-    @State private var rowVerticalOffset: CGFloat = 0
-    @State private var rowOpacity = 1.0
+    @State private var isCompletionCheckmarkPresented = false
     @State private var reopeningCheckmarkOpacity = 1.0
 
     init(
@@ -180,9 +172,6 @@ struct RoutinesTaskRow: View {
                     : -RoutineInlineLayoutMetrics.detailTitleOverlap
             )
         }
-        .scaleEffect(rowScale, anchor: .center)
-        .offset(y: rowVerticalOffset)
-        .opacity(rowOpacity)
         .onAppear {
             titleDraft = draftTitle
             notesDraft = visibleNotes
@@ -205,11 +194,20 @@ struct RoutinesTaskRow: View {
             commitNotesAfterFocusUpdate()
         }
         .onChange(of: isAnimatingCompletion) { _, newValue in
-            guard newValue, shouldPlayCompletionAnimation else { return }
-            startCompletionAnimation()
+            if newValue, shouldPlayCompletionAnimation {
+                startCompletionAnimation()
+            } else if isCompleted == false {
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    isCompletionCheckmarkPresented = false
+                }
+            }
         }
         .onChange(of: isAnimatingReopening) { _, newValue in
             guard newValue else { return }
+
+            isCompletionCheckmarkPresented = false
 
             if reduceMotion {
                 withAnimation(.easeOut(duration: 0.12)) {
@@ -221,20 +219,10 @@ struct RoutinesTaskRow: View {
 
             reopeningCheckmarkOpacity = 1
             badgeOutlineOpacity = 0.14
-            completionCheckmarkScale = 1
 
             withAnimation(.easeOut(duration: 0.18)) {
                 reopeningCheckmarkOpacity = 0
                 badgeOutlineOpacity = 1
-            }
-
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-                    rowScale = 1
-                    rowVerticalOffset = 0
-                    rowOpacity = 1
-                }
             }
         }
         .onChange(of: draftTitle) { _, title in
@@ -599,11 +587,6 @@ struct RoutinesTaskRow: View {
     private var completionBadge: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(AppTheme.colors.coral.opacity(0.34), lineWidth: 2)
-                .scaleEffect(badgeAuraScale)
-                .opacity(badgeAuraOpacity)
-
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(AppTheme.colors.coral.opacity(0.14))
                 .scaleEffect(badgeFillScale)
                 .opacity(shouldPlayCompletionAnimation ? badgeFillOpacity : (isCompleted ? 0 : badgeFillOpacity))
@@ -615,24 +598,18 @@ struct RoutinesTaskRow: View {
                 )
                 .opacity(outlineOpacity)
 
-            Image(systemName: "checkmark")
-                .font(AppTheme.typography.sized(17, weight: .bold))
-                .foregroundStyle(AppTheme.colors.coral)
-                .contentTransition(.symbolEffect(.replace))
-                .symbolEffect(.bounce, options: .speed(1.15), value: completionAnimationCount)
-                .opacity(checkmarkOpacity)
-                .scaleEffect(completionCheckmarkScale)
-                .offset(
-                    x: AppTheme.metrics.checkmarkVisualOffset.width,
-                    y: AppTheme.metrics.checkmarkVisualOffset.height
-                )
+            if isCompleted || isCompletionCheckmarkPresented || isAnimatingReopening {
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(17, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.coral)
+                    .transition(.symbolEffect(.drawOn))
+                    .opacity(isAnimatingReopening ? reopeningCheckmarkOpacity : 1)
+                    .offset(
+                        x: AppTheme.metrics.checkmarkVisualOffset.width,
+                        y: AppTheme.metrics.checkmarkVisualOffset.height
+                    )
+            }
         }
-        .scaleEffect(badgeScale)
-        .shadow(
-            color: AppTheme.colors.coral.opacity(badgeAuraOpacity * 0.42),
-            radius: badgeAuraOpacity > 0 ? 12 : 0,
-            y: badgeAuraOpacity > 0 ? 5 : 0
-        )
     }
 
     private var ringColor: Color {
@@ -658,23 +635,11 @@ struct RoutinesTaskRow: View {
         return 1
     }
 
-    private var checkmarkOpacity: Double {
-        guard isCompleted || shouldPlayCompletionAnimation || isAnimatingReopening else { return 0 }
-        return (isAnimatingReopening ? reopeningCheckmarkOpacity : 1) * completionCheckmarkOpacity
-    }
-
     private func startCompletionAnimation() {
-        completionAnimationCount += 1
         badgeOutlineOpacity = 1
-        badgeFillScale = reduceMotion ? 0.96 : 0.68
-        badgeFillOpacity = reduceMotion ? 0.1 : 0.18
-        badgeAuraScale = 0.86
-        badgeAuraOpacity = 0
-        badgeScale = reduceMotion ? 1 : 0.92
-        completionCheckmarkScale = reduceMotion ? 1 : 0.72
-        completionCheckmarkOpacity = reduceMotion ? 1 : 0
-        rowScale = reduceMotion ? 1 : 0.992
-        rowVerticalOffset = 0
+        badgeFillScale = reduceMotion ? 0.96 : 0.76
+        badgeFillOpacity = reduceMotion ? 0.1 : 0.16
+        isCompletionCheckmarkPresented = false
 
         withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.08)) {
             badgeOutlineOpacity = reduceMotion ? 0.16 : 0.12
@@ -685,46 +650,25 @@ struct RoutinesTaskRow: View {
                 withAnimation(.easeOut(duration: 0.16)) {
                     badgeFillScale = 1
                     badgeFillOpacity = 0
-                    badgeAuraOpacity = 0
-                    completionCheckmarkOpacity = 1
+                    isCompletionCheckmarkPresented = true
                 }
                 return
             }
 
             try? await Task.sleep(for: .milliseconds(36))
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
-                badgeScale = 1.08
-                badgeFillScale = 1.04
-                badgeAuraScale = 1.08
-                completionCheckmarkScale = 1.08
-                rowScale = 0.986
-                rowVerticalOffset = -1
+            withAnimation(.smooth(duration: 0.20, extraBounce: 0)) {
+                badgeFillScale = 1.08
+                isCompletionCheckmarkPresented = true
             }
             withAnimation(.easeOut(duration: 0.12)) {
-                badgeFillOpacity = 0.24
-                badgeAuraOpacity = 0.28
-                completionCheckmarkOpacity = 1
+                badgeFillOpacity = 0.20
             }
 
-            try? await Task.sleep(for: .milliseconds(112))
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                badgeScale = 1
-                completionCheckmarkScale = 1
-                rowScale = 1
-                rowVerticalOffset = 1
-            }
+            try? await Task.sleep(for: .milliseconds(120))
             withAnimation(.easeOut(duration: 0.22)) {
-                badgeFillScale = 1.42
+                badgeFillScale = 1.28
                 badgeFillOpacity = 0
-                badgeAuraScale = 1.48
-                badgeAuraOpacity = 0
                 badgeOutlineOpacity = 0
-            }
-
-            try? await Task.sleep(for: .milliseconds(96))
-            withAnimation(.easeOut(duration: 0.12)) {
-                rowVerticalOffset = 0
-                rowScale = 1
             }
         }
     }
@@ -1141,12 +1085,15 @@ struct PeriodicTaskAttributeFooter: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var attributeTransition
     @State private var attributeSheetPresentation: TaskAttributeEditorTransitionPresentation?
+    @State private var initialAttributeRule: PeriodicReminderRule?
+    @State private var timeIconEffectTrigger = 0
+    @State private var reminderIconEffectTrigger = 0
 
     var body: some View {
         expandedControls
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .allowsHitTesting(isExpanded)
-            .sheet(item: $attributeSheetPresentation) { presentation in
+            .sheet(item: $attributeSheetPresentation, onDismiss: triggerAttributeIconEffects) { presentation in
                 PeriodicTaskAttributeSheet(task: task, viewModel: viewModel)
                     .taskAttributeEditorNavigationTransition(
                         from: presentation.source,
@@ -1189,7 +1136,9 @@ struct PeriodicTaskAttributeFooter: View {
             isConfigured: rule?.hasTargetTime == true,
             fillsAvailableWidth: fillsAvailableWidth,
             transitionSource: .periodicTargetTime,
-            accessibilityLabel: "目标时间，当前为\(PeriodicTaskAttributeText.targetTimeTitle(rule: rule))"
+            accessibilityLabel: "目标时间，当前为\(PeriodicTaskAttributeText.targetTimeTitle(rule: rule))",
+            iconEffect: .rotate,
+            iconEffectTrigger: timeIconEffectTrigger
         )
         attributeButton(
             title: PeriodicTaskAttributeText.reminderTitle(rule: rule),
@@ -1197,7 +1146,9 @@ struct PeriodicTaskAttributeFooter: View {
             isConfigured: rule?.hasReminder == true,
             fillsAvailableWidth: fillsAvailableWidth,
             transitionSource: .periodicReminder,
-            accessibilityLabel: "提醒，当前为\(PeriodicTaskAttributeText.reminderTitle(rule: rule))"
+            accessibilityLabel: "提醒，当前为\(PeriodicTaskAttributeText.reminderTitle(rule: rule))",
+            iconEffect: .wiggle,
+            iconEffectTrigger: reminderIconEffectTrigger
         )
     }
 
@@ -1207,10 +1158,13 @@ struct PeriodicTaskAttributeFooter: View {
         isConfigured: Bool,
         fillsAvailableWidth: Bool,
         transitionSource: TaskAttributeEditorTransitionSource,
-        accessibilityLabel: String
+        accessibilityLabel: String,
+        iconEffect: TaskAttributeIconEffect = .none,
+        iconEffectTrigger: Int = 0
     ) -> some View {
         Button {
             HomeInteractionFeedback.selection()
+            initialAttributeRule = rule
             attributeSheetPresentation = TaskAttributeEditorTransitionPresentation(
                 source: transitionSource,
                 allowsZoomTransition: allowsZoomTransition
@@ -1227,6 +1181,8 @@ struct PeriodicTaskAttributeFooter: View {
                 fillsAvailableWidth: fillsAvailableWidth,
                 usesLightweightBackground: true,
                 animatesTitleChanges: true,
+                iconEffect: iconEffect,
+                iconEffectTrigger: iconEffectTrigger,
                 transitionSource: transitionSource,
                 transitionNamespace: attributeTransition
             )
@@ -1243,6 +1199,18 @@ struct PeriodicTaskAttributeFooter: View {
 
     private var rule: PeriodicReminderRule? {
         viewModel.activeEditorDraft?.reminderRules.first ?? task.reminderRules.first
+    }
+
+    private func triggerAttributeIconEffects() {
+        let updatedRule = rule
+        if initialAttributeRule?.hour != updatedRule?.hour
+            || initialAttributeRule?.minute != updatedRule?.minute {
+            timeIconEffectTrigger += 1
+        }
+        if initialAttributeRule?.reminderLeadMinutes != updatedRule?.reminderLeadMinutes {
+            reminderIconEffectTrigger += 1
+        }
+        initialAttributeRule = nil
     }
 
 }

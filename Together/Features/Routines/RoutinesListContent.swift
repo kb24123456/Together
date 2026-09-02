@@ -368,7 +368,7 @@ struct RoutinesListContent: View {
                 }
                 .safeAreaPadding(.bottom, 0)
                 .scrollIndicators(.hidden)
-                .applyFixedTopScrollEdgeTransition()
+                .applySoftScrollEdgeTransition()
             }
         }
         .animation(cycleAnimation, value: displayedCycle)

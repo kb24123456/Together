@@ -261,7 +261,7 @@ struct HomeView: View {
                 .id("startup-restore-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
-                .applyHomeScrollEdgeTransition()
+                .applySoftScrollEdgeTransition()
                 .transition(timelineTransition)
             } else if viewModel.items.isEmpty,
                       viewModel.loadState == .loading || viewModel.loadState == .idle {
@@ -281,7 +281,7 @@ struct HomeView: View {
                 .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
-                .applyHomeScrollEdgeTransition()
+                .applySoftScrollEdgeTransition()
                 .transition(timelineTransition)
             } else {
                 ScrollViewReader { scrollProxy in
@@ -493,13 +493,13 @@ struct HomeView: View {
                                 }
                             }
                         }
-                        .applyHomeScrollEdgeTransition()
+                        .applySoftScrollEdgeTransition()
                 } else {
                     timelineScrollView(
                         scrollProxy: scrollProxy,
                         usesDateBar: false
                     )
-                        .applyHomeScrollEdgeTransition()
+                        .applySoftScrollEdgeTransition()
                 }
             }
             .coordinateSpace(name: HomeTimelineFocusCoordinateSpace.name)
@@ -1597,18 +1597,10 @@ struct HomeTimelineRow: View {
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isNotesFocused: Bool
     @AccessibilityFocusState private var isTitleAccessibilityFocused: Bool
-    @State private var completionAnimationCount = 0
-    @State private var badgeScale: CGFloat = 1
     @State private var badgeOutlineOpacity = 1.0
     @State private var badgeFillScale: CGFloat = 0.5
     @State private var badgeFillOpacity = 0.0
-    @State private var badgeAuraScale: CGFloat = 0.86
-    @State private var badgeAuraOpacity = 0.0
-    @State private var completionCheckmarkScale: CGFloat = 1
-    @State private var completionCheckmarkOpacity = 1.0
-    @State private var rowScale: CGFloat = 1
-    @State private var rowVerticalOffset: CGFloat = 0
-    @State private var rowOpacity: Double = 1
+    @State private var isCompletionCheckmarkPresented = false
     @State private var reopeningCheckmarkOpacity: Double = 1
     @State private var titleDraft = ""
     @State private var notesDraft = ""
@@ -1688,9 +1680,6 @@ struct HomeTimelineRow: View {
             .scaleEffect(motion.identityScale, anchor: .topLeading)
             .offset(x: motion.identityOffsetX, y: motion.identityOffsetY)
         }
-        .scaleEffect(rowScale, anchor: .center)
-        .offset(y: rowVerticalOffset)
-        .opacity(rowOpacity)
         .onAppear {
             titleDraft = expandedTitle
             notesDraft = expandedNotes ?? ""
@@ -1713,11 +1702,20 @@ struct HomeTimelineRow: View {
             commitNotesAfterFocusUpdate()
         }
         .onChange(of: isAnimatingCompletion) { _, newValue in
-            guard newValue, shouldPlayCompletionAnimation else { return }
-            startCompletionAnimation()
+            if newValue, shouldPlayCompletionAnimation {
+                startCompletionAnimation()
+            } else if entry.isCompleted == false {
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    isCompletionCheckmarkPresented = false
+                }
+            }
         }
         .onChange(of: isAnimatingReopening) { _, newValue in
             guard newValue else { return }
+
+            isCompletionCheckmarkPresented = false
 
             if reduceMotion {
                 withAnimation(.easeOut(duration: 0.12)) {
@@ -1729,20 +1727,10 @@ struct HomeTimelineRow: View {
 
             reopeningCheckmarkOpacity = 1
             badgeOutlineOpacity = 0.14
-            completionCheckmarkScale = 1
 
             withAnimation(.easeOut(duration: 0.18)) {
                 reopeningCheckmarkOpacity = 0
                 badgeOutlineOpacity = 1
-            }
-
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-                    rowScale = 1
-                    rowVerticalOffset = 0
-                    rowOpacity = 1
-                }
             }
         }
         .onChange(of: expandedTitle) { _, title in
@@ -1789,17 +1777,10 @@ struct HomeTimelineRow: View {
     }
 
     private func startCompletionAnimation() {
-        completionAnimationCount += 1
         badgeOutlineOpacity = 1
-        badgeFillScale = reduceMotion ? 0.96 : 0.68
-        badgeFillOpacity = reduceMotion ? 0.1 : 0.18
-        badgeAuraScale = 0.86
-        badgeAuraOpacity = 0
-        badgeScale = reduceMotion ? 1 : 0.92
-        completionCheckmarkScale = reduceMotion ? 1 : 0.72
-        completionCheckmarkOpacity = reduceMotion ? 1 : 0
-        rowScale = reduceMotion ? 1 : 0.992
-        rowVerticalOffset = 0
+        badgeFillScale = reduceMotion ? 0.96 : 0.76
+        badgeFillOpacity = reduceMotion ? 0.1 : 0.16
+        isCompletionCheckmarkPresented = false
 
         withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.08)) {
             badgeOutlineOpacity = reduceMotion ? 0.16 : 0.12
@@ -1810,46 +1791,25 @@ struct HomeTimelineRow: View {
                 withAnimation(.easeOut(duration: 0.16)) {
                     badgeFillScale = 1
                     badgeFillOpacity = 0
-                    badgeAuraOpacity = 0
-                    completionCheckmarkOpacity = 1
+                    isCompletionCheckmarkPresented = true
                 }
                 return
             }
 
             try? await Task.sleep(for: .milliseconds(36))
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.72)) {
-                badgeScale = 1.08
-                badgeFillScale = 1.04
-                badgeAuraScale = 1.08
-                completionCheckmarkScale = 1.08
-                rowScale = 0.986
-                rowVerticalOffset = -1
+            withAnimation(.smooth(duration: 0.20, extraBounce: 0)) {
+                badgeFillScale = 1.08
+                isCompletionCheckmarkPresented = true
             }
             withAnimation(.easeOut(duration: 0.12)) {
-                badgeFillOpacity = 0.24
-                badgeAuraOpacity = 0.28
-                completionCheckmarkOpacity = 1
+                badgeFillOpacity = 0.20
             }
 
-            try? await Task.sleep(for: .milliseconds(112))
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                badgeScale = 1
-                completionCheckmarkScale = 1
-                rowScale = 1
-                rowVerticalOffset = 1
-            }
+            try? await Task.sleep(for: .milliseconds(120))
             withAnimation(.easeOut(duration: 0.22)) {
-                badgeFillScale = 1.42
+                badgeFillScale = 1.28
                 badgeFillOpacity = 0
-                badgeAuraScale = 1.48
-                badgeAuraOpacity = 0
                 badgeOutlineOpacity = 0
-            }
-
-            try? await Task.sleep(for: .milliseconds(96))
-            withAnimation(.easeOut(duration: 0.12)) {
-                rowVerticalOffset = 0
-                rowScale = 1
             }
         }
     }
@@ -2209,11 +2169,6 @@ struct HomeTimelineRow: View {
     private var checkmarkBadge: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(AppTheme.colors.coral.opacity(0.34), lineWidth: 2)
-                .scaleEffect(badgeAuraScale)
-                .opacity(badgeAuraOpacity)
-
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(AppTheme.colors.coral.opacity(0.14))
                 .scaleEffect(badgeFillScale)
                 .opacity(shouldPlayCompletionAnimation ? badgeFillOpacity : (entry.isCompleted ? 0 : badgeFillOpacity))
@@ -2225,24 +2180,18 @@ struct HomeTimelineRow: View {
                 )
                 .opacity(outlineOpacity)
 
-            Image(systemName: "checkmark")
-                .font(AppTheme.typography.sized(17, weight: .bold))
-                .foregroundStyle(AppTheme.colors.coral)
-                .contentTransition(.symbolEffect(.replace))
-                .symbolEffect(.bounce, options: .speed(1.15), value: completionAnimationCount)
-                .opacity(checkmarkOpacity)
-                .scaleEffect(completionCheckmarkScale)
-                .offset(
-                    x: AppTheme.metrics.checkmarkVisualOffset.width,
-                    y: AppTheme.metrics.checkmarkVisualOffset.height
-                )
+            if entry.isCompleted || isCompletionCheckmarkPresented || isAnimatingReopening {
+                Image(systemName: "checkmark")
+                    .font(AppTheme.typography.sized(17, weight: .bold))
+                    .foregroundStyle(AppTheme.colors.coral)
+                    .transition(.symbolEffect(.drawOn))
+                    .opacity(isAnimatingReopening ? reopeningCheckmarkOpacity : 1)
+                    .offset(
+                        x: AppTheme.metrics.checkmarkVisualOffset.width,
+                        y: AppTheme.metrics.checkmarkVisualOffset.height
+                    )
+            }
         }
-        .scaleEffect(badgeScale)
-        .shadow(
-            color: AppTheme.colors.coral.opacity(badgeAuraOpacity * 0.42),
-            radius: badgeAuraOpacity > 0 ? 12 : 0,
-            y: badgeAuraOpacity > 0 ? 5 : 0
-        )
     }
 
     private var ringColor: Color {
@@ -2268,10 +2217,6 @@ struct HomeTimelineRow: View {
         return 1
     }
 
-    private var checkmarkOpacity: Double {
-        guard entry.isCompleted || shouldPlayCompletionAnimation || isAnimatingReopening else { return 0 }
-        return (isAnimatingReopening ? reopeningCheckmarkOpacity : 1) * completionCheckmarkOpacity
-    }
 }
 
 private struct TimelineSwipeActionsModifier: ViewModifier {
@@ -2365,7 +2310,7 @@ private struct WeeklyCompletedSheet: View {
             .refreshable {
                 await onRefresh()
             }
-            .applySoftTopScrollEdgeTransition()
+            .applySoftScrollEdgeTransition()
             .navigationTitle("本周已完成")
             .navigationSubtitle("不含今天，共 \(count) 项")
             .navigationBarTitleDisplayMode(.inline)

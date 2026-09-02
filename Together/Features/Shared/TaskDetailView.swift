@@ -152,7 +152,7 @@ struct TaskDetailView: View {
                 .padding(.bottom, AppTheme.spacing.xxl)
             }
             .scrollDismissesKeyboard(.interactively)
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .safeAreaBar(edge: .bottom, alignment: .leading, spacing: 0) {
                 HomeTaskAttributeFooter(
                     entry: entry,
@@ -196,7 +196,7 @@ struct TaskDetailView: View {
                 .padding(.bottom, AppTheme.spacing.xxl)
             }
             .scrollDismissesKeyboard(.interactively)
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .safeAreaBar(edge: .bottom, alignment: .leading, spacing: 0) {
                 PeriodicTaskAttributeFooter(
                     task: task,

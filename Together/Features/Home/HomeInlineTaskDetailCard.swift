@@ -464,16 +464,21 @@ struct HomeTaskAttributeFooter: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var attributeTransition
     @State private var schedulePresentation: ExistingTaskScheduleEditorPresentation?
+    @State private var initialScheduleDraft: ExistingTaskScheduleDraft?
+    @State private var latestScheduleDraft: ExistingTaskScheduleDraft?
+    @State private var timeIconEffectTrigger = 0
+    @State private var reminderIconEffectTrigger = 0
 
     var body: some View {
         expandedControls
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .allowsHitTesting(isExpanded)
-            .sheet(item: $schedulePresentation) { presentation in
+            .sheet(item: $schedulePresentation, onDismiss: triggerScheduleIconEffects) { presentation in
                 DateTimePickerSheet(
                     presentation: presentation,
                     selectionFeedback: HomeInteractionFeedback.selection,
                     onChange: { draft in
+                        latestScheduleDraft = draft
                         viewModel.updateDraftSchedule(
                             date: draft.selectedDate,
                             time: draft.selectedTime,
@@ -514,7 +519,9 @@ struct HomeTaskAttributeFooter: View {
             systemImage: "clock",
             isConfigured: viewModel.inlineDetailDraft?.hasExplicitTime == true,
             fillsAvailableWidth: fillsAvailableWidth,
-            transitionSource: .time
+            transitionSource: .time,
+            iconEffect: .rotate,
+            iconEffectTrigger: timeIconEffectTrigger
         ) {
             openSchedule(from: .time)
         }
@@ -524,7 +531,9 @@ struct HomeTaskAttributeFooter: View {
             systemImage: "bell",
             isConfigured: viewModel.inlineDetailDraft?.remindAt != nil,
             fillsAvailableWidth: fillsAvailableWidth,
-            transitionSource: .reminder
+            transitionSource: .reminder,
+            iconEffect: .wiggle,
+            iconEffectTrigger: reminderIconEffectTrigger
         ) {
             openSchedule(from: .reminder)
         }
@@ -541,7 +550,8 @@ struct HomeTaskAttributeFooter: View {
                 isCircular: true,
                 alignsToCardCorner: true,
                 isFocusForeground: true,
-                usesLightweightBackground: true
+                usesLightweightBackground: true,
+                iconEffect: .replace
             )
         }
         .buttonStyle(TaskMorphAttributeButtonStyle())
@@ -587,6 +597,8 @@ struct HomeTaskAttributeFooter: View {
         isConfigured: Bool,
         fillsAvailableWidth: Bool,
         transitionSource: TaskAttributeEditorTransitionSource,
+        iconEffect: TaskAttributeIconEffect = .none,
+        iconEffectTrigger: Int = 0,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -604,6 +616,8 @@ struct HomeTaskAttributeFooter: View {
                 fillsAvailableWidth: fillsAvailableWidth,
                 usesLightweightBackground: true,
                 animatesTitleChanges: true,
+                iconEffect: iconEffect,
+                iconEffectTrigger: iconEffectTrigger,
                 transitionSource: transitionSource,
                 transitionNamespace: attributeTransition
             )
@@ -639,7 +653,7 @@ struct HomeTaskAttributeFooter: View {
 
     private func openSchedule(from transitionSource: TaskAttributeEditorTransitionSource) {
         let draft = viewModel.inlineDetailDraft
-        schedulePresentation = ExistingTaskScheduleEditorPresentation(
+        let presentation = ExistingTaskScheduleEditorPresentation(
             dueAt: draft?.dueAt,
             hasExplicitTime: draft?.hasExplicitTime ?? false,
             remindAt: draft?.remindAt,
@@ -647,12 +661,35 @@ struct HomeTaskAttributeFooter: View {
             transitionSource: transitionSource,
             allowsZoomTransition: allowsZoomTransition
         )
+        initialScheduleDraft = presentation.initialDraft
+        latestScheduleDraft = presentation.initialDraft
+        schedulePresentation = presentation
+    }
+
+    private func triggerScheduleIconEffects() {
+        guard let initialScheduleDraft, let latestScheduleDraft else {
+            self.initialScheduleDraft = nil
+            self.latestScheduleDraft = nil
+            return
+        }
+
+        if initialScheduleDraft.selectedTime != latestScheduleDraft.selectedTime {
+            timeIconEffectTrigger += 1
+        }
+        if initialScheduleDraft.reminderOffset != latestScheduleDraft.reminderOffset {
+            reminderIconEffectTrigger += 1
+        }
+
+        self.initialScheduleDraft = nil
+        self.latestScheduleDraft = nil
     }
 
 }
 
 struct SubtaskCompletionMark: View {
     let isCompleted: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -666,9 +703,14 @@ struct SubtaskCompletionMark: View {
                 Image(systemName: "checkmark")
                     .font(AppTheme.typography.sized(13, weight: .bold))
                     .foregroundStyle(AppTheme.colors.coral)
-                    .contentTransition(.symbolEffect(.replace))
-                    .symbolEffect(.bounce, value: isCompleted)
+                    .transition(.symbolEffect(.drawOn))
             }
         }
+        .animation(
+            reduceMotion
+                ? .easeInOut(duration: 0.12)
+                : .smooth(duration: 0.20, extraBounce: 0),
+            value: isCompleted
+        )
     }
 }

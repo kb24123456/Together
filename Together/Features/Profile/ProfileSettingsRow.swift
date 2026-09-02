@@ -29,12 +29,14 @@ struct ProfileFlatValueRow: View {
     let systemImage: String
     var trailingSymbol: String = "chevron.right"
     var titleColor: Color = AppTheme.colors.title
+    var rotatesSystemImage = false
 
     var body: some View {
         HStack(spacing: AppTheme.spacing.md) {
             Image(systemName: systemImage)
                 .font(AppTheme.typography.sized(17, weight: .medium))
                 .foregroundStyle(titleColor.opacity(0.66))
+                .symbolEffect(.rotate.clockwise, isActive: rotatesSystemImage)
                 .frame(width: 24, height: 24)
 
             Text(title)

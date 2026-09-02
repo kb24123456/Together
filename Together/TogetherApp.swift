@@ -88,6 +88,7 @@ struct TogetherApp: App {
                     )
                 }
             }
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .animation(.easeInOut(duration: 0.30), value: appBootstrapper.phase)
                 .task {
                     StartupTrace.mark("TogetherApp.root.task.start")

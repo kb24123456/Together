@@ -259,7 +259,7 @@ private struct OCRTextPasteView: View {
         .contentMargins(.horizontal, AppTheme.spacing.xl, for: .scrollContent)
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
-        .applySoftTopScrollEdgeTransition()
+        .applySoftScrollEdgeTransition()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemBackground))
     }

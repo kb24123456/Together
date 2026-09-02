@@ -22,6 +22,7 @@ final class ProfileViewModel {
     var alarmAuthorization: RoutineAlarmAuthorizationStatus = .notDetermined
     var reminderDelivery: PeriodicReminderDelivery = .alarm
     var iCloudStatus: ICloudStatus = .couldNotDetermine
+    var isCheckingICloudStatus = false
     var isAccountDeletionInProgress: Bool = false
     var deletionErrorMessage: String?
     var weeklyPlanningReviewCompletionCount = 0
@@ -111,11 +112,13 @@ final class ProfileViewModel {
     }
 
     var iCloudStatusSummary: String {
+        if isCheckingICloudStatus { return "检查中…" }
+
         switch iCloudStatus {
         case .available: return "iCloud 已登录"
         case .noAccount: return "未登录 iCloud"
         case .restricted: return "受限"
-        case .couldNotDetermine: return "检查中…"
+        case .couldNotDetermine: return "无法确认"
         case .temporarilyUnavailable: return "暂时不可用"
         }
     }
@@ -146,6 +149,7 @@ final class ProfileViewModel {
 
     func load() async {
         loadState = .loading
+        isCheckingICloudStatus = true
         async let notifStatus = notificationService.authorizationStatus()
         async let alarmStatus = reminderScheduler.alarmAuthorizationStatus()
         async let deliveryPreference = reminderScheduler.reminderDeliveryPreference()
@@ -154,6 +158,7 @@ final class ProfileViewModel {
         alarmAuthorization = await alarmStatus
         reminderDelivery = await deliveryPreference
         iCloudStatus = await cloudStatus
+        isCheckingICloudStatus = false
         if let spaceID = sessionStore.currentSpace?.id,
            let review = try? await itemRepository.fetchPlanningReview(
                spaceID: spaceID,
@@ -181,6 +186,9 @@ final class ProfileViewModel {
     }
 
     func checkICloudStatus() async {
+        guard isCheckingICloudStatus == false else { return }
+        isCheckingICloudStatus = true
+        defer { isCheckingICloudStatus = false }
         iCloudStatus = await ICloudStatusService.checkStatus()
     }
 

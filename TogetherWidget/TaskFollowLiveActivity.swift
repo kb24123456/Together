@@ -16,61 +16,40 @@ struct TaskFollowLiveActivityWidget: Widget {
                 .activitySystemActionForegroundColor(.primary)
         } dynamicIsland: { context in
             DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    Label("关注", systemImage: "scope")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(TaskFollowWidgetTheme.tint)
-                }
+                DynamicIslandExpandedRegion(.center) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text("关注中")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(TaskFollowWidgetTheme.tint)
 
-                DynamicIslandExpandedRegion(.trailing) {
-                    Text(verbatim: "\(context.state.totalFollowedCount) 项")
-                        .font(.caption.monospacedDigit().weight(.semibold))
+                        Spacer(minLength: 0)
+
+                        TaskFollowActivitySummaryLabel(state: context.state)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(context.state.visibleTasks.enumerated()), id: \.element.taskID) { index, task in
-                            TaskFollowActivityRow(task: task, isPrimary: index == 0)
-                        }
-
-                        if context.state.remainingCount > 0 {
-                            Text(verbatim: "+\(context.state.remainingCount) 项")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, 38)
-                        }
+                    if let task = context.state.primaryTask {
+                        TaskFollowPrimaryTaskView(
+                            task: task,
+                            titleFont: .headline.weight(.semibold)
+                        )
                     }
                 }
             } compactLeading: {
-                Image(systemName: "scope")
-                    .foregroundStyle(TaskFollowWidgetTheme.tint)
+                TaskFollowCompactLeadingLabel()
             } compactTrailing: {
-                ViewThatFits(in: .horizontal) {
-                    Text(compactTitle(for: context.state.primaryTask))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                    Text(verbatim: "\(context.state.totalFollowedCount)")
-                        .monospacedDigit()
-                }
-                .font(.caption2.weight(.semibold))
+                TaskFollowCompactTrailingLabel(state: context.state)
             } minimal: {
-                HStack(spacing: 1) {
-                    Image(systemName: "scope")
-                    Text(verbatim: "\(context.state.totalFollowedCount)")
-                        .monospacedDigit()
-                }
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(TaskFollowWidgetTheme.tint)
+                Text(verbatim: TaskFollowWidgetTheme.minimalCountText(context.state.totalFollowedCount))
+                    .font(.caption2.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(TaskFollowWidgetTheme.tint)
             }
             .keylineTint(TaskFollowWidgetTheme.tint)
             .widgetURL(context.state.primaryTask?.deepLink)
         }
-    }
-
-    private func compactTitle(for task: FollowedTaskSnapshot?) -> String {
-        guard let task else { return "关注" }
-        return String(task.displayTitle.prefix(6))
     }
 }
 
@@ -78,83 +57,160 @@ private struct TaskFollowLockScreenView: View {
     let state: TaskFollowActivityAttributes.ContentState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "scope")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("关注中")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(TaskFollowWidgetTheme.tint)
-                Text("关注")
-                    .font(.subheadline.weight(.semibold))
-                Spacer(minLength: 8)
-                Text(verbatim: "\(state.totalFollowedCount) 项")
-                    .font(.caption.monospacedDigit().weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(height: 24)
 
-            Divider()
+                Spacer(minLength: 0)
 
-            ForEach(Array(state.visibleTasks.enumerated()), id: \.element.taskID) { index, task in
-                TaskFollowActivityRow(task: task, isPrimary: index == 0)
+                TaskFollowActivitySummaryLabel(state: state)
             }
 
-            if state.remainingCount > 0 {
-                Text(verbatim: "+\(state.remainingCount) 项")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 38)
+            if let task = state.primaryTask {
+                TaskFollowPrimaryTaskView(
+                    task: task,
+                    titleFont: .title3.weight(.semibold)
+                )
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
-private struct TaskFollowActivityRow: View {
+private struct TaskFollowPrimaryTaskView: View {
     let task: FollowedTaskSnapshot
-    let isPrimary: Bool
+    let titleFont: Font
 
     var body: some View {
-        HStack(spacing: 6) {
-            Button(intent: CompleteFollowedTaskIntent(taskID: task.taskID)) {
-                Image(systemName: "checkmark")
-                    .font(.caption.weight(.bold))
-                    .frame(width: 28, height: 28)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(TaskFollowWidgetTheme.tint.opacity(0.62), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("完成 \(task.displayTitle)")
-
+        HStack(alignment: .center, spacing: 10) {
             Link(destination: task.deepLink) {
-                HStack(spacing: 8) {
-                    Text(task.displayTitle)
-                        .font(.caption.weight(isPrimary ? .semibold : .regular))
-                        .lineLimit(1)
-                        .foregroundStyle(.primary)
-
-                    Spacer(minLength: 4)
-
-                    if let scheduleText {
-                        Text(scheduleText)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .contentShape(Rectangle())
+                Text(task.displayTitle)
+                    .font(titleFont)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.85)
+                    .allowsTightening(true)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("打开任务 \(task.displayTitle)")
+
+            Button(intent: CompleteFollowedTaskIntent(taskID: task.taskID)) {
+                Circle()
+                    .strokeBorder(.secondary, lineWidth: 1.25)
+                    .opacity(0.72)
+                    .frame(width: 26, height: 26)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("完成 \(task.displayTitle)")
+            .accessibilityHint("在实时活动中将任务标记为已完成")
         }
-        .frame(height: 38)
+        .frame(minHeight: 44)
+    }
+}
+
+private struct TaskFollowActivitySummaryLabel: View {
+    let state: TaskFollowActivityAttributes.ContentState
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            if let primaryTask = state.primaryTask {
+                Text(verbatim: preferredText(for: primaryTask))
+                    .fixedSize(horizontal: true, vertical: false)
+
+                if let scheduleText = primaryTask.followScheduleText {
+                    Text(verbatim: scheduleText)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+
+            Text(verbatim: "\(state.totalFollowedCount) 项")
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .font(.caption.monospacedDigit().weight(.semibold))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
 
-    private var scheduleText: String? {
-        guard let dueAt = task.dueAt else { return nil }
-        if task.hasExplicitTime {
+    private func preferredText(for task: FollowedTaskSnapshot) -> String {
+        let additionalTaskCount = max(0, state.totalFollowedCount - 1)
+        switch (task.followScheduleText, additionalTaskCount) {
+        case let (schedule?, count) where count > 0:
+            return "\(schedule) · 另有 \(count) 项"
+        case let (schedule?, _):
+            return schedule
+        case let (nil, count) where count > 0:
+            return "另有 \(count) 项"
+        default:
+            return "1 项"
+        }
+    }
+}
+
+private struct TaskFollowCompactLeadingLabel: View {
+    var body: some View {
+        if #available(iOSApplicationExtension 27.0, *) {
+            TaskFollowCompactLeadingLabelIOS27()
+        } else {
+            label("关注中")
+        }
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(TaskFollowWidgetTheme.tint)
+            .lineLimit(1)
+    }
+}
+
+@available(iOSApplicationExtension 27.0, *)
+private struct TaskFollowCompactLeadingLabelIOS27: View {
+    @Environment(\.isDynamicIslandLimitedInWidth) private var isLimitedInWidth
+
+    var body: some View {
+        Text(isLimitedInWidth ? "关注" : "关注中")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(TaskFollowWidgetTheme.tint)
+            .lineLimit(1)
+    }
+}
+
+private struct TaskFollowCompactTrailingLabel: View {
+    let state: TaskFollowActivityAttributes.ContentState
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            if let scheduleText = state.primaryTask?.followScheduleText {
+                Text(verbatim: scheduleText)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            Text(verbatim: "\(state.totalFollowedCount)")
+                .monospacedDigit()
+        }
+        .font(.caption2.weight(.semibold))
+        .lineLimit(1)
+    }
+}
+
+private extension TaskFollowWidgetTheme {
+    static func minimalCountText(_ count: Int) -> String {
+        count > 9 ? "9+" : "\(max(0, count))"
+    }
+}
+
+private extension FollowedTaskSnapshot {
+    var followScheduleText: String? {
+        guard let dueAt else { return nil }
+        if hasExplicitTime {
             return dueAt.formatted(
                 .dateTime
                     .locale(Locale(identifier: "zh_CN"))
