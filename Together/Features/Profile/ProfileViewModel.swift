@@ -25,7 +25,7 @@ final class ProfileViewModel {
     var isCheckingICloudStatus = false
     var isAccountDeletionInProgress: Bool = false
     var deletionErrorMessage: String?
-    var weeklyPlanningReviewCompletionCount = 0
+    var weeklyExecutionReviewCompletionCount: Int?
     var onProfileSaved: ((_ user: User) -> Void)?
     var onPersonalDataDeleted: ((_ user: User, _ space: Space) -> Void)?
     private var reminderDeliveryUpdateRevision = 0
@@ -71,22 +71,11 @@ final class ProfileViewModel {
         return vm
     }
 
-    var taskUrgencyWindowMinutes: Int {
-        NotificationSettings.normalizedSnoozeMinutes(
-            sessionStore.currentUser?.preferences.taskUrgencyWindowMinutes ?? 30
-        )
-    }
-
     var taskReminderEnabled: Bool {
         sessionStore.currentUser?.preferences.taskReminderEnabled ?? true
     }
 
-    let taskUrgencyOptions: [Int] = [5, 10, 30, 60]
     let completedTaskAutoArchiveOptions: [Int] = NotificationSettings.completedTaskAutoArchiveDayOptions
-
-    var taskUrgencyPickerOptions: [Int] {
-        Array(Set(taskUrgencyOptions + [taskUrgencyWindowMinutes])).sorted()
-    }
 
     var dailySummaryEnabled: Bool {
         sessionStore.currentUser?.preferences.dailySummaryEnabled ?? false
@@ -149,6 +138,7 @@ final class ProfileViewModel {
 
     func load() async {
         loadState = .loading
+        weeklyExecutionReviewCompletionCount = nil
         isCheckingICloudStatus = true
         async let notifStatus = notificationService.authorizationStatus()
         async let alarmStatus = reminderScheduler.alarmAuthorizationStatus()
@@ -160,21 +150,21 @@ final class ProfileViewModel {
         iCloudStatus = await cloudStatus
         isCheckingICloudStatus = false
         if let spaceID = sessionStore.currentSpace?.id,
-           let review = try? await itemRepository.fetchPlanningReview(
+           let review = try? await itemRepository.fetchExecutionReview(
                spaceID: spaceID,
                range: .week,
                referenceDate: .now
            ) {
-            weeklyPlanningReviewCompletionCount = review.completionCount
+            weeklyExecutionReviewCompletionCount = review.completionCount
         }
         loadState = .loaded
     }
 
-    func planningReview(
-        range: PlanningReviewRange,
+    func executionReview(
+        range: ExecutionReviewRange,
         referenceDate: Date = .now
-    ) async throws -> PlanningReviewSnapshot {
-        try await itemRepository.fetchPlanningReview(
+    ) async throws -> ExecutionReviewSnapshot {
+        try await itemRepository.fetchExecutionReview(
             spaceID: sessionStore.currentSpace?.id,
             range: range,
             referenceDate: referenceDate
@@ -216,12 +206,6 @@ final class ProfileViewModel {
     func requestNotifications() async {
         notificationAuthorization = (try? await notificationService.requestAuthorization()) ?? .denied
         await resyncReminderNotifications()
-    }
-
-    func updateTaskUrgencyWindow(minutes: Int) {
-        guard var user = sessionStore.currentUser else { return }
-        user.preferences.taskUrgencyWindowMinutes = NotificationSettings.normalizedSnoozeMinutes(minutes)
-        applyUpdatedPreferences(user.preferences, to: user)
     }
 
     func updateCompletedTaskAutoArchiveEnabled(_ isEnabled: Bool) {
@@ -308,13 +292,6 @@ final class ProfileViewModel {
         )
         viewModel.onTaskMutated = onTaskMutated
         return viewModel
-    }
-
-    func taskUrgencyLabel(minutes: Int) -> String {
-        if minutes >= 60, minutes.isMultiple(of: 60) {
-            return "\(minutes / 60)小时"
-        }
-        return "\(minutes)分钟"
     }
 
     func relativeTimeLabel(minutes: Int) -> String {

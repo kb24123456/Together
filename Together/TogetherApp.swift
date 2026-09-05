@@ -47,7 +47,7 @@ struct TogetherApp: App {
                     PersonalIdentityBootstrapView(
                         title: isSlow ? "数据恢复时间较长" : "正在恢复你的数据",
                         message: isSlow
-                            ? "请保持网络连接；Together 不会在恢复完成前创建第二个空间。"
+                            ? "请保持网络连接；一二不会在恢复完成前创建第二个空间。"
                             : "正在从你的私人 iCloud 数据库恢复。",
                         primaryButtonTitle: nil,
                         onPrimaryAction: nil,
@@ -57,7 +57,7 @@ struct TogetherApp: App {
                     )
                 case .requiresLocalStart:
                     PersonalIdentityBootstrapView(
-                        title: "开始使用 Together",
+                        title: "开始使用一二",
                         message: "iCloud 中没有发现已有数据。确认后将创建你的个人空间。",
                         primaryButtonTitle: "开始使用",
                         onPrimaryAction: {
@@ -98,19 +98,20 @@ struct TogetherApp: App {
                     )
                     appDelegate.bootstrapper = appBootstrapper
                     await appBootstrapper.bootstrapIfNeeded()
-                    // Cold-launch deep-link: transfer any APNs task_id captured before bootstrap.
-                    if let appContext = appBootstrapper.appContext,
-                       let taskID = appDelegate.consumePendingTaskIDFromNotification() {
-                        appContext.rememberDeepLinkTaskID(taskID)
-                        await appContext.consumeDeepLinkTaskIDIfAny()
-                    }
                     StartupTrace.mark("TogetherApp.root.task.end")
                 }
                 .task(id: appBootstrapper.isReady) {
-                    guard let appContext = appBootstrapper.appContext else { return }
+                    guard appBootstrapper.isReady,
+                          let appContext = appBootstrapper.appContext else { return }
                     StartupTrace.mark("TogetherApp.ready.task.start")
                     notificationDelegate.configure(appContext: appContext)
                     await appContext.performPostLaunchWorkIfNeeded()
+                    // Keep cold-launch notification destinations pending until
+                    // identity restoration or the user's local start finishes.
+                    if let taskID = appDelegate.consumePendingTaskIDFromNotification() {
+                        appContext.rememberDeepLinkTaskID(taskID)
+                        await appContext.consumeDeepLinkTaskIDIfAny()
+                    }
                     if let pendingDeepLinkURL {
                         self.pendingDeepLinkURL = nil
                         appContext.handleDeepLink(url: pendingDeepLinkURL)
@@ -118,7 +119,7 @@ struct TogetherApp: App {
                     StartupTrace.mark("TogetherApp.ready.task.end")
                 }
                 .onOpenURL { url in
-                    if let appContext = appBootstrapper.appContext {
+                    if appBootstrapper.isReady, let appContext = appBootstrapper.appContext {
                         appContext.handleDeepLink(url: url)
                     } else {
                         pendingDeepLinkURL = url

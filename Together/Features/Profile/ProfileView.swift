@@ -30,26 +30,63 @@ struct ProfileView: View {
                 .buttonStyle(.plain)
                 .padding(.bottom, AppTheme.hierarchy.spacing.component)
 
-                ProfileFlatSection(title: "显示") {
-                    ProfileFlatOptionRow(
-                        title: "外观",
-                        value: appearanceManager.mode.title,
-                        systemImage: "circle.lefthalf.filled"
+                ProfileFlatSection(title: "任务记录") {
+                    NavigationLink(value: ProfileRoute.executionReview) {
+                        ProfileFlatValueRow(
+                            title: "执行回顾",
+                            value: executionReviewSubtitle,
+                            systemImage: "chart.bar.doc.horizontal"
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    ProfileGroupedDivider()
+
+                    NavigationLink(value: ProfileRoute.completedHistory) {
+                        ProfileFlatValueRow(
+                            title: "已完成",
+                            value: "全部记录",
+                            systemImage: "checkmark.circle"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                ProfileFlatSection(title: "整理") {
+                    ProfileFlatToggleRow(
+                        title: "已完成自动归档",
+                        subtitle: "归档后仍可在“已完成”中查看",
+                        systemImage: "archivebox"
                     ) {
-                        Picker("外观", selection: $appearanceManager.mode) {
-                            ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                                Text(mode.title)
-                                    .tag(mode)
-                            }
-                        }
+                        Toggle("已完成自动归档", isOn: Binding(
+                            get: { viewModel.completedTaskAutoArchiveEnabled },
+                            set: { viewModel.updateCompletedTaskAutoArchiveEnabled($0) }
+                        ))
+                        .labelsHidden()
                     }
 
-                    ProfileFlatToggleRow(
-                        title: "动态背景",
-                        systemImage: "sparkles"
-                    ) {
-                        Toggle("动态背景", isOn: $ambientBackgroundSettings.isEnabled)
-                            .labelsHidden()
+                    if viewModel.completedTaskAutoArchiveEnabled {
+                        ProfileGroupedDivider()
+
+                        ProfileFlatOptionRow(
+                            title: "归档时间",
+                            value: "\(viewModel.completedTaskAutoArchiveDays) 天后",
+                            systemImage: "clock.arrow.circlepath"
+                        ) {
+                            ForEach(viewModel.completedTaskAutoArchiveOptions, id: \.self) { days in
+                                Button {
+                                    HomeInteractionFeedback.selection()
+                                    viewModel.updateCompletedTaskAutoArchiveDays(days)
+                                } label: {
+                                    if viewModel.completedTaskAutoArchiveDays == days {
+                                        Label("\(days) 天后", systemImage: "checkmark")
+                                    } else {
+                                        Text("\(days) 天后")
+                                    }
+                                }
+                            }
+                        }
+                        .transition(conditionalSettingsTransition)
                     }
                 }
 
@@ -67,6 +104,8 @@ struct ProfileView: View {
 
                     if viewModel.taskReminderEnabled {
                         VStack(spacing: 0) {
+                            ProfileGroupedDivider()
+
                             ProfileFlatOptionRow(
                                 title: "提醒方式",
                                 value: viewModel.reminderDelivery == .alarm ? "Apple 闹钟" : "普通通知",
@@ -100,41 +139,18 @@ struct ProfileView: View {
                                 )
                             }
 
-                            ProfileFlatOptionRow(
-                                title: "临近窗口",
-                                value: viewModel.taskUrgencyLabel(minutes: viewModel.taskUrgencyWindowMinutes),
-                                systemImage: "timer"
-                            ) {
-                                ForEach(viewModel.taskUrgencyPickerOptions, id: \.self) { minutes in
-                                    Button {
-                                        HomeInteractionFeedback.selection()
-                                        viewModel.updateTaskUrgencyWindow(minutes: minutes)
-                                    } label: {
-                                        if viewModel.taskUrgencyWindowMinutes == minutes {
-                                            Label(viewModel.taskUrgencyLabel(minutes: minutes), systemImage: "checkmark")
-                                        } else {
-                                            Text(viewModel.taskUrgencyLabel(minutes: minutes))
-                                        }
-                                    }
-                                }
-                            }
+                            ProfileGroupedDivider()
 
                             ProfileFlatToggleRow(
                                 title: "每日摘要",
                                 systemImage: "clock"
                             ) {
-                                HStack(spacing: AppTheme.hierarchy.spacing.related) {
-                                    Text("09:00 · 18:00")
-                                        .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
-                                        .foregroundStyle(AppTheme.colors.body.opacity(0.58))
-
-                                    Toggle("每日摘要", isOn: Binding(
-                                        get: { viewModel.dailySummaryEnabled },
-                                        set: { viewModel.updateDailySummaryEnabled($0) }
-                                    ))
-                                    .labelsHidden()
-                                    .accessibilityHint("每天早上九点发送今日待完成数量，晚上六点发送剩余未完成数量")
-                                }
+                                Toggle("每日摘要", isOn: Binding(
+                                    get: { viewModel.dailySummaryEnabled },
+                                    set: { viewModel.updateDailySummaryEnabled($0) }
+                                ))
+                                .labelsHidden()
+                                .accessibilityHint("每天发送早间与晚间任务摘要")
                             }
 
                             if viewModel.notificationAuthorization == .denied {
@@ -149,54 +165,34 @@ struct ProfileView: View {
                     }
                 }
 
-                ProfileFlatSection(title: "整理") {
-
-                    NavigationLink(value: ProfileRoute.planningReview) {
-                        ProfileFlatValueRow(
-                            title: "计划复盘",
-                            value: planningReviewSubtitle,
-                            systemImage: "chart.bar.doc.horizontal"
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    ProfileFlatToggleRow(
-                        title: "已完成自动归档",
-                        systemImage: "archivebox"
+                ProfileFlatSection(title: "显示") {
+                    ProfileFlatOptionRow(
+                        title: "外观",
+                        value: appearanceManager.mode.title,
+                        systemImage: "circle.lefthalf.filled"
                     ) {
-                        Toggle("已完成自动归档", isOn: Binding(
-                            get: { viewModel.completedTaskAutoArchiveEnabled },
-                            set: { viewModel.updateCompletedTaskAutoArchiveEnabled($0) }
-                        ))
-                        .labelsHidden()
-                    }
-
-                    if viewModel.completedTaskAutoArchiveEnabled {
-                        ProfileFlatOptionRow(
-                            title: "归档时间",
-                            value: "\(viewModel.completedTaskAutoArchiveDays) 天后",
-                            systemImage: "clock.arrow.circlepath"
-                        ) {
-                            ForEach(viewModel.completedTaskAutoArchiveOptions, id: \.self) { days in
-                                Button {
-                                    HomeInteractionFeedback.selection()
-                                    viewModel.updateCompletedTaskAutoArchiveDays(days)
-                                } label: {
-                                    if viewModel.completedTaskAutoArchiveDays == days {
-                                        Label("\(days) 天后", systemImage: "checkmark")
-                                    } else {
-                                        Text("\(days) 天后")
-                                    }
-                                }
+                        Picker("外观", selection: $appearanceManager.mode) {
+                            ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                                Text(mode.title)
+                                    .tag(mode)
                             }
                         }
-                        .transition(conditionalSettingsTransition)
+                    }
+
+                    ProfileGroupedDivider()
+
+                    ProfileFlatToggleRow(
+                        title: "动态背景",
+                        systemImage: "sparkles"
+                    ) {
+                        Toggle("动态背景", isOn: $ambientBackgroundSettings.isEnabled)
+                            .labelsHidden()
                     }
                 }
 
                 ProfileFlatSection(title: "隐私与数据") {
                     ProfileFlatToggleRow(
-                        title: "应用锁定（\(viewModel.biometricTypeName)）",
+                        title: "应用锁定",
                         systemImage: "lock"
                     ) {
                         Toggle("应用锁定", isOn: Binding(
@@ -204,7 +200,10 @@ struct ProfileView: View {
                             set: { viewModel.updateAppLockEnabled($0) }
                         ))
                         .labelsHidden()
+                        .accessibilityHint("使用 \(viewModel.biometricTypeName)")
                     }
+
+                    ProfileGroupedDivider()
 
                     Button {
                         HomeInteractionFeedback.selection()
@@ -218,12 +217,13 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
-                    NavigationLink(value: ProfileRoute.accountDeletion) {
+                    ProfileGroupedDivider()
+
+                    NavigationLink(value: ProfileRoute.dataManagement) {
                         ProfileFlatValueRow(
-                            title: "删除所有数据",
+                            title: "数据管理",
                             value: "",
-                            systemImage: "trash",
-                            titleColor: AppTheme.colors.danger
+                            systemImage: "externaldrive"
                         )
                     }
                     .buttonStyle(.plain)
@@ -240,23 +240,15 @@ struct ProfileView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, AppTheme.spacing.md)
-            .padding(.top, AppTheme.spacing.md)
-            .padding(.bottom, AppTheme.spacing.xxl * 2)
+            .padding(.horizontal, AppTheme.hierarchy.spacing.component)
+            .padding(.top, AppTheme.hierarchy.spacing.component)
+            .padding(.bottom, AppTheme.hierarchy.spacing.page * 2)
         }
         .applySoftScrollEdgeTransition()
-        .background(AppTheme.colors.background.ignoresSafeArea())
-        .navigationTitle("我")
+        .background(AppTheme.colors.profileBackground.ignoresSafeArea())
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: ProfileRoute.completedHistory) {
-                    ToolbarTextActionLabel(title: "已完成")
-                }
-                .accessibilityHint("查看已完成任务")
-            }
-        }
         .navigationDestination(for: ProfileRoute.self) { route in
             switch route {
             case .editProfile:
@@ -266,11 +258,13 @@ struct ProfileView: View {
                 .navigationTransition(.zoom(sourceID: ProfileTransitionSource.profileCard, in: profileTransition))
             case .completedHistory:
                 CompletedHistoryView(viewModel: viewModel.makeCompletedHistoryViewModel(initialFilter: .all))
-            case .planningReview:
-                PlanningReviewView(
-                    loadReview: viewModel.planningReview,
+            case .executionReview:
+                ExecutionReviewView(
+                    loadReview: viewModel.executionReview,
                     loadTaskReview: viewModel.taskLifecycleReview
                 )
+            case .dataManagement:
+                ProfileDataManagementView(viewModel: viewModel)
             case .accountDeletion:
                 ProfileAccountDeletionView(viewModel: viewModel)
             case .about:
@@ -295,19 +289,17 @@ struct ProfileView: View {
             .presentationSizing(.fitted)
         }
         .animation(
-            reduceMotion ? .easeOut(duration: 0.16) : .smooth(duration: 0.28),
+            reduceMotion ? .easeOut(duration: 0.16) : AppTheme.motion.micro,
             value: viewModel.taskReminderEnabled
         )
         .animation(
-            reduceMotion ? .easeOut(duration: 0.16) : .smooth(duration: 0.28),
+            reduceMotion ? .easeOut(duration: 0.16) : AppTheme.motion.micro,
             value: viewModel.completedTaskAutoArchiveEnabled
         )
     }
 
     private var conditionalSettingsTransition: AnyTransition {
-        reduceMotion
-            ? .opacity
-            : .opacity.combined(with: .move(edge: .top))
+        .opacity
     }
 
     private func openAppSettings() {
@@ -320,11 +312,11 @@ struct ProfileView: View {
         openURL(url)
     }
 
-    private var planningReviewSubtitle: String {
-        if Calendar.current.component(.weekday, from: .now) == 6 {
-            return "本周可回顾"
+    private var executionReviewSubtitle: String {
+        guard let count = viewModel.weeklyExecutionReviewCompletionCount else {
+            return "查看本周回顾"
         }
-        return "本周 \(viewModel.weeklyPlanningReviewCompletionCount) 项"
+        return "本周完成 \(count) 项"
     }
 }
 
@@ -339,29 +331,48 @@ private struct ProfileCompactIdentityRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: AppTheme.hierarchy.spacing.component) {
-            UserAvatarView(
-                avatarAsset: avatar.avatarAsset,
-                displayName: avatar.displayName,
-                size: 76,
-                fillColor: AppTheme.colors.avatarWarm,
-                symbolColor: AppTheme.colors.title.opacity(0.82),
-                symbolFont: AppTheme.typography.sized(28, weight: .semibold),
-                overrideImage: avatar.overrideImage
-            )
+        VStack(spacing: AppTheme.hierarchy.spacing.component) {
+            ZStack(alignment: .bottomTrailing) {
+                UserAvatarView(
+                    avatarAsset: avatar.avatarAsset,
+                    displayName: avatar.displayName,
+                    size: 76,
+                    fillColor: AppTheme.colors.avatarWarm,
+                    symbolColor: AppTheme.colors.title.opacity(0.82),
+                    symbolFont: AppTheme.typography.sized(28, weight: .semibold),
+                    overrideImage: avatar.overrideImage
+                )
+
+                Image(systemName: "pencil")
+                    .font(AppTheme.typography.hierarchy(.supporting, weight: .semibold))
+                    .foregroundStyle(AppTheme.colors.title)
+                    .frame(
+                        width: AppTheme.hierarchy.spacing.section,
+                        height: AppTheme.hierarchy.spacing.section
+                    )
+                    .background(
+                        Circle()
+                            .fill(AppTheme.colors.profileSurface)
+                            .overlay {
+                                Circle()
+                                    .stroke(AppTheme.colors.profileBackground, lineWidth: 2)
+                            }
+                    )
+                    .offset(
+                        x: AppTheme.hierarchy.spacing.inline,
+                        y: AppTheme.hierarchy.spacing.inline
+                    )
+                    .accessibilityHidden(true)
+            }
 
             Text(name)
-                .font(AppTheme.typography.hierarchy(.title, weight: .medium))
+                .font(AppTheme.typography.hierarchy(.title, weight: .semibold))
                 .foregroundStyle(AppTheme.colors.title)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .multilineTextAlignment(.center)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: AppTheme.hierarchy.spacing.component)
-
-            Image(systemName: "chevron.right")
-                .font(AppTheme.typography.sized(13, weight: .bold))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.36))
         }
+        .frame(maxWidth: .infinity)
         .padding(.vertical, AppTheme.hierarchy.spacing.component)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)

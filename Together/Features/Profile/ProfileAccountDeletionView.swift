@@ -1,5 +1,39 @@
 import SwiftUI
 
+struct ProfileDataManagementView: View {
+    @Bindable var viewModel: ProfileViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.section) {
+                ProfileFlatSection(title: "危险操作") {
+                    NavigationLink(value: ProfileRoute.accountDeletion) {
+                        ProfileFlatDestinationRow(
+                            title: "删除所有数据",
+                            subtitle: "永久删除本机与 iCloud 中的数据",
+                            systemImage: "trash",
+                            titleColor: AppTheme.colors.danger
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("删除前需要输入昵称并再次确认，此操作不可撤销。")
+                    .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.profileAccent)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, AppTheme.spacing.xl)
+            .padding(.top, AppTheme.hierarchy.spacing.component)
+            .padding(.bottom, AppTheme.hierarchy.spacing.page * 2)
+        }
+        .applySoftScrollEdgeTransition()
+        .background(AppTheme.colors.profileBackground.ignoresSafeArea())
+        .navigationTitle("数据管理")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 struct ProfileAccountDeletionView: View {
     @Bindable var viewModel: ProfileViewModel
     @Environment(\.dismiss) private var dismiss

@@ -121,8 +121,8 @@
 - App 内、通知与 Live Activity 的完成操作必须复用同一应用服务 / repository 语义。Widget 虽使用低层 SQLite 写入，也必须复用同一状态转换条件、事件字段和幂等规则；入口来源不进入数据模型。
 - 多设备合并后先按事件 `id` 去重，再按 `occurredAt + id` 稳定排序并通过任务生命周期状态机重放；没有中间恢复的重复完成、没有中间完成的重复恢复等无效重复不计入指标。当前任务记录仍决定最终当前状态与当前 `completedAt`，派生缓存随时可从当前任务与有效事件重建。
 - 归档只更新任务当前状态，不删除事件；永久删除必须在同一 repository 操作中显式删除该 `taskID` 的全部事件，再删除任务。恢复、备份、CloudKit schema probe 和数据导出链路必须包含事件模型。
-- 写路径应扩展现有 `ItemRepositoryProtocol` 的原子 mutation 能力，而不是让一个独立 event repository 在任务保存后补写。读路径可独立为 `TaskLifecycleReviewRepository`，向 ViewModel 返回 `TaskLifecycleSummary / TaskLifecycleTimeline / PlanningReviewSnapshot` 等不可变投影；ViewModel 不直接查询 `PersistentTaskLifecycleEvent`。
-- 事件存储至少按 `taskID` 与 `occurredAt` 支持高效检索；计划复盘先筛出周期内的候选任务，再批量读取这些任务的事件，禁止页面打开时 hydration 全库全部事件。若后续增加摘要缓存，必须带计算版本并可删除重建。
+- 写路径应扩展现有 `ItemRepositoryProtocol` 的原子 mutation 能力，而不是让一个独立 event repository 在任务保存后补写。读路径可独立为 `TaskLifecycleReviewRepository`，向 ViewModel 返回 `TaskLifecycleSummary / TaskLifecycleTimeline / ExecutionReviewSnapshot` 等不可变投影；ViewModel 不直接查询 `PersistentTaskLifecycleEvent`。
+- 事件存储至少按 `taskID` 与 `occurredAt` 支持高效检索；执行回顾先筛出当前周期及上一周期同期的候选任务，再批量读取这些任务的事件，禁止页面打开时 hydration 全库全部事件。若后续增加摘要缓存，必须带计算版本并可删除重建。
 
 ### 5.2 迁移与历史完整性
 
@@ -138,8 +138,8 @@
 - “推迟到明天”和“推迟到下周一”都从操作时本地日期计算目标自然日；若原任务有具体时刻则移植其本地时分，并保持提醒相对截止时间的提前量。逾期任务不能在快捷推迟后仍因沿用旧日期而逾期。
 - 单任务统计以有效事件重放结果计算；最终完成时间以当前完成状态和当前 `completedAt` 为准，首次完成取第一条有效完成事件，完成耗时从正式创建时间起算。恢复后未再次完成的任务没有最终完成耗时。
 - 缺少完整 `created` 事件的旧任务仍可使用可信的 `createdAt + 当前 completedAt` 计算最终完成耗时，并可使用完成时已知的最后计划计算最终计划按时；推迟 / 恢复只显示“更新后记录值 + 更新前未记录”，首次计划兑现率始终排除。
-- 周 / 月复盘按最终完成时间筛选当前仍完成的任务；中位数而非平均数作为耗时中心趋势。两个相邻周期都至少有五项有效完成样本时才计算趋势。
-- 当前计划风险单独查询未完成任务并按“逾期、推迟未完成”顺序去重；缺失日期属于迁移兼容问题，不形成新的风险类别。
+- 周 / 月执行回顾按最终完成时间筛选当前仍完成的普通待办，当前周期截取至参考时刻；上一周期使用相同本地日历进度。参考时刻可包含，自然周期终点必须排除，避免较短上月把下月零点计入。完成总数由快照 completedItems 数量导出，明细复用同一集合并按 completedAt 倒序、UUID 稳定排序。首次安排与向后调整比较保留双方数量及分母，各指标双方均至少五项有效样本才显示。
+- 执行回顾不计算创建至完成耗时、最终计划按时率、无计划完成可见指标或当前未完成风险。值得回看仍按重新打开、多次向后调整、晚于首次安排完成唯一归因，但选择时先覆盖不同原因，再用剩余候选补至最多三项。文案转换复用 TaskLifecycleFormatting，样本不足不能被解释为失败或零次变化。
 
 ## 6. 工程组织建议
 - `App/`：App 入口、路由、会话、依赖容器
@@ -179,7 +179,7 @@
 - 待办履历必须覆盖：所有排期转换矩阵、创建 / 完成 / 恢复幂等、累计推迟与最终偏差、日期型按时边界、DST / 时区 / 周五到周一、旧数据不完整标记、归档保留、永久删除清理及事件重放去重。
 - repository 测试必须注入事件写入失败，证明任务当前状态与事件同事务回滚；Widget SQLite 测试必须验证成功事务、schema 缺失时失败关闭、重复点击幂等以及 sync outbox 一致。
 - 集成验证必须逐条覆盖 App、通知 action、Widget AppIntent、Live Activity AppIntent 的完成路径，并验证 App 前台、Widget snapshot、CloudKit 导入后的当前状态和履历一致。
-- UI 测试或真机验收必须覆盖内联最近三条 / 展开全部、旧数据说明、已完成回顾、周 / 月切换、少样本隐藏趋势、Dynamic Type 单列、VoiceOver 顺序、Reduce Motion 与深浅色。
+- UI 测试或真机验收必须覆盖内联最近三条 / 展开全部、旧数据说明、已完成回顾、执行回顾周 / 月切换、同期趋势、少样本隐藏趋势、空态、Dynamic Type 换行、VoiceOver 顺序、Reduce Motion 与深浅色。
 
 ## 10. 禁止事项
 - 禁止继续把绑定流、邀请流、双人决策流当首版主目标。

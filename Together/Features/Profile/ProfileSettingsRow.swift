@@ -1,5 +1,10 @@
 import SwiftUI
 
+private enum ProfileFlatRowMetrics {
+    static let iconSide: CGFloat = 24
+    static let iconTitleInset = iconSide + AppTheme.hierarchy.spacing.component
+}
+
 struct ProfileFlatSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
@@ -13,12 +18,83 @@ struct ProfileFlatSection<Content: View>: View {
         VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.related) {
             Text(title)
                 .font(AppTheme.typography.hierarchy(.supporting, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.textTertiary)
-                .padding(.leading, 40)
+                .foregroundStyle(AppTheme.colors.body)
+                .padding(.leading, AppTheme.hierarchy.spacing.component)
+                .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 0) {
                 content
             }
+            .padding(.horizontal, AppTheme.hierarchy.spacing.component)
+            .padding(.vertical, AppTheme.hierarchy.spacing.inline)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.radius.xl, style: .continuous)
+                    .fill(AppTheme.colors.profileSurface)
+            )
+        }
+    }
+}
+
+struct ProfileGroupedDivider: View {
+    var body: some View {
+        Divider()
+            .overlay(AppTheme.colors.separator)
+            .padding(.leading, ProfileFlatRowMetrics.iconTitleInset)
+    }
+}
+
+struct ProfileFlatDestinationRow: View {
+    let title: String
+    let subtitle: String?
+    let systemImage: String?
+    var titleColor: Color = AppTheme.colors.title
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String? = nil,
+        titleColor: Color = AppTheme.colors.title
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.titleColor = titleColor
+    }
+
+    var body: some View {
+        HStack(
+            alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center,
+            spacing: AppTheme.hierarchy.spacing.component
+        ) {
+            rowIcon
+
+            ProfileFlatRowLabel(
+                title: title,
+                subtitle: subtitle,
+                titleColor: titleColor
+            )
+
+            Spacer(minLength: AppTheme.hierarchy.spacing.related)
+
+            Image(systemName: "chevron.right")
+                .font(AppTheme.typography.sized(11, weight: .bold))
+                .foregroundStyle(AppTheme.colors.body.opacity(0.34))
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var rowIcon: some View {
+        if let systemImage {
+            Image(systemName: systemImage)
+                .font(AppTheme.typography.sized(17, weight: .medium))
+                .foregroundStyle(AppTheme.colors.profileAccent)
+                .frame(width: ProfileFlatRowMetrics.iconSide, height: ProfileFlatRowMetrics.iconSide)
+                .accessibilityHidden(true)
         }
     }
 }
@@ -42,7 +118,8 @@ struct ProfileFlatValueRow: View {
                 .font(AppTheme.typography.sized(17, weight: .medium))
                 .foregroundStyle(titleColor.opacity(0.66))
                 .symbolEffect(.rotate.clockwise, isActive: rotatesSystemImage)
-                .frame(width: 24, height: 24)
+                .frame(width: ProfileFlatRowMetrics.iconSide, height: ProfileFlatRowMetrics.iconSide)
+                .accessibilityHidden(true)
 
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
@@ -62,6 +139,7 @@ struct ProfileFlatValueRow: View {
                 Image(systemName: trailingSymbol)
                     .font(AppTheme.typography.sized(11, weight: .bold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.34))
+                    .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 52)
@@ -81,7 +159,7 @@ struct ProfileFlatValueRow: View {
         if value.isEmpty == false {
             Text(value)
                 .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
-                .foregroundStyle(AppTheme.colors.body.opacity(0.58))
+                .foregroundStyle(AppTheme.colors.profileAccent)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -90,17 +168,20 @@ struct ProfileFlatValueRow: View {
 
 struct ProfileFlatToggleRow<Accessory: View>: View {
     let title: String
-    let systemImage: String
+    let subtitle: String?
+    let systemImage: String?
     @ViewBuilder let accessory: Accessory
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         title: String,
-        systemImage: String,
+        subtitle: String? = nil,
+        systemImage: String? = nil,
         @ViewBuilder accessory: () -> Accessory
     ) {
         self.title = title
+        self.subtitle = subtitle
         self.systemImage = systemImage
         self.accessory = accessory()
     }
@@ -112,7 +193,7 @@ struct ProfileFlatToggleRow<Accessory: View>: View {
                     rowIcon
 
                     VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.related) {
-                        titleText
+                        rowLabel
 
                         HStack {
                             Spacer(minLength: 0)
@@ -124,7 +205,7 @@ struct ProfileFlatToggleRow<Accessory: View>: View {
             } else {
                 HStack(spacing: AppTheme.hierarchy.spacing.component) {
                     rowIcon
-                    titleText
+                    rowLabel
                     Spacer(minLength: AppTheme.hierarchy.spacing.related)
                     tintedAccessory
                 }
@@ -133,19 +214,19 @@ struct ProfileFlatToggleRow<Accessory: View>: View {
         .frame(maxWidth: .infinity, minHeight: 52)
     }
 
+    @ViewBuilder
     private var rowIcon: some View {
-        Image(systemName: systemImage)
-            .font(AppTheme.typography.sized(17, weight: .medium))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.6))
-            .frame(width: 24, height: 24)
+        if let systemImage {
+            Image(systemName: systemImage)
+                .font(AppTheme.typography.sized(17, weight: .medium))
+                .foregroundStyle(AppTheme.colors.profileAccent)
+                .frame(width: ProfileFlatRowMetrics.iconSide, height: ProfileFlatRowMetrics.iconSide)
+                .accessibilityHidden(true)
+        }
     }
 
-    private var titleText: some View {
-        Text(title)
-            .font(AppTheme.typography.hierarchy(.primary, weight: .medium))
-            .foregroundStyle(AppTheme.colors.title)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            .fixedSize(horizontal: false, vertical: true)
+    private var rowLabel: some View {
+        ProfileFlatRowLabel(title: title, subtitle: subtitle)
     }
 
     private var tintedAccessory: some View {
@@ -157,7 +238,7 @@ struct ProfileFlatToggleRow<Accessory: View>: View {
 struct ProfileFlatOptionRow<MenuContent: View>: View {
     let title: String
     let value: String
-    let systemImage: String
+    let systemImage: String?
     @ViewBuilder let menuContent: MenuContent
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -165,7 +246,7 @@ struct ProfileFlatOptionRow<MenuContent: View>: View {
     init(
         title: String,
         value: String,
-        systemImage: String,
+        systemImage: String? = nil,
         @ViewBuilder menuContent: () -> MenuContent
     ) {
         self.title = title
@@ -199,11 +280,15 @@ struct ProfileFlatOptionRow<MenuContent: View>: View {
         .frame(maxWidth: .infinity, minHeight: 52)
     }
 
+    @ViewBuilder
     private var rowIcon: some View {
-        Image(systemName: systemImage)
-            .font(AppTheme.typography.sized(17, weight: .medium))
-            .foregroundStyle(AppTheme.colors.body.opacity(0.6))
-            .frame(width: 24, height: 24)
+        if let systemImage {
+            Image(systemName: systemImage)
+                .font(AppTheme.typography.sized(17, weight: .medium))
+                .foregroundStyle(AppTheme.colors.profileAccent)
+                .frame(width: ProfileFlatRowMetrics.iconSide, height: ProfileFlatRowMetrics.iconSide)
+                .accessibilityHidden(true)
+        }
     }
 
     private var titleText: some View {
@@ -221,12 +306,13 @@ struct ProfileFlatOptionRow<MenuContent: View>: View {
             HStack(spacing: AppTheme.hierarchy.spacing.inline) {
                 Text(value)
                     .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
-                    .foregroundStyle(AppTheme.colors.body.opacity(0.64))
+                    .foregroundStyle(AppTheme.colors.profileAccent)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
 
                 Image(systemName: "chevron.up.chevron.down")
                     .font(AppTheme.typography.sized(10, weight: .bold))
                     .foregroundStyle(AppTheme.colors.body.opacity(0.34))
+                    .accessibilityHidden(true)
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())
@@ -260,7 +346,7 @@ struct ProfileInlineNotice: View {
                 }
             }
         }
-        .padding(.leading, 40)
+        .padding(.leading, ProfileFlatRowMetrics.iconTitleInset)
         .padding(.top, AppTheme.hierarchy.spacing.inline)
         .padding(.bottom, AppTheme.hierarchy.spacing.related)
     }
@@ -268,7 +354,7 @@ struct ProfileInlineNotice: View {
     private var messageText: some View {
         Text(message)
             .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
-            .foregroundStyle(AppTheme.colors.textTertiary)
+            .foregroundStyle(AppTheme.colors.profileAccent)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -278,6 +364,33 @@ struct ProfileInlineNotice: View {
             .foregroundStyle(AppTheme.colors.sky)
             .frame(minHeight: 44)
             .buttonStyle(.plain)
+    }
+}
+
+private struct ProfileFlatRowLabel: View {
+    let title: String
+    var subtitle: String? = nil
+    var titleColor: Color = AppTheme.colors.title
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppTheme.hierarchy.spacing.inline) {
+            Text(title)
+                .font(AppTheme.typography.hierarchy(.primary, weight: .medium))
+                .foregroundStyle(titleColor)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subtitle, subtitle.isEmpty == false {
+                Text(subtitle)
+                    .font(AppTheme.typography.hierarchy(.supporting, weight: .medium))
+                    .foregroundStyle(AppTheme.colors.profileAccent)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

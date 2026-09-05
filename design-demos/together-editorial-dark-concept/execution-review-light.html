@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Together · 执行回顾浅色原型</title>
+
+  <!--
+    Assumptions
+    - 本轮只重构“执行回顾”，不展示也不修改 Profile。
+    - App 页面背景继续使用 Together 当前浅色主题的纯白色；不迁移参考图的深色与珊瑚强调色。
+    - 采用用户确认参考图的内容骨架：顶部返回/周期、大标题与日期、弱分隔、总览、计划变化、回看列表和统计口径。
+    - 页面结构仍服从当前产品规范：原生导航、周/月菜单、日期范围、总览、计划变化、最多三项回看、折叠统计口径。
+    - 保留参考图的视觉比例，并收敛到 Together 的 34 / 22 / 17 / 14 / 11pt 字号与 8 / 16 / 24 / 32 / 48pt 间距刻度。
+  -->
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --canvas: #ececea;
+      --background: #ffffff;
+      --title: rgb(41, 46, 48);
+      --body: rgb(87, 92, 97);
+      --body-secondary: rgba(87, 92, 97, .74);
+      --tertiary: rgb(179, 179, 179);
+      --chevron: rgba(87, 92, 97, .34);
+      --hairline: rgba(41, 46, 48, .08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; min-height: 100%; }
+    body {
+      background: var(--canvas);
+      color: var(--title);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid rgba(0, 122, 255, .55); outline-offset: 2px; }
+    #root { min-height: 100vh; }
+
+    .prototype-stage {
+      width: 1000px;
+      min-height: 1080px;
+      margin: 0 auto;
+      padding: 48px 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .prototype-heading {
+      width: 417px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      color: rgba(41, 46, 48, .48);
+    }
+    .prototype-heading strong {
+      color: rgba(41, 46, 48, .82);
+      font-size: 14px;
+      font-weight: 650;
+      letter-spacing: -.01em;
+    }
+    .prototype-heading span {
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: .08em;
+    }
+
+    .review-screen {
+      width: 100%;
+      min-height: 100%;
+      overflow-y: auto;
+      background: var(--background);
+      color: var(--title);
+      scrollbar-width: none;
+    }
+    .review-screen::-webkit-scrollbar { display: none; }
+
+    .review-nav {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: var(--background);
+    }
+    .nav-action {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--body);
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+    .back-action {
+      color: var(--body-secondary);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .range-action {
+      justify-content: flex-end;
+      color: var(--title);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .nav-action:active,
+    .review-task:active,
+    .methodology:active { opacity: .54; }
+
+    .review-header {
+      padding: 16px 24px 32px;
+    }
+    .review-title {
+      color: var(--title);
+      font-size: 34px;
+      line-height: 1.05;
+      font-weight: 760;
+      letter-spacing: -.05em;
+    }
+    .review-date {
+      margin-top: 8px;
+      color: var(--tertiary);
+      font-size: 14px;
+      line-height: 1.35;
+      font-weight: 590;
+    }
+    .dotted-rule {
+      height: 1px;
+      background-image: linear-gradient(to right, rgba(41, 46, 48, .10) 45%, transparent 0%);
+      background-position: bottom;
+      background-size: 7px 1px;
+      background-repeat: repeat-x;
+    }
+    .review-body {
+      padding: 32px 24px 48px;
+    }
+    .review-summary {
+      max-width: 326px;
+      color: var(--title);
+      font-size: 22px;
+      line-height: 1.38;
+      font-weight: 700;
+      letter-spacing: -.032em;
+      text-wrap: pretty;
+    }
+
+    .review-section { margin-top: 32px; }
+    .review-section-title {
+      margin-bottom: 16px;
+      color: var(--title);
+      font-size: 17px;
+      line-height: 1.3;
+      font-weight: 650;
+      letter-spacing: -.015em;
+    }
+    .review-copy-stack { display: grid; gap: 8px; }
+    .review-copy {
+      max-width: 344px;
+      color: var(--body-secondary);
+      font-size: 14px;
+      line-height: 1.5;
+      font-weight: 500;
+      text-wrap: pretty;
+    }
+    .review-copy.is-trend { color: rgba(87, 92, 97, .64); }
+
+    .review-list {
+      display: grid;
+    }
+    .review-task {
+      position: relative;
+      width: 100%;
+      min-height: 65px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      text-align: left;
+      cursor: pointer;
+    }
+    .review-task + .review-task::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--hairline);
+    }
+    .review-task-copy { flex: 1; min-width: 0; }
+    .review-task-title {
+      display: block;
+      color: var(--title);
+      font-size: 17px;
+      line-height: 1.3;
+      font-weight: 650;
+      letter-spacing: -.015em;
+    }
+    .review-task-detail {
+      display: block;
+      margin-top: 4px;
+      color: rgba(87, 92, 97, .64);
+      font-size: 14px;
+      line-height: 1.35;
+      font-weight: 450;
+    }
+
+    .methodology-wrap { margin-top: 32px; }
+    .methodology {
+      width: 100%;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: rgba(87, 92, 97, .72);
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1.35;
+      font-weight: 650;
+      text-align: left;
+    }
+    .methodology-copy {
+      display: grid;
+      gap: 8px;
+      padding-top: 8px;
+      color: var(--tertiary);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    svg.icon {
+      display: block;
+      flex: 0 0 auto;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const iosFrameStyles = {
+      wrapper: {
+        display: 'inline-block',
+        padding: 12,
+        background: '#000',
+        borderRadius: 60,
+        boxShadow: '0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.3)',
+        position: 'relative',
+      },
+      screen: {
+        position: 'relative',
+        borderRadius: 48,
+        overflow: 'hidden',
+        background: '#fff',
+      },
+      statusBar: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 54,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 32px 0 32px',
+        fontSize: 16,
+        fontWeight: 600,
+        fontFamily: '-apple-system, "SF Pro Text", sans-serif',
+        zIndex: 20,
+        pointerEvents: 'none',
+      },
+      dynamicIsland: {
+        position: 'absolute',
+        top: 12,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 124,
+        height: 36,
+        background: '#000',
+        borderRadius: 999,
+        zIndex: 30,
+      },
+      statusIcons: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      },
+      signalIcon: {
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: 2,
+        height: 12,
+      },
+      signalBar: {
+        width: 3,
+        background: 'currentColor',
+        borderRadius: 1,
+      },
+      wifiIcon: {
+        width: 16,
+        height: 12,
+        position: 'relative',
+      },
+      batteryIcon: {
+        width: 26,
+        height: 12,
+        border: '1.5px solid currentColor',
+        borderRadius: 3,
+        padding: 1,
+        position: 'relative',
+        opacity: 0.8,
+      },
+      batteryCap: {
+        position: 'absolute',
+        top: 3,
+        right: -3,
+        width: 2,
+        height: 6,
+        background: 'currentColor',
+        borderRadius: '0 1px 1px 0',
+      },
+      content: {
+        position: 'absolute',
+        top: 54,
+        left: 0,
+        right: 0,
+        bottom: 34,
+        overflow: 'auto',
+      },
+      homeIndicator: {
+        position: 'absolute',
+        bottom: 10,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 140,
+        height: 5,
+        background: 'rgba(0,0,0,0.3)',
+        borderRadius: 999,
+        zIndex: 10,
+      },
+      homeIndicatorDark: {
+        background: 'rgba(255,255,255,0.5)',
+      },
+    };
+
+    function IosFrame({
+      children,
+      width = 393,
+      height = 852,
+      time = '9:41',
+      battery = 100,
+      darkMode = false,
+      showStatusBar = true,
+      showDynamicIsland = true,
+      showHomeIndicator = true,
+    }) {
+      const textColor = darkMode ? '#fff' : '#000';
+
+      return (
+        <div style={iosFrameStyles.wrapper}>
+          <div style={{
+            ...iosFrameStyles.screen,
+            width,
+            height,
+            background: darkMode ? '#000' : '#fff',
+          }}>
+            {showStatusBar && (
+              <div style={{ ...iosFrameStyles.statusBar, color: textColor }}>
+                <span>{time}</span>
+                <div style={iosFrameStyles.statusIcons}>
+                  <div style={iosFrameStyles.signalIcon}>
+                    <div style={{ ...iosFrameStyles.signalBar, height: 4 }} />
+                    <div style={{ ...iosFrameStyles.signalBar, height: 6 }} />
+                    <div style={{ ...iosFrameStyles.signalBar, height: 9 }} />
+                    <div style={{ ...iosFrameStyles.signalBar, height: 11 }} />
+                  </div>
+                  <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{ color: textColor }}>
+                    <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor" />
+                    <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+                    <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.7" />
+                  </svg>
+                  <div style={iosFrameStyles.batteryIcon}>
+                    <div style={{
+                      width: `${battery}%`,
+                      height: '100%',
+                      background: 'currentColor',
+                      borderRadius: 1,
+                      opacity: 0.9,
+                    }} />
+                    <div style={iosFrameStyles.batteryCap} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showDynamicIsland && <div style={iosFrameStyles.dynamicIsland} />}
+            <div style={iosFrameStyles.content}>{children}</div>
+            {showHomeIndicator && (
+              <div style={{
+                ...iosFrameStyles.homeIndicator,
+                ...(darkMode ? iosFrameStyles.homeIndicatorDark : {}),
+              }} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const iconPaths = {
+      chevronLeft: <path d="m15 18-6-6 6-6" />,
+      chevronRight: <path d="m9 18 6-6-6-6" />,
+      chevronDown: <path d="m7 10 5 5 5-5" />,
+      chevronUp: <path d="m7 14 5-5 5 5" />,
+    };
+
+    function Icon({ name, size = 20 }) {
+      return (
+        <svg className="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+          {iconPaths[name]}
+        </svg>
+      );
+    }
+
+    const weekData = {
+      range: '本周',
+      date: '9月1日—9月4日',
+      completed: 12,
+      onTime: 8,
+      postponed: 4,
+      comparison: '与上周同期相比，首次计划兑现高 8 个百分点，曾推迟占比低 5 个百分点',
+    };
+    const monthData = {
+      range: '本月',
+      date: '9月1日—9月4日',
+      completed: 18,
+      onTime: 11,
+      postponed: 6,
+      comparison: '与上月同期相比，首次计划兑现基本持平，曾推迟占比低 3 个百分点',
+    };
+
+    function ReviewTask({ title, detail }) {
+      return (
+        <button className="review-task">
+          <span className="review-task-copy">
+            <span className="review-task-title">{title}</span>
+            <span className="review-task-detail">{detail}</span>
+          </span>
+          <span style={{ color: 'var(--chevron)' }}><Icon name="chevronRight" size={15} /></span>
+        </button>
+      );
+    }
+
+    function ExecutionReviewScreen() {
+      const [range, setRange] = useState('week');
+      const [methodologyExpanded, setMethodologyExpanded] = useState(false);
+      const data = range === 'week' ? weekData : monthData;
+
+      return (
+        <main className="review-screen">
+          <nav className="review-nav">
+            <button className="nav-action back-action" aria-label="返回">
+              <Icon name="chevronLeft" size={17} />返回
+            </button>
+            <button
+              className="nav-action range-action"
+              onClick={() => setRange(range === 'week' ? 'month' : 'week')}
+              aria-label="切换回顾周期"
+            >
+              {data.range}<Icon name="chevronDown" size={13} />
+            </button>
+          </nav>
+
+          <header className="review-header">
+            <h1 className="review-title">执行回顾</h1>
+            <p className="review-date">{data.date}</p>
+          </header>
+          <div className="dotted-rule" />
+
+          <div className="review-body">
+            <p className="review-summary">
+              {data.range}完成 {data.completed} 项，其中 {data.onTime} 项按最初计划完成
+            </p>
+
+            <section className="review-section">
+              <h2 className="review-section-title">计划变化</h2>
+              <div className="review-copy-stack">
+                <p className="review-copy">{data.completed} 项完成任务中，{data.postponed} 项曾经推迟</p>
+                <p className="review-copy is-trend">{data.comparison}</p>
+              </div>
+            </section>
+
+            <section className="review-section">
+              <h2 className="review-section-title">值得回看</h2>
+              <div className="review-list">
+                <ReviewTask title="完成季度汇报" detail="重新打开 2 次" />
+                <ReviewTask title="整理旅行照片" detail="推迟 3 次 · 累计 5 天" />
+                <ReviewTask title="预约年度体检" detail="比最初计划晚 2 天" />
+              </div>
+            </section>
+
+            <div className="methodology-wrap">
+              <button
+                className="methodology"
+                onClick={() => setMethodologyExpanded(!methodologyExpanded)}
+                aria-expanded={methodologyExpanded}
+              >
+                <span>统计口径</span>
+                <Icon name={methodologyExpanded ? 'chevronUp' : 'chevronDown'} size={14} />
+              </button>
+              {methodologyExpanded && (
+                <div className="methodology-copy">
+                  <p>完成数量按最终完成时间归入当前自然周期；恢复为待办的任务暂不计入。</p>
+                  <p>首次计划兑现与曾经推迟只统计履历完整的普通待办。</p>
+                  <p>趋势仅在当前与上一周期同期都达到有效样本门槛时显示。</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+      );
+    }
+
+    function App() {
+      return (
+        <div className="prototype-stage">
+          <div className="prototype-heading">
+            <strong>执行回顾 · 浅色重构</strong>
+            <span>仅借鉴排版语言</span>
+          </div>
+          <IosFrame time="9:41" battery={91}>
+            <ExecutionReviewScreen />
+          </IosFrame>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

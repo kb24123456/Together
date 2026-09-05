@@ -14,6 +14,8 @@ struct ProfileSyncRecoveryView: View {
                         trailingSymbol: ""
                     )
 
+                    ProfileGroupedDivider()
+
                     Button {
                         HomeInteractionFeedback.selection()
                         Task { await viewModel.checkICloudStatus() }
@@ -48,7 +50,7 @@ struct ProfileSyncRecoveryView: View {
             .padding(.bottom, AppTheme.spacing.xxl)
         }
         .applySoftScrollEdgeTransition()
-        .background(AppTheme.colors.background.ignoresSafeArea())
+        .background(AppTheme.colors.profileBackground.ignoresSafeArea())
         .navigationTitle("iCloud 同步")
         .navigationBarTitleDisplayMode(.inline)
         .task {

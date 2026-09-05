@@ -67,11 +67,11 @@ protocol ItemRepositoryProtocol: Sendable {
     /// 这是数据兼容迁移，不应生成任务生命周期事件。
     func normalizeMissingTaskDates(spaceID: UUID?, referenceDate: Date) async throws -> Int
     func fetchTaskLifecycleReview(itemID: UUID) async throws -> TaskLifecycleReview
-    func fetchPlanningReview(
+    func fetchExecutionReview(
         spaceID: UUID?,
-        range: PlanningReviewRange,
+        range: ExecutionReviewRange,
         referenceDate: Date
-    ) async throws -> PlanningReviewSnapshot
+    ) async throws -> ExecutionReviewSnapshot
     func isCompleted(itemID: UUID, on referenceDate: Date) async throws -> Bool
     func markCompleted(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
     func markIncomplete(itemID: UUID, actorID: UUID, referenceDate: Date) async throws -> Item
@@ -142,11 +142,11 @@ extension ItemRepositoryProtocol {
         )
     }
 
-    func fetchPlanningReview(
+    func fetchExecutionReview(
         spaceID: UUID?,
-        range: PlanningReviewRange,
+        range: ExecutionReviewRange,
         referenceDate: Date
-    ) async throws -> PlanningReviewSnapshot {
+    ) async throws -> ExecutionReviewSnapshot {
         .empty(range: range, referenceDate: referenceDate)
     }
 }

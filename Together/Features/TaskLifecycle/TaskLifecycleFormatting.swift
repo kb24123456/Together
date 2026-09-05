@@ -1,6 +1,29 @@
 import Foundation
 
 nonisolated enum TaskLifecycleFormatting {
+    static func executionSummary(_ snapshot: ExecutionReviewSnapshot) -> String {
+        guard snapshot.completionCount > 0 else {
+            return "\(snapshot.range.title)还没有完成任务"
+        }
+        return "\(snapshot.range.title)完成 \(snapshot.completionCount) 项"
+    }
+
+    static func firstScheduleSummary(_ snapshot: ExecutionReviewSnapshot) -> String {
+        guard snapshot.firstPlanSampleCount > 0 else {
+            return "暂无可判断首次安排的记录"
+        }
+        return "\(snapshot.firstPlanSampleCount) 项可判断首次安排，其中 \(snapshot.firstPlanOnTimeCount) 项按首次安排完成"
+    }
+
+    static func executionComparison(_ trend: ExecutionReviewTrend, range: ExecutionReviewRange) -> String {
+        let title = switch trend.metric {
+        case .firstPlanOnTimeRate: "按首次安排完成"
+        case .postponedProportion: "曾向后调整"
+        }
+        let previous = range == .week ? "上周同期" : "上月同期"
+        return "\(title)：\(range.title) \(trend.currentCount)/\(trend.currentSampleCount)，\(previous) \(trend.previousCount)/\(trend.previousSampleCount)"
+    }
+
     static func duration(_ interval: TimeInterval) -> String {
         let minutes = max(0, Int(interval / 60))
         let days = minutes / 1_440
@@ -13,6 +36,26 @@ nonisolated enum TaskLifecycleFormatting {
 
     static func relativeDuration(since date: Date, referenceDate: Date = .now) -> String {
         duration(max(0, referenceDate.timeIntervalSince(date)))
+    }
+
+    static func planDelay(
+        completedAt: Date,
+        schedule: TaskScheduleSnapshot,
+        calendar: Calendar = .current
+    ) -> String {
+        guard let dueAt = schedule.dueAt else { return "—" }
+        if schedule.hasExplicitTime {
+            let delay = max(0, completedAt.timeIntervalSince(dueAt))
+            return delay < 60 ? "不到1分钟" : duration(delay)
+        }
+
+        let dueDay = calendar.startOfDay(for: dueAt)
+        let completionDay = calendar.startOfDay(for: completedAt)
+        let days = max(
+            1,
+            calendar.dateComponents([.day], from: dueDay, to: completionDay).day ?? 1
+        )
+        return "\(days)天"
     }
 
     static func dateTime(_ date: Date) -> String {

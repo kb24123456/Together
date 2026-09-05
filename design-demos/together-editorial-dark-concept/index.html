@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Together · 深色编辑式原型</title>
+
+  <!--
+    Assumptions
+    - 本轮是静态高保真概念确认，范围只包含 Profile 与“执行回顾”。
+    - 参考图只提供视觉语言：暖黑、编辑式排版、单一珊瑚强调、控件后退；产品语义仍以 Together 当前规范为准。
+    - Profile 保留身份入口与分组设置；执行回顾保留自然周/月、自然语言统计、最多三项回看和折叠统计口径。
+    - 间距只使用 4 / 8 / 16 / 32 / 48 的语义层级，正文命中高度不低于 44。
+    - 用户头像从用户提供的现有 Profile 截图中作为只读参考裁切，不生成虚构人物。
+  -->
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --canvas: #4a4a48;
+      --screen: #121210;
+      --surface: #1a1a18;
+      --surface-pressed: #20201e;
+      --primary: #f4f2ee;
+      --secondary: #aaa8a2;
+      --tertiary: #666660;
+      --hairline: rgba(255,255,255,.075);
+      --coral: #ff6b73;
+      --coral-soft: rgba(255,107,115,.13);
+      --warm: #f2c64d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; min-height: 100%; }
+    body {
+      background: var(--canvas);
+      color: var(--primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+    #root { min-height: 100vh; }
+
+    .prototype-stage {
+      width: 1280px;
+      min-height: 1080px;
+      margin: 0 auto;
+      padding: 58px 72px 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .prototype-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      margin: 0 42px 32px;
+      color: rgba(255,255,255,.58);
+    }
+    .prototype-heading strong {
+      color: rgba(255,255,255,.92);
+      font-size: 18px;
+      letter-spacing: -.02em;
+    }
+    .prototype-heading span {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .phones {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 64px;
+    }
+
+    .phone-column { display: flex; flex-direction: column; gap: 12px; }
+    .phone-label {
+      padding-left: 14px;
+      color: rgba(255,255,255,.44);
+      font-size: 12px;
+      font-weight: 650;
+      font-style: italic;
+      letter-spacing: .08em;
+    }
+
+    .app-screen {
+      width: 100%;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 110% -10%, rgba(255,107,115,.045), transparent 30%),
+        var(--screen);
+      color: var(--primary);
+    }
+    .app-scroll {
+      min-height: 100%;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .profile-hero {
+      padding: 28px 24px 32px;
+    }
+    .avatar-wrap {
+      position: relative;
+      width: 76px;
+      height: 76px;
+    }
+    .avatar-photo {
+      width: 76px;
+      height: 76px;
+      border-radius: 24px;
+      background-color: #eceae6;
+      background-image: url("file:///private/var/folders/gt/60njl2ks1m5gdcn93jvzj5l80000gn/T/codex-clipboard-684f1c49-2241-490f-ae53-0d178c890863.png");
+      background-repeat: no-repeat;
+      background-size: 386px 839px;
+      background-position: -15px -142px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.55),
+        0 10px 28px rgba(0,0,0,.28);
+    }
+    .edit-badge {
+      position: absolute;
+      right: -7px;
+      bottom: -7px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--primary);
+      background: #252522;
+      box-shadow: 0 0 0 3px var(--screen);
+    }
+    .profile-eyebrow {
+      margin-top: 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--tertiary);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: .12em;
+    }
+    .profile-eyebrow::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--warm);
+      box-shadow: 0 0 14px rgba(242,198,77,.45);
+    }
+    .profile-name {
+      margin-top: 8px;
+      max-width: 310px;
+      font-size: 34px;
+      line-height: 1.12;
+      letter-spacing: -.045em;
+      font-weight: 780;
+    }
+    .profile-name em {
+      color: var(--coral);
+      font-style: normal;
+    }
+
+    .profile-section { padding: 0 16px 32px; }
+    .section-kicker {
+      margin: 0 8px 12px;
+      color: var(--tertiary);
+      font-size: 11px;
+      font-weight: 760;
+      letter-spacing: .12em;
+    }
+    .settings-group {
+      overflow: hidden;
+      border-radius: 24px;
+      background: var(--surface);
+      box-shadow: inset 0 1px rgba(255,255,255,.018);
+    }
+    .setting-row {
+      position: relative;
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 0 16px;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      text-align: left;
+      cursor: pointer;
+      transition: background .16s ease, transform .16s ease;
+    }
+    .setting-row:hover { background: var(--surface-pressed); }
+    .setting-row:active { transform: scale(.992); }
+    .setting-row + .setting-row::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 52px;
+      right: 16px;
+      height: 1px;
+      background: var(--hairline);
+    }
+    .setting-icon {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      display: grid;
+      place-items: center;
+      color: #8a8984;
+    }
+    .setting-row.accent .setting-icon,
+    .setting-row.accent .setting-value { color: var(--coral); }
+    .setting-title {
+      flex: 1;
+      min-width: 0;
+      font-size: 17px;
+      font-weight: 570;
+      letter-spacing: -.015em;
+    }
+    .setting-value {
+      max-width: 150px;
+      overflow: hidden;
+      color: var(--secondary);
+      font-size: 14px;
+      font-weight: 560;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .row-chevron { color: #5b5a56; }
+
+    .toggle {
+      position: relative;
+      width: 48px;
+      height: 28px;
+      border: 0;
+      border-radius: 999px;
+      background: #343431;
+      cursor: pointer;
+      transition: background .18s ease;
+    }
+    .toggle::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #f7f5f1;
+      box-shadow: 0 2px 8px rgba(0,0,0,.34);
+      transition: transform .2s cubic-bezier(.2,.8,.2,1);
+    }
+    .toggle.on { background: var(--coral); }
+    .toggle.on::after { transform: translateX(20px); }
+
+    .review-screen { min-height: 100%; }
+    .review-nav {
+      height: 48px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-action {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #8c8a85;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .range-action {
+      gap: 6px;
+      color: var(--primary);
+    }
+    .review-header { padding: 16px 24px 28px; }
+    .review-title {
+      font-size: 34px;
+      line-height: 1.05;
+      font-weight: 780;
+      letter-spacing: -.05em;
+    }
+    .review-date {
+      margin-top: 8px;
+      color: var(--secondary);
+      font-size: 14px;
+      font-weight: 590;
+    }
+    .dotted-rule {
+      height: 1px;
+      margin: 0 0 0;
+      background-image: linear-gradient(to right, rgba(255,255,255,.11) 45%, transparent 0%);
+      background-position: bottom;
+      background-size: 7px 1px;
+      background-repeat: repeat-x;
+    }
+    .review-body { padding: 28px 24px 40px; }
+    .review-summary {
+      max-width: 326px;
+      font-size: 23px;
+      line-height: 1.38;
+      font-weight: 720;
+      letter-spacing: -.032em;
+      text-wrap: pretty;
+    }
+    .review-summary strong { color: var(--coral); font-weight: 780; }
+    .review-section { margin-top: 32px; }
+    .review-section-title {
+      margin-bottom: 16px;
+      color: var(--primary);
+      font-size: 17px;
+      font-weight: 680;
+      letter-spacing: -.02em;
+    }
+    .review-copy {
+      color: #bab8b2;
+      font-size: 14px;
+      line-height: 1.55;
+      font-weight: 520;
+    }
+    .review-copy + .review-copy {
+      margin-top: 8px;
+      color: #74736e;
+    }
+    .review-task {
+      position: relative;
+      width: 100%;
+      min-height: 65px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      text-align: left;
+      cursor: pointer;
+    }
+    .review-task + .review-task::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--hairline);
+    }
+    .review-task-copy { flex: 1; min-width: 0; }
+    .review-task-title {
+      display: block;
+      font-size: 17px;
+      line-height: 1.25;
+      font-weight: 620;
+      letter-spacing: -.015em;
+    }
+    .review-task-detail {
+      display: block;
+      margin-top: 4px;
+      color: #777570;
+      font-size: 14px;
+      line-height: 1.3;
+      font-weight: 510;
+    }
+    .methodology {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #777570;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 620;
+      text-align: left;
+    }
+    .methodology-copy {
+      margin-top: -12px;
+      padding: 0 0 16px;
+      color: #66645f;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    svg.icon {
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const iosFrameStyles = {
+      wrapper: {
+        display: 'inline-block',
+        padding: 12,
+        background: '#080808',
+        borderRadius: 60,
+        boxShadow: '0 0 0 2px #242422, 0 26px 64px rgba(0,0,0,.42)',
+        position: 'relative',
+      },
+      screen: {
+        position: 'relative',
+        borderRadius: 48,
+        overflow: 'hidden',
+        background: '#fff',
+      },
+      statusBar: {
+        position: 'absolute', top: 0, left: 0, right: 0, height: 54,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 32px', fontSize: 16, fontWeight: 600,
+        fontFamily: '-apple-system, "SF Pro Text", sans-serif',
+        zIndex: 20, pointerEvents: 'none',
+      },
+      dynamicIsland: {
+        position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+        width: 124, height: 36, background: '#000', borderRadius: 999, zIndex: 30,
+      },
+      statusIcons: { display: 'flex', alignItems: 'center', gap: 6 },
+      signalIcon: { display: 'flex', alignItems: 'flex-end', gap: 2, height: 12 },
+      signalBar: { width: 3, background: 'currentColor', borderRadius: 1 },
+      batteryIcon: {
+        width: 26, height: 12, border: '1.5px solid currentColor', borderRadius: 3,
+        padding: 1, position: 'relative', opacity: .8,
+      },
+      batteryCap: {
+        position: 'absolute', top: 3, right: -3, width: 2, height: 6,
+        background: 'currentColor', borderRadius: '0 1px 1px 0',
+      },
+      content: {
+        position: 'absolute', top: 54, left: 0, right: 0, bottom: 34, overflow: 'auto',
+      },
+      homeIndicator: {
+        position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+        width: 140, height: 5, background: 'rgba(255,255,255,.46)', borderRadius: 999, zIndex: 10,
+      },
+    };
+
+    function IosFrame({ children, width = 393, height = 852, time = '9:41', battery = 93 }) {
+      return (
+        <div style={iosFrameStyles.wrapper}>
+          <div style={{ ...iosFrameStyles.screen, width, height, background: '#000' }}>
+            <div style={{ ...iosFrameStyles.statusBar, color: '#fff' }}>
+              <span>{time}</span>
+              <div style={iosFrameStyles.statusIcons}>
+                <div style={iosFrameStyles.signalIcon}>
+                  {[4,6,9,11].map((height, index) => (
+                    <div key={index} style={{ ...iosFrameStyles.signalBar, height }} />
+                  ))}
+                </div>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
+                  <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor" />
+                  <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" opacity=".7" />
+                </svg>
+                <div style={iosFrameStyles.batteryIcon}>
+                  <div style={{ width: `${battery}%`, height: '100%', background: 'currentColor', borderRadius: 1, opacity: .9 }} />
+                  <div style={iosFrameStyles.batteryCap} />
+                </div>
+              </div>
+            </div>
+            <div style={iosFrameStyles.dynamicIsland} />
+            <div style={iosFrameStyles.content}>{children}</div>
+            <div style={iosFrameStyles.homeIndicator} />
+          </div>
+        </div>
+      );
+    }
+
+    const iconPaths = {
+      pencil: <><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></>,
+      clipboard: <><rect width="14" height="18" x="5" y="3" rx="2"/><path d="M9 3v2h6V3M9 12l2 2 4-4"/></>,
+      check: <><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></>,
+      archive: <><path d="M4 7h16v13H4zM3 3h18v4H3z"/><path d="M9 11h6"/></>,
+      bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
+      alarm: <><circle cx="12" cy="13" r="7"/><path d="M12 10v4l3 2M5 3 2 6M19 3l3 3"/></>,
+      clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5h4"/></>,
+      palette: <><circle cx="12" cy="12" r="9"/><path d="M8 12a1 1 0 1 0 0 .01M12 8a1 1 0 1 0 0 .01M16 12a1 1 0 1 0 0 .01"/></>,
+      sparkles: <><path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2Z"/><path d="m5 15 .8 2.2L8 18l-2.2.8L5 21l-.8-2.2L2 18l2.2-.8Z"/></>,
+      chevronRight: <path d="m9 18 6-6-6-6"/>,
+      chevronLeft: <path d="m15 18-6-6 6-6"/>,
+      chevronDown: <path d="m7 10 5 5 5-5"/>,
+      chevronUp: <path d="m7 14 5-5 5 5"/>,
+    };
+
+    function Icon({ name, size = 20 }) {
+      return (
+        <svg className="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+          {iconPaths[name]}
+        </svg>
+      );
+    }
+
+    function Toggle({ value, onChange, label }) {
+      return <button className={`toggle ${value ? 'on' : ''}`} onClick={onChange} aria-label={label} aria-pressed={value} />;
+    }
+
+    function SettingRow({ icon, title, value, accent = false, toggle, onToggle }) {
+      const Row = toggle === undefined ? 'button' : 'div';
+      return (
+        <Row className={`setting-row ${accent ? 'accent' : ''}`}>
+          <span className="setting-icon"><Icon name={icon} /></span>
+          <span className="setting-title">{title}</span>
+          {value && <span className="setting-value">{value}</span>}
+          {toggle !== undefined ? (
+            <Toggle value={toggle} onChange={onToggle} label={title} />
+          ) : (
+            <span className="row-chevron"><Icon name="chevronRight" size={16} /></span>
+          )}
+        </Row>
+      );
+    }
+
+    function ProfileScreen() {
+      const [archive, setArchive] = useState(true);
+      const [reminder, setReminder] = useState(true);
+      const [summary, setSummary] = useState(true);
+      const [particles, setParticles] = useState(true);
+
+      return (
+        <main className="app-screen app-scroll">
+          <header className="profile-hero">
+            <div className="avatar-wrap">
+              <div className="avatar-photo" />
+              <div className="edit-badge"><Icon name="pencil" size={16} /></div>
+            </div>
+            <div className="profile-eyebrow">个人空间</div>
+            <h1 className="profile-name"><em>猪皮</em>小狗</h1>
+          </header>
+
+          <section className="profile-section">
+            <h2 className="section-kicker">任务记录</h2>
+            <div className="settings-group">
+              <SettingRow icon="clipboard" title="执行回顾" value="本周完成 12 项" accent />
+              <SettingRow icon="check" title="已完成" value="全部记录" />
+            </div>
+          </section>
+
+          <section className="profile-section">
+            <h2 className="section-kicker">偏好设置</h2>
+            <div className="settings-group">
+              <SettingRow icon="archive" title="自动归档" toggle={archive} onToggle={() => setArchive(!archive)} />
+              <SettingRow icon="bell" title="任务提醒" toggle={reminder} onToggle={() => setReminder(!reminder)} />
+              <SettingRow icon="alarm" title="提醒方式" value="Apple 闹钟" />
+              <SettingRow icon="clock" title="每日摘要" toggle={summary} onToggle={() => setSummary(!summary)} />
+            </div>
+          </section>
+
+          <section className="profile-section">
+            <h2 className="section-kicker">显示</h2>
+            <div className="settings-group">
+              <SettingRow icon="palette" title="外观" value="深色" />
+              <SettingRow icon="sparkles" title="动态背景" toggle={particles} onToggle={() => setParticles(!particles)} />
+            </div>
+          </section>
+        </main>
+      );
+    }
+
+    const weekData = {
+      range: '本周', date: '9月1日—9月4日', completed: 12, onTime: 8, postponed: 4,
+      compare: '与上周同期相比，首次计划兑现高 8 个百分点，曾推迟占比低 5 个百分点',
+    };
+    const monthData = {
+      range: '本月', date: '9月1日—9月4日', completed: 18, onTime: 11, postponed: 6,
+      compare: '与上月同期相比，首次计划兑现基本持平，曾推迟占比低 3 个百分点',
+    };
+
+    function ReviewTask({ title, detail }) {
+      return (
+        <button className="review-task">
+          <span className="review-task-copy">
+            <span className="review-task-title">{title}</span>
+            <span className="review-task-detail">{detail}</span>
+          </span>
+          <span className="row-chevron"><Icon name="chevronRight" size={16} /></span>
+        </button>
+      );
+    }
+
+    function ExecutionReviewScreen() {
+      const [range, setRange] = useState('week');
+      const [methodology, setMethodology] = useState(false);
+      const data = range === 'week' ? weekData : monthData;
+
+      return (
+        <main className="app-screen app-scroll review-screen">
+          <nav className="review-nav">
+            <button className="nav-action"><Icon name="chevronLeft" size={17} />返回</button>
+            <button className="nav-action range-action" onClick={() => setRange(range === 'week' ? 'month' : 'week')}>
+              {data.range}<Icon name="chevronDown" size={14} />
+            </button>
+          </nav>
+
+          <header className="review-header">
+            <h1 className="review-title">执行回顾</h1>
+            <div className="review-date">{data.date}</div>
+          </header>
+          <div className="dotted-rule" />
+
+          <div className="review-body">
+            <p className="review-summary">
+              {data.range}完成 <strong>{data.completed} 项</strong>，其中 <strong>{data.onTime} 项</strong>按最初计划完成
+            </p>
+
+            <section className="review-section">
+              <h2 className="review-section-title">计划变化</h2>
+              <p className="review-copy">{data.completed} 项完成任务中，{data.postponed} 项曾经推迟</p>
+              <p className="review-copy">{data.compare}</p>
+            </section>
+
+            <section className="review-section">
+              <h2 className="review-section-title">值得回看</h2>
+              <ReviewTask title="完成季度汇报" detail="重新打开 2 次" />
+              <ReviewTask title="整理旅行照片" detail="推迟 3 次 · 累计 5 天" />
+              <ReviewTask title="预约年度体检" detail="比最初计划晚 2 天" />
+            </section>
+
+            <button className="methodology" onClick={() => setMethodology(!methodology)}>
+              <span>统计口径</span>
+              <Icon name={methodology ? 'chevronUp' : 'chevronDown'} size={15} />
+            </button>
+            {methodology && (
+              <p className="methodology-copy">
+                完成数量按最终完成时间归入当前自然周期；趋势仅在当前与上一周期同期都达到有效样本门槛时显示。
+              </p>
+            )}
+          </div>
+        </main>
+      );
+    }
+
+    function App() {
+      return (
+        <div className="prototype-stage">
+          <div className="prototype-heading">
+            <strong>Together · 深色编辑式原型</strong>
+            <span>Coral focus · Quiet structure</span>
+          </div>
+          <div className="phones">
+            <div className="phone-column">
+              <div className="phone-label">01 · Profile</div>
+              <IosFrame time="9:41" battery={96}><ProfileScreen /></IosFrame>
+            </div>
+            <div className="phone-column">
+              <div className="phone-label">02 · Execution Review</div>
+              <IosFrame time="9:41" battery={91}><ExecutionReviewScreen /></IosFrame>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

@@ -357,7 +357,7 @@
       return (
         <button
           data-testid="week-menu-button"
-          aria-label="本周已完成 12 项，可查看完成记录或计划复盘"
+          aria-label="本周已完成 12 项，可查看完成记录或执行回顾"
           onClick={onClick}
           style={{
             minWidth: 82,
@@ -454,10 +454,10 @@
             </button>
             <button
               data-testid="review-menu-item"
-              onClick={() => onSelect('已打开「计划复盘」')}
+              onClick={() => onSelect('已打开「执行回顾」')}
               style={menuItemStyle(1, menuOpen)}
             >
-              <span>计划复盘</span>
+              <span>执行回顾</span>
             </button>
           </div>
         </div>

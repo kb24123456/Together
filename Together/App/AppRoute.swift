@@ -10,7 +10,8 @@ enum ComposerRoute: String, Identifiable {
 enum ProfileRoute: Hashable {
     case editProfile
     case completedHistory
-    case planningReview
+    case executionReview
+    case dataManagement
     case accountDeletion
     case about
 }

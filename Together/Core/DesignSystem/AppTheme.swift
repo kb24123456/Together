@@ -123,6 +123,9 @@ enum AppTheme {
         static let profileAccentSoft = Color(light: .init(red: 0.16, green: 0.18, blue: 0.19).opacity(0.08),
                                              dark: .init(red: 0.90, green: 0.90, blue: 0.92).opacity(0.10))
 
+        static let profileBackground = Color(uiColor: .systemGroupedBackground)
+        static let profileSurface = Color(uiColor: .secondarySystemGroupedBackground)
+
         // MARK: - Semantic Colors
 
         static let sky = Color(red: 0.42, green: 0.70, blue: 0.98)

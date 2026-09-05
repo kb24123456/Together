@@ -92,7 +92,7 @@ struct HomeWeeklyReviewMenuLayout: Equatable {
 enum HomeWeeklyReviewMenuFocus: Hashable {
     case trigger
     case completed
-    case planningReview
+    case executionReview
 }
 
 struct HomeView: View {
@@ -787,7 +787,7 @@ struct HomeView: View {
             .accessibilityValue(
                 "\(displayedWeeklyCompletedEntryCount) 项，菜单\(isWeeklyReviewMenuPresented ? "已展开" : "已收起")"
             )
-            .accessibilityHint(isWeeklyReviewMenuPresented ? "轻点收起菜单" : "轻点查看本周完成与计划复盘")
+            .accessibilityHint(isWeeklyReviewMenuPresented ? "轻点收起菜单" : "轻点查看本周完成与执行回顾")
         }
         .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
         .background {
@@ -1844,7 +1844,6 @@ struct HomeTimelineRow: View {
                         .frame(width: 44, height: 44)
                 }
                 .padding(.horizontal, -8)
-                .padding(.vertical, -10)
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
             } content: {

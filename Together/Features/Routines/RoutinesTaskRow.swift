@@ -255,7 +255,6 @@ struct RoutinesTaskRow: View {
         HStack(alignment: .taskTitleCenter, spacing: AppTheme.spacing.sm) {
             completionButton
                 .padding(.horizontal, -8)
-                .padding(.vertical, -10)
                 .alignmentGuide(.taskTitleCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }

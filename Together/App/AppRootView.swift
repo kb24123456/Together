@@ -4,7 +4,7 @@ import SwiftUI
 private enum AppRootRoute: Hashable {
     case profile
     case completedHistory(CompletedHistoryFilter)
-    case planningReview
+    case executionReview
 }
 
 struct AppRootView: View {
@@ -80,14 +80,16 @@ struct HomeRootContent: View {
                             CompletedHistoryView(
                                 viewModel: appContext.profileViewModel.makeCompletedHistoryViewModel(initialFilter: filter)
                             )
-                        case .planningReview:
-                            PlanningReviewView(
-                                loadReview: appContext.profileViewModel.planningReview,
+                        case .executionReview:
+                            ExecutionReviewView(
+                                loadReview: appContext.profileViewModel.executionReview,
                                 loadTaskReview: appContext.profileViewModel.taskLifecycleReview
                             )
                         }
                     }
             }
+            .blur(radius: weeklyReviewBackgroundBlurRadius)
+            .animation(weeklyReviewMenuAnimation, value: isWeeklyReviewMenuPresented)
             .accessibilityHidden(isWeeklyReviewMenuPresented)
 
             weeklyReviewMenuOverlay
@@ -226,28 +228,15 @@ struct HomeRootContent: View {
         .accessibilityHidden(!isWeeklyReviewMenuPresented)
     }
 
-    @ViewBuilder
     private var weeklyReviewMenuBackdrop: some View {
-        if reduceMotion || reduceTransparency {
-            Color(uiColor: .systemBackground)
-                .opacity(isWeeklyReviewMenuPresented ? 0.86 : 0)
-                .animation(weeklyReviewMenuAnimation, value: isWeeklyReviewMenuPresented)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    dismissWeeklyReviewMenu(restoresAccessibilityFocus: true)
-                }
-                .ignoresSafeArea()
-        } else {
-            Rectangle()
-                .fill(.thinMaterial)
-                .opacity(isWeeklyReviewMenuPresented ? 0.45 : 0)
-                .animation(weeklyReviewMenuAnimation, value: isWeeklyReviewMenuPresented)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    dismissWeeklyReviewMenu(restoresAccessibilityFocus: true)
-                }
-                .ignoresSafeArea()
-        }
+        Color(uiColor: .systemBackground)
+            .opacity(isWeeklyReviewMenuPresented ? weeklyReviewBackdropOpacity : 0)
+            .animation(weeklyReviewMenuAnimation, value: isWeeklyReviewMenuPresented)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismissWeeklyReviewMenu(restoresAccessibilityFocus: true)
+            }
+            .ignoresSafeArea()
     }
 
     private var weeklyReviewSpeedDialActions: some View {
@@ -266,13 +255,13 @@ struct HomeRootContent: View {
 
             weeklyReviewSpeedDialRow(
                 index: 1,
-                title: "计划复盘"
+                title: "执行回顾"
             ) {
                 dismissWeeklyReviewMenu(restoresAccessibilityFocus: false)
                 HomeInteractionFeedback.selection()
-                rootNavigationPath.append(AppRootRoute.planningReview)
+                rootNavigationPath.append(AppRootRoute.executionReview)
             }
-            .accessibilityFocused($weeklyReviewMenuFocus, equals: .planningReview)
+            .accessibilityFocused($weeklyReviewMenuFocus, equals: .executionReview)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("本周回顾菜单")
@@ -316,6 +305,21 @@ struct HomeRootContent: View {
 
     private var weeklyReviewMenuRowHeight: CGFloat {
         dynamicTypeSize.isAccessibilitySize ? 56 : HomeWeeklyReviewMenuLayout.rowHeight
+    }
+
+    private var weeklyReviewBackgroundBlurRadius: CGFloat {
+        guard reduceMotion == false, reduceTransparency == false else { return 0 }
+        return isWeeklyReviewMenuPresented ? 3 : 0
+    }
+
+    private var weeklyReviewBackdropOpacity: Double {
+        if reduceTransparency {
+            return 0.86
+        }
+        if reduceMotion {
+            return 0.18
+        }
+        return 0.12
     }
 
     private var weeklyReviewMenuItemAnimation: Animation {

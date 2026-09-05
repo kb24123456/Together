@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 通用空状态卡片。
 /// 视觉优先级：illustration > systemImage > 无图标。
-/// illustration 用于 v3 baseline 风格的 transparent PNG 插画（如 EmptyList / EmptyCalendar 等）。
+/// illustration 用于 v3 baseline 风格的 transparent PNG 插画（如 EmptyHistory）。
 struct EmptyStateCard: View {
     let title: String
     let message: String

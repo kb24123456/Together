@@ -36,7 +36,7 @@ test('weekly speed dial opens and both destinations respond', async ({ page }) =
 
   await menuButtons.first().click();
   await page.getByTestId('review-menu-item').first().click();
-  await expect(page.getByText('已打开「计划复盘」')).toBeVisible();
+  await expect(page.getByText('已打开「执行回顾」')).toBeVisible();
 
   expect(pageErrors).toEqual([]);
 });
