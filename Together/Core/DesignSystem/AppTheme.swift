@@ -111,11 +111,20 @@ enum AppTheme {
 
         // MARK: - Warm Accent
 
-        static let warmAccent = Color(light: .init(red: 0.87, green: 0.48, blue: 0.41),
-                                      dark: .init(red: 0.93, green: 0.60, blue: 0.52))
+        /// Shared warm red: #E75151 in light mode, #FF7979 in dark mode.
+        static let warmAccent = Color(light: .init(red: 231.0 / 255, green: 81.0 / 255, blue: 81.0 / 255),
+                                      dark: .init(red: 1, green: 121.0 / 255, blue: 121.0 / 255))
 
-        static let warmAccentSoft = Color(light: .init(red: 0.99, green: 0.93, blue: 0.91),
-                                          dark: .init(red: 0.30, green: 0.20, blue: 0.18))
+        /// Information-bearing red text: #C83F3F on light surfaces, #FF7979 on dark surfaces.
+        static let warmText = Color(light: .init(red: 200.0 / 255, green: 63.0 / 255, blue: 63.0 / 255),
+                                    dark: .init(red: 1, green: 121.0 / 255, blue: 121.0 / 255))
+
+        /// Filled selection and its foreground form a contrast-safe pair in both appearances.
+        static let selectionFill = warmText
+        static let onSelection = Color(light: .white, dark: .black)
+
+        static let warmAccentSoft = Color(light: .init(red: 0.99, green: 0.93, blue: 0.93),
+                                          dark: .init(red: 0.30, green: 0.20, blue: 0.20))
 
         static let profileAccent = Color(light: .init(red: 0.29, green: 0.31, blue: 0.34),
                                          dark: .init(red: 0.78, green: 0.78, blue: 0.80))
@@ -130,13 +139,9 @@ enum AppTheme {
 
         static let sky = Color(red: 0.42, green: 0.70, blue: 0.98)
         static let secondaryAccent = Color(red: 0.86, green: 0.78, blue: 0.67)
-        static let coral = Color(red: 0.87, green: 0.48, blue: 0.41)
-        /// Information-bearing overdue text needs stronger light-mode contrast
-        /// than the decorative coral used by flags and completion feedback.
-        static let overdueAccent = Color(
-            light: .init(red: 0.74, green: 0.30, blue: 0.25),
-            dark: .init(red: 0.93, green: 0.60, blue: 0.52)
-        )
+        // Feedback, readable text, and destructive actions have separate semantics.
+        static let coral = warmAccent
+        static let overdueAccent = warmText
         /// Warm rose pink paired with `coral`. Reserved for small celebratory
         /// accents where plain coral is too close to overdue states.
         static let rose = Color(red: 0.93, green: 0.45, blue: 0.62)
@@ -144,7 +149,7 @@ enum AppTheme {
         static let violet = Color(red: 0.44, green: 0.28, blue: 0.91)
 
         static let warning = Color(red: 0.82, green: 0.56, blue: 0.26)
-        static let danger = Color(red: 0.74, green: 0.35, blue: 0.32)
+        static let danger = Color.red
 
         // MARK: - Avatar
 
@@ -167,19 +172,8 @@ enum AppTheme {
         static let hairline = Color(light: .init(red: 0.16, green: 0.18, blue: 0.19).opacity(0.10),
                                     dark: .white.opacity(0.08))
 
-        /// Profile-module selection accent. Shares the warm coral hue with `warmAccent`
-        /// but the light-mode variant is deepened to meet WCAG AA (3:1) on near-white
-        /// `surfaceElevated` — the brand `warmAccent` itself sits at ~2.8:1 which is
-        /// fine for large decorative uses (4pt dot, avatar backgrounds) but not for
-        /// information-bearing UI like the selection checkmark. Dark-mode variant
-        /// matches `warmAccent` dark (already compliant). Guarded by
-        /// `ProfileTokenContrastTests`.
-        ///
-        /// Do NOT use outside Profile module.
-        static let selectionTint = Color(
-            light: .init(red: 0.78, green: 0.40, blue: 0.33),
-            dark: .init(red: 0.93, green: 0.60, blue: 0.52)
-        )
+        /// Profile selection keeps its semantic token and shares the app's red.
+        static let selectionTint = warmAccent
 
         static let outlineStrong = Color(light: .init(red: 0.74, green: 0.74, blue: 0.74),
                                          dark: .init(red: 0.36, green: 0.36, blue: 0.38))

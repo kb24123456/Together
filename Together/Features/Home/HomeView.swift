@@ -2419,7 +2419,7 @@ private struct TimelineSwipeActionsModifier: ViewModifier {
                         } label: {
                             Label("删除", systemImage: "trash")
                         }
-                        .tint(.red)
+                        .tint(AppTheme.colors.danger)
                     }
                 }
         } else {
@@ -2684,7 +2684,7 @@ private struct HomeOverdueSummarySheet: View {
 
             Text(batchFailureCount > 0 ? "\(batchFailureCount) 项失败，可重试" : "共 \(displayedEntries.count) 项")
                 .font(AppTheme.typography.sized(12, weight: .semibold))
-                .foregroundStyle(AppTheme.colors.coral.opacity(0.84))
+                .foregroundStyle(batchFailureCount > 0 ? AppTheme.colors.warmText : AppTheme.colors.bodySecondary)
         }
     }
 

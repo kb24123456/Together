@@ -14,6 +14,8 @@
 
 ## 当前进行中交接
 
+- 2026-09-05 Widget 静态概览与红色语义收敛：小号采用 Rounded 大号待办数、日期与底部最近任务，移除进度环；三种尺寸只通过 `together://today` 进入待办首页，不提供任务详情、新建或完成点击入口。最终采用三类红色，取代本日中间版本的全部同色方案：`warmAccent / coral / selectionTint` 为浅色 `#E75151`、深色 `#FF7979`，用于完成反馈、旗标和选中标记；`warmText / overdueAccent` 为浅色 `#C83F3F`、深色 `#FF7979`，用于日期、逾期、强调文字和失败提示；`danger` 回到系统 `Color.red` 并保留 destructive role。填充式日历选择用 `selectionFill = warmText` 与 `onSelection` 配对，浅色白字、深色黑字；完成后正文继续使用现有中性色。Widget 的 `TodayWidgetTheme.textRed(for:)` 与主 App 文字红同步。文字红从候选 `#CF4141` 微调为 `#C83F3F`，原因是现有浅色卡片和胶囊背景对比度也需达到 4.5:1。设计规范已更新，App / Widget 构建号为 50。验证：10 组色值对比度检查通过，最低约 4.58:1；Xcode 27 Beta 3 generic iOS 无签名 `build-for-testing` 和 `git diff --check` 通过；两项 Widget 快照测试以临时 macOS SwiftPM 包运行通过，TogetherCore 六项共享 schema / 磁盘恢复测试在 macOS 运行通过。`AppearanceManagerTests.swift` 新增真实 UIKit trait 下的文字对比度及选中数字对比度用例，已编译但未运行。未启动 Simulator、未安装本轮构建，深浅色观感、Widget 点击和 iPhone 测试仍待真机验收。未修改持久化与同步，无需新增 Skill。
+
 - 2026-09-05 App Store 更新准备：用户明确选择长期 CLI 优先；本机已安装 asc 4.11.0，系统钥匙串默认 profile 为 YierRelease，App 管理角色 API 密钥验证通过；旧 Developer profile Together 保留。商店 App ID 6763774768，线上仍为 1.0 (47)；ASC 已创建 2.0 草稿，未上传新构建或提交审核。
   - 已备份线上中英文元数据，准备 2.0 候选元数据、独立 v2 政策/支持页与审核说明；入口 `docs/app-store-update-2026-09-05.md`，材料 `docs/app-store/2026-09-05/`。中文品牌已确认：桌面名称“一二”，App Store 名称“一二：待办清单与提醒事项”，副标题“日常计划、定期任务与执行回顾”；主 App / Widget 的 CFBundleDisplayName 已同步，应用与数据标识不变。中文名称与副标题已写入 ASC 新草稿并独立回读核对；英文名称、截图方向未确认，法律页面未部署，App 内 example.com 法律链接尚待替换。
   - 验证：4 份候选元数据通过 asc 离线校验；plist lint、git diff --check 通过。Xcode 27 Beta 无签名 Release build 与 Debug build-for-testing 均通过；首次 Release build-for-testing 因未 enable-testing 失败，未修改发布配置。没有执行测试或真机验收。

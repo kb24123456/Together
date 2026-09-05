@@ -1,4 +1,3 @@
-import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -6,7 +5,13 @@ import WidgetKit
 /// Widget extensions do not link the app target's design-system source directly.
 private enum TodayWidgetTheme {
     static let babyBlue = Color(red: 0.42, green: 0.70, blue: 0.98)
-    static let coralOrange = Color(red: 0.87, green: 0.48, blue: 0.41)
+
+    /// Keep in sync with AppTheme.colors.warmText for dates and overdue text.
+    static func textRed(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(red: 1, green: 121.0 / 255, blue: 121.0 / 255)
+            : Color(red: 200.0 / 255, green: 63.0 / 255, blue: 63.0 / 255)
+    }
 }
 
 struct TodayOverviewWidget: Widget {
@@ -19,7 +24,7 @@ struct TodayOverviewWidget: Widget {
                 .widgetURL(TodayWidgetConstants.todayDeepLink)
         }
         .configurationDisplayName("今日概览")
-        .description("查看今日待办、最近任务与完成进度；中号和大号可直接完成任务。")
+        .description("查看今日待办与最近任务，轻点小组件打开 Together 首页。")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -71,6 +76,9 @@ private struct TodayWidgetProvider: TimelineProvider {
 
 private struct TodayWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .largeTitle) private var smallCountSize = 44
 
     let entry: TodayWidgetEntry
 
@@ -91,64 +99,53 @@ private struct TodayWidgetView: View {
 
     private var smallOverview: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("今天")
-                    .font(.headline.weight(.semibold))
-
-                Spacer(minLength: 4)
-
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(verbatim: "\(entry.snapshot.remainingCount)")
-                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .font(.system(size: min(smallCountSize, 48), weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(TodayWidgetTheme.coralOrange)
-                    .widgetAccentable()
-                    .contentTransition(.numericText())
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .layoutPriority(1)
 
                 Text("待办")
-                    .font(.caption2)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .fixedSize()
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("今天，剩余 \(entry.snapshot.remainingCount) 项待办")
 
+            if dynamicTypeSize.isAccessibilitySize == false {
+                Text(entry.snapshot.referenceDate, format: .dateTime.month().day().weekday(.wide))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(TodayWidgetTheme.textRed(for: colorScheme))
+                    .widgetAccentable()
+                    .lineLimit(1)
+            }
+
             Spacer(minLength: 8)
 
             if let task = entry.snapshot.tasks.first {
-                TodayWidgetRecentTask(
-                    task: task,
-                    isAppearing: entry.snapshot.appearingTaskIDs.contains(task.id)
-                )
+                TodayWidgetRecentTask(task: task)
             } else {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(TodayWidgetTheme.babyBlue)
-                        .widgetAccentable()
+                VStack(alignment: .leading, spacing: 4) {
                     Text("今日已清空")
                         .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if dynamicTypeSize.isAccessibilitySize == false {
+                        Text("没有待办任务")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
             }
-
-            Spacer(minLength: 8)
-
-            HStack(alignment: .center, spacing: 5) {
-                Text("完成进度")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-
-                Text(verbatim: "\(entry.snapshot.completedTodayCount)/\(entry.snapshot.totalTodayCount)")
-                    .font(.system(.caption2, design: .rounded, weight: .semibold))
-                    .monospacedDigit()
-                    .lineLimit(1)
-
-                TodayWidgetCircularProgress(progress: entry.snapshot.completionProgress)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("今日完成进度")
-            .accessibilityValue("已完成 \(entry.snapshot.completedTodayCount) 项，共 \(entry.snapshot.totalTodayCount) 项")
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("打开 Together 首页")
     }
 
     private var mediumOverview: some View {
@@ -172,7 +169,6 @@ private struct TodayWidgetView: View {
             ForEach(tasks) { task in
                 TodayWidgetTaskRow(
                     task: task,
-                    isCompleting: entry.snapshot.animatingCompletionTaskIDs.contains(task.id),
                     isAppearing: entry.snapshot.appearingTaskIDs.contains(task.id),
                     showsDivider: true
                 )
@@ -247,7 +243,6 @@ private struct TodayWidgetView: View {
             ForEach(tasks) { task in
                 TodayWidgetTaskRow(
                     task: task,
-                    isCompleting: entry.snapshot.animatingCompletionTaskIDs.contains(task.id),
                     isAppearing: entry.snapshot.appearingTaskIDs.contains(task.id),
                     showsDivider: task.id != tasks.last?.id
                 )
@@ -293,7 +288,6 @@ private struct TodayWidgetDashboardHeader: View {
                 }
             }
 
-            TodayWidgetAddTaskLink()
         }
         .frame(minHeight: 44)
         .accessibilityElement(children: .contain)
@@ -304,22 +298,9 @@ private struct TodayWidgetDashboardHeader: View {
     }
 }
 
-private struct TodayWidgetAddTaskLink: View {
-    var body: some View {
-        Link(destination: TodayWidgetConstants.newTaskDeepLink) {
-            Image(systemName: "plus")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(TodayWidgetTheme.babyBlue)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("新建任务")
-        .accessibilityHint("打开 Together 的任务创建页")
-    }
-}
-
 private struct TodayWidgetSectionHeader: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let title: String
     let count: Int
     let isOverdue: Bool
@@ -333,7 +314,7 @@ private struct TodayWidgetSectionHeader: View {
                 .monospacedDigit()
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(isOverdue ? Color.red : TodayWidgetTheme.babyBlue)
+        .foregroundStyle(isOverdue ? TodayWidgetTheme.textRed(for: colorScheme) : TodayWidgetTheme.babyBlue)
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(count) 项")
@@ -342,57 +323,38 @@ private struct TodayWidgetSectionHeader: View {
 
 private struct TodayWidgetTaskRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     let task: TodayWidgetTaskSnapshot
-    let isCompleting: Bool
     let isAppearing: Bool
     let showsDivider: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Button(intent: TodayTaskCompletionIntent(taskID: task.id.uuidString)) {
-                TodayWidgetCheckbox(isCompleting: isCompleting)
-                    .frame(width: 22, height: 22)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+        HStack(spacing: 6) {
+            Text(task.title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 4)
+
+            if let dueTimeText = task.dueTimeText {
+                Text(dueTimeText)
+                    .font(.system(.caption, design: .rounded, weight: task.isOverdue ? .semibold : .regular))
+                    .monospacedDigit()
+                    .foregroundStyle(task.isOverdue ? TodayWidgetTheme.textRed(for: colorScheme) : Color.secondary)
+                    .lineLimit(1)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("完成任务，\(task.title)")
-            .accessibilityHint("在小组件中将任务标记为已完成")
-
-            Link(destination: TodayWidgetConstants.taskDeepLink(taskID: task.id)) {
-                HStack(spacing: 6) {
-                    Text(task.title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-
-                    Spacer(minLength: 4)
-
-                    if let dueTimeText = task.dueTimeText {
-                        Text(dueTimeText)
-                            .font(.system(.caption, design: .rounded, weight: task.isOverdue ? .semibold : .regular))
-                            .monospacedDigit()
-                            .foregroundStyle(task.isOverdue ? .red : .secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.78)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(taskAccessibilityLabel)
         }
-        .frame(minHeight: 44)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(taskAccessibilityLabel)
         .opacity(isAppearing ? 0 : 1)
         .offset(y: reduceMotion || isAppearing == false ? 0 : 4)
         .animation(reduceMotion ? nil : .snappy(duration: 0.24), value: isAppearing)
         .overlay(alignment: .bottom) {
             if showsDivider {
                 Divider()
-                    .padding(.leading, 52)
             }
         }
     }
@@ -403,86 +365,27 @@ private struct TodayWidgetTaskRow: View {
 }
 
 private struct TodayWidgetRecentTask: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let task: TodayWidgetTaskSnapshot
-    let isAppearing: Bool
 
     var body: some View {
-        Link(destination: TodayWidgetConstants.taskDeepLink(taskID: task.id)) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
-                    Text("最近")
-                    if let dueTimeText = task.dueTimeText {
-                        Text("·")
-                        Text(dueTimeText)
-                            .monospacedDigit()
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(task.isOverdue ? .red : .secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(task.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(dynamicTypeSize > .large ? 1 : 2)
 
-                Text(task.title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(taskAccessibilityLabel)
-        .opacity(isAppearing ? 0 : 1)
-        .offset(y: reduceMotion || isAppearing == false ? 0 : 3)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.24), value: isAppearing)
-    }
-
-    private var taskAccessibilityLabel: String {
-        [task.title, task.dueTimeText].compactMap { $0 }.joined(separator: "，")
-    }
-}
-
-private struct TodayWidgetCircularProgress: View {
-    let progress: Double
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.secondary.opacity(0.16), lineWidth: 2)
-
-            Circle()
-                .trim(from: 0, to: min(max(progress, 0), 1))
-                .stroke(
-                    TodayWidgetTheme.babyBlue,
-                    style: StrokeStyle(lineWidth: 2, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .widgetAccentable()
-        }
-        .frame(width: 16, height: 16)
-        .accessibilityHidden(true)
-    }
-}
-
-private struct TodayWidgetCheckbox: View {
-    let isCompleting: Bool
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isCompleting ? TodayWidgetTheme.babyBlue.opacity(0.16) : .clear)
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(
-                    isCompleting ? TodayWidgetTheme.babyBlue : Color.secondary.opacity(0.58),
-                    style: StrokeStyle(lineWidth: 1.4, dash: isCompleting ? [] : [3.2, 3.2])
-                )
-            if isCompleting {
-                Image(systemName: "checkmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(TodayWidgetTheme.babyBlue)
-                    .widgetAccentable()
+            if dynamicTypeSize.isAccessibilitySize == false {
+                Text(task.dueTimeText ?? "今天")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel([task.title, task.dueTimeText].compactMap { $0 }.joined(separator: "，"))
     }
 }
 
@@ -490,36 +393,34 @@ private struct TodayWidgetUpcomingRow: View {
     let task: TodayWidgetTaskSnapshot
 
     var body: some View {
-        Link(destination: TodayWidgetConstants.taskDeepLink(taskID: task.id)) {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.forward.circle")
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.forward.circle")
+                .foregroundStyle(.secondary)
+                .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("下一项")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("下一项")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(task.title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 4)
-
-                if let dueTimeText = task.dueTimeText {
-                    Text(dueTimeText)
-                        .font(.system(.caption, design: .rounded, weight: .regular))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                Text(task.title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
+
+            Spacer(minLength: 4)
+
+            if let dueTimeText = task.dueTimeText {
+                Text(dueTimeText)
+                    .font(.system(.caption, design: .rounded, weight: .regular))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(nextTaskAccessibilityLabel)
     }
 

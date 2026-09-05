@@ -861,7 +861,7 @@ private struct RoutineSwipeActionsModifier: ViewModifier {
                         } label: {
                             Label("删除", systemImage: "trash")
                         }
-                        .tint(.red)
+                        .tint(AppTheme.colors.danger)
                     }
                 }
         } else {

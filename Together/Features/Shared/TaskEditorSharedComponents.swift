@@ -510,7 +510,7 @@ struct DateTimePickerSheet: View {
                     )
                     .labelsHidden()
                     .datePickerStyle(.compact)
-                    .tint(AppTheme.colors.coral)
+                    .tint(AppTheme.colors.warmText)
                     .frame(minHeight: 44)
                     .contentTransition(.numericText())
                     .transition(
@@ -969,7 +969,7 @@ struct DateTimePickerMonthCalendar: View {
             ZStack {
                 if isSelected {
                     Circle()
-                        .fill(AppTheme.colors.coral)
+                        .fill(AppTheme.colors.selectionFill)
                         .frame(width: visualCircleSize, height: visualCircleSize)
                         .transition(.scale(scale: 0.92).combined(with: .opacity))
                 } else if isToday {
@@ -985,7 +985,7 @@ struct DateTimePickerMonthCalendar: View {
                     .font(.body.weight(isSelected ? .semibold : .regular))
                     .fontDesign(.rounded)
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? Color.white : AppTheme.colors.title)
+                    .foregroundStyle(isSelected ? AppTheme.colors.onSelection : AppTheme.colors.title)
                     .lineLimit(1)
                     .minimumScaleFactor(0.64)
                     .frame(width: visualCircleSize, height: visualCircleSize)
@@ -1279,7 +1279,7 @@ struct InlineDatePickerPopover: View {
         .foregroundStyle(
             draft.isCleared
                 ? AppTheme.colors.sky
-                : Color(uiColor: .systemRed)
+                : AppTheme.colors.danger
         )
         .frame(
             minWidth: InlineDatePickerPopoverMetrics.actionMinimumWidth,
@@ -1410,7 +1410,7 @@ private struct InlineTimePickerPopover: View {
                 }
                 .buttonStyle(.plain)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(Color(uiColor: .systemRed))
+                .foregroundStyle(AppTheme.colors.danger)
                 .frame(
                     minWidth: InlineTimePickerPopoverMetrics.actionMinimumWidth,
                     minHeight: InlineTimePickerPopoverMetrics.actionHeight,
@@ -1952,7 +1952,7 @@ struct TaskEditorChipRow: View {
 
     private func foregroundColor(for chip: TaskEditorRenderedChip) -> Color {
         if case .urgent(true) = chip.semanticValue {
-            return AppTheme.colors.coral
+            return AppTheme.colors.warmText
         }
         return AppTheme.colors.body.opacity(0.84)
     }
@@ -2738,7 +2738,7 @@ private struct TaskEditorMenuSwitcher: View {
             return AppTheme.colors.body.opacity(0.35)
         }
         if emphasizedMenus.contains(menu) {
-            return AppTheme.colors.coral
+            return AppTheme.colors.warmText
         }
         return activeMenu == menu ? AppTheme.colors.sky : AppTheme.colors.body.opacity(0.72)
     }
@@ -2943,7 +2943,7 @@ struct TaskEditorDatePickerSheet: View {
                             )
                             .background(
                                 Circle()
-                                    .fill(isSelected(cell.date) ? AppTheme.colors.coral : .clear)
+                                    .fill(isSelected(cell.date) ? AppTheme.colors.selectionFill : .clear)
                             )
 
                         Text("\(Calendar.current.component(.day, from: cell.date))")
@@ -3028,8 +3028,8 @@ struct TaskEditorDatePickerSheet: View {
     }
 
     private func dayTextColor(for cell: TaskEditorCalendarDayCell) -> Color {
-        if isSelected(cell.date) { return .white }
-        if isToday(cell.date) { return AppTheme.colors.coral }
+        if isSelected(cell.date) { return AppTheme.colors.onSelection }
+        if isToday(cell.date) { return AppTheme.colors.warmText }
         return cell.isInDisplayedMonth ? AppTheme.colors.title : AppTheme.colors.textTertiary.opacity(0.52)
     }
 }
@@ -3363,7 +3363,7 @@ struct TaskEditorCenteredWeekDatePicker: View {
                     VStack(spacing: AppTheme.spacing.xxs) {
                         Text(weekdayLabel(for: date))
                             .font(AppTheme.typography.sized(13, weight: .semibold))
-                            .foregroundStyle(isSelected ? AppTheme.colors.coral : AppTheme.colors.textTertiary)
+                            .foregroundStyle(isSelected ? AppTheme.colors.warmText : AppTheme.colors.textTertiary)
 
                         Text(date, format: .dateTime.day())
                             .font(
@@ -3586,7 +3586,7 @@ struct TaskEditorSettingsMonthPage: View {
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(isSelected(cell.date) ? AppTheme.colors.coral : .clear)
+                            .fill(isSelected(cell.date) ? AppTheme.colors.selectionFill : .clear)
                             .overlay {
                                 Circle()
                                     .stroke(isToday(cell.date) && !isSelected(cell.date) ? AppTheme.colors.coral : .clear, lineWidth: 1.8)
@@ -3637,8 +3637,8 @@ struct TaskEditorSettingsMonthPage: View {
     }
 
     private func dayTextColor(for cell: TaskEditorCalendarDayCell) -> Color {
-        if isSelected(cell.date) { return .white }
-        if isToday(cell.date) { return AppTheme.colors.coral }
+        if isSelected(cell.date) { return AppTheme.colors.onSelection }
+        if isToday(cell.date) { return AppTheme.colors.warmText }
         return cell.isInDisplayedMonth ? AppTheme.colors.title : AppTheme.colors.textTertiary.opacity(0.46)
     }
 }

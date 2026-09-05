@@ -1384,7 +1384,7 @@ private struct PeriodicTaskAttributeSheet: View {
                     )
                     .labelsHidden()
                     .datePickerStyle(.compact)
-                    .tint(AppTheme.colors.coral)
+                    .tint(AppTheme.colors.warmText)
                     .frame(minHeight: 44)
                     .contentTransition(.numericText())
                     .transition(
