@@ -4,6 +4,14 @@
 
 ## 当前状态
 
+- 打勾回程顺笔精修（2026-09-12）：用户确认将“拆勾还原双眼”替换为“逆向收笔200ms → 起笔点舒展双眼160ms → 表情停留180ms → 胶囊收缩320ms”。`MascotConfirmationMotion.restoring` 按当前可见路径长度先收长边再收短边，随后从同一位置舒展双眼；`MascotConfirmationView` 直接采集呈现姿态，支持未画完或其他中断时的连续回程，不再切换到拆分勾形。删除本轮之前引入且不再使用的splitCheck。新测试覆盖逆向收笔顺序、衔接点、还原终点和不同中断起始姿态。9项纯测试通过，Xcode27 beta3 generic iOS无签名build-for-testing通过，UIKit用例仅编译；draw.html中间帧检查通过。设计/工程规范及预览已同步，未安装手机或启动Simulator，真机需验收收笔到双眼的连贯感。
+
+- 打勾确认前后表情停留精修（2026-09-12，覆盖下条同步收缩还原时序）：用户要求展开后先看到表情再draw，收缩前也先变回表情并稍作停留。现展开完成后保持双眼180ms，再收拢140ms、绘制280ms。阅读结束时保持胶囊位置和文字，用260ms还原双眼，再停留180ms，最后收缩320ms。`MascotVisualTransfer.noticeRetractionTask` 可取消，`MascotNoticeState.canRetract` 校验当前事件仍在dismiss状态；新修改、导航、后台、系统降级取消旧等待。Reduce Motion与隐藏确认层跳过等待。绘制最终时间直接返回标准勾形，避免终点浮点残差。新增延迟收缩事件隔离测试；8项纯测试通过，Xcode27 beta3无签名build-for-testing通过，UIKit仅编译。`draw.html`预览与规范同步更新。未启动Simulator/安装真机，需新构建验收两段180ms停留及等待期间连续修改。
+
+- 打勾 Draw 确认正式接入（2026-09-12，源码与构建完成，真机待验收）：用户最终选择 `2026-09-12-confirmation-wink/draw.html`，勾绘制完成后保持到胶囊收缩，再同步恢复双眼。`MascotConfirmationMotion` 提供可测试的40pt路径、起笔与顺笔绘制；`MascotConfirmationView` 在同一 `MascotArtworkView` 内用原生 Core Animation 承接确认，`MascotVisualTransfer` 将进入/绘制/恢复/取消绑定到既有胶囊流程。Rive实例与资源不变，被确认层遮盖期间暂停Rive绘制；进入120ms归一表情、末尾100ms交还日常表情，均不新增等待。实际展开完成后等待40ms、收拢140ms、绘制280ms；勾持续保持，收缩320ms同步恢复。重复结果与主题更新不重播已开始的绘制；收缩中替换从呈现路径接续；后台、导航、锁定与系统降级沿现有取消边界清理，降级恢复不补播。
+  - 验证：7项纯几何/绘制顺序/保持/状态隔离测试通过（临时macOS SwiftPM运行仓库实际源码）；Xcode27 beta3 generic iOS 无签名 `build-for-testing` 通过，2项新增UIKit生命周期测试及既有iOS用例仅编译未运行。Swift parse与diff检查通过，无新增编译warning。未启动Simulator、未安装手机，不能视为真机视觉验收。下一步由包含最新修改的Xcode Run构建检查顺笔绘制、保持至收缩、连续替换、快速导航/后台、Reduce Motion、深浅色和原Rive表情衔接。
+  - Apple Retrieval query: `UIKit Core Animation CAShapeLayer path strokeEnd interruptible UIViewPropertyAnimator reparent Rive animation overlay lifecycle`；无命中keys、无采用记录（无需 Expert Delta）。入口与验证命令：`docs/design/brand-mascot/2026-09-12-confirmation-wink/README.md`、`verification.json`。此轮使用项目stage-memory-update收尾，不新增Skill。
+
 - 左侧表情任务反馈正式接入（2026-09-12，覆盖下方探索阶段）：用户最终选择胶囊左侧表情并要求实现。`MascotVisualTransfer` 复用原window承接层，将同一 `MascotArtworkView` 移入 `TaskUpdateNotice` 左端，原高度等高展开、内容自适应宽度、水平居中、320ms无回弹进退；阅读2.6秒（VoiceOver5秒）后反向归位。原顶部模式文字暂时让位并禁用命中/无障碍焦点，个人页入口待复位恢复。`MascotNoticeState` 隔离新旧结果与取消；Session等待实际展开完成才计时，连续结果直接替换，导航/后台/锁定/锚点变化取消。已移除底部重复提示及改期左下注视调用，未改Rive资源、数据模型或保存语义。文本15pt起随Dynamic Type至24pt，等高约束下长结果单行截断，完整任务名与结果提供给VoiceOver。
   - 验证：17项离线反馈/状态/几何测试通过；新增4项UIKit用例编译但未执行；全部App模块编译及本机Downloads的Xcode27 beta3完整generic iOS无签名build-for-testing通过、diff检查通过。系统默认Xcode26.6仍缺iOS26.5平台；未改全局工具链选择。未启动Simulator或安装/运行手机，需当前工程重新签名Run验收轮廓与表情衔接、连续修改、导航中断、主题/字号及顶部控件恢复。完整说明与Knowledge检索证据：`docs/design/brand-mascot/2026-09-12-horizontal-notice/README.md`。现有技能足够，无需新增Skill。
 

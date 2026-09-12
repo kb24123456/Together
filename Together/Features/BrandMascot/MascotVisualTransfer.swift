@@ -15,6 +15,7 @@ final class MascotVisualTransfer {
     private let noticeView = TaskUpdateNotice(frame: .zero)
     private var noticeState = MascotNoticeState()
     private var noticeAnimator: UIViewPropertyAnimator?
+    private var noticeRetractionTask: Task<Void, Never>?
     private var noticeAnimationID = UUID()
     private var noticeSourceFrame: CGRect?
     private var presentedNoticeID: UUID?
@@ -72,6 +73,7 @@ final class MascotVisualTransfer {
                 playbackAllowed: Bool, motionAllowed: Bool, visible: Bool, isDark: Bool = false) {
         let themeChanged = self.isDark != isDark
         self.isDark = isDark
+        artwork.confirmation.configure(isDark: isDark)
         self.playbackAllowed = playbackAllowed
         self.visible = visible
         artwork.riveView.rive = rive
@@ -91,6 +93,7 @@ final class MascotVisualTransfer {
             }
         }
         if stopsMotion {
+            artwork.confirmation.suppress()
             let completion = fallbackCompletion
             freezePresentation()
             if let completion {
@@ -481,6 +484,8 @@ final class MascotVisualTransfer {
     }
 
     func showNotice(_ request: MascotNoticeRequest) {
+        noticeRetractionTask?.cancel()
+        noticeRetractionTask = nil
         noticeState.replace(with: request)
         presentNoticeIfReady()
     }
@@ -491,9 +496,26 @@ final class MascotVisualTransfer {
             cancelNotice()
             return
         }
+        stopNoticeAnimation()
+        let animated = motionAllowed && !UIAccessibility.isReduceMotionEnabled && !artwork.confirmation.isHidden
+        artwork.confirmation.restore(animated: animated, duration: MascotConfirmationMotion.restorationDuration)
+        guard animated else { retractNotice(id: id, source: source); return }
+        // Restore while the capsule stays still, then let the face register before
+        // shrinking. Replacement, navigation and environment cancellation invalidate this wait.
+        noticeRetractionTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(MascotConfirmationMotion.retractionDelay)) }
+            catch { return }
+            guard let self, self.noticeState.canRetract(id: id) else { return }
+            self.noticeRetractionTask = nil
+            self.retractNotice(id: id, source: source)
+        }
+    }
+
+    private func retractNotice(id: UUID, source: CGRect) {
+        guard noticeState.canRetract(id: id) else { return }
         animateNotice(to: MascotNoticeGeometry.body(in: source), showingText: false) { [weak self] in
             guard let self, self.noticeState.finish(id: id) else { return }
-            self.removeNoticeSurface()
+            self.removeNoticeSurface(animatedHandoff: self.motionAllowed && !UIAccessibility.isReduceMotionEnabled)
         }
     }
 
@@ -501,6 +523,8 @@ final class MascotVisualTransfer {
         noticeState.cancel()
         stopNoticeAnimation()
         if noticeView.superview != nil { removeNoticeSurface() }
+        else { artwork.confirmation.reset() }
+        updatePlayback()
     }
 
     private func presentNoticeIfReady(force: Bool = false) {
@@ -547,10 +571,15 @@ final class MascotVisualTransfer {
             safeInsets: max(28, max(window.safeAreaInsets.left, window.safeAreaInsets.right)),
             contentWidth: width
         )
+        if isNewSurface {
+            artwork.confirmation.prepare(animated: motionAllowed && !UIAccessibility.isReduceMotionEnabled)
+            updatePlayback()
+        }
         presentedNoticeID = request.id
         animateNotice(to: target, showingText: true) { [weak self] in
             guard let self, self.noticeState.request?.id == request.id,
                   !self.noticeState.isDismissing else { return }
+            self.artwork.confirmation.confirm(animated: self.motionAllowed && !UIAccessibility.isReduceMotionEnabled)
             if self.notifiedNoticeID != request.id {
                 self.notifiedNoticeID = request.id
                 self.onNoticePresented?(request)
@@ -588,6 +617,8 @@ final class MascotVisualTransfer {
     }
 
     private func stopNoticeAnimation() {
+        noticeRetractionTask?.cancel()
+        noticeRetractionTask = nil
         noticeAnimationID = UUID()
         if let animator = noticeAnimator, animator.state == .active {
             animator.stopAnimation(false)
@@ -596,8 +627,9 @@ final class MascotVisualTransfer {
         noticeAnimator = nil
     }
 
-    private func removeNoticeSurface() {
+    private func removeNoticeSurface(animatedHandoff: Bool = false) {
         stopNoticeAnimation()
+        artwork.confirmation.finish(animated: animatedHandoff)
         // Restore the existing artwork before removing its temporary parent.
         overlay.addSubview(artwork)
         if let source = noticeSourceFrame { placeInOverlay(source) }
@@ -678,7 +710,8 @@ final class MascotVisualTransfer {
     }
 
     private func updatePlayback() {
-        artwork.riveView.isPaused = !(playbackAllowed && visible && artwork.window != nil)
+        let coveredByConfirmation = noticeView.superview != nil && !artwork.confirmation.isHidden
+        artwork.riveView.isPaused = !(playbackAllowed && visible && artwork.window != nil && !coveredByConfirmation)
     }
 }
 
@@ -686,6 +719,7 @@ final class MascotArtworkView: UIView {
     static let canvasSide: CGFloat = 40 * 512 / 368
     let riveView = RiveUIView(rive: nil, isPaused: true)
     let imageView = UIImageView()
+    let confirmation = MascotConfirmationView()
     var onWindowChanged: (() -> Void)?
 
     init() {
@@ -700,6 +734,8 @@ final class MascotArtworkView: UIView {
             child.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             addSubview(child)
         }
+        confirmation.frame = MascotNoticeGeometry.body(in: bounds)
+        addSubview(confirmation)
     }
 
     required init?(coder: NSCoder) { nil }

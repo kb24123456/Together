@@ -1,0 +1,45 @@
+{
+  "status": "implemented_device_validation_pending",
+  "selected_preview": "draw.html",
+  "implementation": "Native Core Animation paths within the existing MascotArtworkView; Rive resource unchanged",
+  "validation": {
+    "pure_tests": {
+      "passed": 9,
+      "command": "DEVELOPER_DIR='/Users/papertiger/Downloads/Xcode-beta 3.app/Contents/Developer' swift test --package-path /tmp/together-confirmation-tests",
+      "scope": "Repository MascotConfirmationMotion and MascotNoticeState plus their pure Swift Testing suites; UIKit branches excluded on macOS"
+    },
+    "ios_test_build": {
+      "passed": true,
+      "command": "DEVELOPER_DIR='/Users/papertiger/Downloads/Xcode-beta 3.app/Contents/Developer' xcodebuild build-for-testing -project Together.xcodeproj -scheme Together-UnitTests -destination 'generic/platform=iOS' -derivedDataPath /Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik -clonedSourcePackagesDirPath /Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik/SourcePackages -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO"
+    },
+    "swift_parse": true,
+    "git_diff_check": true,
+    "ios_tests_executed": false,
+    "simulator_launched": false,
+    "device_installed": false,
+    "pending": [
+      "Native appearance including Rive handoff",
+      "Repeated edits and replacement during retraction",
+      "Background and navigation cancellation",
+      "Light and dark themes",
+      "Reduce Motion and power constraints",
+      "Expression holds before drawing and before retraction; new results during the delayed shrink"
+    ]
+  },
+  "apple_retrieval": {
+    "query": "UIKit Core Animation CAShapeLayer path strokeEnd interruptible UIViewPropertyAnimator reparent Rive animation overlay lifecycle",
+    "keys": [],
+    "adopted": [],
+    "result": "无需 Expert Delta"
+  },
+  "timing": {
+    "face_hold_after_expansion": 0.18,
+    "gather": 0.14,
+    "draw": 0.28,
+    "restore_before_shrink": 0.36,
+    "face_hold_before_shrink": 0.18,
+    "shrink": 0.32,
+    "erase_stroke": 0.2,
+    "unfold_eyes": 0.16
+  }
+}

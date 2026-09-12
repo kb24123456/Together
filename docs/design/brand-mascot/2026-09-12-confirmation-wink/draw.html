@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Together · Draw 确认</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f5f3;color:#202020;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}main{max-width:1000px;margin:auto;padding:40px 28px}h1{font-size:30px;letter-spacing:-.04em;margin:10px 0 12px}header p{font-size:15px;color:#696967;line-height:1.7;margin:0}.eyebrow{font-size:11px;letter-spacing:.13em;color:#858580}.controls{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:24px 0 30px}button,label,select{font:inherit;font-size:13px}button,select{border:1px solid #d6d6d1;border-radius:24px;padding:10px 16px;background:transparent;color:inherit;cursor:pointer}button.primary{background:#222;color:#fff;border-color:#222}label{display:flex;align-items:center;gap:5px;margin-left:5px;color:#666}input{accent-color:#222}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #668dc4;outline-offset:4px}.layout{display:grid;grid-template-columns:minmax(0,390px) minmax(0,1fr);gap:44px}.section-label{font-size:13px;font-weight:550;margin-bottom:14px;display:flex;justify-content:space-between}.section-label small{font-size:11px;font-weight:400;color:#888}.fragment{position:relative;width:100%;aspect-ratio:390/342;overflow:hidden;background:var(--paper);color:var(--ink);border:1px solid #d9d9d4;border-radius:22px}.screen{width:390px;height:342px;position:absolute;transform-origin:top left}.theme-surface{--paper:#fff;--ink:#202020;--muted:#999;--top:#101010;--bottom:#030303;--eye:#fff;--onpill:#fff}.dark .theme-surface{--paper:#191919;--ink:#efefef;--muted:#929292;--top:#f0f0f0;--bottom:#d5d5d5;--eye:#1b1b1b;--onpill:#1b1b1b}.nav{position:absolute;top:26px;left:123px;width:144px;height:44px;display:flex;align-items:center;justify-content:center;gap:24px}.nav b{font-size:22px}.nav span{font-size:17px;color:var(--muted)}.notice{position:absolute;top:28px;left:330px;width:40px;height:40px;border-radius:20px;background:linear-gradient(135deg,var(--top),var(--bottom));overflow:hidden;color:var(--onpill)}.face{position:absolute;top:0;left:0;width:40px;height:40px}.face svg{width:100%;height:100%;display:block;overflow:visible}.eyes{fill:none;stroke:var(--eye);stroke-linecap:round;stroke-linejoin:round}.message{position:absolute;left:48px;top:0;height:40px;display:flex;align-items:center;font-size:15px;font-weight:500;white-space:nowrap;opacity:0;padding-right:20px}.list{position:absolute;top:104px;left:28px;right:28px}.date{display:flex;gap:9px;align-items:baseline;margin-bottom:26px}.date b{font-size:22px}.date span{font-size:14px;color:var(--muted)}.row{display:flex;gap:14px;margin-bottom:26px}.check{width:19px;height:19px;border:1px solid #aaa;border-radius:5px;flex-shrink:0;margin-top:2px}.row b{font-size:17px;font-weight:550}.row p{font-size:13px;color:var(--muted);margin:5px 0 0}.caption{color:#777;font-size:12px;line-height:1.7;margin-top:12px}.detail{height:342px;border:1px solid #d9d9d4;border-radius:22px;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:25px}.large-ball{width:160px;height:160px;position:relative;background:linear-gradient(135deg,var(--top),var(--bottom));border-radius:50%}.large-ball .face{width:160px;height:160px}.phase{font-size:14px}.phase-track{display:flex;gap:12px;color:var(--muted);font-size:11px;margin-top:8px}.phase-track .active{color:var(--ink)}.timeline{display:flex;gap:15px;align-items:center;border-top:1px solid #ddd;margin-top:26px;padding-top:20px}.timeline input{flex:1;min-width:70px}.time{width:58px;font-size:12px;color:#777;font-variant-numeric:tabular-nums}.design-note{font-size:13px;line-height:1.9;color:#666;margin-top:21px;max-width:740px}.design-note strong{color:#333;font-weight:550}.measure{position:absolute;visibility:hidden;font-size:15px;font-weight:500;white-space:nowrap}.status{font-size:12px;color:#777;min-height:20px}.dark .fragment,.dark .detail{border-color:#444}@media(max-width:760px){.layout{grid-template-columns:1fr;max-width:390px;margin:auto;gap:26px}main{padding:28px 20px}h1{font-size:26px}.detail{height:280px}.large-ball{width:120px;height:120px}.large-ball .face{width:120px;height:120px}.section-label .zoom-label{font-size:0}.section-label .zoom-label:after{content:'放大查看';font-size:11px}}
+</style></head><body><main>
+<header><div class="eyebrow">TOGETHER / 打勾 · DRAW 精修</div><h1>让确认，顺着笔画发生。</h1><p>胶囊展开后，眼睛收拢衔接起笔；沿短边向下、长边向上画出勾，结束时沿笔画收回，再舒展双眼、短暂停留，最后收缩。</p></header>
+<div class="controls"><button id="play" class="primary">播放完整交互</button><button id="wink-only">只看绘制动作</button><button id="hold">定格打勾</button><select id="speed" aria-label="播放速度"><option value="1">正常速度</option><option value="0.35">慢放 · 0.35×</option></select><button id="theme">切换深色</button><label><input id="reduce" type="checkbox">减少动态效果</label></div>
+<div class="layout"><section><div class="section-label"><span>放回真实交互</span><small>首页局部 · 胶囊高度 40pt</small></div><div class="fragment theme-surface"><div class="screen"><div class="nav"><b>待办</b><span>定期</span></div><div class="list"><div class="date"><b>今天</b><span>星期六</span></div><div class="row"><i class="check"></i><div><b>整理本周计划</b><p>09:00 · 提前 10 分钟提醒</p></div></div><div class="row"><i class="check"></i><div><b>读完这一章</b><p>子任务 1/3</p></div></div></div><div class="notice"><div class="face"></div><div class="message">已更新备注</div></div><span class="measure">已更新备注</span></div></div><p class="caption">左侧表情与胶囊同步移动，主体不点头、不弹跳。<br>任务列表为示意，仅用于评审反馈动作。</p></section>
+<section><div class="section-label"><span>看清笔画生长</span><small class="zoom-label">表情细节 · 4×</small></div><div class="detail theme-surface"><div class="large-ball"><div class="face"></div></div><div><div class="phase" aria-live="off">清醒</div><div class="phase-track"><span data-phase="close">绘制 280ms</span><span data-phase="hold">展开期间保持</span><span data-phase="open">收笔 → 双眼 → 收缩</span></div></div></div><p class="caption">先短边，后长边，笔尖连续向前。<br>圆润收笔，不弹跳、不闪光。</p></section></div>
+<div class="timeline"><span class="time">0.00 秒</span><input type="range" min="0" max="4.14" step="0.01" value="0" id="seek" aria-label="动画播放位置"></div><p class="status">点击播放，观看正常速度。</p>
+<p class="design-note">已选定打勾方向。这一版参考 App 任务完成时的 Draw On，改为沿笔画绘制：眼睛先收拢到起笔位置，再顺势写出勾，结束时先用200ms逆向收笔，再用160ms舒展双眼，保留180ms，再收缩胶囊。展开完成后也先保留180ms双眼，再衔接绘制。黑色主体与文字保持稳定，任务列表仅为示意。</p>
+<p class="caption">App 当前使用 Apple 的 <a href="https://developer.apple.com/sf-symbols/" target="_blank" rel="noreferrer">Draw On</a>。本页为 SVG 动效提案，衔接与时长为设计值，不是系统动画的逐帧复刻；已接入源码，真机观感待验收。</p>
+</main><script>
+const $=s=>document.querySelector(s),all=s=>[...document.querySelectorAll(s)];
+// Persistent eye strokes become the drawing seed, then the check, then eyes.
+all('.face').forEach(el=>el.innerHTML='<svg viewBox="0 0 40 40" aria-hidden="true"><g class="eyes"><path class="draw-main" stroke-width="3.2"/><path class="draw-secondary" stroke-width="3.2"/></g></svg>');
+const clamp=x=>Math.max(0,Math.min(1,x)),smooth=x=>{x=clamp(x);return x*x*(3-2*x)},phase=(t,a,b)=>smooth((t-a)/(b-a));
+// Smooth velocity and acceleration at both ends of facial transitions.
+const facePhase=(t,a,b)=>{const x=clamp((t-a)/(b-a));return x*x*x*(x*(x*6-15)+10)};
+let t=0,playing=false,last=null,mode='full',width=145;const duration=4.14;
+function render(time){const reduced=$('#reduce').checked;
+ const u=mode==='wink'?1:reduced?(time>=.2&&time<3.12?1:0):phase(time,.2,.52)*(1-phase(time,3.66,3.98));
+ const w=40+(width-40)*u,cx=350+(195-350)*u;
+ Object.assign($('.notice').style,{left:`${cx-w/2}px`,width:`${w}px`});
+ $('.message').style.opacity=mode==='wink'?1:reduced?u:phase(time,.34,.52)*(1-phase(time,3.66,3.84));
+ $('.nav').style.opacity=mode==='wink'?0:reduced?1-u:1-phase(time,.18,.28)*(1-phase(time,3.88,4.02));
+ const lerp=(a,b,v)=>a+(b-a)*v;
+ const start=[13,20],corner=[18.2,25.1],end=[27.5,13.8];
+ const point=(a,b,v)=>[lerp(a[0],b[0],v),lerp(a[1],b[1],v)];
+ const path=pts=>'M'+pts.map(p=>p.join(' ')).join(' L');
+ const leftIdle=[[16.52,13.32],[16.52,19.02]],rightIdle=[[25.98,13.32],[25.98,19.02]];
+ let left,right,secondaryVisible=1,leftWeight=3.3;
+ if(reduced||time<.84){
+   const gather=reduced?0:facePhase(time,.70,.84);
+   left=leftIdle.map(v=>point(v,start,gather));right=rightIdle.map(v=>point(v,start,gather));leftWeight=lerp(3.3,3.2,gather);
+ }else if(time<3.12){
+   const progress=phase(time,.84,1.12);
+   const shortLength=Math.hypot(corner[0]-start[0],corner[1]-start[1]);
+   const longLength=Math.hypot(end[0]-corner[0],end[1]-corner[1]);
+   const distance=progress*(shortLength+longLength);
+   left=distance<=shortLength?[start,point(start,corner,distance/shortLength)]:[start,corner,point(corner,end,(distance-shortLength)/longLength)];
+   right=[start,start];secondaryVisible=0;leftWeight=3.2;
+ }else if(time<3.32){
+   const remaining=1-facePhase(time,3.12,3.32);
+   const shortLength=Math.hypot(corner[0]-start[0],corner[1]-start[1]);
+   const longLength=Math.hypot(end[0]-corner[0],end[1]-corner[1]);
+   const distance=remaining*(shortLength+longLength);
+   left=distance<=shortLength?[start,point(start,corner,distance/shortLength)]:[start,corner,point(corner,end,(distance-shortLength)/longLength)];
+   right=[start,start];secondaryVisible=0;leftWeight=3.2;
+ }else{
+   const restore=facePhase(time,3.32,3.48);
+   left=leftIdle.map(v=>point(start,v,restore));
+   right=rightIdle.map(v=>point(start,v,restore));leftWeight=lerp(3.2,3.3,restore);
+ }
+ all('.draw-main').forEach(el=>{el.setAttribute('d',path(left));el.setAttribute('stroke-width',leftWeight)});
+ all('.draw-secondary').forEach(el=>{el.setAttribute('d',path(right));el.style.opacity=secondaryVisible});
+ const phaseName=reduced?'清醒 · 静态结果':time<.52?'展开':time<.70?'表情停留':time<.84?'衔接起笔':time<1.12?'沿笔画绘制':time<3.12?'保持确认':time<3.32?'逆向收笔':time<3.48?'舒展双眼':time<3.66?'表情停留':time<3.98?'收缩胶囊':'恢复清醒';
+ $('.phase').textContent=phaseName;
+ all('[data-phase]').forEach(el=>el.classList.toggle('active',!reduced&&((el.dataset.phase==='close'&&time>=.84&&time<1.12)||(el.dataset.phase==='hold'&&time>=1.12&&time<3.12)||(el.dataset.phase==='open'&&time>=3.12&&time<3.66))));
+ $('#seek').value=time;$('.time').textContent=`${time.toFixed(2)} 秒`;
+ $('.status').textContent=reduced?'减少动态效果：静态结果，双眼保持睁开。':playing?(Number($('#speed').value)===1?'正常速度播放 · 起笔衔接 → 连续绘制 → 保持 → 收笔 → 双眼 → 收缩':'慢放用于检查笔画，正式动作不延长。'):'已暂停，可拖动时间轴检查笔画。';
+}
+function fit(){const scale=$('.fragment').clientWidth/390;$('.screen').style.transform=`scale(${scale})`;width=Math.ceil($('.measure').getBoundingClientRect().width/scale)+68;render(t)}
+function start(nextMode){mode=nextMode;t=nextMode==='wink'?.18:0;playing=true;last=null;render(t)}
+function tick(now){if(last!==null&&playing){t=Math.min(duration,t+(now-last)/1000*Number($('#speed').value));if(t>=(duration))playing=false;render(t)}last=now;window.__ready=true;requestAnimationFrame(tick)}
+$('#play').onclick=()=>start('full');$('#wink-only').onclick=()=>start('wink');$('#hold').onclick=()=>{playing=false;mode='full';t=1.4;render(t)};
+$('#seek').oninput=e=>{playing=false;mode='full';t=Number(e.target.value);render(t)};$('#speed').onchange=()=>render(t);$('#theme').onclick=()=>{const dark=document.body.classList.toggle('dark');$('#theme').textContent=dark?'切换浅色':'切换深色'};
+$('#reduce').checked=matchMedia('(prefers-reduced-motion: reduce)').matches;$('#reduce').onchange=()=>start('full');window.addEventListener('resize',fit);document.fonts.ready.then(()=>{fit();requestAnimationFrame(tick)});
+</script></body></html>

@@ -22,6 +22,22 @@ struct MascotNoticeTests {
         #expect(state.request == nil)
     }
 
+    @Test func delayedRetractionRequiresTheSameStillDismissingRequest() {
+        var state = MascotNoticeState()
+        let first = MascotNoticeRequest(id: UUID(), message: "已更新标题", announcement: "标题")
+        let next = MascotNoticeRequest(id: UUID(), message: "已更新备注", announcement: "备注")
+        state.replace(with: first)
+        #expect(!state.canRetract(id: first.id))
+        state.dismiss(id: first.id)
+        #expect(state.canRetract(id: first.id))
+        state.replace(with: next)
+        #expect(!state.canRetract(id: first.id))
+        #expect(!state.canRetract(id: next.id))
+        state.dismiss(id: next.id)
+        state.cancel()
+        #expect(!state.canRetract(id: next.id))
+    }
+
     @Test func cancellationDiscardsWaitingAndClosingResults() {
         for dismissFirst in [false, true] {
             var state = MascotNoticeState()

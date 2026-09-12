@@ -64,7 +64,7 @@
 - 可见且允许播放才异步装载；旧加载通过 generation 和取消隔离。后台、页面遮挡、App 锁定、Reduce Motion、低电量及严重/临界热状态暂停；不积攒或返回后补播短反馈。静态兜底不阻塞原生操作，不向 Observation 写动画帧。
 - OCR Thinking 必须取当前会话真实 `.processing`，旧会话的异步结果与清理不能覆盖新会话；不以 Task 句柄存在代替处理状态。
 
-- 任务结果胶囊由既有 `MascotVisualTransfer` 在原window承接层中承载，`TaskUpdateNotice` 是原生UIView表面，唯一 `MascotArtworkView` 临时移入其左端；保留同一Rive实例、表情和资源，用同配色渐变衔接表面，不更改Rive状态机或配色接口。`MascotNoticeState` 按事件UUID隔离替换、取消与迟到完成；`MascotPlaybackSession` 仅在实际展开完成后启动可取消阅读计时。原生导航尚未停靠首页时保留最新待展示结果，后台/锁定/导航开始取消。胶囊尺寸来自实际锚点画板中的球体边界，文本测量只在内容/主题变化时执行；UIViewPropertyAnimator同时改变位置与宽度，不缩放文本或眼睛。
+- 任务结果胶囊由既有 `MascotVisualTransfer` 在原window承接层中承载，`TaskUpdateNotice` 是原生UIView表面，唯一 `MascotArtworkView` 临时移入其左端；保留同一Rive实例和资源，用同配色渐变衔接表面，不更改Rive状态机或配色接口。胶囊确认期间在同一 artwork 内由 `MascotConfirmationView` 承接原生路径动画：展开期间短淡变归一到双眼，展开完成后保留180ms双眼，再收拢起笔、沿短边与长边画勾；阅读结束后先沿现有路径逆向收笔200ms，再从起笔点舒展双眼160ms并停留180ms，再收缩胶囊，再短淡变交回原Rive表情。被覆盖时暂停Rive绘制；路径关键帧只在阶段边界生成，由Core Animation播放，不向Observation发布帧。`MascotConfirmationMotion` 定义纯几何与绘制顺序；结果替换不重播已开始的勾，收缩中替换从当前呈现姿态接续，取消与系统降级清理路径动画。还原与表情停留期间的延迟收缩由可取消Task和事件UUID共同隔离，任何替换或取消都不得让旧等待收缩新胶囊。`MascotNoticeState` 按事件UUID隔离替换、取消与迟到完成；`MascotPlaybackSession` 仅在实际展开完成后启动可取消阅读计时。原生导航尚未停靠首页时保留最新待展示结果，后台/锁定/导航开始取消。胶囊尺寸来自实际锚点画板中的球体边界，文本测量只在内容/主题变化时执行；UIViewPropertyAnimator同时改变位置与宽度，不缩放文本或眼睛。
 
 ### 3.2 SwiftData 与测试约束
 - 只要当前模块使用 SwiftData，就优先沿用 SwiftData，不要随手回退到 Core Data。

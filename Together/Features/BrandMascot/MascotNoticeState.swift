@@ -24,6 +24,10 @@ nonisolated struct MascotNoticeState {
         return true
     }
 
+    func canRetract(id: UUID) -> Bool {
+        request?.id == id && isDismissing
+    }
+
     @discardableResult
     mutating func finish(id: UUID) -> Bool {
         guard request?.id == id, isDismissing else { return false }
