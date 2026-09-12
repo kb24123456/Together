@@ -1,0 +1,26 @@
+{
+  "originalTimelinesCompared": 137,
+  "originalKeysCompared": 347925,
+  "changedOriginalAnimations": [],
+  "productionStateMachineUnchanged": true,
+  "baseGeometryDifferences": [],
+  "appAssetSHA256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+  "appAssetUnchanged": true,
+  "reviewStates": [
+    [
+      "Writing_A4",
+      "0-893641"
+    ]
+  ],
+  "cycleEndpointsEqual": true,
+  "maxGripDistancePerFrameAt60fps": 1.4031303075224784,
+  "nativeFramesRendered": 864,
+  "staticReview": "A4 proportions and sampled hand/pen continuity checked; no clear visual P1/P2 found",
+  "browserPlayback": "All four video elements readyState 4, paused false; advancing playhead observed; normal and half-speed controls exercised",
+  "limits": [
+    "Motion aesthetics await user approval",
+    "No physical iPhone playback validation",
+    "No App resource replaced or installed",
+    "Browser checks do not establish device frame rate or energy use"
+  ]
+}

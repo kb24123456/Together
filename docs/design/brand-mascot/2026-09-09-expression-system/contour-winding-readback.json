@@ -1,0 +1,52 @@
+[
+  {
+    "animation": "Expr_MildAngry",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Close_MildAngry",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Pulse_MildAngry",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Sad",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Close_Sad",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Pulse_Sad",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Determined",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Close_Determined",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Expr_Pulse_Determined",
+    "changed": 256,
+    "readback": true
+  },
+  {
+    "animation": "Preview_Expressions_28",
+    "changed": 2304,
+    "readback": true
+  }
+]

@@ -1,0 +1,122 @@
+{
+  "name": "Writing hands 30pt light: enter write hold resume exit",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "fps": 30,
+  "frames": 360,
+  "width": 126,
+  "height": 126,
+  "pngEvery": 0,
+  "pngFrames": [
+    0,
+    30,
+    33,
+    36,
+    39,
+    45,
+    52,
+    60,
+    75,
+    90,
+    105,
+    120,
+    135,
+    150,
+    153,
+    156,
+    159,
+    165,
+    172,
+    180,
+    210,
+    213,
+    216,
+    219,
+    225,
+    232,
+    240,
+    255,
+    270,
+    273,
+    276,
+    279,
+    285,
+    292,
+    300,
+    315,
+    330,
+    359
+  ],
+  "video": true,
+  "backgroundARGB": "FFFFFFFF",
+  "startupSteps": [
+    0,
+    0.15
+  ],
+  "firstFrameAdvance": 0,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Home start",
+      "numbers": {
+        "mode": 0,
+        "expression": 0,
+        "idleFace": 0
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "FF101010",
+        "bodyShade": "FF030303",
+        "handLight": "FF2C2C2C",
+        "handShade": "FF0E0E0E",
+        "farHandLight": "FF222222",
+        "farHandShade": "FF0B0B0B",
+        "eyeColor": "FFFFFFFF",
+        "sweatColor": "FFFFFFFF",
+        "penBodyColor": "FFF2EEE6",
+        "penTipColor": "FF111111",
+        "inkColor": "FF777777",
+        "tearColor": "FF88CFF3"
+      }
+    },
+    {
+      "frame": 30,
+      "label": "Writing enter",
+      "numbers": {
+        "idleFace": -1,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 150,
+      "label": "Stop typing / WritingHold",
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 210,
+      "label": "Resume Writing",
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 270,
+      "label": "WritingExit / Home acquire",
+      "numbers": {
+        "idleFace": 0,
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    }
+  ]
+}

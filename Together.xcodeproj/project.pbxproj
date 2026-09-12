@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		7B050400000000000000000B /* TogetherWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 7B0504000000000000000001 /* TogetherWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C0DE00000000000000000011 /* TogetherCore in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE00000000000000000013 /* TogetherCore */; };
+		C0DE09090000000000000001 /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = C0DE09090000000000000003 /* RiveRuntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +114,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0DE00000000000000000011 /* TogetherCore in Frameworks */,
+				C0DE09090000000000000001 /* RiveRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -187,6 +189,7 @@
 			name = Together;
 			packageProductDependencies = (
 				C0DE00000000000000000013 /* TogetherCore */,
+				C0DE09090000000000000003 /* RiveRuntime */,
 			);
 			productName = Together;
 			productReference = 122A42C62F5DF61600BFFAD1 /* Together.app */;
@@ -299,6 +302,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				C0DE00000000000000000012 /* XCRemoteSwiftPackageReference "TogetherCore" */,
+				C0DE09090000000000000002 /* XCRemoteSwiftPackageReference "rive-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 122A42C72F5DF61600BFFAD1 /* Products */;
@@ -791,6 +795,14 @@
 				minimumVersion = 1.1.0;
 			};
 		};
+		C0DE09090000000000000002 /* XCRemoteSwiftPackageReference "rive-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/rive-app/rive-ios";
+			requirement = {
+				kind = exactVersion;
+				version = 6.25.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -798,6 +810,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0DE00000000000000000012 /* XCRemoteSwiftPackageReference "TogetherCore" */;
 			productName = TogetherCore;
+		};
+		C0DE09090000000000000003 /* RiveRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DE09090000000000000002 /* XCRemoteSwiftPackageReference "rive-ios" */;
+			productName = RiveRuntime;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

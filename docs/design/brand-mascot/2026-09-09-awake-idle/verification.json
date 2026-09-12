@@ -1,0 +1,88 @@
+{
+  "recordedAt": "2026-09-09T12:11:57.574634+00:00",
+  "passed": true,
+  "sourceSHA256": {
+    "Together/Features/BrandMascot/MascotController.swift": "134237986b35caa37657f3d2be165be0ffdc92be2daeff87f0533da64a4ac525",
+    "Together/Features/BrandMascot/MascotPalette.swift": "6adb43f2c11f31cb4e04f3464368f695f166c6a66912b48dedd43cf965bab30c",
+    "Together/Features/BrandMascot/MascotRuntime.swift": "a9b5a8be572fadbc05b55e9d630685b050738391985f28aabc07931668cefb4d",
+    "Together/Features/BrandMascot/MascotBehaviorState.swift": "3e90b91c0dd973ee904805b1b6f594c5b1d28c3c3be0eb65f1b71d910ca11917",
+    "Together/Features/BrandMascot/BrandMascotView.swift": "0c0d54030aa6f33eb360ca8568c8581ec9e7872f20df360fbaafc00ac539aa5a"
+  },
+  "assetSHA256": "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3",
+  "assetUnchanged": true,
+  "bundledAssetSHA256": "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3",
+  "behaviorTests": {
+    "declarations": 23,
+    "expandedCases": 30,
+    "passed": true
+  },
+  "runtimeCases": 1200,
+  "runtimeFailures": 0,
+  "noSleepImageInCompiledCatalog": true,
+  "compiledMascotImageNames": [
+    "MascotConcerned",
+    "MascotHappy",
+    "MascotHolding",
+    "MascotIdle",
+    "MascotTears",
+    "MascotThinking",
+    "MascotWink"
+  ],
+  "build": {
+    "toolchain": "Xcode27 beta3 / 27A5218g",
+    "destination": "generic/platform=iOS",
+    "action": "build-for-testing",
+    "signed": false,
+    "passed": true,
+    "log": "/private/tmp/together-mascot-awake-idle-build.log"
+  },
+  "previews": [
+    {
+      "folder": "preview-light",
+      "frames": 2400,
+      "fps": 30,
+      "video": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-09-awake-idle/preview-light/preview.mov"
+    },
+    {
+      "folder": "preview-dark",
+      "frames": 2400,
+      "fps": 30,
+      "video": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-09-awake-idle/preview-dark/preview.mov"
+    },
+    {
+      "folder": "preview-writing-interruptions",
+      "frames": 360,
+      "fps": 30,
+      "video": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-09-awake-idle/preview-writing-interruptions/preview.mov"
+    }
+  ],
+  "manuallyViewedPNGs": [
+    "preview-light/frame-00238.png",
+    "preview-light/frame-00506.png",
+    "preview-light/frame-00811.png",
+    "preview-light/frame-01716.png",
+    "preview-dark/frame-00238.png",
+    "preview-dark/frame-00506.png",
+    "preview-dark/frame-00811.png",
+    "preview-dark/frame-01716.png",
+    "preview-writing-interruptions/frame-00119.png",
+    "preview-writing-interruptions/frame-00120.png",
+    "preview-writing-interruptions/frame-00122.png",
+    "preview-writing-interruptions/frame-00124.png",
+    "preview-writing-interruptions/frame-00127.png",
+    "preview-writing-interruptions/frame-00132.png"
+  ],
+  "diffCheckPassed": true,
+  "retrievalEvidence": {
+    "query": "SwiftUI Observation state-driven idle animation scheduling Task cancellation scenePhase Reduce Motion one-shot deadlines avoid replay after resume",
+    "keys": [],
+    "applied": [],
+    "result": "无需 Expert Delta"
+  },
+  "limits": [
+    "No iOS Simulator or physical device run; iOS test targets compiled only.",
+    "Native Rive videos and selected PNGs were verified; not every movie frame was manually reviewed.",
+    "Historic sleep timelines remain in the Rive source/runtime file but App has no sleep input path or static sleep image.",
+    "No on-device energy, backgrounding, Reduce Motion or layout acceptance."
+  ]
+}

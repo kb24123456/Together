@@ -1,0 +1,47 @@
+{
+  "name": "actions",
+  "fps": 60,
+  "frames": 600,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 6,
+  "video": true,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Calm",
+      "numbers": {
+        "mode": 0,
+        "expression": 1
+      }
+    },
+    {
+      "frame": 60,
+      "label": "Observe",
+      "triggers": [
+        "observe"
+      ]
+    },
+    {
+      "frame": 180,
+      "label": "Nod",
+      "triggers": [
+        "nod"
+      ]
+    },
+    {
+      "frame": 300,
+      "label": "Celebrate",
+      "triggers": [
+        "celebrateMotion"
+      ]
+    },
+    {
+      "frame": 420,
+      "label": "Poke",
+      "triggers": [
+        "poke"
+      ]
+    }
+  ]
+}

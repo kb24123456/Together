@@ -1,0 +1,752 @@
+[
+  {
+    "a": "0-457754",
+    "b": "0-893602",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "greaterThanOrEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 0,
+    "end": false,
+    "id": "0-831245"
+  },
+  {
+    "a": "0-829821",
+    "b": "0-830035",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 21
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 0,
+    "end": false,
+    "id": "0-831246"
+  },
+  {
+    "a": "0-830035",
+    "b": "0-830137",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 21
+        }
+      }
+    ],
+    "duration": 0,
+    "end": true,
+    "id": "0-831251"
+  },
+  {
+    "a": "0-830035",
+    "b": "0-830351",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 21
+        }
+      }
+    ],
+    "duration": 0,
+    "end": true,
+    "id": "0-831252"
+  },
+  {
+    "a": "0-830137",
+    "b": "0-830351",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 21
+        }
+      }
+    ],
+    "duration": 0,
+    "end": false,
+    "id": "0-831256"
+  },
+  {
+    "a": "0-830351",
+    "b": "0-829821",
+    "conditions": [],
+    "duration": 0,
+    "end": true,
+    "id": "0-831260"
+  },
+  {
+    "a": "0-829821",
+    "b": "0-830691",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 2
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 0,
+    "end": false,
+    "id": "0-831247"
+  },
+  {
+    "a": "0-830691",
+    "b": "0-830793",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 2
+        }
+      }
+    ],
+    "duration": 0,
+    "end": true,
+    "id": "0-831264"
+  },
+  {
+    "a": "0-830691",
+    "b": "0-831133",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 2
+        }
+      }
+    ],
+    "duration": 0,
+    "end": true,
+    "id": "0-831265"
+  },
+  {
+    "a": "0-830793",
+    "b": "0-831133",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 2
+        }
+      }
+    ],
+    "duration": 0,
+    "end": false,
+    "id": "0-831269"
+  },
+  {
+    "a": "0-831133",
+    "b": "0-829821",
+    "conditions": [],
+    "duration": 0,
+    "end": true,
+    "id": "0-831273"
+  },
+  {
+    "a": "0-829821",
+    "b": "0-831235",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 180,
+    "end": false,
+    "id": "0-831248"
+  },
+  {
+    "a": "0-829821",
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831249"
+  },
+  {
+    "a": "0-829821",
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831250"
+  },
+  {
+    "a": "0-830035",
+    "b": "0-831235",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 180,
+    "end": false,
+    "id": "0-831253"
+  },
+  {
+    "a": "0-830035",
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831254"
+  },
+  {
+    "a": "0-830035",
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831255"
+  },
+  {
+    "a": "0-830137",
+    "b": "0-831235",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 180,
+    "end": false,
+    "id": "0-831257"
+  },
+  {
+    "a": "0-830137",
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831258"
+  },
+  {
+    "a": "0-830137",
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831259"
+  },
+  {
+    "a": "0-830351",
+    "b": "0-831235",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 180,
+    "end": false,
+    "id": "0-831261"
+  },
+  {
+    "a": "0-830351",
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831262"
+  },
+  {
+    "a": "0-830351",
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831263"
+  },
+  {
+    "a": "0-830691",
+    "b": "0-831235",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 180,
+    "end": false,
+    "id": "0-831266"
+  },
+  {
+    "a": "0-830691",
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831267"
+  },
+  {
+    "a": "0-830691",
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831268"
+  },
+  {
+    "a": "0-830793",
+    "b": "0-831235",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 180,
+    "end": false,
+    "id": "0-831270"
+  },
+  {
+    "a": "0-830793",
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831271"
+  },
+  {
+    "a": "0-830793",
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831272"
+  },
+  {
+    "a": "0-831133",
+    "b": "0-831235",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 180,
+    "end": false,
+    "id": "0-831274"
+  },
+  {
+    "a": "0-831133",
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831275"
+  },
+  {
+    "a": "0-831133",
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "duration": 140,
+    "end": false,
+    "id": "0-831276"
+  },
+  {
+    "a": "0-831235",
+    "b": "0-457754",
+    "conditions": [],
+    "duration": 0,
+    "end": true,
+    "id": "0-831277"
+  },
+  {
+    "b": "0-829821",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "greaterThanOrEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      },
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "equal",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "end": true,
+    "id": "0-893603",
+    "a": "0-893602",
+    "duration": 0
+  },
+  {
+    "b": "0-457754",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-671006"
+        },
+        "operation": "lessThan",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "end": false,
+    "id": "0-893604",
+    "a": "0-893602",
+    "duration": 0
+  },
+  {
+    "b": "0-457755",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-377"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "end": false,
+    "id": "0-893605",
+    "a": "0-893602",
+    "duration": 0
+  },
+  {
+    "b": "0-495157",
+    "conditions": [
+      {
+        "leftComparator": {
+          "viewModelPropertyId": "0-452654"
+        },
+        "operation": "notEqual",
+        "rightComparator": {
+          "valueType": "constantValueType",
+          "value": 0
+        }
+      }
+    ],
+    "end": false,
+    "id": "0-893606",
+    "a": "0-893602",
+    "duration": 0
+  }
+]

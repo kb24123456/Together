@@ -1,0 +1,57 @@
+{
+  "date": "2026-09-09",
+  "runtime": "rive-ios 6.25.1 New Runtime",
+  "sourceSHA256": {
+    "Together/Features/BrandMascot/MascotController.swift": "a4f545d91e8104e4645e38c92e5aa6781010f771845257bd8ec1560c210f948a",
+    "Together/Features/BrandMascot/MascotPalette.swift": "6adb43f2c11f31cb4e04f3464368f695f166c6a66912b48dedd43cf965bab30c",
+    "Together/Features/BrandMascot/MascotRuntime.swift": "bffcec0b251a2a35dca2a852e1e2e368d6e695a12e3b7c72ec9b6faeee39d4cf",
+    "Together/Features/BrandMascot/MascotBehaviorState.swift": "beb1fe0629cd22824551dd2bd9c640acc7b2b8e0170748c1e63ad11c42a2f359",
+    "Together/Features/BrandMascot/BrandMascotView.swift": "3347170d6283782afed2b48901195888988db733f1031958799b912a66a47e72",
+    "Together/App/AppRootView.swift": "d7af522f8f2a0725a02c13e029f7cb833d553450dfd98349d8feff529a487922",
+    "Together/Features/Shared/TaskCreationView.swift": "8e5d5a6b70015044fa604a34149ee37732df1eea2264a76bcaf27ac5100fb578",
+    "Together/Features/Shared/TaskDetailView.swift": "b6da7a4eddcf8bb3cef655e233c9097925656d9dfc8700f7590abe3e7a6c9b63",
+    "Together/Features/Home/HomeViewModel.swift": "4159e845684ea8448e68b746c8c863aa2d976e0ef4b0d870227ed6fbb2f0852c",
+    "Together/Features/Routines/RoutinesViewModel.swift": "cdfcd751bdccf88065734503fc590c017b1b51b003a4fb13afbef7eb4ab31fff",
+    "TogetherTests/MascotBehaviorTests.swift": "a4abbb95db529d560356a245acf7e4be4fb60a16323ef040e1d8c5935f177393",
+    "TogetherTests/TogetherTests.swift": "850d29ce8fec4334cd6b6ebf6ec05d0e5f7182684555db04ad12b5309591bf16"
+  },
+  "assetSHA256": "a65fe00e7e1fe9d05062facd724280dd17ff10b952d503a150d6dce7c27c082d",
+  "bundledAssetMatches": true,
+  "stateTests": {
+    "passed": 14,
+    "execution": "Independent Swift Testing package with exact production behavior/controller and test sources",
+    "sourceCopiesVerified": true
+  },
+  "feedbackInterruption": {
+    "passed": 90,
+    "evidence": "apple-runtime-audit/feedback-interruption-verification.json",
+    "api": "Official SDK inspection API observing core states, separate from New Runtime view"
+  },
+  "iOSBuild": {
+    "passed": true,
+    "action": "build-for-testing",
+    "scheme": "Together-UnitTests",
+    "configuration": "Debug",
+    "destination": "generic/platform=iOS",
+    "codeSigningAllowed": false,
+    "xcode": "27.0 beta 3 (27A5218g)",
+    "developerDirectory": "/Users/papertiger/Downloads/Xcode-beta 3.app/Contents/Developer",
+    "globalDeveloperDirectoryChanged": false,
+    "sdk": "iphoneos27.0",
+    "result": "TEST BUILD SUCCEEDED",
+    "command": "\"/Users/papertiger/Downloads/Xcode-beta 3.app/Contents/Developer/usr/bin/xcodebuild\" -project Together.xcodeproj -scheme Together-UnitTests -configuration Debug -destination generic/platform=iOS -derivedDataPath /private/tmp/together-mascot-app-xcode27-build -clonedSourcePackagesDirPath /private/tmp/together-mascot-app-packages -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO build-for-testing"
+  },
+  "swiftParse": true,
+  "gitDiffCheck": true,
+  "projectPlistLint": true,
+  "iOSTestsExecuted": false,
+  "deviceInstalled": false,
+  "simulatorLaunched": false,
+  "visualGestureEnergyVerified": false,
+  "appleKnowledge": {
+    "query": "SwiftUI Rive UIViewRepresentable stable identity lifecycle visibility scenePhase pause background animation Reduce Motion cancellation",
+    "keys": [],
+    "applied": [],
+    "result": "No Expert Delta"
+  }
+}

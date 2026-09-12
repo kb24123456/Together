@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "originalTimelineCount": 128,
+  "currentTimelineCount": 137,
+  "unchangedOriginalTimelineTracks": 120,
+  "threeCleanupOnly": [
+    "0-452958",
+    "0-454451",
+    "0-455944"
+  ],
+  "modifiedGazeTimelines": [
+    "Idle",
+    "Idle_QuietMedium",
+    "Idle_Look",
+    "Idle_GazeUp",
+    "Idle_GazeDown",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_Select"
+  ],
+  "originalStateMachineEdgesPreserved": 298,
+  "layers": [
+    "Behavior",
+    "Expressions",
+    "LightActions"
+  ],
+  "optionalIdleFaceDefault": -1,
+  "assetSHA256": "80c812a991054ac6aad3e5bc9626d938d34368f838ced7a4084bcaebc40ea9a7"
+}

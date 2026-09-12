@@ -1,0 +1,132 @@
+Window: "Rive", App: Rive.
+0 standard window Rive, Secondary Actions: Raise
+	1 container Rive
+		2 container (settable) Together Sphere Motion Study
+BETA 0.8.5761
+Invite
+Hierarchy
+Data
+Assets
+Animations
+Agent
+			3 text (settable) Publish
+			4 text (settable) Design
+			5 text (settable) Animate
+			6 container (settable)
+				7 text (settable) SweatingFace
+				8 text (settable) SweatDrop
+				9 text (settable) SweatEyeFar
+				10 text (settable) SweatEyeNear
+				11 text (settable) WritingFace
+				12 text (settable) IdleFace
+				13 text (settable) SphereEyeFar
+				14 text (settable) SphereEyeNear
+				15 text (settable) IdleEyeFar
+				16 text (settable) IdleEyeNear
+				17 text (settable) Body
+			18 text field (settable)
+			19 container (settable)
+				20 text (settable) Mascot
+				21 text (settable) Default
+				22 text (settable) Listeners
+				23 text (settable) Sphere press → acknowledge
+				24 text (settable) Inputs
+				25 text (settable) Deprecated
+			26 container (settable)
+				27 text (settable) Stage
+				28 text (settable) 74.8%
+			29 container (settable)
+				30 text (settable) Preview
+				31 text (settable) Recover
+				32 text (settable) Mascot
+				33 text (settable) Thinking
+				34 text (settable) 100%
+			35 text field (settable)
+			36 container (settable) Behavior
+			37 container (settable)
+				38 text (settable) Console
+				39 text (settable) Problems
+				40 text (settable) Changes
+				41 text (settable) Testing
+				42 text (settable) Audio
+				43 text (settable) Compiled in 0.1ms
+			44 container (settable)
+				45 text (settable) 45 Idle to PickAfterOthers
+
+
+				46 text (settable) 46 PickAfterOthers
+
+
+				47 text (settable) 47 PickAfterOthers to Idle_QuietShort
+
+
+				48 text (settable) 48 Idle_QuietShort
+
+
+				49 text (settable) Frame 2983
+
+
+				50 text (settable) Behavior
+
+
+				51 text (settable) 49 Idle_QuietShort to PickAfterShort
+
+
+				52 text (settable) 50 PickAfterShort
+
+
+				53 text (settable) 51 PickAfterShort to Idle_QuietMedium
+
+
+				54 text (settable) 52 Idle_QuietMedium
+
+
+				55 text (settable) Frame 3284
+
+
+				56 text (settable) Behavior
+
+
+				57 text (settable) 53 Idle_QuietMedium to PickAfterOthers
+
+
+				58 text (settable) 54 PickAfterOthers
+
+
+				59 text (settable) 55 PickAfterOthers to Idle_QuietShort
+
+
+				60 text (settable) 56 Idle_QuietShort
+
+
+			61 container (settable)
+				62 text (settable) Scripts
+				63 text (settable) Mascot
+			64 container (settable)
+				65 text (settable) Design background
+				66 text (settable) Animate background
+				67 text (settable) Scripting
+				68 text (settable) Optimization
+Full
+				69 text (settable) Debug
+None
+				70 text (settable) Shader Targets
+				71 text (settable) Metal (MSL)
+				72 text (settable) GLSL ES 300
+				73 text (settable) WGSL
+				74 text (settable) HLSL
+				75 text (settable) SPIR-V
+				76 text (settable) Tags
+Upgrade
+				77 text (settable) Default Interpolation
+				78 text field (settable)
+	79 close button
+	80 full screen button Help: this button also has an action to zoom the window, Secondary Actions: zoom the window
+	81 minimize button
+82 menu bar
+	83 Rive
+	84 Edit
+	85 View
+	86 Window
+
+The focused UI element is 1 container Rive

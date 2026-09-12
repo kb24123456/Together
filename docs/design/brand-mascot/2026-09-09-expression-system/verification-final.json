@@ -1,0 +1,2203 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "hold-Calm",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Calm"
+      ]
+    },
+    {
+      "name": "pulse-Calm",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Calm"
+      ]
+    },
+    {
+      "name": "Calm-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Calm-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Calm-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Calm-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-SoftHappy",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_SoftHappy"
+      ]
+    },
+    {
+      "name": "pulse-SoftHappy",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_SoftHappy"
+      ]
+    },
+    {
+      "name": "SoftHappy-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "SoftHappy-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "SoftHappy-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "SoftHappy-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Laugh",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Laugh",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Laugh"
+      ]
+    },
+    {
+      "name": "pulse-Laugh",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Laugh"
+      ]
+    },
+    {
+      "name": "Laugh-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Laugh",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Laugh-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Laugh",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Laugh-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Laugh",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Laugh-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Laugh",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Excited",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Excited",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Excited"
+      ]
+    },
+    {
+      "name": "pulse-Excited",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_Look",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Excited"
+      ]
+    },
+    {
+      "name": "Excited-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Excited",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Excited-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Excited",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Excited-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Excited",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Excited-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Excited",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-WinkSmile",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_WinkSmile",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_WinkSmile"
+      ]
+    },
+    {
+      "name": "pulse-WinkSmile",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_WinkSmile"
+      ]
+    },
+    {
+      "name": "WinkSmile-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_WinkSmile",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "WinkSmile-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_WinkSmile",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "WinkSmile-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_WinkSmile",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "WinkSmile-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_WinkSmile",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Love",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Love"
+      ]
+    },
+    {
+      "name": "pulse-Love",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Love"
+      ]
+    },
+    {
+      "name": "Love-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Love-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Love-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Love-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Blush",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Blush",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Blush"
+      ]
+    },
+    {
+      "name": "pulse-Blush",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Blush"
+      ]
+    },
+    {
+      "name": "Blush-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Blush",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Blush-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Blush",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Blush-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Blush",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Blush-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Blush",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Smug",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Smug",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Smug"
+      ]
+    },
+    {
+      "name": "pulse-Smug",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Smug"
+      ]
+    },
+    {
+      "name": "Smug-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Smug",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Smug-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Smug",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Smug-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Smug",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Smug-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Smug",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-CuriousOpen",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_CuriousOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_CuriousOpen"
+      ]
+    },
+    {
+      "name": "pulse-CuriousOpen",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_CuriousOpen"
+      ]
+    },
+    {
+      "name": "CuriousOpen-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_CuriousOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "CuriousOpen-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_CuriousOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "CuriousOpen-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_CuriousOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "CuriousOpen-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_CuriousOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-PuzzledOpen",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_PuzzledOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_PuzzledOpen"
+      ]
+    },
+    {
+      "name": "pulse-PuzzledOpen",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_PuzzledOpen"
+      ]
+    },
+    {
+      "name": "PuzzledOpen-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_PuzzledOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "PuzzledOpen-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_PuzzledOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "PuzzledOpen-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_PuzzledOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "PuzzledOpen-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_PuzzledOpen",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-ThinkingUp",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_ThinkingUp",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_ThinkingUp"
+      ]
+    },
+    {
+      "name": "pulse-ThinkingUp",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_ThinkingUp"
+      ]
+    },
+    {
+      "name": "ThinkingUp-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_ThinkingUp",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "ThinkingUp-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_ThinkingUp",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "ThinkingUp-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_ThinkingUp",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "ThinkingUp-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_ThinkingUp",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-GentleFocus",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_GentleFocus",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_GentleFocus"
+      ]
+    },
+    {
+      "name": "pulse-GentleFocus",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_GentleFocus"
+      ]
+    },
+    {
+      "name": "GentleFocus-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_GentleFocus",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "GentleFocus-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_GentleFocus",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "GentleFocus-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_GentleFocus",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "GentleFocus-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_GentleFocus",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Surprised",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Surprised",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Surprised"
+      ]
+    },
+    {
+      "name": "pulse-Surprised",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Surprised"
+      ]
+    },
+    {
+      "name": "Surprised-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Surprised",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Surprised-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Surprised",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Surprised-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Surprised",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Surprised-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Surprised",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Embarrassed",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Embarrassed",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Embarrassed"
+      ]
+    },
+    {
+      "name": "pulse-Embarrassed",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Embarrassed"
+      ]
+    },
+    {
+      "name": "Embarrassed-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Embarrassed",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Embarrassed-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Embarrassed",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Embarrassed-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Embarrassed",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Embarrassed-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Embarrassed",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-MildAngry",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_MildAngry",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_MildAngry"
+      ]
+    },
+    {
+      "name": "pulse-MildAngry",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_MildAngry"
+      ]
+    },
+    {
+      "name": "MildAngry-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_MildAngry",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "MildAngry-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_MildAngry",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "MildAngry-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_MildAngry",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "MildAngry-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_MildAngry",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Speechless",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Speechless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Speechless"
+      ]
+    },
+    {
+      "name": "pulse-Speechless",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Speechless"
+      ]
+    },
+    {
+      "name": "Speechless-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Speechless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Speechless-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Speechless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Speechless-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Speechless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Speechless-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Speechless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-SleepyYawn",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_SleepyYawn",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_SleepyYawn"
+      ]
+    },
+    {
+      "name": "pulse-SleepyYawn",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_SleepyYawn"
+      ]
+    },
+    {
+      "name": "SleepyYawn-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_SleepyYawn",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "SleepyYawn-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_SleepyYawn",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "SleepyYawn-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_SleepyYawn",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "SleepyYawn-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_SleepyYawn",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Content",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Content",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Content"
+      ]
+    },
+    {
+      "name": "pulse-Content",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Content"
+      ]
+    },
+    {
+      "name": "Content-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Content",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Content-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Content",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Content-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Content",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Content-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Content",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Sad",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Sad",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Sad"
+      ]
+    },
+    {
+      "name": "pulse-Sad",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Sad"
+      ]
+    },
+    {
+      "name": "Sad-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Sad",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Sad-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Sad",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Sad-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Sad",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Sad-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Sad",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-SmallTears",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_SmallTears",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_SmallTears"
+      ]
+    },
+    {
+      "name": "pulse-SmallTears",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_SmallTears"
+      ]
+    },
+    {
+      "name": "SmallTears-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_SmallTears",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "SmallTears-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_SmallTears",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "SmallTears-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_SmallTears",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "SmallTears-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_SmallTears",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-CuriousQuiet",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_CuriousQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_CuriousQuiet"
+      ]
+    },
+    {
+      "name": "pulse-CuriousQuiet",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_CuriousQuiet"
+      ]
+    },
+    {
+      "name": "CuriousQuiet-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_CuriousQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "CuriousQuiet-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_CuriousQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "CuriousQuiet-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_CuriousQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "CuriousQuiet-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_CuriousQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-PuzzledQuiet",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_PuzzledQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_PuzzledQuiet"
+      ]
+    },
+    {
+      "name": "pulse-PuzzledQuiet",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_PuzzledQuiet"
+      ]
+    },
+    {
+      "name": "PuzzledQuiet-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_PuzzledQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "PuzzledQuiet-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_PuzzledQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "PuzzledQuiet-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_PuzzledQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "PuzzledQuiet-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_PuzzledQuiet",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Determined",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Determined",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Determined"
+      ]
+    },
+    {
+      "name": "pulse-Determined",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Determined"
+      ]
+    },
+    {
+      "name": "Determined-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Determined",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Determined-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Determined",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Determined-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Determined",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Determined-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Determined",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Realization",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Realization",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Realization"
+      ]
+    },
+    {
+      "name": "pulse-Realization",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Realization"
+      ]
+    },
+    {
+      "name": "Realization-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Realization",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Realization-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Realization",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Realization-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Realization",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Realization-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Realization",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-ShyLookAway",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_ShyLookAway",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_ShyLookAway"
+      ]
+    },
+    {
+      "name": "pulse-ShyLookAway",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_ShyLookAway"
+      ]
+    },
+    {
+      "name": "ShyLookAway-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_ShyLookAway",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "ShyLookAway-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_ShyLookAway",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "ShyLookAway-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_ShyLookAway",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "ShyLookAway-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_ShyLookAway",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Helpless",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Helpless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Helpless"
+      ]
+    },
+    {
+      "name": "pulse-Helpless",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Helpless"
+      ]
+    },
+    {
+      "name": "Helpless-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Helpless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Helpless-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Helpless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Helpless-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Helpless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Helpless-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Helpless",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-Nervous",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Nervous",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_Nervous"
+      ]
+    },
+    {
+      "name": "pulse-Nervous",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Nervous"
+      ]
+    },
+    {
+      "name": "Nervous-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Nervous",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "Nervous-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Nervous",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "Nervous-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Nervous",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "Nervous-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Nervous",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "hold-SleepyLow",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_SleepyLow",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Hold_SleepyLow"
+      ]
+    },
+    {
+      "name": "pulse-SleepyLow",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_SleepyLow"
+      ]
+    },
+    {
+      "name": "SleepyLow-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SleepyLow",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "SleepyLow-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SleepyLow",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "SleepyLow-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SleepyLow",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "SleepyLow-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_SleepyLow",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "rapid-final-selection",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Excited",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": []
+    },
+    {
+      "name": "pulse-restores-latest-selection",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Sad",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Pulse_Laugh"
+      ]
+    },
+    {
+      "name": "repeat-observe",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Observe"
+      ]
+    },
+    {
+      "name": "repeat-nod",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietShort",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "repeat-celebrateMotion",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate"
+      ]
+    },
+    {
+      "name": "repeat-poke",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke"
+      ]
+    },
+    {
+      "name": "interrupted-actions",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Love",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Poke",
+        "Action_Observe",
+        "Action_Celebrate",
+        "Action_Nod"
+      ]
+    },
+    {
+      "name": "legacy-Writing",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Writing",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": []
+    },
+    {
+      "name": "legacy-WritingHold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "WritingHold",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": []
+    },
+    {
+      "name": "legacy-Concerned",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Concerned",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": []
+    },
+    {
+      "name": "legacy-Thinking",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Thinking",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": []
+    },
+    {
+      "name": "legacy-Doze",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Doze",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": []
+    },
+    {
+      "name": "legacy-acknowledge",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Acknowledge"
+      ]
+    },
+    {
+      "name": "automatic-celebration",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      },
+      "requiredVisited": [
+        "Action_Celebrate",
+        "Pulse_SoftHappy"
+      ]
+    }
+  ],
+  "checkCount": 182,
+  "legacyTimelinesUnchanged": 33,
+  "legacyKeyframesUnchanged": 183528,
+  "legacyStatesUnchanged": 32,
+  "legacyTransitionsUnchanged": 141,
+  "currentLayers": [
+    {
+      "name": "Behavior",
+      "nodes": 32,
+      "transitions": 141
+    },
+    {
+      "name": "Expressions",
+      "nodes": 92,
+      "transitions": 148
+    },
+    {
+      "name": "LightActions",
+      "nodes": 8,
+      "transitions": 9
+    }
+  ]
+}

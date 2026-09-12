@@ -1,0 +1,88 @@
+{
+  "name": "representative-holds",
+  "fps": 60,
+  "frames": 1260,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 30,
+  "video": true,
+  "events": [
+    {
+      "frame": 0,
+      "label": "LegacyAuto",
+      "numbers": {
+        "mode": 0,
+        "expression": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 180,
+      "label": "Calm",
+      "numbers": {
+        "mode": 0,
+        "expression": 1
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 360,
+      "label": "SoftHappy",
+      "numbers": {
+        "mode": 0,
+        "expression": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 540,
+      "label": "Laugh",
+      "numbers": {
+        "mode": 0,
+        "expression": 3
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 720,
+      "label": "Love",
+      "numbers": {
+        "mode": 0,
+        "expression": 6
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 900,
+      "label": "PuzzledOpen",
+      "numbers": {
+        "mode": 0,
+        "expression": 10
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 1080,
+      "label": "SleepyYawn",
+      "numbers": {
+        "mode": 0,
+        "expression": 17
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    }
+  ]
+}

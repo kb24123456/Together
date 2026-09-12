@@ -1,0 +1,122 @@
+{
+  "name": "final-80pt-dark",
+  "frames": 1440,
+  "fps": 60,
+  "width": 240,
+  "height": 240,
+  "pngEvery": 0,
+  "pngFrames": [
+    45,
+    225,
+    405,
+    585,
+    765,
+    945,
+    1125,
+    1305
+  ],
+  "video": true,
+  "backgroundARGB": "FF181818",
+  "events": [
+    {
+      "frame": 0,
+      "label": "SoftHappy",
+      "numbers": {
+        "mode": 0,
+        "expression": 2
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "#fff0f0f0",
+        "bodyShade": "#ffd5d5d5",
+        "handLight": "#fff0f0f0",
+        "handShade": "#ffbdbdbd",
+        "farHandLight": "#ffe8e8e8",
+        "farHandShade": "#ffb8b8b8",
+        "eyeColor": "#ff1b1b1b",
+        "sweatColor": "#ff686868",
+        "penBodyColor": "#ff767676",
+        "penTipColor": "#ffadadad",
+        "inkColor": "#ff929292",
+        "tearColor": "#ff347fa6"
+      }
+    },
+    {
+      "frame": 180,
+      "label": "Laugh",
+      "numbers": {
+        "mode": 0,
+        "expression": 3
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 360,
+      "label": "Speechless",
+      "numbers": {
+        "mode": 0,
+        "expression": 16
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 540,
+      "label": "SleepyYawn",
+      "numbers": {
+        "mode": 0,
+        "expression": 17
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 720,
+      "label": "Content",
+      "numbers": {
+        "mode": 0,
+        "expression": 18
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 900,
+      "label": "Helpless",
+      "numbers": {
+        "mode": 0,
+        "expression": 26
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 1080,
+      "label": "SleepyLow",
+      "numbers": {
+        "mode": 0,
+        "expression": 28
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 1260,
+      "label": "Back to legacy auto",
+      "numbers": {
+        "expression": 0
+      }
+    }
+  ],
+  "displayPointSize": 80,
+  "backingScale": 3
+}

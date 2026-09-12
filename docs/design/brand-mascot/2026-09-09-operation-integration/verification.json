@@ -1,0 +1,2170 @@
+{
+  "date": "2026-09-09",
+  "fileId": 2561771,
+  "artboardId": "0-2",
+  "stateMachineId": "0-7",
+  "changes": {
+    "stateId": "0-3941",
+    "name": "Acknowledge",
+    "animationBefore": "0-1037",
+    "animationAfter": "0-185847",
+    "speedBefore": 1,
+    "speedAfter": 2,
+    "feedbackDurationSeconds": 0.8,
+    "originalTimelineFrames": 96,
+    "originalTimelineFPS": 60
+  },
+  "structuralDelta": [
+    {
+      "path": ".layers.0.states.22.animationId",
+      "before": "0-1037",
+      "after": "0-185847"
+    },
+    {
+      "path": ".layers.0.states.22.animationName",
+      "before": "Acknowledge",
+      "after": "Expression_Wink"
+    },
+    {
+      "path": ".layers.0.states.22.stateCaption",
+      "before": "",
+      "after": "Tap · Wink · 0.8s"
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario": {
+        "id": "tap_once",
+        "frames": 150,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "acknowledge",
+            true
+          ]
+        ],
+        "end": "Idle",
+        "winkCount": 1,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 150,
+        "settled": false,
+        "transitionsObserved": 5,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-12",
+            "stateName": "Idle"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 69
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168151",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 150
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 11,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "tap_burst",
+        "frames": 150,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "acknowledge",
+            true
+          ],
+          [
+            30,
+            "acknowledge",
+            true
+          ],
+          [
+            45,
+            "acknowledge",
+            true
+          ]
+        ],
+        "end": "Idle",
+        "winkCount": 1,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 30,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 45,
+            "property": "acknowledge",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 150,
+        "settled": false,
+        "transitionsObserved": 5,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-12",
+            "stateName": "Idle"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 69
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168151",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 150
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 11,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "tap_then_edit",
+        "frames": 150,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "acknowledge",
+            true
+          ],
+          [
+            30,
+            "mode",
+            1
+          ],
+          [
+            30,
+            "isTyping",
+            true
+          ]
+        ],
+        "end": "Writing",
+        "winkCount": 1,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 30,
+            "property": "mode",
+            "value": 1
+          },
+          {
+            "frame": 30,
+            "property": "isTyping",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 150,
+        "settled": false,
+        "transitionsObserved": 7,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-379",
+            "stateName": "Writing"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 31
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168148",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-122631",
+            "toStateName": "Settle"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-122631",
+            "stateName": "Settle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 44
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168173",
+            "fromStateId": "0-122631",
+            "fromStateName": "Settle",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 11,
+            "transitionId": "0-168081",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-3936",
+            "toStateName": "WritingEnter"
+          },
+          {
+            "kind": "state",
+            "line": 12,
+            "stateId": "0-3936",
+            "stateName": "WritingEnter",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 57
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 13,
+            "transitionId": "0-168135",
+            "fromStateId": "0-3936",
+            "fromStateName": "WritingEnter",
+            "toStateId": "0-379",
+            "toStateName": "Writing"
+          },
+          {
+            "kind": "state",
+            "line": 14,
+            "stateId": "0-379",
+            "stateName": "Writing",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 150
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 15,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "tap_then_processing",
+        "frames": 150,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "acknowledge",
+            true
+          ],
+          [
+            30,
+            "mode",
+            3
+          ]
+        ],
+        "end": "Thinking",
+        "winkCount": 1,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 30,
+            "property": "mode",
+            "value": 3
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 150,
+        "settled": false,
+        "transitionsObserved": 7,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-122611",
+            "stateName": "Thinking"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 31
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168926",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-122631",
+            "toStateName": "Settle"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-122631",
+            "stateName": "Settle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 44
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168173",
+            "fromStateId": "0-122631",
+            "fromStateName": "Settle",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 11,
+            "transitionId": "0-168082",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-122627",
+            "toStateName": "ThinkingEnter"
+          },
+          {
+            "kind": "state",
+            "line": 12,
+            "stateId": "0-122627",
+            "stateName": "ThinkingEnter",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 89
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 13,
+            "transitionId": "0-168161",
+            "fromStateId": "0-122627",
+            "fromStateName": "ThinkingEnter",
+            "toStateId": "0-122611",
+            "toStateName": "Thinking"
+          },
+          {
+            "kind": "state",
+            "line": 14,
+            "stateId": "0-122611",
+            "stateName": "Thinking",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 150
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 15,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "tap_then_overdue",
+        "frames": 150,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "acknowledge",
+            true
+          ],
+          [
+            30,
+            "mode",
+            2
+          ]
+        ],
+        "end": "Concerned",
+        "winkCount": 1,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 30,
+            "property": "mode",
+            "value": 2
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 150,
+        "settled": false,
+        "transitionsObserved": 5,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-380",
+            "stateName": "Concerned"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 31
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168150",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-3939",
+            "toStateName": "ConcernEnter"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-3939",
+            "stateName": "ConcernEnter",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 44
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168144",
+            "fromStateId": "0-3939",
+            "fromStateName": "ConcernEnter",
+            "toStateId": "0-380",
+            "toStateName": "Concerned"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-380",
+            "stateName": "Concerned",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 150
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 11,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "tap_then_complete",
+        "frames": 180,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "acknowledge",
+            true
+          ],
+          [
+            30,
+            "celebrateRequested",
+            true
+          ]
+        ],
+        "end": "Idle",
+        "winkCount": 1,
+        "celebrateCount": 1,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 30,
+            "property": "celebrateRequested",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 180,
+        "settled": false,
+        "transitionsObserved": 7,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-12",
+            "stateName": "Idle"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 31
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168149",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-122609",
+            "toStateName": "Celebrate"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-122609",
+            "stateName": "Celebrate",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 115
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168157",
+            "fromStateId": "0-122609",
+            "fromStateName": "Celebrate",
+            "toStateId": "0-169073",
+            "toStateName": "FeedbackDone"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-169073",
+            "stateName": "FeedbackDone",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 116
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 11,
+            "transitionId": "0-169074",
+            "fromStateId": "0-169073",
+            "fromStateName": "FeedbackDone",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 12,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 13,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 14,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 180
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 15,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "ignore_tap_while_editing",
+        "frames": 150,
+        "fps": 60,
+        "start": 1,
+        "events": [
+          [
+            0,
+            "isTyping",
+            true
+          ],
+          [
+            30,
+            "acknowledge",
+            true
+          ]
+        ],
+        "end": "Writing",
+        "winkCount": 0,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 1
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": true
+          },
+          {
+            "frame": 30,
+            "property": "acknowledge",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 150,
+        "settled": false,
+        "transitionsObserved": 3,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-379",
+            "stateName": "Writing"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168081",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-3936",
+            "toStateName": "WritingEnter"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-3936",
+            "stateName": "WritingEnter",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 14
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168135",
+            "fromStateId": "0-3936",
+            "fromStateName": "WritingEnter",
+            "toStateId": "0-379",
+            "toStateName": "Writing"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-379",
+            "stateName": "Writing",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 150
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 7,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "two_separate_taps",
+        "frames": 200,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "acknowledge",
+            true
+          ],
+          [
+            100,
+            "acknowledge",
+            true
+          ]
+        ],
+        "end": "Idle",
+        "winkCount": 2,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 100,
+            "property": "acknowledge",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 200,
+        "settled": false,
+        "transitionsObserved": 8,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-12",
+            "stateName": "Idle"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 69
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168151",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 101
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 11,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 12,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 149
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 13,
+            "transitionId": "0-168151",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 14,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 15,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 16,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 200
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 17,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "edit_and_tap_same_frame",
+        "frames": 150,
+        "fps": 60,
+        "events": [
+          [
+            20,
+            "mode",
+            1
+          ],
+          [
+            20,
+            "isTyping",
+            true
+          ],
+          [
+            20,
+            "acknowledge",
+            true
+          ]
+        ],
+        "end": "Writing",
+        "winkCount": 0,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 20,
+            "property": "mode",
+            "value": 1
+          },
+          {
+            "frame": 20,
+            "property": "isTyping",
+            "value": true
+          },
+          {
+            "frame": 20,
+            "property": "acknowledge",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 150,
+        "settled": false,
+        "transitionsObserved": 4,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-379",
+            "stateName": "Writing"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 21
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168087",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3936",
+            "toStateName": "WritingEnter"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3936",
+            "stateName": "WritingEnter",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 34
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168135",
+            "fromStateId": "0-3936",
+            "fromStateName": "WritingEnter",
+            "toStateId": "0-379",
+            "toStateName": "Writing"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-379",
+            "stateName": "Writing",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 150
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 9,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "scenario": {
+        "id": "tap_burst_15fps",
+        "frames": 60,
+        "fps": 15,
+        "events": [
+          [
+            5,
+            "acknowledge",
+            true
+          ],
+          [
+            8,
+            "acknowledge",
+            true
+          ],
+          [
+            10,
+            "acknowledge",
+            true
+          ]
+        ],
+        "end": "Idle",
+        "winkCount": 1,
+        "inputs": [
+          {
+            "frame": 0,
+            "property": "mode",
+            "value": 0
+          },
+          {
+            "frame": 0,
+            "property": "isTyping",
+            "value": false
+          },
+          {
+            "frame": 0,
+            "property": "celebrateRequested",
+            "value": false
+          },
+          {
+            "frame": 5,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 8,
+            "property": "acknowledge",
+            "value": true
+          },
+          {
+            "frame": 10,
+            "property": "acknowledge",
+            "value": true
+          }
+        ]
+      },
+      "result": {
+        "stateMachineId": "0-7",
+        "stateMachineName": "Mascot",
+        "success": true,
+        "framesAdvanced": 60,
+        "settled": false,
+        "transitionsObserved": 5,
+        "finalStates": [
+          {
+            "layerId": "0-8",
+            "layerName": "Behavior",
+            "stateId": "0-12",
+            "stateName": "Idle"
+          }
+        ],
+        "trace": [
+          {
+            "kind": "frame",
+            "frame": 1
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 1,
+            "transitionId": "0-13",
+            "fromStateId": "0-11",
+            "fromStateName": "Entry",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 2,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 3,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 4,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 6
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 5,
+            "transitionId": "0-168092",
+            "fromStateId": "0-12",
+            "fromStateName": "Idle",
+            "toStateId": "0-3941",
+            "toStateName": "Acknowledge"
+          },
+          {
+            "kind": "state",
+            "line": 6,
+            "stateId": "0-3941",
+            "stateName": "Acknowledge",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 19
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "transition",
+            "line": 7,
+            "transitionId": "0-168151",
+            "fromStateId": "0-3941",
+            "fromStateName": "Acknowledge",
+            "toStateId": "0-168021",
+            "toStateName": "Resolve"
+          },
+          {
+            "kind": "state",
+            "line": 8,
+            "stateId": "0-168021",
+            "stateName": "Resolve",
+            "stateType": "animation"
+          },
+          {
+            "kind": "transition",
+            "line": 9,
+            "transitionId": "0-168086",
+            "fromStateId": "0-168021",
+            "fromStateName": "Resolve",
+            "toStateId": "0-12",
+            "toStateName": "Idle"
+          },
+          {
+            "kind": "state",
+            "line": 10,
+            "stateId": "0-12",
+            "stateName": "Idle",
+            "stateType": "animation"
+          },
+          {
+            "kind": "frame",
+            "frame": 60
+          },
+          {
+            "kind": "layer",
+            "layerId": "0-8",
+            "layerName": "Behavior"
+          },
+          {
+            "kind": "message",
+            "line": 11,
+            "message": "Done"
+          }
+        ]
+      },
+      "pass": true
+    }
+  ],
+  "exportAttempt": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: exportRiv is not available on this workspace's plan. Tell the user exporting (.riv and .rev) requires a plan upgrade in Rive. Do not retry, and do not try the other export format — both are gated on this workspace."
+      }
+    ],
+    "structuredContent": {
+      "success": false,
+      "errors": [
+        {
+          "message": "Error: exportRiv is not available on this workspace's plan. Tell the user exporting (.riv and .rev) requires a plan upgrade in Rive. Do not retry, and do not try the other export format — both are gated on this workspace."
+        }
+      ],
+      "content": "Error: exportRiv is not available on this workspace's plan. Tell the user exporting (.riv and .rev) requires a plan upgrade in Rive. Do not retry, and do not try the other export format — both are gated on this workspace."
+    },
+    "isError": true
+  },
+  "appleRetrieval": {
+    "skill": "apple-dev-patterns",
+    "query": "SwiftUI embedded Rive animated mascot stable view identity scenePhase visibility pause Reduce Motion lifecycle",
+    "hitKeys": [],
+    "applied": [],
+    "result": "无需 Expert Delta"
+  },
+  "runtimeAppIntegrated": false,
+  "tearsMapping": "Awaiting user preference; no automatic route added",
+  "nativePointerVisualCheck": {
+    "status": "passed",
+    "method": "Played Mascot and clicked actual Body target in native Rive editor. Light and dark themes showed the open near capsule and closed far arch.",
+    "images": [
+      "tap-wink-light.jpg",
+      "tap-wink-dark.jpg"
+    ],
+    "themePlaybackRestored": "light",
+    "limitation": "Editor reloaded while switching to Mascot; subsequent native light/dark click checks passed. App and device interaction unverified."
+  },
+  "relevantTimelinesReadback": {
+    "timelinesChecked": 4,
+    "ids": [
+      "0-185847",
+      "0-122626",
+      "0-6",
+      "0-5972"
+    ],
+    "changedKeys": [],
+    "pass": true
+  },
+  "statePropertyReadback": {
+    "stateId": "0-3941",
+    "animationId": "0-185847",
+    "speed": 2,
+    "stateCaption": "Tap · Wink · 0.8s"
+  }
+}

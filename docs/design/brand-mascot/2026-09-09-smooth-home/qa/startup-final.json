@@ -1,0 +1,293 @@
+{
+  "assetPath": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-09-smooth-home/deliverables/together_sphere_motion_study.riv",
+  "assetSHA256": "80c812a991054ac6aad3e5bc9626d938d34368f838ced7a4084bcaebc40ea9a7",
+  "runtime": "Rive Apple New Runtime 6.25.1 Metal pixels",
+  "size": [
+    512,
+    512
+  ],
+  "theme": "light",
+  "startupSequence": [
+    "write initial VM inputs",
+    "advance(0)",
+    "advance(0.15)",
+    "await mode value barrier",
+    "render with 0 elapsed before publication"
+  ],
+  "source": "startup-final-assets/startup-probe.swift",
+  "caseCount": 8,
+  "passedCount": 8,
+  "cases": [
+    {
+      "name": "app-current-publish",
+      "startupSteps": [
+        0
+      ],
+      "frame0EyeROIBrightPixels": 0,
+      "originalSequenceBlankReproduced": true,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "Idle_Select",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        }
+      ],
+      "stateSequence": [
+        "Idle_GazeDown",
+        "Home_Acquire"
+      ],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/app-current-publish/evidence.json",
+      "firstFrame": "startup-final-assets/app-current-publish/frame-00000.png"
+    },
+    {
+      "name": "zero-150",
+      "startupSteps": [
+        0,
+        0.15
+      ],
+      "frame0EyeROIBrightPixels": 4479,
+      "originalSequenceBlankReproduced": false,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "Idle_Select",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "dt": 0.15,
+          "states": [
+            "Idle_QuietMedium",
+            "Home_Acquire"
+          ]
+        }
+      ],
+      "stateSequence": [],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/zero-150/evidence.json",
+      "firstFrame": "startup-final-assets/zero-150/frame-00000.png"
+    },
+    {
+      "name": "startup-holding",
+      "startupSteps": [
+        0,
+        0.15
+      ],
+      "frame0EyeROIBrightPixels": 2128,
+      "originalSequenceBlankReproduced": false,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "WritingEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "dt": 0.15,
+          "states": []
+        }
+      ],
+      "stateSequence": [
+        "WritingHold"
+      ],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/startup-holding/evidence.json",
+      "firstFrame": "startup-final-assets/startup-holding/frame-00000.png"
+    },
+    {
+      "name": "startup-writing",
+      "startupSteps": [
+        0,
+        0.15
+      ],
+      "frame0EyeROIBrightPixels": 2128,
+      "originalSequenceBlankReproduced": false,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "WritingEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "dt": 0.15,
+          "states": []
+        }
+      ],
+      "stateSequence": [
+        "Writing"
+      ],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/startup-writing/evidence.json",
+      "firstFrame": "startup-final-assets/startup-writing/frame-00000.png"
+    },
+    {
+      "name": "startup-sweat",
+      "startupSteps": [
+        0,
+        0.15
+      ],
+      "frame0EyeROIBrightPixels": 2198,
+      "originalSequenceBlankReproduced": false,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "ConcernEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "dt": 0.15,
+          "states": []
+        }
+      ],
+      "stateSequence": [
+        "Concerned"
+      ],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/startup-sweat/evidence.json",
+      "firstFrame": "startup-final-assets/startup-sweat/frame-00000.png"
+    },
+    {
+      "name": "startup-thinking",
+      "startupSteps": [
+        0,
+        0.15
+      ],
+      "frame0EyeROIBrightPixels": 4490,
+      "originalSequenceBlankReproduced": false,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "ThinkingEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "dt": 0.15,
+          "states": []
+        }
+      ],
+      "stateSequence": [],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/startup-thinking/evidence.json",
+      "firstFrame": "startup-final-assets/startup-thinking/frame-00000.png"
+    },
+    {
+      "name": "recovery-startup-first-ack",
+      "startupSteps": [
+        0,
+        0.15
+      ],
+      "frame0EyeROIBrightPixels": 4479,
+      "originalSequenceBlankReproduced": false,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "Idle_Select",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "dt": 0.15,
+          "states": [
+            "Idle_QuietMedium",
+            "Home_Acquire"
+          ]
+        }
+      ],
+      "stateSequence": [
+        "Expression_Wink",
+        "Expr_Auto",
+        "Idle_Select",
+        "Idle_GazeUp",
+        "Home_Acquire",
+        "Home_Calm"
+      ],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/recovery-startup-first-ack/evidence.json",
+      "firstFrame": "startup-final-assets/recovery-startup-first-ack/frame-00000.png"
+    },
+    {
+      "name": "recovery-startup-first-celebrate",
+      "startupSteps": [
+        0,
+        0.15
+      ],
+      "frame0EyeROIBrightPixels": 4479,
+      "originalSequenceBlankReproduced": false,
+      "startupTrace": [
+        {
+          "dt": 0,
+          "states": [
+            "Idle_Select",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "dt": 0.15,
+          "states": [
+            "Idle_GazeUpRight",
+            "Home_Acquire"
+          ]
+        }
+      ],
+      "stateSequence": [
+        "Celebrate",
+        "Expr_Auto",
+        "Idle_Select",
+        "Idle_Select",
+        "Idle_GazeDown",
+        "Home_Acquire",
+        "Home_Calm"
+      ],
+      "feedbackAccepted": true,
+      "recoveredHomeCalm": true,
+      "passed": true,
+      "evidence": "startup-final-assets/recovery-startup-first-celebrate/evidence.json",
+      "firstFrame": "startup-final-assets/recovery-startup-first-celebrate/frame-00000.png"
+    }
+  ],
+  "visualInspection": [
+    "Home first frame has complete capsule eyes.",
+    "Holding, writing, concern and thinking first frames have visible approved eyes.",
+    "Immediate acknowledge and celebrate enter their original feedback and return to complete HomeCalm eyes."
+  ],
+  "limits": [
+    "Offline native Metal rendering, no iPhone or iOS Simulator used.",
+    "State traces use a separate official inspection instance. Random gaze branch may differ from pixels.",
+    "ROI brightness only detects a missing face at startup; it is not a general visual quality metric.",
+    "This startup check covers light theme at 512px; parent performs final small-size and dark-theme QA."
+  ]
+}

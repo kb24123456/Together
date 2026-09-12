@@ -1,0 +1,2263 @@
+{
+  "api" : "6.25.1 inspection API using the same core state machine; App uses only New Runtime advance(by:)",
+  "caseCount" : 90,
+  "cases" : [
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "Expression_Wink"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_QuietShort"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_QuietShort"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "WritingHold"
+      ],
+      "stateAtPauseEnd" : "WritingEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "Thinking"
+      ],
+      "stateAtPauseEnd" : "ThinkingEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_QuietShort"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_Look"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_QuietShort"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_Look"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "acknowledge",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_QuietShort"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "WritingHold"
+      ],
+      "stateAtPauseEnd" : "WritingEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Thinking"
+      ],
+      "stateAtPauseEnd" : "ThinkingEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Idle_QuietShort"
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "ConcernEnter"
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 0,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "Recover"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "Recover"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "Recover"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 0,
+      "drainTrace" : [
+        [
+          "Recover"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+          "Doze"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Doze"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "WritingHold"
+      ],
+      "stateAtPauseEnd" : "WritingEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Thinking"
+      ],
+      "stateAtPauseEnd" : "ThinkingEnter"
+    },
+    {
+      "consumedFrames" : 1,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 10,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 40,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+          "WritingHold"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "WritingHold"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "ConcernEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Concerned"
+      ],
+      "stateAtPauseEnd" : "ConcernEnter"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+          "Settle"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+          "Thinking"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Thinking"
+    },
+    {
+      "consumedFrames" : 75,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Idle_Select"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Recover"
+        ],
+        [
+          "Idle"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 0,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Idle"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Recover"
+        ],
+        [
+          "WritingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 1,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "WritingHold"
+      ],
+      "stateAtPauseEnd" : "WritingEnter"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Concerned"
+        ],
+        [
+
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 2,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+
+      ],
+      "stateAtPauseEnd" : "Concerned"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Recover"
+        ],
+        [
+          "ThinkingEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 3,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Thinking"
+      ],
+      "stateAtPauseEnd" : "ThinkingEnter"
+    },
+    {
+      "consumedFrames" : 100,
+      "drainTrace" : [
+        [
+
+        ],
+        [
+          "Recover"
+        ],
+        [
+          "DozeEnter"
+        ],
+        [
+
+        ]
+      ],
+      "finalMode" : 4,
+      "initialMode" : 2,
+      "kind" : "celebrate",
+      "passed" : true,
+      "resumedStates" : [
+        "Doze"
+      ],
+      "stateAtPauseEnd" : "DozeEnter"
+    }
+  ],
+  "drainSteps" : [
+    0,
+    2,
+    0.10000000000000001,
+    0.10000000000000001
+  ],
+  "failedCount" : 0
+}

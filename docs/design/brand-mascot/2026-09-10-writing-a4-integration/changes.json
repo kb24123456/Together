@@ -1,0 +1,35 @@
+{
+  "timelines": [
+    {
+      "id": "0-108",
+      "name": "Writing",
+      "duration": 3.6,
+      "oldKeys": 839,
+      "newKeys": 3267
+    },
+    {
+      "id": "0-1033",
+      "name": "WritingHold",
+      "duration": 4.0,
+      "oldKeys": 488,
+      "newKeys": 946
+    },
+    {
+      "id": "0-1032",
+      "name": "WritingEnter",
+      "duration": 0.2,
+      "oldKeys": 799,
+      "newKeys": 852
+    },
+    {
+      "id": "0-1034",
+      "name": "WritingExit",
+      "duration": 0.2,
+      "oldKeys": 765,
+      "newKeys": 822
+    }
+  ],
+  "stateMachineChanged": false,
+  "baseGeometryChanged": false,
+  "ownership": "CharacterRoot for body follow; inverse transforms on WritingProps and WritingFace; no Body or FaceMotion animation ownership added"
+}

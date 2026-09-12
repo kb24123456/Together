@@ -29,6 +29,7 @@ struct TaskCreationView: View {
     let destination: TaskCreationDestination
     @Bindable var homeViewModel: HomeViewModel
     @Bindable var routinesViewModel: RoutinesViewModel
+    let mascot: MascotEditorHandle
     let onCancel: () -> Void
     let onCreated: (TaskMorphDomain, UUID) -> Void
 
@@ -62,12 +63,14 @@ struct TaskCreationView: View {
         destination: TaskCreationDestination,
         homeViewModel: HomeViewModel,
         routinesViewModel: RoutinesViewModel,
+        mascot: MascotEditorHandle,
         onCancel: @escaping () -> Void,
         onCreated: @escaping (TaskMorphDomain, UUID) -> Void
     ) {
         self.destination = destination
         self.homeViewModel = homeViewModel
         self.routinesViewModel = routinesViewModel
+        self.mascot = mascot
         self.onCancel = onCancel
         self.onCreated = onCreated
 
@@ -117,6 +120,10 @@ struct TaskCreationView: View {
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    navigationHeading
+                }
+
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", systemImage: "xmark", action: cancel)
                         .labelStyle(.iconOnly)
@@ -142,6 +149,11 @@ struct TaskCreationView: View {
             }
         }
         .interactiveDismissDisabled(isSaving)
+        .background {
+            MascotNavigationObserver(mascot: mascot)
+                .id(mascot.id)
+                .allowsHitTesting(false)
+        }
         .sheet(item: $schedulePresentation, onDismiss: applyPendingTodoSchedule) { presentation in
             DateTimePickerSheet(
                 presentation: presentation,
@@ -163,6 +175,7 @@ struct TaskCreationView: View {
             focusedField = .title
         }
         .onChange(of: focusedField) { oldValue, newValue in
+            mascot.stopTyping()
             guard case .existingSubtask(let id) = oldValue,
                   newValue != oldValue
             else { return }
@@ -182,6 +195,23 @@ struct TaskCreationView: View {
         }
     }
 
+    private var navigationHeading: some View {
+        HStack(spacing: AppTheme.spacing.xs) {
+            Text(navigationTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                // Keep the inline bar compact; the content editor retains full Dynamic Type.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+
+            BrandMascotView(session: mascot.session, surface: mascot.surface, diameter: 30)
+                .frame(height: 44, alignment: .top)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(navigationTitle)
+        .accessibilityAddTraits(.isHeader)
+    }
+
     private var isTitleEmpty: Bool {
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -199,23 +229,9 @@ struct TaskCreationView: View {
 
     private var identitySection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            TextField("任务标题", text: $title, axis: .vertical)
-                .font(AppTheme.typography.scaled(22, weight: .bold, relativeTo: .title2))
-                .foregroundStyle(colorScheme == .light ? AppTheme.colors.taskFocusTitle : AppTheme.colors.title)
-                .textInputAutocapitalization(.sentences)
-                .submitLabel(.done)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1...8 : 1...3)
-                .focused($focusedField, equals: .title)
-                .onChange(of: title) { _, value in
-                    updateTitle(value)
-                    errorMessage = nil
-                }
-                .onSubmit {
-                    Task { await save() }
-                }
-                .accessibilityIdentifier("together.task-creation.title")
+            titleInput
 
-            TextField("添加备注", text: $notes, axis: .vertical)
+            TextField("添加备注", text: textInputBinding($notes, for: .notes), axis: .vertical)
                 .font(AppTheme.typography.scaled(15, weight: .regular, relativeTo: .body))
                 .foregroundStyle(colorScheme == .light ? AppTheme.colors.taskFocusBody : AppTheme.colors.body)
                 .textInputAutocapitalization(.sentences)
@@ -228,6 +244,25 @@ struct TaskCreationView: View {
                 .accessibilityIdentifier("together.task-creation.notes")
         }
         .padding(.vertical, AppTheme.spacing.xs)
+    }
+
+    private var titleInput: some View {
+        TextField("任务标题", text: textInputBinding($title, for: .title), axis: .vertical)
+            .font(AppTheme.typography.scaled(22, weight: .bold, relativeTo: .title2))
+            .foregroundStyle(colorScheme == .light ? AppTheme.colors.taskFocusTitle : AppTheme.colors.title)
+            .textInputAutocapitalization(.sentences)
+            .submitLabel(.done)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1...8 : 1...3)
+            .focused($focusedField, equals: .title)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .onChange(of: title) { _, value in
+                updateTitle(value)
+                errorMessage = nil
+            }
+            .onSubmit {
+                Task { await save() }
+            }
+            .accessibilityIdentifier("together.task-creation.title")
     }
 
     private var todoDetails: some View {
@@ -397,7 +432,10 @@ struct TaskCreationView: View {
             .accessibilityLabel(subtask.isCompleted ? "恢复子任务" : "完成子任务")
 
             if editingSubtaskID == subtask.id {
-                TextField("子任务标题", text: $editingSubtaskTitle)
+                TextField(
+                    "子任务标题",
+                    text: textInputBinding($editingSubtaskTitle, for: .existingSubtask(subtask.id))
+                )
                     .font(AppTheme.typography.scaled(16, weight: .medium, relativeTo: .body))
                     .focused($focusedField, equals: .existingSubtask(subtask.id))
                     .submitLabel(.done)
@@ -450,7 +488,7 @@ struct TaskCreationView: View {
                 .foregroundStyle(AppTheme.colors.bodySecondary)
                 .frame(width: 44, height: 44)
 
-            TextField("添加子任务", text: $newSubtaskTitle)
+            TextField("添加子任务", text: textInputBinding($newSubtaskTitle, for: .newSubtask))
                 .font(AppTheme.typography.scaled(16, weight: .medium, relativeTo: .body))
                 .focused($focusedField, equals: .newSubtask)
                 .submitLabel(.done)
@@ -820,6 +858,19 @@ struct TaskCreationView: View {
         }
     }
 
+    private func textInputBinding(_ source: Binding<String>, for field: FocusedField) -> Binding<String> {
+        Binding(
+            get: { source.wrappedValue },
+            set: { value in
+                guard source.wrappedValue != value else { return }
+                source.wrappedValue = value
+                if focusedField == field, isSaving == false {
+                    mascot.recordTextInput()
+                }
+            }
+        )
+    }
+
     private func updateNotes(_ value: String) {
         switch destination {
         case .todo:
@@ -834,6 +885,7 @@ struct TaskCreationView: View {
     }
 
     private func addSubtaskAfterSnapshot() {
+        mascot.stopTyping()
         newSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: newSubtaskTitle)
         let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty == false else {
@@ -854,6 +906,7 @@ struct TaskCreationView: View {
     }
 
     private func commitExistingSubtaskAfterSnapshot(_ id: UUID) {
+        mascot.stopTyping()
         editingSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: editingSubtaskTitle)
         focusedField = nil
         commitExistingSubtask(id)
@@ -896,6 +949,7 @@ struct TaskCreationView: View {
     @MainActor
     private func save() async {
         guard isSaving == false else { return }
+        mascot.stopTyping()
         flushFocusedInput()
         await Task.yield()
 
@@ -932,12 +986,14 @@ struct TaskCreationView: View {
             case .periodic:
                 routinesViewModel.finalizeTaskCreation()
             }
+            mascot.beginReturn()
             onCreated(destination.domain, id)
         }
     }
 
     private func cancel() {
         guard isSaving == false else { return }
+        mascot.stopTyping()
         focusedField = nil
         switch destination {
         case .todo:
@@ -945,6 +1001,7 @@ struct TaskCreationView: View {
         case .periodic:
             routinesViewModel.discardTaskCreation()
         }
+        mascot.beginReturn()
         onCancel()
     }
 }

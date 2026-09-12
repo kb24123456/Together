@@ -1,0 +1,167 @@
+{
+  "name": "final-rapid",
+  "fps": 60,
+  "frames": 600,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 6,
+  "video": true,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Happy",
+      "numbers": {
+        "expression": 2,
+        "mode": 0
+      }
+    },
+    {
+      "frame": 30,
+      "label": "Observe",
+      "triggers": [
+        "observe"
+      ]
+    },
+    {
+      "frame": 36,
+      "label": "Love mid-action",
+      "numbers": {
+        "expression": 6
+      }
+    },
+    {
+      "frame": 42,
+      "label": "Puzzled mid-action",
+      "numbers": {
+        "expression": 10
+      }
+    },
+    {
+      "frame": 48,
+      "label": "Laugh mid-action",
+      "numbers": {
+        "expression": 3
+      }
+    },
+    {
+      "frame": 54,
+      "label": "Temporary Love",
+      "numbers": {
+        "reaction": 6
+      },
+      "triggers": [
+        "react"
+      ]
+    },
+    {
+      "frame": 60,
+      "label": "Nod 1",
+      "triggers": [
+        "nod"
+      ]
+    },
+    {
+      "frame": 66,
+      "label": "Nod 2",
+      "triggers": [
+        "nod"
+      ]
+    },
+    {
+      "frame": 72,
+      "label": "Poke 1",
+      "triggers": [
+        "poke"
+      ]
+    },
+    {
+      "frame": 78,
+      "label": "Poke 2",
+      "triggers": [
+        "poke"
+      ]
+    },
+    {
+      "frame": 84,
+      "label": "Celebrate 1",
+      "triggers": [
+        "celebrateMotion"
+      ]
+    },
+    {
+      "frame": 90,
+      "label": "Celebrate 2",
+      "triggers": [
+        "celebrateMotion"
+      ]
+    },
+    {
+      "frame": 96,
+      "label": "Sleepy",
+      "numbers": {
+        "expression": 17
+      }
+    },
+    {
+      "frame": 120,
+      "label": "Temporary Laugh",
+      "numbers": {
+        "reaction": 3
+      },
+      "triggers": [
+        "react"
+      ]
+    },
+    {
+      "frame": 140,
+      "label": "Love persistent",
+      "numbers": {
+        "expression": 6
+      }
+    },
+    {
+      "frame": 148,
+      "label": "Puzzled reaction",
+      "numbers": {
+        "reaction": 10
+      },
+      "triggers": [
+        "react"
+      ]
+    },
+    {
+      "frame": 180,
+      "label": "Back legacy",
+      "numbers": {
+        "expression": 0
+      }
+    },
+    {
+      "frame": 240,
+      "label": "Writing",
+      "numbers": {
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 360,
+      "label": "Concern",
+      "numbers": {
+        "mode": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 480,
+      "label": "Idle",
+      "numbers": {
+        "mode": 0
+      }
+    }
+  ]
+}

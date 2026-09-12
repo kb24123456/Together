@@ -1,0 +1,21 @@
+{
+  "implementation": "left face, original height, horizontal capsule",
+  "tests": {
+    "pureExecuted": 17,
+    "newUIKitCompiledNotExecuted": 4
+  },
+  "xcode": "27.0 27A5218g",
+  "buildForTesting": "passed, generic iOS, unsigned",
+  "simulatorStarted": false,
+  "deviceInstalled": false,
+  "deviceUIValidated": false,
+  "files": {
+    "Together/App/AppRootView.swift": "a52fae0f2150d42bf4b0bcb4c91c079b72f12d8fca3706ccc7498ba12cdde6d8",
+    "Together/Features/BrandMascot/MascotVisualTransfer.swift": "d6751b09c6e60eda320fa0854a5c1d1f2285a721e9f60632e58adc9c44dbf66c",
+    "Together/Features/BrandMascot/MascotPlaybackSession.swift": "c279a35a1f8d9045030b237cbbd3555f64c52cf3341f4e236001137faf01d3bd",
+    "Together/Features/BrandMascot/MascotNoticeState.swift": "74b0e1bf5e266f17e2ff49c3a45dbf8a3ad7fa4ce3c5efea30d36c4c876907bc",
+    "Together/Features/Shared/TaskUpdateNotice.swift": "1d1734f92de266c7ebeaa9f95584c13f528399a61ac30c18aee396657e894b68",
+    "Together/Features/Shared/TaskUpdateFeedback.swift": "440a2a800ee490069a232821e369eaf349f19e8142ad3f19f8624842664b1c7c",
+    "TogetherTests/MascotNoticeTests.swift": "89209c7b303c8ba5f506a7e394101d400ff0e4a904f1e3414fd31b6b68cffa5c"
+  }
+}

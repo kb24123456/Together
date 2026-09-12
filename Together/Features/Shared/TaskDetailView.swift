@@ -57,6 +57,7 @@ struct TaskDetailView: View {
     let presentation: TaskDetailPresentation
     @Bindable var homeViewModel: HomeViewModel
     @Bindable var routinesViewModel: RoutinesViewModel
+    let mascot: MascotEditorHandle
     let onDidDisappear: @MainActor (TaskDetailPresentation) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -85,6 +86,10 @@ struct TaskDetailView: View {
             .navigationTitle("任务详情")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    navigationHeading
+                }
+
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", systemImage: "xmark", action: cancelAndClose)
                         .labelStyle(.iconOnly)
@@ -112,6 +117,11 @@ struct TaskDetailView: View {
             }
         }
         .interactiveDismissDisabled(isClosing)
+        .background {
+            MascotNavigationObserver(mascot: mascot)
+                .id(mascot.id)
+                .allowsHitTesting(false)
+        }
         .accessibilityAction(.escape) {
             cancelAndClose()
         }
@@ -120,6 +130,23 @@ struct TaskDetailView: View {
             didStartDisappearanceCleanup = true
             onDidDisappear(presentation)
         }
+    }
+
+    private var navigationHeading: some View {
+        HStack(spacing: AppTheme.spacing.xs) {
+            Text("任务详情")
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                // Keep the inline bar compact; the content editor retains full Dynamic Type.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+
+            BrandMascotView(session: mascot.session, surface: mascot.surface, diameter: 30)
+                .frame(height: 44, alignment: .top)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("任务详情")
+        .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder
@@ -132,6 +159,7 @@ struct TaskDetailView: View {
                         entry: entry,
                         initialDraft: draft,
                         viewModel: homeViewModel,
+                        mascot: mascot,
                         isClosing: isClosing,
                         inputCommitRequestRevision: inputCommitRequestRevision,
                         onComplete: {
@@ -179,6 +207,7 @@ struct TaskDetailView: View {
                         task: task,
                         initialDraft: draft,
                         viewModel: routinesViewModel,
+                        mascot: mascot,
                         isClosing: isClosing,
                         inputCommitRequestRevision: inputCommitRequestRevision,
                         onComplete: {
@@ -271,18 +300,22 @@ struct TaskDetailView: View {
 
     private func cancelAndClose() {
         guard isClosing == false else { return }
+        mascot.stopTyping()
         isClosing = true
         errorMessage = nil
+        mascot.beginReturn()
         dismiss()
     }
 
     @MainActor
     private func saveAndClose() async {
         guard isClosing == false else { return }
+        mascot.stopTyping()
         isClosing = true
         errorMessage = nil
 
         guard isCurrentDetailAvailable else {
+            mascot.beginReturn()
             dismiss()
             return
         }
@@ -291,11 +324,12 @@ struct TaskDetailView: View {
         await Task.yield()
         await Task.yield()
 
-        guard await persistCurrentDetail() else {
+        guard await persistCurrentDetail(allowsUpdateFeedback: true) else {
             isClosing = false
             return
         }
 
+        mascot.beginReturn()
         dismiss()
     }
 
@@ -312,6 +346,7 @@ struct TaskDetailView: View {
     @MainActor
     private func completeAndClose() async {
         guard isClosing == false else { return }
+        mascot.stopTyping()
         isClosing = true
         errorMessage = nil
 
@@ -351,20 +386,23 @@ struct TaskDetailView: View {
             return
         }
 
+        mascot.beginReturn()
         dismiss()
     }
 
     @MainActor
-    private func persistCurrentDetail() async -> Bool {
+    private func persistCurrentDetail(allowsUpdateFeedback: Bool = false) async -> Bool {
         switch route {
         case .todo:
-            let didSave = await homeViewModel.saveInlineDetailDraft()
+            let didSave = await homeViewModel.saveInlineDetailDraft(
+                allowsUpdateFeedback: allowsUpdateFeedback
+            )
             if didSave == false {
                 errorMessage = homeViewModel.operationErrorMessage ?? "任务保存失败，请重试。"
             }
             return didSave
         case .periodic:
-            let didSave = await routinesViewModel.saveInlineDetailDraft()
+            let didSave = await routinesViewModel.saveInlineDetailDraft(allowsUpdateFeedback: allowsUpdateFeedback)
             if didSave == false {
                 errorMessage = routinesViewModel.operationErrorMessage ?? "定期任务保存失败，请重试。"
             }
@@ -390,6 +428,7 @@ private enum TaskDetailEditorLayout {
 private struct TodoTaskDetailEditor: View {
     let entry: HomeTimelineEntry
     @Bindable var viewModel: HomeViewModel
+    let mascot: MascotEditorHandle
     let isClosing: Bool
     let inputCommitRequestRevision: UInt
     let onComplete: () -> Void
@@ -411,6 +450,7 @@ private struct TodoTaskDetailEditor: View {
         entry: HomeTimelineEntry,
         initialDraft: TaskDraft,
         viewModel: HomeViewModel,
+        mascot: MascotEditorHandle,
         isClosing: Bool,
         inputCommitRequestRevision: UInt,
         onComplete: @escaping () -> Void,
@@ -419,6 +459,7 @@ private struct TodoTaskDetailEditor: View {
     ) {
         self.entry = entry
         self.viewModel = viewModel
+        self.mascot = mascot
         self.isClosing = isClosing
         self.inputCommitRequestRevision = inputCommitRequestRevision
         self.onComplete = onComplete
@@ -442,6 +483,7 @@ private struct TodoTaskDetailEditor: View {
             focusedField = .title
         }
         .onChange(of: focusedField) { oldValue, newValue in
+            mascot.stopTyping()
             onFocusChange(newValue != nil)
             guard case .existingSubtask(let id) = oldValue,
                   newValue != oldValue
@@ -462,31 +504,16 @@ private struct TodoTaskDetailEditor: View {
             flushFocusedInputForCommit()
         }
         .onDisappear {
+            mascot.stopTyping()
             onFocusChange(false)
         }
     }
 
     private var identitySection: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-            HStack(alignment: .top, spacing: TaskDetailEditorLayout.columnSpacing) {
-                completionButton
+            titleRow
 
-                TextField("任务标题", text: $title, axis: .vertical)
-                    .font(AppTheme.typography.scaled(22, weight: .bold, relativeTo: .title2))
-                    .foregroundStyle(taskTitleColor)
-                    .textInputAutocapitalization(.sentences)
-                    .submitLabel(.done)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1...8 : 1...4)
-                    .focused($focusedField, equals: .title)
-                    .frame(minHeight: 44, alignment: .leading)
-                    .onChange(of: title) { _, value in
-                        viewModel.updateDraftTitle(value)
-                    }
-                    .onSubmit(commitTitleSnapshot)
-                    .accessibilityIdentifier("together.task-detail.title")
-            }
-
-            TextField("添加备注", text: $notes, axis: .vertical)
+            TextField("添加备注", text: textInputBinding($notes, for: .notes), axis: .vertical)
                 .font(AppTheme.typography.scaled(15, weight: .regular, relativeTo: .body))
                 .foregroundStyle(taskBodyColor)
                 .textInputAutocapitalization(.sentences)
@@ -499,6 +526,26 @@ private struct TodoTaskDetailEditor: View {
                 .accessibilityIdentifier("together.task-detail.notes")
         }
         .padding(.vertical, AppTheme.spacing.xs)
+    }
+
+    private var titleRow: some View {
+        HStack(alignment: .top, spacing: TaskDetailEditorLayout.columnSpacing) {
+            completionButton
+
+            TextField("任务标题", text: textInputBinding($title, for: .title), axis: .vertical)
+                .font(AppTheme.typography.scaled(22, weight: .bold, relativeTo: .title2))
+                .foregroundStyle(taskTitleColor)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1...8 : 1...4)
+                .focused($focusedField, equals: .title)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .onChange(of: title) { _, value in
+                    viewModel.updateDraftTitle(value)
+                }
+                .onSubmit(commitTitleSnapshot)
+                .accessibilityIdentifier("together.task-detail.title")
+        }
     }
 
     private var completionButton: some View {
@@ -559,7 +606,10 @@ private struct TodoTaskDetailEditor: View {
             .accessibilityLabel(subtask.isCompleted ? "恢复子任务" : "完成子任务")
 
             if editingSubtaskID == subtask.id {
-                TextField("子任务标题", text: $editingSubtaskTitle)
+                TextField(
+                    "子任务标题",
+                    text: textInputBinding($editingSubtaskTitle, for: .existingSubtask(subtask.id))
+                )
                     .font(AppTheme.typography.scaled(16, weight: .medium, relativeTo: .body))
                     .foregroundStyle(taskBodyColor)
                     .focused($focusedField, equals: .existingSubtask(subtask.id))
@@ -619,7 +669,7 @@ private struct TodoTaskDetailEditor: View {
                     height: TaskDetailEditorLayout.actionColumnWidth
                 )
 
-            TextField("添加子任务", text: $newSubtaskTitle)
+            TextField("添加子任务", text: textInputBinding($newSubtaskTitle, for: .newSubtask))
                 .font(AppTheme.typography.scaled(16, weight: .medium, relativeTo: .body))
                 .foregroundStyle(taskBodyColor)
                 .focused($focusedField, equals: .newSubtask)
@@ -659,11 +709,13 @@ private struct TodoTaskDetailEditor: View {
     }
 
     private func commitTitleSnapshot() {
+        mascot.stopTyping()
         title = TextInputSnapshotReader.resolvedText(fallback: title)
         viewModel.updateDraftTitle(title)
     }
 
     private func commitExistingSubtaskSnapshot(_ id: UUID) {
+        mascot.stopTyping()
         editingSubtaskTitle = TextInputSnapshotReader.resolvedText(
             fallback: editingSubtaskTitle
         )
@@ -681,6 +733,7 @@ private struct TodoTaskDetailEditor: View {
     }
 
     private func addSubtaskSnapshot() {
+        mascot.stopTyping()
         newSubtaskTitle = TextInputSnapshotReader.resolvedText(fallback: newSubtaskTitle)
         focusedField = nil
         addSubtask()
@@ -716,11 +769,25 @@ private struct TodoTaskDetailEditor: View {
             break
         }
     }
+
+    private func textInputBinding(_ source: Binding<String>, for field: TaskDetailEditorFocus) -> Binding<String> {
+        Binding(
+            get: { source.wrappedValue },
+            set: { value in
+                guard source.wrappedValue != value else { return }
+                source.wrappedValue = value
+                if focusedField == field, isClosing == false {
+                    mascot.recordTextInput()
+                }
+            }
+        )
+    }
 }
 
 private struct PeriodicTaskDetailEditor: View {
     let task: PeriodicTask
     @Bindable var viewModel: RoutinesViewModel
+    let mascot: MascotEditorHandle
     let isClosing: Bool
     let inputCommitRequestRevision: UInt
     let onComplete: () -> Void
@@ -737,6 +804,7 @@ private struct PeriodicTaskDetailEditor: View {
         task: PeriodicTask,
         initialDraft: RoutineInlineDraft,
         viewModel: RoutinesViewModel,
+        mascot: MascotEditorHandle,
         isClosing: Bool,
         inputCommitRequestRevision: UInt,
         onComplete: @escaping () -> Void,
@@ -744,6 +812,7 @@ private struct PeriodicTaskDetailEditor: View {
     ) {
         self.task = task
         self.viewModel = viewModel
+        self.mascot = mascot
         self.isClosing = isClosing
         self.inputCommitRequestRevision = inputCommitRequestRevision
         self.onComplete = onComplete
@@ -755,25 +824,9 @@ private struct PeriodicTaskDetailEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.spacing.md) {
             VStack(alignment: .leading, spacing: AppTheme.spacing.sm) {
-                HStack(alignment: .top, spacing: TaskDetailEditorLayout.columnSpacing) {
-                    completionButton
+                titleRow
 
-                    TextField("定期任务标题", text: $title, axis: .vertical)
-                        .font(AppTheme.typography.scaled(22, weight: .bold, relativeTo: .title2))
-                        .foregroundStyle(taskTitleColor)
-                        .textInputAutocapitalization(.sentences)
-                        .submitLabel(.done)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1...8 : 1...4)
-                        .focused($focusedField, equals: .title)
-                        .frame(minHeight: 44, alignment: .leading)
-                        .onChange(of: title) { _, value in
-                            viewModel.updateDraftTitle(value)
-                        }
-                        .onSubmit(commitTitleSnapshot)
-                        .accessibilityIdentifier("together.periodic-task-detail.title")
-                }
-
-                TextField("添加备注", text: $notes, axis: .vertical)
+                TextField("添加备注", text: textInputBinding($notes, for: .notes), axis: .vertical)
                     .font(AppTheme.typography.scaled(15, weight: .regular, relativeTo: .body))
                     .foregroundStyle(taskBodyColor)
                     .textInputAutocapitalization(.sentences)
@@ -797,6 +850,7 @@ private struct PeriodicTaskDetailEditor: View {
             focusedField = .title
         }
         .onChange(of: focusedField) { _, newValue in
+            mascot.stopTyping()
             onFocusChange(newValue != nil)
         }
         .onChange(of: inputCommitRequestRevision) { _, revision in
@@ -804,7 +858,28 @@ private struct PeriodicTaskDetailEditor: View {
             flushFocusedInputForCommit()
         }
         .onDisappear {
+            mascot.stopTyping()
             onFocusChange(false)
+        }
+    }
+
+    private var titleRow: some View {
+        HStack(alignment: .top, spacing: TaskDetailEditorLayout.columnSpacing) {
+            completionButton
+
+            TextField("定期任务标题", text: textInputBinding($title, for: .title), axis: .vertical)
+                .font(AppTheme.typography.scaled(22, weight: .bold, relativeTo: .title2))
+                .foregroundStyle(taskTitleColor)
+                .textInputAutocapitalization(.sentences)
+                .submitLabel(.done)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1...8 : 1...4)
+                .focused($focusedField, equals: .title)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .onChange(of: title) { _, value in
+                    viewModel.updateDraftTitle(value)
+                }
+                .onSubmit(commitTitleSnapshot)
+                .accessibilityIdentifier("together.periodic-task-detail.title")
         }
     }
 
@@ -836,6 +911,7 @@ private struct PeriodicTaskDetailEditor: View {
     }
 
     private func commitTitleSnapshot() {
+        mascot.stopTyping()
         title = TextInputSnapshotReader.resolvedText(fallback: title)
         viewModel.updateDraftTitle(title)
     }
@@ -850,6 +926,19 @@ private struct PeriodicTaskDetailEditor: View {
         case .existingSubtask, .newSubtask, nil:
             break
         }
+    }
+
+    private func textInputBinding(_ source: Binding<String>, for field: TaskDetailEditorFocus) -> Binding<String> {
+        Binding(
+            get: { source.wrappedValue },
+            set: { value in
+                guard source.wrappedValue != value else { return }
+                source.wrappedValue = value
+                if focusedField == field, isClosing == false {
+                    mascot.recordTextInput()
+                }
+            }
+        )
     }
 }
 

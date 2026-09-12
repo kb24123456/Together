@@ -1,0 +1,130 @@
+{
+  "name": "Result glance large dark",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "fps": 60,
+  "frames": 900,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 0,
+  "pngFrames": [
+    0,
+    119,
+    126,
+    138,
+    148,
+    160,
+    175,
+    190,
+    329,
+    348,
+    360,
+    390,
+    519,
+    532,
+    540,
+    555,
+    600,
+    675,
+    755,
+    799,
+    818,
+    833,
+    870,
+    899
+  ],
+  "video": true,
+  "backgroundARGB": "FF151515",
+  "events": [
+    {
+      "frame": 0,
+      "label": "Home idle",
+      "numbers": {
+        "mode": 0,
+        "expression": 0,
+        "idleFace": 0
+      },
+      "colors": {
+        "bodyLight": "FFF0F0F0",
+        "bodyShade": "FFD5D5D5",
+        "handLight": "FFF0F0F0",
+        "handShade": "FFBDBDBD",
+        "farHandLight": "FFE8E8E8",
+        "farHandShade": "FFB8B8B8",
+        "eyeColor": "FF1B1B1B",
+        "sweatColor": "FF686868",
+        "penBodyColor": "FF767676",
+        "penTipColor": "FFADADAD",
+        "inkColor": "FF929292",
+        "tearColor": "FF347FA6"
+      }
+    },
+    {
+      "frame": 120,
+      "label": "Notice result while idle",
+      "triggers": [
+        "noticeResult"
+      ]
+    },
+    {
+      "frame": 240,
+      "label": "Remain concerned",
+      "numbers": {
+        "mode": 2
+      }
+    },
+    {
+      "frame": 330,
+      "label": "Notice result while concerned",
+      "triggers": [
+        "noticeResult"
+      ]
+    },
+    {
+      "frame": 440,
+      "label": "Return home idle",
+      "numbers": {
+        "mode": 0
+      }
+    },
+    {
+      "frame": 520,
+      "label": "Result before editing interruption",
+      "triggers": [
+        "noticeResult"
+      ]
+    },
+    {
+      "frame": 538,
+      "label": "Editing interrupts glance",
+      "numbers": {
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 650,
+      "label": "Hold pen",
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 730,
+      "label": "Return home",
+      "numbers": {
+        "mode": 0
+      }
+    },
+    {
+      "frame": 800,
+      "label": "New result",
+      "triggers": [
+        "noticeResult"
+      ]
+    }
+  ]
+}

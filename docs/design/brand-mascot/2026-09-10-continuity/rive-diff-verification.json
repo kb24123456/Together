@@ -1,0 +1,17 @@
+{
+  "originalTimelineCount": 138,
+  "originalKeyCount": 353177,
+  "allOriginalKeysUnchanged": true,
+  "allOriginalStatesTransitionsUnchanged": true,
+  "newTimelines": [
+    {
+      "id": "0-911390",
+      "name": "Action_NoticeResult",
+      "duration": 0.9,
+      "isSelected": false
+    }
+  ],
+  "addedTrigger": "noticeResult",
+  "addedStates": 1,
+  "addedTransitions": 4
+}

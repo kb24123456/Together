@@ -1,0 +1,1 @@
+{"name": "zero-150", "fps": 30, "frames": 8, "width": 512, "height": 512, "pngEvery": 1, "video": false, "startupSteps": [0, 0.15], "firstFrameAdvance": 0, "events": [{"frame": 0, "numbers": {"mode": 0, "expression": 0, "idleFace": 0}, "booleans": {"isTyping": false}}]}

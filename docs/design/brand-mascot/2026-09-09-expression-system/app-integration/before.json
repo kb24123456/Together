@@ -1,0 +1,74 @@
+{
+  "Together/Resources/BrandMascot/together_sphere_motion_study.riv": {
+    "backup": "docs/design/brand-mascot/2026-09-09-expression-system/app-integration/backups/together_sphere_motion_study.riv",
+    "sha256": "c8af1b8e3e736a43f3ae64f4364b4a1173a7ae392e6e7c5ae447c89ce55b6f78",
+    "bytes": 2158990
+  },
+  "Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding.png": {
+    "backup": "docs/design/brand-mascot/2026-09-09-expression-system/app-integration/backups/holding.png",
+    "sha256": "3f664a8090c6e6b87338e2408ff78fe49c1ad002dbd57e0d0f45ba004880ff20",
+    "bytes": 39725
+  },
+  "Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding-white.png": {
+    "backup": "docs/design/brand-mascot/2026-09-09-expression-system/app-integration/backups/holding-white.png",
+    "sha256": "8c65ddd330be1b3a909e1d5e89615622b7e4ce281b3e7e771bc8002811c70831",
+    "bytes": 45045
+  },
+  "Together/Features/BrandMascot/MascotController.swift": {
+    "sha256": "e3d52454b2f20afcabbb2412633b73aa4d393d6aa795567730d3f9a54904bc38"
+  },
+  "Together/Features/BrandMascot/MascotPalette.swift": {
+    "sha256": "6adb43f2c11f31cb4e04f3464368f695f166c6a66912b48dedd43cf965bab30c"
+  },
+  "Together/Features/BrandMascot/MascotRuntime.swift": {
+    "sha256": "bffcec0b251a2a35dca2a852e1e2e368d6e695a12e3b7c72ec9b6faeee39d4cf"
+  },
+  "Together/Features/BrandMascot/MascotBehaviorState.swift": {
+    "sha256": "ef6aba0aabca8f411f415f4531739c844cbb392dac971bc1a95e675d7ad83261"
+  },
+  "Together/Features/BrandMascot/BrandMascotView.swift": {
+    "sha256": "3347170d6283782afed2b48901195888988db733f1031958799b912a66a47e72"
+  },
+  "Together/Features/Home/HomeTaskDateLabel.swift": {
+    "sha256": "0f00bbf48045c45f41c9656c88d19bff93e0a9325241b0bd0a825a8dc142fe39"
+  },
+  "Together/Features/Home/HomeViewModel.swift": {
+    "sha256": "4159e845684ea8448e68b746c8c863aa2d976e0ef4b0d870227ed6fbb2f0852c"
+  },
+  "Together/Features/Home/HomeView.swift": {
+    "sha256": "a9c71e66d9d440d738ba09f48ef55e68c8bb841da7bedaebc05c2606516f3b73"
+  },
+  "Together/Features/Home/TaskSharedContent.swift": {
+    "sha256": "aebb0f90e0005fcfbc39c398dc63d5cd21d959baebce6d49f5b5f2f0532d23c6"
+  },
+  "Together/Features/Home/HomeInlineTaskDetailCard.swift": {
+    "sha256": "0bb58ffdcb3fdbdbf9b43f0d648d24537c0ae0946643dc0455cad44219c6e1b3"
+  },
+  "Together/Features/Shared/TaskEditorSharedComponents.swift": {
+    "sha256": "e6465bb948efbc4110546b4323e653afc9c5171cf0d6cde82d1a25c4a293ee6c"
+  },
+  "Together/Features/Shared/UserAvatarView.swift": {
+    "sha256": "96d429838262c57c53cb449a03280e94a525af0c3da0ada264c02483c72ffa9b"
+  },
+  "Together/Features/Shared/TaskCreationView.swift": {
+    "sha256": "bec44443da6699633bd76aab9270a99e88b85b9907964f6c1afdda6b836fa785"
+  },
+  "Together/Features/Shared/InsertedListItemMotion.swift": {
+    "sha256": "04bff4206c67a9efbb9755027ed98813d6359464641fdcb63ab95534e59da484"
+  },
+  "Together/Features/Shared/ToolbarActionComponents.swift": {
+    "sha256": "1d64bfba843934d0d40adb0a143b5659316e5833f87fa619dde706e86b88da06"
+  },
+  "Together/Features/Shared/HomeInteractionFeedback.swift": {
+    "sha256": "f1876e78343ad3921a739808a9e6cdf76050a4fbcfa11530773bb6e0c918d470"
+  },
+  "Together/Features/Shared/TaskDetailView.swift": {
+    "sha256": "50f1b7f7fc1fb350f734168ce0d9759791b67df52340ee7312dd4470b4af17ed"
+  },
+  "Together/Features/Shared/EmptyStateCard.swift": {
+    "sha256": "77ba1dca2ae8d36e491f7ecfc7cf6deefc94d37167980a8963cd71d38797ba6d"
+  },
+  "Together/Features/Shared/TextInputSnapshotReader.swift": {
+    "sha256": "7edb4bf00d6e335e0e1ee612dcf481bc8fb5dc1b41d6d3ec5ea21bebac520955"
+  }
+}

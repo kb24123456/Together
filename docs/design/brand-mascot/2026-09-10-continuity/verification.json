@@ -1,0 +1,99 @@
+{
+  "date": "2026-09-10",
+  "status": "implemented_and_offline_verified_device_acceptance_pending",
+  "xcode": {
+    "version": "27.0 beta 3",
+    "build": "27A5218g",
+    "sdk_dependency": "rive-ios 6.25.1"
+  },
+  "build_for_testing": {
+    "status": "passed",
+    "destination": "generic/platform=iOS",
+    "signing_allowed": false,
+    "log": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/continuity-implementation/build-for-testing-verified.log",
+    "log_sha256": "d8fc7d53d4d48bb006a78403fa072a5fb7586dd241b4b555def7103436bee283",
+    "covers": [
+      "app",
+      "test targets",
+      "new reschedule integration tests"
+    ]
+  },
+  "executed_tests": {
+    "behavior_and_reschedule_text": {
+      "tests": 36,
+      "suites": 2,
+      "status": "passed",
+      "harness": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/reschedule-feedback-tests"
+    },
+    "playback_ownership": {
+      "tests": 6,
+      "status": "passed",
+      "harness": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/continuity-implementation/ownership-tests"
+    },
+    "rive_state_checks": {
+      "checks": 53,
+      "status": "passed",
+      "evidence": "notice-result-runtime-verification.json"
+    }
+  },
+  "not_executed": [
+    "iOS integration test execution",
+    "iOS native navigation visual acceptance",
+    "VoiceOver and Dynamic Type device acceptance",
+    "performance and energy measurement"
+  ],
+  "rive_visual_checks": {
+    "light_frames": 900,
+    "dark_frames": 900,
+    "key_png_boundary_checks": 48,
+    "status": "passed",
+    "limit": "Standalone native playback does not prove real navigation continuity or exact frame synchronization."
+  },
+  "app_resource": {
+    "sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8",
+    "bytes": 4269590,
+    "built_bundle_match": true,
+    "deliverable_match": true
+  },
+  "review": {
+    "resolved": [
+      "static fallback context observation",
+      "in-flight reschedule feedback invalidation on inactive or locked app",
+      "expired one-shot no longer fast-forwards ordinary navigation"
+    ],
+    "unresolved_p0_p1_p2": []
+  },
+  "intermediate_failure": {
+    "cause": "new checkpoint actor conformed to MainActor-isolated protocol",
+    "fix": "MainActor final class checkpoint; default fixture construction inside actor context",
+    "status": "resolved and test build passed"
+  },
+  "installed_to_device": false,
+  "simulator_started": false,
+  "git_commit_created": false,
+  "git_pushed": false,
+  "source_sha256": {
+    "Together/App/AppRootView.swift": "35d4e96deb319c21c7791d983bc5a464b97a6c19bc9d44c4fd5b16b9bf61c046",
+    "Together/Features/Home/HomeViewModel.swift": "fb6a51b7d6bed0e54244834133b4f944bbb7fe809bd6ed40b66926a900530c25",
+    "Together/Features/Shared/TaskCreationView.swift": "cedcd7fb3d4b31ddbfed782c506ed260f86c0605f4d06f059219576ef4312e12",
+    "Together/Features/Shared/TaskDetailView.swift": "71318d2e9db847538ca3b99a7a6b9673db9b66980c913701d8a60b0a784f2ff5",
+    "Together/Features/BrandMascot/TaskRescheduleFeedback.swift": "9a3b841d42aef3dfbbc1c6aca6dd44505e8cf89eb04e412a8cd423a19ba1facc",
+    "Together/Features/BrandMascot/MascotController.swift": "e3eb37e32ae4e55dbb4d8a4b28b6e3a6f38dde7054b28f3a4e18041be6000cba",
+    "Together/Features/BrandMascot/MascotPalette.swift": "281324bda98727495ce8a6f5cdb9373fc5841ef5eaf20b568e6233f2ae31a7cf",
+    "Together/Features/BrandMascot/MascotRuntime.swift": "d4f383723503c9180590bec01ad8472b42d71a1b5569d0db8f4c8c4e7ad51d4a",
+    "Together/Features/BrandMascot/MascotBehaviorState.swift": "19757b893981f7181e551ea7752da4ab55996727bf3c1e14da366621c8e22cce",
+    "Together/Features/BrandMascot/TaskRescheduleNotice.swift": "b48fe165f9b11fa01b8380eda35c2e9996cc483f68691abb3351377bcf725517",
+    "Together/Features/BrandMascot/MascotPlaybackSession.swift": "2b7938b86acf310f8a48fc9e6259bb02b81904ac7842bf3f708af38ed17e24c6",
+    "Together/Features/BrandMascot/BrandMascotView.swift": "11774f80b5a45dbab00b4be46c0dfd4e8839a8c86c9741e158aad917592ea65d",
+    "Together/Features/BrandMascot/MascotPlaybackOwnership.swift": "019cdf0c017527d07b80415f71f51b3f2276554b35c0ed365a60c817b399325e",
+    "TogetherTests/MascotBehaviorTests.swift": "52d6f673993e28bc0c2ada2ff569685e862a87fc50e0eede23cc13e5c8bbcbd2",
+    "TogetherTests/MascotPlaybackOwnershipTests.swift": "1e51c492abb35e14173a6a7f152d4b75cec42a1f1e077f554a659647fd9eee3e",
+    "TogetherTests/TaskRescheduleFeedbackTests.swift": "f0f90124475bc2564c8c6fc2f35350514e2bdcb8c6e6630fb584ed3382765870"
+  },
+  "apple_retrieval": {
+    "query": "SwiftUI State view identity lifetime fullScreenCover navigationTransition zoom modal source destination animation continuity cancellation",
+    "keys": [],
+    "adopted": [],
+    "result": "无需 Expert Delta"
+  }
+}

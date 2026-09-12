@@ -1,0 +1,177 @@
+{
+  "baseline": "Brand mascot V1",
+  "date": "2026-09-10",
+  "fileId": 2564580,
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "acceptance": {
+    "source": "user report in current conversation",
+    "status": "accepted",
+    "scope": "current physical-device visuals and complete usage flow",
+    "instrumentedPerformance": "not measured",
+    "energy": "not measured"
+  },
+  "files": [
+    {
+      "path": "Together/Resources/BrandMascot/together_sphere_motion_study.riv",
+      "bytes": 4266199,
+      "sha256": "8dfea4c3f2655a5de53f4ac8b7777d16d82647d6ea527d49d0a9ad7b3c75d924"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-writing-amplitude/deliverables/together_sphere_motion_study.riv",
+      "bytes": 4266199,
+      "sha256": "8dfea4c3f2655a5de53f4ac8b7777d16d82647d6ea527d49d0a9ad7b3c75d924"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-writing-amplitude/deliverables/together_sphere_motion_study.rev",
+      "bytes": 12745610,
+      "sha256": "bb76ec0e14bb2fd5a4b035dcfccb22c4b79a2eca3b51a55c7f1bc403ed4e5a9c"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-writing-amplitude/backups/before-amplitude.rev",
+      "bytes": 12745358,
+      "sha256": "2671fd33f8fd053aed3bd19630736e7a4fbd4db8ffe08ff8c313e1830a8eceea"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-writing-amplitude/backups/app-before.riv",
+      "bytes": 4266199,
+      "sha256": "034bc570f48ed845c12721ecd95630513e091fd5229a02fc2948ae8b4fb1b8e4"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotConcerned.imageset/concerned-white.png",
+      "bytes": 38967,
+      "sha256": "516897eadbb3558f9b0b4931a6830baf9de645ef3b3285099c3b5378a75710f1"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotConcerned.imageset/concerned.png",
+      "bytes": 36956,
+      "sha256": "b5ba9f44d049c0fc78fe92e4f2e8c07ac45622b6cc1c12ec068cb32440502591"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotHappy.imageset/happy-white.png",
+      "bytes": 40839,
+      "sha256": "144378bc360b0d29f1c5efacb2843a3e2b6ab7b05979f79304ba59d1e92f01cf"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotHappy.imageset/happy.png",
+      "bytes": 37394,
+      "sha256": "7fa0076f0a277ad978ef4cc42f03e252835572dd2fb87a36b469c531567ed95f"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding-white.png",
+      "bytes": 71327,
+      "sha256": "1a8e87dbc4aef29fd97b0dca227bf19ea9027734406f028ec5b6b4afeedf8006"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding.png",
+      "bytes": 70679,
+      "sha256": "90c967d8838bd403cf2cfdf618d4beb8ea0e180ae54276e106c1149c65112e04"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotIdle.imageset/idle-white.png",
+      "bytes": 35138,
+      "sha256": "99c7d0263e96276bfa88cadde40f186297a9f5b964aeef5924294c6d8039879f"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotIdle.imageset/idle.png",
+      "bytes": 32931,
+      "sha256": "c8ee3361485ffd83b14d57ed8f9e4b737df6870bd6533dd0f2e6e0e11c46607a"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotTears.imageset/tears-white.png",
+      "bytes": 39115,
+      "sha256": "12423bd24fb43db80927d59080b72d8588bb5ea0d7efe3505ba10fa301ac3724"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotTears.imageset/tears.png",
+      "bytes": 37124,
+      "sha256": "a29f81d5f59c109bbb2623d5f3e7e6b42a7b0e36fdccd9ab455543b67ee35e6c"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotThinking.imageset/thinking-white.png",
+      "bytes": 37603,
+      "sha256": "c31b55d0ca620c07483b053ca478c3422ea2413645a3d12ea8b43ac8e4e019be"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotThinking.imageset/thinking.png",
+      "bytes": 35194,
+      "sha256": "c252d2808aab337dcb7907ebd9a09976dce7d5278bf0147b4d797409a96a12d2"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotWink.imageset/wink-white.png",
+      "bytes": 36124,
+      "sha256": "28d509f8fb6bea9e0ee5ebf66d07f6c4d6a551240378c70513849b879046dd71"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotWink.imageset/wink.png",
+      "bytes": 34064,
+      "sha256": "0671f7c25f7df7620485dc60e527daea6277348f1dd3b7bdd93033dfb606d15c"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/Contents.json",
+      "bytes": 60,
+      "sha256": "f5fb0e1f3a8142892ed092efb5955c1c2cc537003a89ad7bbdb9dade7fe8985f"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotConcerned.imageset/Contents.json",
+      "bytes": 350,
+      "sha256": "6cfa2040e80f4f067b97000a95b9cc0d094f7af101ee5750f6b67defdd560e16"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotHappy.imageset/Contents.json",
+      "bytes": 342,
+      "sha256": "1491fb3540740946ef75cd2e20ef54113dc55f721c8468a86260387f9600245b"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/Contents.json",
+      "bytes": 346,
+      "sha256": "3cbed396b87d1108cd82ae76dec1bbd778bd066b0b92b9f7e434e9ae337148a8"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotIdle.imageset/Contents.json",
+      "bytes": 340,
+      "sha256": "6c6eb2a941f4682e4fdfc49cc0c27251b59245c8ce8f4695fd81171a9150d06f"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotTears.imageset/Contents.json",
+      "bytes": 342,
+      "sha256": "bc4cc8829c0f1e23d34b7971501b2876ace875fbb6428902ef6e9740f637cfe7"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotThinking.imageset/Contents.json",
+      "bytes": 348,
+      "sha256": "163d9c7cc786defa042a3ae9b49f74b7ddfdf57e3c401548d04c111d258d0b1d"
+    },
+    {
+      "path": "Together/Assets.xcassets/BrandMascot/MascotWink.imageset/Contents.json",
+      "bytes": 340,
+      "sha256": "e00e58e59d624ab275fde21e4759c88cd1d2a82344a6eff9bc7b9511b22ebb6a"
+    },
+    {
+      "path": "Together/Features/BrandMascot/BrandMascotView.swift",
+      "bytes": 4107,
+      "sha256": "0c0d54030aa6f33eb360ca8568c8581ec9e7872f20df360fbaafc00ac539aa5a"
+    },
+    {
+      "path": "Together/Features/BrandMascot/MascotRuntime.swift",
+      "bytes": 8557,
+      "sha256": "d2b89706596c2483e5e2020f6412a3cf8e8c07f0625bfe65841c1b8e623d613d"
+    },
+    {
+      "path": "Together/Features/BrandMascot/MascotController.swift",
+      "bytes": 2640,
+      "sha256": "134237986b35caa37657f3d2be165be0ffdc92be2daeff87f0533da64a4ac525"
+    },
+    {
+      "path": "Together/Features/BrandMascot/MascotBehaviorState.swift",
+      "bytes": 6877,
+      "sha256": "4e4e1fed7ac0cc0ac6da77f62b77f27d019b7c282e4856f26409e30c207b3fff"
+    },
+    {
+      "path": "Together/Features/BrandMascot/MascotPalette.swift",
+      "bytes": 1080,
+      "sha256": "281324bda98727495ce8a6f5cdb9373fc5841ef5eaf20b568e6233f2ae31a7cf"
+    }
+  ]
+}

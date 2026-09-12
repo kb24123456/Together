@@ -1,0 +1,68 @@
+{
+  "name": "combinations",
+  "fps": 60,
+  "frames": 720,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 15,
+  "video": true,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Happy + celebration",
+      "numbers": {
+        "expression": 2,
+        "mode": 0
+      }
+    },
+    {
+      "frame": 30,
+      "label": "Celebrate happy",
+      "triggers": [
+        "celebrateMotion"
+      ]
+    },
+    {
+      "frame": 180,
+      "label": "Laugh + celebration",
+      "numbers": {
+        "expression": 3
+      }
+    },
+    {
+      "frame": 210,
+      "label": "Celebrate laugh",
+      "triggers": [
+        "celebrateMotion"
+      ]
+    },
+    {
+      "frame": 360,
+      "label": "Love + observation",
+      "numbers": {
+        "expression": 6
+      }
+    },
+    {
+      "frame": 390,
+      "label": "Observe",
+      "triggers": [
+        "observe"
+      ]
+    },
+    {
+      "frame": 540,
+      "label": "Puzzled + nod",
+      "numbers": {
+        "expression": 10
+      }
+    },
+    {
+      "frame": 570,
+      "label": "Nod",
+      "triggers": [
+        "nod"
+      ]
+    }
+  ]
+}

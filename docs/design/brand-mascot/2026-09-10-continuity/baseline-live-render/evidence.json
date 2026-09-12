@@ -1,0 +1,1522 @@
+{
+  "artboard" : "TogetherSphere",
+  "asset" : "\/Users\/papertiger\/Desktop\/Together\/docs\/design\/brand-mascot\/2026-09-10-continuity\/backups\/before-continuity.riv",
+  "assetSHA256" : "1204c11dbd3a51bbd63e8764dee3b0d860815c3048bfc41eb2a4d04b4a297281",
+  "distinctPixelFrames" : 137,
+  "fps" : 30,
+  "frames" : 240,
+  "gpuDrawnFrames" : 240,
+  "gpuSkippedUnchangedFrames" : 0,
+  "height" : 96,
+  "inspectionReplayStateChanges" : [
+    {
+      "frame" : 0,
+      "states" : [
+        "WritingEnter",
+        "Expr_Auto",
+        "Action_Rest"
+      ],
+      "timeAfterAdvance" : 0.033333333333333333
+    },
+    {
+      "frame" : 6,
+      "states" : [
+        "Writing"
+      ],
+      "timeAfterAdvance" : 0.23333333333333334
+    }
+  ],
+  "limits" : [
+    "Offline native rendering proves actual frame content and transitions, not wall-clock performance.",
+    "No iOS Simulator or device used.",
+    "No automatic visual-quality or new-animation pass claim is made."
+  ],
+  "pngs" : [
+    "frame-00000.png",
+    "frame-00030.png",
+    "frame-00033.png",
+    "frame-00036.png",
+    "frame-00039.png",
+    "frame-00045.png",
+    "frame-00052.png",
+    "frame-00060.png",
+    "frame-00075.png",
+    "frame-00090.png",
+    "frame-00105.png",
+    "frame-00120.png",
+    "frame-00135.png",
+    "frame-00150.png",
+    "frame-00153.png",
+    "frame-00156.png",
+    "frame-00159.png",
+    "frame-00165.png",
+    "frame-00172.png",
+    "frame-00180.png",
+    "frame-00210.png",
+    "frame-00213.png",
+    "frame-00216.png",
+    "frame-00219.png",
+    "frame-00225.png",
+    "frame-00232.png",
+    "frame-00239.png"
+  ],
+  "renderedInstanceInputEvents" : [
+    {
+      "booleans" : {
+        "isTyping" : true
+      },
+      "frame" : 0,
+      "numbers" : {
+        "mode" : 1
+      }
+    }
+  ],
+  "renderedInstancePixelFrames" : [
+    {
+      "frame" : 0,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2d726647c03bf99794596263bc06102b98b8b055ff6f809986ffc9e3821db25c",
+      "timeAfterAdvance" : 0.033333333333333333
+    },
+    {
+      "frame" : 1,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2f2b851ad30e64a285e3dff001737ae77891a81a2f52ecd897fd0a615324b3a4",
+      "timeAfterAdvance" : 0.066666666666666666
+    },
+    {
+      "frame" : 2,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "13e01a6398f39c0ab7b054268211d155579b08ba3c9d3185bfff873fa0d716f2",
+      "timeAfterAdvance" : 0.10000000000000001
+    },
+    {
+      "frame" : 3,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "736b1f7e4d01ae7368f8391df41ef2f3f4c84900542d197a88253070d67792f9",
+      "timeAfterAdvance" : 0.13333333333333333
+    },
+    {
+      "frame" : 4,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "50c3a9c10a8bf832d2b00ee2a3dc286af9f7702e5ff7eb920e98aa51231f66aa",
+      "timeAfterAdvance" : 0.16666666666666666
+    },
+    {
+      "frame" : 5,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9062dada5b19245c0fa04842cad7fe1ffaaeb4d07c5b8edb221ea9a6728b8b31",
+      "timeAfterAdvance" : 0.20000000000000001
+    },
+    {
+      "frame" : 6,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b6b2e3de126ac76901fc295092bd1f0d9b3cbac7ce6de24a7ea28b85dfc1184a",
+      "timeAfterAdvance" : 0.23333333333333334
+    },
+    {
+      "frame" : 7,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "ac0e812fc063c1db686c64a31325ce6a8a75e80b7672506eec93cdfd54ac8082",
+      "timeAfterAdvance" : 0.26666666666666666
+    },
+    {
+      "frame" : 8,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "ac0e812fc063c1db686c64a31325ce6a8a75e80b7672506eec93cdfd54ac8082",
+      "timeAfterAdvance" : 0.29999999999999999
+    },
+    {
+      "frame" : 9,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "78fcf9d6d58a68a00f4aae4762f681010018ee1b2a6c87ae3a9c55a5e7552140",
+      "timeAfterAdvance" : 0.33333333333333331
+    },
+    {
+      "frame" : 10,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "393f7731c96c30989132d31e0639ac1c5a24d1c4dece0b63346f93a52fc77ace",
+      "timeAfterAdvance" : 0.36666666666666664
+    },
+    {
+      "frame" : 11,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fa4424ebe6cbecc38667589fdefe33067bacad637f836ea3cd1e5b18652ae101",
+      "timeAfterAdvance" : 0.40000000000000002
+    },
+    {
+      "frame" : 12,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0eb30be4352639997594b8dd1565038065bd341f98a1b4ad15c2401e671a1663",
+      "timeAfterAdvance" : 0.43333333333333335
+    },
+    {
+      "frame" : 13,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2eb46bc61b82417792ba26591d884dab75d3bc15175993dbf383ccb21bf5804a",
+      "timeAfterAdvance" : 0.46666666666666667
+    },
+    {
+      "frame" : 14,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "bdf49a42f6428821dbd8385a14a4484e37dd2b0804acda2cdeacbe33b9e273be",
+      "timeAfterAdvance" : 0.5
+    },
+    {
+      "frame" : 15,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5147278c6085ad0b3f54b8fbc2f74f74d395e3f3554b273062961fe007db0883",
+      "timeAfterAdvance" : 0.53333333333333333
+    },
+    {
+      "frame" : 16,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "648d47a91699d9ab46fb81f8566266b49d870edf7cf1a868ef3af8229b70b232",
+      "timeAfterAdvance" : 0.56666666666666665
+    },
+    {
+      "frame" : 17,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "011f004256ed0a2bed94f729c4a22d95eefe410ddc4e549b2516d9efa464c514",
+      "timeAfterAdvance" : 0.59999999999999998
+    },
+    {
+      "frame" : 18,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "331258997faad68f1aeab1a65bcdbd937c909dc74a350bd784eaf43391f86bfe",
+      "timeAfterAdvance" : 0.6333333333333333
+    },
+    {
+      "frame" : 19,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "54f1d311999e921f8e2647d29d53a4a579a4ed33ec679d4bec133ef20a1d3902",
+      "timeAfterAdvance" : 0.66666666666666663
+    },
+    {
+      "frame" : 20,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "effc8fd381c57b2a1db7a3396172305fb7e72687bc89b4526452d127cbc5c494",
+      "timeAfterAdvance" : 0.69999999999999996
+    },
+    {
+      "frame" : 21,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b445fb101f0ce1bc10546b7fa3c4859934304200275345068fd6d6b19fd318c0",
+      "timeAfterAdvance" : 0.73333333333333328
+    },
+    {
+      "frame" : 22,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "267a099731fd723d2b2fbfb23e58b7600a5108aae4d763b0fc6dc456e02689cc",
+      "timeAfterAdvance" : 0.76666666666666672
+    },
+    {
+      "frame" : 23,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5838d4d590cb3181dd18f956d888d8822fd237d4f8e6419b1df9ac84d1081172",
+      "timeAfterAdvance" : 0.80000000000000004
+    },
+    {
+      "frame" : 24,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "eb6fec1d6c07bea6b51cc0956c8e3148a8c452a3f1c3df023b2a5642930f079a",
+      "timeAfterAdvance" : 0.83333333333333337
+    },
+    {
+      "frame" : 25,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3c398c0613b98c038ad979dedd1657c4def0a8a37d834a780d4c467ba1a506e4",
+      "timeAfterAdvance" : 0.8666666666666667
+    },
+    {
+      "frame" : 26,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "824e93aa19b2205e42025c325e82865bae4f7dec3a933c8c187671e1c38321ce",
+      "timeAfterAdvance" : 0.90000000000000002
+    },
+    {
+      "frame" : 27,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fcf6b3b7135a4ca695ed2d2b7250ea318976147f6bb4796827eef954f2f69e7b",
+      "timeAfterAdvance" : 0.93333333333333335
+    },
+    {
+      "frame" : 28,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6222aa23d9a095b5d74a0cdd6ce2fe1422daa30fecc4ce7b45bea92fe0461a69",
+      "timeAfterAdvance" : 0.96666666666666667
+    },
+    {
+      "frame" : 29,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "4c5f083e428f0ea3deeaaf9f43b111838fce71005e38ae4fcac33bea0e5d18dd",
+      "timeAfterAdvance" : 1
+    },
+    {
+      "frame" : 30,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "1af9d5a52c008cdf8d71972cf5c3fbd8e2830e7651ddea3950a9808d02270f8e",
+      "timeAfterAdvance" : 1.0333333333333334
+    },
+    {
+      "frame" : 31,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0b4ddc97c5df8afb013cbc730e407bb81f4a084df39cced48542a4b31b8bab7b",
+      "timeAfterAdvance" : 1.0666666666666667
+    },
+    {
+      "frame" : 32,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "7169b02b29724337e00c0e6965ca43f0fe519193c2ec295157609ae8a6ad4350",
+      "timeAfterAdvance" : 1.1000000000000001
+    },
+    {
+      "frame" : 33,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "59969f9530d1b3c2b61a8ac361cc2347ba2b70880996ac8c487c246615b47370",
+      "timeAfterAdvance" : 1.1333333333333333
+    },
+    {
+      "frame" : 34,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3800a0f8c86cb9484e19e6efd7aa5e91fce16f9d2ccede6bdcbea954911b9263",
+      "timeAfterAdvance" : 1.1666666666666667
+    },
+    {
+      "frame" : 35,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "537f86a47391ce4bfee2335b8d9415299aac758bdb6b06fbba9f880aad96d144",
+      "timeAfterAdvance" : 1.2
+    },
+    {
+      "frame" : 36,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9b9cdeb3ec91386165438cbf1e509bc50121e69cdbe5ebb6970555d41d3fd82a",
+      "timeAfterAdvance" : 1.2333333333333334
+    },
+    {
+      "frame" : 37,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9e6df3ea8755f27a49b43bbc031e048cb192717f4ade003ef4a287ace16350e0",
+      "timeAfterAdvance" : 1.2666666666666666
+    },
+    {
+      "frame" : 38,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6b996cf5e1baf43824b63589849f8940c4d091b19f76651bd8a2a3859f8662a0",
+      "timeAfterAdvance" : 1.3
+    },
+    {
+      "frame" : 39,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "35f816869d4c859c0add69aec42cdbab852e271fff08e6582cf0c5815fdc222f",
+      "timeAfterAdvance" : 1.3333333333333333
+    },
+    {
+      "frame" : 40,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "dfcceb2507d68822551687808059e418c563b8f4f4c9cb56a8f44aea6375dbb9",
+      "timeAfterAdvance" : 1.3666666666666667
+    },
+    {
+      "frame" : 41,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "211fac62596c3e6c46b91bb241bde667bb58ecf204b90fa3141f53fd20cf3c62",
+      "timeAfterAdvance" : 1.3999999999999999
+    },
+    {
+      "frame" : 42,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "94480136394c4ef96d9e5501f83cb3ae92970fe8529f89365a1f347eecc8f82e",
+      "timeAfterAdvance" : 1.4333333333333333
+    },
+    {
+      "frame" : 43,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "1127077bf48398adf04e5c7ed13c6fbcdaef496bc4afd2391201b9796da55a40",
+      "timeAfterAdvance" : 1.4666666666666666
+    },
+    {
+      "frame" : 44,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "bb18b2de9a78c723a389a0abb7130ba73ccac67bd7e9d4e8b5b02a6a9d36365b",
+      "timeAfterAdvance" : 1.5
+    },
+    {
+      "frame" : 45,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b7ec0b1796a29a4172d46c77cb77796a348d0882580d4c49714040f689807054",
+      "timeAfterAdvance" : 1.5333333333333334
+    },
+    {
+      "frame" : 46,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "8811a3cbdc73ad3a751d01d3f5683012016753f75d7253cc66653e1c787e75b1",
+      "timeAfterAdvance" : 1.5666666666666667
+    },
+    {
+      "frame" : 47,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2a7497671166cea4c7e64e9bb5a51330fd9a2c33836386d57ad4f0e8167a1657",
+      "timeAfterAdvance" : 1.6000000000000001
+    },
+    {
+      "frame" : 48,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b31768b4b9c64f4e24d099ca0a34e6ca129f34ca4eecbd8d9f9b186b19e9368c",
+      "timeAfterAdvance" : 1.6333333333333333
+    },
+    {
+      "frame" : 49,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "89da03e670d4585742366bcfc8fe3eb0563ec28d64c9cdef5f32d31fab17fe22",
+      "timeAfterAdvance" : 1.6666666666666667
+    },
+    {
+      "frame" : 50,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "e9f3a3ac3039fdec5f49862d11cf626f04622606dabaf439e7fbc6d960ff5895",
+      "timeAfterAdvance" : 1.7
+    },
+    {
+      "frame" : 51,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c8aaaacdcd692d14978e5ae8355d0c6c63e335d6418c1e11734d65b34fec4b3a",
+      "timeAfterAdvance" : 1.7333333333333334
+    },
+    {
+      "frame" : 52,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "946f7f841f68f13499ae6e4db56ae12f0cebf263400045fe803b1b34c195789e",
+      "timeAfterAdvance" : 1.7666666666666666
+    },
+    {
+      "frame" : 53,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b87ca3216260dc1316b8b8d8e26f144e98d0069908339219f1d540795da347dc",
+      "timeAfterAdvance" : 1.8
+    },
+    {
+      "frame" : 54,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fdb0adc7c3729082ab7a692e63bec096a66760fa01cc2143471581e6327b44be",
+      "timeAfterAdvance" : 1.8333333333333333
+    },
+    {
+      "frame" : 55,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "41f4659b886a8c7f0b3b1b5563ef1cd5f4c3a7dc880b2124edd28365d82df0f1",
+      "timeAfterAdvance" : 1.8666666666666667
+    },
+    {
+      "frame" : 56,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3c8100347097a23c6aad83929641ee01bc97185386ad6d0c9b2f367fe0122eac",
+      "timeAfterAdvance" : 1.8999999999999999
+    },
+    {
+      "frame" : 57,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c274a4960f7be24dcbc41f1828c408ad9ab3a9def7ebb16d7d86ebc5429edfc8",
+      "timeAfterAdvance" : 1.9333333333333333
+    },
+    {
+      "frame" : 58,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d9f604d4f672e3b2ed9818170c1e591906065e16b1b6cfc951d12abc4c2ed09e",
+      "timeAfterAdvance" : 1.9666666666666666
+    },
+    {
+      "frame" : 59,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a89eef8fc1eb845a090e5e46e6451ae3d609fa718d0f897f860b653bff5e8319",
+      "timeAfterAdvance" : 2
+    },
+    {
+      "frame" : 60,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d2c52076816aa199155f7b7deb6951f09037230505601f48181c7881dd03088c",
+      "timeAfterAdvance" : 2.0333333333333332
+    },
+    {
+      "frame" : 61,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "8acc1a3005e346bc618c1dad9ad225228c60e587588bc0187c2ae1c8dbc82cb6",
+      "timeAfterAdvance" : 2.0666666666666669
+    },
+    {
+      "frame" : 62,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d4d0f01f9f87e83386db41c723f0be71bd77857885d017f0710ec1037122411f",
+      "timeAfterAdvance" : 2.1000000000000001
+    },
+    {
+      "frame" : 63,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "df417e8d63ce58a11c2b56dfad42766982a97086d494e97edb2fc934796c63d2",
+      "timeAfterAdvance" : 2.1333333333333333
+    },
+    {
+      "frame" : 64,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0c63d4f4995c8b68054a18a7573233ca783a7ffd83e48cc76d614cad63843626",
+      "timeAfterAdvance" : 2.1666666666666665
+    },
+    {
+      "frame" : 65,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "84630907389d9aed959210ce1d7b9b3e06ab2743fc84d21ea9b1de8c6c7a529b",
+      "timeAfterAdvance" : 2.2000000000000002
+    },
+    {
+      "frame" : 66,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "1ce67c1f7b6c3184d218dfe3d33b20db03eb2f5f079ec2d9628f6ac0afb327dd",
+      "timeAfterAdvance" : 2.2333333333333334
+    },
+    {
+      "frame" : 67,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3cddce752be1d861e7974d8648bfc60e0096a4fcd8cd5f87f012462a2c046371",
+      "timeAfterAdvance" : 2.2666666666666666
+    },
+    {
+      "frame" : 68,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "43116f89ffe55f8c31a67d16f86d964c743498e5ef0e12fb23494f07c427d829",
+      "timeAfterAdvance" : 2.2999999999999998
+    },
+    {
+      "frame" : 69,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "91c1fe32d9a1fb4c984bc100457437d9e60e432755955d0c4dd61b2a4eed9158",
+      "timeAfterAdvance" : 2.3333333333333335
+    },
+    {
+      "frame" : 70,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "eb568aada7c65ed641b6d7e1b6cb1538e741d86c278d03cb6afaba3fcb381c84",
+      "timeAfterAdvance" : 2.3666666666666667
+    },
+    {
+      "frame" : 71,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "bf3446e6d5670d5af75c2df85d3aa76793e4bb44e356e4ac951e90a68436280e",
+      "timeAfterAdvance" : 2.3999999999999999
+    },
+    {
+      "frame" : 72,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "e70d57a500811d4cdc55bf494fb8f374eadbd4c0bb9d644c0173b2ed93d86ada",
+      "timeAfterAdvance" : 2.4333333333333331
+    },
+    {
+      "frame" : 73,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "cb575bfc99e4d27bcb4f583dd55f69aa4e44a4844273d4faca511780135a681e",
+      "timeAfterAdvance" : 2.4666666666666668
+    },
+    {
+      "frame" : 74,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a3b5363443b4d66d697213f0c5ea7152bc0bb29eefe0e629d0231d3bcf122b0d",
+      "timeAfterAdvance" : 2.5
+    },
+    {
+      "frame" : 75,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6494102e2238369a29901581199676c9f6678a295f33cdfa8f6c4cf0ea6bbcaa",
+      "timeAfterAdvance" : 2.5333333333333332
+    },
+    {
+      "frame" : 76,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3bd392eaa393ad4b38d79d741f5486ccbc89a11b007004ba3cf23d9dce5969c4",
+      "timeAfterAdvance" : 2.5666666666666669
+    },
+    {
+      "frame" : 77,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "94e5c78f5215ee7d80aa31fe7dae6705b51584c3d31f5df646466220acc23e3f",
+      "timeAfterAdvance" : 2.6000000000000001
+    },
+    {
+      "frame" : 78,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a1d1e154a8eaffb41577906d513e6e7c900cce00bd3a26c9a99af66b8495f907",
+      "timeAfterAdvance" : 2.6333333333333333
+    },
+    {
+      "frame" : 79,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fca0191b2d13cf1558456e8c9dbf4db39a7ff0fc7cae11ee4b70aa82c58e6724",
+      "timeAfterAdvance" : 2.6666666666666665
+    },
+    {
+      "frame" : 80,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "abca70b4aa497b4679d4edf0e1db67a5808fdc764eb5e2055cfeebe6eacfc9c2",
+      "timeAfterAdvance" : 2.7000000000000002
+    },
+    {
+      "frame" : 81,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "780330214ffd064e74fd5fea1cf950330a9b8239505b813137b3c8e2f08d1cdb",
+      "timeAfterAdvance" : 2.7333333333333334
+    },
+    {
+      "frame" : 82,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c6a91455bce3c84fd3406a8087e1fdcaad8bc730bb02786d597e115b05c959ee",
+      "timeAfterAdvance" : 2.7666666666666666
+    },
+    {
+      "frame" : 83,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "64d5f6b886de5eb37e650939e136ce1061bb57c0ff74fe63828fbe420b8e0ece",
+      "timeAfterAdvance" : 2.7999999999999998
+    },
+    {
+      "frame" : 84,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a641f655fda4ed6cca0d6923fd045ddf48cb56a754b0772291e0d7ce48deb9f4",
+      "timeAfterAdvance" : 2.8333333333333335
+    },
+    {
+      "frame" : 85,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "658238f3cf23374c0c19dc4b46fc4c4c3ff460f0a5f6e0da627dece208bc3ba1",
+      "timeAfterAdvance" : 2.8666666666666667
+    },
+    {
+      "frame" : 86,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "71b2a505464cd87dc2faf4ea1eeacf06c4aa84ea12352a7419a0a2c71027ba67",
+      "timeAfterAdvance" : 2.8999999999999999
+    },
+    {
+      "frame" : 87,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a4e51f6556c23e43dd8aeaa4a7f1eb5941f96b7f3ea7341018be59d23fbe4c4f",
+      "timeAfterAdvance" : 2.9333333333333331
+    },
+    {
+      "frame" : 88,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3766fb58e6995018381066861da04c1591eb37bf51f95e9e24d548d462ee4052",
+      "timeAfterAdvance" : 2.9666666666666668
+    },
+    {
+      "frame" : 89,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3f214896d32b0643e1f6939054c0c894162220b779f5ea5310bfe34dd29db7c2",
+      "timeAfterAdvance" : 3
+    },
+    {
+      "frame" : 90,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b13e4aa380d0363732655f2578554d108ac0631f98ff71e0d99774f3e3350491",
+      "timeAfterAdvance" : 3.0333333333333332
+    },
+    {
+      "frame" : 91,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "46bdb0ad156472e13be41e78bd47aa1cad327fa599dd3a7c54366ee1db907e86",
+      "timeAfterAdvance" : 3.0666666666666669
+    },
+    {
+      "frame" : 92,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5936a1cb4907a9644bb2572c4b9c11b8cc4c1a87839d4d7979fa7619f7b7e72d",
+      "timeAfterAdvance" : 3.1000000000000001
+    },
+    {
+      "frame" : 93,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6e1cd1c170815a4e44f2ff171924867180b783b690498217cb345c9ba4653041",
+      "timeAfterAdvance" : 3.1333333333333333
+    },
+    {
+      "frame" : 94,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "8a5aca3587967475c94a878fe92499c88d91f259b31c866917ce1cd813190c0e",
+      "timeAfterAdvance" : 3.1666666666666665
+    },
+    {
+      "frame" : 95,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a869f4abecc38d9f3ea4b618cb816b5d34f98459c20b0fc90a14d31c15d2753e",
+      "timeAfterAdvance" : 3.2000000000000002
+    },
+    {
+      "frame" : 96,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "92b0086e1781cdaea85dfd111e15084cee84dba0b52d7f00e25363b7fafecb64",
+      "timeAfterAdvance" : 3.2333333333333334
+    },
+    {
+      "frame" : 97,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d6e71087d17ec44a9ba688170091491663d8ee97b6b3d1bb2f8baa72ba64c7ec",
+      "timeAfterAdvance" : 3.2666666666666666
+    },
+    {
+      "frame" : 98,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "4a0aa1f5785256ea081f601f503e372216d7cfa3e1f6c6f7a23e93d0c7147360",
+      "timeAfterAdvance" : 3.2999999999999998
+    },
+    {
+      "frame" : 99,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3bbbed5ea53d692dbce11ff8a6d210c4d7908bd8ad2a3827210374fa9dadc6af",
+      "timeAfterAdvance" : 3.3333333333333335
+    },
+    {
+      "frame" : 100,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b85c27cddf421948b3c6161835f73596a65af04c5513659888b44a9d4fefcf0d",
+      "timeAfterAdvance" : 3.3666666666666667
+    },
+    {
+      "frame" : 101,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "be58234736b6b6f39a4ada1456476fa8fc4afbb7579ffb7b7ecb043d4beff111",
+      "timeAfterAdvance" : 3.3999999999999999
+    },
+    {
+      "frame" : 102,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5d628baaa82df93574d1e14688dfe01f049f849caabda60d0158f200021d7817",
+      "timeAfterAdvance" : 3.4333333333333331
+    },
+    {
+      "frame" : 103,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fe89506ed658a09e730fd88f07b56c4360ec8402a06c174e2de9c74041139115",
+      "timeAfterAdvance" : 3.4666666666666668
+    },
+    {
+      "frame" : 104,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "282873f6dcba0beaecc75a3195a003bbe37ce2d5ff7e2393b69b06c071dddd20",
+      "timeAfterAdvance" : 3.5
+    },
+    {
+      "frame" : 105,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9f739258e260b5ec65e330658cc489f95a447c7577aa576ade00b64bb0478008",
+      "timeAfterAdvance" : 3.5333333333333332
+    },
+    {
+      "frame" : 106,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c8b9f62a3d09b62bc857b3782488339cee93f56312ff1f7ef170cd8c9c3fb5d4",
+      "timeAfterAdvance" : 3.5666666666666669
+    },
+    {
+      "frame" : 107,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b11a1b6f63d0ef5270858b2d47e702f34a5b90641d93fc53016c520d5616bc36",
+      "timeAfterAdvance" : 3.6000000000000001
+    },
+    {
+      "frame" : 108,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "06a2037da4ad5cb0f7d55371ee6ca7d2393a8df02424a4880ae17e2fc04d69ad",
+      "timeAfterAdvance" : 3.6333333333333333
+    },
+    {
+      "frame" : 109,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6e3d718ab99a9290e0c332d6175b72fc290a7ee9cc9b1330d4894653e5cb7c9e",
+      "timeAfterAdvance" : 3.6666666666666665
+    },
+    {
+      "frame" : 110,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9ee6ed0e50b8f69e698e2b71c139dff3637e1dfffab5cae196ac6bbf157b7116",
+      "timeAfterAdvance" : 3.7000000000000002
+    },
+    {
+      "frame" : 111,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "64621942dc086296e46c7f4edd68e742203a59bf3f6ec385269665134ec2d0af",
+      "timeAfterAdvance" : 3.7333333333333334
+    },
+    {
+      "frame" : 112,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a13616c560c7446b96e300983053bc117e3432f74f56af4349b6704813462de2",
+      "timeAfterAdvance" : 3.7666666666666666
+    },
+    {
+      "frame" : 113,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a13616c560c7446b96e300983053bc117e3432f74f56af4349b6704813462de2",
+      "timeAfterAdvance" : 3.7999999999999998
+    },
+    {
+      "frame" : 114,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9c54fe6e17b0284f2ca1389464ce5f7f608423384c7194af6a04d449e5aeaa5b",
+      "timeAfterAdvance" : 3.8333333333333335
+    },
+    {
+      "frame" : 115,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "ac0e812fc063c1db686c64a31325ce6a8a75e80b7672506eec93cdfd54ac8082",
+      "timeAfterAdvance" : 3.8666666666666667
+    },
+    {
+      "frame" : 116,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "ac0e812fc063c1db686c64a31325ce6a8a75e80b7672506eec93cdfd54ac8082",
+      "timeAfterAdvance" : 3.8999999999999999
+    },
+    {
+      "frame" : 117,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "78fcf9d6d58a68a00f4aae4762f681010018ee1b2a6c87ae3a9c55a5e7552140",
+      "timeAfterAdvance" : 3.9333333333333331
+    },
+    {
+      "frame" : 118,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "393f7731c96c30989132d31e0639ac1c5a24d1c4dece0b63346f93a52fc77ace",
+      "timeAfterAdvance" : 3.9666666666666668
+    },
+    {
+      "frame" : 119,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fa4424ebe6cbecc38667589fdefe33067bacad637f836ea3cd1e5b18652ae101",
+      "timeAfterAdvance" : 4
+    },
+    {
+      "frame" : 120,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0eb30be4352639997594b8dd1565038065bd341f98a1b4ad15c2401e671a1663",
+      "timeAfterAdvance" : 4.0333333333333332
+    },
+    {
+      "frame" : 121,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2eb46bc61b82417792ba26591d884dab75d3bc15175993dbf383ccb21bf5804a",
+      "timeAfterAdvance" : 4.0666666666666664
+    },
+    {
+      "frame" : 122,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "bdf49a42f6428821dbd8385a14a4484e37dd2b0804acda2cdeacbe33b9e273be",
+      "timeAfterAdvance" : 4.0999999999999996
+    },
+    {
+      "frame" : 123,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5147278c6085ad0b3f54b8fbc2f74f74d395e3f3554b273062961fe007db0883",
+      "timeAfterAdvance" : 4.1333333333333337
+    },
+    {
+      "frame" : 124,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "648d47a91699d9ab46fb81f8566266b49d870edf7cf1a868ef3af8229b70b232",
+      "timeAfterAdvance" : 4.166666666666667
+    },
+    {
+      "frame" : 125,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "011f004256ed0a2bed94f729c4a22d95eefe410ddc4e549b2516d9efa464c514",
+      "timeAfterAdvance" : 4.2000000000000002
+    },
+    {
+      "frame" : 126,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "331258997faad68f1aeab1a65bcdbd937c909dc74a350bd784eaf43391f86bfe",
+      "timeAfterAdvance" : 4.2333333333333334
+    },
+    {
+      "frame" : 127,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "54f1d311999e921f8e2647d29d53a4a579a4ed33ec679d4bec133ef20a1d3902",
+      "timeAfterAdvance" : 4.2666666666666666
+    },
+    {
+      "frame" : 128,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "cfce046261a9c1e664b8a753322fae556d8ac00eadba63d59d6fa93d64efe442",
+      "timeAfterAdvance" : 4.2999999999999998
+    },
+    {
+      "frame" : 129,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b445fb101f0ce1bc10546b7fa3c4859934304200275345068fd6d6b19fd318c0",
+      "timeAfterAdvance" : 4.333333333333333
+    },
+    {
+      "frame" : 130,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "267a099731fd723d2b2fbfb23e58b7600a5108aae4d763b0fc6dc456e02689cc",
+      "timeAfterAdvance" : 4.3666666666666663
+    },
+    {
+      "frame" : 131,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5838d4d590cb3181dd18f956d888d8822fd237d4f8e6419b1df9ac84d1081172",
+      "timeAfterAdvance" : 4.4000000000000004
+    },
+    {
+      "frame" : 132,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "eb6fec1d6c07bea6b51cc0956c8e3148a8c452a3f1c3df023b2a5642930f079a",
+      "timeAfterAdvance" : 4.4333333333333336
+    },
+    {
+      "frame" : 133,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "316d917046c9bd58b81a42c7b7522d5ba465e31b99533c3c0bf7d6b10a8c4e59",
+      "timeAfterAdvance" : 4.4666666666666668
+    },
+    {
+      "frame" : 134,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "824e93aa19b2205e42025c325e82865bae4f7dec3a933c8c187671e1c38321ce",
+      "timeAfterAdvance" : 4.5
+    },
+    {
+      "frame" : 135,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fcf6b3b7135a4ca695ed2d2b7250ea318976147f6bb4796827eef954f2f69e7b",
+      "timeAfterAdvance" : 4.5333333333333332
+    },
+    {
+      "frame" : 136,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "e3bb69d6b485bf1fcb7161ab83385089ff2f8d25288042d0280198510ed3e88a",
+      "timeAfterAdvance" : 4.5666666666666664
+    },
+    {
+      "frame" : 137,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2694f3fc4d925d20539f5214e2436df5a0cb7280d6373163beec9e4bc7650520",
+      "timeAfterAdvance" : 4.5999999999999996
+    },
+    {
+      "frame" : 138,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "1af9d5a52c008cdf8d71972cf5c3fbd8e2830e7651ddea3950a9808d02270f8e",
+      "timeAfterAdvance" : 4.6333333333333337
+    },
+    {
+      "frame" : 139,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0b4ddc97c5df8afb013cbc730e407bb81f4a084df39cced48542a4b31b8bab7b",
+      "timeAfterAdvance" : 4.666666666666667
+    },
+    {
+      "frame" : 140,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "7169b02b29724337e00c0e6965ca43f0fe519193c2ec295157609ae8a6ad4350",
+      "timeAfterAdvance" : 4.7000000000000002
+    },
+    {
+      "frame" : 141,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "13062c97045ca982ba2376ed20d006bc8cd5538e23b33314a7a9cfef415fbf7d",
+      "timeAfterAdvance" : 4.7333333333333334
+    },
+    {
+      "frame" : 142,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3800a0f8c86cb9484e19e6efd7aa5e91fce16f9d2ccede6bdcbea954911b9263",
+      "timeAfterAdvance" : 4.7666666666666666
+    },
+    {
+      "frame" : 143,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "537f86a47391ce4bfee2335b8d9415299aac758bdb6b06fbba9f880aad96d144",
+      "timeAfterAdvance" : 4.7999999999999998
+    },
+    {
+      "frame" : 144,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9b9cdeb3ec91386165438cbf1e509bc50121e69cdbe5ebb6970555d41d3fd82a",
+      "timeAfterAdvance" : 4.833333333333333
+    },
+    {
+      "frame" : 145,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9e6df3ea8755f27a49b43bbc031e048cb192717f4ade003ef4a287ace16350e0",
+      "timeAfterAdvance" : 4.8666666666666663
+    },
+    {
+      "frame" : 146,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "4c6a7b88a66606d8bdd0b332729b32edc27d808c64e42fa4b6818f6b449d7344",
+      "timeAfterAdvance" : 4.9000000000000004
+    },
+    {
+      "frame" : 147,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "35f816869d4c859c0add69aec42cdbab852e271fff08e6582cf0c5815fdc222f",
+      "timeAfterAdvance" : 4.9333333333333336
+    },
+    {
+      "frame" : 148,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "dfcceb2507d68822551687808059e418c563b8f4f4c9cb56a8f44aea6375dbb9",
+      "timeAfterAdvance" : 4.9666666666666668
+    },
+    {
+      "frame" : 149,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "211fac62596c3e6c46b91bb241bde667bb58ecf204b90fa3141f53fd20cf3c62",
+      "timeAfterAdvance" : 5
+    },
+    {
+      "frame" : 150,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "94480136394c4ef96d9e5501f83cb3ae92970fe8529f89365a1f347eecc8f82e",
+      "timeAfterAdvance" : 5.0333333333333332
+    },
+    {
+      "frame" : 151,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "1127077bf48398adf04e5c7ed13c6fbcdaef496bc4afd2391201b9796da55a40",
+      "timeAfterAdvance" : 5.0666666666666664
+    },
+    {
+      "frame" : 152,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "bb18b2de9a78c723a389a0abb7130ba73ccac67bd7e9d4e8b5b02a6a9d36365b",
+      "timeAfterAdvance" : 5.0999999999999996
+    },
+    {
+      "frame" : 153,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c2baf4feecfda6d62df6c3fc21654a587312ccd300603daed93dce7207c75991",
+      "timeAfterAdvance" : 5.1333333333333337
+    },
+    {
+      "frame" : 154,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "8811a3cbdc73ad3a751d01d3f5683012016753f75d7253cc66653e1c787e75b1",
+      "timeAfterAdvance" : 5.166666666666667
+    },
+    {
+      "frame" : 155,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2a7497671166cea4c7e64e9bb5a51330fd9a2c33836386d57ad4f0e8167a1657",
+      "timeAfterAdvance" : 5.2000000000000002
+    },
+    {
+      "frame" : 156,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "e07355833b488b5d533d7f9dc3c0cb1eab9996f6964f213f7a65116bc5aceda7",
+      "timeAfterAdvance" : 5.2333333333333334
+    },
+    {
+      "frame" : 157,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "89da03e670d4585742366bcfc8fe3eb0563ec28d64c9cdef5f32d31fab17fe22",
+      "timeAfterAdvance" : 5.2666666666666666
+    },
+    {
+      "frame" : 158,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "e9f3a3ac3039fdec5f49862d11cf626f04622606dabaf439e7fbc6d960ff5895",
+      "timeAfterAdvance" : 5.2999999999999998
+    },
+    {
+      "frame" : 159,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c8aaaacdcd692d14978e5ae8355d0c6c63e335d6418c1e11734d65b34fec4b3a",
+      "timeAfterAdvance" : 5.333333333333333
+    },
+    {
+      "frame" : 160,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "946f7f841f68f13499ae6e4db56ae12f0cebf263400045fe803b1b34c195789e",
+      "timeAfterAdvance" : 5.3666666666666663
+    },
+    {
+      "frame" : 161,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b87ca3216260dc1316b8b8d8e26f144e98d0069908339219f1d540795da347dc",
+      "timeAfterAdvance" : 5.4000000000000004
+    },
+    {
+      "frame" : 162,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fdb0adc7c3729082ab7a692e63bec096a66760fa01cc2143471581e6327b44be",
+      "timeAfterAdvance" : 5.4333333333333336
+    },
+    {
+      "frame" : 163,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "41f4659b886a8c7f0b3b1b5563ef1cd5f4c3a7dc880b2124edd28365d82df0f1",
+      "timeAfterAdvance" : 5.4666666666666668
+    },
+    {
+      "frame" : 164,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3c8100347097a23c6aad83929641ee01bc97185386ad6d0c9b2f367fe0122eac",
+      "timeAfterAdvance" : 5.5
+    },
+    {
+      "frame" : 165,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a1e7dcdf16fa1a871b690ecf74b3120ac31e4af154749afe8b480114d8636c77",
+      "timeAfterAdvance" : 5.5333333333333332
+    },
+    {
+      "frame" : 166,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d9f604d4f672e3b2ed9818170c1e591906065e16b1b6cfc951d12abc4c2ed09e",
+      "timeAfterAdvance" : 5.5666666666666664
+    },
+    {
+      "frame" : 167,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9be926ecac2a5f02a42e66e3991547e06e42e84a4f300e289c90a38cc1658680",
+      "timeAfterAdvance" : 5.5999999999999996
+    },
+    {
+      "frame" : 168,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d2c52076816aa199155f7b7deb6951f09037230505601f48181c7881dd03088c",
+      "timeAfterAdvance" : 5.6333333333333337
+    },
+    {
+      "frame" : 169,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "8acc1a3005e346bc618c1dad9ad225228c60e587588bc0187c2ae1c8dbc82cb6",
+      "timeAfterAdvance" : 5.666666666666667
+    },
+    {
+      "frame" : 170,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d4d0f01f9f87e83386db41c723f0be71bd77857885d017f0710ec1037122411f",
+      "timeAfterAdvance" : 5.7000000000000002
+    },
+    {
+      "frame" : 171,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b43f747cc21da19c2077f0970fc20dcbb980ab4ee733b0d8c45a9440725adaac",
+      "timeAfterAdvance" : 5.7333333333333334
+    },
+    {
+      "frame" : 172,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0c63d4f4995c8b68054a18a7573233ca783a7ffd83e48cc76d614cad63843626",
+      "timeAfterAdvance" : 5.7666666666666666
+    },
+    {
+      "frame" : 173,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "89b1c8b91ddcd140874ceaf1fe684ffd911253baa40be79083419d593affb4ec",
+      "timeAfterAdvance" : 5.7999999999999998
+    },
+    {
+      "frame" : 174,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "1ce67c1f7b6c3184d218dfe3d33b20db03eb2f5f079ec2d9628f6ac0afb327dd",
+      "timeAfterAdvance" : 5.833333333333333
+    },
+    {
+      "frame" : 175,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "f7b2d6c28c6eb9e5ce50f077628ae02b981345e1134f93bd09bd316f4a8f080e",
+      "timeAfterAdvance" : 5.8666666666666663
+    },
+    {
+      "frame" : 176,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "43116f89ffe55f8c31a67d16f86d964c743498e5ef0e12fb23494f07c427d829",
+      "timeAfterAdvance" : 5.9000000000000004
+    },
+    {
+      "frame" : 177,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "91c1fe32d9a1fb4c984bc100457437d9e60e432755955d0c4dd61b2a4eed9158",
+      "timeAfterAdvance" : 5.9333333333333336
+    },
+    {
+      "frame" : 178,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "eb568aada7c65ed641b6d7e1b6cb1538e741d86c278d03cb6afaba3fcb381c84",
+      "timeAfterAdvance" : 5.9666666666666668
+    },
+    {
+      "frame" : 179,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "bf3446e6d5670d5af75c2df85d3aa76793e4bb44e356e4ac951e90a68436280e",
+      "timeAfterAdvance" : 6
+    },
+    {
+      "frame" : 180,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c126c3b458c6f9757211fc0f6579763b2c18d395b2e7dd3f884a28edd406b475",
+      "timeAfterAdvance" : 6.0333333333333332
+    },
+    {
+      "frame" : 181,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "cb575bfc99e4d27bcb4f583dd55f69aa4e44a4844273d4faca511780135a681e",
+      "timeAfterAdvance" : 6.0666666666666664
+    },
+    {
+      "frame" : 182,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a3b5363443b4d66d697213f0c5ea7152bc0bb29eefe0e629d0231d3bcf122b0d",
+      "timeAfterAdvance" : 6.0999999999999996
+    },
+    {
+      "frame" : 183,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6494102e2238369a29901581199676c9f6678a295f33cdfa8f6c4cf0ea6bbcaa",
+      "timeAfterAdvance" : 6.1333333333333337
+    },
+    {
+      "frame" : 184,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3bd392eaa393ad4b38d79d741f5486ccbc89a11b007004ba3cf23d9dce5969c4",
+      "timeAfterAdvance" : 6.166666666666667
+    },
+    {
+      "frame" : 185,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fb403afc4564298504cd9638ae463e624277d7e8de75337cfda13e2833d424ad",
+      "timeAfterAdvance" : 6.2000000000000002
+    },
+    {
+      "frame" : 186,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a1d1e154a8eaffb41577906d513e6e7c900cce00bd3a26c9a99af66b8495f907",
+      "timeAfterAdvance" : 6.2333333333333334
+    },
+    {
+      "frame" : 187,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fca0191b2d13cf1558456e8c9dbf4db39a7ff0fc7cae11ee4b70aa82c58e6724",
+      "timeAfterAdvance" : 6.2666666666666666
+    },
+    {
+      "frame" : 188,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "abca70b4aa497b4679d4edf0e1db67a5808fdc764eb5e2055cfeebe6eacfc9c2",
+      "timeAfterAdvance" : 6.2999999999999998
+    },
+    {
+      "frame" : 189,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "780330214ffd064e74fd5fea1cf950330a9b8239505b813137b3c8e2f08d1cdb",
+      "timeAfterAdvance" : 6.333333333333333
+    },
+    {
+      "frame" : 190,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c6a91455bce3c84fd3406a8087e1fdcaad8bc730bb02786d597e115b05c959ee",
+      "timeAfterAdvance" : 6.3666666666666663
+    },
+    {
+      "frame" : 191,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "66f87751584e4f39da4ffd5edecd225e3462c467f456ca006df0860920d6299f",
+      "timeAfterAdvance" : 6.4000000000000004
+    },
+    {
+      "frame" : 192,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a641f655fda4ed6cca0d6923fd045ddf48cb56a754b0772291e0d7ce48deb9f4",
+      "timeAfterAdvance" : 6.4333333333333336
+    },
+    {
+      "frame" : 193,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2843a6174a7c098574efd5fefa632960028f3a16e6518d570a78719bdbdba6e2",
+      "timeAfterAdvance" : 6.4666666666666668
+    },
+    {
+      "frame" : 194,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "71b2a505464cd87dc2faf4ea1eeacf06c4aa84ea12352a7419a0a2c71027ba67",
+      "timeAfterAdvance" : 6.5
+    },
+    {
+      "frame" : 195,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "8ac80c61fea57121803c50e550eaf9776fb948e3d997802d1628de9cf30daa52",
+      "timeAfterAdvance" : 6.5333333333333332
+    },
+    {
+      "frame" : 196,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3766fb58e6995018381066861da04c1591eb37bf51f95e9e24d548d462ee4052",
+      "timeAfterAdvance" : 6.5666666666666664
+    },
+    {
+      "frame" : 197,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3f214896d32b0643e1f6939054c0c894162220b779f5ea5310bfe34dd29db7c2",
+      "timeAfterAdvance" : 6.5999999999999996
+    },
+    {
+      "frame" : 198,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "db9fa0ca34d002b10e8285e2b98d9a95f9525af1c81c0434e0bfd45cbed0518c",
+      "timeAfterAdvance" : 6.6333333333333337
+    },
+    {
+      "frame" : 199,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "adec58f2accc0b1ca572a02f3c9a48ae4d3c02fc49327072722a123360b146fd",
+      "timeAfterAdvance" : 6.666666666666667
+    },
+    {
+      "frame" : 200,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5936a1cb4907a9644bb2572c4b9c11b8cc4c1a87839d4d7979fa7619f7b7e72d",
+      "timeAfterAdvance" : 6.7000000000000002
+    },
+    {
+      "frame" : 201,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6e1cd1c170815a4e44f2ff171924867180b783b690498217cb345c9ba4653041",
+      "timeAfterAdvance" : 6.7333333333333334
+    },
+    {
+      "frame" : 202,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "8a5aca3587967475c94a878fe92499c88d91f259b31c866917ce1cd813190c0e",
+      "timeAfterAdvance" : 6.7666666666666666
+    },
+    {
+      "frame" : 203,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "21655a2c0f87d0637ffe7fd0e6498af5ae91c724b6f8641667166ad83432ebf9",
+      "timeAfterAdvance" : 6.7999999999999998
+    },
+    {
+      "frame" : 204,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "92b0086e1781cdaea85dfd111e15084cee84dba0b52d7f00e25363b7fafecb64",
+      "timeAfterAdvance" : 6.833333333333333
+    },
+    {
+      "frame" : 205,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "d6e71087d17ec44a9ba688170091491663d8ee97b6b3d1bb2f8baa72ba64c7ec",
+      "timeAfterAdvance" : 6.8666666666666663
+    },
+    {
+      "frame" : 206,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "4a0aa1f5785256ea081f601f503e372216d7cfa3e1f6c6f7a23e93d0c7147360",
+      "timeAfterAdvance" : 6.9000000000000004
+    },
+    {
+      "frame" : 207,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6b9848d2f708cdbad5f4810e6b3bbd916501fa1d5bcbd5a0d5ab3be32c824826",
+      "timeAfterAdvance" : 6.9333333333333336
+    },
+    {
+      "frame" : 208,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b85c27cddf421948b3c6161835f73596a65af04c5513659888b44a9d4fefcf0d",
+      "timeAfterAdvance" : 6.9666666666666668
+    },
+    {
+      "frame" : 209,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "be58234736b6b6f39a4ada1456476fa8fc4afbb7579ffb7b7ecb043d4beff111",
+      "timeAfterAdvance" : 7
+    },
+    {
+      "frame" : 210,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5d628baaa82df93574d1e14688dfe01f049f849caabda60d0158f200021d7817",
+      "timeAfterAdvance" : 7.0333333333333332
+    },
+    {
+      "frame" : 211,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fe89506ed658a09e730fd88f07b56c4360ec8402a06c174e2de9c74041139115",
+      "timeAfterAdvance" : 7.0666666666666664
+    },
+    {
+      "frame" : 212,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "282873f6dcba0beaecc75a3195a003bbe37ce2d5ff7e2393b69b06c071dddd20",
+      "timeAfterAdvance" : 7.0999999999999996
+    },
+    {
+      "frame" : 213,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9f739258e260b5ec65e330658cc489f95a447c7577aa576ade00b64bb0478008",
+      "timeAfterAdvance" : 7.1333333333333337
+    },
+    {
+      "frame" : 214,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "c8b9f62a3d09b62bc857b3782488339cee93f56312ff1f7ef170cd8c9c3fb5d4",
+      "timeAfterAdvance" : 7.166666666666667
+    },
+    {
+      "frame" : 215,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b11a1b6f63d0ef5270858b2d47e702f34a5b90641d93fc53016c520d5616bc36",
+      "timeAfterAdvance" : 7.2000000000000002
+    },
+    {
+      "frame" : 216,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "06a2037da4ad5cb0f7d55371ee6ca7d2393a8df02424a4880ae17e2fc04d69ad",
+      "timeAfterAdvance" : 7.2333333333333334
+    },
+    {
+      "frame" : 217,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "6e3d718ab99a9290e0c332d6175b72fc290a7ee9cc9b1330d4894653e5cb7c9e",
+      "timeAfterAdvance" : 7.2666666666666666
+    },
+    {
+      "frame" : 218,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9ee6ed0e50b8f69e698e2b71c139dff3637e1dfffab5cae196ac6bbf157b7116",
+      "timeAfterAdvance" : 7.2999999999999998
+    },
+    {
+      "frame" : 219,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "64621942dc086296e46c7f4edd68e742203a59bf3f6ec385269665134ec2d0af",
+      "timeAfterAdvance" : 7.333333333333333
+    },
+    {
+      "frame" : 220,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a13616c560c7446b96e300983053bc117e3432f74f56af4349b6704813462de2",
+      "timeAfterAdvance" : 7.3666666666666663
+    },
+    {
+      "frame" : 221,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "a13616c560c7446b96e300983053bc117e3432f74f56af4349b6704813462de2",
+      "timeAfterAdvance" : 7.4000000000000004
+    },
+    {
+      "frame" : 222,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "9c54fe6e17b0284f2ca1389464ce5f7f608423384c7194af6a04d449e5aeaa5b",
+      "timeAfterAdvance" : 7.4333333333333336
+    },
+    {
+      "frame" : 223,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "ac0e812fc063c1db686c64a31325ce6a8a75e80b7672506eec93cdfd54ac8082",
+      "timeAfterAdvance" : 7.4666666666666668
+    },
+    {
+      "frame" : 224,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "ac0e812fc063c1db686c64a31325ce6a8a75e80b7672506eec93cdfd54ac8082",
+      "timeAfterAdvance" : 7.5
+    },
+    {
+      "frame" : 225,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "78fcf9d6d58a68a00f4aae4762f681010018ee1b2a6c87ae3a9c55a5e7552140",
+      "timeAfterAdvance" : 7.5333333333333332
+    },
+    {
+      "frame" : 226,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "393f7731c96c30989132d31e0639ac1c5a24d1c4dece0b63346f93a52fc77ace",
+      "timeAfterAdvance" : 7.5666666666666664
+    },
+    {
+      "frame" : 227,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "fa4424ebe6cbecc38667589fdefe33067bacad637f836ea3cd1e5b18652ae101",
+      "timeAfterAdvance" : 7.5999999999999996
+    },
+    {
+      "frame" : 228,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0eb30be4352639997594b8dd1565038065bd341f98a1b4ad15c2401e671a1663",
+      "timeAfterAdvance" : 7.6333333333333337
+    },
+    {
+      "frame" : 229,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "2eb46bc61b82417792ba26591d884dab75d3bc15175993dbf383ccb21bf5804a",
+      "timeAfterAdvance" : 7.666666666666667
+    },
+    {
+      "frame" : 230,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "bdf49a42f6428821dbd8385a14a4484e37dd2b0804acda2cdeacbe33b9e273be",
+      "timeAfterAdvance" : 7.7000000000000002
+    },
+    {
+      "frame" : 231,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b44854bf22921900a55ba773931519b4350209701b1bbbca52b46f63d1556049",
+      "timeAfterAdvance" : 7.7333333333333334
+    },
+    {
+      "frame" : 232,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "648d47a91699d9ab46fb81f8566266b49d870edf7cf1a868ef3af8229b70b232",
+      "timeAfterAdvance" : 7.7666666666666666
+    },
+    {
+      "frame" : 233,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "3139019a4f2fa1cced0440504037ff4577eab6215775291da69e7c36595e4afe",
+      "timeAfterAdvance" : 7.7999999999999998
+    },
+    {
+      "frame" : 234,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "331258997faad68f1aeab1a65bcdbd937c909dc74a350bd784eaf43391f86bfe",
+      "timeAfterAdvance" : 7.833333333333333
+    },
+    {
+      "frame" : 235,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "54f1d311999e921f8e2647d29d53a4a579a4ed33ec679d4bec133ef20a1d3902",
+      "timeAfterAdvance" : 7.8666666666666663
+    },
+    {
+      "frame" : 236,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "cfce046261a9c1e664b8a753322fae556d8ac00eadba63d59d6fa93d64efe442",
+      "timeAfterAdvance" : 7.9000000000000004
+    },
+    {
+      "frame" : 237,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b445fb101f0ce1bc10546b7fa3c4859934304200275345068fd6d6b19fd318c0",
+      "timeAfterAdvance" : 7.9333333333333336
+    },
+    {
+      "frame" : 238,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "267a099731fd723d2b2fbfb23e58b7600a5108aae4d763b0fc6dc456e02689cc",
+      "timeAfterAdvance" : 7.9666666666666668
+    },
+    {
+      "frame" : 239,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "5838d4d590cb3181dd18f956d888d8822fd237d4f8e6419b1df9ac84d1081172",
+      "timeAfterAdvance" : 8
+    }
+  ],
+  "runtime" : "Rive Apple Runtime 6.25.1",
+  "stateMachine" : "Mascot",
+  "story" : "Baseline writing equivalence",
+  "traceBoundary" : "The official new Metal Worker API does not expose stateChanges. inspectionReplayStateChanges comes from a separate official legacy inspection instance replaying the same inputs. Random branches may differ. It is not the rendered instance's state trace.",
+  "viewModel" : "TogetherSphereModel",
+  "width" : 96
+}

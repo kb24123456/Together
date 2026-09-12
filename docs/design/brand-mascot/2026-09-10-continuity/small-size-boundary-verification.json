@@ -1,0 +1,486 @@
+{
+  "frames": 48,
+  "allPassed": true,
+  "checks": [
+    {
+      "file": "notice-40pt-light/frame-00000.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00119.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00126.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00138.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00148.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00160.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00175.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00190.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00329.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00348.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00360.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00390.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00519.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00532.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00540.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00555.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        153
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00600.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        153
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00675.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        153
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00755.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00799.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00818.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00833.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00870.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-light/frame-00899.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00000.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        138
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00119.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00126.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00138.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00148.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00160.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00175.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00190.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00329.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00348.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00360.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00390.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00519.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00532.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00540.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00555.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        153
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00600.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        153
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00675.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        153
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00755.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00799.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00818.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00833.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00870.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    },
+    {
+      "file": "notice-40pt-dark/frame-00899.png",
+      "bounds": [
+        23,
+        18,
+        144,
+        139
+      ],
+      "passed": true
+    }
+  ]
+}

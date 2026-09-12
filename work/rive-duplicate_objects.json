@@ -1,0 +1,29 @@
+{
+  "name": "duplicate_objects",
+  "description": "Duplicate objects by their IDs. Copies are placed as siblings of the originals.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "objectIds": {
+        "description": "Array of object IDs to duplicate. Copies are placed as siblings of the originals.",
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "objectIds"
+    ]
+  },
+  "annotations": {
+    "title": "Duplicate objects",
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": false
+  },
+  "execution": {
+    "taskSupport": "forbidden"
+  }
+}

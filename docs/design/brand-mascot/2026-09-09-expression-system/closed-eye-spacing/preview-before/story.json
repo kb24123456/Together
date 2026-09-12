@@ -1,0 +1,53 @@
+{
+  "name": "spacing-representative",
+  "fps": 60,
+  "frames": 840,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 0,
+  "pngFrames": [
+    45,
+    225,
+    405,
+    585,
+    765
+  ],
+  "video": true,
+  "backgroundARGB": "FFFAFAFA",
+  "events": [
+    {
+      "frame": 0,
+      "numbers": {
+        "expression": 16,
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 180,
+      "numbers": {
+        "expression": 17
+      }
+    },
+    {
+      "frame": 360,
+      "numbers": {
+        "expression": 26
+      }
+    },
+    {
+      "frame": 540,
+      "numbers": {
+        "expression": 28
+      }
+    },
+    {
+      "frame": 720,
+      "numbers": {
+        "expression": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "outlineSamples": 1109760,
+  "maxRadius": 169.3338650061022,
+  "sphereRadius": 184,
+  "minSilhouetteMargin": 14.6661349938978,
+  "scope": "Full open capsule, curious and happy transition contours in all authored directions; sampled every 3 frames. Native pixels are checked separately."
+}

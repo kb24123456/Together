@@ -1,0 +1,699 @@
+{
+  "animations" : [
+    "Preview_All",
+    "Expression_TearsTurn",
+    "Expression_Tears",
+    "Expression_Wink",
+    "Settle",
+    "CelebrateConcern",
+    "DozeEnter",
+    "ThinkingExit",
+    "ThinkingEnter",
+    "Idle_Orient",
+    "Preview_Behaviors_v5",
+    "Wake",
+    "Doze",
+    "Remind",
+    "Celebrate",
+    "Thinking",
+    "Idle_QuietMedium",
+    "Idle_Select",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "WritingEnter",
+    "WritingHold",
+    "WritingExit",
+    "ConcernEnter",
+    "Recover",
+    "Acknowledge",
+    "Writing",
+    "Concerned",
+    "Preview",
+    "Idle"
+  ],
+  "api" : "Official legacy RiveRuntime APIs bundled with 6.25.1",
+  "artboards" : [
+    "TogetherSphere"
+  ],
+  "assetBytes" : 1696775,
+  "assetPath" : "\/Users\/papertiger\/Desktop\/Together\/docs\/design\/brand-mascot\/2026-09-09-refinement\/runtime-source\/together_sphere_motion_study.riv",
+  "assetSHA256" : "7e9cee4db3fdf133f37c03eabb80cbbffce18eb15e17c04e9a43b6a7fd4d2fa1",
+  "checks" : [
+    {
+      "name" : "TogetherSphere artboard exists",
+      "passed" : true
+    },
+    {
+      "details" : 30,
+      "name" : "30 named timelines exported",
+      "passed" : true
+    },
+    {
+      "name" : "Mascot is default state machine",
+      "passed" : true
+    },
+    {
+      "details" : 17,
+      "name" : "17 ViewModel properties exported",
+      "passed" : true
+    },
+    {
+      "name" : "mode is number",
+      "passed" : true
+    },
+    {
+      "name" : "isTyping is boolean",
+      "passed" : true
+    },
+    {
+      "name" : "celebrateRequested is boolean",
+      "passed" : true
+    },
+    {
+      "name" : "acknowledge is trigger",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "Idle",
+        "Idle_Look",
+        "Idle"
+      ],
+      "name" : "mode: idle",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "WritingEnter",
+        "Writing"
+      ],
+      "name" : "mode: writing",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "WritingEnter",
+        "WritingHold"
+      ],
+      "name" : "mode: holding",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "name" : "mode: concerned",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "ThinkingEnter",
+        "Thinking"
+      ],
+      "name" : "mode: thinking",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "DozeEnter",
+        "Doze"
+      ],
+      "name" : "mode: doze",
+      "passed" : true
+    },
+    {
+      "name" : "acknowledge plays Expression_Wink",
+      "passed" : true
+    },
+    {
+      "name" : "acknowledge returns to Idle",
+      "passed" : true
+    },
+    {
+      "name" : "celebrateRequested reaches celebration",
+      "passed" : true
+    },
+    {
+      "name" : "celebration request resets",
+      "passed" : true
+    },
+    {
+      "name" : "12 semantic colors described",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: bodyLight",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: bodyShade",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: handLight",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: handShade",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: farHandLight",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: farHandShade",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: eyeColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: sweatColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: penBodyColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: penTipColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: inkColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: tearColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark retains bound instance",
+      "passed" : true
+    },
+    {
+      "name" : "dark preserves writing mode",
+      "passed" : true
+    },
+    {
+      "name" : "light color: bodyLight",
+      "passed" : true
+    },
+    {
+      "name" : "light color: bodyShade",
+      "passed" : true
+    },
+    {
+      "name" : "light color: handLight",
+      "passed" : true
+    },
+    {
+      "name" : "light color: handShade",
+      "passed" : true
+    },
+    {
+      "name" : "light color: farHandLight",
+      "passed" : true
+    },
+    {
+      "name" : "light color: farHandShade",
+      "passed" : true
+    },
+    {
+      "name" : "light color: eyeColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: sweatColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: penBodyColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: penTipColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: inkColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: tearColor",
+      "passed" : true
+    },
+    {
+      "name" : "light retains bound instance",
+      "passed" : true
+    },
+    {
+      "name" : "light preserves writing mode",
+      "passed" : true
+    }
+  ],
+  "colorArtboard" : "TogetherSphere",
+  "colorReadWrite" : [
+    {
+      "actual" : "#fff0f0f0",
+      "appearance" : "dark",
+      "expected" : "#fff0f0f0",
+      "passed" : true,
+      "property" : "bodyLight"
+    },
+    {
+      "actual" : "#ffd5d5d5",
+      "appearance" : "dark",
+      "expected" : "#ffd5d5d5",
+      "passed" : true,
+      "property" : "bodyShade"
+    },
+    {
+      "actual" : "#fff0f0f0",
+      "appearance" : "dark",
+      "expected" : "#fff0f0f0",
+      "passed" : true,
+      "property" : "handLight"
+    },
+    {
+      "actual" : "#ffbdbdbd",
+      "appearance" : "dark",
+      "expected" : "#ffbdbdbd",
+      "passed" : true,
+      "property" : "handShade"
+    },
+    {
+      "actual" : "#ffe8e8e8",
+      "appearance" : "dark",
+      "expected" : "#ffe8e8e8",
+      "passed" : true,
+      "property" : "farHandLight"
+    },
+    {
+      "actual" : "#ffb8b8b8",
+      "appearance" : "dark",
+      "expected" : "#ffb8b8b8",
+      "passed" : true,
+      "property" : "farHandShade"
+    },
+    {
+      "actual" : "#ff1b1b1b",
+      "appearance" : "dark",
+      "expected" : "#ff1b1b1b",
+      "passed" : true,
+      "property" : "eyeColor"
+    },
+    {
+      "actual" : "#ff686868",
+      "appearance" : "dark",
+      "expected" : "#ff686868",
+      "passed" : true,
+      "property" : "sweatColor"
+    },
+    {
+      "actual" : "#ff767676",
+      "appearance" : "dark",
+      "expected" : "#ff767676",
+      "passed" : true,
+      "property" : "penBodyColor"
+    },
+    {
+      "actual" : "#ffadadad",
+      "appearance" : "dark",
+      "expected" : "#ffadadad",
+      "passed" : true,
+      "property" : "penTipColor"
+    },
+    {
+      "actual" : "#ff929292",
+      "appearance" : "dark",
+      "expected" : "#ff929292",
+      "passed" : true,
+      "property" : "inkColor"
+    },
+    {
+      "actual" : "#ff347fa6",
+      "appearance" : "dark",
+      "expected" : "#ff347fa6",
+      "passed" : true,
+      "property" : "tearColor"
+    },
+    {
+      "actual" : "#ff101010",
+      "appearance" : "light",
+      "expected" : "#ff101010",
+      "passed" : true,
+      "property" : "bodyLight"
+    },
+    {
+      "actual" : "#ff030303",
+      "appearance" : "light",
+      "expected" : "#ff030303",
+      "passed" : true,
+      "property" : "bodyShade"
+    },
+    {
+      "actual" : "#ff141414",
+      "appearance" : "light",
+      "expected" : "#ff141414",
+      "passed" : true,
+      "property" : "handLight"
+    },
+    {
+      "actual" : "#ff060606",
+      "appearance" : "light",
+      "expected" : "#ff060606",
+      "passed" : true,
+      "property" : "handShade"
+    },
+    {
+      "actual" : "#ff080808",
+      "appearance" : "light",
+      "expected" : "#ff080808",
+      "passed" : true,
+      "property" : "farHandLight"
+    },
+    {
+      "actual" : "#ff080808",
+      "appearance" : "light",
+      "expected" : "#ff080808",
+      "passed" : true,
+      "property" : "farHandShade"
+    },
+    {
+      "actual" : "#ffffffff",
+      "appearance" : "light",
+      "expected" : "#ffffffff",
+      "passed" : true,
+      "property" : "eyeColor"
+    },
+    {
+      "actual" : "#ffffffff",
+      "appearance" : "light",
+      "expected" : "#ffffffff",
+      "passed" : true,
+      "property" : "sweatColor"
+    },
+    {
+      "actual" : "#fff2eee6",
+      "appearance" : "light",
+      "expected" : "#fff2eee6",
+      "passed" : true,
+      "property" : "penBodyColor"
+    },
+    {
+      "actual" : "#ff111111",
+      "appearance" : "light",
+      "expected" : "#ff111111",
+      "passed" : true,
+      "property" : "penTipColor"
+    },
+    {
+      "actual" : "#ff777777",
+      "appearance" : "light",
+      "expected" : "#ff777777",
+      "passed" : true,
+      "property" : "inkColor"
+    },
+    {
+      "actual" : "#ff88cff3",
+      "appearance" : "light",
+      "expected" : "#ff88cff3",
+      "passed" : true,
+      "property" : "tearColor"
+    }
+  ],
+  "createdAt" : "2026-09-08T18:42:31Z",
+  "defaultStateMachine" : "Mascot",
+  "feedback" : {
+    "acknowledgeTrace" : [
+      {
+        "frame" : 0,
+        "states" : [
+          "Expression_Wink"
+        ]
+      },
+      {
+        "frame" : 49,
+        "states" : [
+          "Idle"
+        ]
+      }
+    ],
+    "artboard" : "TogetherSphere",
+    "celebrationTrace" : [
+      {
+        "frame" : 0,
+        "states" : [
+          "Celebrate"
+        ]
+      },
+      {
+        "frame" : 85,
+        "states" : [
+          "Idle_Select"
+        ]
+      },
+      {
+        "frame" : 86,
+        "states" : [
+          "Idle"
+        ]
+      }
+    ]
+  },
+  "instanceNames" : [
+    "Instance"
+  ],
+  "limits" : [
+    "No pixels rendered; property read\/write does not independently verify visible bound fills.",
+    "No App, iOS device, layout, or performance validation."
+  ],
+  "modeTraces" : [
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "idle",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 0,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "Idle"
+          ]
+        },
+        {
+          "frame" : 384,
+          "states" : [
+            "Idle_Look"
+          ]
+        },
+        {
+          "frame" : 481,
+          "states" : [
+            "Idle"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "writing",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : true,
+      "mode" : 1,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "WritingEnter"
+          ]
+        },
+        {
+          "frame" : 12,
+          "states" : [
+            "Writing"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "holding",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 1,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "WritingEnter"
+          ]
+        },
+        {
+          "frame" : 12,
+          "states" : [
+            "WritingHold"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "concerned",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 2,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "ConcernEnter"
+          ]
+        },
+        {
+          "frame" : 12,
+          "states" : [
+            "Concerned"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "thinking",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 3,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "ThinkingEnter"
+          ]
+        },
+        {
+          "frame" : 46,
+          "states" : [
+            "Thinking"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "doze",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 4,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "DozeEnter"
+          ]
+        },
+        {
+          "frame" : 61,
+          "states" : [
+            "Doze"
+          ]
+        }
+      ]
+    }
+  ],
+  "passed" : true,
+  "platform" : "macOS command line; no view, simulator, or App integration",
+  "properties" : [
+    {
+      "name" : "tearColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "bodyLight",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "bodyShade",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "eyeColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "farHandLight",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "farHandShade",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "handLight",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "handShade",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "inkColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "penBodyColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "penTipColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "sweatColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "celebrateRequested",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 3)"
+    },
+    {
+      "name" : "remind",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "acknowledge",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "isTyping",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 3)"
+    },
+    {
+      "name" : "mode",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 2)"
+    }
+  ],
+  "runtimeVersion" : "6.25.1",
+  "stateChangesSemantics" : "Legacy RiveAnimationState.name returns the referenced animation name, not the editor state node name. Source: rive-ios 6.25.1 Source\/Renderer\/LayerState.mm lines 86-100.",
+  "stateMachines" : [
+    "Mascot"
+  ],
+  "viewModelName" : "TogetherSphereModel"
+}

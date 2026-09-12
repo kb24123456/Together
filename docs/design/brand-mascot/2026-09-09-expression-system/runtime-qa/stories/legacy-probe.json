@@ -1,0 +1,35 @@
+{
+  "name": "legacy-probe",
+  "fps": 60,
+  "frames": 180,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 30,
+  "video": true,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Idle",
+      "numbers": {
+        "mode": 0
+      }
+    },
+    {
+      "frame": 60,
+      "label": "Writing",
+      "numbers": {
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 120,
+      "label": "Concern",
+      "numbers": {
+        "mode": 2
+      }
+    }
+  ]
+}

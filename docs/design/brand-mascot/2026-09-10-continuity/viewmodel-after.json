@@ -1,0 +1,136 @@
+{
+  "id": "0-375",
+  "name": "TogetherSphereModel",
+  "viewModelProperties": [
+    {
+      "id": "0-911388",
+      "name": "noticeResult",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-671006",
+      "name": "idleFace",
+      "propertyType": "number"
+    },
+    {
+      "id": "0-452666",
+      "name": "celebrateMotion",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-452654",
+      "name": "expression",
+      "propertyType": "number"
+    },
+    {
+      "id": "0-452664",
+      "name": "nod",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-452662",
+      "name": "observe",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-452668",
+      "name": "poke",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-452658",
+      "name": "react",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-452656",
+      "name": "reaction",
+      "propertyType": "number"
+    },
+    {
+      "id": "0-245630",
+      "name": "tearColor",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169092",
+      "name": "bodyLight",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169094",
+      "name": "bodyShade",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169104",
+      "name": "eyeColor",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169100",
+      "name": "farHandLight",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169102",
+      "name": "farHandShade",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169096",
+      "name": "handLight",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169098",
+      "name": "handShade",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169112",
+      "name": "inkColor",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169108",
+      "name": "penBodyColor",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169110",
+      "name": "penTipColor",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-169106",
+      "name": "sweatColor",
+      "propertyType": "color"
+    },
+    {
+      "id": "0-122605",
+      "name": "celebrateRequested",
+      "propertyType": "boolean"
+    },
+    {
+      "id": "0-122607",
+      "name": "remind",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-3934",
+      "name": "acknowledge",
+      "propertyType": "trigger"
+    },
+    {
+      "id": "0-3932",
+      "name": "isTyping",
+      "propertyType": "boolean"
+    },
+    {
+      "id": "0-377",
+      "name": "mode",
+      "propertyType": "number"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "name": "Focused writing: idle, enter, write, hold, resume, exit, concern, idle",
+  "fps": 60,
+  "frames": 1260,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 30,
+  "video": true,
+  "backgroundARGB": "FFFAFAFA",
+  "events": [
+    {
+      "frame": 0,
+      "numbers": {
+        "expression": 0,
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 60,
+      "numbers": {
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 360,
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 540,
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 840,
+      "numbers": {
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 960,
+      "numbers": {
+        "mode": 2
+      }
+    },
+    {
+      "frame": 1140,
+      "numbers": {
+        "mode": 0
+      }
+    }
+  ]
+}

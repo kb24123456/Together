@@ -1,0 +1,46 @@
+{
+  "name": "final-reaction-restore",
+  "fps": 60,
+  "frames": 480,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 15,
+  "video": true,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Persistent Love",
+      "numbers": {
+        "expression": 6,
+        "mode": 0
+      }
+    },
+    {
+      "frame": 30,
+      "label": "Laugh once",
+      "numbers": {
+        "reaction": 3
+      },
+      "triggers": [
+        "react"
+      ]
+    },
+    {
+      "frame": 240,
+      "label": "Persistent Puzzled",
+      "numbers": {
+        "expression": 10
+      }
+    },
+    {
+      "frame": 270,
+      "label": "Love once",
+      "numbers": {
+        "reaction": 6
+      },
+      "triggers": [
+        "react"
+      ]
+    }
+  ]
+}

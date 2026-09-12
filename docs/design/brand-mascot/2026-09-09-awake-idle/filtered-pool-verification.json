@@ -1,0 +1,29 @@
+{
+  "removedFromHome": [
+    5,
+    8
+  ],
+  "remainingHomeExpressions": [
+    2,
+    21
+  ],
+  "tapAcknowledgement": "unchanged; original mouthless wink",
+  "behaviorSHA256": "4e4e1fed7ac0cc0ac6da77f62b77f27d019b7c282e4856f26409e30c207b3fff",
+  "testsSHA256": "972aa0198b51c769c5c2a85311b8bad48ae601107e4038e5009ad8e78b6fb2fd",
+  "swiftTesting": {
+    "passed": 23,
+    "log": "/private/tmp/together-mascot-two-expressions-tests.log"
+  },
+  "build": {
+    "passed": true,
+    "action": "unsigned generic iOS build-for-testing",
+    "log": "/private/tmp/together-mascot-two-expressions-build.log"
+  },
+  "assetSHA256": "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3",
+  "bundledAssetMatches": true,
+  "diffCheckPassed": true,
+  "limits": [
+    "No signed install or device verification in this revision.",
+    "Rive source artwork retained; only the home random pool was filtered."
+  ]
+}

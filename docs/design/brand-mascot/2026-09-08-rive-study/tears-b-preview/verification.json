@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-08",
+  "status": "provisional",
+  "artboardId": "0-169138",
+  "animationId": "0-169142",
+  "fps": 60,
+  "durationFrames": 240,
+  "tracks": 152,
+  "keyframes": 4761,
+  "readbackMatched": true,
+  "unexpectedArtboardKeyframes": 0,
+  "productionKeyframesUnchanged": true,
+  "productionStateMachineUnchanged": true,
+  "geometryReview": {
+    "sampleStepFrames": 0.1,
+    "eyeSelfIntersections": 0,
+    "visibleContoursOutsideSphere": 0,
+    "visibleLoopEndpointsEqual": true
+  },
+  "nativeEditor": {
+    "playbackStarted": true,
+    "observedPhases": [
+      "open",
+      "tears",
+      "recovery"
+    ],
+    "aestheticAcceptance": false
+  },
+  "productionMappingChanged": false,
+  "appChanged": false,
+  "runtimeExported": false,
+  "deviceValidated": false
+}

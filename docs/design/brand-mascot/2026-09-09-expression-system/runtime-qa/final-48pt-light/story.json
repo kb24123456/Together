@@ -1,0 +1,260 @@
+{
+  "name": "final-48pt-light",
+  "fps": 60,
+  "frames": 2700,
+  "width": 144,
+  "height": 144,
+  "pngEvery": 0,
+  "pngFrames": [
+    45,
+    135,
+    225,
+    315,
+    405,
+    495,
+    585,
+    675,
+    765,
+    855,
+    945,
+    1035,
+    1125,
+    1215,
+    1305,
+    1395,
+    1485,
+    1575,
+    1665,
+    1755,
+    1845,
+    1935,
+    2025,
+    2115,
+    2205,
+    2295,
+    2385,
+    2475,
+    2565,
+    2655
+  ],
+  "video": true,
+  "backgroundARGB": "FFFAFAFA",
+  "events": [
+    {
+      "frame": 0,
+      "label": "Legacy Auto",
+      "numbers": {
+        "mode": 0,
+        "expression": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 90,
+      "label": "待机 / Calm",
+      "numbers": {
+        "expression": 1
+      }
+    },
+    {
+      "frame": 180,
+      "label": "柔和开心 / SoftHappy",
+      "numbers": {
+        "expression": 2
+      }
+    },
+    {
+      "frame": 270,
+      "label": "大笑 / Laugh",
+      "numbers": {
+        "expression": 3
+      }
+    },
+    {
+      "frame": 360,
+      "label": "兴奋 / Excited",
+      "numbers": {
+        "expression": 4
+      }
+    },
+    {
+      "frame": 450,
+      "label": "单眨眼带笑 / WinkSmile",
+      "numbers": {
+        "expression": 5
+      }
+    },
+    {
+      "frame": 540,
+      "label": "喜爱 / Love",
+      "numbers": {
+        "expression": 6
+      }
+    },
+    {
+      "frame": 630,
+      "label": "害羞·腮红 / Blush",
+      "numbers": {
+        "expression": 7
+      }
+    },
+    {
+      "frame": 720,
+      "label": "小得意 / Smug",
+      "numbers": {
+        "expression": 8
+      }
+    },
+    {
+      "frame": 810,
+      "label": "好奇·张嘴 / CuriousOpen",
+      "numbers": {
+        "expression": 9
+      }
+    },
+    {
+      "frame": 900,
+      "label": "疑惑·张嘴 / PuzzledOpen",
+      "numbers": {
+        "expression": 10
+      }
+    },
+    {
+      "frame": 990,
+      "label": "思考·抬眼 / ThinkingUp",
+      "numbers": {
+        "expression": 11
+      }
+    },
+    {
+      "frame": 1080,
+      "label": "专注·轻 / GentleFocus",
+      "numbers": {
+        "expression": 12
+      }
+    },
+    {
+      "frame": 1170,
+      "label": "惊讶 / Surprised",
+      "numbers": {
+        "expression": 13
+      }
+    },
+    {
+      "frame": 1260,
+      "label": "尴尬流汗 / Embarrassed",
+      "numbers": {
+        "expression": 14
+      }
+    },
+    {
+      "frame": 1350,
+      "label": "小生气 / MildAngry",
+      "numbers": {
+        "expression": 15
+      }
+    },
+    {
+      "frame": 1440,
+      "label": "无语 / Speechless",
+      "numbers": {
+        "expression": 16
+      }
+    },
+    {
+      "frame": 1530,
+      "label": "犯困·哈欠 / SleepyYawn",
+      "numbers": {
+        "expression": 17
+      }
+    },
+    {
+      "frame": 1620,
+      "label": "轻松满足 / Content",
+      "numbers": {
+        "expression": 18
+      }
+    },
+    {
+      "frame": 1710,
+      "label": "难过 / Sad",
+      "numbers": {
+        "expression": 19
+      }
+    },
+    {
+      "frame": 1800,
+      "label": "委屈·短泪 / SmallTears",
+      "numbers": {
+        "expression": 20
+      }
+    },
+    {
+      "frame": 1890,
+      "label": "好奇·无嘴 / CuriousQuiet",
+      "numbers": {
+        "expression": 21
+      }
+    },
+    {
+      "frame": 1980,
+      "label": "思考／疑惑·无嘴 / PuzzledQuiet",
+      "numbers": {
+        "expression": 22
+      }
+    },
+    {
+      "frame": 2070,
+      "label": "专注·认真 / Determined",
+      "numbers": {
+        "expression": 23
+      }
+    },
+    {
+      "frame": 2160,
+      "label": "恍然大悟 / Realization",
+      "numbers": {
+        "expression": 24
+      }
+    },
+    {
+      "frame": 2250,
+      "label": "害羞·避开视线 / ShyLookAway",
+      "numbers": {
+        "expression": 25
+      }
+    },
+    {
+      "frame": 2340,
+      "label": "无奈 / Helpless",
+      "numbers": {
+        "expression": 26
+      }
+    },
+    {
+      "frame": 2430,
+      "label": "小紧张 / Nervous",
+      "numbers": {
+        "expression": 27
+      }
+    },
+    {
+      "frame": 2520,
+      "label": "犯困·趴低 / SleepyLow",
+      "numbers": {
+        "expression": 28
+      }
+    },
+    {
+      "frame": 2610,
+      "label": "Return legacy idle",
+      "numbers": {
+        "expression": 0
+      }
+    }
+  ],
+  "displayPointSize": 48,
+  "backingScale": 3
+}

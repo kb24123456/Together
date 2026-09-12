@@ -1,0 +1,45 @@
+{
+  "name": "export_file",
+  "description": "Exports the currently open document to disk. `format` chooses between the runtime format (.riv, for embedding in an app) and the native backup format (.rev, a full editable revision). The export snapshots the in-memory document AS IT CURRENTLY IS, including any unsaved changes. The file is written into `destination` and the result reports the full path written; an existing file at that path is never overwritten. Either format may need network access to complete: a .rev export needs it when embed_assets is on, and a .riv export needs it whenever the document references hosted assets, since their CDN ids are resolved during export. Both formats are typically plan-gated together \u2014 if one is refused as an upgrade feature, do not try the other as a workaround.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "format": {
+        "description": "The export format. 'riv' is the editor's \"Export > For Runtime\" action: a .riv file meant to be loaded by a Rive runtime in an app. 'rev' is the editor's \"Export > For Backup\" action: a .rev native coop file that can be reopened and edited in this editor, meant as a personal backup. There is no default; the caller must choose.",
+        "type": "string",
+        "enum": [
+          "riv",
+          "rev"
+        ]
+      },
+      "destination": {
+        "description": "Absolute path of an EXISTING directory on this machine to write the export into. Pass your own working directory unless the user names somewhere else. The filename is derived from the open document's name, and the result reports the full path written. An existing file at that path is never overwritten.",
+        "type": "string"
+      },
+      "embed_assets": {
+        "description": "Only meaningful for format \"rev\". When true (the default, matching the editor's backup export), every asset the document references is downloaded and embedded in the .rev file, which needs network access. Pass false to export a document-only revision with no asset downloads.",
+        "default": true,
+        "type": "boolean"
+      },
+      "inline_base64": {
+        "description": "For scripted retries only; default false. This tool ALWAYS tries to write the export to disk first, and only returns the bytes as inline base64 when that write is refused for permissions. This flag exists to enable that fallback for the shell recipe returned in the permission-denied error \u2014 do not set it speculatively.",
+        "default": false,
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "format",
+      "destination"
+    ]
+  },
+  "annotations": {
+    "title": "Export file",
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+  },
+  "execution": {
+    "taskSupport": "forbidden"
+  }
+}

@@ -1,0 +1,486 @@
+{
+  "readback": [
+    {
+      "name": "Idle",
+      "id": "0-6",
+      "keysChecked": 3471,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "WritingEnter",
+      "id": "0-1032",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Writing",
+      "id": "0-108",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "WritingHold",
+      "id": "0-1033",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "WritingExit",
+      "id": "0-1034",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "ConcernEnter",
+      "id": "0-1035",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Concerned",
+      "id": "0-109",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Recover",
+      "id": "0-1036",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Acknowledge",
+      "id": "0-1037",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Idle_QuietShort",
+      "id": "0-5971",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Idle_Look",
+      "id": "0-5972",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Idle_Select",
+      "id": "0-5973",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Idle_QuietMedium",
+      "id": "0-8762",
+      "keysChecked": 3241,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Idle_Orient",
+      "id": "0-18430",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Thinking",
+      "id": "0-13228",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Celebrate",
+      "id": "0-13229",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Remind",
+      "id": "0-13230",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Doze",
+      "id": "0-13231",
+      "keysChecked": 316,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Wake",
+      "id": "0-13232",
+      "keysChecked": 423,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "ThinkingEnter",
+      "id": "0-122622",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "ThinkingExit",
+      "id": "0-122623",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "DozeEnter",
+      "id": "0-122624",
+      "keysChecked": 193,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "CelebrateConcern",
+      "id": "0-122625",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Settle",
+      "id": "0-122626",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Expression_Wink",
+      "id": "0-185847",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Expression_Tears",
+      "id": "0-185848",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Expression_TearsTurn",
+      "id": "0-185849",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Preview_All",
+      "id": "0-185850",
+      "keysChecked": 31502,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Preview",
+      "id": "0-110",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    },
+    {
+      "name": "Preview_Behaviors_v5",
+      "id": "0-13233",
+      "keysChecked": 36,
+      "untouchedTracksPreserved": true,
+      "errors": []
+    }
+  ],
+  "stateMachineUnchanged": true,
+  "simulation": {
+    "stateMachineId": "0-7",
+    "stateMachineName": "Mascot",
+    "success": true,
+    "framesAdvanced": 520,
+    "settled": false,
+    "transitionsObserved": 11,
+    "finalStates": [
+      {
+        "layerId": "0-8",
+        "layerName": "Behavior",
+        "stateId": "0-12",
+        "stateName": "Idle"
+      }
+    ],
+    "trace": [
+      {
+        "kind": "frame",
+        "frame": 1
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 1,
+        "transitionId": "0-13",
+        "fromStateId": "0-11",
+        "fromStateName": "Entry",
+        "toStateId": "0-168021",
+        "toStateName": "Resolve"
+      },
+      {
+        "kind": "state",
+        "line": 2,
+        "stateId": "0-168021",
+        "stateName": "Resolve",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 3,
+        "transitionId": "0-168086",
+        "fromStateId": "0-168021",
+        "fromStateName": "Resolve",
+        "toStateId": "0-12",
+        "toStateName": "Idle"
+      },
+      {
+        "kind": "state",
+        "line": 4,
+        "stateId": "0-12",
+        "stateName": "Idle",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 130
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 5,
+        "transitionId": "0-168094",
+        "fromStateId": "0-12",
+        "fromStateName": "Idle",
+        "toStateId": "0-9077",
+        "toStateName": "PickAfterOthers"
+      },
+      {
+        "kind": "state",
+        "line": 6,
+        "stateId": "0-9077",
+        "stateName": "PickAfterOthers",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 7,
+        "transitionId": "0-168132",
+        "fromStateId": "0-9077",
+        "fromStateName": "PickAfterOthers",
+        "toStateId": "0-9073",
+        "toStateName": "Idle_QuietShort"
+      },
+      {
+        "kind": "state",
+        "line": 8,
+        "stateId": "0-9073",
+        "stateName": "Idle_QuietShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 202
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 9,
+        "transitionId": "0-168102",
+        "fromStateId": "0-9073",
+        "fromStateName": "Idle_QuietShort",
+        "toStateId": "0-9076",
+        "toStateName": "PickAfterShort"
+      },
+      {
+        "kind": "state",
+        "line": 10,
+        "stateId": "0-9076",
+        "stateName": "PickAfterShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 11,
+        "transitionId": "0-168125",
+        "fromStateId": "0-9076",
+        "fromStateName": "PickAfterShort",
+        "toStateId": "0-12",
+        "toStateName": "Idle"
+      },
+      {
+        "kind": "state",
+        "line": 12,
+        "stateId": "0-12",
+        "stateName": "Idle",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 301
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 13,
+        "transitionId": "0-168089",
+        "fromStateId": "0-12",
+        "fromStateName": "Idle",
+        "toStateId": "0-122629",
+        "toStateName": "DozeEnter"
+      },
+      {
+        "kind": "state",
+        "line": 14,
+        "stateId": "0-122629",
+        "stateName": "DozeEnter",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 321
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 15,
+        "transitionId": "0-168167",
+        "fromStateId": "0-122629",
+        "fromStateName": "DozeEnter",
+        "toStateId": "0-122612",
+        "toStateName": "Doze"
+      },
+      {
+        "kind": "state",
+        "line": 16,
+        "stateId": "0-122612",
+        "stateName": "Doze",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 431
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 17,
+        "transitionId": "0-168170",
+        "fromStateId": "0-122612",
+        "fromStateName": "Doze",
+        "toStateId": "0-122613",
+        "toStateName": "Wake"
+      },
+      {
+        "kind": "state",
+        "line": 18,
+        "stateId": "0-122613",
+        "stateName": "Wake",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 459
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 19,
+        "transitionId": "0-168172",
+        "fromStateId": "0-122613",
+        "fromStateName": "Wake",
+        "toStateId": "0-168021",
+        "toStateName": "Resolve"
+      },
+      {
+        "kind": "state",
+        "line": 20,
+        "stateId": "0-168021",
+        "stateName": "Resolve",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 21,
+        "transitionId": "0-168086",
+        "fromStateId": "0-168021",
+        "fromStateName": "Resolve",
+        "toStateId": "0-12",
+        "toStateName": "Idle"
+      },
+      {
+        "kind": "state",
+        "line": 22,
+        "stateId": "0-12",
+        "stateName": "Idle",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 520
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "message",
+        "line": 23,
+        "message": "Done"
+      }
+    ]
+  }
+}

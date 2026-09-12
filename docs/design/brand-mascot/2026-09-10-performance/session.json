@@ -1,0 +1,27 @@
+{
+  "configuration": "Release",
+  "app": "/private/tmp/together-mascot-perf-build/Build/Products/Release-iphoneos/Together.app",
+  "bundleId": "com.pigdog.Together",
+  "version": "1.0",
+  "build": "50",
+  "mascotSHA256": "8dfea4c3f2655a5de53f4ac8b7777d16d82647d6ea527d49d0a9ad7b3c75d924",
+  "device": "iPhone17 iOS27 beta",
+  "buildSucceeded": true,
+  "performanceResults": "not measured; first recording timed out before data collection",
+  "sourceChanged": false,
+  "connection": "wireless, confirmed connected",
+  "charging": "disconnected by user before sampling",
+  "brightness": "user asked to keep constant; value not captured",
+  "userState": "Together home, no interaction during baseline",
+  "releaseInstalled": true,
+  "releaseLaunched": true,
+  "appleExpertRetrieval": {
+    "query": "Physical iOS device Instruments xctrace animation frame pacing CPU GPU energy Power Profiler background pause SwiftUI Rive Metal",
+    "result": "No Expert Delta",
+    "appliedKeys": []
+  },
+  "status": "cancelled by user",
+  "optimizationChanges": false,
+  "releaseBuildInstalled": true,
+  "activeRecordingStopped": []
+}

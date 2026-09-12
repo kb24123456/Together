@@ -1,0 +1,902 @@
+{
+  "animations" : [
+    "Preview_LightActions_4",
+    "Preview_Expressions_28",
+    "Expr_Pulse_SleepyLow",
+    "Expr_Close_SleepyLow",
+    "Expr_SleepyLow",
+    "Expr_Pulse_Nervous",
+    "Expr_Close_Nervous",
+    "Expr_Nervous",
+    "Expr_Pulse_Helpless",
+    "Expr_Close_Helpless",
+    "Expr_Helpless",
+    "Expr_Pulse_ShyLookAway",
+    "Expr_Close_ShyLookAway",
+    "Expr_ShyLookAway",
+    "Expr_Pulse_Realization",
+    "Expr_Close_Realization",
+    "Expr_Realization",
+    "Expr_Pulse_Determined",
+    "Expr_Close_Determined",
+    "Expr_Determined",
+    "Expr_Pulse_PuzzledQuiet",
+    "Expr_Close_PuzzledQuiet",
+    "Expr_PuzzledQuiet",
+    "Expr_Pulse_CuriousQuiet",
+    "Expr_Close_CuriousQuiet",
+    "Expr_CuriousQuiet",
+    "Expr_Pulse_SmallTears",
+    "Expr_Close_SmallTears",
+    "Expr_SmallTears",
+    "Expr_Pulse_Sad",
+    "Expr_Close_Sad",
+    "Expr_Sad",
+    "Expr_Pulse_Content",
+    "Expr_Close_Content",
+    "Expr_Content",
+    "Expr_Pulse_Speechless",
+    "Expr_Close_Speechless",
+    "Expr_Speechless",
+    "Expr_Pulse_MildAngry",
+    "Expr_Close_MildAngry",
+    "Expr_MildAngry",
+    "Expr_Pulse_Embarrassed",
+    "Expr_Close_Embarrassed",
+    "Expr_Embarrassed",
+    "Expr_Pulse_Surprised",
+    "Expr_Close_Surprised",
+    "Expr_Surprised",
+    "Expr_Pulse_GentleFocus",
+    "Expr_Close_GentleFocus",
+    "Expr_GentleFocus",
+    "Expr_Pulse_ThinkingUp",
+    "Expr_Close_ThinkingUp",
+    "Expr_ThinkingUp",
+    "Expr_Pulse_CuriousOpen",
+    "Expr_Close_CuriousOpen",
+    "Expr_CuriousOpen",
+    "Expr_Pulse_Smug",
+    "Expr_Close_Smug",
+    "Expr_Smug",
+    "Expr_Pulse_Blush",
+    "Expr_Close_Blush",
+    "Expr_Blush",
+    "Expr_Pulse_WinkSmile",
+    "Expr_Close_WinkSmile",
+    "Expr_WinkSmile",
+    "Expr_Pulse_Excited",
+    "Expr_Close_Excited",
+    "Expr_Excited",
+    "Expr_Close_Auto",
+    "Expr_Pulse_SleepyYawn",
+    "Expr_Close_SleepyYawn",
+    "Expr_SleepyYawn",
+    "Expr_Pulse_PuzzledOpen",
+    "Expr_Close_PuzzledOpen",
+    "Expr_PuzzledOpen",
+    "Expr_Pulse_Love",
+    "Expr_Close_Love",
+    "Expr_Love",
+    "Expr_Pulse_Laugh",
+    "Expr_Close_Laugh",
+    "Expr_Laugh",
+    "Expr_Pulse_SoftHappy",
+    "Expr_Close_SoftHappy",
+    "Expr_SoftHappy",
+    "Expr_Pulse_Calm",
+    "Expr_Close_Calm",
+    "Expr_Calm",
+    "Action_Poke",
+    "Action_Celebrate",
+    "Action_Nod",
+    "Action_Observe",
+    "Action_Rest",
+    "Expr_ReactionBlank",
+    "Expr_Resolve",
+    "Expr_Auto",
+    "Idle_GazeDown",
+    "Idle_GazeUp",
+    "Idle_GazeUpRight",
+    "Expression_Tears",
+    "Expression_Wink",
+    "Expression_TearsTurn",
+    "Preview_All",
+    "CelebrateConcern",
+    "Settle",
+    "DozeEnter",
+    "ThinkingEnter",
+    "ThinkingExit",
+    "Idle_Orient",
+    "Remind",
+    "Thinking",
+    "Doze",
+    "Celebrate",
+    "Preview_Behaviors_v5",
+    "Wake",
+    "Idle_QuietMedium",
+    "Idle_Select",
+    "Idle_QuietShort",
+    "Idle_Look",
+    "WritingEnter",
+    "WritingHold",
+    "WritingExit",
+    "ConcernEnter",
+    "Recover",
+    "Acknowledge",
+    "Writing",
+    "Concerned",
+    "Preview",
+    "Idle"
+  ],
+  "api" : "Official legacy RiveRuntime APIs bundled with 6.25.1",
+  "artboards" : [
+    "TogetherSphere"
+  ],
+  "assetBytes" : 3848190,
+  "assetPath" : "\/Users\/papertiger\/Desktop\/Together\/docs\/design\/brand-mascot\/2026-09-09-expression-system\/focused-writing\/wider\/deliverables\/together_sphere_motion_study.riv",
+  "assetSHA256" : "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3",
+  "checks" : [
+    {
+      "name" : "TogetherSphere artboard exists",
+      "passed" : true
+    },
+    {
+      "details" : 128,
+      "name" : "128 named timelines exported",
+      "passed" : true
+    },
+    {
+      "name" : "Mascot is default state machine",
+      "passed" : true
+    },
+    {
+      "details" : 24,
+      "name" : "24 ViewModel properties exported",
+      "passed" : true
+    },
+    {
+      "name" : "mode is number",
+      "passed" : true
+    },
+    {
+      "name" : "default expression is automatic zero",
+      "passed" : true
+    },
+    {
+      "name" : "reaction selector exists and stays inactive without react",
+      "passed" : true
+    },
+    {
+      "name" : "default mode is idle zero",
+      "passed" : true
+    },
+    {
+      "name" : "default isTyping is false",
+      "passed" : true
+    },
+    {
+      "name" : "default celebrateRequested is false",
+      "passed" : true
+    },
+    {
+      "name" : "additional trigger exists: observe",
+      "passed" : true
+    },
+    {
+      "name" : "additional trigger exists: nod",
+      "passed" : true
+    },
+    {
+      "name" : "additional trigger exists: celebrateMotion",
+      "passed" : true
+    },
+    {
+      "name" : "additional trigger exists: poke",
+      "passed" : true
+    },
+    {
+      "name" : "additional trigger exists: react",
+      "passed" : true
+    },
+    {
+      "name" : "isTyping is boolean",
+      "passed" : true
+    },
+    {
+      "name" : "celebrateRequested is boolean",
+      "passed" : true
+    },
+    {
+      "name" : "acknowledge is trigger",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "Idle_Select",
+        "Expr_Auto",
+        "Action_Rest",
+        "Idle",
+        "Idle_QuietShort"
+      ],
+      "name" : "mode: idle",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "WritingEnter",
+        "Expr_Auto",
+        "Action_Rest",
+        "Writing"
+      ],
+      "name" : "mode: writing",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "WritingEnter",
+        "Expr_Auto",
+        "Action_Rest",
+        "WritingHold"
+      ],
+      "name" : "mode: holding",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "ConcernEnter",
+        "Expr_Auto",
+        "Action_Rest",
+        "Concerned"
+      ],
+      "name" : "mode: concerned",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "ThinkingEnter",
+        "Expr_Auto",
+        "Action_Rest",
+        "Thinking"
+      ],
+      "name" : "mode: thinking",
+      "passed" : true
+    },
+    {
+      "details" : [
+        "DozeEnter",
+        "Expr_Auto",
+        "Action_Rest",
+        "Doze"
+      ],
+      "name" : "mode: doze",
+      "passed" : true
+    },
+    {
+      "name" : "acknowledge plays Expression_Wink",
+      "passed" : true
+    },
+    {
+      "name" : "acknowledge returns to an idle animation",
+      "passed" : true
+    },
+    {
+      "name" : "celebrateRequested reaches celebration",
+      "passed" : true
+    },
+    {
+      "name" : "celebration request resets",
+      "passed" : true
+    },
+    {
+      "name" : "12 semantic colors described",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: bodyLight",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: bodyShade",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: handLight",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: handShade",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: farHandLight",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: farHandShade",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: eyeColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: sweatColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: penBodyColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: penTipColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: inkColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark color: tearColor",
+      "passed" : true
+    },
+    {
+      "name" : "dark retains bound instance",
+      "passed" : true
+    },
+    {
+      "name" : "dark preserves writing mode",
+      "passed" : true
+    },
+    {
+      "name" : "light color: bodyLight",
+      "passed" : true
+    },
+    {
+      "name" : "light color: bodyShade",
+      "passed" : true
+    },
+    {
+      "name" : "light color: handLight",
+      "passed" : true
+    },
+    {
+      "name" : "light color: handShade",
+      "passed" : true
+    },
+    {
+      "name" : "light color: farHandLight",
+      "passed" : true
+    },
+    {
+      "name" : "light color: farHandShade",
+      "passed" : true
+    },
+    {
+      "name" : "light color: eyeColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: sweatColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: penBodyColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: penTipColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: inkColor",
+      "passed" : true
+    },
+    {
+      "name" : "light color: tearColor",
+      "passed" : true
+    },
+    {
+      "name" : "light retains bound instance",
+      "passed" : true
+    },
+    {
+      "name" : "light preserves writing mode",
+      "passed" : true
+    }
+  ],
+  "colorArtboard" : "TogetherSphere",
+  "colorReadWrite" : [
+    {
+      "actual" : "#fff0f0f0",
+      "appearance" : "dark",
+      "expected" : "#fff0f0f0",
+      "passed" : true,
+      "property" : "bodyLight"
+    },
+    {
+      "actual" : "#ffd5d5d5",
+      "appearance" : "dark",
+      "expected" : "#ffd5d5d5",
+      "passed" : true,
+      "property" : "bodyShade"
+    },
+    {
+      "actual" : "#fff0f0f0",
+      "appearance" : "dark",
+      "expected" : "#fff0f0f0",
+      "passed" : true,
+      "property" : "handLight"
+    },
+    {
+      "actual" : "#ffbdbdbd",
+      "appearance" : "dark",
+      "expected" : "#ffbdbdbd",
+      "passed" : true,
+      "property" : "handShade"
+    },
+    {
+      "actual" : "#ffe8e8e8",
+      "appearance" : "dark",
+      "expected" : "#ffe8e8e8",
+      "passed" : true,
+      "property" : "farHandLight"
+    },
+    {
+      "actual" : "#ffb8b8b8",
+      "appearance" : "dark",
+      "expected" : "#ffb8b8b8",
+      "passed" : true,
+      "property" : "farHandShade"
+    },
+    {
+      "actual" : "#ff1b1b1b",
+      "appearance" : "dark",
+      "expected" : "#ff1b1b1b",
+      "passed" : true,
+      "property" : "eyeColor"
+    },
+    {
+      "actual" : "#ff686868",
+      "appearance" : "dark",
+      "expected" : "#ff686868",
+      "passed" : true,
+      "property" : "sweatColor"
+    },
+    {
+      "actual" : "#ff767676",
+      "appearance" : "dark",
+      "expected" : "#ff767676",
+      "passed" : true,
+      "property" : "penBodyColor"
+    },
+    {
+      "actual" : "#ffadadad",
+      "appearance" : "dark",
+      "expected" : "#ffadadad",
+      "passed" : true,
+      "property" : "penTipColor"
+    },
+    {
+      "actual" : "#ff929292",
+      "appearance" : "dark",
+      "expected" : "#ff929292",
+      "passed" : true,
+      "property" : "inkColor"
+    },
+    {
+      "actual" : "#ff347fa6",
+      "appearance" : "dark",
+      "expected" : "#ff347fa6",
+      "passed" : true,
+      "property" : "tearColor"
+    },
+    {
+      "actual" : "#ff101010",
+      "appearance" : "light",
+      "expected" : "#ff101010",
+      "passed" : true,
+      "property" : "bodyLight"
+    },
+    {
+      "actual" : "#ff030303",
+      "appearance" : "light",
+      "expected" : "#ff030303",
+      "passed" : true,
+      "property" : "bodyShade"
+    },
+    {
+      "actual" : "#ff141414",
+      "appearance" : "light",
+      "expected" : "#ff141414",
+      "passed" : true,
+      "property" : "handLight"
+    },
+    {
+      "actual" : "#ff060606",
+      "appearance" : "light",
+      "expected" : "#ff060606",
+      "passed" : true,
+      "property" : "handShade"
+    },
+    {
+      "actual" : "#ff080808",
+      "appearance" : "light",
+      "expected" : "#ff080808",
+      "passed" : true,
+      "property" : "farHandLight"
+    },
+    {
+      "actual" : "#ff080808",
+      "appearance" : "light",
+      "expected" : "#ff080808",
+      "passed" : true,
+      "property" : "farHandShade"
+    },
+    {
+      "actual" : "#ffffffff",
+      "appearance" : "light",
+      "expected" : "#ffffffff",
+      "passed" : true,
+      "property" : "eyeColor"
+    },
+    {
+      "actual" : "#ffffffff",
+      "appearance" : "light",
+      "expected" : "#ffffffff",
+      "passed" : true,
+      "property" : "sweatColor"
+    },
+    {
+      "actual" : "#fff2eee6",
+      "appearance" : "light",
+      "expected" : "#fff2eee6",
+      "passed" : true,
+      "property" : "penBodyColor"
+    },
+    {
+      "actual" : "#ff111111",
+      "appearance" : "light",
+      "expected" : "#ff111111",
+      "passed" : true,
+      "property" : "penTipColor"
+    },
+    {
+      "actual" : "#ff777777",
+      "appearance" : "light",
+      "expected" : "#ff777777",
+      "passed" : true,
+      "property" : "inkColor"
+    },
+    {
+      "actual" : "#ff88cff3",
+      "appearance" : "light",
+      "expected" : "#ff88cff3",
+      "passed" : true,
+      "property" : "tearColor"
+    }
+  ],
+  "createdAt" : "2026-09-09T11:33:59Z",
+  "defaultReaction" : 2,
+  "defaultStateMachine" : "Mascot",
+  "feedback" : {
+    "acknowledgeTrace" : [
+      {
+        "frame" : 0,
+        "states" : [
+          "Expression_Wink"
+        ]
+      },
+      {
+        "frame" : 49,
+        "states" : [
+          "Idle_Select"
+        ]
+      },
+      {
+        "frame" : 52,
+        "states" : [
+          "Idle_GazeUp"
+        ]
+      }
+    ],
+    "artboard" : "TogetherSphere",
+    "celebrationTrace" : [
+      {
+        "frame" : 0,
+        "states" : [
+          "Celebrate"
+        ]
+      },
+      {
+        "frame" : 85,
+        "states" : [
+          "Idle_Select"
+        ]
+      },
+      {
+        "frame" : 86,
+        "states" : [
+          "Idle_Select"
+        ]
+      },
+      {
+        "frame" : 89,
+        "states" : [
+          "Idle_GazeUp"
+        ]
+      }
+    ]
+  },
+  "instanceNames" : [
+    "Instance"
+  ],
+  "limits" : [
+    "No pixels rendered; property read\/write does not independently verify visible bound fills.",
+    "No App, iOS device, layout, or performance validation."
+  ],
+  "modeTraces" : [
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "idle",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 0,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "Idle_Select",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "frame" : 3,
+          "states" : [
+            "Idle"
+          ]
+        },
+        {
+          "frame" : 387,
+          "states" : [
+            "Idle_QuietShort"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "writing",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : true,
+      "mode" : 1,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "WritingEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "frame" : 12,
+          "states" : [
+            "Writing"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "holding",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 1,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "WritingEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "frame" : 12,
+          "states" : [
+            "WritingHold"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "concerned",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 2,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "ConcernEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "frame" : 12,
+          "states" : [
+            "Concerned"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "thinking",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 3,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "ThinkingEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "frame" : 46,
+          "states" : [
+            "Thinking"
+          ]
+        }
+      ]
+    },
+    {
+      "artboard" : "TogetherSphere",
+      "boundInstanceSame" : true,
+      "case" : "doze",
+      "fps" : 60,
+      "frames" : 600,
+      "isTyping" : false,
+      "mode" : 4,
+      "trace" : [
+        {
+          "frame" : 0,
+          "states" : [
+            "DozeEnter",
+            "Expr_Auto",
+            "Action_Rest"
+          ]
+        },
+        {
+          "frame" : 61,
+          "states" : [
+            "Doze"
+          ]
+        }
+      ]
+    }
+  ],
+  "passed" : true,
+  "platform" : "macOS command line; no view, simulator, or App integration",
+  "properties" : [
+    {
+      "name" : "celebrateMotion",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "expression",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 2)"
+    },
+    {
+      "name" : "nod",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "observe",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "poke",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "react",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "reaction",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 2)"
+    },
+    {
+      "name" : "tearColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "bodyLight",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "bodyShade",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "eyeColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "farHandLight",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "farHandShade",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "handLight",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "handShade",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "inkColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "penBodyColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "penTipColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "sweatColor",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 4)"
+    },
+    {
+      "name" : "celebrateRequested",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 3)"
+    },
+    {
+      "name" : "remind",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "acknowledge",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 7)"
+    },
+    {
+      "name" : "isTyping",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 3)"
+    },
+    {
+      "name" : "mode",
+      "type" : "RiveDataBindingViewModelInstancePropertyDataType(rawValue: 2)"
+    }
+  ],
+  "runtimeVersion" : "6.25.1",
+  "stateChangesSemantics" : "Legacy RiveAnimationState.name returns the referenced animation name, not the editor state node name. Source: rive-ios 6.25.1 Source\/Renderer\/LayerState.mm lines 86-100.",
+  "stateMachines" : [
+    "Mascot"
+  ],
+  "viewModelName" : "TogetherSphereModel"
+}

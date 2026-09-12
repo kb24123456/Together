@@ -29,6 +29,8 @@
 - 文件路径与 URL 处理优先使用 `URL.documentsDirectory`、`appending(path:)` 等现代 API。
 
 ### 3.1 SwiftUI 具体规则
+
+- 品牌小球的运行实例与唯一真实渲染视图由根级持有，编辑 presentation 身份决定页面交接。原生导航栏只注册布局锚点，同一视图在转场期间移入当前 window 的非交互层，结束后归入目标锚点；旧页面释放不得关闭新会话。异步资源加载、输入同步与短反馈消费只有一个所有者。导航交接保留播放姿态；后台、锁、Reduce Motion、低电量及热状态降级继续停止播放并丢弃过期反馈。修改提示只由应用服务保存成功后的实际前后可编辑字段变化产生，反馈不是任务数据真相。
 - 优先使用 `foregroundStyle()`，不要继续新增 `foregroundColor()` 作为常规文本/图标着色方案。
 - 优先使用 `clipShape(.rect(cornerRadius:))`，不要继续新增 `cornerRadius()`。
 - 导航统一使用 `NavigationStack` + `navigationDestination(for:)`，不新增 `NavigationView`。
@@ -53,6 +55,16 @@
 - 首页底部入口由 `NavigationStack` 的系统 `.bottomBar` 持有，只使用原生 `ToolbarItem`、`ToolbarSpacer`、`Menu`、`Button` 与 SF Symbols。`+` 作为 matched transition source，以预分配最终 UUID 创建对应 ViewModel 的内存会话，再通过根级 `fullScreenCover` 打开共享 `TaskCreationView`；正常动效使用系统 `.zoom`，Reduce Motion 使用 `.automatic`。创建期间不得向根 `ScrollView / LazyVStack` 注入临时任务、不得复用任务详情 route、不得复制列表焦点景深。创建页使用单一 `NavigationStack + ScrollView`、系统语义背景、带明确无障碍名称的原生叉号取消 / 勾号添加 toolbar 和 `FocusState`；待办与定期分别沿用既有创建会话及应用服务。属性轨道必须只有一个交互实例，由底部 `safeAreaBar` 常驻承载并随系统键盘安全区移动，不监听键盘通知、不读取键盘高度，也不在正文与底栏之间复制或切换控件；待办子任务必须位于属性轨道上方。紧急与关注只更新待办创建会话，并在同一次创建事务中持久化，关注成功后复用既有 Live Activity 协调器。提交必须先刷新输入法组合文本、校验标题并锁定重复请求；保存成功后 finalize 会话、关闭页面并由 ViewModel 在最终位置标记一次真实行插入动画，失败保留 UUID、输入和错误。取消直接 discard 内存会话且不写库；保存期间禁止交互下拉关闭。
 - 创建页子任务插入只依赖 `TaskSubtaskDraft.id` 的稳定身份和一次局部 `withAnimation`；输入框及尾部操作槽位不得因插入或清空文本被重建。日期时间 Sheet 的连续选择只写入 View 本地 pending draft，必须在 `onDismiss` 后用一个动画事务更新业务创建 Draft，避免 Sheet 与父级胶囊同时争用布局动画。日期、时间与提醒分别作为稳定的系统 Zoom source；点击时冻结本次 source 与是否允许 Zoom，目的 Sheet 在整个打开 / 关闭周期内保持该策略。定期创建现有 `Menu + compact DatePicker` 结构不为追求转场改成第二套 Sheet。
 - 时间编辑不建立全局独立 Picker 或专用大号 Sheet。待办日期时间 Sheet 和定期属性 Sheet 继续使用系统 compact `DatePicker`；OCR 统一属性 Sheet 继续使用既有 `TaskEditorSingleColumnTimeWheel`，原内联入口继续使用小型系统 wheel Popover。所有入口共享 5 分钟粒度、清除时间同步清除提醒及原提醒提前量语义；不得再接入大号双组件 `UIPickerView`、双 `UITableView` 圆柱滚轮、边缘模糊层或另一套 pending 提交状态机。
+
+### 3.1.1 品牌小球运行边界
+- 本地打包 `.riv` 与浅深色静态素材，主 App 使用精确锁定的 `rive-ios 6.25.1` New Runtime；Widget 不链接 Rive。根级 `MascotPlaybackSession` 在首页、创建与详情之间保留同一 Worker / File / Artboard / StateMachine / ViewModel；根级同时持有唯一 RiveUIView；两处原生toolbar只提供真实布局锚点。移动期间把同一视图暂移到当前window的非交互UIView承接层；入场在真实目标几何就绪后只启动一次 UIKit 属性动画，以原生转场时长作为节奏依据，原生 coordinator 观察取消；返回仍由 animateAlongsideTransition(in:) 协调。入场启动前检查 UIView.areAnimationsEnabled，若布局事务关闭动画，则合并安排到主队列后重新读取几何，且由转场 UUID 拦截过期启动；不能在禁动画事务内启动属性动画。编辑姿态与真实输入在获得编辑所有权时立即生效，onDock 只确认实际挂载，不再控制拿笔时机；页面 didAppear 和坐标状态完成不能替代实际停靠。结束再归入对应锚点；颜色更新不重建角色。首次目标frame通过presentationController最终frame映射，不能使用处于Zoom中的窗口坐标作为终点。
+- 当前打包 Rive 为 `TogetherSphere / Mascot / TogetherSphereModel`，含 `139` 条时间轴与 `26` 个 View Model 属性；App 沿用 `mode / isTyping / celebrateRequested / acknowledge`，新增改期注意力 `noticeResult` Trigger 和 `12` 个配色属性，首页经可选 `idleFace` 选择 `0/2/21`，其默认值 `-1` 交还旧行为；生产通用 `expression` 始终为 `0`，原 `expression=1～28` 制作入口仍保留。`Behavior` 独占球面投影，首页表情只控制局部眼型和显隐；`Home_Acquire` 在旧动作收尾时保留旧五官，避免提前接管。App 不再发出休眠 `mode=4`，不使用睡眠静态素材；Rive 中历史睡眠制作内容保留，不能重新作为首页自动行为。当前资源、V1验收基线、新版验证边界及备份见 `docs/design/brand-mascot/README.md`；首页连续性制作依据仍见 `docs/design/brand-mascot/2026-09-09-smooth-home/README.md`。
+- `MascotBehaviorState` 只派生展示状态；编辑 > 真实处理 > 当前逾期 > 静候。真实输入通过焦点所属的 Binding 写入产生，程序性同步不触发；停笔 0.9 秒，短反馈共用 4 秒冷却。日常表情间隔随机 6～11 秒、每次保持 1～1.5 秒且不连续重复，继续复用单个 deadline Task，不按帧发布状态。编辑、处理、逾期、隐藏和禁止播放时交还旧行为；普通短反馈将 `idleFace=-1`，`noticeResult` 保留当前首页眼型并允许原表情自然到期。原生页面交接保留基础动作相位，同一渲染视图同步改变位置与大小；全局降级时有限推进退出（首页 `[0,0.3,0.3,0.1]`，已发反馈 `[0,2,0.1,0.1]`），恢复后重新安排、不补播旧反馈。首次发布运行实例前固定推进 `[0,0.15]` 并等待既有 Worker 读取屏障，避免初始空脸；推进不是延时等待。滚动以原生 ScrollPhase 的离散状态传入，拖动、滚动与惯性减速期间暂缓日常表情，结束后重新计时，不写入逐帧偏移。庆祝只来自应用服务确认的未完成到已完成，不复用同步或保存的通用通知。`TaskUpdateFeedback` 比较保存前后快照中的日期、时间、相对提醒、优先级、关注、标题、备注和子任务，定期任务同时覆盖周期和推迟；忽略更新时间等元数据。详情仅在显式保存成功并返回原生页面后一次消费，列表快捷推迟、优先级和关注在成功后消费；一次保存聚合字段变化。保存开始捕获反馈 generation，后台、锁定和切换根模式时清除已有事件并拦截在途旧结果；取消、失败、无净变化、完成前保存、创建与同步刷新不产生修改提示。
+- 首页保留 `40pt` 主体；创建/详情仅在原生 principal 导航标题旁持有一个 `30pt` 主体（完整画板约 `41.7pt`），控制器与输入会话身份不随标题或保存状态重建；正文不保留第二份角色实例。
+- 可见且允许播放才异步装载；旧加载通过 generation 和取消隔离。后台、页面遮挡、App 锁定、Reduce Motion、低电量及严重/临界热状态暂停；不积攒或返回后补播短反馈。静态兜底不阻塞原生操作，不向 Observation 写动画帧。
+- OCR Thinking 必须取当前会话真实 `.processing`，旧会话的异步结果与清理不能覆盖新会话；不以 Task 句柄存在代替处理状态。
+
+- 任务结果胶囊由既有 `MascotVisualTransfer` 在原window承接层中承载，`TaskUpdateNotice` 是原生UIView表面，唯一 `MascotArtworkView` 临时移入其左端；保留同一Rive实例、表情和资源，用同配色渐变衔接表面，不更改Rive状态机或配色接口。`MascotNoticeState` 按事件UUID隔离替换、取消与迟到完成；`MascotPlaybackSession` 仅在实际展开完成后启动可取消阅读计时。原生导航尚未停靠首页时保留最新待展示结果，后台/锁定/导航开始取消。胶囊尺寸来自实际锚点画板中的球体边界，文本测量只在内容/主题变化时执行；UIViewPropertyAnimator同时改变位置与宽度，不缩放文本或眼睛。
 
 ### 3.2 SwiftData 与测试约束
 - 只要当前模块使用 SwiftData，就优先沿用 SwiftData，不要随手回退到 Core Data。

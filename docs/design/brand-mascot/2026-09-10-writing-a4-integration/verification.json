@@ -1,0 +1,18 @@
+{
+  "timelinesTotal": 138,
+  "changedTimelineIds": [
+    "0-1032",
+    "0-1033",
+    "0-1034",
+    "0-108"
+  ],
+  "unchangedTimelines": 134,
+  "originalStateMachineUnchanged": true,
+  "baseGeometryUnchanged": true,
+  "preservedOpacityChannels": 28,
+  "approvedMotionWorldTransformSamples": 217,
+  "maxWorldTransformError": 5.684341886080802e-14,
+  "noGlobalBodyOrFaceMotionOwnershipAdded": true,
+  "assetSHA256": "034bc570f48ed845c12721ecd95630513e091fd5229a02fc2948ae8b4fb1b8e4",
+  "assetBytes": 4266199
+}

@@ -1,0 +1,10 @@
+{
+  "riveFileId": 2564580,
+  "fullEditableBackup": "Rive > Revision History > Before closed-eye spacing · 2026-09-09",
+  "confirmedInNativeUI": true,
+  "localRevExport": {
+    "completed": false,
+    "reason": "Sandbox write denied and 11,705,230 bytes exceeds 8 MiB inline cap"
+  },
+  "localKeyframeRollback": "before-keyframes-*.json created before corresponding writes"
+}

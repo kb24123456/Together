@@ -1,0 +1,162 @@
+{
+  "name": "Daily face yields to focused writing and returns to idle",
+  "fps": 30,
+  "frames": 360,
+  "width": 336,
+  "height": 336,
+  "pngEvery": 0,
+  "pngFrames": [
+    29,
+    30,
+    32,
+    34,
+    37,
+    42,
+    69,
+    85,
+    119,
+    120,
+    122,
+    124,
+    127,
+    132,
+    159,
+    175,
+    209,
+    210,
+    212,
+    214,
+    217,
+    222,
+    249,
+    265,
+    299,
+    300,
+    302,
+    304,
+    307,
+    312,
+    339,
+    355
+  ],
+  "video": true,
+  "backgroundARGB": "FFFAFAFA",
+  "events": [
+    {
+      "frame": 0,
+      "numbers": {
+        "mode": 0,
+        "expression": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 30,
+      "numbers": {
+        "expression": 0,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 70,
+      "numbers": {
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 90,
+      "numbers": {
+        "mode": 0,
+        "expression": 5
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 120,
+      "numbers": {
+        "expression": 0,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 160,
+      "numbers": {
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 180,
+      "numbers": {
+        "mode": 0,
+        "expression": 8
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 210,
+      "numbers": {
+        "expression": 0,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 250,
+      "numbers": {
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 270,
+      "numbers": {
+        "mode": 0,
+        "expression": 21
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 300,
+      "numbers": {
+        "expression": 0,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 340,
+      "numbers": {
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    }
+  ]
+}

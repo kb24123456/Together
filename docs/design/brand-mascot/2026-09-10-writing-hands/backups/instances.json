@@ -1,0 +1,154 @@
+{
+  "success": true,
+  "instances": [
+    {
+      "id": "0-376",
+      "name": "Instance",
+      "viewModelProperties": [
+        {
+          "id": "0-378",
+          "name": "mode",
+          "propertyType": "number",
+          "value": 0.0
+        },
+        {
+          "id": "0-3933",
+          "name": "isTyping",
+          "propertyType": "boolean",
+          "value": false
+        },
+        {
+          "id": "0-3935",
+          "name": "acknowledge",
+          "propertyType": "trigger"
+        },
+        {
+          "id": "0-122606",
+          "name": "celebrateRequested",
+          "propertyType": "boolean",
+          "value": false
+        },
+        {
+          "id": "0-122608",
+          "name": "remind",
+          "propertyType": "trigger"
+        },
+        {
+          "id": "0-169093",
+          "name": "bodyLight",
+          "propertyType": "color",
+          "value": "4279242768"
+        },
+        {
+          "id": "0-169095",
+          "name": "bodyShade",
+          "propertyType": "color",
+          "value": "4278387459"
+        },
+        {
+          "id": "0-169097",
+          "name": "handLight",
+          "propertyType": "color",
+          "value": "4279505940"
+        },
+        {
+          "id": "0-169099",
+          "name": "handShade",
+          "propertyType": "color",
+          "value": "4278584838"
+        },
+        {
+          "id": "0-169101",
+          "name": "farHandLight",
+          "propertyType": "color",
+          "value": "4278716424"
+        },
+        {
+          "id": "0-169103",
+          "name": "farHandShade",
+          "propertyType": "color",
+          "value": "4278716424"
+        },
+        {
+          "id": "0-169105",
+          "name": "eyeColor",
+          "propertyType": "color",
+          "value": "4294967295"
+        },
+        {
+          "id": "0-169107",
+          "name": "sweatColor",
+          "propertyType": "color",
+          "value": "4294967295"
+        },
+        {
+          "id": "0-169109",
+          "name": "penBodyColor",
+          "propertyType": "color",
+          "value": "4294110950"
+        },
+        {
+          "id": "0-169111",
+          "name": "penTipColor",
+          "propertyType": "color",
+          "value": "4279308561"
+        },
+        {
+          "id": "0-169113",
+          "name": "inkColor",
+          "propertyType": "color",
+          "value": "4286019447"
+        },
+        {
+          "id": "0-245631",
+          "name": "tearColor",
+          "propertyType": "color",
+          "value": "4287156211"
+        },
+        {
+          "id": "0-452655",
+          "name": "expression",
+          "propertyType": "number",
+          "value": 0.0
+        },
+        {
+          "id": "0-452657",
+          "name": "reaction",
+          "propertyType": "number",
+          "value": 2.0
+        },
+        {
+          "id": "0-452659",
+          "name": "react",
+          "propertyType": "trigger"
+        },
+        {
+          "id": "0-452663",
+          "name": "observe",
+          "propertyType": "trigger"
+        },
+        {
+          "id": "0-452665",
+          "name": "nod",
+          "propertyType": "trigger"
+        },
+        {
+          "id": "0-452667",
+          "name": "celebrateMotion",
+          "propertyType": "trigger"
+        },
+        {
+          "id": "0-452669",
+          "name": "poke",
+          "propertyType": "trigger"
+        },
+        {
+          "id": "0-671007",
+          "name": "idleFace",
+          "propertyType": "number",
+          "value": -1.0
+        }
+      ]
+    }
+  ]
+}

@@ -110,6 +110,7 @@ struct HomeView: View {
     let taskDetailTransition: Namespace.ID
     let onOpenTaskDetail: (TaskDetailRoute) -> Void
     let onCompletedHistoryTapped: (CompletedHistoryFilter) -> Void
+    var onInteractionChanged: ((Bool) -> Void)? = nil
     @State private var isCompletedSectionVisible = true
     @State private var highlightedTaskID: UUID?
     @State private var isTimelineReorderingActive = false
@@ -188,6 +189,7 @@ struct HomeView: View {
         }
         .onDisappear {
             isWeeklyReviewMenuPresented = false
+            onInteractionChanged?(false)
         }
         .onChange(of: isRoutinesModePresented) { _, _ in
             dismissWeeklyReviewMenu(restoresAccessibilityFocus: false)
@@ -309,6 +311,8 @@ struct HomeView: View {
                         .padding(.top, 52)
                         .padding(.bottom, AppTheme.spacing.lg)
                 }
+                .onScrollPhaseChange { _, phase in reportScrollInteraction(phase, routines: false) }
+                .onDisappear { reportScrollInteraction(.idle, routines: false) }
                 .id("startup-restore-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
@@ -329,6 +333,8 @@ struct HomeView: View {
                     .padding(.top, AppTheme.spacing.md) // normalized 14→16
                     .padding(.bottom, AppTheme.spacing.lg)
                 }
+                .onScrollPhaseChange { _, phase in reportScrollInteraction(phase, routines: false) }
+                .onDisappear { reportScrollInteraction(.idle, routines: false) }
                 .id("empty-\(viewModel.selectedDateKey)")
                 .scrollIndicators(.hidden)
                 .scrollDisabled(isOverlayModeActive)
@@ -511,6 +517,13 @@ struct HomeView: View {
             taskDetailTransition: taskDetailTransition,
             onOpenTaskDetail: onOpenTaskDetail
         )
+        .onScrollPhaseChange { _, phase in reportScrollInteraction(phase, routines: true) }
+        .onDisappear { reportScrollInteraction(.idle, routines: true) }
+    }
+
+    private func reportScrollInteraction(_ phase: ScrollPhase, routines: Bool) {
+        guard routines == isRoutinesModePresented else { return }
+        onInteractionChanged?(isRootSurfaceVisible && phase != .idle)
     }
 
     private func timelineList(scrollProxy: ScrollViewProxy) -> some View {
@@ -662,6 +675,8 @@ struct HomeView: View {
                 }
             }
         }
+        .onScrollPhaseChange { _, phase in reportScrollInteraction(phase, routines: false) }
+        .onDisappear { reportScrollInteraction(.idle, routines: false) }
         .defaultScrollAnchor(.top, for: .alignment)
         .scrollIndicators(.hidden)
         .scrollDisabled(isOverlayModeActive)

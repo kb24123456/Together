@@ -1,0 +1,170 @@
+{
+  "fileId": 2561771,
+  "artboardId": "0-2",
+  "viewModelId": "0-375",
+  "viewModelName": "TogetherSphereModel",
+  "instanceId": "0-376",
+  "defaultTheme": "light",
+  "propertyType": "color",
+  "editorStoredValueKey": 555,
+  "editorPlaybackValueKey": 556,
+  "groups": [
+    {
+      "name": "bodyLight",
+      "modelId": "0-169092",
+      "instanceId": "0-169093",
+      "light": "#ff101010",
+      "dark": "#fff0f0f0",
+      "targets": [
+        "0-60"
+      ],
+      "key": 38
+    },
+    {
+      "name": "bodyShade",
+      "modelId": "0-169094",
+      "instanceId": "0-169095",
+      "light": "#ff030303",
+      "dark": "#ffd5d5d5",
+      "targets": [
+        "0-61"
+      ],
+      "key": 38
+    },
+    {
+      "name": "handLight",
+      "modelId": "0-169096",
+      "instanceId": "0-169097",
+      "light": "#ff141414",
+      "dark": "#fff0f0f0",
+      "targets": [
+        "0-63",
+        "0-13096",
+        "0-13102"
+      ],
+      "key": 38
+    },
+    {
+      "name": "handShade",
+      "modelId": "0-169098",
+      "instanceId": "0-169099",
+      "light": "#ff060606",
+      "dark": "#ffbdbdbd",
+      "targets": [
+        "0-64",
+        "0-13097",
+        "0-13103"
+      ],
+      "key": 38
+    },
+    {
+      "name": "farHandLight",
+      "modelId": "0-169100",
+      "instanceId": "0-169101",
+      "light": "#ff080808",
+      "dark": "#ffe8e8e8",
+      "targets": [
+        "0-169090"
+      ],
+      "key": 38
+    },
+    {
+      "name": "farHandShade",
+      "modelId": "0-169102",
+      "instanceId": "0-169103",
+      "light": "#ff080808",
+      "dark": "#ffb8b8b8",
+      "targets": [
+        "0-169091"
+      ],
+      "key": 38
+    },
+    {
+      "name": "eyeColor",
+      "modelId": "0-169104",
+      "instanceId": "0-169105",
+      "light": "#ffffffff",
+      "dark": "#ff1b1b1b",
+      "targets": [
+        "0-32870",
+        "0-32882",
+        "0-27",
+        "0-31",
+        "0-49",
+        "0-55",
+        "0-80",
+        "0-88",
+        "0-13109",
+        "0-13115"
+      ],
+      "key": 37
+    },
+    {
+      "name": "sweatColor",
+      "modelId": "0-169106",
+      "instanceId": "0-169107",
+      "light": "#ffffffff",
+      "dark": "#ff686868",
+      "targets": [
+        "0-95"
+      ],
+      "key": 37
+    },
+    {
+      "name": "penBodyColor",
+      "modelId": "0-169108",
+      "instanceId": "0-169109",
+      "light": "#fff2eee6",
+      "dark": "#ff767676",
+      "targets": [
+        "0-35"
+      ],
+      "key": 37
+    },
+    {
+      "name": "penTipColor",
+      "modelId": "0-169110",
+      "instanceId": "0-169111",
+      "light": "#ff111111",
+      "dark": "#ffadadad",
+      "targets": [
+        "0-72"
+      ],
+      "key": 37
+    },
+    {
+      "name": "inkColor",
+      "modelId": "0-169112",
+      "instanceId": "0-169113",
+      "light": "#ff777777",
+      "dark": "#ff929292",
+      "targets": [
+        "0-107"
+      ],
+      "key": 37
+    }
+  ],
+  "constantMaterials": [
+    {
+      "objectId": "0-68",
+      "propertyKey": 37,
+      "color": "#ffded6ca",
+      "name": "PencilWood"
+    }
+  ],
+  "farHand": {
+    "shapeId": "0-40",
+    "ellipseId": "0-41",
+    "fillId": "0-42",
+    "previousSolidId": "0-43",
+    "gradientId": "0-169089",
+    "gradient": {
+      "type": "radial",
+      "startX": -24,
+      "startY": -28,
+      "endX": 35,
+      "endY": 39
+    }
+  },
+  "runtimeAppIntegrated": false
+}

@@ -1,0 +1,206 @@
+{
+  "name": "representative-quick",
+  "fps": 60,
+  "frames": 1530,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 30,
+  "video": true,
+  "events": [
+    {
+      "frame": 0,
+      "label": "LegacyAuto",
+      "numbers": {
+        "mode": 0,
+        "expression": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 90,
+      "label": "Calm",
+      "numbers": {
+        "mode": 0,
+        "expression": 1
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 180,
+      "label": "SoftHappy",
+      "numbers": {
+        "mode": 0,
+        "expression": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 270,
+      "label": "Laugh",
+      "numbers": {
+        "mode": 0,
+        "expression": 3
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 360,
+      "label": "Love",
+      "numbers": {
+        "mode": 0,
+        "expression": 6
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 450,
+      "label": "PuzzledOpen",
+      "numbers": {
+        "mode": 0,
+        "expression": 10
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 540,
+      "label": "SleepyYawn",
+      "numbers": {
+        "mode": 0,
+        "expression": 17
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 630,
+      "label": "Love + observe",
+      "numbers": {
+        "expression": 6
+      },
+      "triggers": [
+        "observe"
+      ]
+    },
+    {
+      "frame": 720,
+      "label": "Puzzled + nod",
+      "numbers": {
+        "expression": 10
+      },
+      "triggers": [
+        "nod"
+      ]
+    },
+    {
+      "frame": 810,
+      "label": "SoftHappy + celebrateMotion",
+      "numbers": {
+        "expression": 2
+      },
+      "triggers": [
+        "celebrateMotion"
+      ]
+    },
+    {
+      "frame": 900,
+      "label": "Calm + poke",
+      "numbers": {
+        "expression": 1
+      },
+      "triggers": [
+        "poke"
+      ]
+    },
+    {
+      "frame": 990,
+      "label": "Persistent Love",
+      "numbers": {
+        "expression": 6
+      }
+    },
+    {
+      "frame": 1020,
+      "label": "Laugh reaction over Love",
+      "numbers": {
+        "reaction": 3
+      },
+      "triggers": [
+        "react"
+      ]
+    },
+    {
+      "frame": 1200,
+      "label": "Legacy writing",
+      "numbers": {
+        "expression": 0,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 1320,
+      "label": "Legacy concern",
+      "numbers": {
+        "mode": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 1440,
+      "label": "Return to legacy idle",
+      "numbers": {
+        "mode": 0
+      }
+    }
+  ],
+  "pngFrames": [
+    45,
+    135,
+    225,
+    315,
+    405,
+    495,
+    585,
+    642,
+    650,
+    665,
+    702,
+    732,
+    745,
+    760,
+    792,
+    820,
+    832,
+    848,
+    870,
+    891,
+    907,
+    912,
+    916,
+    928,
+    945,
+    974,
+    1065,
+    1155,
+    1245,
+    1365,
+    1485
+  ]
+}

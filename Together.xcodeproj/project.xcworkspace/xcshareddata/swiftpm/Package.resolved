@@ -1,15 +1,23 @@
 {
-  "originHash" : "a0cee5e245b55a1549e25937398c407ca6ff654a7ae8870f66899b2cf41e9ccd",
-  "pins" : [
+  "pins": [
     {
-      "identity" : "togethercore",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kb24123456/TogetherCore.git",
-      "state" : {
-        "revision" : "fdec692379ff37aa9b01c316b604de7e24c3a036",
-        "version" : "1.1.0"
+      "identity": "rive-ios",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/rive-app/rive-ios",
+      "state": {
+        "revision": "c837a2bfeee2a502a119b65d83d989d1969477c2",
+        "version": "6.25.1"
+      }
+    },
+    {
+      "identity": "togethercore",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/kb24123456/TogetherCore.git",
+      "state": {
+        "revision": "fdec692379ff37aa9b01c316b604de7e24c3a036",
+        "version": "1.1.0"
       }
     }
   ],
-  "version" : 3
+  "version": 2
 }

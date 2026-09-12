@@ -1,0 +1,120 @@
+{
+  "artboard" : "TogetherSphere",
+  "asset" : "\/Users\/papertiger\/Desktop\/Together\/docs\/design\/brand-mascot\/2026-09-09-smooth-home\/deliverables\/together_sphere_motion_study.riv",
+  "assetSHA256" : "80c812a991054ac6aad3e5bc9626d938d34368f838ced7a4084bcaebc40ea9a7",
+  "distinctPixelFrames" : 8,
+  "firstFrameAdvance" : 0,
+  "fps" : 30,
+  "frames" : 8,
+  "gpuDrawnFrames" : 8,
+  "gpuSkippedUnchangedFrames" : 0,
+  "height" : 512,
+  "inspectionReplayStateChanges" : [
+
+  ],
+  "limits" : [
+    "Offline native rendering proves actual frame content and transitions, not wall-clock performance.",
+    "No iOS Simulator or device used.",
+    "No automatic visual-quality or new-animation pass claim is made."
+  ],
+  "pngs" : [
+    "frame-00000.png",
+    "frame-00001.png",
+    "frame-00002.png",
+    "frame-00003.png",
+    "frame-00004.png",
+    "frame-00005.png",
+    "frame-00006.png",
+    "frame-00007.png"
+  ],
+  "renderedInstanceInputEvents" : [
+    {
+      "booleans" : {
+        "isTyping" : false
+      },
+      "frame" : 0,
+      "numbers" : {
+        "expression" : 0,
+        "idleFace" : 0,
+        "mode" : 0
+      }
+    }
+  ],
+  "renderedInstancePixelFrames" : [
+    {
+      "frame" : 0,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b4db1cc95bf86e0b0d366e55c2c1e0e470d4fb5c468ff19c5e9e4f3e6ca73591",
+      "timeAfterAdvance" : 0.033333333333333333
+    },
+    {
+      "frame" : 1,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "e0ebcbdb865962ce72c2f0473fee1f71da9aff18ec317ea0188386d58a21e467",
+      "timeAfterAdvance" : 0.066666666666666666
+    },
+    {
+      "frame" : 2,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "490b0825fa02f9643f0d6a03d91001c3318003f4b347157d66e3fbf99a78714e",
+      "timeAfterAdvance" : 0.10000000000000001
+    },
+    {
+      "frame" : 3,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "e2b9dbd1c8df112301e7dfb89cef5cc5dbff27b1a41af967d9b04bafae082b32",
+      "timeAfterAdvance" : 0.13333333333333333
+    },
+    {
+      "frame" : 4,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0e5b00c41ad4f04bbcbb1241d2e0a71fec11913c9132be098c327ec91f6cd904",
+      "timeAfterAdvance" : 0.16666666666666666
+    },
+    {
+      "frame" : 5,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "b6beba77edc04a60a7dc920260f73f1b1dbb333deae745baa4f9b77453c44fcb",
+      "timeAfterAdvance" : 0.20000000000000001
+    },
+    {
+      "frame" : 6,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "0e48ec1655b80a14eec29c977bcbaa714bc1d31bfd6ea14fe733de113ef80245",
+      "timeAfterAdvance" : 0.23333333333333334
+    },
+    {
+      "frame" : 7,
+      "gpuDrawn" : true,
+      "pixelSHA256" : "57124405dd62e1718ba2ca8fc95908fd70639db9426dc627dafe3ec10a8582d3",
+      "timeAfterAdvance" : 0.26666666666666666
+    }
+  ],
+  "runtime" : "Rive Apple Runtime 6.25.1",
+  "startupSteps" : [
+    0,
+    0.14999999999999999
+  ],
+  "startupTrace" : [
+    {
+      "dt" : 0,
+      "states" : [
+        "Idle_Select",
+        "Expr_Auto",
+        "Action_Rest"
+      ]
+    },
+    {
+      "dt" : 0.14999999999999999,
+      "states" : [
+        "Idle_QuietMedium",
+        "Home_Acquire"
+      ]
+    }
+  ],
+  "stateMachine" : "Mascot",
+  "story" : "zero-150",
+  "traceBoundary" : "The official new Metal Worker API does not expose stateChanges. inspectionReplayStateChanges comes from a separate official legacy inspection instance replaying the same inputs. Random branches may differ. It is not the rendered instance's state trace.",
+  "viewModel" : "TogetherSphereModel",
+  "width" : 512
+}

@@ -1,0 +1,83 @@
+{
+  "name": "A4 writing motion review",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Review_Writing_A4",
+  "viewModel": "TogetherSphereModel",
+  "fps": 60,
+  "frames": 432,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 0,
+  "pngFrames": [
+    0,
+    12,
+    24,
+    36,
+    48,
+    60,
+    72,
+    84,
+    96,
+    108,
+    120,
+    132,
+    144,
+    156,
+    168,
+    180,
+    192,
+    204,
+    216,
+    228,
+    240,
+    252,
+    264,
+    276,
+    288,
+    300,
+    312,
+    324,
+    336,
+    348,
+    360,
+    372,
+    384,
+    396,
+    408,
+    420
+  ],
+  "video": true,
+  "backgroundARGB": "FFFFFFFF",
+  "startupSteps": [
+    0
+  ],
+  "firstFrameAdvance": 0,
+  "events": [
+    {
+      "frame": 0,
+      "label": "A4 review starts",
+      "numbers": {
+        "mode": 1,
+        "expression": 0,
+        "idleFace": -1
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "FF101010",
+        "bodyShade": "FF030303",
+        "handLight": "FF2C2C2C",
+        "handShade": "FF0E0E0E",
+        "farHandLight": "FF222222",
+        "farHandShade": "FF0B0B0B",
+        "eyeColor": "FFFFFFFF",
+        "sweatColor": "FFFFFFFF",
+        "penBodyColor": "FFF2EEE6",
+        "penTipColor": "FF111111",
+        "inkColor": "FF777777",
+        "tearColor": "FF88CFF3"
+      }
+    }
+  ]
+}

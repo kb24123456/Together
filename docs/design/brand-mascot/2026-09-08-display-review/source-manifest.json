@@ -1,0 +1,226 @@
+{
+  "date": "2026-09-08",
+  "riveFile": {
+    "id": 2561771,
+    "name": "Together Sphere Motion Study",
+    "url": "https://editor.rive.app/file/together-sphere-motion-study/2561771",
+    "artboardId": "0-2",
+    "artboardName": "TogetherSphere"
+  },
+  "method": "Native Rive capture_artboard of sampled Design poses; original Design properties restored. These are exact static v6 renders, not generative redraws or rendered runtime recordings.",
+  "canvas": {
+    "width": 512,
+    "height": 512,
+    "bodyDiameter": 368,
+    "bodyCenter": {
+      "x": 256,
+      "y": 240
+    },
+    "imageBodyCenterNormalized": {
+      "x": 0.5,
+      "y": 0.46875
+    }
+  },
+  "poses": {
+    "idle": {
+      "clip": "Idle",
+      "frame": 0,
+      "path": "assets/idle.png",
+      "pixelVerification": {
+        "name": "idle.png",
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      },
+      "sha256": "c8ee3361485ffd83b14d57ed8f9e4b737df6870bd6533dd0f2e6e0e11c46607a"
+    },
+    "holding": {
+      "clip": "WritingHold",
+      "frame": 0,
+      "path": "assets/holding.png",
+      "pixelVerification": {
+        "name": "holding.png",
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          479
+        ],
+        "borderAlphaMax": 0
+      },
+      "sha256": "b5fe1dfc6da1b2c6d3f3eaee615140e682a16d8442a6f9e19ff06e4cf328910a"
+    },
+    "concerned": {
+      "clip": "Concerned",
+      "frame": 0,
+      "path": "assets/concerned.png",
+      "pixelVerification": {
+        "name": "concerned.png",
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      },
+      "sha256": "b5ba9f44d049c0fc78fe92e4f2e8c07ac45622b6cc1c12ec068cb32440502591"
+    }
+  },
+  "themes": {
+    "light": "#FFFFFF",
+    "dark": "#1C1C1F",
+    "source": "Together/Core/DesignSystem/AppTheme.swift:53"
+  },
+  "displayCandidates": {
+    "home": [
+      36,
+      40,
+      44
+    ],
+    "editor": [
+      40,
+      48,
+      56
+    ]
+  },
+  "initialComparison": {
+    "home": 40,
+    "editor": 48,
+    "accepted": false
+  },
+  "restoreVerification": {
+    "passed": true,
+    "propertyCount": 184,
+    "diff": []
+  },
+  "motionSourceSha256": "80eb4baf958329f73ef3ee01968bdc5407165a116dbae26482a9f655933ed9a8",
+  "appearances": {
+    "light": "black",
+    "darkDefault": "white",
+    "darkComparison": "black",
+    "whitePoses": {
+      "idle": {
+        "clip": "Idle",
+        "frame": 0,
+        "path": "assets/idle-white.png",
+        "sha256": "99c7d0263e96276bfa88cadde40f186297a9f5b964aeef5924294c6d8039879f",
+        "pixelVerification": {
+          "pose": "idle",
+          "blackHashUnchanged": true,
+          "alphaIdentical": true,
+          "comparedAlphaPixels": 262144,
+          "size": [
+            512,
+            512
+          ],
+          "mode": "RGBA",
+          "bbox": [
+            72,
+            56,
+            440,
+            424
+          ],
+          "borderAlphaMax": 0,
+          "sha256": "99c7d0263e96276bfa88cadde40f186297a9f5b964aeef5924294c6d8039879f"
+        }
+      },
+      "holding": {
+        "clip": "WritingHold",
+        "frame": 0,
+        "path": "assets/holding-white.png",
+        "sha256": "264cf40bb8300862c325e14df316cdc1670fcfd791593cbf934df308e20abb23",
+        "pixelVerification": {
+          "pose": "holding",
+          "blackHashUnchanged": true,
+          "alphaIdentical": true,
+          "comparedAlphaPixels": 262144,
+          "size": [
+            512,
+            512
+          ],
+          "mode": "RGBA",
+          "bbox": [
+            72,
+            56,
+            440,
+            479
+          ],
+          "borderAlphaMax": 0,
+          "sha256": "264cf40bb8300862c325e14df316cdc1670fcfd791593cbf934df308e20abb23"
+        }
+      },
+      "concerned": {
+        "clip": "Concerned",
+        "frame": 0,
+        "path": "assets/concerned-white.png",
+        "sha256": "516897eadbb3558f9b0b4931a6830baf9de645ef3b3285099c3b5378a75710f1",
+        "pixelVerification": {
+          "pose": "concerned",
+          "blackHashUnchanged": true,
+          "alphaIdentical": true,
+          "comparedAlphaPixels": 262144,
+          "size": [
+            512,
+            512
+          ],
+          "mode": "RGBA",
+          "bbox": [
+            72,
+            56,
+            440,
+            424
+          ],
+          "borderAlphaMax": 0,
+          "sha256": "516897eadbb3558f9b0b4931a6830baf9de645ef3b3285099c3b5378a75710f1"
+        }
+      }
+    },
+    "whiteMaterial": "white-appearance.json",
+    "riveEditorThemeBindingImplemented": true,
+    "appleRuntimeThemeBindingVerified": false,
+    "currentThemeBindingContract": "../2026-09-08-rive-study/theme-v6.json"
+  },
+  "whiteRestoreVerification": {
+    "mismatch": [],
+    "hierarchyEqual": true,
+    "propertyCount": 208
+  },
+  "appearanceAcceptance": {
+    "date": "2026-09-08",
+    "userStatement": "我觉得可以",
+    "scope": "Static appearance approved: light black sphere, dark soft-white sphere and near-black facial marks",
+    "nativeDeviceAcceptance": false
+  }
+}

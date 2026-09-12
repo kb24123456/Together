@@ -1,0 +1,69 @@
+{
+  "name": "Baseline writing equivalence",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "fps": 30,
+  "frames": 240,
+  "width": 96,
+  "height": 96,
+  "pngEvery": 0,
+  "pngFrames": [
+    0,
+    30,
+    33,
+    36,
+    39,
+    45,
+    52,
+    60,
+    75,
+    90,
+    105,
+    120,
+    135,
+    150,
+    153,
+    156,
+    159,
+    165,
+    172,
+    180,
+    210,
+    213,
+    216,
+    219,
+    225,
+    232,
+    240,
+    255,
+    270,
+    273,
+    276,
+    279,
+    285,
+    292,
+    300,
+    315,
+    330,
+    359
+  ],
+  "video": false,
+  "backgroundARGB": "FFFFFFFF",
+  "startupSteps": [
+    0,
+    0.15
+  ],
+  "firstFrameAdvance": 0,
+  "events": [
+    {
+      "frame": 0,
+      "numbers": {
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    }
+  ]
+}

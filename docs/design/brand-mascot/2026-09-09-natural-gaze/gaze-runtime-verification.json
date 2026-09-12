@@ -1,0 +1,660 @@
+{
+  "api" : "Official inspection API, no rendered view",
+  "assetSHA256" : "c8af1b8e3e736a43f3ae64f4364b4a1173a7ae392e6e7c5ae447c89ce55b6f78",
+  "firstDirectionCounts" : {
+    "Idle" : 23,
+    "Idle_GazeDown" : 22,
+    "Idle_GazeUp" : 21,
+    "Idle_GazeUpRight" : 15,
+    "Idle_QuietMedium" : 19
+  },
+  "initialChoiceSamples" : 100,
+  "interruptions" : [
+    {
+      "event" : "edit",
+      "expected" : "Writing",
+      "from" : "Idle",
+      "observed" : [
+        "WritingEnter",
+        "Writing"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "overdue",
+      "expected" : "Concerned",
+      "from" : "Idle",
+      "observed" : [
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "process",
+      "expected" : "Thinking",
+      "from" : "Idle",
+      "observed" : [
+        "ThinkingEnter",
+        "Thinking"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "doze",
+      "expected" : "Doze",
+      "from" : "Idle",
+      "observed" : [
+        "DozeEnter",
+        "Doze"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "acknowledge",
+      "expected" : "Expression_Wink",
+      "from" : "Idle",
+      "observed" : [
+        "Expression_Wink",
+        "Idle_Select",
+        "Idle_GazeUp"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrate",
+      "expected" : "Celebrate",
+      "from" : "Idle",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "Idle_Select",
+        "Idle_QuietMedium"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrateOverdue",
+      "expected" : "Celebrate",
+      "from" : "Idle",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "edit",
+      "expected" : "Writing",
+      "from" : "Idle_QuietMedium",
+      "observed" : [
+        "WritingEnter",
+        "Writing"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "overdue",
+      "expected" : "Concerned",
+      "from" : "Idle_QuietMedium",
+      "observed" : [
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "process",
+      "expected" : "Thinking",
+      "from" : "Idle_QuietMedium",
+      "observed" : [
+        "ThinkingEnter",
+        "Thinking"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "doze",
+      "expected" : "Doze",
+      "from" : "Idle_QuietMedium",
+      "observed" : [
+        "DozeEnter",
+        "Doze"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "acknowledge",
+      "expected" : "Expression_Wink",
+      "from" : "Idle_QuietMedium",
+      "observed" : [
+        "Expression_Wink",
+        "Idle_Select",
+        "Idle_GazeDown"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrate",
+      "expected" : "Celebrate",
+      "from" : "Idle_QuietMedium",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "Idle_Select",
+        "Idle_QuietMedium"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrateOverdue",
+      "expected" : "Celebrate",
+      "from" : "Idle_QuietMedium",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "edit",
+      "expected" : "Writing",
+      "from" : "Idle_GazeUp",
+      "observed" : [
+        "WritingEnter",
+        "Writing"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "overdue",
+      "expected" : "Concerned",
+      "from" : "Idle_GazeUp",
+      "observed" : [
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "process",
+      "expected" : "Thinking",
+      "from" : "Idle_GazeUp",
+      "observed" : [
+        "ThinkingEnter",
+        "Thinking"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "doze",
+      "expected" : "Doze",
+      "from" : "Idle_GazeUp",
+      "observed" : [
+        "DozeEnter",
+        "Doze"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "acknowledge",
+      "expected" : "Expression_Wink",
+      "from" : "Idle_GazeUp",
+      "observed" : [
+        "Expression_Wink",
+        "Idle_Select",
+        "Idle"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrate",
+      "expected" : "Celebrate",
+      "from" : "Idle_GazeUp",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "Idle_Select",
+        "Idle_GazeUpRight"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrateOverdue",
+      "expected" : "Celebrate",
+      "from" : "Idle_GazeUp",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "edit",
+      "expected" : "Writing",
+      "from" : "Idle_GazeDown",
+      "observed" : [
+        "WritingEnter",
+        "Writing"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "overdue",
+      "expected" : "Concerned",
+      "from" : "Idle_GazeDown",
+      "observed" : [
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "process",
+      "expected" : "Thinking",
+      "from" : "Idle_GazeDown",
+      "observed" : [
+        "ThinkingEnter",
+        "Thinking"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "doze",
+      "expected" : "Doze",
+      "from" : "Idle_GazeDown",
+      "observed" : [
+        "DozeEnter",
+        "Doze"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "acknowledge",
+      "expected" : "Expression_Wink",
+      "from" : "Idle_GazeDown",
+      "observed" : [
+        "Expression_Wink",
+        "Idle_Select",
+        "Idle"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrate",
+      "expected" : "Celebrate",
+      "from" : "Idle_GazeDown",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "Idle_Select",
+        "Idle_QuietMedium"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrateOverdue",
+      "expected" : "Celebrate",
+      "from" : "Idle_GazeDown",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "edit",
+      "expected" : "Writing",
+      "from" : "Idle_GazeUpRight",
+      "observed" : [
+        "WritingEnter",
+        "Writing"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "overdue",
+      "expected" : "Concerned",
+      "from" : "Idle_GazeUpRight",
+      "observed" : [
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "process",
+      "expected" : "Thinking",
+      "from" : "Idle_GazeUpRight",
+      "observed" : [
+        "ThinkingEnter",
+        "Thinking"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "doze",
+      "expected" : "Doze",
+      "from" : "Idle_GazeUpRight",
+      "observed" : [
+        "DozeEnter",
+        "Doze"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "acknowledge",
+      "expected" : "Expression_Wink",
+      "from" : "Idle_GazeUpRight",
+      "observed" : [
+        "Expression_Wink",
+        "Idle_Select",
+        "Idle"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrate",
+      "expected" : "Celebrate",
+      "from" : "Idle_GazeUpRight",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "Idle_Select",
+        "Idle_QuietMedium"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrateOverdue",
+      "expected" : "Celebrate",
+      "from" : "Idle_GazeUpRight",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "edit",
+      "expected" : "Writing",
+      "from" : "Idle_Look",
+      "observed" : [
+        "WritingEnter",
+        "Writing"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "overdue",
+      "expected" : "Concerned",
+      "from" : "Idle_Look",
+      "observed" : [
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "process",
+      "expected" : "Thinking",
+      "from" : "Idle_Look",
+      "observed" : [
+        "ThinkingEnter",
+        "Thinking"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "doze",
+      "expected" : "Doze",
+      "from" : "Idle_Look",
+      "observed" : [
+        "DozeEnter",
+        "Doze"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "acknowledge",
+      "expected" : "Expression_Wink",
+      "from" : "Idle_Look",
+      "observed" : [
+        "Expression_Wink",
+        "Idle_Select",
+        "Idle_GazeUp"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrate",
+      "expected" : "Celebrate",
+      "from" : "Idle_Look",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "Idle_Select",
+        "Idle_GazeUp"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    },
+    {
+      "event" : "celebrateOverdue",
+      "expected" : "Celebrate",
+      "from" : "Idle_Look",
+      "observed" : [
+        "Celebrate",
+        "Idle_Select",
+        "ConcernEnter",
+        "Concerned"
+      ],
+      "passed" : true,
+      "sourceReached" : true
+    }
+  ],
+  "limits" : [
+    "Statistical samples demonstrate varied native choices; not a mathematical probability guarantee.",
+    "No iOS device rendering, layout or energy validation."
+  ],
+  "noDirectRepeatedClip" : true,
+  "passed" : true,
+  "runtimeVersion" : "6.25.1",
+  "sequence" : [
+    "Idle_GazeUp",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_GazeUp",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_GazeUp",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_GazeUp",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_GazeUp",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_Look",
+    "Idle_QuietShort",
+    "Idle_GazeDown",
+    "Idle_QuietShort",
+    "Idle_GazeUpRight",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle_QuietMedium",
+    "Idle_QuietShort",
+    "Idle"
+  ],
+  "sequenceSeconds" : 600,
+  "sixDirectionCoverage" : true
+}

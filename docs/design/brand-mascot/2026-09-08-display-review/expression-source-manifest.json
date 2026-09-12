@@ -1,0 +1,365 @@
+{
+  "date": "2026-09-08",
+  "sources": [
+    {
+      "file": "assets/happy.png",
+      "artboardId": "0-2",
+      "animation": "Celebrate",
+      "animationId": "0-13229",
+      "frame": 30,
+      "theme": "light",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Existing Celebrate expression; aesthetics remain for review.",
+      "sha256": "7fa0076f0a277ad978ef4cc42f03e252835572dd2fb87a36b469c531567ed95f",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          33,
+          56,
+          477,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/happy-white.png",
+      "artboardId": "0-2",
+      "animation": "Celebrate",
+      "animationId": "0-13229",
+      "frame": 30,
+      "theme": "dark",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Existing Celebrate expression; aesthetics remain for review.",
+      "sha256": "144378bc360b0d29f1c5efacb2843a3e2b6ab7b05979f79304ba59d1e92f01cf",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          33,
+          56,
+          477,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/wink.png",
+      "artboardId": "0-2",
+      "animation": "Expression_Wink",
+      "animationId": "0-185847",
+      "frame": 38,
+      "theme": "light",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "0671f7c25f7df7620485dc60e527daea6277348f1dd3b7bdd93033dfb606d15c",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/wink-white.png",
+      "artboardId": "0-2",
+      "animation": "Expression_Wink",
+      "animationId": "0-185847",
+      "frame": 38,
+      "theme": "dark",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "28d509f8fb6bea9e0ee5ebf66d07f6c4d6a551240378c70513849b879046dd71",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/tears.png",
+      "artboardId": "0-2",
+      "animation": "Expression_Tears",
+      "animationId": "0-185848",
+      "frame": 90,
+      "theme": "light",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "a29f81d5f59c109bbb2623d5f3e7e6b42a7b0e36fdccd9ab455543b67ee35e6c",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/tears-white.png",
+      "artboardId": "0-2",
+      "animation": "Expression_Tears",
+      "animationId": "0-185848",
+      "frame": 90,
+      "theme": "dark",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "12423bd24fb43db80927d59080b72d8588bb5ea0d7efe3505ba10fa301ac3724",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/thinking.png",
+      "artboardId": "0-2",
+      "animation": "Thinking",
+      "animationId": "0-13228",
+      "frame": 120,
+      "theme": "light",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "c252d2808aab337dcb7907ebd9a09976dce7d5278bf0147b4d797409a96a12d2",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/thinking-white.png",
+      "artboardId": "0-2",
+      "animation": "Thinking",
+      "animationId": "0-13228",
+      "frame": 120,
+      "theme": "dark",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "c31b55d0ca620c07483b053ca478c3422ea2413645a3d12ea8b43ac8e4e019be",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/doze.png",
+      "artboardId": "0-2",
+      "animation": "Doze",
+      "animationId": "0-13231",
+      "frame": 120,
+      "theme": "light",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "5afac7e21110f37db62944d01f88b68a90de1773b2ebc63f0eb4537873b0bd03",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    },
+    {
+      "file": "assets/doze-white.png",
+      "artboardId": "0-2",
+      "animation": "Doze",
+      "animationId": "0-13231",
+      "frame": 120,
+      "theme": "dark",
+      "rootNormalized": true,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "notes": "Native integrated Rive pose",
+      "sha256": "fe6e79e7253e5ecd6bc15c570d25f8fbd4cb9e5584946c79aa47c47b379cfd7e",
+      "pixelVerification": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alphaRange": [
+          0,
+          255
+        ],
+        "bbox": [
+          72,
+          56,
+          440,
+          424
+        ],
+        "borderAlphaMax": 0
+      }
+    }
+  ],
+  "method": "Native Rive capture_artboard from the integrated TogetherSphere artboard, with sampled expression and body root normalized to (256,240), uniform 100% scale and 0 rotation. No generated redraws or post-processing. Original Design properties restored by the Rive capture workflow.",
+  "canvas": {
+    "width": 512,
+    "height": 512,
+    "bodyDiameter": 368,
+    "bodyCenter": [
+      256,
+      240
+    ]
+  },
+  "tearsPalette": {
+    "light": "#88CFF3",
+    "dark": "#347FA6"
+  },
+  "acceptance": {
+    "happy": "Existing Celebrate retained for review; not a newly approved final expression",
+    "tears": "Provisional B expression retained after user feedback; integrated in Rive, not yet in App"
+  },
+  "originalAssetManifest": "source-manifest.json",
+  "verification": "verification-expressions-static.json"
+}

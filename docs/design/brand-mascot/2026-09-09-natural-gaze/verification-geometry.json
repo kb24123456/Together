@@ -1,0 +1,556 @@
+{
+  "passed": true,
+  "sourceSHA256": "2e82c8a2450e62f1cee81d3373ce5bd3079604f8ce0363993804ac635cc193bb",
+  "sourceKeyframesSHA256": "9c974d74e0614d43997a259a54721a7f78238670757b709f3d13a884f81806cb",
+  "scope": "Independent reconstruction of actual reduced linear authored tracks over the immediately preceding Rive snapshot.",
+  "sampling": "Half frames, 24 samples per cubic, 8 cubic vertices per sphere-facing eye; segment intersections and containment checked.",
+  "checks": [
+    {
+      "name": "Idle frames 0-384: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 133.8148218419672
+    },
+    {
+      "name": "Idle frames 0-384: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Idle: neutral eye endpoints",
+      "passed": true,
+      "maximumOutlineError": 0.0
+    },
+    {
+      "name": "Idle: visible intended direction",
+      "passed": true,
+      "direction": "upper-left",
+      "displacement": [
+        -60.97659613433796,
+        -20.702073423621876
+      ]
+    },
+    {
+      "name": "Idle_QuietMedium frames 0-300: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 115.1837811617478
+    },
+    {
+      "name": "Idle_QuietMedium frames 0-300: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Idle_QuietMedium: neutral eye endpoints",
+      "passed": true,
+      "maximumOutlineError": 0.0
+    },
+    {
+      "name": "Idle_QuietMedium: visible intended direction",
+      "passed": true,
+      "direction": "lower-right",
+      "displacement": [
+        36.59802401575837,
+        32.91372431516244
+      ]
+    },
+    {
+      "name": "Idle_Look frames 0-96: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 103.63069297273961
+    },
+    {
+      "name": "Idle_Look frames 0-96: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Idle_Look: neutral eye endpoints",
+      "passed": true,
+      "maximumOutlineError": 0.0
+    },
+    {
+      "name": "Idle_Look: visible intended direction",
+      "passed": true,
+      "direction": "lower-left",
+      "displacement": [
+        -51.16344289280744,
+        26.142987185723808
+      ]
+    },
+    {
+      "name": "Idle_GazeUp frames 0-264: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 117.3436938704769
+    },
+    {
+      "name": "Idle_GazeUp frames 0-264: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Idle_GazeUp: neutral eye endpoints",
+      "passed": true,
+      "maximumOutlineError": 0.0
+    },
+    {
+      "name": "Idle_GazeUp: visible intended direction",
+      "passed": true,
+      "direction": "up",
+      "displacement": [
+        -9.480929900377442,
+        -30.064957631654444
+      ]
+    },
+    {
+      "name": "Idle_GazeUp: complete endpoint reset",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Idle_GazeUp: full source channel coverage",
+      "passed": true,
+      "missing": []
+    },
+    {
+      "name": "Idle_GazeDown frames 0-288: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 97.09160818728328
+    },
+    {
+      "name": "Idle_GazeDown frames 0-288: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Idle_GazeDown: neutral eye endpoints",
+      "passed": true,
+      "maximumOutlineError": 0.0
+    },
+    {
+      "name": "Idle_GazeDown: visible intended direction",
+      "passed": true,
+      "direction": "down",
+      "displacement": [
+        -21.33505488495895,
+        41.48303898042758
+      ]
+    },
+    {
+      "name": "Idle_GazeDown: complete endpoint reset",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Idle_GazeDown: full source channel coverage",
+      "passed": true,
+      "missing": []
+    },
+    {
+      "name": "Idle_GazeUpRight frames 0-336: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 132.07565761716944
+    },
+    {
+      "name": "Idle_GazeUpRight frames 0-336: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Idle_GazeUpRight: neutral eye endpoints",
+      "passed": true,
+      "maximumOutlineError": 0.0
+    },
+    {
+      "name": "Idle_GazeUpRight: visible intended direction",
+      "passed": true,
+      "direction": "upper-right",
+      "displacement": [
+        33.48579162476233,
+        -15.309724007695841
+      ]
+    },
+    {
+      "name": "Idle_GazeUpRight: complete endpoint reset",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Idle_GazeUpRight: full source channel coverage",
+      "passed": true,
+      "missing": []
+    },
+    {
+      "name": "Idle_Orient frames 0-1668: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 133.8172646921484
+    },
+    {
+      "name": "Idle_Orient frames 0-1668: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Idle_Orient six joins: neutral spherical eyes",
+      "passed": true,
+      "maximumError": 0.025350319142732183
+    },
+    {
+      "name": "Preview_All frames 0-383.5: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 133.8148218419672
+    },
+    {
+      "name": "Preview_All frames 0-383.5: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Preview_All Idle: boundary matches source",
+      "passed": true,
+      "maximumOutlineError": 0.01093565452063315
+    },
+    {
+      "name": "Preview_All frames 384-479.5: topology and sphere bounds",
+      "passed": true,
+      "maximumRadius": 103.63069297273961
+    },
+    {
+      "name": "Preview_All frames 384-479.5: no accessory leaks",
+      "passed": true
+    },
+    {
+      "name": "Preview_All Idle_Look: boundary matches source",
+      "passed": true,
+      "maximumOutlineError": 0.020067395464899104
+    },
+    {
+      "name": "Preview_All preserves all other authored frame keys",
+      "passed": true,
+      "changedKeys": []
+    },
+    {
+      "name": "Idle: all business interrupts preserved",
+      "passed": true,
+      "expectedRoutes": 8
+    },
+    {
+      "name": "Idle_QuietMedium: all business interrupts preserved",
+      "passed": true,
+      "expectedRoutes": 8
+    },
+    {
+      "name": "Idle_Look: all business interrupts preserved",
+      "passed": true,
+      "expectedRoutes": 8
+    },
+    {
+      "name": "Idle_GazeUp: all business interrupts preserved",
+      "passed": true,
+      "expectedRoutes": 8
+    },
+    {
+      "name": "Idle_GazeDown: all business interrupts preserved",
+      "passed": true,
+      "expectedRoutes": 8
+    },
+    {
+      "name": "Idle_GazeUpRight: all business interrupts preserved",
+      "passed": true,
+      "expectedRoutes": 8
+    },
+    {
+      "name": "five main gaze choices have equal positive random weights",
+      "passed": true
+    },
+    {
+      "name": "main gaze picker randomized",
+      "passed": true
+    },
+    {
+      "name": "calm dwell and occasional lower-left glance selectable",
+      "passed": true
+    },
+    {
+      "name": "all transition endpoints resolve",
+      "passed": true,
+      "unresolved": []
+    },
+    {
+      "name": "expected state graph size",
+      "passed": true,
+      "states": 32,
+      "transitions": 141
+    },
+    {
+      "name": "existing business graph outside gaze selection unchanged",
+      "passed": true,
+      "changedRouteIds": []
+    },
+    {
+      "name": "input artifacts unchanged during read-only audit",
+      "passed": true
+    }
+  ],
+  "gaze": {
+    "Idle": {
+      "sampledHalfFrames": 769,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 133.8148218419672,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        -49.1336579558833,
+        -58.870555466297674,
+        11.990666123286532,
+        -35.48099311538993
+      ],
+      "neutralEndpointOutlineError": 0.0,
+      "timing": {
+        "firstAxisStartsSeconds": 1.2333333333333334,
+        "bothAxesArriveSeconds": 1.8166666666666667,
+        "initialDwellSeconds": 0.65,
+        "microCorrectionSeconds": [
+          2.466666666666667,
+          2.9166666666666665
+        ],
+        "bothAxesHomeSeconds": 4.2,
+        "completeSeconds": 6.4,
+        "axisLagFrames": 5
+      }
+    },
+    "Idle_QuietMedium": {
+      "sampledHalfFrames": 601,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 115.1837811617478,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        11.847229033878877,
+        -35.48160508431675,
+        53.82871036301188,
+        -2.567201170958498
+      ],
+      "neutralEndpointOutlineError": 0.0,
+      "timing": {
+        "firstAxisStartsSeconds": 0.9333333333333333,
+        "bothAxesArriveSeconds": 1.5,
+        "initialDwellSeconds": 0.5833333333333334,
+        "microCorrectionSeconds": [
+          2.0833333333333335,
+          2.5166666666666666
+        ],
+        "bothAxesHomeSeconds": 3.683333333333333,
+        "completeSeconds": 5.0,
+        "axisLagFrames": -4
+      }
+    },
+    "Idle_Look": {
+      "sampledHalfFrames": 193,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 103.63069297273961,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        -39.31614304180189,
+        -35.48315737250563,
+        11.847299851005554,
+        -7.530401350654776
+      ],
+      "neutralEndpointOutlineError": 0.0,
+      "timing": {
+        "firstAxisStartsSeconds": 0.15,
+        "bothAxesArriveSeconds": 0.5,
+        "initialDwellSeconds": 0.18333333333333332,
+        "microCorrectionSeconds": [
+          0.6833333333333333,
+          0.85
+        ],
+        "bothAxesHomeSeconds": 1.3666666666666667,
+        "completeSeconds": 1.6,
+        "axisLagFrames": 3
+      }
+    },
+    "Idle_GazeUp": {
+      "sampledHalfFrames": 529,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 117.3436938704769,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        -2.4098629921932044,
+        -65.5478235091563,
+        11.847299851005554,
+        -35.480982546989544
+      ],
+      "neutralEndpointOutlineError": 0.0,
+      "timing": {
+        "firstAxisStartsSeconds": 0.7666666666666667,
+        "bothAxesArriveSeconds": 1.3333333333333333,
+        "initialDwellSeconds": 0.6333333333333333,
+        "microCorrectionSeconds": [
+          1.9666666666666666,
+          2.3333333333333335
+        ],
+        "bothAxesHomeSeconds": 3.4,
+        "completeSeconds": 4.4,
+        "axisLagFrames": -5
+      },
+      "fullEndpointDifferences": {}
+    },
+    "Idle_GazeDown": {
+      "sampledHalfFrames": 577,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 97.09160818728328,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        -9.487937494069588,
+        -35.4816652180114,
+        11.849073092356633,
+        6.002853107129242
+      ],
+      "neutralEndpointOutlineError": 0.0,
+      "timing": {
+        "firstAxisStartsSeconds": 1.2666666666666666,
+        "bothAxesArriveSeconds": 1.9,
+        "initialDwellSeconds": 0.4166666666666667,
+        "microCorrectionSeconds": [
+          2.316666666666667,
+          2.716666666666667
+        ],
+        "bothAxesHomeSeconds": 3.8333333333333335,
+        "completeSeconds": 4.8,
+        "axisLagFrames": -6
+      },
+      "fullEndpointDifferences": {}
+    },
+    "Idle_GazeUpRight": {
+      "sampledHalfFrames": 673,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 132.07565761716944,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        11.846594602129448,
+        -54.40211620988535,
+        50.7418839041834,
+        -35.48058225959214
+      ],
+      "neutralEndpointOutlineError": 0.0,
+      "timing": {
+        "firstAxisStartsSeconds": 1.7833333333333334,
+        "bothAxesArriveSeconds": 2.35,
+        "initialDwellSeconds": 0.7333333333333333,
+        "microCorrectionSeconds": [
+          3.0833333333333335,
+          3.6
+        ],
+        "bothAxesHomeSeconds": 4.8,
+        "completeSeconds": 5.6,
+        "axisLagFrames": 6
+      },
+      "fullEndpointDifferences": {}
+    }
+  },
+  "orientation": {
+    "sampledHalfFrames": 3337,
+    "selfIntersections": [],
+    "eyeOverlap": [],
+    "outsideSphere": [],
+    "maximumLocalRadius": 133.8172646921484,
+    "accessoryVisibilityLeaks": [],
+    "centerRanges": [
+      -49.133657955883315,
+      -65.5478235091563,
+      53.82871036301188,
+      6.002853107129242
+    ]
+  },
+  "orientationJoins": [
+    {
+      "into": "Idle_QuietMedium",
+      "frame": 264,
+      "eyeDisplacement": 0.00031123831864255156,
+      "neutralOutlineError": 0.01716296010182563
+    },
+    {
+      "into": "Idle_GazeUpRight",
+      "frame": 564,
+      "eyeDisplacement": 8.086289482729326e-05,
+      "neutralOutlineError": 0.008217280719847918
+    },
+    {
+      "into": "Idle_GazeDown",
+      "frame": 900,
+      "eyeDisplacement": 0.00036196690923680615,
+      "neutralOutlineError": 0.024289196291026778
+    },
+    {
+      "into": "Idle",
+      "frame": 1188,
+      "eyeDisplacement": 0.00024571140029577013,
+      "neutralOutlineError": 0.018747517500232905
+    },
+    {
+      "into": "Idle_Look",
+      "frame": 1572,
+      "eyeDisplacement": 0.00047506028243750066,
+      "neutralOutlineError": 0.025350319142732183
+    },
+    {
+      "into": "Loop",
+      "frame": 1668,
+      "eyeDisplacement": 0.003202736881139663,
+      "neutralOutlineError": 0.003202736881139663
+    }
+  ],
+  "preview": {
+    "Idle": {
+      "sampledHalfFrames": 768,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 133.8148218419672,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        -49.1336579558833,
+        -58.870555466297674,
+        11.990666123286532,
+        -35.48099311538993
+      ]
+    },
+    "Idle_Look": {
+      "sampledHalfFrames": 192,
+      "selfIntersections": [],
+      "eyeOverlap": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 103.63069297273961,
+      "accessoryVisibilityLeaks": [],
+      "centerRanges": [
+        -39.31614304180189,
+        -35.48387950654227,
+        11.847412335626574,
+        -7.530401350654776
+      ]
+    }
+  },
+  "stateMachine": {
+    "states": 32,
+    "transitions": 141,
+    "mainGazeProbabilities": {
+      "Idle_QuietMedium": 0.2,
+      "Idle": 0.2,
+      "Idle_GazeDown": 0.2,
+      "Idle_GazeUpRight": 0.2,
+      "Idle_GazeUp": 0.2
+    },
+    "secondaryProbabilities": {
+      "Idle_QuietShort": 0.8,
+      "Idle_Look": 0.2
+    },
+    "sourceSHA256": "55700c720be0d90193feb3a39a76356a33e71b8963a881fb10f9d5b109306757"
+  },
+  "limits": [
+    "Finite sampling is not a proof over all continuous times.",
+    "Mathematical geometry and state-graph checks do not replace Rive/native runtime or physical-device visual acceptance.",
+    "Eye outline transforms use the established sphere-eye rig with identity eye-shape transforms."
+  ]
+}

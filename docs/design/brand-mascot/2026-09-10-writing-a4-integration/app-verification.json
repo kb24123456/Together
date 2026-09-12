@@ -1,0 +1,29 @@
+{
+  "build": "succeeded",
+  "toolchain": "Xcode 27 beta 3 / 27A5218g",
+  "app": "/private/tmp/together-mascot-app-xcode27-build/Build/Products/Debug-iphoneos/Together.app",
+  "bundleId": "com.pigdog.Together",
+  "version": "1.0",
+  "buildNumber": "50",
+  "resourceHashes": {
+    "docs/design/brand-mascot/2026-09-10-writing-a4-integration/deliverables/together_sphere_motion_study.riv": "034bc570f48ed845c12721ecd95630513e091fd5229a02fc2948ae8b4fb1b8e4",
+    "Together/Resources/BrandMascot/together_sphere_motion_study.riv": "034bc570f48ed845c12721ecd95630513e091fd5229a02fc2948ae8b4fb1b8e4",
+    "/private/tmp/together-mascot-app-xcode27-build/Build/Products/Debug-iphoneos/Together.app/together_sphere_motion_study.riv": "034bc570f48ed845c12721ecd95630513e091fd5229a02fc2948ae8b4fb1b8e4"
+  },
+  "installed": true,
+  "deviceVisualAcceptance": "pending user acceptance on physical iPhone",
+  "businessCodeChanged": false,
+  "holding-light-SHA256": "90c967d8838bd403cf2cfdf618d4beb8ea0e180ae54276e106c1149c65112e04",
+  "holding-dark-SHA256": "1a8e87dbc4aef29fd97b0dca227bf19ea9027734406f028ec5b6b4afeedf8006",
+  "launched": true,
+  "processIdentifier": 23115,
+  "codeSignature": "passed",
+  "nativeFrames": 4082,
+  "pixelBoundsFrames": 363,
+  "pixelBounds": "passed",
+  "backupSHA256": {
+    "backups/before-integration.rev": "0dc24387b6573ca8bacede9d825bdafdb8a07c0faa27f8d7da1d9ef69efd8317",
+    "backups/app-before.riv": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+    "deliverables/together_sphere_motion_study.rev": "f6626e8daf3fb8824cbea7b29370e84cfdac795d1a414e42942d07922d6b536f"
+  }
+}

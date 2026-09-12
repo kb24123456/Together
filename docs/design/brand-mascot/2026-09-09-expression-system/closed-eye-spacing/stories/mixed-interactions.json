@@ -1,0 +1,137 @@
+{
+  "name": "closed-eye-mixed-interactions",
+  "fps": 60,
+  "frames": 1440,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 15,
+  "video": true,
+  "backgroundARGB": "FFFAFAFA",
+  "events": [
+    {
+      "frame": 0,
+      "numbers": {
+        "expression": 2,
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 90,
+      "triggers": [
+        "celebrateMotion"
+      ]
+    },
+    {
+      "frame": 180,
+      "numbers": {
+        "expression": 3
+      }
+    },
+    {
+      "frame": 210,
+      "numbers": {
+        "reaction": 17
+      },
+      "triggers": [
+        "react"
+      ]
+    },
+    {
+      "frame": 240,
+      "numbers": {
+        "expression": 18
+      }
+    },
+    {
+      "frame": 390,
+      "numbers": {
+        "expression": 26
+      }
+    },
+    {
+      "frame": 410,
+      "triggers": [
+        "nod"
+      ]
+    },
+    {
+      "frame": 420,
+      "numbers": {
+        "expression": 16
+      }
+    },
+    {
+      "frame": 440,
+      "triggers": [
+        "poke"
+      ]
+    },
+    {
+      "frame": 450,
+      "triggers": [
+        "poke"
+      ]
+    },
+    {
+      "frame": 456,
+      "triggers": [
+        "observe"
+      ]
+    },
+    {
+      "frame": 540,
+      "numbers": {
+        "expression": 28
+      }
+    },
+    {
+      "frame": 570,
+      "numbers": {
+        "reaction": 3
+      },
+      "triggers": [
+        "react"
+      ]
+    },
+    {
+      "frame": 650,
+      "numbers": {
+        "expression": 1
+      }
+    },
+    {
+      "frame": 750,
+      "numbers": {
+        "expression": 0,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 930,
+      "numbers": {
+        "mode": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 1110,
+      "numbers": {
+        "mode": 0
+      }
+    },
+    {
+      "frame": 1290,
+      "triggers": [
+        "acknowledge"
+      ]
+    }
+  ]
+}

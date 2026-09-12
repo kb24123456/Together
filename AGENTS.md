@@ -30,18 +30,11 @@
 - 相关文档缺失、过期或与实现冲突时，先核实影响；关键产品或架构差异需确认，已核实且属于本次范围的内容同步修正，不把无关文档整理作为前置任务。
 
 ## 4. 响应原则
-- 先给结论，再执行。
-- 简单任务直接做；复杂任务先给“目标 / 影响范围 / 方案 / 风险”。
-- 信息不足时先查上下文与相关文档、代码；仅在答案会实质改变目标、范围、架构、数据语义、关键 UI 方向或验收标准时提问，并等待后再执行依赖该答案的工作。
+- 沿用全局规范的沟通、澄清、自主执行和中途追加消息处理规则。
 - UI、交互、动效沿用用户已确认方向和现行设计规范；常规、可逆的实现细节自主处理，新的关键设计方向先确认，不对已确认事项反复询问。
-- 回复短，但关键信息不能缺。
-- 最新消息用于修正当前任务；回答追加问题后继续尚未完成的目标，除非用户明确取消或替换。避免重复已回答内容。
-- 区分事实、推演、开放问题。
-- 当已经判断当前方案足够好、无需继续微调时，应直接明确告知用户“当前已足够好，无需再调”；不要为了迎合而机械追加微调建议。
-- 当判断当前方向已收敛时，可以直接提出其他更有价值的方向性建议，而不是刻意继续围绕当前细节做建议。
 
 ## 5. 开发总原则
-- 先统一文档与边界，再改实现。
+- 先核对相关现行规范与授权边界；已明确的方向直接实现，不把文档整理作为前置任务。
 - 优先修改现有文件；仅在缺失关键文档或关键模块时新建文件。
 - 所有实现优先简单、清晰、可维护、可被 AI 理解。
 - 不做过度抽象，不引入无必要复杂架构。
@@ -55,31 +48,20 @@
 
 ## 7. 执行与完成标准
 - 按本次目标确定影响范围和依赖顺序，不把历史迁移步骤作为所有任务的默认流程。
-- 实施任务应完成授权范围内的实现、相关验证、问题修复、自查与交付；不在首版实现后无故等待批准，也不自行扩展功能。
-- 必要检查通过且没有未解决问题后交付；只有新改动、失败或新证据才扩大或重复验证。真机、TestFlight 和同步恢复等未验证链路单独说明，不能以构建成功代替。
+- 实现、修复、自查和停止验证条件沿用全局规范；真机、TestFlight 和同步恢复等未验证链路单独说明，不能以构建成功代替。
+- iOS UI 运行、交互、截图及 Preview 默认交由用户在物理设备验收；未经用户明确要求，不启动 iOS Simulator。先完成相关静态检查、Swift 解析、diff 检查和必要的无签名构建，并明确真机需验证的状态；Skill 和插件的模拟器默认流程不改变此边界。
 
 ## 8. 复杂任务输出要点
-按任务复杂度简要覆盖以下内容，不要求固定标题或每次完整套用模板。
-- 任务目标
-- 影响模块
-- 实现方案
-- 风险与边界
-- 需要确认的问题（如有）
-
-完成后输出：
-- 已完成内容
-- 影响范围
-- 未完成内容
-- 下一步建议
+沿用全局规范，不另设固定模板。仅补充 Together 的受影响模块、数据链路和未完成的真机验收。
 
 ## 9. 禁止事项
-- 禁止跳过文档直接写代码。
+- 不得忽略相关现行规范；按第 3 节读取，已读且未变化的文档不重复读。
 - 禁止继续按旧的“双人优先 / 情侣优先”逻辑新增功能。
 - 禁止擅自新增多人模式实现。
 - 禁止继续新增 Supabase、RevenueCat、Paywall、PremiumGate、邀请、共享、聊天或关系运营能力。
 - 禁止把 OCR 结果未经用户确认直接写入真实任务或项目。
 - 禁止为了省事把逻辑硬编码进单个页面。
-- 禁止跨模块大改。
+- 不得超出授权范围跨模块修改；已授权跨模块方案按必要依赖完成实现与验证。
 - 禁止生成与当前任务无关的大段样板代码。
 - 禁止为了视觉效果侵入安全区域或牺牲交互可用性。
 
@@ -89,21 +71,14 @@
 - 后续默认只在 `main` 上工作，不再为普通功能或修复新建分支；除非用户明确要求创建分支。
 - 修改前说明目的；修改后说明影响。
 - 若任务只要求评估，不要直接改代码。
-- 涉及代码或构建配置的提交前，完成相称的编译与相关验证，UI 改动按需检查关键 Preview；纯文档修改检查内容和 diff，不触发 App 构建。未实际运行的检查如实说明。
+- 涉及代码或构建配置的提交前，完成相称的编译与相关验证，UI 运行验证按第 7 节的设备边界执行；纯文档修改检查内容和 diff，不触发 App 构建。未实际运行的检查如实说明。
 
 ## 11. token 控制原则
-- 回复优先短格式。
-- 只展开与当前任务直接相关的信息。
-- 不重复描述已知背景。
-- 除非用户要求，不一次性展开过多远期方案。
+沿用全局规范的简洁表达与渐进式读取，不重复背景或展开未请求的远期方案。
 
 ## 12. Skill 调用规则
 - 沿用全局规范的最小必要集合、精确触发和渐进式读取原则；以当前会话实际提供的 Skill 及其职责边界为准，不维护过时的强制调用清单，也不虚构不可用的技能。
-- Superpowers 全部显式、按需调用；不得因任务开始、调试、测试或收尾自动触发，也不得通过其他 Skill 连带触发。先定位根因和交付前验证是工程要求，不等于必须调用同名 Skill。
-- `figma-swiftui` 仅用于 Figma 与 SwiftUI 间的设计/代码转换，或用户显式指定的任务。
-- Expert-Eligible Apple 工程任务按全局 Apple Knowledge Runtime 规则调用 `apple-dev-patterns`；纯编译、基础语法和普通 API 示例不触发。
-- 多个 Skill 只有在能力互补且任务确实需要时组合，不叠加职责重叠的流程，不因普通澄清启动深入访谈或长期项目管理流程。
-- Skill 不得扩大用户授权范围或新增审批门槛；若导致暂停或偏离目标，按全局规范指出具体文件、触发条款及适用原因。
+- Superpowers、深入访谈、Figma 转换和 Apple Knowledge Runtime 的调用边界沿用全局规范。先定位根因和交付前验证不等于必须调用同名 Skill；原生 SwiftUI 不自动采用 Expo/React Native 实现流程。
 
 ## 13. 项目记忆与阶段性收尾
 - `docs/PROJECT_MEMORY.md` 是 Codex 在本仓库内的统一项目记忆入口。
@@ -115,8 +90,8 @@
 - 如果同一类流程重复出现 2-3 次，优先沉淀为 `.agents/skills/` 下的项目 Skill。
 
 ## 14. Widget 开发专项规则
-- 开发 iOS widget 前必须先确认 App Group、主 App entitlement、Widget entitlement、Apple Developer 后台能力和 provisioning profile 一致；当前共享组为 `group.com.pigdog.together.shared`。
-- Widget extension 禁止用局部 `@Model` / 局部 SwiftData schema 打开主 App 的完整 SwiftData store。原因是 extension schema 不完整时可能污染或触发主 App store 打开失败，进而造成配对关系、项目、例行事务等数据风险。
+- 新增 Widget、改变共享存储或签名配置、准备分发，或排查能力故障时，核实 App Group、主 App entitlement、Widget entitlement、Apple Developer 后台能力和 provisioning profile 一致；纯展示修改不重复完整后台核验。当前共享组为 `group.com.pigdog.together.shared`。
+- Widget extension 禁止用局部 `@Model` / 局部 SwiftData schema 打开主 App 的完整 SwiftData store。原因是 extension schema 不完整时可能污染或触发主 App store 打开失败，进而造成任务、项目、例行事务等数据风险。
 - Widget 需要改动任务状态时，只允许采用以下两类路径之一：
   1. 主 App 提供完整、共享、安全的持久化模块；
   2. Widget 只做经过审查的最小共享写入，例如最小 SQLite transaction 写入任务完成状态、occurrence completion 和 sync outbox。
@@ -127,13 +102,16 @@
 - 小号 widget 中，只有虚线完成框可触发完成动作；其他区域应进入 App。实现时要明确 Button / widgetURL 的命中边界，避免整行误触完成或完成框无法触发。
 - Widget 与 App 同步问题必须同时测三条链路：
   1. App 修改任务后 widget 是否刷新；
-  2. Widget 完成任务后 App 前台列表、下拉刷新、切换单双人模式是否一致；
+  2. Widget 完成任务后 App 前台列表与下拉刷新结果是否一致；
   3. App 恢复已完成任务后 widget 是否重新出现对应待办。
 - 如果 widget 或恢复链路导致本地 store 重建、schema/probe 失败、数据缺失，排查时必须检查 SwiftData store、CloudKit private database 状态、App Group store 路径和 Widget SQLite 最小写入逻辑。
 - 真机验证 widget UI / provider 改动时，不能在同一 `CFBundleVersion` 下反复安装后直接判断桌面结果。WidgetKit / SpringBoard 可能复用旧 timeline 渲染缓存，添加页 preview 已更新也不代表桌面 widget 已更新。每次改 widget extension 后应提升主 App 与 extension 的 `CURRENT_PROJECT_VERSION`，或删除重加 widget / 重启后再验收。
 - Widget extension 的 `Info.plist` 必须包含 App Store Connect 要求的基础 bundle 字段，尤其是 `CFBundleDisplayName`。本地 archive 成功不代表 ASC 上传会通过；上传 TestFlight 前应检查归档内 `TogetherWidget.appex/Info.plist`。
 - Widget snapshot 里禁止直接塞未处理的原始头像、相册大图或其他大尺寸图片 Data。主 App 写入前必须生成 widget 专用缩略图，并控制单个 snapshot 总字节量；小号 widget 要有旧 snapshot 大图 Data 的降级兜底，否则可能在桌面宿主快照归档时整块空白。
-- Widget 问题排查必须按“数据层 -> timeline/provider -> 各 family 渲染树 -> SpringBoard 缓存”的顺序逐层证伪。中号/大号正常不能证明小号正常；添加页 preview 正常也不能证明桌面 widget 正常。
+- Widget 问题依据证据选择数据层、timeline/provider、受影响 family 渲染树或 SpringBoard 缓存入口；原因不清时逐层证伪。中号/大号正常不能证明小号正常；添加页 preview 正常也不能证明桌面 widget 正常。
 - Widget 文本中的纯数字如果不希望出现本地化千分位分隔符，必须使用 `Text(verbatim:)` 或提前生成非本地化展示字符串，不要使用 `Text("\(number)")` 这类 SwiftUI 本地化插值。
 - 所有 widget 视觉色值必须显式适配 `colorScheme`。背景、强调色、分割线、空态插画、头像占位、头像描边、阴影和完成框都不能只按浅色模式硬编码；新增 widget 前优先复用已有 widget theme。
-- 涉及 widget 的修复完成前，最低验证要求是：`git diff --check`、widget snapshot 相关测试、CloudKit/SwiftData 相关同步或恢复测试、`xcodebuild build-for-testing`。真机验收必须覆盖桌面 widget 点击、动画、App 回前台、删除重装恢复和 App Group 签名能力。
+- Widget 验证按受影响行为选择，并始终明确未完成的真机部分：
+  - 纯展示变化：`git diff --check`、受影响目标编译及相关 snapshot/展示检查；真机检查受影响 family、内容长度、深浅色和交互。不默认运行同步、删除重装恢复或完整签名核验。
+  - 业务写入、共享 schema、sync outbox、同步或恢复变化：运行相关 snapshot 与 CloudKit/SwiftData 数据一致性测试、`xcodebuild build-for-testing`，并覆盖第 14 节的相关 App ↔ Widget 真机链路；恢复路径变化必须验证删除重装恢复，操作真实数据前核对授权和数据保护条件。
+  - entitlement、签名或分发变化：检查当前归档、App Group 能力、后台配置和对应分发链路。桌面点击、动画和回前台行为在改动影响这些路径时验收。

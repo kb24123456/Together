@@ -1,0 +1,92 @@
+{
+  "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+  "sequences": [
+    {
+      "name": "final-48pt-dark",
+      "frames": 2700,
+      "width": 144,
+      "height": 144,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-48pt-light",
+      "frames": 2700,
+      "width": 144,
+      "height": 144,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-80pt-dark",
+      "frames": 2700,
+      "width": 240,
+      "height": 240,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-80pt-light",
+      "frames": 2700,
+      "width": 240,
+      "height": 240,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-actions",
+      "frames": 600,
+      "width": 512,
+      "height": 512,
+      "gpuDrawnFrames": 600,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-all-28-dark",
+      "frames": 2700,
+      "width": 512,
+      "height": 512,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-all-28-light",
+      "frames": 2700,
+      "width": 512,
+      "height": 512,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-combinations",
+      "frames": 720,
+      "width": 512,
+      "height": 512,
+      "gpuDrawnFrames": 720,
+      "gpuSkippedUnchangedFrames": 0
+    },
+    {
+      "name": "final-rapid",
+      "frames": 600,
+      "width": 512,
+      "height": 512,
+      "gpuDrawnFrames": 585,
+      "gpuSkippedUnchangedFrames": 15
+    },
+    {
+      "name": "final-reaction-restore",
+      "frames": 480,
+      "width": 512,
+      "height": 512,
+      "gpuDrawnFrames": 480,
+      "gpuSkippedUnchangedFrames": 0
+    }
+  ],
+  "totalFrames": 18600,
+  "stateChecks": 182,
+  "allCombinationLogicChecks": 112,
+  "allCombinationsVisuallyReviewed": false,
+  "iosDeviceVerified": false,
+  "appAssetChanged": false,
+  "readmeMissingLinks": []
+}

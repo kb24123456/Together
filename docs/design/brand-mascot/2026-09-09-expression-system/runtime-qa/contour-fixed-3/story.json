@@ -1,0 +1,1 @@
+{"name": "contour-fixed-3", "fps": 60, "frames": 450, "width": 512, "height": 512, "pngEvery": 15, "video": true, "backgroundARGB": "FFFAFAFA", "events": [{"frame": 0, "numbers": {"mode": 0, "expression": 15}}, {"frame": 150, "numbers": {"expression": 19}}, {"frame": 300, "numbers": {"expression": 23}}]}

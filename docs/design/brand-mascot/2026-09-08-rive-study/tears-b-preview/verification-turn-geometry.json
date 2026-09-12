@@ -1,0 +1,71 @@
+{
+  "animationId": "0-174151",
+  "fps": 60,
+  "durationFrames": 576,
+  "tracks": 152,
+  "keys": 11495,
+  "sampledFrames": 1153,
+  "frameStep": 0.5,
+  "outlineSamplesPerShape": 192,
+  "invalidTracks": [],
+  "selfIntersections": [],
+  "maximumRadius": {
+    "eyeNear": 134.92490982880136,
+    "eyeFar": 163.40757259221823,
+    "tearNear": 128.74765137990664,
+    "tearFar": 146.09607284249634
+  },
+  "minimumMarginToRadius184": {
+    "eyeNear": 49.07509017119864,
+    "eyeFar": 20.59242740778177,
+    "tearNear": 55.25234862009336,
+    "tearFar": 37.90392715750366
+  },
+  "tearTopCurveMinFractionInsideEye": {
+    "tearNear": 1.0,
+    "tearFar": 1.0
+  },
+  "tearTopExposedSamples": [],
+  "tearTopExposedSampleCount": 0,
+  "maximumExactProjectionErrorPx": {
+    "eyeNear": {
+      "error": 0.16011453436622788,
+      "frame": 520.0
+    },
+    "eyeFar": {
+      "error": 0.2589475710295149,
+      "frame": 182.0
+    },
+    "tearNear": {
+      "error": 0.5183943573636546,
+      "frame": 163.0
+    },
+    "tearFar": {
+      "error": 0.48553937429255567,
+      "frame": 169.0
+    }
+  },
+  "loop": {
+    "eyeNear": {
+      "outlineMaxDelta": 0.0,
+      "startOpacity": 100,
+      "endOpacity": 100
+    },
+    "eyeFar": {
+      "outlineMaxDelta": 0.0,
+      "startOpacity": 100,
+      "endOpacity": 100
+    },
+    "tearNear": {
+      "outlineMaxDelta": 135.35760498046875,
+      "startOpacity": 0.0,
+      "endOpacity": 0.0
+    },
+    "tearFar": {
+      "outlineMaxDelta": 108.28608398437501,
+      "startOpacity": 0.0,
+      "endOpacity": 0.0
+    }
+  },
+  "scope": "Independent linear-keyframe reconstruction; per half-frame contours, per frame exact source-flow-and-sphere projection comparison. Native playback not covered."
+}

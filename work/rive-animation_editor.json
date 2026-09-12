@@ -1,0 +1,862 @@
+{
+  "name": "animation_editor",
+  "description": "Creates and modifies animations (state machines, linear animations, keyframes) on the active artboard. Falls back to the first artboard when none is activated; use query_core_object_tool.listArtboards to disambiguate.\nREUSE THE DEFAULTS - a new artboard already has one timeline named \"Timeline\" and one default state machine (isDefault=true) whose Entry is already connected to that timeline. To animate the artboard:\n  1. renameAnimations to rename the \"Timeline\" to something meaningful (e.g. \"Bounce\").\n  2. modifyKeyFrames to add keyframes to that same timeline.\nThis applies when creating SEVERAL animations too: if the default timeline is still pristine (default name, no keyframes), rename it to the FIRST of them, then use createLinearAnimations only for the remaining ones - never leave a stale \"Timeline\"/\"Timeline 1\" behind next to your named animations. If the user has already renamed or keyed it, leave it alone and create all animations fresh.\nDo NOT call createLinearAnimations or createStateMachine for this - a second timeline or state machine is almost always wrong. Only create new ones when the user explicitly asks for an additional animation or state machine.\nSpecial state names: \"{Entry State}\", \"{Any State}\". Between two keyframes the smaller-frame keyframe's interpolator (hold/linear/cubic/elastic) drives the curve. Commands: createStateMachine, createStateMachineLayers, createTransitions, createConditions, createLinearAnimations: create the named entity; createStates: Add new animation states to an EXISTING layer (use this when the layer already exists; createStateMachineLayers spawns a new layer instead); Listeners are created with the create_listeners tool (not here); this tool reads them via queryStateMachine and drives their state changes via createConditions; updateConditions: change an existing condition's operation, compared value, or viewmodel property (ids from queryStateMachine); deleteConditions: remove conditions by id; listStateMachines: id/name/layers only \u2014 for inspection use queryStateMachine; listLinearAnimations: all linear animations; queryStateMachine: PRIMARY read. Fully expands a state machine \u2014 layers with states/transitions/conditions/events/listenerActions, plus top-level inputs and listeners. View-model, event, and input refs are pre-resolved with names. Defaults to the only state machine; pass stateMachineId to disambiguate; queryStateMachineLayer: Re-read one layer (same per-layer payload); updateStates: Update existing states; renameAnimations: Rename animations; modifyKeyFrames: Add/delete/change keyframes. Double values use the units the editor UI shows: opacity/trim/strength as 0-100 percentages, rotation in degrees; queryKeyFrames: Read keyframes; simulateStateMachine: VERIFY a machine actually runs. Plays it headlessly and returns the same console trace the editor panel shows (frames, states entered, transitions taken, events fired), plus the resting state per layer. Drive it with inputs [{frame, property, value}] on viewmodel properties. Use after wiring conditions/listeners to confirm the machine leaves Entry and reaches the state you expect; an empty trace means nothing fired. Reverts the values it writes, so the document is unchanged, but it does run listener actions (including scripts) as real playback would; it does not render pixels. transitionsObserved counts the transitions taken (the default layer takes one unconditionally, so compare a driven run against an undriven one). Refuses to run while a timeline or state machine is open for editing. reverseKeyFrames: Reverse keyframes (scope: selection, else visible graph curves, else all). Data is passed under data.<command> or directly in data.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "enum": [
+          "createStateMachine",
+          "createLinearAnimations",
+          "listStateMachines",
+          "listLinearAnimations",
+          "queryStateMachine",
+          "queryStateMachineLayer",
+          "createStateMachineLayers",
+          "createStates",
+          "updateStates",
+          "createTransitions",
+          "createConditions",
+          "updateConditions",
+          "deleteConditions",
+          "renameAnimations",
+          "modifyKeyFrames",
+          "queryKeyFrames",
+          "reverseKeyFrames",
+          "simulateStateMachine"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "createStateMachine": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "layers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "states": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          },
+                          "linearAnimationName": {
+                            "type": "string"
+                          },
+                          "transitions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string"
+                                },
+                                "to": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "otherTransitions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "linearAnimations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "duration": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "createLinearAnimations": {
+            "type": "object",
+            "properties": {
+              "linearAnimations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "duration": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "linearAnimations"
+            ]
+          },
+          "listStateMachines": {
+            "type": "object",
+            "properties": {}
+          },
+          "listLinearAnimations": {
+            "type": "object",
+            "properties": {}
+          },
+          "queryStateMachine": {
+            "type": "object",
+            "properties": {
+              "stateMachineId": {
+                "description": "Optional. Defaults to the only state machine in the active artboard.",
+                "type": "string"
+              }
+            }
+          },
+          "queryStateMachineLayer": {
+            "type": "object",
+            "properties": {
+              "layerId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "layerId"
+            ]
+          },
+          "createStateMachineLayers": {
+            "type": "object",
+            "properties": {
+              "stateMachineId": {
+                "type": "string"
+              },
+              "layers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "states": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          },
+                          "linearAnimationName": {
+                            "type": "string"
+                          },
+                          "transitions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string"
+                                },
+                                "to": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "otherTransitions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "stateMachineId",
+              "layers"
+            ]
+          },
+          "createStates": {
+            "type": "object",
+            "properties": {
+              "layerId": {
+                "description": "ID of an existing state machine layer.",
+                "type": "string"
+              },
+              "states": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "linearAnimationName": {
+                      "description": "Name of an existing linear animation on the artboard. If unresolvable, the state is still created but a warning is emitted.",
+                      "type": "string"
+                    },
+                    "transitions": {
+                      "description": "Inline transitions; from/to match state names declared in this same payload.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "layerId",
+              "states"
+            ]
+          },
+          "updateStates": {
+            "type": "object",
+            "properties": {
+              "states": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "animationId": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "states"
+            ]
+          },
+          "createTransitions": {
+            "type": "object",
+            "properties": {
+              "states": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "transitions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "to": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "states"
+            ]
+          },
+          "createConditions": {
+            "type": "object",
+            "properties": {
+              "transitions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "conditions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "leftComparator": {
+                            "type": "object",
+                            "properties": {
+                              "viewModelPropertyId": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "comparationOperation": {
+                            "type": "string",
+                            "enum": [
+                              "equal",
+                              "notEqual",
+                              "lessThanOrEqual",
+                              "greaterThanOrEqual",
+                              "lessThan",
+                              "greaterThan",
+                              "largerThan",
+                              "smallerThan",
+                              "largerOrEqualTo",
+                              "smallerOrEqualTo"
+                            ]
+                          },
+                          "operation": {
+                            "description": "Alias of comparationOperation (the key queryStateMachine emits).",
+                            "type": "string",
+                            "enum": [
+                              "equal",
+                              "notEqual",
+                              "lessThanOrEqual",
+                              "greaterThanOrEqual",
+                              "lessThan",
+                              "greaterThan",
+                              "largerThan",
+                              "smallerThan",
+                              "largerOrEqualTo",
+                              "smallerOrEqualTo"
+                            ]
+                          },
+                          "rightComparator": {
+                            "type": "object",
+                            "properties": {
+                              "valueType": {
+                                "type": "string",
+                                "enum": [
+                                  "constantValueType",
+                                  "viewModelType"
+                                ]
+                              },
+                              "value": {
+                                "description": "Constant to compare against (or a viewModelPropertyId when valueType is viewModelType). Booleans accept true/false. Colors use #aarrggbb.",
+                                "oneOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "transitions"
+            ]
+          },
+          "updateConditions": {
+            "type": "object",
+            "properties": {
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Condition id (queryStateMachine returns them)."
+                    },
+                    "leftComparator": {
+                      "type": "object",
+                      "description": "Retarget the condition to another viewmodel property. May replace the condition; the result echoes the live id.",
+                      "properties": {
+                        "viewModelPropertyId": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "comparationOperation": {
+                      "type": "string",
+                      "enum": [
+                        "equal",
+                        "notEqual",
+                        "lessThanOrEqual",
+                        "greaterThanOrEqual",
+                        "lessThan",
+                        "greaterThan",
+                        "largerThan",
+                        "smallerThan",
+                        "largerOrEqualTo",
+                        "smallerOrEqualTo"
+                      ]
+                    },
+                    "operation": {
+                      "type": "string",
+                      "enum": [
+                        "equal",
+                        "notEqual",
+                        "lessThanOrEqual",
+                        "greaterThanOrEqual",
+                        "lessThan",
+                        "greaterThan",
+                        "largerThan",
+                        "smallerThan",
+                        "largerOrEqualTo",
+                        "smallerOrEqualTo"
+                      ],
+                      "description": "Alias of comparationOperation (the key queryStateMachine emits)."
+                    },
+                    "rightComparator": {
+                      "type": "object",
+                      "properties": {
+                        "valueType": {
+                          "type": "string",
+                          "enum": [
+                            "constantValueType",
+                            "viewModelType"
+                          ]
+                        },
+                        "value": {
+                          "oneOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "boolean"
+                            }
+                          ],
+                          "description": "Constant to compare against (or a viewModelPropertyId when valueType is viewModelType)."
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "anyOf": [
+                    {
+                      "required": [
+                        "leftComparator"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "comparationOperation"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "operation"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "rightComparator"
+                      ]
+                    }
+                  ]
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "conditions"
+            ]
+          },
+          "deleteConditions": {
+            "type": "object",
+            "properties": {
+              "conditionIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "conditionIds"
+            ]
+          },
+          "renameAnimations": {
+            "type": "object",
+            "properties": {
+              "animations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "animationId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "animations"
+            ]
+          },
+          "modifyKeyFrames": {
+            "type": "object",
+            "properties": {
+              "animationId": {
+                "type": "string"
+              },
+              "add": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "objectId": {
+                      "type": "string"
+                    },
+                    "propertyKey": {
+                      "type": "integer"
+                    },
+                    "frame": {
+                      "type": "integer"
+                    },
+                    "value": {
+                      "oneOf": [
+                        {
+                          "description": "for values that are double",
+                          "type": "number"
+                        },
+                        {
+                          "description": "for values that are colors, format is #aarrggbb",
+                          "type": "string"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    },
+                    "interpolationType": {
+                      "description": "The interpolation type for the keyframe to determine the value in between two keyframes:hold: hold the incoming value until the next keyframe is reached;linear: linearly interpolate;cubic: cubicly interpolate with parameters;",
+                      "type": "string",
+                      "enum": [
+                        "hold",
+                        "linear",
+                        "cubic",
+                        "elastic"
+                      ]
+                    },
+                    "cubicParams": {
+                      "description": "Parameters for cubic interpolation. x1, x2 in [0, 1], y1, y2 in [-1, 1]",
+                      "type": "object",
+                      "properties": {
+                        "x1": {
+                          "type": "number"
+                        },
+                        "y1": {
+                          "type": "number"
+                        },
+                        "x2": {
+                          "type": "number"
+                        },
+                        "y2": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "elasticParams": {
+                      "description": "Parameters for elastic interpolation",
+                      "type": "object",
+                      "properties": {
+                        "easing": {
+                          "description": "0=easeIn, 1=easeOut, 2=easeInOut",
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1,
+                            2
+                          ]
+                        },
+                        "amplitude": {
+                          "description": "A percentage of change, defaults to 1.0",
+                          "type": "number"
+                        },
+                        "period": {
+                          "description": "Percentage of time difference, defaults to 1.0",
+                          "type": "number"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "objectId",
+                    "propertyKey",
+                    "frame",
+                    "value"
+                  ]
+                }
+              },
+              "change": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "keyframeId": {
+                      "type": "string"
+                    },
+                    "frame": {
+                      "type": "integer"
+                    },
+                    "value": {
+                      "oneOf": [
+                        {
+                          "description": "for values that are double",
+                          "type": "number"
+                        },
+                        {
+                          "description": "for values that are colors, format is #aarrggbb",
+                          "type": "string"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    },
+                    "interpolationType": {
+                      "description": "The interpolation type for the keyframe to determine the value in between two keyframes:hold: hold the incoming value until the next keyframe is reached;linear: linearly interpolate;cubic: cubicly interpolate with parameters;",
+                      "type": "string",
+                      "enum": [
+                        "hold",
+                        "linear",
+                        "cubic",
+                        "elastic"
+                      ]
+                    },
+                    "cubicParams": {
+                      "description": "Parameters for cubic interpolation. x1, x2 in [0, 1], y1, y2 in [-1, 1]",
+                      "type": "object",
+                      "properties": {
+                        "x1": {
+                          "type": "number"
+                        },
+                        "y1": {
+                          "type": "number"
+                        },
+                        "x2": {
+                          "type": "number"
+                        },
+                        "y2": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "elasticParams": {
+                      "description": "Parameters for elastic interpolation",
+                      "type": "object",
+                      "properties": {
+                        "easing": {
+                          "description": "0=easeIn, 1=easeOut, 2=easeInOut",
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1,
+                            2
+                          ]
+                        },
+                        "amplitude": {
+                          "description": "A percentage of change, defaults to 1.0",
+                          "type": "number"
+                        },
+                        "period": {
+                          "description": "Percentage of time difference, defaults to 1.0",
+                          "type": "number"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "keyframeId"
+                  ]
+                }
+              },
+              "delete": {
+                "description": "List of keyframe IDs to delete",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "animationId"
+            ]
+          },
+          "queryKeyFrames": {
+            "type": "object",
+            "properties": {
+              "animationIds": {
+                "description": "List of linear animation IDs to query. Defaults to the selected linear animation if not provided.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "selectedKeyFramesOnly": {
+                "description": "If true, returns only selected keyframes. Otherwise, get all keyframes in the specified animations.",
+                "type": "boolean"
+              }
+            }
+          },
+          "reverseKeyFrames": {
+            "type": "object",
+            "properties": {
+              "animationId": {
+                "description": "Optional selected linear animation ID. Defaults to the selected linear animation when omitted.",
+                "type": "string"
+              }
+            }
+          },
+          "simulateStateMachine": {
+            "type": "object",
+            "properties": {
+              "stateMachineId": {
+                "description": "Optional. Defaults to the only state machine in the active artboard.",
+                "type": "string"
+              },
+              "frames": {
+                "description": "Frames to simulate (default 60, max 600). Stops early once the machine settles.",
+                "type": "integer"
+              },
+              "fps": {
+                "description": "Frames per second (default 60, max 240). Frame rate is per-animation in Rive, so a machine has no single rate to inherit.",
+                "type": "number"
+              },
+              "inputs": {
+                "description": "View model property writes applied during the run, e.g. click a trigger at frame 10 to see which transition it takes.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "frame": {
+                      "description": "Frame to apply this on (default 0).",
+                      "type": "integer"
+                    },
+                    "property": {
+                      "description": "View model property name on the artboard instance.",
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "Value to set. Ignored for triggers, which just fire.",
+                      "oneOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "property"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "required": [
+      "command"
+    ]
+  },
+  "execution": {
+    "taskSupport": "forbidden"
+  }
+}

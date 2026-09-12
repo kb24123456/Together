@@ -1,0 +1,110 @@
+{
+  "fileId": 2564580,
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "trigger": "noticeResult",
+  "triggerId": "0-911388",
+  "animationId": "0-911390",
+  "stateId": "0-911815",
+  "layerId": "0-452886",
+  "durationSeconds": 0.9,
+  "fps": 60,
+  "keyCount": 248,
+  "targetOffset": {
+    "x": -14,
+    "y": 30
+  },
+  "entryFrames": 18,
+  "holdEndFrame": 29,
+  "endFrame": 54,
+  "allowedModes": [
+    0,
+    2
+  ],
+  "interruptions": "mode other than 0 or 2",
+  "edges": [
+    {
+      "source": "0-452887",
+      "target": "0-911815",
+      "duration": 100,
+      "conditions": [
+        {
+          "leftComparator": {
+            "viewModelPropertyId": "0-911388"
+          }
+        },
+        {
+          "leftComparator": {
+            "viewModelPropertyId": "0-377"
+          },
+          "operation": "equal",
+          "rightComparator": {
+            "valueType": "constantValueType",
+            "value": 0
+          }
+        }
+      ],
+      "id": "0-911816"
+    },
+    {
+      "source": "0-452887",
+      "target": "0-911815",
+      "duration": 100,
+      "conditions": [
+        {
+          "leftComparator": {
+            "viewModelPropertyId": "0-911388"
+          }
+        },
+        {
+          "leftComparator": {
+            "viewModelPropertyId": "0-377"
+          },
+          "operation": "equal",
+          "rightComparator": {
+            "valueType": "constantValueType",
+            "value": 2
+          }
+        }
+      ],
+      "id": "0-911827"
+    },
+    {
+      "source": "0-911815",
+      "target": "0-457758",
+      "duration": 70,
+      "end": true,
+      "conditions": [],
+      "id": "0-911838"
+    },
+    {
+      "source": "0-911815",
+      "target": "0-457758",
+      "duration": 100,
+      "conditions": [
+        {
+          "leftComparator": {
+            "viewModelPropertyId": "0-377"
+          },
+          "operation": "notEqual",
+          "rightComparator": {
+            "valueType": "constantValueType",
+            "value": 0
+          }
+        },
+        {
+          "leftComparator": {
+            "viewModelPropertyId": "0-377"
+          },
+          "operation": "notEqual",
+          "rightComparator": {
+            "valueType": "constantValueType",
+            "value": 2
+          }
+        }
+      ],
+      "id": "0-911839"
+    }
+  ]
+}

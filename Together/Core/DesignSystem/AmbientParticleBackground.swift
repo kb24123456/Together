@@ -1,6 +1,9 @@
 import Combine
 import Foundation
 import SwiftUI
+#if DEBUG
+import OSLog
+#endif
 
 enum AmbientParticleMotionTiming {
     static let decelerationDuration: TimeInterval = 0.55
@@ -223,10 +226,18 @@ struct AmbientParticleBackground: View {
             completionTask?.cancel()
             completionTask = nil
             isTimelinePaused = true
+            #if DEBUG
+            Logger(subsystem: "com.pigdog.Together", category: "Motion").notice("[Motion] particles disappeared; timeline paused")
+            #endif
         }
     }
 
     private func synchronizeMotion(with demand: AmbientParticleMotionDemand) {
+        #if DEBUG
+        Logger(subsystem: "com.pigdog.Together", category: "Motion").notice(
+            "[Motion] particles demand move=\(demand.shouldMove) enabled=\(demand.isEnabled) active=\(demand.isSceneActive) visible=\(demand.isSurfaceVisible) suppressed=\(demand.isFocusActive) reduceMotion=\(demand.reduceMotion) lowPower=\(demand.isLowPowerModeEnabled) thermal=\(thermalState.rawValue) liveThermal=\(ProcessInfo.processInfo.thermalState.rawValue)"
+        )
+        #endif
         completionTask?.cancel()
         completionTask = nil
 
@@ -265,6 +276,9 @@ struct AmbientParticleBackground: View {
             duration: AmbientParticleMotionTiming.accelerationDuration
         )
         isTimelinePaused = false
+        #if DEBUG
+        Logger(subsystem: "com.pigdog.Together", category: "Motion").notice("[Motion] particles timeline resumed")
+        #endif
     }
 
     private func stopMotion(
@@ -298,6 +312,9 @@ struct AmbientParticleBackground: View {
             guard Task.isCancelled == false else { return }
             motionTrack = motionTrack.resolved(at: .now)
             isTimelinePaused = true
+            #if DEBUG
+            Logger(subsystem: "com.pigdog.Together", category: "Motion").notice("[Motion] particles deceleration completed; timeline paused")
+            #endif
             if hidesLayerWhenFinished {
                 withAnimation(.easeOut(duration: AmbientParticleMotionTiming.visibilityFadeDuration)) {
                     isParticleLayerVisible = false

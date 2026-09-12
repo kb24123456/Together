@@ -1,0 +1,1056 @@
+{
+  "date": "2026-09-08",
+  "fileId": "2561771",
+  "artboardId": "0-2",
+  "source": "motion-v5-study.json",
+  "phase": "visual-review-not-state-machine-integration",
+  "liveReadback": {
+    "clips": [
+      {
+        "name": "Idle_Orient",
+        "keys": 8462,
+        "expected": 8462,
+        "matches": 8462,
+        "passed": true
+      },
+      {
+        "name": "Thinking",
+        "keys": 3133,
+        "expected": 3133,
+        "matches": 3133,
+        "passed": true
+      },
+      {
+        "name": "Celebrate",
+        "keys": 2510,
+        "expected": 2510,
+        "matches": 2510,
+        "passed": true
+      },
+      {
+        "name": "Remind",
+        "keys": 2406,
+        "expected": 2406,
+        "matches": 2406,
+        "passed": true
+      },
+      {
+        "name": "Doze",
+        "keys": 393,
+        "expected": 393,
+        "matches": 393,
+        "passed": true
+      },
+      {
+        "name": "Wake",
+        "keys": 3052,
+        "expected": 3052,
+        "matches": 3052,
+        "passed": true
+      },
+      {
+        "name": "Preview_Behaviors_v5",
+        "keys": 25644,
+        "expected": 25644,
+        "matches": 25644,
+        "passed": true
+      }
+    ],
+    "errors": [],
+    "v3Preservation": [
+      {
+        "name": "Idle",
+        "changed": 0,
+        "originalKeys": 124,
+        "addedKeys": 8
+      },
+      {
+        "name": "Writing",
+        "changed": 0,
+        "originalKeys": 194,
+        "addedKeys": 8
+      },
+      {
+        "name": "Concerned",
+        "changed": 0,
+        "originalKeys": 137,
+        "addedKeys": 8
+      },
+      {
+        "name": "Preview",
+        "changed": 0,
+        "originalKeys": 1898,
+        "addedKeys": 8
+      },
+      {
+        "name": "WritingEnter",
+        "changed": 0,
+        "originalKeys": 130,
+        "addedKeys": 8
+      },
+      {
+        "name": "WritingHold",
+        "changed": 0,
+        "originalKeys": 132,
+        "addedKeys": 8
+      },
+      {
+        "name": "WritingExit",
+        "changed": 0,
+        "originalKeys": 130,
+        "addedKeys": 8
+      },
+      {
+        "name": "ConcernEnter",
+        "changed": 0,
+        "originalKeys": 122,
+        "addedKeys": 8
+      },
+      {
+        "name": "Recover",
+        "changed": 0,
+        "originalKeys": 118,
+        "addedKeys": 8
+      },
+      {
+        "name": "Acknowledge",
+        "changed": 0,
+        "originalKeys": 126,
+        "addedKeys": 8
+      },
+      {
+        "name": "Idle_QuietShort",
+        "changed": 0,
+        "originalKeys": 124,
+        "addedKeys": 8
+      },
+      {
+        "name": "Idle_Look",
+        "changed": 0,
+        "originalKeys": 129,
+        "addedKeys": 8
+      },
+      {
+        "name": "Idle_Select",
+        "changed": 0,
+        "originalKeys": 112,
+        "addedKeys": 8
+      },
+      {
+        "name": "Idle_QuietMedium",
+        "changed": 0,
+        "originalKeys": 124,
+        "addedKeys": 8
+      }
+    ]
+  },
+  "defaultStateMachine": {
+    "name": "Mascot",
+    "id": "0-7",
+    "layers": 1,
+    "totalNodes": 17,
+    "animationNodes": 14,
+    "totalTransitions": 45,
+    "contractChanged": false
+  },
+  "visualValidation": {
+    "method": "Native Rive MCP capture_artboard of sampled poses, with complete Design snapshot restored in finally",
+    "finalPoses": [
+      {
+        "clip": "Idle_Orient",
+        "frame": 92,
+        "image": "v5-left.png"
+      },
+      {
+        "clip": "Idle_Orient",
+        "frame": 230,
+        "image": "v5-right.png"
+      },
+      {
+        "clip": "Thinking",
+        "frame": 0,
+        "image": "v5-thinking.png"
+      }
+    ],
+    "earlierNativePoses": [
+      {
+        "clip": "Idle_Orient",
+        "frame": 320
+      },
+      {
+        "clip": "Celebrate",
+        "frame": 27
+      },
+      {
+        "clip": "Doze",
+        "frame": 0
+      }
+    ],
+    "designRestored": true,
+    "continuousPlayback": "not completed: Mac locked and automatic unlock failed",
+    "userAccepted": false
+  },
+  "limitations": [
+    "Five task behaviors and Idle_Orient remain standalone review clips; no new Mascot routes or business inputs.",
+    "Existing v3 eye shapes, timing and original keyframes preserved; only eye visibility guards added.",
+    "No App code, runtime integration, export, build, simulator or physical device validation.",
+    "Earlier .riv and .rev exports were plan-gated; no retry or alternate-format bypass."
+  ],
+  "sourceSha256": "1cb16a96f8fd60cb7d7f219234d6b4734d2316abe8e7dc2bb91fb7d1806014a6",
+  "numericReview": {
+    "source": "/tmp/mascot-v5-final.json",
+    "sha256": "1cb16a96f8fd60cb7d7f219234d6b4734d2316abe8e7dc2bb91fb7d1806014a6",
+    "interpolation": "piecewise linear",
+    "sampleStepFrames": 0.1,
+    "sampleCount": 30670,
+    "clipResults": {
+      "Idle_Orient": {
+        "samples": 4561,
+        "minVisibleHandMargin": null,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "loopEndpointDifferences": {}
+      },
+      "Thinking": {
+        "samples": 2401,
+        "minVisibleHandMargin": 88.93436862986267,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0.08650453535990274,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "tightestHand": {
+          "id": "0-13098",
+          "frame": 10.0,
+          "center": [
+            364.0067764932777,
+            365.06557564202126
+          ],
+          "radius": 58.00005572811607
+        },
+        "loopEndpointDifferences": {}
+      },
+      "Celebrate": {
+        "samples": 841,
+        "minVisibleHandMargin": 31.332877271004044,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "tightestHand": {
+          "id": "0-13092",
+          "frame": 22.0,
+          "center": [
+            91.67211939679552,
+            243.77340675782216
+          ],
+          "radius": 60.33924212579148
+        }
+      },
+      "Remind": {
+        "samples": 1081,
+        "minVisibleHandMargin": 28.775462433716257,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "tightestHand": {
+          "id": "0-13098",
+          "frame": 65.0,
+          "center": [
+            425.22453756628374,
+            209.15480814328816
+          ],
+          "radius": 58.0
+        }
+      },
+      "Doze": {
+        "samples": 2881,
+        "minVisibleHandMargin": null,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "loopEndpointDifferences": {}
+      },
+      "Wake": {
+        "samples": 841,
+        "minVisibleHandMargin": null,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0
+      },
+      "Preview_Behaviors_v5": {
+        "samples": 16651,
+        "minVisibleHandMargin": 28.775462433716257,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "tightestHand": {
+          "id": "0-13098",
+          "frame": 878.0,
+          "center": [
+            425.22453756628374,
+            209.15480814328816
+          ],
+          "radius": 58.0
+        },
+        "loopEndpointDifferences": {}
+      },
+      "ThinkingEnter": {
+        "samples": 451,
+        "minVisibleHandMargin": 70.507761744959,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "tightestHand": {
+          "id": "0-13098",
+          "frame": 3.1,
+          "center": [
+            364.0,
+            383.492238255041
+          ],
+          "radius": 58.0
+        }
+      },
+      "ThinkingExit": {
+        "samples": 361,
+        "minVisibleHandMargin": 69.64665989473383,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0,
+        "tightestHand": {
+          "id": "0-13098",
+          "frame": 31.9,
+          "center": [
+            364.0043917794463,
+            384.35334010526617
+          ],
+          "radius": 58.0
+        }
+      },
+      "DozeEnter": {
+        "samples": 601,
+        "minVisibleHandMargin": null,
+        "maxRootAnisotropy": 0,
+        "maxHandAnisotropy": 0,
+        "maxThinkingPinError": 0,
+        "eyeOverlapSamples": 0,
+        "oldWritingVisibleSamples": 0,
+        "invalidAlphaSamples": 0,
+        "legacyCapsuleVisibleSamples": 0,
+        "sphereEyeMissingWhenIdleVisibleSamples": 0
+      }
+    },
+    "endpointChecks": [
+      {
+        "check": "Wake start matches Doze end",
+        "visibleDiff": {},
+        "allTrackDiff": {}
+      },
+      {
+        "check": "Wake end matches neutral",
+        "visibleDiff": {},
+        "allTrackDiff": {}
+      },
+      {
+        "check": "ThinkingEnter start visually matches neutral",
+        "visibleDiff": {},
+        "allTrackDiff": {
+          "0-13098:13": [
+            108.0,
+            145,
+            37.0
+          ],
+          "0-13098:14": [
+            145.0,
+            137,
+            8.0
+          ],
+          "0-13090:18": [
+            100.0,
+            0,
+            100.0
+          ]
+        }
+      },
+      {
+        "check": "ThinkingEnter end visually matches Thinking start",
+        "visibleDiff": {},
+        "allTrackDiff": {}
+      },
+      {
+        "check": "ThinkingExit start visually matches Thinking end",
+        "visibleDiff": {},
+        "allTrackDiff": {}
+      },
+      {
+        "check": "ThinkingExit end visually matches neutral",
+        "visibleDiff": {},
+        "allTrackDiff": {
+          "0-13098:13": [
+            108.0,
+            145,
+            37.0
+          ],
+          "0-13098:14": [
+            145.0,
+            137,
+            8.0
+          ]
+        }
+      },
+      {
+        "check": "DozeEnter end visually matches Doze start",
+        "visibleDiff": {},
+        "allTrackDiff": {}
+      }
+    ],
+    "supportTiming": {
+      "ThinkingEnter": [
+        {
+          "frame": 0,
+          "headCenter": [
+            256.0,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.0,
+            385.0
+          ],
+          "handAlpha": 0.0
+        },
+        {
+          "frame": 3,
+          "headCenter": [
+            256.0,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.0,
+            383.59416003002383
+          ],
+          "handAlpha": 0.0
+        },
+        {
+          "frame": 15,
+          "headCenter": [
+            256.0,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.0,
+            366.40583996997617
+          ],
+          "handAlpha": 98.43808686503343
+        },
+        {
+          "frame": 16,
+          "headCenter": [
+            256.0,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.0,
+            365.64194035904745
+          ],
+          "handAlpha": 100.0
+        },
+        {
+          "frame": 18,
+          "headCenter": [
+            256.0488391639907,
+            240.0503890485074
+          ],
+          "headRotation": 0.05038904850742134,
+          "handWorld": [
+            364.04344297935137,
+            365.00001741174935
+          ],
+          "handAlpha": 100.0
+        },
+        {
+          "frame": 24,
+          "headCenter": [
+            256.3777652095603,
+            240.73840512582413
+          ],
+          "headRotation": 0.7384051258241215,
+          "handWorld": [
+            363.98399913952517,
+            365.04235538396756
+          ],
+          "handAlpha": 100.0
+        },
+        {
+          "frame": 45,
+          "headCenter": [
+            258.0,
+            244.0
+          ],
+          "headRotation": 4.0,
+          "handWorld": [
+            364.0,
+            365.0
+          ],
+          "handAlpha": 100.0
+        }
+      ],
+      "enterPinnedAfter18MaxError": 0.0958150907738344,
+      "ThinkingExit": [
+        {
+          "frame": 0,
+          "headCenter": [
+            258.0,
+            244.0
+          ],
+          "headRotation": 4.0,
+          "handWorld": [
+            364.0,
+            365.0
+          ],
+          "handAlpha": 100.0
+        },
+        {
+          "frame": 12,
+          "headCenter": [
+            256.21577733825313,
+            240.4315546765062
+          ],
+          "headRotation": 0.4315546765062226,
+          "handWorld": [
+            363.94341600769604,
+            365.09730328439434
+          ],
+          "handAlpha": 100.0
+        },
+        {
+          "frame": 15,
+          "headCenter": [
+            256.02249448009064,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.02249448009064,
+            365.0058684683953
+          ],
+          "handAlpha": 100.0
+        },
+        {
+          "frame": 18,
+          "headCenter": [
+            256.01928098293484,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.01928098293484,
+            366.2674037119883
+          ],
+          "handAlpha": 92.1595036562248
+        },
+        {
+          "frame": 32,
+          "headCenter": [
+            256.0042846628744,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.0042846628744,
+            384.4223116405167
+          ],
+          "handAlpha": 0.0
+        },
+        {
+          "frame": 34,
+          "headCenter": [
+            256.0021423314372,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.0021423314372,
+            385.0
+          ],
+          "handAlpha": 0.0
+        },
+        {
+          "frame": 36,
+          "headCenter": [
+            256.0,
+            240.0
+          ],
+          "headRotation": 0.0,
+          "handWorld": [
+            364.0,
+            385.0
+          ],
+          "handAlpha": 0.0
+        }
+      ],
+      "exitHandBefore15MaxError": 0.1125596612422965,
+      "exitHeadAfter15MaxError": 0.02249448009064281
+    },
+    "previewComparisons": [
+      {
+        "clip": "Idle_Orient",
+        "start": 0,
+        "maxVisibleDeviation": 0.07667471754487565,
+        "at": {
+          "frame": 382.0,
+          "property": "0-32891:24",
+          "source": 54.649855610166355,
+          "preview": 54.72653032771123
+        },
+        "maxAlphaDeviation": 0,
+        "maxControlDeviation": 0.007457340079241703,
+        "maxSphereParameterDeviation": 0.07667471754487565
+      },
+      {
+        "clip": "ThinkingEnter",
+        "start": 456,
+        "maxVisibleDeviation": 0.1935447595358113,
+        "at": {
+          "frame": 31.0,
+          "property": "0-32887:24",
+          "source": -71.74281143276237,
+          "preview": -71.54926667322655
+        },
+        "maxAlphaDeviation": 2.7711166694643907e-13,
+        "maxControlDeviation": 0.07091412079199699,
+        "maxSphereParameterDeviation": 0.1935447595358113
+      },
+      {
+        "clip": "Thinking",
+        "start": 501,
+        "maxVisibleDeviation": 0.13994106751965774,
+        "at": {
+          "frame": 207.0,
+          "property": "0-32898:24",
+          "source": -15.009087585858424,
+          "preview": -15.149028653378082
+        },
+        "maxAlphaDeviation": 0,
+        "maxControlDeviation": 0.0006068093840667643,
+        "maxSphereParameterDeviation": 0.13994106751965774
+      },
+      {
+        "clip": "ThinkingExit",
+        "start": 741,
+        "maxVisibleDeviation": 0.15976363527752113,
+        "at": {
+          "frame": 28.0,
+          "property": "0-32898:24",
+          "source": 33.277855955342396,
+          "preview": 33.118092320064875
+        },
+        "maxAlphaDeviation": 4.192202140984591e-13,
+        "maxControlDeviation": 0.0010711657185993317,
+        "maxSphereParameterDeviation": 0.15976363527752113
+      },
+      {
+        "clip": "Remind",
+        "start": 813,
+        "maxVisibleDeviation": 0.19919087687854642,
+        "at": {
+          "frame": 98.0,
+          "property": "0-32884:24",
+          "source": -31.91636882519805,
+          "preview": -32.115559702076595
+        },
+        "maxAlphaDeviation": 6.608047442568932e-13,
+        "maxControlDeviation": 0.000310409458563754,
+        "maxSphereParameterDeviation": 0.19919087687854642
+      },
+      {
+        "clip": "Celebrate",
+        "start": 969,
+        "maxVisibleDeviation": 0.11830113196898395,
+        "at": {
+          "frame": 65.0,
+          "property": "0-32889:24",
+          "source": -48.681054644773326,
+          "preview": -48.79935577674231
+        },
+        "maxAlphaDeviation": 2.3092638912203256e-12,
+        "maxControlDeviation": 0.03045193856729611,
+        "maxSphereParameterDeviation": 0.11830113196898395
+      },
+      {
+        "clip": "DozeEnter",
+        "start": 1113,
+        "maxVisibleDeviation": 0.1393894171648551,
+        "at": {
+          "frame": 33.0,
+          "property": "0-32884:85",
+          "source": 7.218295988764913,
+          "preview": 7.357685405929768
+        },
+        "maxAlphaDeviation": 2.7995383788947947e-12,
+        "maxControlDeviation": 0.031958149570215255,
+        "maxSphereParameterDeviation": 0.1393894171648551
+      },
+      {
+        "clip": "Doze",
+        "start": 1173,
+        "maxVisibleDeviation": 0.00020072702514539742,
+        "at": {
+          "frame": 287.0,
+          "property": "0-14:16",
+          "source": 100.00020072702515,
+          "preview": 100.0
+        },
+        "maxAlphaDeviation": 0,
+        "maxControlDeviation": 0.00020072702514539742,
+        "maxSphereParameterDeviation": 0
+      },
+      {
+        "clip": "Wake",
+        "start": 1461,
+        "maxVisibleDeviation": 0.19972523757748295,
+        "at": {
+          "frame": 21.0,
+          "property": "0-32884:85",
+          "source": 7.2616725560216535,
+          "preview": 7.4613977935991365
+        },
+        "maxAlphaDeviation": 4.547473508864641e-12,
+        "maxControlDeviation": 0.0316496723989701,
+        "maxSphereParameterDeviation": 0.19972523757748295
+      }
+    ],
+    "previewComparisonTolerance": {
+      "control": 0.16,
+      "sphereParameters": 0.4,
+      "alpha": 0.08,
+      "reason": "Sphere tracks now use 0.20 reduction tolerance per independently compiled track, allowing at most 0.40 between two reduced versions; original control thresholds remain unchanged. Actual maximum sphere discrepancy is recorded separately."
+    },
+    "issues": [],
+    "pass": true,
+    "scopeLimit": "Numeric review of final 184-track authoring JSON, including normal-eye visibility guards; Rive readback, sphere curve geometry/aesthetics, contact perception and playback remain separate checks."
+  },
+  "eyeCurveReview": {
+    "source": "/tmp/mascot-v5-final.json",
+    "sha256": "1cb16a96f8fd60cb7d7f219234d6b4734d2316abe8e7dc2bb91fb7d1806014a6",
+    "scope": "Independent sampled review of exact final linear tracks. No Rive mutations, runtime or performance claims.",
+    "method": {
+      "baseFrameStep": 1,
+      "blinkAndEyeHandoffFrameStep": 0.1,
+      "outlineSamplesPerCubic": 6,
+      "sphereRadius": 184,
+      "geometry": "New sphere shapes are identity-transformed under IdleFace. Both paths were read-only verified closed in the live Rive file. Expression arcs use verified 12 and 11 unit round strokes.",
+      "selfIntersection": "Strict crossing of nonadjacent sampled edges; duplicate topology anchors removed only for the crossing check."
+    },
+    "clips": {
+      "Idle_Orient": {
+        "frames": 456,
+        "sampleTimes": 619,
+        "denseFrameIntervals": 18,
+        "visibleSphereEyeSamples": 1238,
+        "visibleExpressionArcSamples": 0,
+        "sampledCurvePoints": 59424,
+        "minimumSignedSphereEyeArea": 182.472091177221,
+        "minimumNonBlinkSphereEyeArea": 1070.0658123093085,
+        "maximumSphereEyeRadius": 152.57723629475788,
+        "maximumExpressionStrokeRadius": 0,
+        "maximumVisibleEyeGroups": 1,
+        "originalRectangleOpacityRange": [
+          0.0,
+          0.0
+        ],
+        "sphereShapeOpacityRange": [
+          100.0,
+          100.0
+        ],
+        "maxHandleAngleKeyDelta": 12.929973549826542,
+        "maxHandleAngleDegreesPerFrame": 2.389180508760944,
+        "maxTangentMismatchDegrees": 0.19905100575721235,
+        "minimumEyePairGap": 34.61763911200672,
+        "maxSphereCenterSpeedPerFrame": 3.986676006681315,
+        "maximumCollapsedEdgeSeparation": 0,
+        "issueCounts": {},
+        "zeroEyeOpacityIntervals": [],
+        "zeroEyeOpacityInterpretation": "Only deliberate <=1-frame eye-group handoffs are accepted",
+        "passed": true
+      },
+      "Thinking": {
+        "frames": 240,
+        "sampleTimes": 322,
+        "denseFrameIntervals": 9,
+        "visibleSphereEyeSamples": 644,
+        "visibleExpressionArcSamples": 0,
+        "sampledCurvePoints": 30912,
+        "minimumSignedSphereEyeArea": 196.29984293001235,
+        "minimumNonBlinkSphereEyeArea": 1109.9767605775278,
+        "maximumSphereEyeRadius": 111.4338622578685,
+        "maximumExpressionStrokeRadius": 0,
+        "maximumVisibleEyeGroups": 1,
+        "originalRectangleOpacityRange": [
+          0.0,
+          0.0
+        ],
+        "sphereShapeOpacityRange": [
+          100.0,
+          100.0
+        ],
+        "maxHandleAngleKeyDelta": 2.5975206650003457,
+        "maxHandleAngleDegreesPerFrame": 1.8913855010709426,
+        "maxTangentMismatchDegrees": 0.17962752161804474,
+        "minimumEyePairGap": 54.05742390849312,
+        "maxSphereCenterSpeedPerFrame": 1.872659056359426,
+        "maximumCollapsedEdgeSeparation": 0,
+        "issueCounts": {},
+        "zeroEyeOpacityIntervals": [],
+        "zeroEyeOpacityInterpretation": "Only deliberate <=1-frame eye-group handoffs are accepted",
+        "passed": true
+      },
+      "Celebrate": {
+        "frames": 84,
+        "sampleTimes": 256,
+        "denseFrameIntervals": 19,
+        "visibleSphereEyeSamples": 316,
+        "visibleExpressionArcSamples": 188,
+        "sampledCurvePoints": 18364,
+        "minimumSignedSphereEyeArea": 210.66449125432155,
+        "minimumNonBlinkSphereEyeArea": 1161.5885601088046,
+        "maximumSphereEyeRadius": 97.1252510178007,
+        "maximumExpressionStrokeRadius": 85.07097486066354,
+        "maximumVisibleEyeGroups": 1,
+        "originalRectangleOpacityRange": [
+          0.0,
+          0.0
+        ],
+        "sphereShapeOpacityRange": [
+          100.0,
+          100.0
+        ],
+        "maxHandleAngleKeyDelta": 2.6375120497907574,
+        "maxHandleAngleDegreesPerFrame": 1.945244959828159,
+        "maxTangentMismatchDegrees": 0.19847748901355544,
+        "minimumEyePairGap": 56.09549075671006,
+        "maxSphereCenterSpeedPerFrame": 1.6096397003622547,
+        "maximumCollapsedEdgeSeparation": 0,
+        "issueCounts": {},
+        "zeroEyeOpacityIntervals": [
+          [
+            11.0,
+            12.0
+          ],
+          [
+            44.0,
+            45.0
+          ]
+        ],
+        "zeroEyeOpacityInterpretation": "Only deliberate <=1-frame eye-group handoffs are accepted",
+        "passed": true
+      },
+      "Remind": {
+        "frames": 108,
+        "sampleTimes": 181,
+        "denseFrameIntervals": 8,
+        "visibleSphereEyeSamples": 362,
+        "visibleExpressionArcSamples": 0,
+        "sampledCurvePoints": 17376,
+        "minimumSignedSphereEyeArea": 212.61252148917737,
+        "minimumNonBlinkSphereEyeArea": 1154.117545492538,
+        "maximumSphereEyeRadius": 97.08717962910492,
+        "maximumExpressionStrokeRadius": 0,
+        "maximumVisibleEyeGroups": 1,
+        "originalRectangleOpacityRange": [
+          0.0,
+          0.0
+        ],
+        "sphereShapeOpacityRange": [
+          100.0,
+          100.0
+        ],
+        "maxHandleAngleKeyDelta": 2.3870227444324996,
+        "maxHandleAngleDegreesPerFrame": 1.4205720073649246,
+        "maxTangentMismatchDegrees": 0.19586221615455202,
+        "minimumEyePairGap": 56.1429273096275,
+        "maxSphereCenterSpeedPerFrame": 1.5572971540733338,
+        "maximumCollapsedEdgeSeparation": 0,
+        "issueCounts": {},
+        "zeroEyeOpacityIntervals": [],
+        "zeroEyeOpacityInterpretation": "Only deliberate <=1-frame eye-group handoffs are accepted",
+        "passed": true
+      },
+      "Doze": {
+        "frames": 288,
+        "sampleTimes": 289,
+        "denseFrameIntervals": 0,
+        "visibleSphereEyeSamples": 0,
+        "visibleExpressionArcSamples": 578,
+        "sampledCurvePoints": 9826,
+        "minimumSignedSphereEyeArea": null,
+        "minimumNonBlinkSphereEyeArea": null,
+        "maximumSphereEyeRadius": 0,
+        "maximumExpressionStrokeRadius": 84.55935744525382,
+        "maximumVisibleEyeGroups": 1,
+        "originalRectangleOpacityRange": [
+          0.0,
+          0.0
+        ],
+        "sphereShapeOpacityRange": [
+          100.0,
+          100.0
+        ],
+        "maxHandleAngleKeyDelta": 0,
+        "maxHandleAngleDegreesPerFrame": 0,
+        "maxTangentMismatchDegrees": 0,
+        "minimumEyePairGap": null,
+        "maxSphereCenterSpeedPerFrame": 0,
+        "maximumCollapsedEdgeSeparation": 0,
+        "issueCounts": {},
+        "zeroEyeOpacityIntervals": [],
+        "zeroEyeOpacityInterpretation": "Only deliberate <=1-frame eye-group handoffs are accepted",
+        "passed": true
+      },
+      "Wake": {
+        "frames": 84,
+        "sampleTimes": 328,
+        "denseFrameIntervals": 27,
+        "visibleSphereEyeSamples": 528,
+        "visibleExpressionArcSamples": 124,
+        "sampledCurvePoints": 27452,
+        "minimumSignedSphereEyeArea": 205.8533993977023,
+        "minimumNonBlinkSphereEyeArea": 1129.9160260944323,
+        "maximumSphereEyeRadius": 97.10830342790408,
+        "maximumExpressionStrokeRadius": 84.55935744525382,
+        "maximumVisibleEyeGroups": 1,
+        "originalRectangleOpacityRange": [
+          0.0,
+          0.0
+        ],
+        "sphereShapeOpacityRange": [
+          100.0,
+          100.0
+        ],
+        "maxHandleAngleKeyDelta": 2.670350951105746,
+        "maxHandleAngleDegreesPerFrame": 1.292622655714979,
+        "maxTangentMismatchDegrees": 0.18255112977382737,
+        "minimumEyePairGap": 56.1429273096275,
+        "maxSphereCenterSpeedPerFrame": 1.8736518432433154,
+        "maximumCollapsedEdgeSeparation": 0,
+        "issueCounts": {},
+        "zeroEyeOpacityIntervals": [
+          [
+            17.0,
+            18.0
+          ]
+        ],
+        "zeroEyeOpacityInterpretation": "Only deliberate <=1-frame eye-group handoffs are accepted",
+        "passed": true
+      },
+      "Preview_Behaviors_v5": {
+        "frames": 1665,
+        "sampleTimes": 2575,
+        "denseFrameIntervals": 101,
+        "visibleSphereEyeSamples": 4116,
+        "visibleExpressionArcSamples": 1018,
+        "sampledCurvePoints": 214874,
+        "minimumSignedSphereEyeArea": 182.472091177221,
+        "minimumNonBlinkSphereEyeArea": 1070.0658123093085,
+        "maximumSphereEyeRadius": 152.57723629475788,
+        "maximumExpressionStrokeRadius": 85.07097486066353,
+        "maximumVisibleEyeGroups": 1,
+        "originalRectangleOpacityRange": [
+          0.0,
+          0.0
+        ],
+        "sphereShapeOpacityRange": [
+          100.0,
+          100.0
+        ],
+        "maxHandleAngleKeyDelta": 12.929973549826542,
+        "maxHandleAngleDegreesPerFrame": 2.389180508760944,
+        "maxTangentMismatchDegrees": 0.19905100575721235,
+        "minimumEyePairGap": 34.61763911200672,
+        "maxSphereCenterSpeedPerFrame": 3.986676006681315,
+        "maximumCollapsedEdgeSeparation": 0.11567658856958471,
+        "issueCounts": {},
+        "zeroEyeOpacityIntervals": [
+          [
+            980.0,
+            981.0
+          ],
+          [
+            1013.0,
+            1014.0
+          ],
+          [
+            1151.0,
+            1152.0
+          ],
+          [
+            1478.0,
+            1479.0
+          ]
+        ],
+        "zeroEyeOpacityInterpretation": "Only deliberate <=1-frame eye-group handoffs are accepted",
+        "passed": true
+      }
+    },
+    "issues": [],
+    "passed": true,
+    "totalSampleTimes": 4570,
+    "totalSampledCurvePoints": 378228,
+    "limits": [
+      "Sampled geometry checks do not prove exact continuous-time intersection absence",
+      "Authoring JSON reviewed; final live keyframe equality belongs to parent verification",
+      "Appearance and motion taste require visual review and user approval"
+    ],
+    "previousReview": {
+      "sha256": "42c499dfe025aa1e8977cbabd75bfc2d0322695bf0b7292e478378511d63c8eb",
+      "passed": false,
+      "finding": "Independent coordinate simplification caused subpixel separation of collapsed capsule edge anchors"
+    }
+  }
+}

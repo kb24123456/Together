@@ -1,0 +1,945 @@
+{
+  "name": "viewmodel_editor",
+  "description": "Creates and manages view models and their instances. Supports commands like,listViewModels: Lists all view models; createViewModels: Creates view models with properties; createViewModelInstances: Creates instances of a view model; addProperties: Adds properties to existing view models. A viewModel-typed property references another view model by viewModelId (preferred) or viewModelName, which may name one created in the same call; databind: Makes the value of an object's property come from a viewmodel instance. When binding strings to text, you must bind to the Text Run, not the Text object itself. Re-running databind on an already-bound object property retargets the existing bind. Properties on nested viewmodels need path when several routes reach them; isRelative makes the bind resolve by names from the bound instance (the relative toggle); modifyDataBind: Modifies an existing data bind's direction (toTarget, toSource, twoWay), once flag, source-to-target ordering, attached converter, source path, or relative flag; bindViewModelToArtboard: Binds a viewmodel instance to an artboard; bindViewModelToComponent: Sets a component placement's own data context (the Model/Path rows in the inspector). Use this - not raw property writes - to point each placement of the same component at its own viewmodel property, clear it back to inherit, or assign a specific instance. Accepts multiple placements at once. Not available for stateful components (their instance is auto-managed); listViewModelInstances: Lists all view model instances from a view model; listDataBinds: Lists existing data binds with their source paths and flags; createConverters: Creates data converters to transform a bound value (for example convertToString so a number property can drive a text run). Pass the returned id as a binding's converterId in databind, then tune settings with query_core_object_tool setPropertyValues. Use a group to chain several transforms into one converter (its children are created or reused in the same call) and a formula for arithmetic. Check listConverters first and reuse a match: converters cannot be deleted here, so one created by mistake stays in the data panel for the user to remove; listConverters: Lists existing converters with their type and id, so one can be reused instead of creating a duplicate; listDataEnums: Lists enums (the Enums section of the data panel) with their values; createDataEnums: Creates enums and their values. Create the enum before an enum property that uses it; addDataEnumValues: Appends values to an existing enum; removeDataEnumValues: Removes values from an enum; deleteDataEnums: Deletes whole enums and their values. Needs force: true to delete one that still backs properties, and sweeps any library assets the removal leaves unused. An enum property is a viewModelProperties entry with propertyType enum plus enumName or enumId; ",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "enum": [
+          "listViewModels",
+          "createViewModels",
+          "createViewModelInstances",
+          "addProperties",
+          "databind",
+          "modifyDataBind",
+          "bindViewModelToArtboard",
+          "bindViewModelToComponent",
+          "listViewModelInstances",
+          "listDataBinds",
+          "createConverters",
+          "listConverters",
+          "listDataEnums",
+          "createDataEnums",
+          "addDataEnumValues",
+          "removeDataEnumValues",
+          "deleteDataEnums"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "listViewModels": {
+            "type": "object",
+            "properties": {}
+          },
+          "createViewModels": {
+            "type": "object",
+            "properties": {
+              "viewModels": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "viewModelProperties": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "enum": [
+                                  "string",
+                                  "boolean",
+                                  "color",
+                                  "number",
+                                  "trigger",
+                                  "artboard",
+                                  "image",
+                                  "font",
+                                  "blob"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "const": "list"
+                              }
+                            }
+                          },
+                          {
+                            "description": "Exposes an item's position in the list that holds it. One per viewmodel; always named \"index\" (the name field is ignored). Read-only: bind or condition on it, and write it into a number property via a create_listeners viewModelChange sourceViewModelPropertyId.",
+                            "type": "object",
+                            "properties": {
+                              "propertyType": {
+                                "const": "listIndex"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "const": "enum"
+                              },
+                              "enumName": {
+                                "type": "string",
+                                "description": "Name of the DataEnum backing this property. Create it first with createDataEnums."
+                              },
+                              "enumId": {
+                                "type": "string",
+                                "description": "Id of the DataEnum, as an alternative to enumName."
+                              }
+                            },
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "enumName"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "enumId"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "viewModelId": {
+                                "description": "Id of the referenced view model. Preferred over viewModelName: names are not unique, and listViewModels emits both so its output feeds straight back in.",
+                                "type": "string"
+                              },
+                              "viewModelName": {
+                                "description": "Name of the referenced view model. Resolves against view models created in this same call first, then existing ones. Ignored when viewModelId is given.",
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "const": "viewModel"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "viewModels"
+            ]
+          },
+          "createViewModelInstances": {
+            "type": "object",
+            "properties": {
+              "viewModelId": {
+                "type": "string"
+              },
+              "instances": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "instanceProperties": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "propertyType": {
+                                "enum": [
+                                  "string",
+                                  "boolean",
+                                  "color",
+                                  "number",
+                                  "trigger",
+                                  "enum"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "description": "For enum properties, the value key as listed by listDataEnums.",
+                                "type": "string"
+                              },
+                              "viewModelPropertyId": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "viewModelPropertyId"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "propertyType": {
+                                "const": "viewModel"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              },
+                              "viewModelPropertyId": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "viewModelPropertyId"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "propertyType": {
+                                "const": "list"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "viewModelPropertyId": {
+                                "type": "string"
+                              },
+                              "childItems": {
+                                "description": "Each item resolves an instance, most specific key first: viewModelInstanceId, else viewModelId/viewModelName plus optional viewModelInstanceName (default instance when omitted). An id that does not resolve is an error, never a fallback to the name.",
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "listItemName": {
+                                      "type": "string"
+                                    },
+                                    "viewModelInstanceId": {
+                                      "type": "string"
+                                    },
+                                    "viewModelInstanceName": {
+                                      "type": "string"
+                                    },
+                                    "viewModelId": {
+                                      "type": "string"
+                                    },
+                                    "viewModelName": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "required": [
+                              "viewModelPropertyId"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "viewModelId",
+              "instances"
+            ]
+          },
+          "addProperties": {
+            "type": "object",
+            "properties": {
+              "viewModels": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "viewModelId": {
+                      "type": "string"
+                    },
+                    "viewModelProperties": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "enum": [
+                                  "string",
+                                  "boolean",
+                                  "color",
+                                  "number",
+                                  "trigger",
+                                  "artboard",
+                                  "image",
+                                  "font",
+                                  "blob"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "const": "list"
+                              }
+                            }
+                          },
+                          {
+                            "description": "Exposes an item's position in the list that holds it. One per viewmodel; always named \"index\" (the name field is ignored). Read-only: bind or condition on it, and write it into a number property via a create_listeners viewModelChange sourceViewModelPropertyId.",
+                            "type": "object",
+                            "properties": {
+                              "propertyType": {
+                                "const": "listIndex"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "const": "enum"
+                              },
+                              "enumName": {
+                                "type": "string",
+                                "description": "Name of the DataEnum backing this property. Create it first with createDataEnums."
+                              },
+                              "enumId": {
+                                "type": "string",
+                                "description": "Id of the DataEnum, as an alternative to enumName."
+                              }
+                            },
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "enumName"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "enumId"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "viewModelId": {
+                                "description": "Id of the referenced view model. Preferred over viewModelName: names are not unique, and listViewModels emits both so its output feeds straight back in.",
+                                "type": "string"
+                              },
+                              "viewModelName": {
+                                "description": "Name of the referenced view model. Resolves against view models created in this same call first, then existing ones. Ignored when viewModelId is given.",
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "const": "viewModel"
+                              }
+                            },
+                            "required": [
+                              "name"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "viewModels"
+            ]
+          },
+          "databind": {
+            "type": "object",
+            "properties": {
+              "viewModelId": {
+                "description": "The ID of the view model to bind to",
+                "type": "string"
+              },
+              "bindings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "objectId": {
+                      "description": "The ID of the object to bind",
+                      "type": "string"
+                    },
+                    "propertyKey": {
+                      "description": "The property key of the object property to bind",
+                      "type": "integer"
+                    },
+                    "viewModelPropertyId": {
+                      "description": "The ID of the view model property to bind to",
+                      "type": "string"
+                    },
+                    "path": {
+                      "description": "Optional: the source path when the property lives on a nested/referenced viewmodel. Segment names joined with \" -> \" (the root viewmodel, then the viewmodel-property name of each hop), exactly as errors and listDataBinds list them. Required only when several paths reach the property.",
+                      "type": "string"
+                    },
+                    "isRelative": {
+                      "description": "Optional: create the bind as relative (the relative toggle in the bind popup): the source resolves by property names from whatever instance is bound at runtime instead of fixed ids.",
+                      "type": "boolean"
+                    },
+                    "converterId": {
+                      "description": "Optional: ID of a DataConverter to attach to this bind, from createConverters or listConverters.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "objectId",
+                    "propertyKey",
+                    "viewModelPropertyId"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "viewModelId",
+              "bindings"
+            ]
+          },
+          "modifyDataBind": {
+            "type": "object",
+            "properties": {
+              "objectId": {
+                "description": "ID of the object whose existing bind to modify",
+                "type": "string"
+              },
+              "propertyKey": {
+                "description": "Property key on the object whose bind to modify",
+                "type": "integer"
+              },
+              "direction": {
+                "description": "Optional. Sets the primary direction bit independently of twoWay. toTarget = ViewModel -> Object (the default for a new bind); toSource = Object -> ViewModel. When twoWay is also true, this still determines which side the converter treats as input vs output.",
+                "type": "string",
+                "enum": [
+                  "toTarget",
+                  "toSource"
+                ]
+              },
+              "twoWay": {
+                "description": "Optional. Enable bidirectional sync. Independent of direction \u2014 leave direction unset to preserve the existing primary direction.",
+                "type": "boolean"
+              },
+              "once": {
+                "description": "Optional. If true, the bind is applied only once.",
+                "type": "boolean"
+              },
+              "sourceToTargetRunsFirst": {
+                "description": "Optional. For two-way binds, when true source-to-target runs before target-to-source.",
+                "type": "boolean"
+              },
+              "converterId": {
+                "description": "Optional. ID of a DataConverter to attach. Pass empty string to remove an existing converter.",
+                "type": "string"
+              },
+              "path": {
+                "description": "Optional. Retargets the bind's source path to a different route to the same property. Segment names joined with \" -> \", exactly as errors and listDataBinds list them.",
+                "type": "string"
+              },
+              "isRelative": {
+                "description": "Optional. Sets or clears the relative flag (the relative toggle in the bind popup): a relative bind resolves its source by property names from whatever instance is bound at runtime instead of fixed ids.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "objectId",
+              "propertyKey"
+            ]
+          },
+          "bindViewModelToArtboard": {
+            "type": "object",
+            "properties": {
+              "artboardId": {
+                "description": "The ID of the artboard to bind the viewmodel to",
+                "type": "string"
+              },
+              "viewModelId": {
+                "description": "The ID of the viewmodel to bind",
+                "type": "string"
+              },
+              "viewModelInstanceId": {
+                "description": "Optional: The ID of a specific viewmodel instance. If not provided, uses the first instance.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "artboardId",
+              "viewModelId"
+            ]
+          },
+          "bindViewModelToComponent": {
+            "type": "object",
+            "properties": {
+              "componentIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "description": "The IDs of the component placements to set the data context on. All must live in the same parent artboard."
+              },
+              "componentId": {
+                "type": "string",
+                "description": "Deprecated: a single placement id. Prefer componentIds."
+              },
+              "viewModelPropertyName": {
+                "type": "string",
+                "description": "The name of the viewmodel property (of type viewModel) that supplies the data context. If no property with this name exists, one is created on the parent artboard's viewmodel (which must be bound first)."
+              },
+              "inherit": {
+                "const": true,
+                "description": "Pass true to clear the data context so the placement inherits from its parent artboard (the Inherit option in the inspector). Mutually exclusive with viewModelPropertyName."
+              },
+              "path": {
+                "type": "string",
+                "description": "Optional: disambiguates when several paths reach the property. Segment names joined with \" -> \" (the root viewmodel, then the viewmodel-property name of each hop), exactly as errors and query results list them."
+              },
+              "viewModelInstanceName": {
+                "type": "string",
+                "description": "Optional: assigns this instance of the component's viewmodel to the property. Created if no instance with this name exists. When omitted the property's current instance is kept."
+              }
+            },
+            "allOf": [
+              {
+                "anyOf": [
+                  {
+                    "required": [
+                      "componentIds"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "componentId"
+                    ]
+                  }
+                ]
+              },
+              {
+                "oneOf": [
+                  {
+                    "required": [
+                      "viewModelPropertyName"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "inherit"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "listViewModelInstances": {
+            "type": "object",
+            "properties": {
+              "viewModelId": {
+                "description": "The ID of the viewmodel to list its instances",
+                "type": "string"
+              }
+            },
+            "required": [
+              "viewModelId"
+            ]
+          },
+          "listDataBinds": {
+            "type": "object",
+            "properties": {
+              "objectId": {
+                "description": "Optional: only binds targeting this object.",
+                "type": "string"
+              }
+            }
+          },
+          "createConverters": {
+            "type": "object",
+            "properties": {
+              "converters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "converterType": {
+                      "enum": [
+                        "rounder",
+                        "operation",
+                        "group",
+                        "rangeMapper",
+                        "stringPad",
+                        "stringTrim",
+                        "convertToString",
+                        "removeZeros",
+                        "interpolator",
+                        "boolNegate",
+                        "formula",
+                        "numberToList",
+                        "listToLength",
+                        "convertToNumber"
+                      ]
+                    },
+                    "name": {
+                      "description": "Optional; the editor names it after the type when omitted.",
+                      "type": "string"
+                    },
+                    "children": {
+                      "description": "Required for converterType group: the converters it chains, in order, each either a converterId to reuse or a new converter to create with it. A group with no children rejects every input. A child may itself be a group with its own children, nested to any depth \u2014 the levels spelled out below are a schema limitation, not a limit on what you can send.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "converterId": {
+                            "description": "Reuse this existing converter, from listConverters.",
+                            "type": "string"
+                          },
+                          "converterType": {
+                            "enum": [
+                              "rounder",
+                              "operation",
+                              "group",
+                              "rangeMapper",
+                              "stringPad",
+                              "stringTrim",
+                              "convertToString",
+                              "removeZeros",
+                              "interpolator",
+                              "boolNegate",
+                              "formula",
+                              "numberToList",
+                              "listToLength",
+                              "convertToNumber"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "formula": {
+                            "type": "string"
+                          },
+                          "children": {
+                            "description": "Converters chained inside this nested group. Each entry takes the same fields as its parent, including a further children array for a group \u2014 keep nesting as deep as the transform needs.",
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "converterId": {
+                                  "type": "string"
+                                },
+                                "converterType": {
+                                  "enum": [
+                                    "rounder",
+                                    "operation",
+                                    "group",
+                                    "rangeMapper",
+                                    "stringPad",
+                                    "stringTrim",
+                                    "convertToString",
+                                    "removeZeros",
+                                    "interpolator",
+                                    "boolNegate",
+                                    "formula",
+                                    "numberToList",
+                                    "listToLength",
+                                    "convertToNumber"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "formula": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "formula": {
+                      "description": "Required for converterType formula: the expression, as typed in the inspector. {Input} is the bound value, {{ViewModel/property}} reads another number property. Operators + - * / % and functions min, max, pow, sqrt, exp, log, round, floor, ceil, sin, cos, tan, asin, acos, atan, atan2, random. Example: \"({Input} - 32) / 1.8\".",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "converterType"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "converters"
+            ]
+          },
+          "listConverters": {
+            "type": "object",
+            "properties": {}
+          },
+          "listDataEnums": {
+            "type": "object",
+            "properties": {}
+          },
+          "createDataEnums": {
+            "type": "object",
+            "properties": {
+              "dataEnums": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "values": {
+                      "description": "Value keys, in order. Accepts the {key} objects listDataEnums emits.",
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key"
+                            ]
+                          }
+                        ]
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "values"
+                  ]
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "dataEnums"
+            ]
+          },
+          "addDataEnumValues": {
+            "type": "object",
+            "properties": {
+              "dataEnumId": {
+                "type": "string"
+              },
+              "dataEnumName": {
+                "type": "string"
+              },
+              "values": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key"
+                      ]
+                    }
+                  ]
+                },
+                "description": "Value keys to append. Accepts the {key} objects listDataEnums emits."
+              }
+            },
+            "allOf": [
+              {
+                "oneOf": [
+                  {
+                    "required": [
+                      "dataEnumId"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "dataEnumName"
+                    ]
+                  }
+                ]
+              },
+              {
+                "required": [
+                  "values"
+                ]
+              }
+            ]
+          },
+          "removeDataEnumValues": {
+            "type": "object",
+            "properties": {
+              "dataEnumId": {
+                "type": "string"
+              },
+              "dataEnumName": {
+                "type": "string"
+              },
+              "values": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key"
+                      ]
+                    }
+                  ]
+                },
+                "description": "Value keys to remove."
+              },
+              "valueIds": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                },
+                "description": "Value ids to remove. Combining with values is allowed; the two sets are merged."
+              }
+            },
+            "allOf": [
+              {
+                "oneOf": [
+                  {
+                    "required": [
+                      "dataEnumId"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "dataEnumName"
+                    ]
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "required": [
+                      "values"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "valueIds"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "deleteDataEnums": {
+            "type": "object",
+            "properties": {
+              "dataEnumIds": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "dataEnumNames": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                },
+                "description": "Combining with dataEnumIds is allowed; the two sets are merged."
+              },
+              "force": {
+                "const": true,
+                "description": "Required to delete an enum that still backs viewmodel properties, which leaves them without an enum. Must be the boolean true."
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "dataEnumIds"
+                ]
+              },
+              {
+                "required": [
+                  "dataEnumNames"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "required": [
+      "command"
+    ]
+  },
+  "execution": {
+    "taskSupport": "forbidden"
+  }
+}

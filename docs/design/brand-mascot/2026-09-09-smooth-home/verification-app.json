@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "assetSHA256": "80c812a991054ac6aad3e5bc9626d938d34368f838ced7a4084bcaebc40ea9a7",
+  "assetBytes": 4205737,
+  "bundledAssetMatches": true,
+  "swiftTesting": {
+    "passed": 23,
+    "log": "/private/tmp/together-smooth-home-tests.log"
+  },
+  "build": {
+    "action": "unsigned generic iOS build-for-testing",
+    "passed": true,
+    "log": "/private/tmp/together-smooth-home-build.log"
+  },
+  "runtimeSourceSHA256": "d2b89706596c2483e5e2020f6412a3cf8e8c07f0625bfe65841c1b8e623d613d",
+  "limits": [
+    "No signed device installation",
+    "No iPhone visual, gesture, performance or energy validation",
+    "iOS test target compiled, not executed; pure policy Swift Testing ran on macOS"
+  ]
+}

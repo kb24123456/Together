@@ -1,0 +1,102 @@
+{
+  "indices": [
+    16,
+    17,
+    26,
+    28
+  ],
+  "stateMachineUnchanged": true,
+  "animations": [
+    {
+      "animation": "Expr_Speechless",
+      "animationId": "0-540406",
+      "changedKeys": 0,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Close_Speechless",
+      "animationId": "0-541902",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Pulse_Speechless",
+      "animationId": "0-543397",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_SleepyYawn",
+      "animationId": "0-489133",
+      "changedKeys": 210,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Close_SleepyYawn",
+      "animationId": "0-490653",
+      "changedKeys": 210,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Pulse_SleepyYawn",
+      "animationId": "0-492148",
+      "changedKeys": 210,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Helpless",
+      "animationId": "0-580942",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Close_Helpless",
+      "animationId": "0-582438",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Pulse_Helpless",
+      "animationId": "0-583933",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_SleepyLow",
+      "animationId": "0-589944",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Close_SleepyLow",
+      "animationId": "0-591440",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Pulse_SleepyLow",
+      "animationId": "0-592939",
+      "changedKeys": 190,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Preview_Expressions_28",
+      "animationId": "0-602270",
+      "changedKeys": 2530,
+      "otherKeysUnchanged": true,
+      "readback": true
+    }
+  ]
+}

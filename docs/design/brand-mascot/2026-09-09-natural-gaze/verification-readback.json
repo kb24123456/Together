@@ -1,0 +1,89 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "Idle",
+      "id": "0-6",
+      "keys": 4864,
+      "readback": true,
+      "untouchedTracks": true
+    },
+    {
+      "name": "Idle_QuietMedium",
+      "id": "0-8762",
+      "keys": 4528,
+      "readback": true,
+      "untouchedTracks": true
+    },
+    {
+      "name": "Idle_Look",
+      "id": "0-5972",
+      "keys": 3317,
+      "readback": true,
+      "untouchedTracks": true
+    },
+    {
+      "name": "Idle_GazeUp",
+      "id": "0-359913",
+      "keys": 4088,
+      "readback": true,
+      "untouchedTracks": true
+    },
+    {
+      "name": "Idle_GazeDown",
+      "id": "0-359914",
+      "keys": 4948,
+      "readback": true,
+      "untouchedTracks": true
+    },
+    {
+      "name": "Idle_GazeUpRight",
+      "id": "0-359915",
+      "keys": 5120,
+      "readback": true,
+      "untouchedTracks": true
+    },
+    {
+      "name": "Idle_Orient",
+      "id": "0-18430",
+      "keys": 25550,
+      "readback": true,
+      "untouchedTracks": true
+    },
+    {
+      "name": "Preview_All",
+      "id": "0-185850",
+      "keys": 33565,
+      "readback": true,
+      "untouchedTracks": true
+    }
+  ],
+  "untouchedTimelineCount": 25,
+  "untouchedTimelineIds": [
+    "0-185849",
+    "0-185848",
+    "0-185847",
+    "0-122626",
+    "0-122625",
+    "0-122624",
+    "0-122623",
+    "0-122622",
+    "0-13233",
+    "0-13232",
+    "0-13231",
+    "0-13230",
+    "0-13229",
+    "0-13228",
+    "0-5973",
+    "0-5971",
+    "0-1032",
+    "0-1033",
+    "0-1034",
+    "0-1035",
+    "0-1036",
+    "0-1037",
+    "0-108",
+    "0-109",
+    "0-110"
+  ]
+}

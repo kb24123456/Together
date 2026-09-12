@@ -1,0 +1,672 @@
+{
+  "timelines": {
+    "Expr_Auto": {
+      "id": "0-452958",
+      "duration": 4.2,
+      "keys": 666,
+      "loop": true
+    },
+    "Expr_Resolve": {
+      "id": "0-454451",
+      "duration": 0.016666666666666666,
+      "keys": 666,
+      "loop": false
+    },
+    "Expr_ReactionBlank": {
+      "id": "0-455944",
+      "duration": 0.1,
+      "keys": 666,
+      "loop": false
+    },
+    "Action_Rest": {
+      "id": "0-457437",
+      "duration": 0.016666666666666666,
+      "keys": 140,
+      "loop": false
+    },
+    "Action_Observe": {
+      "id": "0-457759",
+      "duration": 0.9,
+      "keys": 410,
+      "loop": false
+    },
+    "Action_Nod": {
+      "id": "0-458347",
+      "duration": 0.7,
+      "keys": 350,
+      "loop": false
+    },
+    "Action_Celebrate": {
+      "id": "0-458875",
+      "duration": 1.1,
+      "keys": 470,
+      "loop": false
+    },
+    "Action_Poke": {
+      "id": "0-459523",
+      "duration": 0.8666666666666667,
+      "keys": 6952,
+      "loop": false
+    },
+    "Expr_Calm": {
+      "id": "0-466653",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_Calm": {
+      "id": "0-468159",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Calm": {
+      "id": "0-469654",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_SoftHappy": {
+      "id": "0-471157",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_SoftHappy": {
+      "id": "0-472653",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_SoftHappy": {
+      "id": "0-474148",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Laugh": {
+      "id": "0-475651",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Laugh": {
+      "id": "0-477147",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Laugh": {
+      "id": "0-478642",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Love": {
+      "id": "0-480145",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Love": {
+      "id": "0-481641",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Love": {
+      "id": "0-483136",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_PuzzledOpen": {
+      "id": "0-484639",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_PuzzledOpen": {
+      "id": "0-486135",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_PuzzledOpen": {
+      "id": "0-487630",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_SleepyYawn": {
+      "id": "0-489133",
+      "duration": 4.2,
+      "keys": 693,
+      "loop": true
+    },
+    "Expr_Close_SleepyYawn": {
+      "id": "0-490653",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_SleepyYawn": {
+      "id": "0-492148",
+      "duration": 1.2,
+      "keys": 685,
+      "loop": false
+    },
+    "Expr_Close_Auto": {
+      "id": "0-493663",
+      "duration": 0.1,
+      "keys": 667,
+      "loop": false
+    },
+    "Expr_Excited": {
+      "id": "0-495390",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_Excited": {
+      "id": "0-496896",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Excited": {
+      "id": "0-498391",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_WinkSmile": {
+      "id": "0-499894",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_WinkSmile": {
+      "id": "0-501390",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_WinkSmile": {
+      "id": "0-502885",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Blush": {
+      "id": "0-504388",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_Blush": {
+      "id": "0-505894",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Blush": {
+      "id": "0-507389",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Smug": {
+      "id": "0-508892",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Smug": {
+      "id": "0-510388",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Smug": {
+      "id": "0-511883",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_CuriousOpen": {
+      "id": "0-513386",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_CuriousOpen": {
+      "id": "0-514892",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_CuriousOpen": {
+      "id": "0-516387",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_ThinkingUp": {
+      "id": "0-517890",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_ThinkingUp": {
+      "id": "0-519396",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_ThinkingUp": {
+      "id": "0-520891",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_GentleFocus": {
+      "id": "0-522394",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_GentleFocus": {
+      "id": "0-523900",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_GentleFocus": {
+      "id": "0-525395",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Surprised": {
+      "id": "0-526898",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Surprised": {
+      "id": "0-528394",
+      "duration": 0.1,
+      "keys": 672,
+      "loop": false
+    },
+    "Expr_Pulse_Surprised": {
+      "id": "0-529893",
+      "duration": 1.2,
+      "keys": 681,
+      "loop": false
+    },
+    "Expr_Embarrassed": {
+      "id": "0-531404",
+      "duration": 4.2,
+      "keys": 683,
+      "loop": true
+    },
+    "Expr_Close_Embarrassed": {
+      "id": "0-532914",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Embarrassed": {
+      "id": "0-534409",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_MildAngry": {
+      "id": "0-535912",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_MildAngry": {
+      "id": "0-537408",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_MildAngry": {
+      "id": "0-538903",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Speechless": {
+      "id": "0-540406",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Speechless": {
+      "id": "0-541902",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Speechless": {
+      "id": "0-543397",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Content": {
+      "id": "0-544900",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Content": {
+      "id": "0-546396",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Content": {
+      "id": "0-547891",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Sad": {
+      "id": "0-549394",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Sad": {
+      "id": "0-550890",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Sad": {
+      "id": "0-552385",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_SmallTears": {
+      "id": "0-553888",
+      "duration": 4.2,
+      "keys": 695,
+      "loop": true
+    },
+    "Expr_Close_SmallTears": {
+      "id": "0-555410",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_SmallTears": {
+      "id": "0-556905",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_CuriousQuiet": {
+      "id": "0-558408",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_CuriousQuiet": {
+      "id": "0-559914",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_CuriousQuiet": {
+      "id": "0-561409",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_PuzzledQuiet": {
+      "id": "0-562912",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_PuzzledQuiet": {
+      "id": "0-564418",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_PuzzledQuiet": {
+      "id": "0-565913",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Determined": {
+      "id": "0-567416",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Determined": {
+      "id": "0-568912",
+      "duration": 0.1,
+      "keys": 672,
+      "loop": false
+    },
+    "Expr_Pulse_Determined": {
+      "id": "0-570411",
+      "duration": 1.2,
+      "keys": 681,
+      "loop": false
+    },
+    "Expr_Realization": {
+      "id": "0-571922",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_Realization": {
+      "id": "0-573428",
+      "duration": 0.1,
+      "keys": 672,
+      "loop": false
+    },
+    "Expr_Pulse_Realization": {
+      "id": "0-574927",
+      "duration": 1.2,
+      "keys": 681,
+      "loop": false
+    },
+    "Expr_ShyLookAway": {
+      "id": "0-576438",
+      "duration": 4.2,
+      "keys": 679,
+      "loop": true
+    },
+    "Expr_Close_ShyLookAway": {
+      "id": "0-577944",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_ShyLookAway": {
+      "id": "0-579439",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Helpless": {
+      "id": "0-580942",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_Helpless": {
+      "id": "0-582438",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Helpless": {
+      "id": "0-583933",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_Nervous": {
+      "id": "0-585436",
+      "duration": 4.2,
+      "keys": 683,
+      "loop": true
+    },
+    "Expr_Close_Nervous": {
+      "id": "0-586946",
+      "duration": 0.1,
+      "keys": 668,
+      "loop": false
+    },
+    "Expr_Pulse_Nervous": {
+      "id": "0-588441",
+      "duration": 1.2,
+      "keys": 673,
+      "loop": false
+    },
+    "Expr_SleepyLow": {
+      "id": "0-589944",
+      "duration": 4.2,
+      "keys": 669,
+      "loop": true
+    },
+    "Expr_Close_SleepyLow": {
+      "id": "0-591440",
+      "duration": 0.1,
+      "keys": 672,
+      "loop": false
+    },
+    "Expr_Pulse_SleepyLow": {
+      "id": "0-592939",
+      "duration": 1.2,
+      "keys": 681,
+      "loop": false
+    },
+    "Preview_Expressions_28": {
+      "id": "0-602270",
+      "duration": 50.4,
+      "keys": 56750,
+      "previewOnly": true
+    },
+    "Preview_LightActions_4": {
+      "id": "0-660023",
+      "duration": 6.166666666666667,
+      "keys": 8823,
+      "previewOnly": true
+    }
+  },
+  "states": {
+    "Expr_Auto": "0-457754",
+    "Expr_Resolve": "0-457755",
+    "Expr_ReactionBlank": "0-457756",
+    "Expr_CelebrationBlank": "0-457757",
+    "Action_Rest": "0-457758",
+    "Action_Observe": "0-458346",
+    "Action_Nod": "0-458874",
+    "Action_Celebrate": "0-459522",
+    "Action_Poke": "0-466652",
+    "Hold_Calm": "0-471154",
+    "Close_Calm": "0-471155",
+    "Pulse_Calm": "0-471156",
+    "Hold_SoftHappy": "0-475648",
+    "Close_SoftHappy": "0-475649",
+    "Pulse_SoftHappy": "0-475650",
+    "Hold_Laugh": "0-480142",
+    "Close_Laugh": "0-480143",
+    "Pulse_Laugh": "0-480144",
+    "Hold_Love": "0-484636",
+    "Close_Love": "0-484637",
+    "Pulse_Love": "0-484638",
+    "Hold_PuzzledOpen": "0-489130",
+    "Close_PuzzledOpen": "0-489131",
+    "Pulse_PuzzledOpen": "0-489132",
+    "Hold_SleepyYawn": "0-493660",
+    "Close_SleepyYawn": "0-493661",
+    "Pulse_SleepyYawn": "0-493662",
+    "Close_Auto": "0-495157",
+    "Hold_Excited": "0-499891",
+    "Close_Excited": "0-499892",
+    "Pulse_Excited": "0-499893",
+    "Hold_WinkSmile": "0-504385",
+    "Close_WinkSmile": "0-504386",
+    "Pulse_WinkSmile": "0-504387",
+    "Hold_Blush": "0-508889",
+    "Close_Blush": "0-508890",
+    "Pulse_Blush": "0-508891",
+    "Hold_Smug": "0-513383",
+    "Close_Smug": "0-513384",
+    "Pulse_Smug": "0-513385",
+    "Hold_CuriousOpen": "0-517887",
+    "Close_CuriousOpen": "0-517888",
+    "Pulse_CuriousOpen": "0-517889",
+    "Hold_ThinkingUp": "0-522391",
+    "Close_ThinkingUp": "0-522392",
+    "Pulse_ThinkingUp": "0-522393",
+    "Hold_GentleFocus": "0-526895",
+    "Close_GentleFocus": "0-526896",
+    "Pulse_GentleFocus": "0-526897",
+    "Hold_Surprised": "0-531401",
+    "Close_Surprised": "0-531402",
+    "Pulse_Surprised": "0-531403",
+    "Hold_Embarrassed": "0-535909",
+    "Close_Embarrassed": "0-535910",
+    "Pulse_Embarrassed": "0-535911",
+    "Hold_MildAngry": "0-540403",
+    "Close_MildAngry": "0-540404",
+    "Pulse_MildAngry": "0-540405",
+    "Hold_Speechless": "0-544897",
+    "Close_Speechless": "0-544898",
+    "Pulse_Speechless": "0-544899",
+    "Hold_Content": "0-549391",
+    "Close_Content": "0-549392",
+    "Pulse_Content": "0-549393",
+    "Hold_Sad": "0-553885",
+    "Close_Sad": "0-553886",
+    "Pulse_Sad": "0-553887",
+    "Hold_SmallTears": "0-558405",
+    "Close_SmallTears": "0-558406",
+    "Pulse_SmallTears": "0-558407",
+    "Hold_CuriousQuiet": "0-562909",
+    "Close_CuriousQuiet": "0-562910",
+    "Pulse_CuriousQuiet": "0-562911",
+    "Hold_PuzzledQuiet": "0-567413",
+    "Close_PuzzledQuiet": "0-567414",
+    "Pulse_PuzzledQuiet": "0-567415",
+    "Hold_Determined": "0-571919",
+    "Close_Determined": "0-571920",
+    "Pulse_Determined": "0-571921",
+    "Hold_Realization": "0-576435",
+    "Close_Realization": "0-576436",
+    "Pulse_Realization": "0-576437",
+    "Hold_ShyLookAway": "0-580939",
+    "Close_ShyLookAway": "0-580940",
+    "Pulse_ShyLookAway": "0-580941",
+    "Hold_Helpless": "0-585433",
+    "Close_Helpless": "0-585434",
+    "Pulse_Helpless": "0-585435",
+    "Hold_Nervous": "0-589941",
+    "Close_Nervous": "0-589942",
+    "Pulse_Nervous": "0-589943",
+    "Hold_SleepyLow": "0-594447",
+    "Close_SleepyLow": "0-594448",
+    "Pulse_SleepyLow": "0-594449"
+  },
+  "expressionsLayer": "0-452882",
+  "actionsLayer": "0-452886"
+}

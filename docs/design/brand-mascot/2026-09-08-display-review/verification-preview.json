@@ -1,0 +1,1765 @@
+{
+  "date": "2026-09-08",
+  "engine": "Installed Chrome via bundled Playwright; desktop and emulated mobile viewport only",
+  "deviceAcceptance": false,
+  "appearanceScope": "Light black, dark white or black; six native PNGs",
+  "passed": true,
+  "checks": [
+    {
+      "passed": true,
+      "check": "Default home is 40pt"
+    },
+    {
+      "passed": true,
+      "check": "Initial dark white appearance"
+    },
+    {
+      "passed": true,
+      "check": "Dark original black toggle uses different native asset"
+    },
+    {
+      "passed": true,
+      "check": "White toggle restores exact white asset"
+    },
+    {
+      "passed": true,
+      "check": "Light always uses black"
+    },
+    {
+      "passed": true,
+      "check": "Appearance control hidden and disabled in light mode"
+    },
+    {
+      "passed": true,
+      "check": "Return to dark keeps chosen white"
+    },
+    {
+      "passed": true,
+      "check": "All six native PNGs embedded in comparisons"
+    },
+    {
+      "passed": true,
+      "check": "Three poses each have three palette comparisons"
+    },
+    {
+      "passed": true,
+      "check": "No CSS color inversion or filter"
+    },
+    {
+      "passed": true,
+      "check": "Editor initially 48pt"
+    },
+    {
+      "passed": true,
+      "check": "Boundary toggles work"
+    },
+    {
+      "passed": true,
+      "check": "Focus view opens"
+    },
+    {
+      "passed": true,
+      "check": "Escape returns"
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/idle/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 315.010986328125,
+          "y": 691.508544921875,
+          "right": 351.004638671875,
+          "bottom": 727.502197265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "idle",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 313.011962890625,
+          "y": 689.507568359375,
+          "right": 353.003662109375,
+          "bottom": 729.499267578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "idle",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/idle/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 311.012939453125,
+          "y": 687.506591796875,
+          "right": 355.002685546875,
+          "bottom": 731.496337890625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "idle",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/holding/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 315.010986328125,
+          "y": 691.508544921875,
+          "right": 351.004638671875,
+          "bottom": 732.8816833496094
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "holding",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 313.011962890625,
+          "y": 689.507568359375,
+          "right": 353.003662109375,
+          "bottom": 735.4762878417969
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "holding",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/holding/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 311.012939453125,
+          "y": 687.506591796875,
+          "right": 355.002685546875,
+          "bottom": 738.0708923339844
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "holding",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/concerned/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 315.010986328125,
+          "y": 691.508544921875,
+          "right": 351.004638671875,
+          "bottom": 727.502197265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "concerned",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 313.011962890625,
+          "y": 689.507568359375,
+          "right": 353.003662109375,
+          "bottom": 729.499267578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "concerned",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/light/concerned/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 311.012939453125,
+          "y": 687.506591796875,
+          "right": 355.002685546875,
+          "bottom": 731.496337890625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "light",
+        "pose": "concerned",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/idle/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 315.010986328125,
+          "y": 779.508544921875,
+          "right": 351.004638671875,
+          "bottom": 815.502197265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "idle",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 313.011962890625,
+          "y": 777.507568359375,
+          "right": 353.003662109375,
+          "bottom": 817.499267578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "idle",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/idle/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 311.012939453125,
+          "y": 775.506591796875,
+          "right": 355.002685546875,
+          "bottom": 819.496337890625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "idle",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/holding/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 315.010986328125,
+          "y": 779.508544921875,
+          "right": 351.004638671875,
+          "bottom": 820.8816833496094
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "holding",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 313.011962890625,
+          "y": 777.507568359375,
+          "right": 353.003662109375,
+          "bottom": 823.4762878417969
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "holding",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/holding/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 311.012939453125,
+          "y": 775.506591796875,
+          "right": 355.002685546875,
+          "bottom": 826.0708923339844
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "holding",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/concerned/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 315.010986328125,
+          "y": 779.508544921875,
+          "right": 351.004638671875,
+          "bottom": 815.502197265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "concerned",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 313.011962890625,
+          "y": 777.507568359375,
+          "right": 353.003662109375,
+          "bottom": 817.499267578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "concerned",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/home/dark/concerned/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 311.012939453125,
+          "y": 775.506591796875,
+          "right": 355.002685546875,
+          "bottom": 819.496337890625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 375,
+        "theme": "dark",
+        "pose": "concerned",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 307.183837890625,
+          "y": 753.585693359375,
+          "right": 347.175537109375,
+          "bottom": 793.577392578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/idle/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 297.60986328125,
+          "y": 754.80419921875,
+          "right": 345.60888671875,
+          "bottom": 802.80322265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/idle/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 288.04931640625,
+          "y": 756.02099609375,
+          "right": 344.04443359375,
+          "bottom": 812.01611328125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 307.183837890625,
+          "y": 753.585693359375,
+          "right": 347.175537109375,
+          "bottom": 799.5544128417969
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/holding/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 297.60986328125,
+          "y": 754.80419921875,
+          "right": 345.60888671875,
+          "bottom": 809.9769897460938
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/holding/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 288.04931640625,
+          "y": 756.02099609375,
+          "right": 344.04443359375,
+          "bottom": 820.3849487304688
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 307.183837890625,
+          "y": 753.585693359375,
+          "right": 347.175537109375,
+          "bottom": 793.577392578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/concerned/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 297.60986328125,
+          "y": 754.80419921875,
+          "right": 345.60888671875,
+          "bottom": 802.80322265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/light/concerned/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 288.04931640625,
+          "y": 756.02099609375,
+          "right": 344.04443359375,
+          "bottom": 812.01611328125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 307.183837890625,
+          "y": 841.585693359375,
+          "right": 347.175537109375,
+          "bottom": 881.577392578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/idle/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 297.60986328125,
+          "y": 842.80419921875,
+          "right": 345.60888671875,
+          "bottom": 890.80322265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/idle/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 288.04931640625,
+          "y": 844.02099609375,
+          "right": 344.04443359375,
+          "bottom": 900.01611328125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 307.183837890625,
+          "y": 841.585693359375,
+          "right": 347.175537109375,
+          "bottom": 887.5544128417969
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/holding/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 297.60986328125,
+          "y": 842.80419921875,
+          "right": 345.60888671875,
+          "bottom": 897.9769897460938
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/holding/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 288.04931640625,
+          "y": 844.02099609375,
+          "right": 344.04443359375,
+          "bottom": 908.3849487304688
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 307.183837890625,
+          "y": 841.585693359375,
+          "right": 347.175537109375,
+          "bottom": 881.577392578125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/concerned/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 297.60986328125,
+          "y": 842.80419921875,
+          "right": 345.60888671875,
+          "bottom": 890.80322265625
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 375/editor/dark/concerned/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 288.04931640625,
+          "y": 844.02099609375,
+          "right": 344.04443359375,
+          "bottom": 900.01611328125
+        },
+        "viewport": 375,
+        "scroll": 375,
+        "previewWidth": 375,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Mobile focus remains unscaled",
+      "detail": {
+        "width": 375,
+        "main": 375,
+        "scroll": 375
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/idle/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 342.010986328125,
+          "y": 691.508544921875,
+          "right": 378.004638671875,
+          "bottom": 727.502197265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "idle",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 340.011962890625,
+          "y": 689.507568359375,
+          "right": 380.003662109375,
+          "bottom": 729.499267578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "idle",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/idle/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 338.012939453125,
+          "y": 687.506591796875,
+          "right": 382.002685546875,
+          "bottom": 731.496337890625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "idle",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/holding/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 342.010986328125,
+          "y": 691.508544921875,
+          "right": 378.004638671875,
+          "bottom": 732.8816833496094
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "holding",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 340.011962890625,
+          "y": 689.507568359375,
+          "right": 380.003662109375,
+          "bottom": 735.4762878417969
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "holding",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/holding/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 338.012939453125,
+          "y": 687.506591796875,
+          "right": 382.002685546875,
+          "bottom": 738.0708923339844
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "holding",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/concerned/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 342.010986328125,
+          "y": 691.508544921875,
+          "right": 378.004638671875,
+          "bottom": 727.502197265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "concerned",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 340.011962890625,
+          "y": 689.507568359375,
+          "right": 380.003662109375,
+          "bottom": 729.499267578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "concerned",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/light/concerned/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 338.012939453125,
+          "y": 687.506591796875,
+          "right": 382.002685546875,
+          "bottom": 731.496337890625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "light",
+        "pose": "concerned",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/idle/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 342.010986328125,
+          "y": 779.508544921875,
+          "right": 378.004638671875,
+          "bottom": 815.502197265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "idle",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 340.011962890625,
+          "y": 777.507568359375,
+          "right": 380.003662109375,
+          "bottom": 817.499267578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "idle",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/idle/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 338.012939453125,
+          "y": 775.506591796875,
+          "right": 382.002685546875,
+          "bottom": 819.496337890625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "idle",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/holding/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 342.010986328125,
+          "y": 779.508544921875,
+          "right": 378.004638671875,
+          "bottom": 820.8816833496094
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "holding",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 340.011962890625,
+          "y": 777.507568359375,
+          "right": 380.003662109375,
+          "bottom": 823.4762878417969
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "holding",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/holding/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 338.012939453125,
+          "y": 775.506591796875,
+          "right": 382.002685546875,
+          "bottom": 826.0708923339844
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "holding",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/concerned/36",
+      "detail": {
+        "imageWidth": 50.078125,
+        "bodyWidth": 35.99365234375,
+        "visible": {
+          "x": 342.010986328125,
+          "y": 779.508544921875,
+          "right": 378.004638671875,
+          "bottom": 815.502197265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "concerned",
+        "size": 36
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 340.011962890625,
+          "y": 777.507568359375,
+          "right": 380.003662109375,
+          "bottom": 817.499267578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "concerned",
+        "size": 40
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/home/dark/concerned/44",
+      "detail": {
+        "imageWidth": 61.203125,
+        "bodyWidth": 43.98974609375,
+        "visible": {
+          "x": 338.012939453125,
+          "y": 775.506591796875,
+          "right": 382.002685546875,
+          "bottom": 819.496337890625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Home hit area and correct sphere center",
+      "detail": {
+        "width": 402,
+        "theme": "dark",
+        "pose": "concerned",
+        "size": 44
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 334.183837890625,
+          "y": 753.585693359375,
+          "right": 374.175537109375,
+          "bottom": 793.577392578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/idle/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 324.60986328125,
+          "y": 754.80419921875,
+          "right": 372.60888671875,
+          "bottom": 802.80322265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/idle/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 315.04931640625,
+          "y": 756.02099609375,
+          "right": 371.04443359375,
+          "bottom": 812.01611328125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 334.183837890625,
+          "y": 753.585693359375,
+          "right": 374.175537109375,
+          "bottom": 799.5544128417969
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/holding/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 324.60986328125,
+          "y": 754.80419921875,
+          "right": 372.60888671875,
+          "bottom": 809.9769897460938
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/holding/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 315.04931640625,
+          "y": 756.02099609375,
+          "right": 371.04443359375,
+          "bottom": 820.3849487304688
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 334.183837890625,
+          "y": 753.585693359375,
+          "right": 374.175537109375,
+          "bottom": 793.577392578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/concerned/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 324.60986328125,
+          "y": 754.80419921875,
+          "right": 372.60888671875,
+          "bottom": 802.80322265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/light/concerned/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 315.04931640625,
+          "y": 756.02099609375,
+          "right": 371.04443359375,
+          "bottom": 812.01611328125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/idle/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 334.183837890625,
+          "y": 841.585693359375,
+          "right": 374.175537109375,
+          "bottom": 881.577392578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/idle/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 324.60986328125,
+          "y": 842.80419921875,
+          "right": 372.60888671875,
+          "bottom": 890.80322265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/idle/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 315.04931640625,
+          "y": 844.02099609375,
+          "right": 371.04443359375,
+          "bottom": 900.01611328125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/holding/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 334.183837890625,
+          "y": 841.585693359375,
+          "right": 374.175537109375,
+          "bottom": 887.5544128417969
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/holding/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 324.60986328125,
+          "y": 842.80419921875,
+          "right": 372.60888671875,
+          "bottom": 897.9769897460938
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/holding/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 315.04931640625,
+          "y": 844.02099609375,
+          "right": 371.04443359375,
+          "bottom": 908.3849487304688
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/concerned/40",
+      "detail": {
+        "imageWidth": 55.640625,
+        "bodyWidth": 39.99169921875,
+        "visible": {
+          "x": 334.183837890625,
+          "y": 841.585693359375,
+          "right": 374.175537109375,
+          "bottom": 881.577392578125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/concerned/48",
+      "detail": {
+        "imageWidth": 66.78125,
+        "bodyWidth": 47.9990234375,
+        "visible": {
+          "x": 324.60986328125,
+          "y": 842.80419921875,
+          "right": 372.60888671875,
+          "bottom": 890.80322265625
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Geometry 402/editor/dark/concerned/56",
+      "detail": {
+        "imageWidth": 77.90625,
+        "bodyWidth": 55.9951171875,
+        "visible": {
+          "x": 315.04931640625,
+          "y": 844.02099609375,
+          "right": 371.04443359375,
+          "bottom": 900.01611328125
+        },
+        "viewport": 402,
+        "scroll": 402,
+        "previewWidth": 402,
+        "titleClear": true
+      }
+    },
+    {
+      "passed": true,
+      "check": "Mobile focus remains unscaled",
+      "detail": {
+        "width": 402,
+        "main": 402,
+        "scroll": 402
+      }
+    },
+    {
+      "passed": true,
+      "check": "Offline HTML loads all embedded images"
+    },
+    {
+      "passed": true,
+      "check": "Direct mobile link works"
+    },
+    {
+      "passed": true,
+      "check": "Direct original black appearance link"
+    },
+    {
+      "passed": true,
+      "check": "No JS page errors",
+      "detail": {
+        "pageErrors": [],
+        "mobileErrors": []
+      }
+    },
+    {
+      "passed": true,
+      "check": "No external dependencies"
+    }
+  ],
+  "pageErrors": [],
+  "mobileErrors": []
+}

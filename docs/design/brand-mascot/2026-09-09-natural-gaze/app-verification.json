@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "createdAt": "2026-09-09T01:19:29.774367+00:00",
+  "assetSHA256": "c8af1b8e3e736a43f3ae64f4364b4a1173a7ae392e6e7c5ae447c89ce55b6f78",
+  "bundledAssetSHA256": "c8af1b8e3e736a43f3ae64f4364b4a1173a7ae392e6e7c5ae447c89ce55b6f78",
+  "assetBytes": 2158990,
+  "build": "Xcode 27 beta 3 / Together-UnitTests / generic iOS / unsigned build-for-testing",
+  "buildLog": "/private/tmp/together-natural-gaze-app-build.log",
+  "swiftApplicationCodeChanged": false,
+  "staticFallbackChanged": false,
+  "checks": {
+    "geometry": 53,
+    "nativeInitialChoices": 100,
+    "sixDirectionInterruption": 42,
+    "asset": 47,
+    "feedbackPauseResume": 90
+  },
+  "limits": [
+    "No signed install or iOS device UI validation",
+    "iOS tests compiled, not executed",
+    "Application behavior code unchanged; prior 19 pure behavior tests were not repeated"
+  ]
+}

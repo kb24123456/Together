@@ -1,0 +1,1 @@
+{"name": "startup-sweat", "fps": 30, "frames": 8, "width": 512, "height": 512, "pngEvery": 1, "pngFrames": [1, 2, 3, 4, 5], "video": false, "startupSteps": [0, 0.15], "firstFrameAdvance": 0, "events": [{"frame": 0, "numbers": {"mode": 2, "expression": 0, "idleFace": -1}, "booleans": {"isTyping": false}}]}

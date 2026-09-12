@@ -209,6 +209,21 @@ final class RoutinesViewModel {
     var tasks: [PeriodicTask] = []
     var loadState: LoadableState = .idle
     var operationErrorMessage: String?
+    /// Transient UI feedback for a successful local completion, independent of reloads and sync.
+    private(set) var completionFeedbackRevision: UInt64 = 0
+    private(set) var updateFeedback: TaskUpdateFeedback?
+    @ObservationIgnored private var updateFeedbackGeneration: UInt64 = 0
+
+    func consumeUpdateFeedback() -> TaskUpdateFeedback? {
+        defer { updateFeedback = nil }
+        return updateFeedback
+    }
+
+    func invalidateUpdateFeedback() {
+        updateFeedbackGeneration &+= 1
+        updateFeedback = nil
+    }
+
     var referenceDate: Date = .now
     var selectedCycle: PeriodicCycle = .daily
     var expandedTaskID: UUID?
@@ -679,13 +694,16 @@ final class RoutinesViewModel {
             animatingCompletionTaskIDs.remove(taskID)
             animatingReopeningTaskIDs.remove(taskID)
         }
+        let originalTask = tasks.first { $0.id == taskID }
+        let completionReferenceDate = referenceDate
 
         do {
             let updated = try await periodicTaskApplicationService.toggleCompletion(
                 in: spaceID,
                 taskID: taskID,
-                referenceDate: referenceDate
+                referenceDate: completionReferenceDate
             )
+            recordCompletionFeedback(from: originalTask, to: updated, on: completionReferenceDate)
 
             if isCompleted(updated) {
                 animatingCompletionTaskIDs.insert(taskID)
@@ -717,12 +735,17 @@ final class RoutinesViewModel {
         guard await saveInlineDetailDraft() else { return false }
         guard let spaceID = sessionStore.currentSpace?.id else { return false }
         completingTaskIDs.insert(taskID)
+        let originalTask = tasks.first { $0.id == taskID }
+        let completionReferenceDate = referenceDate
         do {
             pendingCompletedTask = try await periodicTaskApplicationService.toggleCompletion(
                 in: spaceID,
                 taskID: taskID,
-                referenceDate: referenceDate
+                referenceDate: completionReferenceDate
             )
+            if let pendingCompletedTask {
+                recordCompletionFeedback(from: originalTask, to: pendingCompletedTask, on: completionReferenceDate)
+            }
             if let pendingCompletedTask, isCompleted(pendingCompletedTask) {
                 animatingCompletionTaskIDs.insert(taskID)
             } else {
@@ -909,14 +932,14 @@ final class RoutinesViewModel {
         return true
     }
 
-    func saveInlineDetailDraft() async -> Bool {
+    func saveInlineDetailDraft(allowsUpdateFeedback: Bool = false) async -> Bool {
         guard let expandedTaskID, let draft = detailDraft else { return true }
         guard draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             return false
         }
         let originalTask = tasks.first { $0.id == expandedTaskID }
         guard originalTask.map({ RoutineInlineDraft(task: $0) }) != draft else { return true }
-        return await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft)
+        return await updateTask(taskID: expandedTaskID, draft: draft.periodicTaskDraft, allowsUpdateFeedback: allowsUpdateFeedback)
     }
 
     func saveDetailForMorph() async -> TaskMorphPersistenceResult {
@@ -935,12 +958,15 @@ final class RoutinesViewModel {
               await saveInlineDetailDraft(),
               let spaceID = sessionStore.currentSpace?.id
         else { return .failed(message: operationErrorMessage ?? "定期任务保存失败，请重试。") }
+        let originalTask = tasks.first { $0.id == expandedTaskID }
+        let completionReferenceDate = referenceDate
         do {
             let updated = try await periodicTaskApplicationService.toggleCompletion(
                 in: spaceID,
                 taskID: expandedTaskID,
-                referenceDate: referenceDate
+                referenceDate: completionReferenceDate
             )
+            recordCompletionFeedback(from: originalTask, to: updated, on: completionReferenceDate)
             replaceTask(updated)
             guard let descriptor = morphPlacement(for: expandedTaskID) else {
                 return .failed(message: "暂时无法定位定期任务。")
@@ -950,6 +976,15 @@ final class RoutinesViewModel {
             operationErrorMessage = "定期任务状态更新失败，请重试。"
             return .failed(message: operationErrorMessage ?? "定期任务状态更新失败，请重试。")
         }
+    }
+
+    private func recordCompletionFeedback(from original: PeriodicTask?, to updated: PeriodicTask, on date: Date) {
+        guard let original, original.id == updated.id, original.cycle == updated.cycle else { return }
+        let periodKey = PeriodicCycleCalculator.periodKey(for: original.cycle, date: date, calendar: calendar)
+        guard original.isCompleted(forPeriodKey: periodKey) == false,
+              updated.isCompleted(forPeriodKey: periodKey)
+        else { return }
+        completionFeedbackRevision &+= 1
     }
 
     func morphPlacement(for taskID: UUID) -> TaskMorphPlacement? {
@@ -994,9 +1029,11 @@ final class RoutinesViewModel {
     }
 
     @discardableResult
-    func updateTask(taskID: UUID, draft: PeriodicTaskDraft) async -> Bool {
+    func updateTask(taskID: UUID, draft: PeriodicTaskDraft, allowsUpdateFeedback: Bool = false) async -> Bool {
         guard let spaceID = sessionStore.currentSpace?.id,
               let actorID = sessionStore.currentUser?.id else { return false }
+        let original = tasks.first { $0.id == taskID }
+        let feedbackGeneration = updateFeedbackGeneration
         do {
             let updated = try await periodicTaskApplicationService.updateTask(
                 in: spaceID,
@@ -1009,6 +1046,10 @@ final class RoutinesViewModel {
             }
             cacheCurrentTasks()
             loadState = .loaded
+            if allowsUpdateFeedback, feedbackGeneration == updateFeedbackGeneration, let original,
+               let feedback = TaskUpdateFeedback(before: original, after: updated) {
+                updateFeedback = feedback
+            }
             return true
         } catch {
             operationErrorMessage = "定期任务保存失败，请重试。"
@@ -1028,6 +1069,8 @@ final class RoutinesViewModel {
 
     func deferTaskUntilTomorrow(taskID: UUID) async {
         guard let spaceID = sessionStore.currentSpace?.id else { return }
+        let original = tasks.first { $0.id == taskID }
+        let feedbackGeneration = updateFeedbackGeneration
         do {
             let updated = try await periodicTaskApplicationService.deferTaskUntilTomorrow(
                 in: spaceID,
@@ -1036,6 +1079,10 @@ final class RoutinesViewModel {
             )
             referenceDate = .now
             replaceTask(updated)
+            if feedbackGeneration == updateFeedbackGeneration, let original,
+               let feedback = TaskUpdateFeedback(before: original, after: updated, isSnooze: true) {
+                updateFeedback = feedback
+            }
         } catch {
             operationErrorMessage = "定期任务推迟失败，请重试。"
             await load()

@@ -1,0 +1,158 @@
+{
+  "newTimelines": {
+    "Expression_Wink": {
+      "id": "0-185847",
+      "actualKeys": 2862,
+      "expectedKeys": 2862,
+      "missing": 0,
+      "errors": [],
+      "pass": true
+    },
+    "Expression_Tears": {
+      "id": "0-185848",
+      "actualKeys": 6428,
+      "expectedKeys": 6428,
+      "missing": 0,
+      "errors": [],
+      "pass": true
+    },
+    "Expression_TearsTurn": {
+      "id": "0-185849",
+      "actualKeys": 18756,
+      "expectedKeys": 18756,
+      "missing": 0,
+      "errors": [],
+      "pass": true
+    },
+    "Preview_All": {
+      "id": "0-185850",
+      "actualKeys": 43790,
+      "expectedKeys": 43790,
+      "missing": 0,
+      "errors": [],
+      "pass": true
+    }
+  },
+  "existingTimelines": {
+    "count": 26,
+    "originalKeyChanges": [],
+    "addedKeys": 52,
+    "addedKeysOnlyHideTears": true,
+    "pass": true
+  },
+  "productionStateMachine": {
+    "structureRoutesActionsPreserved": true,
+    "behaviorLayerEnabled": true,
+    "repair": "Behavior was disabled at turn start. flags property 754 restored from 1 to 0.",
+    "defaultMachine": true
+  },
+  "theme": {
+    "properties": 12,
+    "colorTargets": 26,
+    "newTearBindings": [
+      {
+        "success": true,
+        "dataBinds": [
+          {
+            "objectId": "0-185846",
+            "objectName": "Component",
+            "propertyKey": 37,
+            "property": "color",
+            "direction": "toTarget",
+            "twoWay": false,
+            "once": false,
+            "isRelative": false,
+            "path": "TogetherSphereModel",
+            "viewModelPropertyId": "0-245630",
+            "viewModelPropertyName": "tearColor",
+            "viewModelId": "0-375",
+            "viewModelName": "TogetherSphereModel"
+          }
+        ]
+      },
+      {
+        "success": true,
+        "dataBinds": [
+          {
+            "objectId": "0-185836",
+            "objectName": "Component",
+            "propertyKey": 37,
+            "property": "color",
+            "direction": "toTarget",
+            "twoWay": false,
+            "once": false,
+            "isRelative": false,
+            "path": "TogetherSphereModel",
+            "viewModelPropertyId": "0-245630",
+            "viewModelPropertyName": "tearColor",
+            "viewModelId": "0-375",
+            "viewModelName": "TogetherSphereModel"
+          }
+        ]
+      }
+    ],
+    "storedLightPalette": true
+  },
+  "nativeBehaviorCheck": {
+    "fps": 60,
+    "frames": 300,
+    "transitionsObserved": 11,
+    "inputs": [
+      {
+        "frame": 0,
+        "property": "mode",
+        "value": 0
+      },
+      {
+        "frame": 60,
+        "property": "mode",
+        "value": 1
+      },
+      {
+        "frame": 60,
+        "property": "isTyping",
+        "value": true
+      },
+      {
+        "frame": 150,
+        "property": "mode",
+        "value": 2
+      },
+      {
+        "frame": 240,
+        "property": "mode",
+        "value": 0
+      }
+    ],
+    "observedPath": [
+      "Resolve",
+      "Idle",
+      "WritingEnter",
+      "Writing",
+      "WritingExit",
+      "Resolve",
+      "ConcernEnter",
+      "Concerned",
+      "Recover",
+      "Resolve",
+      "Idle"
+    ],
+    "pass": true
+  },
+  "editorVisualChecks": {
+    "actualScreenshots": [
+      "editor-wink.jpg",
+      "editor-tears-left.jpg",
+      "editor-tears-right.jpg"
+    ],
+    "checked": [
+      "Expression_Wink frame38: open capsule and closed arch",
+      "Expression_TearsTurn frame220 and343: eye/tear alignment during different orientations",
+      "Expression_TearsTurn frame576: no remaining tears, restored capsule eyes",
+      "Preview_All plays and loops; idle, writing, thinking visually sampled"
+    ],
+    "limits": "Editor reloaded during playback control twice, reason unconfirmed; later individual timelines and total loop ran. Spot checks are not continuous video review, user aesthetic acceptance, Apple runtime or device validation."
+  },
+  "appIntegrated": false,
+  "date": "2026-09-09"
+}

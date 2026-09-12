@@ -1,0 +1,1532 @@
+{
+  "success": true,
+  "objects": [
+    {
+      "id": "0-670905",
+      "types": [
+        "Node"
+      ],
+      "name": "HomeFarPose"
+    },
+    {
+      "id": "0-670904",
+      "types": [
+        "Node"
+      ],
+      "name": "HomeFarGaze",
+      "children": [
+        "0-670905"
+      ]
+    },
+    {
+      "id": "0-670903",
+      "types": [
+        "Node"
+      ],
+      "name": "HomeNearPose"
+    },
+    {
+      "id": "0-670902",
+      "types": [
+        "Node"
+      ],
+      "name": "HomeNearGaze",
+      "children": [
+        "0-670903"
+      ]
+    },
+    {
+      "id": "0-670901",
+      "types": [
+        "Node"
+      ],
+      "name": "HomeFace",
+      "children": [
+        "0-670904",
+        "0-670902"
+      ]
+    },
+    {
+      "id": "0-452937",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452942",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-452936",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionZLarge",
+      "children": [
+        "0-452937",
+        "0-452942"
+      ]
+    },
+    {
+      "id": "0-452929",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452934",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-452928",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionZMedium",
+      "children": [
+        "0-452929",
+        "0-452934"
+      ]
+    },
+    {
+      "id": "0-452921",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452926",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-452920",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionZSmall",
+      "children": [
+        "0-452921",
+        "0-452926"
+      ]
+    },
+    {
+      "id": "0-452915",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452918",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-452914",
+      "types": [
+        "Shape"
+      ],
+      "name": "BlushRightB",
+      "children": [
+        "0-452915",
+        "0-452918"
+      ]
+    },
+    {
+      "id": "0-452909",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452912",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-452908",
+      "types": [
+        "Shape"
+      ],
+      "name": "BlushRightA",
+      "children": [
+        "0-452909",
+        "0-452912"
+      ]
+    },
+    {
+      "id": "0-452903",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452906",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-452902",
+      "types": [
+        "Shape"
+      ],
+      "name": "BlushLeftB",
+      "children": [
+        "0-452903",
+        "0-452906"
+      ]
+    },
+    {
+      "id": "0-452897",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452900",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-452896",
+      "types": [
+        "Shape"
+      ],
+      "name": "BlushLeftA",
+      "children": [
+        "0-452897",
+        "0-452900"
+      ]
+    },
+    {
+      "id": "0-452823",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452840",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#fffafafa"
+      }
+    },
+    {
+      "id": "0-452822",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionTearRight",
+      "children": [
+        "0-452823",
+        "0-452840"
+      ]
+    },
+    {
+      "id": "0-452803",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452820",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#fffafafa"
+      }
+    },
+    {
+      "id": "0-452802",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionTearLeft",
+      "children": [
+        "0-452803",
+        "0-452820"
+      ]
+    },
+    {
+      "id": "0-452783",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452800",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#fffafafa"
+      }
+    },
+    {
+      "id": "0-452782",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionSweat",
+      "children": [
+        "0-452783",
+        "0-452800"
+      ]
+    },
+    {
+      "id": "0-452747",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452780",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#fffafafa"
+      }
+    },
+    {
+      "id": "0-452746",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionMouth",
+      "children": [
+        "0-452747",
+        "0-452780"
+      ]
+    },
+    {
+      "id": "0-452711",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452744",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#fffafafa"
+      }
+    },
+    {
+      "id": "0-452710",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionEyeRight",
+      "children": [
+        "0-452711",
+        "0-452744"
+      ]
+    },
+    {
+      "id": "0-452675",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-452708",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#fffafafa"
+      }
+    },
+    {
+      "id": "0-452674",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionEyeLeft",
+      "children": [
+        "0-452675",
+        "0-452708"
+      ]
+    },
+    {
+      "id": "0-452647",
+      "types": [
+        "Node"
+      ],
+      "name": "ExpressionMotion",
+      "children": [
+        "0-452936",
+        "0-452928",
+        "0-452920",
+        "0-452914",
+        "0-452908",
+        "0-452902",
+        "0-452896",
+        "0-452822",
+        "0-452802",
+        "0-452782",
+        "0-452746",
+        "0-452710",
+        "0-452674"
+      ]
+    },
+    {
+      "id": "0-318769",
+      "types": [
+        "Shape"
+      ],
+      "name": "SleepZLarge"
+    },
+    {
+      "id": "0-318761",
+      "types": [
+        "Shape"
+      ],
+      "name": "SleepZMedium"
+    },
+    {
+      "id": "0-318753",
+      "types": [
+        "Shape"
+      ],
+      "name": "SleepZSmall"
+    },
+    {
+      "id": "0-318752",
+      "types": [
+        "Node"
+      ],
+      "name": "SleepSymbols",
+      "children": [
+        "0-318769",
+        "0-318761",
+        "0-318753"
+      ]
+    },
+    {
+      "id": "0-13110",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionEyeFar"
+    },
+    {
+      "id": "0-13104",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionEyeNear"
+    },
+    {
+      "id": "0-13091",
+      "types": [
+        "Node"
+      ],
+      "name": "ExpressionEyes",
+      "children": [
+        "0-13110",
+        "0-13104"
+      ]
+    },
+    {
+      "id": "0-89",
+      "types": [
+        "Shape"
+      ],
+      "name": "SweatDrop"
+    },
+    {
+      "id": "0-81",
+      "types": [
+        "Shape"
+      ],
+      "name": "SweatEyeFar"
+    },
+    {
+      "id": "0-73",
+      "types": [
+        "Shape"
+      ],
+      "name": "SweatEyeNear"
+    },
+    {
+      "id": "0-21",
+      "types": [
+        "Node"
+      ],
+      "name": "SweatingFace",
+      "children": [
+        "0-89",
+        "0-81",
+        "0-73"
+      ]
+    },
+    {
+      "id": "0-50",
+      "types": [
+        "Shape"
+      ],
+      "name": "WritingEyeFar"
+    },
+    {
+      "id": "0-44",
+      "types": [
+        "Shape"
+      ],
+      "name": "WritingEyeNear"
+    },
+    {
+      "id": "0-20",
+      "types": [
+        "Node"
+      ],
+      "name": "WritingFace",
+      "children": [
+        "0-50",
+        "0-44"
+      ]
+    },
+    {
+      "id": "0-32871",
+      "types": [
+        "Shape"
+      ],
+      "name": "SphereEyeFar"
+    },
+    {
+      "id": "0-32859",
+      "types": [
+        "Shape"
+      ],
+      "name": "SphereEyeNear"
+    },
+    {
+      "id": "0-28",
+      "types": [
+        "Shape"
+      ],
+      "name": "IdleEyeFar"
+    },
+    {
+      "id": "0-24",
+      "types": [
+        "Shape"
+      ],
+      "name": "IdleEyeNear"
+    },
+    {
+      "id": "0-185826",
+      "types": [
+        "Node"
+      ],
+      "name": "TearFlows"
+    },
+    {
+      "id": "0-19",
+      "types": [
+        "Node"
+      ],
+      "name": "IdleFace",
+      "children": [
+        "0-32871",
+        "0-32859",
+        "0-28",
+        "0-24",
+        "0-185826"
+      ]
+    },
+    {
+      "id": "0-452673",
+      "types": [
+        "Node"
+      ],
+      "name": "LegacyFace",
+      "children": [
+        "0-318752",
+        "0-13091",
+        "0-21",
+        "0-20",
+        "0-19"
+      ]
+    },
+    {
+      "id": "0-452672",
+      "types": [
+        "Node"
+      ],
+      "name": "FaceMotion",
+      "children": [
+        "0-670901",
+        "0-452647",
+        "0-452673"
+      ]
+    },
+    {
+      "id": "0-13099",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-13101",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13100",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-13101"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-13101",
+        "stops": [
+          {
+            "id": "0-13102",
+            "color": "#ff141414",
+            "position": 0.0
+          },
+          {
+            "id": "0-13103",
+            "color": "#ff060606",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-13098",
+      "types": [
+        "Shape"
+      ],
+      "name": "GestureHandFar",
+      "children": [
+        "0-13099",
+        "0-13100"
+      ]
+    },
+    {
+      "id": "0-13093",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-13095",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13094",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-13095"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-13095",
+        "stops": [
+          {
+            "id": "0-13096",
+            "color": "#ff141414",
+            "position": 0.0
+          },
+          {
+            "id": "0-13097",
+            "color": "#ff060606",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-13092",
+      "types": [
+        "Shape"
+      ],
+      "name": "GestureHandNear",
+      "children": [
+        "0-13093",
+        "0-13094"
+      ]
+    },
+    {
+      "id": "0-13090",
+      "types": [
+        "Node"
+      ],
+      "name": "ExpressionHands",
+      "children": [
+        "0-13098",
+        "0-13092"
+      ]
+    },
+    {
+      "id": "0-98",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-99",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-100",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-101",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-102",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-103",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-104",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-105",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-97",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-98",
+        "0-99",
+        "0-100",
+        "0-101",
+        "0-102",
+        "0-103",
+        "0-104",
+        "0-105"
+      ]
+    },
+    {
+      "id": "0-107",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-106",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-107"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-96",
+      "types": [
+        "Shape"
+      ],
+      "name": "WritingScribble",
+      "children": [
+        "0-97",
+        "0-106"
+      ]
+    },
+    {
+      "id": "0-41",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-169089",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-42",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-169089"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-169089",
+        "stops": [
+          {
+            "id": "0-169090",
+            "color": "#ff080808",
+            "position": 0.0
+          },
+          {
+            "id": "0-169091",
+            "color": "#ff080808",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-40",
+      "types": [
+        "Shape"
+      ],
+      "name": "HandFar",
+      "children": [
+        "0-41",
+        "0-42"
+      ]
+    },
+    {
+      "id": "0-70",
+      "types": [
+        "Triangle"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-71",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff111111"
+      }
+    },
+    {
+      "id": "0-69",
+      "types": [
+        "Shape"
+      ],
+      "name": "PencilNib",
+      "children": [
+        "0-70",
+        "0-71"
+      ]
+    },
+    {
+      "id": "0-66",
+      "types": [
+        "Triangle"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-67",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffded6ca"
+      }
+    },
+    {
+      "id": "0-65",
+      "types": [
+        "Shape"
+      ],
+      "name": "PencilWood",
+      "children": [
+        "0-66",
+        "0-67"
+      ]
+    },
+    {
+      "id": "0-37",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-38",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-62",
+        "stops": [
+          {
+            "id": "0-63",
+            "color": "#ff141414",
+            "position": 0.0
+          },
+          {
+            "id": "0-64",
+            "color": "#ff060606",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-36",
+      "types": [
+        "Shape"
+      ],
+      "name": "HandNear",
+      "children": [
+        "0-37",
+        "0-38"
+      ]
+    },
+    {
+      "id": "0-33",
+      "types": [
+        "Rectangle"
+      ],
+      "name": "Path"
+    },
+    {
+      "id": "0-34",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "paint": {
+        "colorType": "solid",
+        "color": "#fff2eee6"
+      }
+    },
+    {
+      "id": "0-32",
+      "types": [
+        "Shape"
+      ],
+      "name": "PencilShaft",
+      "children": [
+        "0-33",
+        "0-34"
+      ]
+    },
+    {
+      "id": "0-23",
+      "types": [
+        "Node"
+      ],
+      "name": "Grip",
+      "children": [
+        "0-69",
+        "0-65",
+        "0-36",
+        "0-32"
+      ]
+    },
+    {
+      "id": "0-22",
+      "types": [
+        "Node"
+      ],
+      "name": "WritingProps",
+      "children": [
+        "0-96",
+        "0-40",
+        "0-23"
+      ]
+    },
+    {
+      "id": "0-16",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-60",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-61",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-59",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component",
+      "children": [
+        "0-60",
+        "0-61"
+      ]
+    },
+    {
+      "id": "0-17",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-59"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-59",
+        "stops": [
+          {
+            "id": "0-60",
+            "color": "#ff101010",
+            "position": 0.0
+          },
+          {
+            "id": "0-61",
+            "color": "#ff030303",
+            "position": 100.0
+          }
+        ],
+        "startX": -85.0,
+        "startY": -110.0,
+        "endX": 120.0,
+        "endY": 160.0
+      }
+    },
+    {
+      "id": "0-15",
+      "types": [
+        "Shape"
+      ],
+      "name": "Body",
+      "children": [
+        "0-16",
+        "0-17"
+      ]
+    },
+    {
+      "id": "0-452844",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452845",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452846",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452847",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452848",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452849",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452850",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452851",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452852",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452853",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452854",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452855",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452856",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452857",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452858",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452859",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452860",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452861",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452862",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452863",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452864",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452865",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452866",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452867",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452868",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452869",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452870",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452871",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452872",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452873",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452874",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452875",
+      "types": [
+        "CubicMirroredVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-452843",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-452844",
+        "0-452845",
+        "0-452846",
+        "0-452847",
+        "0-452848",
+        "0-452849",
+        "0-452850",
+        "0-452851",
+        "0-452852",
+        "0-452853",
+        "0-452854",
+        "0-452855",
+        "0-452856",
+        "0-452857",
+        "0-452858",
+        "0-452859",
+        "0-452860",
+        "0-452861",
+        "0-452862",
+        "0-452863",
+        "0-452864",
+        "0-452865",
+        "0-452866",
+        "0-452867",
+        "0-452868",
+        "0-452869",
+        "0-452870",
+        "0-452871",
+        "0-452872",
+        "0-452873",
+        "0-452874",
+        "0-452875"
+      ]
+    },
+    {
+      "id": "0-452879",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-452880",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-452878",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component",
+      "children": [
+        "0-452879",
+        "0-452880"
+      ]
+    },
+    {
+      "id": "0-452876",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-452878"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-452878",
+        "stops": [
+          {
+            "id": "0-452879",
+            "color": "#ff101010",
+            "position": 0.0
+          },
+          {
+            "id": "0-452880",
+            "color": "#ff030303",
+            "position": 100.0
+          }
+        ],
+        "startX": -85.0,
+        "startY": -110.0,
+        "endX": 120.0,
+        "endY": 160.0
+      }
+    },
+    {
+      "id": "0-452842",
+      "types": [
+        "Shape"
+      ],
+      "name": "PokeBody",
+      "children": [
+        "0-452843",
+        "0-452876"
+      ]
+    },
+    {
+      "id": "0-14",
+      "types": [
+        "Node"
+      ],
+      "name": "CharacterRoot",
+      "children": [
+        "0-452672",
+        "0-13090",
+        "0-22",
+        "0-15",
+        "0-452842"
+      ]
+    }
+  ]
+}

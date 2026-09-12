@@ -1,0 +1,108 @@
+{
+  "name": "final-80pt-light",
+  "frames": 1440,
+  "fps": 60,
+  "width": 240,
+  "height": 240,
+  "pngEvery": 0,
+  "pngFrames": [
+    45,
+    225,
+    405,
+    585,
+    765,
+    945,
+    1125,
+    1305
+  ],
+  "video": true,
+  "backgroundARGB": "FFFAFAFA",
+  "events": [
+    {
+      "frame": 0,
+      "label": "SoftHappy",
+      "numbers": {
+        "mode": 0,
+        "expression": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 180,
+      "label": "Laugh",
+      "numbers": {
+        "mode": 0,
+        "expression": 3
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 360,
+      "label": "Speechless",
+      "numbers": {
+        "mode": 0,
+        "expression": 16
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 540,
+      "label": "SleepyYawn",
+      "numbers": {
+        "mode": 0,
+        "expression": 17
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 720,
+      "label": "Content",
+      "numbers": {
+        "mode": 0,
+        "expression": 18
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 900,
+      "label": "Helpless",
+      "numbers": {
+        "mode": 0,
+        "expression": 26
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 1080,
+      "label": "SleepyLow",
+      "numbers": {
+        "mode": 0,
+        "expression": 28
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 1260,
+      "label": "Back to legacy auto",
+      "numbers": {
+        "expression": 0
+      }
+    }
+  ],
+  "displayPointSize": 80,
+  "backingScale": 3
+}

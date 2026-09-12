@@ -143,6 +143,11 @@ final class HomeViewModel {
     var loadState: LoadableState = .idle
     var operationErrorMessage: String?
     var externalRouteErrorMessage: String?
+    /// Transient UI feedback for a successful local completion, independent of reloads and sync.
+    private(set) var completionFeedbackRevision: UInt64 = 0
+    /// Emitted by confirmed detail edits and quick actions; the presenter consumes it once.
+    private(set) var updateFeedback: TaskUpdateFeedback?
+    @ObservationIgnored private var updateFeedbackGeneration: UInt64 = 0
     var failedExternalRouteTaskID: UUID?
     var onRetryExternalTaskRoute: ((UUID) -> Void)?
     private(set) var reloadRevision = 0
@@ -639,6 +644,7 @@ final class HomeViewModel {
         replaceItemPreservingOrder(optimistic)
 
         defer { taskFollowMutationIDs.remove(itemID) }
+        let feedbackGeneration = updateFeedbackGeneration
         do {
             let saved = try await taskApplicationService.setTaskFollowed(
                 in: spaceID,
@@ -648,6 +654,7 @@ final class HomeViewModel {
             )
             replaceItemPreservingOrder(saved)
             emitTaskMutation(spaceID: spaceID)
+            recordUpdateFeedback(before: original, after: saved, generation: feedbackGeneration)
             onTaskFollowChanged?(spaceID)
         } catch {
             replaceItemPreservingOrder(original)
@@ -707,10 +714,27 @@ final class HomeViewModel {
         _ = await persistDetailDraft()
     }
 
-    func saveInlineDetailDraft() async -> Bool {
+    func saveInlineDetailDraft(allowsUpdateFeedback: Bool = false) async -> Bool {
         detailSaveTask?.cancel()
         guard hasUnsavedDetailChanges else { return true }
-        return await persistDetailDraft()
+        return await persistDetailDraft(allowsUpdateFeedback: allowsUpdateFeedback)
+    }
+
+    func consumeUpdateFeedback() -> TaskUpdateFeedback? {
+        defer { updateFeedback = nil }
+        return updateFeedback
+    }
+
+    func invalidateUpdateFeedback() {
+        updateFeedbackGeneration &+= 1
+        updateFeedback = nil
+    }
+
+    private func recordUpdateFeedback(before: Item, after: Item, generation: UInt64, isSnooze: Bool = false) {
+        guard generation == updateFeedbackGeneration,
+              let feedback = TaskUpdateFeedback(before: before, after: after, isSnooze: isSnooze, calendar: calendar)
+        else { return }
+        updateFeedback = feedback
     }
 
     @discardableResult
@@ -736,6 +760,7 @@ final class HomeViewModel {
         var draft = TaskDraft(item: item)
         draft.isUrgent = isUrgent
 
+        let feedbackGeneration = updateFeedbackGeneration
         do {
             let saved = try await taskApplicationService.updateTask(
                 in: spaceID,
@@ -747,6 +772,7 @@ final class HomeViewModel {
                 replaceItemPreservingOrder(saved)
             }
             emitTaskMutation(spaceID: spaceID)
+            recordUpdateFeedback(before: item, after: saved, generation: feedbackGeneration)
         } catch {
             presentOperationError("任务更新失败，请重试。")
         }
@@ -758,6 +784,9 @@ final class HomeViewModel {
         let occurrenceKey = occurrenceKey(for: itemID, on: referenceDate)
         guard completingOccurrenceKeys.contains(occurrenceKey) == false else { return }
         completingOccurrenceKeys.insert(occurrenceKey)
+        let wasCompleted = items.first(where: { $0.id == itemID }).map {
+            isTimelineCompleted($0, on: referenceDate)
+        }
 
         do {
             let saved = try await taskApplicationService.toggleTaskCompletion(
@@ -767,6 +796,9 @@ final class HomeViewModel {
                 referenceDate: referenceDate
             )
             let didCompleteTimelineItem = isTimelineCompleted(saved, on: referenceDate)
+            if wasCompleted == false, didCompleteTimelineItem, saved.id == itemID {
+                completionFeedbackRevision &+= 1
+            }
             switch trigger {
             case .inlineControl:
                 if didCompleteTimelineItem {
@@ -1036,6 +1068,7 @@ final class HomeViewModel {
             let item = item(for: itemID)
         else { return false }
 
+        let feedbackGeneration = updateFeedbackGeneration
         do {
             let schedule = returnToTodaySchedule(for: item)
             let saved = try await taskApplicationService.rescheduleTask(
@@ -1049,6 +1082,7 @@ final class HomeViewModel {
                 replaceItemPreservingOrder(saved)
             }
             emitTaskMutation(spaceID: spaceID)
+            recordUpdateFeedback(before: item, after: saved, generation: feedbackGeneration)
             return true
         } catch {
             presentOperationError("任务时间调整失败，请重试。")
@@ -1231,13 +1265,16 @@ final class HomeViewModel {
     }
 
     @discardableResult
-    private func persistDetailDraft() async -> Bool {
+    private func persistDetailDraft(allowsUpdateFeedback: Bool = false) async -> Bool {
         guard
             let spaceID = sessionStore.currentSpace?.id,
             let actorID = sessionStore.currentUser?.id,
             let selectedItemID,
             let detailDraft
         else { return false }
+
+        let previousItem = item(for: selectedItemID)
+        let feedbackGeneration = updateFeedbackGeneration
 
         do {
             let saved = try await taskApplicationService.updateTask(
@@ -1251,6 +1288,10 @@ final class HomeViewModel {
             self.savedDetailDraft = refreshedDraft
             replaceItem(saved)
             emitTaskMutation(spaceID: spaceID)
+
+            if allowsUpdateFeedback, let previousItem {
+                recordUpdateFeedback(before: previousItem, after: saved, generation: feedbackGeneration)
+            }
 
             return true
         } catch {
@@ -1789,9 +1830,11 @@ final class HomeViewModel {
         else { return }
         guard isPerformingSnooze == false else { return }
 
+        guard let original = item(for: itemID) else { return }
         isPerformingSnooze = true
         defer { isPerformingSnooze = false }
 
+        let feedbackGeneration = updateFeedbackGeneration
         do {
             let saved = try await taskApplicationService.snoozeTask(
                 in: spaceID,
@@ -1808,6 +1851,7 @@ final class HomeViewModel {
                 }
             }
             emitTaskMutation(spaceID: spaceID)
+            recordUpdateFeedback(before: original, after: saved, generation: feedbackGeneration, isSnooze: true)
         } catch {
             presentOperationError("任务推迟失败，请重试。")
         }

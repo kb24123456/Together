@@ -1,0 +1,22 @@
+{
+  "status": "user_device_retest_passed_prior_root_cause_unconfirmed",
+  "build": "TEST BUILD SUCCEEDED",
+  "diff_check": "passed",
+  "source_sha256": {
+    "Together/Features/BrandMascot/BrandMascotView.swift": "456597229d86649843319a50fc01441055abe6f7f29c37729200b4ddaf6e4aa4",
+    "Together/Core/DesignSystem/AmbientParticleBackground.swift": "7fc020ea4e7b1a4633f6b929d343df30af3ac9f047af56b7054bee14cbbc151f",
+    "Together/Features/BrandMascot/MascotVisualTransfer.swift": "7fcddabd3d928603fcae1d4d3600c66f840abac9f820f7a206e685de79d4ed47"
+  },
+  "retrieval": {
+    "query": "SwiftUI fullScreenCover repeated navigation scenePhase TimelineView animation paused thermalState serious UIKit UIViewPropertyAnimator lifecycle recovery",
+    "keys": [],
+    "adopted": []
+  },
+  "runtime_tested_by_agent": false,
+  "user_device_retest": {
+    "result": "passed",
+    "feedback": "重新测试了，反复多次操作，也保持正常",
+    "scope": "连续多次页面切换，原暂停现象本次未复现",
+    "fault_time_device_logs_received": false
+  }
+}

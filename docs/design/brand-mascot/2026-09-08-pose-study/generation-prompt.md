@@ -1,0 +1,22 @@
+# 已认可主体的三姿态探索
+
+日期：2026-09-08。用户对第二轮三张图片表示“都比较喜欢，基本上都符合我的要求”；黑色真圆球体、大白色长眼睛及球面贴合方向已经得到认可。
+
+工作基准：采用第二轮第 1 张作为默认外观，第 2、3 张作为体积感和转向参考。这是已向用户说明的制作选择，不将其记为用户仅选择了第 1 张。
+
+本轮使用内置 image_gen，附加第二轮全部三张已认可图片，制作一张同角色静候、拿笔书写、轻微流汗的姿态设定图。不再重新探索主体，不进入 Rive 或 App 实施。手笔与汗滴仍是本轮待评价的新增细节。
+
+## 提示词
+
+Use case: identity-preserve. Asset type: a character model sheet showing three action poses of ONE already approved black spherical mascot.
+The user has APPROVED the three attached images. Do not redesign the mascot. Attachment 1 is the PRIMARY canonical appearance; attachment 2 supports only subtle spherical volume; attachment 3 shows the same face turning left. Maintain the identity with much tighter fidelity than a new character exploration.
+OUTPUT: one landscape 1536 x 864 clean white sheet with THREE large side-by-side portraits of the SAME character at the same scale, ample negative space and equal visual spacing. Left: quiet resting. Middle: holding a pencil and writing diligently. Right: slightly worried with one sweat droplet. No titles, captions, lettering, numbers, UI, phone mockups, cards, borders or background scene. This is one character's three poses, not three alternative designs.
+IMMUTABLE IDENTITY:
+- Complete true circular black spherical body; full smoothly round lower arc, 1:1 width/height. No flattened base even when writing, no teardrop, bean, dome, squircle or dumpling outline. No floor contact, no feet, no spikes, horns, ears, hair, mouth, nose or torso.
+- The EXACT larger white capsule eyes of reference 1: near eye about 22% of diameter long, far eye about 18–20%, near width around 9%, far width around 6%. Warm-white solid shapes, rounded ends, slightly curved edges. Eyes are FLUSH white markings on the spherical surface. They tilt, shorten and compress together with the same sphere's orientation and form a volumetric perspective. No floating googly eyes, pupils, sockets or flat equal-size front-facing eye stickers.
+- Body primarily nearly pure black as in reference 1; only the restrained charcoal edge and subtle volume needed to read as a sphere. Smooth clean material, no felt texture, grain, fur, gloss, giant highlights, metallic reflections, gradients across the background or large shadows.
+LEFT / QUIET: preserve reference 1 closely. Sphere looking slightly up toward the viewer's right with the original surface-conforming eyes. No hands, props or sweat.
+MIDDLE / WRITING: preserve the FULL ROUND sphere; rotate the face gently downward toward the pencil as if concentrating, keeping both LARGE capsule eyes unmistakably the same eyes projected on the globe. Add two tiny soft BLACK/charcoal mitten-like hands with minimal round thumb shapes, connected by short slender black arms naturally emerging from the lower sides. Hands must read as a pair of little hands, not legs, feet, oversized boxing gloves or a second character. One small hand naturally holds one slim pale ivory/light gray pencil near its sharpened dark graphite tip; the pencil rests between a curved thumb and fingers with a credible grasp. Pencil diagonally points down toward the right and is about 45% of sphere diameter long. The second tiny hand hovers nearby as a supporting gesture. A single short fine graphite scribble beneath the tip indicates busy writing, with at most two tiny motion ticks beside the pencil. No notebook, desk, furniture, hovering accessories or giant paper sheet. The body must NOT acquire a flat edge to rest on the writing surface. Thin natural arm overlap with the sphere is okay; make the actual sphere clearly round. Body visual weight and size match left portrait. Keep an energetic but calm diligent expression.
+RIGHT / CONCERNED: same complete sphere and same big white capsule eyes, a modest glance slightly toward viewer's left referencing attachment 3; slightly more inquisitive eye tilt rather than shrinking the eyes to slits. Add exactly one small pale neutral gray/off-white sweat teardrop hovering just outside the upper-right sphere perimeter with a tiny clear gap; body silhouette remains a perfect circle, sweat must not become a horn, ear or permanent bump. Gentle earnest concern, not panic, tears, anger or accusation. No hand or pencil in this pose.
+Keep the hero bodies around 310px in diameter and aligned at comparable heights, with plenty of margin for pencil and sweat. Small props should occupy clearly subordinate visual area. Premium restrained monochrome character art. The viewer should immediately recognize all three as the approved single character, simply doing different things.
+

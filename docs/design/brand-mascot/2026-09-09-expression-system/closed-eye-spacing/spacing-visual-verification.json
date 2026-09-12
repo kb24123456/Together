@@ -1,0 +1,146 @@
+{
+  "assetSHA256": "ede427945e365e1dee3342326c116b9deea7171072170c167c8aa2f8fb194249",
+  "scope": "Read-only visual verification of closed-eye spacing changes; no Rive or App edits.",
+  "expressions": [
+    2,
+    3,
+    16,
+    17,
+    18,
+    26,
+    28
+  ],
+  "sequence": "Each expression holds for 180 frames / 3 seconds, followed by 180 frames at expression 0.",
+  "runs": [
+    {
+      "directory": "final-all-7-light",
+      "assetSHA256": "ede427945e365e1dee3342326c116b9deea7171072170c167c8aa2f8fb194249",
+      "frames": 1440,
+      "fps": 60,
+      "width": 512,
+      "height": 512,
+      "pngCount": 9,
+      "preview": "preview.mov"
+    },
+    {
+      "directory": "final-all-7-dark",
+      "assetSHA256": "ede427945e365e1dee3342326c116b9deea7171072170c167c8aa2f8fb194249",
+      "frames": 1440,
+      "fps": 60,
+      "width": 512,
+      "height": 512,
+      "pngCount": 9,
+      "preview": "preview.mov"
+    },
+    {
+      "directory": "final-48pt-light",
+      "assetSHA256": "ede427945e365e1dee3342326c116b9deea7171072170c167c8aa2f8fb194249",
+      "frames": 1440,
+      "fps": 60,
+      "width": 144,
+      "height": 144,
+      "pngCount": 9,
+      "preview": "preview.mov"
+    },
+    {
+      "directory": "final-48pt-dark",
+      "assetSHA256": "ede427945e365e1dee3342326c116b9deea7171072170c167c8aa2f8fb194249",
+      "frames": 1440,
+      "fps": 60,
+      "width": 144,
+      "height": 144,
+      "pngCount": 9,
+      "preview": "preview.mov"
+    },
+    {
+      "directory": "final-80pt-light",
+      "assetSHA256": "ede427945e365e1dee3342326c116b9deea7171072170c167c8aa2f8fb194249",
+      "frames": 1440,
+      "fps": 60,
+      "width": 240,
+      "height": 240,
+      "pngCount": 9,
+      "preview": "preview.mov"
+    },
+    {
+      "directory": "final-80pt-dark",
+      "assetSHA256": "ede427945e365e1dee3342326c116b9deea7171072170c167c8aa2f8fb194249",
+      "frames": 1440,
+      "fps": 60,
+      "width": 240,
+      "height": 240,
+      "pngCount": 9,
+      "preview": "preview.mov"
+    }
+  ],
+  "totalFrames": 8640,
+  "totalPNG": 54,
+  "totalMovieSeconds": 144,
+  "manuallyViewedPNGs": [
+    "final-all-7-light/frame-00045.png",
+    "final-all-7-light/frame-00225.png",
+    "final-all-7-light/frame-00405.png",
+    "final-all-7-light/frame-00585.png",
+    "final-all-7-light/frame-00765.png",
+    "final-all-7-light/frame-00945.png",
+    "final-all-7-light/frame-01125.png",
+    "final-all-7-light/frame-01305.png",
+    "final-all-7-dark/frame-00045.png",
+    "final-all-7-dark/frame-00225.png",
+    "final-all-7-dark/frame-00765.png",
+    "final-48pt-light/frame-00045.png",
+    "final-48pt-dark/frame-00225.png",
+    "final-48pt-light/frame-00765.png",
+    "final-48pt-dark/frame-00585.png",
+    "final-48pt-light/frame-00405.png",
+    "final-80pt-light/frame-01125.png",
+    "final-80pt-dark/frame-00945.png"
+  ],
+  "observations": [
+    {
+      "expressions": [
+        2,
+        3,
+        18
+      ],
+      "result": "Smile arches, laughing chevrons, and content U curves remain distinct. Wider spacing did not flatten their shapes excessively; stroke height and mouth balance remain coherent."
+    },
+    {
+      "expressions": [
+        16,
+        26,
+        28
+      ],
+      "result": "Horizontal eyes are visibly wider and less crowded. Side margins remain adequate; helpless slant and lowered sleepy posture remain distinguishable."
+    },
+    {
+      "expressions": [
+        17
+      ],
+      "result": "Half-closed eyes form broad shallow lids without excessive horizontal distortion. Existing small mouth and vertical spacing remain readable."
+    },
+    {
+      "expressions": [
+        0
+      ],
+      "result": "Viewed return frame 1305 restores the original capsule-eye appearance without a residual mouth or sleep mark."
+    },
+    {
+      "sizes": [
+        "48pt at 3x",
+        "80pt at 3x"
+      ],
+      "result": "Viewed native PNG samples preserve eye separation and distinguish smile, laugh, content, flat, half-closed, slanted, and lowered variants in both sampled themes. Sleep Z is intentionally faint during this sampled entry phase."
+    }
+  ],
+  "conclusion": "No further spacing adjustment indicated by these viewed samples.",
+  "boundaries": [
+    "All six sequences were genuinely advanced frame-by-frame and rendered through Rive Apple Runtime 6.25.1 Metal to 8640 GPU-completed frames and full MOVs.",
+    "Manual visual review was of the 18 listed PNGs, not uninterrupted human viewing of every movie frame. Unlisted intermediate-frame appearance is not claimed as individually inspected.",
+    "State-change records come from a separate official legacy inspection replay, not the rendered instance; random idle branches may differ.",
+    "48/80pt evidence uses native 3x pixel dimensions. Physical-device display, wall-clock smoothness, energy use, and App integration were not tested.",
+    "size-check.html was generated using actual 48/80 CSS dimensions but was not opened and visually checked in a browser.",
+    "Mixed action combinations and legacy writing/sweat verification are handled separately by the root agent and excluded from these six-run totals."
+  ],
+  "sizePage": "size-check.html"
+}

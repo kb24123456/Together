@@ -1,0 +1,38 @@
+{
+  "name": "App static holding light",
+  "fps": 60,
+  "frames": 61,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 0,
+  "pngFrames": [
+    60
+  ],
+  "video": false,
+  "backgroundARGB": "00000000",
+  "events": [
+    {
+      "frame": 0,
+      "numbers": {
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "FF101010",
+        "bodyShade": "FF030303",
+        "handLight": "FF141414",
+        "handShade": "FF060606",
+        "farHandLight": "FF080808",
+        "farHandShade": "FF080808",
+        "eyeColor": "FFFFFFFF",
+        "sweatColor": "FFFFFFFF",
+        "penBodyColor": "FFF2EEE6",
+        "penTipColor": "FF111111",
+        "inkColor": "FF777777",
+        "tearColor": "FF88CFF3"
+      }
+    }
+  ]
+}

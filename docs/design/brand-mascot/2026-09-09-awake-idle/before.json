@@ -1,0 +1,12 @@
+{
+  "Together/Features/BrandMascot/MascotController.swift": "e3d52454b2f20afcabbb2412633b73aa4d393d6aa795567730d3f9a54904bc38",
+  "Together/Features/BrandMascot/MascotPalette.swift": "6adb43f2c11f31cb4e04f3464368f695f166c6a66912b48dedd43cf965bab30c",
+  "Together/Features/BrandMascot/MascotRuntime.swift": "bffcec0b251a2a35dca2a852e1e2e368d6e695a12e3b7c72ec9b6faeee39d4cf",
+  "Together/Features/BrandMascot/MascotBehaviorState.swift": "ef6aba0aabca8f411f415f4531739c844cbb392dac971bc1a95e675d7ad83261",
+  "Together/Features/BrandMascot/BrandMascotView.swift": "3347170d6283782afed2b48901195888988db733f1031958799b912a66a47e72",
+  "TogetherTests/MascotBehaviorTests.swift": "49109e41bac9749bbd1ff255c3bc544e23c2d8a2f32e7d851bcefad15f32e607",
+  "Together/Assets.xcassets/BrandMascot/MascotDoze.imageset/doze-white.png": "803209d473a25d270560baf87bac2106c3ee6ce9129e18b00e1fc008e35fc711",
+  "Together/Assets.xcassets/BrandMascot/MascotDoze.imageset/doze.png": "5706ac068f6e696bc7e19df51ac293774043e4b0e01bfa61674e3a6659bc182a",
+  "Together/Assets.xcassets/BrandMascot/MascotDoze.imageset/Contents.json": "8b18bdf5080c3e15a467ea8025279bbed4f1da27024e0c979ba82ba13af7392a",
+  "Together/Resources/BrandMascot/together_sphere_motion_study.riv": "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3"
+}

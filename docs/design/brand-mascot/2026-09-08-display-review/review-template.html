@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:,">
+  <title>Together · 小球深色配色校样</title>
+  <style>
+    :root{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;color:#252628;background:#f5f5f3;font-synthesis:none;-webkit-text-size-adjust:100%;font-size:15px}
+    *{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid #47647a;outline-offset:4px}button{touch-action:manipulation}h1,h2,h3,p{margin:0}button,a{-webkit-tap-highlight-color:transparent}button{color:inherit}a{color:inherit;text-underline-offset:3px}
+    .page{max-width:1120px;margin:0 auto;padding:54px 36px 44px}.intro{padding-bottom:31px;border-bottom:1px solid #ddddda}.eyebrow{font-size:12px;letter-spacing:.1em;color:#777973;margin-bottom:14px}.intro h1{font-size:32px;font-weight:650;letter-spacing:-.04em;line-height:1.25}.intro p{font-size:14px;line-height:1.7;color:#696b66;max-width:690px;margin-top:12px;text-wrap:pretty}.review{display:grid;grid-template-columns:250px minmax(0,1fr);gap:60px;margin:36px 0 42px}.controls{align-self:start}.control-group{border:0;margin:0 0 24px;padding:0;min-width:0}.control-group legend{font-size:12px;color:#6d6f69;padding:0;margin-bottom:9px}.segmented{display:flex;gap:4px;background:#eaeae7;border-radius:9px;padding:3px}.segmented button{border:0;background:none;min-height:38px;flex:1;padding:8px 7px;border-radius:6px;font-size:13px;white-space:nowrap}.segmented button[aria-pressed="true"]{background:#fff;box-shadow:0 1px 3px #0000000b;font-weight:600}.segmented button:hover:not([aria-pressed="true"]){background:#ffffff55}.size-meta{margin-top:9px;font-size:12px;line-height:1.65;color:#74766f;font-variant-numeric:tabular-nums}.toggles{margin-top:26px;padding-top:20px;border-top:1px solid #ddded8}.toggle{display:flex;align-items:center;gap:9px;min-height:39px;font-size:13px;cursor:pointer}.toggle input{width:16px;height:16px;accent-color:#333936;margin:0}.legend-key{display:inline-block;width:11px;height:11px;border:1px dashed #45768d;margin-left:auto}.legend-key.board{border-color:#a3763a}.open-focus{border:1px solid #cecfca;background:transparent;border-radius:8px;min-height:44px;padding:9px 13px;width:100%;margin-top:23px;font-size:13px}.open-focus:hover{background:#e9eae5}.control-note{font-size:12px;line-height:1.7;color:#787a73;margin-top:12px}.preview-column{min-width:0}.preview-top{max-width:402px;display:flex;justify-content:space-between;align-items:center;margin:0 auto 12px;font-size:12px;color:#72756c}.preview-top strong{font-weight:550;color:#41433f}.surface-wrap{max-width:402px;margin:0 auto;border:1px solid #e0e0db;background:#fff}.app-surface{--surface:#fff;--title:#292e30;--body:#575c61;--muted:#b3b3b3;--hairline:#dedfdf;--focus-title:#121314;--focus-body:#2e3033;background:var(--surface);color:var(--title);padding-top:12px;min-height:416px;position:relative;overflow:hidden}.app-surface[data-theme="dark"],.specimen[data-theme="dark"]{--surface:#1c1c1f;--title:#f2f2f5;--body:#b8b8bd;--muted:#75757a;--hairline:#48484c;--focus-title:#f2f2f5;--focus-body:#b8b8bd;background:var(--surface);color:var(--title)}
+    .app-nav{height:44px;position:relative;display:flex;justify-content:space-between;align-items:center;padding:0 20px}.home-mode{position:absolute;left:calc(50% - 72px);display:flex;width:144px;height:44px;align-items:center;justify-content:center}.home-mode span{display:flex;align-items:center;justify-content:center;width:72px;height:44px;font-size:17px;color:var(--muted)}.home-mode .selected{font-size:21.5px;font-weight:700;color:var(--title)}.profile-slot{margin-left:auto;width:44px;height:44px;position:relative}.nav-title{font-size:17px;font-weight:600;position:absolute;left:64px;right:64px;text-align:center;white-space:nowrap}.nav-symbol{width:44px;height:44px;display:grid;place-items:center;color:var(--title)}.nav-symbol svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.nav-symbol.save{color:#709ebe}.date-line{min-height:44px;padding:8px 28px;display:flex;align-items:baseline;gap:8px;margin-top:8px;white-space:nowrap}.date-title{font-size:22px;font-weight:600}.date-context{font-size:14px;font-weight:500;color:var(--muted)}.date-week{font-size:14px;font-weight:500;color:var(--muted);margin-left:auto}.task-list{padding:8px 28px 0}.task-row{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:10px;padding:4px 0}.task-check-slot{min-height:44px;display:flex;align-items:flex-start;justify-content:center;padding-top:12px}.task-check{width:19px;height:19px;border:1px solid var(--hairline);border-radius:5px}.task-copy{padding:10px 0 4px;min-height:44px}.task-title{font-size:17px;font-weight:600;line-height:24px}.task-notes,.task-meta{font-size:14px;font-weight:500;line-height:20px;color:var(--body);margin-top:4px}.task-meta{color:var(--muted)}.following-date{font-size:22px;font-weight:600;padding:20px 28px 4px}.following-date span{font-size:14px;color:var(--muted);font-weight:500;margin-left:8px}
+    .editor-body{padding:16px 20px 24px}.editor-identity{display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:2px}.editor-check-slot{height:44px;display:grid;place-items:center}.editor-check-slot .task-check{width:22px;height:22px;border-radius:6px}.editor-heading{display:flex;gap:10px;align-items:flex-start;min-width:0}.editor-title{font-size:22px;font-weight:700;line-height:30px;padding-top:6px;color:var(--focus-title);min-width:0;flex:1;overflow-wrap:anywhere}.editor-mascot-slot{position:relative;flex:none}.editor-notes{font-size:15px;font-weight:400;line-height:23px;color:var(--focus-body);margin:10px 0 0 46px}.subtasks{margin-top:16px}.subtask-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:2px;min-height:44px;align-items:center;font-size:16px;font-weight:500;color:var(--focus-body)}.subtask-mark{display:grid;place-items:center;height:44px}.subtask-mark .task-check{width:20px;height:20px}.subtask-plus{font-size:23px;color:var(--muted);font-weight:300}.subtask-add{font-size:15px;color:var(--body)}
+    .mascot{display:block;position:relative;width:44px;height:44px;flex:none;isolation:isolate;overflow:visible}.mascot img{position:absolute;display:block;max-width:none;height:auto;pointer-events:none;user-select:none;border-radius:0;object-fit:contain}.mascot-board{position:absolute;pointer-events:none;z-index:2;border:1px dashed #a3763a;opacity:0}.mascot-hit{position:absolute;width:44px;height:44px;border:1px dashed #45768d;pointer-events:none;z-index:3;opacity:0}.show-hit .mascot-hit{opacity:1}.show-board .mascot-board{opacity:1}.preview-bottom{font-size:12px;line-height:1.65;color:#797c73;max-width:402px;margin:11px auto 0;font-variant-numeric:tabular-nums}.pose-context{color:#565a51}.mobile-bar{display:none}.comparisons{padding-top:30px;border-top:1px solid #ddded8}.section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:18px}.section-heading h2{font-size:19px;letter-spacing:-.02em;font-weight:600}.section-heading p{font-size:12px;color:#74766e;line-height:1.6}.comparison-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.pose-name{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;font-size:13px;font-weight:550}.pose-name span{font-size:11px;font-weight:400;color:#82857b;font-variant-numeric:tabular-nums}.specimen{--surface:#fff;--title:#292e30;position:relative;height:134px;display:flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid #e0e0db}.specimen + .specimen{border-top:0}.specimen[data-theme="dark"]{border-color:#1c1c1f}.surface-label{position:absolute;left:12px;top:10px;font-size:10px;letter-spacing:.02em;color:#73766d}.specimen[data-theme="dark"] .surface-label{color:#aaaab0}.comparison-caption{font-size:12px;line-height:1.7;color:#74776e;margin-top:14px}.notes{display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:34px;padding-top:24px;border-top:1px solid #ddded8}.notes h3{font-size:13px;font-weight:600;margin-bottom:8px}.notes p{font-size:12px;color:#74766e;line-height:1.8;text-wrap:pretty}.notes code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.footer{font-size:11px;color:#92948b;margin-top:30px}.focus-return{border:1px solid #cdd0c6;background:transparent;border-radius:6px;padding:6px 10px;min-height:36px;font-size:12px}.mobile-bar-label{font-size:12px;color:#666b61;font-variant-numeric:tabular-nums}.asset-warning{display:none;padding:12px 16px;background:#fff4de;color:#6c5126;font-size:13px;line-height:1.6;margin-top:18px}.assets-missing .asset-warning{display:block}.assets-missing .mascot:before{content:'素材待嵌入';position:absolute;width:64px;left:-10px;top:14px;text-align:center;font-size:10px;color:#8a8173}.assets-missing .mascot img{visibility:hidden}
+    body.focus-view .intro,body.focus-view .controls,body.focus-view .preview-top,body.focus-view .preview-bottom,body.focus-view .comparisons,body.focus-view .notes,body.focus-view .footer,body.focus-view .asset-warning{display:none}body.focus-view .page{max-width:none;padding:0}body.focus-view .review{display:block;margin:0}body.focus-view .surface-wrap{max-width:402px;border:0}body.focus-view .app-surface{min-height:calc(100dvh - 54px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom)}body.focus-view .mobile-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:402px;margin:0 auto;min-height:54px;padding:8px 16px;padding-top:max(8px,env(safe-area-inset-top));background:#f5f5f3}body.focus-view{background:#fff}body.focus-view.focus-dark{background:#1c1c1f}
+    #pose-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}#pose-options button{min-width:0;min-height:44px;white-space:normal;line-height:1.45}#pose-options button[data-pose="happy"]{font-size:12px}
+    @media(max-width:800px){.page{padding:35px 24px}.review{grid-template-columns:210px minmax(0,1fr);gap:24px}.comparison-grid{gap:10px}.intro h1{font-size:28px}}
+    @media(max-width:600px){.page{padding:28px 20px 32px}.intro{padding-bottom:24px}.intro h1{font-size:27px}.intro p{font-size:13px}.review{display:flex;flex-direction:column;gap:24px;margin:24px 0 30px}.controls{width:100%;display:grid;grid-template-columns:1fr 1fr;column-gap:16px}.control-group{margin-bottom:17px}.control-group legend{margin-bottom:8px}.segmented button{padding:8px 4px;min-height:40px;font-size:12px}.size-meta{grid-column:1/-1}.toggles{grid-column:1/-1;margin-top:0;padding-top:14px;display:flex;gap:16px;flex-wrap:wrap}.toggle{font-size:12px;gap:7px}.legend-key{margin-left:2px}.open-focus{margin-top:12px;grid-column:1/-1}.control-note{grid-column:1/-1;margin-top:9px}.preview-column{margin:0 -20px}.preview-top,.preview-bottom{max-width:none;margin-left:20px;margin-right:20px}.surface-wrap{width:100%;max-width:none;border-left:0;border-right:0}.app-surface{min-height:416px}.section-heading{display:block}.section-heading p{margin-top:7px}.comparison-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px}.pose-name{display:block;font-size:12px}.pose-name span{display:block;margin-top:4px;font-size:10px}.specimen{height:120px}.surface-label{left:8px;top:8px;font-size:9px}.notes{grid-template-columns:1fr;gap:22px;margin-top:25px}.footer{line-height:1.7}body.focus-view .preview-column{margin:0}body.focus-view .surface-wrap,body.focus-view .mobile-bar{max-width:none;width:100%}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+    @media print{.controls,.mobile-bar,.open-focus{display:none}.page{padding:18px}.review{display:block;margin-top:20px}.surface-wrap{max-width:402px}.preview-top,.preview-bottom{max-width:402px}.intro{padding-bottom:15px}.comparisons{break-inside:avoid}.notes{break-inside:avoid}.footer{margin-top:16px}body{background:white}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="intro">
+      <p class="eyebrow">TOGETHER / DISPLAY STUDY</p>
+      <h1>小球 · 表情与尺寸校样</h1>
+      <p>八种姿势放在同一尺度，检查眼形、泪水与手部的可读性。<br>浅色黑球，深色柔白球；首页和编辑页为布局预览，非原生 App 截图，尚未接入 App。</p>
+    </header>
+    <p class="asset-warning" role="status">此文件是素材嵌入前的模板，角色图片尚未就绪。正式验收请打开同目录的 review.html。</p>
+    <section class="review" aria-label="布局与尺寸比较">
+      <form class="controls" onsubmit="return false">
+        <fieldset class="control-group"><legend>页面</legend><div class="segmented" id="page-options"><button type="button" data-page="home" aria-pressed="true">首页</button><button type="button" data-page="editor" aria-pressed="false">编辑页</button></div></fieldset>
+        <fieldset class="control-group"><legend>背景</legend><div class="segmented" id="theme-options"><button type="button" data-theme="light" aria-pressed="false">浅色</button><button type="button" data-theme="dark" aria-pressed="true">深色</button></div></fieldset>
+        <fieldset class="control-group" id="appearance-control"><legend>深色配色</legend><div class="segmented" id="appearance-options"><button type="button" data-appearance="white" aria-pressed="true">柔白球</button><button type="button" data-appearance="black" aria-pressed="false">原黑球</button></div></fieldset>
+        <fieldset class="control-group"><legend>静态姿势</legend><div class="segmented" id="pose-options"></div></fieldset>
+        <fieldset class="control-group"><legend>可见球体直径</legend><div class="segmented" id="size-options"></div><p class="size-meta" id="size-meta"></p></fieldset>
+        <div class="toggles"><label class="toggle"><input type="checkbox" id="show-hit">44pt 边界<span class="legend-key" aria-hidden="true"></span></label><label class="toggle"><input type="checkbox" id="show-board">完整画板边界<span class="legend-key board" aria-hidden="true"></span></label></div>
+        <button class="open-focus" id="focus-button" type="button">按本机尺寸查看</button>
+        <p class="control-note">手机以默认缩放查看；桌面仅用于比例比较。画板不做圆形裁切，手和笔保留原有留白。</p>
+      </form>
+      <div class="preview-column">
+        <div class="mobile-bar"><span class="mobile-bar-label" id="mobile-label"></span><button class="focus-return" id="return-button" type="button">返回对照</button></div>
+        <div class="preview-top"><strong id="preview-label">首页 · 常驻</strong><span id="preview-size">球体 40pt</span></div>
+        <div class="surface-wrap"><div id="main-preview" class="app-surface" data-theme="dark" data-appearance="white" aria-label="首页顶部布局预览，任务均为示例"></div></div>
+        <div class="preview-bottom"><p id="geometry-label"></p><p class="pose-context" id="pose-context"></p></div>
+      </div>
+    </section>
+    <section class="comparisons" aria-labelledby="comparison-heading">
+      <div class="section-heading"><h2 id="comparison-heading">同尺度，直接看差别。</h2><p id="comparison-size">八种姿势 · 可见球体均为 40pt</p></div>
+      <div class="comparison-grid" id="comparison-grid"></div>
+      <p class="comparison-caption">每列从上到下为浅色原黑球、深色原黑球、深色柔白球。两套配色保持同一尺寸与球心，直接使用 Rive 原生静态渲染，不加滤镜、描边或投影。开心/庆祝仍待复核；流泪沿用暂用版。</p>
+    </section>
+    <aside class="notes" aria-label="预览范围与来源说明">
+      <div><h3>布局依据</h3><p>首页沿用居中的「待办 / 定期」与右侧个人页入口：主控行 44pt，原头像可见尺寸 40pt。编辑页参照现有任务详情，保留顶部取消、确认及标题左侧完成框；角色放在正文标题右侧，并为完整画板留出宽度。此处只展示顶部内容区域，未模拟系统键盘或底部工具栏。</p></div>
+      <div><h3>这次能确认什么</h3><p>两套配色均来自当前 Rive 角色的静态渲染，柔白球使用近黑五官。以 <code>512 × 512</code> 画板、球体直径 <code>368</code>、中心 <code>(256, 240)</code> 计算尺寸：1 CSS px 对应 1 设计 pt。44pt 方框用于尺寸参考，编辑角色本身是装饰；它不意味着图片内所有部位都能点按。本页用于表情、配色与静态降级素材校样，不运行 Rive，也未把角色接入 App，不能验证动画、原生安全区、动态字体或真机性能。</p></div>
+    </aside>
+    <footer class="footer">显示验收 · 2026-09-08　｜　离线单文件　｜　所有任务内容均为示例</footer>
+  </main>
+  <script>
+    'use strict';
+    const mascotAssets = {
+      black: {
+        idle: '__MASCOT_IDLE_DATA_URI__',
+        holding: '__MASCOT_HOLDING_DATA_URI__',
+        concerned: '__MASCOT_CONCERNED_DATA_URI__',
+        happy: '__MASCOT_HAPPY_DATA_URI__',
+        wink: '__MASCOT_WINK_DATA_URI__',
+        tears: '__MASCOT_TEARS_DATA_URI__',
+        thinking: '__MASCOT_THINKING_DATA_URI__',
+        doze: '__MASCOT_DOZE_DATA_URI__'
+      },
+      white: {
+        idle: '__MASCOT_IDLE_WHITE_DATA_URI__',
+        holding: '__MASCOT_HOLDING_WHITE_DATA_URI__',
+        concerned: '__MASCOT_CONCERNED_WHITE_DATA_URI__',
+        happy: '__MASCOT_HAPPY_WHITE_DATA_URI__',
+        wink: '__MASCOT_WINK_WHITE_DATA_URI__',
+        tears: '__MASCOT_TEARS_WHITE_DATA_URI__',
+        thinking: '__MASCOT_THINKING_WHITE_DATA_URI__',
+        doze: '__MASCOT_DOZE_WHITE_DATA_URI__'
+      }
+    };
+    const poses = { idle: '常驻', holding: '持笔', thinking: '思考', concerned: '担忧', happy: '开心/庆祝（待复核）', wink: '单眨眼', tears: '流泪', doze: '打盹' };
+    const pageNames = { home: '首页', editor: '编辑页' };
+    const appearanceNames = { white: '柔白球', black: '原黑球' };
+    const reviewState = { page: 'home', theme: 'dark', appearance: 'white', pose: 'idle', sizes: { home: 40, editor: 48 }, hit: false, board: false, focus: false };
+    const mainPreview = document.getElementById('main-preview');
+    const assetsReady = Object.values(mascotAssets).every(assets => Object.values(assets).every(value => value.startsWith('data:image/')));
+    document.body.classList.toggle('assets-missing', !assetsReady);
+
+    document.getElementById('pose-options').innerHTML = Object.entries(poses).map(([pose,label]) => `<button type="button" data-pose="${pose}" aria-pressed="${pose===reviewState.pose}">${label}</button>`).join('');
+
+    function currentAppearance() {
+      return reviewState.theme === 'dark' ? reviewState.appearance : 'black';
+    }
+    function mascot(pose, size, slotSize = 44, alignCanvas = false, appearance = currentAppearance()) {
+      const canvas = size * 512 / 368;
+      const left = alignCanvas ? 0 : slotSize / 2 - size * 256 / 368;
+      const top = alignCanvas ? 0 : slotSize / 2 - size * 240 / 368;
+      const centerX = left + size * 256 / 368;
+      const centerY = top + size * 240 / 368;
+      const width = alignCanvas ? canvas : slotSize;
+      const src = assetsReady ? mascotAssets[appearance][pose] : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+      return `<span class="mascot" style="width:${width}px;height:${width}px" data-ball-size="${size}" data-pose="${pose}" data-appearance="${appearance}"><img src="${src}" alt="${appearanceNames[appearance]}${poses[pose]}静态稿" draggable="false" width="512" height="512" style="width:${canvas}px;left:${left}px;top:${top}px"><span class="mascot-board" style="width:${canvas}px;height:${canvas}px;left:${left}px;top:${top}px" aria-hidden="true"></span><span class="mascot-hit" style="left:${centerX-22}px;top:${centerY-22}px" aria-hidden="true"></span></span>`;
+    }
+    const cancelIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    const saveIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>';
+    function task(title, notes = '', meta = '') {
+      return `<div class="task-row"><div class="task-check-slot"><span class="task-check" aria-hidden="true"></span></div><div class="task-copy"><div class="task-title">${title}</div>${notes ? `<div class="task-notes">${notes}</div>` : ''}${meta ? `<div class="task-meta">${meta}</div>` : ''}</div></div>`;
+    }
+    function homePreview(size) {
+      return `<div class="app-nav"><div class="home-mode" aria-label="待办模式"><span class="selected">待办</span><span>定期</span></div><div class="profile-slot" aria-label="个人页入口位置">${mascot(reviewState.pose,size)}</div></div><div class="date-line"><span class="date-title">今天</span><span class="date-context">周二·3项</span><span class="date-week">本周 2</span></div><div class="task-list">${task('阅读笔记（示例）','整理三条值得留下的想法','10:00 · 准时提醒')}${task('给绿植浇水（示例）')}${task('散步二十分钟（示例）','傍晚去附近走走')}</div><div class="following-date">明天<span>周三·1项</span></div><div class="task-list">${task('整理书桌（示例）')}</div>`;
+    }
+    function editorPreview(size) {
+      const canvas = size * 512 / 368;
+      return `<div class="app-nav"><span class="nav-symbol" role="img" aria-label="取消控件位置">${cancelIcon}</span><span class="nav-title">任务详情</span><span class="nav-symbol save" role="img" aria-label="确认保存控件位置">${saveIcon}</span></div><div class="editor-body"><div class="editor-identity"><div class="editor-check-slot"><span class="task-check" aria-hidden="true"></span></div><div class="editor-heading"><div class="editor-title">阅读笔记（示例）</div><div class="editor-mascot-slot" style="width:${canvas}px;height:${canvas}px">${mascot(reviewState.pose,size,44,true)}</div></div></div><p class="editor-notes">整理三条值得留下的想法，<br>再选一条试着做起来。</p><div class="subtasks"><div class="subtask-row"><span class="subtask-mark"><span class="task-check" aria-hidden="true"></span></span><span>整理摘录（示例）</span></div><div class="subtask-row"><span class="subtask-mark"><span class="task-check" aria-hidden="true"></span></span><span>写下自己的理解（示例）</span></div><div class="subtask-row"><span class="subtask-mark subtask-plus" aria-hidden="true">＋</span><span class="subtask-add">添加子任务</span></div></div></div>`;
+    }
+    function setPressed(container, attribute, value) {
+      document.querySelectorAll(`${container} button`).forEach(button => button.setAttribute('aria-pressed', String(button.dataset[attribute] === value)));
+    }
+    function render() {
+      const size = reviewState.sizes[reviewState.page];
+      const appearance = currentAppearance();
+      const canvas = (size * 512 / 368).toFixed(1);
+      const sizes = reviewState.page === 'home' ? [36,40,44] : [40,48,56];
+      setPressed('#page-options','page',reviewState.page);
+      setPressed('#theme-options','theme',reviewState.theme);
+      setPressed('#appearance-options','appearance',reviewState.appearance);
+      setPressed('#pose-options','pose',reviewState.pose);
+      document.getElementById('appearance-control').hidden = reviewState.theme !== 'dark';
+      document.querySelectorAll('#appearance-options button').forEach(button => { button.disabled = reviewState.theme !== 'dark'; });
+      document.getElementById('size-options').innerHTML = sizes.map(value => `<button type="button" data-size="${value}" aria-pressed="${value===size}">${value}pt</button>`).join('');
+      document.getElementById('size-meta').textContent = `完整画板 ${canvas} × ${canvas}pt · ${reviewState.page==='home'?'40pt 为当前比较基准':'48pt 为编辑页比较基准'}`;
+      mainPreview.dataset.theme = reviewState.theme;
+      mainPreview.dataset.appearance = appearance;
+      mainPreview.setAttribute('aria-label',`${pageNames[reviewState.page]}顶部布局预览，${appearanceNames[appearance]}，任务均为示例`);
+      mainPreview.innerHTML = reviewState.page === 'home' ? homePreview(size) : editorPreview(size);
+      document.getElementById('preview-label').textContent = `${pageNames[reviewState.page]} · ${poses[reviewState.pose]} · ${appearanceNames[appearance]}`;
+      document.getElementById('preview-size').textContent = `球体 ${size}pt`;
+      document.getElementById('mobile-label').textContent = `${pageNames[reviewState.page]} · ${poses[reviewState.pose]} · ${appearanceNames[appearance]} · ${size}pt`;
+      document.getElementById('geometry-label').textContent = `顶部内容区域 · 可见球体 ${size}pt / 画板 ${canvas}pt`;
+      document.getElementById('pose-context').textContent = reviewState.page === 'home' ? '沿用个人页入口位置；44pt 命中参考不随球体尺寸变化。' : '角色置于正文标题旁；取消与确认保留在顶部，画板参与留白。';
+      document.getElementById('comparison-size').textContent = `共 ${Object.keys(poses).length} 种姿势 · 可见球体均为 ${size}pt`;
+      document.getElementById('comparison-grid').innerHTML = Object.entries(poses).map(([pose,label]) => `<div class="pose-comparison"><h3 class="pose-name">${label}<span>${size}pt / ${canvas}pt</span></h3><div class="specimen" data-theme="light" data-appearance="black"><span class="surface-label">浅色 · 原黑球</span>${mascot(pose,size,44,false,'black')}</div><div class="specimen" data-theme="dark" data-appearance="black"><span class="surface-label">深色 · 原黑球</span>${mascot(pose,size,44,false,'black')}</div><div class="specimen" data-theme="dark" data-appearance="white"><span class="surface-label">深色 · 柔白球</span>${mascot(pose,size,44,false,'white')}</div></div>`).join('');
+      document.body.classList.toggle('show-hit',reviewState.hit);
+      document.body.classList.toggle('show-board',reviewState.board);
+      document.body.classList.toggle('focus-view',reviewState.focus);
+      document.body.classList.toggle('focus-dark',reviewState.theme === 'dark');
+    }
+    document.querySelector('.controls').addEventListener('click',event => {
+      const button = event.target.closest('button');
+      if(!button)return;
+      if(button.dataset.page){ reviewState.page = button.dataset.page; }
+      else if(button.dataset.theme){ reviewState.theme = button.dataset.theme; }
+      else if(button.dataset.appearance && reviewState.theme === 'dark'){ reviewState.appearance = button.dataset.appearance; }
+      else if(button.dataset.pose){ reviewState.pose = button.dataset.pose; }
+      else if(button.dataset.size){ reviewState.sizes[reviewState.page] = Number(button.dataset.size); }
+      else return;
+      const focusKey = button.dataset.size ? `[data-size="${button.dataset.size}"]` : null;
+      render();
+      if(focusKey)document.querySelector(focusKey).focus({preventScroll:true});
+    });
+    document.getElementById('show-hit').addEventListener('change',event => { reviewState.hit=event.target.checked;render(); });
+    document.getElementById('show-board').addEventListener('change',event => { reviewState.board=event.target.checked;render(); });
+    let returnScroll = 0;
+    function setFocus(value) {
+      if(value)returnScroll=window.scrollY;
+      reviewState.focus=value;render();
+      window.scrollTo({top:value?0:returnScroll,behavior:'auto'});
+      document.getElementById(value?'return-button':'focus-button').focus({preventScroll:true});
+    }
+    document.getElementById('focus-button').addEventListener('click',()=>setFocus(true));
+    document.getElementById('return-button').addEventListener('click',()=>setFocus(false));
+    document.addEventListener('keydown',event => {if(event.key==='Escape'&&reviewState.focus)setFocus(false);});
+    const params = new URLSearchParams(location.search);
+    if (['home','editor'].includes(params.get('page'))) reviewState.page=params.get('page');
+    if (['light','dark'].includes(params.get('theme'))) reviewState.theme=params.get('theme');
+    if (['white','black'].includes(params.get('appearance'))) reviewState.appearance=params.get('appearance');
+    if (Object.hasOwn(poses,params.get('pose'))) reviewState.pose=params.get('pose');
+    if (params.get('focus')==='1') reviewState.focus=true;
+    render();
+  </script>
+</body>
+</html>

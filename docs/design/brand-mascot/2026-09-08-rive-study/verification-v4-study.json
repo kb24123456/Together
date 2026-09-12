@@ -1,0 +1,616 @@
+{
+  "date": "2026-09-08",
+  "fileId": 2561771,
+  "scope": "v4 independent behavior clips; existing Mascot contract remains v3",
+  "readback": {
+    "existingClips": [
+      {
+        "name": "Idle",
+        "preservedKeys": 120,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Writing",
+        "preservedKeys": 190,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Concerned",
+        "preservedKeys": 133,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Preview",
+        "preservedKeys": 1894,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "WritingEnter",
+        "preservedKeys": 126,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "WritingHold",
+        "preservedKeys": 128,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "WritingExit",
+        "preservedKeys": 126,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "ConcernEnter",
+        "preservedKeys": 118,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Recover",
+        "preservedKeys": 114,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Acknowledge",
+        "preservedKeys": 122,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Idle_QuietShort",
+        "preservedKeys": 120,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Idle_Look",
+        "preservedKeys": 125,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Idle_Select",
+        "preservedKeys": 108,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      },
+      {
+        "name": "Idle_QuietMedium",
+        "preservedKeys": 120,
+        "changed": 0,
+        "guardKeys": 4,
+        "guardsValid": true
+      }
+    ],
+    "newClips": [
+      {
+        "name": "Thinking",
+        "keys": 184,
+        "expected": 184,
+        "matches": 184
+      },
+      {
+        "name": "Celebrate",
+        "keys": 216,
+        "expected": 216,
+        "matches": 216
+      },
+      {
+        "name": "Remind",
+        "keys": 184,
+        "expected": 184,
+        "matches": 184
+      },
+      {
+        "name": "Doze",
+        "keys": 166,
+        "expected": 166,
+        "matches": 166
+      },
+      {
+        "name": "Wake",
+        "keys": 201,
+        "expected": 201,
+        "matches": 201
+      },
+      {
+        "name": "Preview_Tasks_v4",
+        "keys": 1300,
+        "expected": 1300,
+        "matches": 1300
+      }
+    ],
+    "errors": []
+  },
+  "geometry": {
+    "0-13105": {
+      "32": false
+    },
+    "0-13111": {
+      "32": false
+    },
+    "0-13108": {
+      "47": 12,
+      "48": 1,
+      "49": 1
+    },
+    "0-13114": {
+      "47": 11,
+      "48": 1,
+      "49": 1
+    },
+    "0-13090": {
+      "13": 0,
+      "14": 0,
+      "18": 0
+    },
+    "0-13091": {
+      "13": 0,
+      "14": 0,
+      "18": 0
+    }
+  },
+  "fixedGroupTransforms": {
+    "hands": {
+      "x": 0,
+      "y": 0,
+      "scaleX": 100,
+      "scaleY": 100,
+      "rotation": 0
+    },
+    "eyes": {
+      "x": 0,
+      "y": 0,
+      "scaleX": 100,
+      "scaleY": 100,
+      "rotation": 0
+    }
+  },
+  "editorVisualChecks": [
+    {
+      "clip": "Thinking",
+      "frame": 0,
+      "observed": "One large round hand at lower side cheek, large capsule eyes looking up/side; no pen or arm."
+    },
+    {
+      "clip": "Celebrate",
+      "frame": 27,
+      "observed": "Two full round hands, one restrained lift, two open rounded happy curves."
+    },
+    {
+      "clip": "Remind",
+      "frame": 50,
+      "observed": "One lifted round hand held still, capsule eyes, no sweat or extra marks."
+    },
+    {
+      "clip": "Doze",
+      "frame": 0,
+      "observed": "Two open restful arcs, no hands, round silhouette."
+    },
+    {
+      "clip": "Preview_Tasks_v4",
+      "frame": 1113,
+      "observed": "Wake has reopened capsule eyes, no overlapping eye groups or residual hands."
+    }
+  ],
+  "repairs": [
+    "New group local origins corrected to (0,0) after world-coordinate creation.",
+    "ExpressionEyeNearCurve and ExpressionEyeFarCurve explicitly set closed=false, round caps and joins.",
+    "Preview child-hand opacity holds until parent groups are hidden; no premature translucency."
+  ],
+  "stateMachine": {
+    "name": "Mascot",
+    "isDefault": true,
+    "layers": 1,
+    "inputContract": "mode 0/1/2; isTyping bool; acknowledge trigger. No new state routes or business bindings created.",
+    "totalNodes": 17,
+    "animationNodes": 14,
+    "transitionsIncludingEntry": 45
+  },
+  "limitations": [
+    "New behaviors awaiting user visual approval before Mascot state-machine wiring.",
+    "No App integration, native runtime export, iPhone/Simulator build or device visual/performance testing."
+  ],
+  "independentNumericReview": {
+    "source": "motion-v4-study.json",
+    "sourceSha256": "ef5856e7ead76b2ddc4ea910357cfc9a2d505ff01570ac2510a227a4ccd202ab",
+    "method": {
+      "frameStep": 0.1,
+      "interpolation": [
+        0.35,
+        0,
+        0.65,
+        1
+      ],
+      "cubicBezierXSolved": true,
+      "epsilon": 1e-06,
+      "assumptions": [
+        "New ExpressionHands and ExpressionEyes groups have local x/y/r 0 and scale 100, confirmed live by root agent; only opacity appears in this payload.",
+        "Hand path radii are 60 and 58; CharacterRoot transform applies before artboard clipping.",
+        "This checks authoring payload, not MCP readback or renderer pixel output."
+      ]
+    },
+    "clips": {
+      "Thinking": {
+        "trackCount": 80,
+        "samples": 2401,
+        "scaleRange": [
+          1.0,
+          1.005
+        ],
+        "visibleHandMinMarginsLTRB": [
+          342.98075874731626,
+          253.7553893528415,
+          51.943837412746824,
+          138.86292797125725
+        ],
+        "bodyMinMarginsLTRB": [
+          71.08000000000001,
+          53.08000000000001,
+          71.08000000000001,
+          88.0
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 0,
+          "0-13098": 100.0
+        },
+        "twoHandsVisibleSamples": 0,
+        "loopAllTracksMatch": true,
+        "errors": []
+      },
+      "Celebrate": {
+        "trackCount": 80,
+        "samples": 841,
+        "scaleRange": [
+          0.993,
+          1.006
+        ],
+        "visibleHandMinMarginsLTRB": [
+          31.291522053876776,
+          183.3923226972177,
+          34.27125068706633,
+          74.62605445270951
+        ],
+        "bodyMinMarginsLTRB": [
+          70.89599999999999,
+          33.89599999999999,
+          70.89599999999999,
+          85.28800000000001
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 100.0,
+          "0-13098": 100.0
+        },
+        "twoHandsVisibleSamples": 739,
+        "loopAllTracksMatch": null,
+        "errors": []
+      },
+      "Remind": {
+        "trackCount": 80,
+        "samples": 1081,
+        "scaleRange": [
+          1.0,
+          1.0
+        ],
+        "visibleHandMinMarginsLTRB": [
+          343.0,
+          150.67201350794062,
+          28.779111818704344,
+          77.00455339188159
+        ],
+        "bodyMinMarginsLTRB": [
+          72.0,
+          54.0,
+          72.0,
+          88.0
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 0,
+          "0-13098": 100.0
+        },
+        "twoHandsVisibleSamples": 0,
+        "loopAllTracksMatch": null,
+        "errors": []
+      },
+      "Doze": {
+        "trackCount": 80,
+        "samples": 2881,
+        "scaleRange": [
+          1.0,
+          1.006
+        ],
+        "visibleHandMinMarginsLTRB": null,
+        "bodyMinMarginsLTRB": [
+          70.89599999999999,
+          61.0,
+          70.89599999999999,
+          79.89599999999999
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 0,
+          "0-13098": 0
+        },
+        "twoHandsVisibleSamples": 0,
+        "loopAllTracksMatch": true,
+        "errors": []
+      },
+      "Wake": {
+        "trackCount": 80,
+        "samples": 841,
+        "scaleRange": [
+          1.0,
+          1.0070000000000001
+        ],
+        "visibleHandMinMarginsLTRB": null,
+        "bodyMinMarginsLTRB": [
+          70.71199999999999,
+          48.714998555343556,
+          70.71199999999999,
+          83.0
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 0,
+          "0-13098": 0
+        },
+        "twoHandsVisibleSamples": 0,
+        "loopAllTracksMatch": null,
+        "errors": []
+      },
+      "Preview_Tasks_v4": {
+        "trackCount": 80,
+        "samples": 12841,
+        "scaleRange": [
+          0.993,
+          1.0070000000000001
+        ],
+        "visibleHandMinMarginsLTRB": [
+          31.291522053876776,
+          150.67201350794062,
+          28.779111818704344,
+          74.62605445270951
+        ],
+        "bodyMinMarginsLTRB": [
+          70.71199999999999,
+          33.89599999999999,
+          70.71199999999999,
+          79.89599999999999
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 100.0,
+          "0-13098": 100.0
+        },
+        "twoHandsVisibleSamples": 739,
+        "loopAllTracksMatch": true,
+        "errors": []
+      },
+      "ThinkingEnterStudy": {
+        "trackCount": 80,
+        "samples": 361,
+        "scaleRange": [
+          1.0,
+          1.0
+        ],
+        "visibleHandMinMarginsLTRB": [
+          342.3107710589894,
+          257.13707202874275,
+          53.000515832727274,
+          77.01166620603362
+        ],
+        "bodyMinMarginsLTRB": [
+          72.0,
+          56.0,
+          72.0,
+          88.0
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 0,
+          "0-13098": 100.0
+        },
+        "twoHandsVisibleSamples": 0,
+        "loopAllTracksMatch": null,
+        "errors": []
+      },
+      "ThinkingExitStudy": {
+        "trackCount": 80,
+        "samples": 301,
+        "scaleRange": [
+          1.0,
+          1.0
+        ],
+        "visibleHandMinMarginsLTRB": [
+          342.31077700942535,
+          257.13707202874275,
+          53.00033035823617,
+          77.00747096414847
+        ],
+        "bodyMinMarginsLTRB": [
+          72.0,
+          56.0,
+          72.0,
+          88.0
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 0,
+          "0-13098": 100.0
+        },
+        "twoHandsVisibleSamples": 0,
+        "loopAllTracksMatch": null,
+        "errors": []
+      },
+      "DozeEnterStudy": {
+        "trackCount": 80,
+        "samples": 601,
+        "scaleRange": [
+          1.0,
+          1.0
+        ],
+        "visibleHandMinMarginsLTRB": null,
+        "bodyMinMarginsLTRB": [
+          72.0,
+          56.0,
+          72.0,
+          83.0
+        ],
+        "handPeakEffectiveOpacity": {
+          "0-13092": 0,
+          "0-13098": 0
+        },
+        "twoHandsVisibleSamples": 0,
+        "loopAllTracksMatch": null,
+        "errors": []
+      }
+    },
+    "endpointChecks": {
+      "Wake starts at Doze visible pose": {
+        "matches": true,
+        "differences": []
+      },
+      "Wake ends at Idle visible pose": {
+        "matches": true,
+        "differences": []
+      },
+      "Celebrate ends at Idle visible pose": {
+        "matches": true,
+        "differences": []
+      },
+      "Remind ends at Idle visible pose": {
+        "matches": true,
+        "differences": []
+      }
+    },
+    "previewChecks": {
+      "segmentVisiblePoseComparisons": [
+        {
+          "cue": "Idle",
+          "start": 0,
+          "end": 90,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "ThinkingEnter",
+          "start": 90,
+          "end": 126,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Thinking",
+          "start": 126,
+          "end": 366,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "ThinkingExit",
+          "start": 366,
+          "end": 396,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Idle",
+          "start": 396,
+          "end": 432,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Remind",
+          "start": 432,
+          "end": 540,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Idle",
+          "start": 540,
+          "end": 588,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Celebrate",
+          "start": 588,
+          "end": 672,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Idle",
+          "start": 672,
+          "end": 732,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "DozeEnter",
+          "start": 732,
+          "end": 792,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Doze",
+          "start": 792,
+          "end": 1080,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Wake",
+          "start": 1080,
+          "end": 1164,
+          "mismatchSamples": 0,
+          "examples": []
+        },
+        {
+          "cue": "Idle",
+          "start": 1164,
+          "end": 1284,
+          "mismatchSamples": 0,
+          "examples": []
+        }
+      ],
+      "loopVisibleMatches": true
+    },
+    "defects": [],
+    "semanticChecks": {
+      "Thinking_only_far_hand_and_raised": true,
+      "Remind_only_far_hand": true,
+      "Celebrate_both_hands": true,
+      "Doze_and_Wake_no_hands": true
+    },
+    "intentionalPreviewVariations": [
+      "Idle spans have uniform breathing; final Idle adds one paired blink at frames 1204-1224. These are excluded from static Neutral comparisons, while all boundaries are checked."
+    ],
+    "passed": true,
+    "sampleCount": 22149
+  },
+  "finalPreviewPlayback": {
+    "clip": "Preview_Tasks_v4",
+    "status": "Selected and inspected at frame 1113; final rewind/play attempt blocked by macOS lock. User can unlock and press Space.",
+    "continuousPlaybackAcceptance": false
+  }
+}

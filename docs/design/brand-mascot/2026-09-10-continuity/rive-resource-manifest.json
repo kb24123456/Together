@@ -1,0 +1,34 @@
+{
+  "files": [
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-continuity/backups/app-before.riv",
+      "bytes": 4266199,
+      "sha256": "8dfea4c3f2655a5de53f4ac8b7777d16d82647d6ea527d49d0a9ad7b3c75d924"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-continuity/backups/before-continuity.riv",
+      "bytes": 4266199,
+      "sha256": "1204c11dbd3a51bbd63e8764dee3b0d860815c3048bfc41eb2a4d04b4a297281"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-continuity/backups/before-continuity.rev",
+      "bytes": 12747068,
+      "sha256": "ec9b883c7acf739b83fcf57c37224cb9898c8c46fa4af76fade364495b89e61e"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-continuity/deliverables/together_sphere_motion_study.riv",
+      "bytes": 4269590,
+      "sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8"
+    },
+    {
+      "path": "docs/design/brand-mascot/2026-09-10-continuity/deliverables/together_sphere_motion_study.rev",
+      "bytes": 12756973,
+      "sha256": "233cb857463c0414613de51f57cadab6487461e56a14ae36279263588d521f22"
+    },
+    {
+      "path": "Together/Resources/BrandMascot/together_sphere_motion_study.riv",
+      "bytes": 4269590,
+      "sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8"
+    }
+  ]
+}

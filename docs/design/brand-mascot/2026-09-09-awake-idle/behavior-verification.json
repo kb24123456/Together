@@ -1,0 +1,28 @@
+{
+  "recorded_at": "2026-09-09T20:04:39.884650+08:00",
+  "status": "passed",
+  "command": "swift test --package-path /private/tmp/together-mascot-behavior-tests-zsilbfbg",
+  "harness": "Standalone macOS Swift package copying the actual behavior/controller sources and repository tests; no iOS Simulator",
+  "swift_testing_result": "Test run with 23 tests in 1 suite passed",
+  "test_declarations": 23,
+  "expanded_cases": 30,
+  "source_sha256": {
+    "Together/Features/BrandMascot/MascotBehaviorState.swift": "3e90b91c0dd973ee904805b1b6f594c5b1d28c3c3be0eb65f1b71d910ca11917",
+    "Together/Features/BrandMascot/MascotController.swift": "134237986b35caa37657f3d2be165be0ffdc92be2daeff87f0533da64a4ac525",
+    "TogetherTests/MascotBehaviorTests.swift": "1e350933b17e92f1903418607fb3dd03bdee84b1f1dd3dc581a6ce5afd6706c7"
+  },
+  "coverage": [
+    "Idle remains awake at 15 s, 90 s, 1 h, and 24 h",
+    "Only approved expression indices 2, 5, 8, 21; no consecutive repeats across 32 deterministic cycles",
+    "Random delay 6...11 seconds and presentation duration 1...1.5 seconds",
+    "Display expires before schedule advancement; late deadlines do not replay missed cycles",
+    "Hiding, playback suppression, editing, processing, overdue, scrolling and activity clear the active expression",
+    "Feedback interrupts idle expression and renewed schedule respects shared 4-second cooldown",
+    "Typing 0.9-second boundary, editing/processing/overdue priorities and synchronous controller interruption preserved",
+    "No periodic polling required when hidden, playback suppressed or in a persistent task state"
+  ],
+  "limitations": [
+    "No full iOS app execution",
+    "No physical-device visual, energy, VoiceOver or interaction acceptance"
+  ]
+}

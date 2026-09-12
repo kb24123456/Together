@@ -1,0 +1,83 @@
+{
+  "created_at": "2026-09-12T09:32:05.626433+00:00",
+  "status": "implemented_compile_verified_device_retest_pending",
+  "user_device_feedback": "Entrance movement stutters; return feels smooth. Keep Home pose in flight and enter writing only after docking.",
+  "confirmed_source_issue": "Missing initial destination or changed final geometry could defer movement until native completion or append a second fixed-duration entrance animation.",
+  "not_confirmed": "No frame-time measurement establishes the source of all perceived device jank or proves elimination.",
+  "changes": [
+    "One incoming property animator after layout and target readiness, using native transitionDuration",
+    "Changed target geometry updates active animator in its remaining time, above one physical pixel",
+    "Native completion and animator completion both precede actual docking",
+    "Home context retained until onDock for current editor UUID; input deadline preserved",
+    "Returning coordinator path retained; forced whole-editor layout removed"
+  ],
+  "sources": {
+    "Together/Features/BrandMascot/MascotPlaybackSession.swift": "9033adda75b11b28db0381e05a15ca1fc07bb07b79032392573e0f389448f5e3",
+    "Together/Features/BrandMascot/MascotPlaybackOwnership.swift": "dd702d81d0b13cfb4ad6e37f10181f9a846961b764ce645500c0c61990e9e69a",
+    "Together/Features/BrandMascot/MascotController.swift": "39260fa5defc5c5c4f5a5538be554568e5d1f56fdd06e951b4ba279b0a1a4d60",
+    "Together/Features/BrandMascot/MascotVisualTransfer.swift": "55dbba0dd48c0b4201ef9afb0a166623c3f5ca4192109ce13646b50dd0e6edc9",
+    "Together/Features/BrandMascot/MascotNavigationObserver.swift": "ace40032c0833dbc758184d460528c860cd4c1d5411e4594bebdc997f6c995f2",
+    "TogetherTests/MascotPlaybackOwnershipTests.swift": "83312bf41c07a29b50f81e59cc7a3b1ca10cd3ec38866ade615f6e24846defae",
+    "TogetherTests/MascotTransferStateTests.swift": "5c7c92fabfd34ea262fb2edc96784de995a42b2774dcda9e8b73af3d3a1242c4",
+    "TogetherTests/MascotBehaviorTests.swift": "0bb8170da4184be5f35a3de02abaf15559b624d3d437dc9f97db537fcbd3c0a7"
+  },
+  "baseline": "/Users/papertiger/Documents/Codex/2026-09-12/together-mascot-arrival/baseline",
+  "pure_tests": {
+    "passed": 51,
+    "suites": {
+      "ownership": 11,
+      "transfer_geometry": 9,
+      "behavior": 31
+    },
+    "executed": true,
+    "harness_matches_current_sources": true,
+    "harness": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/continuity-implementation/ownership-tests",
+    "log": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/continuity-implementation/pure-arrival-sequencing-tests.log",
+    "log_sha256": "771cb43c5bb427bde13755f88dd89029f497caa230d0a23f7029c1ae0649416b",
+    "command": "DEVELOPER_DIR='/Applications/Xcode.app/Contents/Developer' SDKROOT='/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' xcrun swift test --package-path '/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/continuity-implementation/ownership-tests'"
+  },
+  "uikit_tests": {
+    "compiled": 9,
+    "new_session_tests": 3,
+    "executed": false,
+    "rive_loaded_in_fixtures": false,
+    "warnings": "One shared scene-less hidden UIWindow initializer is deprecated in iOS 26; isolated fixture only."
+  },
+  "build": {
+    "status": "passed",
+    "kind": "build-for-testing",
+    "toolchain": "Xcode 27 beta 3 (27A5218g)",
+    "rive_ios": "6.25.1",
+    "destination": "generic/platform=iOS",
+    "signed": false,
+    "log": "/Users/papertiger/Documents/Codex/2026-09-12/together-mascot-arrival/build-for-testing-final.log",
+    "log_sha256": "5a77fefecbfe3069a5a2c13409e903ac122451d97016605552cf61c2cf96cb97",
+    "other_warning": "Unchanged ProfileViewModel actor-isolated initializer warning.",
+    "command": "DEVELOPER_DIR='/Users/papertiger/Downloads/Xcode-beta 3.app/Contents/Developer' xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -derivedDataPath /Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik -clonedSourcePackagesDirPath /Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik/SourcePackages -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO"
+  },
+  "resource": {
+    "sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8",
+    "bytes": 4269590,
+    "built_sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8",
+    "changed": false
+  },
+  "review": {
+    "method": "Root source review plus independent phase/input/lifecycle review and navigation-path audit",
+    "unresolved_p0_p1_p2": []
+  },
+  "apple_knowledge": {
+    "query": "UIViewControllerTransitionCoordinator animate alongside first presentation toolbar geometry unavailable viewIsAppearing layoutIfNeeded fallback animation discontinuity SwiftUI fullScreenCover zoom",
+    "hit_keys": [],
+    "adopted_records": [],
+    "result": "无需 Expert Delta",
+    "official_sources_in": "README.md"
+  },
+  "limits": [
+    "No Simulator",
+    "No Together install or launch",
+    "No device gesture, visual or accessibility acceptance",
+    "No profiling or energy measurement",
+    "No git commit or push"
+  ],
+  "next": "Rebuild and Run from Xcode, verify Home pose during one incoming movement and writing only after arrival; then quick reversal, cancelled return, early input and Reduce Motion."
+}

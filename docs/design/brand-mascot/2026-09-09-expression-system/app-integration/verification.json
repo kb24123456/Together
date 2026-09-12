@@ -1,0 +1,75 @@
+{
+  "createdAt": "2026-09-09T11:38:45.824310+00:00",
+  "passed": true,
+  "asset": "Together/Resources/BrandMascot/together_sphere_motion_study.riv",
+  "assetBytes": 3848190,
+  "assetSHA256": "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3",
+  "bundledAsset": "/private/tmp/together-mascot-app-xcode27-build/Build/Products/Debug-iphoneos/Together.app/together_sphere_motion_study.riv",
+  "bundledAssetSHA256": "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3",
+  "backupDirectory": "docs/design/brand-mascot/2026-09-09-expression-system/app-integration/backups",
+  "assetChecks": {
+    "passed": 57,
+    "failed": 0,
+    "evidence": "asset-verification.json"
+  },
+  "feedbackChecks": {
+    "passed": 90,
+    "failed": 0,
+    "evidence": "feedback-verification.json"
+  },
+  "fallbacks": [
+    {
+      "asset": "Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding.png",
+      "sha256": "5e85980913186b6d7f1e1d9390d59d44f1db59c8ae0ff17fccbbec664a711a32",
+      "source": "docs/design/brand-mascot/2026-09-09-expression-system/app-integration/holding-light/frame-00060.png",
+      "renderer": "Rive Apple Runtime 6.25.1 New Runtime / Metal, transparent background",
+      "size": [
+        512,
+        512
+      ],
+      "nonTransparentBounds": [
+        72,
+        56,
+        440,
+        479
+      ],
+      "pose": "WritingHold after 61 frames at 60fps",
+      "visuallyReviewed": true
+    },
+    {
+      "asset": "Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding-white.png",
+      "sha256": "33bda378e291906e40403588734a0a335260039ef4bd871cca243b316dbee3ff",
+      "source": "docs/design/brand-mascot/2026-09-09-expression-system/app-integration/holding-dark/frame-00060.png",
+      "renderer": "Rive Apple Runtime 6.25.1 New Runtime / Metal, transparent background",
+      "size": [
+        512,
+        512
+      ],
+      "nonTransparentBounds": [
+        72,
+        56,
+        440,
+        479
+      ],
+      "pose": "WritingHold after 61 frames at 60fps",
+      "visuallyReviewed": true
+    }
+  ],
+  "sourceChanges": "Only the Rive file and two holding PNGs changed in App; 19 relevant production Swift files match before.json. Business mapping and layout retained.",
+  "build": {
+    "result": "TEST BUILD SUCCEEDED",
+    "toolchain": "Xcode 27.0 beta 3 (27A5218g), iOS 27 SDK",
+    "scheme": "Together-UnitTests",
+    "destination": "generic/platform=iOS",
+    "action": "build-for-testing",
+    "signed": false,
+    "log": "/private/tmp/together-mascot-approved-integration-build.log",
+    "assetCatalogCompiled": true,
+    "warning": "Existing ProfileViewModel.swift:44 actor-isolated initializer warning; unrelated source untouched."
+  },
+  "limits": [
+    "iOS tests compiled but not run.",
+    "No iOS Simulator, signed install, physical-device UI, system Reduce Motion, energy or performance verification.",
+    "New expression/action controls remain available in the resource, without additional business-trigger mapping."
+  ]
+}

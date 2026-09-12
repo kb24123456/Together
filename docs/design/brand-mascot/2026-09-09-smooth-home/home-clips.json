@@ -1,0 +1,56 @@
+{
+  "Home_Calm": {
+    "id": "0-829720",
+    "state": "0-829821",
+    "frames": 60,
+    "keys": 60
+  },
+  "Home_CuriousEnter": {
+    "id": "0-829822",
+    "state": "0-830035",
+    "frames": 15,
+    "keys": 172
+  },
+  "Home_CuriousHold": {
+    "id": "0-830036",
+    "state": "0-830137",
+    "frames": 60,
+    "keys": 60
+  },
+  "Home_CuriousExit": {
+    "id": "0-830138",
+    "state": "0-830351",
+    "frames": 15,
+    "keys": 172
+  },
+  "Home_HappyEnter": {
+    "id": "0-830352",
+    "state": "0-830691",
+    "frames": 18,
+    "keys": 298
+  },
+  "Home_HappyHold": {
+    "id": "0-830692",
+    "state": "0-830793",
+    "frames": 60,
+    "keys": 60
+  },
+  "Home_HappyExit": {
+    "id": "0-830794",
+    "state": "0-831133",
+    "frames": 18,
+    "keys": 298
+  },
+  "Home_Release": {
+    "id": "0-831134",
+    "state": "0-831235",
+    "frames": 6,
+    "keys": 60
+  },
+  "Home_Acquire": {
+    "id": "0-893589",
+    "state": "0-893602",
+    "frames": 54,
+    "keys": 6
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "name": "open_file_editor",
+  "description": "Manage artboards in the file.\n\nCommands:\n- getCurrentFile: identify this file: name, location, and editor url. Rive files live in the cloud, so there is no path on disk.\n- listArtboards: list all artboards (name, size, position).\n- getSelectedArtboard: get the active/selected artboard.\n- focusArtboard: make an artboard active by id or name.\n- renameArtboard: rename artboards by id or name.\n- arrangeArtboard: move artboards to a new x/y position.\n- resizeArtboard: change artboard width and/or height.\n- createArtboard: create one or more artboards. Do NOT set x/y unless the user asks for an exact position. Rive automatically places each new artboard in free space (so it never covers an existing artboard) and moves the view to show it - you do not need to position, focus, or scroll to it yourself.\n- closeRevisionHistory: close the Revision History panel. While it is open the file is view only and all editing commands fail; close it only when the user wants to resume editing.\n- undo: revert the last change you made.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "enum": [
+          "getCurrentFile",
+          "listArtboards",
+          "getSelectedArtboard",
+          "focusArtboard",
+          "renameArtboard",
+          "arrangeArtboard",
+          "resizeArtboard",
+          "createArtboard",
+          "closeRevisionHistory",
+          "undo"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "getCurrentFile": {
+            "type": "object",
+            "properties": {}
+          },
+          "listArtboards": {
+            "type": "object",
+            "properties": {}
+          },
+          "getSelectedArtboard": {
+            "type": "object",
+            "properties": {}
+          },
+          "focusArtboard": {
+            "type": "object",
+            "properties": {
+              "artboardId": {
+                "description": "The ID of the artboard to focus",
+                "type": "string"
+              },
+              "artboardName": {
+                "description": "The name of the artboard to focus",
+                "type": "string"
+              },
+              "fitToViewport": {
+                "description": "Whether to fit the artboard into the viewport",
+                "type": "boolean"
+              }
+            }
+          },
+          "renameArtboard": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artboardId": {
+                  "description": "The ID of the artboard to rename",
+                  "type": "string"
+                },
+                "artboardName": {
+                  "description": "The current name of the artboard to rename",
+                  "type": "string"
+                },
+                "newName": {
+                  "description": "The new name for the artboard",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "newName"
+              ]
+            }
+          },
+          "arrangeArtboard": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artboardId": {
+                  "description": "The ID of the artboard to arrange",
+                  "type": "string"
+                },
+                "artboardName": {
+                  "description": "The name of the artboard to arrange",
+                  "type": "string"
+                },
+                "x": {
+                  "description": "The new X position of the artboard",
+                  "type": "number"
+                },
+                "y": {
+                  "description": "The new Y position of the artboard",
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "resizeArtboard": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artboardId": {
+                  "description": "The ID of the artboard to resize",
+                  "type": "string"
+                },
+                "artboardName": {
+                  "description": "The name of the artboard to resize",
+                  "type": "string"
+                },
+                "width": {
+                  "description": "The new width of the artboard",
+                  "type": "number"
+                },
+                "height": {
+                  "description": "The new height of the artboard",
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "undo": {
+            "type": "object",
+            "properties": {}
+          },
+          "closeRevisionHistory": {
+            "type": "object",
+            "properties": {}
+          },
+          "createArtboard": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "The name of the new artboard",
+                  "type": "string"
+                },
+                "x": {
+                  "description": "Exact X position. Leave unset in almost all cases: Rive auto-places the artboard in free space. Only set it when the user gives a specific location.",
+                  "type": "number"
+                },
+                "y": {
+                  "description": "Exact Y position. Leave unset in almost all cases: Rive auto-places the artboard in free space. Only set it when the user gives a specific location.",
+                  "type": "number"
+                },
+                "width": {
+                  "description": "The width of the new artboard (defaults to 100)",
+                  "type": "number"
+                },
+                "height": {
+                  "description": "The height of the new artboard (defaults to 100)",
+                  "type": "number"
+                },
+                "isComponent": {
+                  "description": "Whether this artboard can be used as a Component in other Artboards",
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "required": [
+      "command"
+    ]
+  },
+  "execution": {
+    "taskSupport": "forbidden"
+  }
+}

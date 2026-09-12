@@ -1,0 +1,90 @@
+{
+  "success": true,
+  "stateMachineId": "0-896281",
+  "stateMachineName": "Review_Writing_A4",
+  "inputs": [],
+  "listeners": [],
+  "layers": [
+    {
+      "layerId": "0-896286",
+      "layerName": "WritingReview",
+      "isDisabled": false,
+      "snappingEnabled": false,
+      "entryStateId": "0-896289",
+      "anyStateId": "0-896287",
+      "exitStateId": "0-896288",
+      "states": [
+        {
+          "id": "0-896287",
+          "type": "any",
+          "name": "",
+          "stateName": "",
+          "stateCaption": "",
+          "x": 400.0,
+          "y": 0.0,
+          "flags": 0,
+          "events": [],
+          "listenerActions": []
+        },
+        {
+          "id": "0-896288",
+          "type": "exit",
+          "name": "",
+          "stateName": "",
+          "stateCaption": "",
+          "x": 480.0,
+          "y": 0.0,
+          "flags": 0,
+          "events": [],
+          "listenerActions": []
+        },
+        {
+          "id": "0-896289",
+          "type": "entry",
+          "name": "",
+          "stateName": "",
+          "stateCaption": "",
+          "x": 0.0,
+          "y": 0.0,
+          "flags": 0,
+          "events": [],
+          "listenerActions": []
+        },
+        {
+          "id": "0-896290",
+          "type": "animation",
+          "name": "Writing_A4",
+          "stateName": "Writing_A4",
+          "stateCaption": "",
+          "x": 220.0,
+          "y": 0.0,
+          "flags": 0,
+          "events": [],
+          "listenerActions": [],
+          "animationId": "0-893641",
+          "animationName": "Review_Writing_A4"
+        }
+      ],
+      "transitions": [
+        {
+          "id": "0-896291",
+          "fromStateId": "0-896289",
+          "toStateId": "0-896290",
+          "duration": 0,
+          "durationIsPercentage": false,
+          "exitTime": 0,
+          "exitTimeIsPercentage": false,
+          "isDisabled": false,
+          "pauseOnExit": false,
+          "enableExitTime": false,
+          "enableEarlyExit": false,
+          "randomWeight": 1,
+          "interpolation": "linear",
+          "conditions": [],
+          "events": [],
+          "listenerActions": []
+        }
+      ]
+    }
+  ]
+}

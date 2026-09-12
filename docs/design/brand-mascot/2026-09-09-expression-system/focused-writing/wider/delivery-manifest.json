@@ -1,0 +1,30 @@
+{
+  "fileId": 2564580,
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "asset": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-09-expression-system/focused-writing/wider/deliverables/together_sphere_motion_study.riv",
+  "assetSHA256": "dcff4246a01a85142f605b33238437ad239422e8fb8d5916e0d34b27102223c3",
+  "bytes": 3848190,
+  "writingEyes": {
+    "centersX": [
+      -71,
+      54
+    ],
+    "centerlineLengths": [
+      56,
+      52
+    ],
+    "rotationsDegrees": [
+      12,
+      -12
+    ],
+    "strokeWidths": [
+      17,
+      16
+    ]
+  },
+  "appChanged": false,
+  "fullEditableBackup": "Revision History > Before wider writing eyes · 2026-09-09",
+  "backupVerified": true,
+  "exportRecovery": "Export timed out; reopened same file after restarting Rive. The restarted editor reported 0.8.5779 versus 0.8.5761 beforehand; new geometry persisted and export then succeeded."
+}

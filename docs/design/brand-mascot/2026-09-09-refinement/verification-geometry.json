@@ -1,0 +1,238 @@
+{
+  "passed": true,
+  "sourceSHA256": "d9857632d93fc296604d2394253b0db9bed5c1042652c798c5fabb38cc2069f4",
+  "scope": "Independent reconstruction of timeline-patches over the existing integrated poses; no Rive edits, App build, or rendering.",
+  "sampling": "Half-frame poses; shared 24 samples/cubic for closed eyes, 25 samples/open eyelid cubic; transformed conservative Z stroke bounds.",
+  "staticGeometryEvidence": "Root agent confirmed by live MCP: ExpressionEyes local transform identity; near endpoints \u00b124, far \u00b121; Z open four-point paths with half sizes 8/11/14, strokes 6/7/8, identity SleepSymbols child of CharacterRoot.",
+  "checks": [
+    {
+      "name": "Idle spherical eye topology",
+      "passed": true,
+      "maximumRadius": 123.80700422425157
+    },
+    {
+      "name": "Idle neutral endpoints",
+      "passed": true,
+      "maximumOutlineError": 7.105427357601002e-15
+    },
+    {
+      "name": "Idle authored blink retained",
+      "passed": true,
+      "minimumProjectedHeights": {
+        "near": 7.865162102928636,
+        "far": 7.7507135304716
+      }
+    },
+    {
+      "name": "Idle_QuietMedium spherical eye topology",
+      "passed": true,
+      "maximumRadius": 114.45895191185991
+    },
+    {
+      "name": "Idle_QuietMedium neutral endpoints",
+      "passed": true,
+      "maximumOutlineError": 7.105427357601002e-15
+    },
+    {
+      "name": "Idle_QuietMedium authored blink retained",
+      "passed": true,
+      "minimumProjectedHeights": {
+        "near": 7.628917445299308,
+        "far": 7.6359264390968065
+      }
+    },
+    {
+      "name": "Preview_All Idle recompressed eye topology",
+      "passed": true
+    },
+    {
+      "name": "Writing loop endpoints",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "WritingHold loop endpoints",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Concerned loop endpoints",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Idle_Orient loop endpoints",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Thinking loop endpoints",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Doze loop endpoints",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "Preview_All loop endpoints",
+      "passed": true,
+      "differenceCount": 0
+    },
+    {
+      "name": "DozeEnter -> Doze visible eyelid continuity",
+      "passed": true
+    },
+    {
+      "name": "Doze -> Wake visible eyelid continuity",
+      "passed": true
+    },
+    {
+      "name": "DozeEnter visible eyelid geometry",
+      "passed": true
+    },
+    {
+      "name": "Doze visible eyelid geometry",
+      "passed": true
+    },
+    {
+      "name": "Wake visible eyelid geometry",
+      "passed": true
+    },
+    {
+      "name": "sleep symbols hidden in every other clip",
+      "passed": true,
+      "leaks": []
+    },
+    {
+      "name": "all visible Z glyphs including strokes fit 512 artboard",
+      "passed": true,
+      "outsideCount": 0
+    },
+    {
+      "name": "Preview_All symbols only during Doze",
+      "passed": true,
+      "leaks": []
+    },
+    {
+      "name": "patch artifact unchanged during audit",
+      "passed": true
+    }
+  ],
+  "gaze": {
+    "Idle": {
+      "halfFramePoses": 769,
+      "selfIntersections": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 123.80700422425157,
+      "endpointOutlineError": 7.105427357601002e-15,
+      "minimumProjectedHeight": {
+        "near": 7.865162102928636,
+        "far": 7.7507135304716
+      },
+      "originalBlinkHeightTracksUntouched": true
+    },
+    "Idle_QuietMedium": {
+      "halfFramePoses": 601,
+      "selfIntersections": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 114.45895191185991,
+      "endpointOutlineError": 7.105427357601002e-15,
+      "minimumProjectedHeight": {
+        "near": 7.628917445299308,
+        "far": 7.6359264390968065
+      },
+      "originalBlinkHeightTracksUntouched": true
+    }
+  },
+  "previewGaze": [
+    {
+      "segment": "Idle",
+      "selfIntersections": [],
+      "outsideSphere": [],
+      "maximumLocalRadius": 123.80700422425157
+    }
+  ],
+  "loopEndpointDifferences": {
+    "Writing": {},
+    "WritingHold": {},
+    "Concerned": {},
+    "Idle_Orient": {},
+    "Thinking": {},
+    "Doze": {},
+    "Preview_All": {}
+  },
+  "sleepJoins": [
+    {
+      "fromClip": "DozeEnter",
+      "toClip": "Doze",
+      "worldOutlineErrors": {
+        "near": 2.842170943040401e-14,
+        "far": 0.0
+      },
+      "strokeErrors": {
+        "near": 0.0,
+        "far": 0.0
+      },
+      "alphaError": 0.0
+    },
+    {
+      "fromClip": "Doze",
+      "toClip": "Wake",
+      "worldOutlineErrors": {
+        "near": 0.0,
+        "far": 0.0
+      },
+      "strokeErrors": {
+        "near": 0.0,
+        "far": 0.0
+      },
+      "alphaError": 0.0
+    }
+  ],
+  "sleepGeometry": {
+    "DozeEnter": {
+      "errors": [],
+      "maximumLocalRadiusIncludingStroke": 83.62944141929263
+    },
+    "Doze": {
+      "errors": [],
+      "maximumLocalRadiusIncludingStroke": 83.10806687753156
+    },
+    "Wake": {
+      "errors": [],
+      "maximumLocalRadiusIncludingStroke": 84.12656704218708
+    }
+  },
+  "symbolWorldBounds": {
+    "Doze": {
+      "visibleSymbolSamples": 777,
+      "minimum": [
+        366.7127108295034,
+        62.00410898705877
+      ],
+      "maximum": [
+        477.4900987964128,
+        158.08131270072408
+      ]
+    },
+    "Preview_All": {
+      "visibleSymbolSamples": 777,
+      "minimum": [
+        366.7199348841062,
+        62.00410898705877
+      ],
+      "maximum": [
+        477.4900987964128,
+        158.08171422648007
+      ]
+    }
+  },
+  "symbolOutside": [],
+  "symbolVisibilityLeaks": [],
+  "limits": [
+    "Mathematical checks do not replace editor/runtime visual acceptance.",
+    "Sampling is finite and checks the authored linear simplified tracks; not a formal continuous-curve proof."
+  ]
+}

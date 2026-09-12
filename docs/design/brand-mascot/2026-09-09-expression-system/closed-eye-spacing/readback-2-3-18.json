@@ -1,0 +1,87 @@
+{
+  "indices": [
+    2,
+    3,
+    18
+  ],
+  "stateMachineUnchanged": true,
+  "animations": [
+    {
+      "animation": "Expr_SoftHappy",
+      "animationId": "0-471157",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Close_SoftHappy",
+      "animationId": "0-472653",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Pulse_SoftHappy",
+      "animationId": "0-474148",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Laugh",
+      "animationId": "0-475651",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Close_Laugh",
+      "animationId": "0-477147",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Pulse_Laugh",
+      "animationId": "0-478642",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Content",
+      "animationId": "0-544900",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Close_Content",
+      "animationId": "0-546396",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Expr_Pulse_Content",
+      "animationId": "0-547891",
+      "changedKeys": 258,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Preview_Expressions_28",
+      "animationId": "0-602270",
+      "changedKeys": 2322,
+      "otherKeysUnchanged": true,
+      "readback": true
+    },
+    {
+      "animation": "Preview_LightActions_4",
+      "animationId": "0-660023",
+      "changedKeys": 512,
+      "otherKeysUnchanged": true,
+      "readback": true
+    }
+  ]
+}

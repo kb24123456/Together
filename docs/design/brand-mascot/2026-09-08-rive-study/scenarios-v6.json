@@ -1,0 +1,1329 @@
+{
+  "schemaVersion": 1,
+  "stateMachineId": "0-7",
+  "scope": "Native simulateStateMachine input vectors and expected semantic state traces only. Not executed by this generator.",
+  "interpretation": {
+    "orderedContains": "Ordered subsequence of entered state names, allowing intermediary Resolve/Pick and repeated names.",
+    "celebrationCount": "Count entries into Celebrate plus CelebrateConcern; the latter is one combined recover+celebrate timeline.",
+    "finalStateOneOf": "Final resting Behavior-layer state.",
+    "frames": "Native simulator total frames; input frames are zero-based.",
+    "triggerEvents": "Only true writes for trigger inputs, each once at the specified frame.",
+    "initialization": "Each scenario sets mode, isTyping and celebrateRequested at frame0.",
+    "hostPolicyBoundary": "Raw repeated/same-frame inputs deliberately stress Rive protection. Host still owns visibility, real event source, cooldown, cancellation and valid mode derivation."
+  },
+  "cases": [
+    {
+      "id": "idle_settles",
+      "purpose": "默认mode0到静候，入口Resolve不滞留",
+      "fps": 60,
+      "frames": 180,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "editing_hold",
+      "purpose": "mode1且不输入到持笔",
+      "fps": 60,
+      "frames": 180,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "WritingEnter",
+          "WritingHold"
+        ],
+        "finalStateOneOf": [
+          "WritingHold"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "editing_write",
+      "purpose": "mode1且输入到书写",
+      "fps": 60,
+      "frames": 180,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": true
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "WritingEnter",
+          "Writing"
+        ],
+        "finalStateOneOf": [
+          "Writing"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "concern_settles",
+      "purpose": "mode2到着急持续态",
+      "fps": 60,
+      "frames": 180,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 2
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "ConcernEnter",
+          "Concerned"
+        ],
+        "finalStateOneOf": [
+          "Concerned"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "thinking_settles",
+      "purpose": "mode3到独立思考持续态",
+      "fps": 60,
+      "frames": 180,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 3
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "ThinkingEnter",
+          "Thinking"
+        ],
+        "finalStateOneOf": [
+          "Thinking"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "doze_settles",
+      "purpose": "mode4到打盹持续态",
+      "fps": 60,
+      "frames": 180,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 4
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "DozeEnter",
+          "Doze"
+        ],
+        "finalStateOneOf": [
+          "Doze"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "typing_changes",
+      "purpose": "编辑中停止/恢复输入，不能转回Idle",
+      "fps": 60,
+      "frames": 210,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": true
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 60,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 120,
+          "property": "isTyping",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Writing",
+          "WritingHold",
+          "Writing"
+        ],
+        "finalStateOneOf": [
+          "Writing"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": [
+          "Idle"
+        ]
+      }
+    },
+    {
+      "id": "complete_still_overdue",
+      "purpose": "着急时完成一个任务，仍有逾期则庆祝后回着急",
+      "fps": 60,
+      "frames": 270,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 2
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 50,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Concerned",
+          "CelebrateConcern",
+          "ConcernEnter",
+          "Concerned"
+        ],
+        "finalStateOneOf": [
+          "Concerned"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "complete_clears_overdue",
+      "purpose": "最后逾期任务完成，同帧mode0和完成，Recover后庆祝再静候",
+      "fps": 60,
+      "frames": 270,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 2
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 50,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 50,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Concerned",
+          "Recover",
+          "Celebrate",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": [
+          "CelebrateConcern"
+        ]
+      }
+    },
+    {
+      "id": "celebrate_interrupted_by_editing",
+      "purpose": "庆祝被编辑打断，退出编辑后不补播",
+      "fps": 60,
+      "frames": 360,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 30,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 50,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 50,
+          "property": "isTyping",
+          "value": true
+        },
+        {
+          "frame": 50,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 210,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 210,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 210,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Celebrate",
+          "Settle",
+          "WritingEnter",
+          "Writing",
+          "WritingExit",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "celebrate_interrupted_by_processing",
+      "purpose": "庆祝被真实处理打断，处理结束不补播",
+      "fps": 60,
+      "frames": 420,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 30,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 50,
+          "property": "mode",
+          "value": 3
+        },
+        {
+          "frame": 50,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 240,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 240,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Celebrate",
+          "Settle",
+          "ThinkingEnter",
+          "Thinking",
+          "ThinkingExit",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "same_frame_complete_and_editing",
+      "purpose": "同帧完成+进入编辑，编辑优先且完成不得残留",
+      "fps": 60,
+      "frames": 330,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 40,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 40,
+          "property": "isTyping",
+          "value": true
+        },
+        {
+          "frame": 40,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 180,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 180,
+          "property": "isTyping",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "WritingEnter",
+          "Writing",
+          "WritingExit",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": [
+          "Celebrate",
+          "CelebrateConcern"
+        ]
+      }
+    },
+    {
+      "id": "same_frame_complete_and_processing",
+      "purpose": "同帧完成+进入处理，处理优先且完成不得残留",
+      "fps": 60,
+      "frames": 390,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 40,
+          "property": "mode",
+          "value": 3
+        },
+        {
+          "frame": 40,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 240,
+          "property": "mode",
+          "value": 0
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "ThinkingEnter",
+          "Thinking",
+          "ThinkingExit",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": [
+          "Celebrate",
+          "CelebrateConcern"
+        ]
+      }
+    },
+    {
+      "id": "ten_completions_merge",
+      "purpose": "庆祝活动期10次原始请求，入口消费+出口清零保证不排队；Host仍另做冷却",
+      "fps": 60,
+      "frames": 300,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 40,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 42,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 44,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 46,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 48,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 50,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 52,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 54,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 56,
+          "property": "celebrateRequested",
+          "value": true
+        },
+        {
+          "frame": 58,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Celebrate",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "writing_same_frame_latest_idle_complete",
+      "purpose": "旧视觉仍书写，同帧目标已idle且收到合法完成，不得被Writing出口擦掉",
+      "fps": 60,
+      "frames": 300,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": true
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 60,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 60,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 60,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Writing",
+          "WritingExit",
+          "Celebrate",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "writing_exit_late_complete",
+      "purpose": "收笔中间的新合法完成保持锁存到Resolve",
+      "fps": 60,
+      "frames": 300,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": true
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 60,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 60,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 68,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Writing",
+          "WritingExit",
+          "Celebrate",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "wake_late_complete",
+      "purpose": "Wake后半收到新合法完成，Wake不可清掉请求",
+      "fps": 60,
+      "frames": 390,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 4
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 120,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 170,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Doze",
+          "Wake",
+          "Celebrate",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "settle_late_complete",
+      "purpose": "Remind被短暂编辑打断，Settle后半当前已idle的新完成不能被出口清掉",
+      "fps": 60,
+      "frames": 270,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 30,
+          "property": "remind",
+          "value": true
+        },
+        {
+          "frame": 45,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 45,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 50,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 55,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Remind",
+          "Settle",
+          "Celebrate",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "ordinary_wake",
+      "purpose": "闲置解除后完整唤醒再静候",
+      "fps": 60,
+      "frames": 330,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 4
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 120,
+          "property": "mode",
+          "value": 0
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "DozeEnter",
+          "Doze",
+          "Wake",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "sleep_interrupted_by_editing",
+      "purpose": "打盹时开始输入，短收束进入书写，不等待Wake",
+      "fps": 60,
+      "frames": 300,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 4
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 120,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 120,
+          "property": "isTyping",
+          "value": true
+        },
+        {
+          "frame": 120,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Doze",
+          "Settle",
+          "WritingEnter",
+          "Writing"
+        ],
+        "finalStateOneOf": [
+          "Writing"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": [
+          "Wake"
+        ]
+      }
+    },
+    {
+      "id": "fast_target_reversals",
+      "purpose": "连续反转目标最终只遵循最新mode0，不残留庆祝或卡在过渡",
+      "fps": 60,
+      "frames": 420,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 20,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 20,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 25,
+          "property": "mode",
+          "value": 2
+        },
+        {
+          "frame": 25,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 30,
+          "property": "mode",
+          "value": 3
+        },
+        {
+          "frame": 30,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 35,
+          "property": "mode",
+          "value": 4
+        },
+        {
+          "frame": 35,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 40,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 40,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 45,
+          "property": "mode",
+          "value": 1
+        },
+        {
+          "frame": 45,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 50,
+          "property": "mode",
+          "value": 2
+        },
+        {
+          "frame": 50,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 55,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 55,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": [],
+        "latestMode": 0,
+        "settleByFrame": 300
+      }
+    },
+    {
+      "id": "tap_feedback",
+      "purpose": "静候点击即时回应后回静候",
+      "fps": 60,
+      "frames": 180,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 30,
+          "property": "acknowledge",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Acknowledge",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "remind_feedback",
+      "purpose": "静候提醒一次后回静候",
+      "fps": 60,
+      "frames": 240,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 30,
+          "property": "remind",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Remind",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": []
+      }
+    },
+    {
+      "id": "random_idle",
+      "purpose": "60秒低帧率验证随机待机分支及Pick瞬时离开；不要求某一个概率分支必出现",
+      "fps": 10,
+      "frames": 600,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 0,
+        "forbiddenStates": [],
+        "idleStateNames": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "minimumDistinctIdleStates": 2,
+        "forbiddenRestingStates": [
+          "Resolve",
+          "PickAfterOthers",
+          "PickAfterShort"
+        ]
+      }
+    },
+    {
+      "id": "recover_late_complete",
+      "purpose": "Recover中间出现合法完成，应到Resolve后庆祝一次",
+      "fps": 60,
+      "frames": 300,
+      "inputs": [
+        {
+          "frame": 0,
+          "property": "mode",
+          "value": 2
+        },
+        {
+          "frame": 0,
+          "property": "isTyping",
+          "value": false
+        },
+        {
+          "frame": 0,
+          "property": "celebrateRequested",
+          "value": false
+        },
+        {
+          "frame": 60,
+          "property": "mode",
+          "value": 0
+        },
+        {
+          "frame": 68,
+          "property": "celebrateRequested",
+          "value": true
+        }
+      ],
+      "expected": {
+        "orderedContains": [
+          "Concerned",
+          "Recover",
+          "Celebrate",
+          "Idle"
+        ],
+        "finalStateOneOf": [
+          "Idle",
+          "Idle_QuietShort",
+          "Idle_QuietMedium",
+          "Idle_Look"
+        ],
+        "celebrationCount": 1,
+        "forbiddenStates": []
+      }
+    }
+  ]
+}

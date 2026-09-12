@@ -1489,6 +1489,58 @@ struct TogetherTests {
         }
     }
 
+    @Test func homeCompletionFeedbackOnlyAdvancesForLocalCompletion() async {
+        let item = makeHomeFilterItem(title: "仅完成时回应", completedAt: nil, status: .inProgress)
+        let repository = MockItemRepository(items: [item])
+        let viewModel = makeInlineDetailHomeViewModel(repository: repository)
+
+        await viewModel.reload()
+        #expect(viewModel.completionFeedbackRevision == 0)
+
+        await viewModel.completeItem(item.id, trigger: .taskExpansion)
+        #expect(viewModel.completionFeedbackRevision == 1)
+
+        await viewModel.reload()
+        #expect(viewModel.completionFeedbackRevision == 1)
+
+        await viewModel.completeItem(item.id, trigger: .taskExpansion)
+        #expect(viewModel.completionFeedbackRevision == 1)
+        #expect(viewModel.item(for: item.id)?.status != .completed)
+
+        await viewModel.setItemUrgent(item.id, isUrgent: true)
+        #expect(viewModel.completionFeedbackRevision == 1)
+    }
+
+    @Test func homeCompletionFeedbackIgnoresUnchangedCompletionAndFailure() async {
+        let item = makeHomeFilterItem(title: "已完成返回不重复回应", completedAt: .now, status: .completed)
+        let service = CapturingTaskApplicationService()
+        service.completionItemToReturn = item
+        let sessionStore = SessionStore()
+        sessionStore.seedMock(
+            currentUser: MockDataFactory.makeCurrentUser(),
+            singleSpace: MockDataFactory.makeSingleSpace()
+        )
+        let viewModel = HomeViewModel(
+            sessionStore: sessionStore,
+            taskApplicationService: service,
+            itemRepository: MockItemRepository(items: [item])
+        )
+        viewModel.items = [item]
+
+        await viewModel.completeItem(item.id, trigger: .taskExpansion)
+        #expect(viewModel.completionFeedbackRevision == 0)
+
+        service.completionItemToReturn = nil
+        var incompleteItem = item
+        incompleteItem.status = .inProgress
+        incompleteItem.completedAt = nil
+        viewModel.items = [incompleteItem]
+        await viewModel.completeItem(item.id, trigger: .taskExpansion)
+
+        #expect(viewModel.operationErrorMessage != nil)
+        #expect(viewModel.completionFeedbackRevision == 0)
+    }
+
     @Test func completingFutureDatedTaskUsesCompletionAnimationBranch() async throws {
         var item = makeHomeFilterItem(title: "提前完成未来任务", completedAt: nil, status: .inProgress)
         item.dueAt = Date.now.addingTimeInterval(86_400)
@@ -2125,11 +2177,59 @@ struct TogetherTests {
 
         #expect(viewModel.isAnimatingCompletion(taskID: task.id))
         #expect(viewModel.isCompleted(viewModel.tasks[0]) == false)
+        #expect(viewModel.completionFeedbackRevision == 1)
 
         viewModel.finishExpandedCompletion(taskID: task.id)
 
         #expect(viewModel.isCompleted(viewModel.tasks[0]))
         #expect(viewModel.isAnimatingCompletion(taskID: task.id) == false)
+        #expect(viewModel.completionFeedbackRevision == 1)
+    }
+
+    @Test func routineCompletionFeedbackOnlyAdvancesForLocalCompletion() async {
+        let task = makePeriodicTask(title: "定期完成时回应", cycle: .daily)
+        let service = CapturingPeriodicTaskApplicationService(tasks: [task])
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+
+        await viewModel.load()
+        #expect(viewModel.completionFeedbackRevision == 0)
+
+        await viewModel.toggleCompletion(taskID: task.id)
+        #expect(viewModel.completionFeedbackRevision == 1)
+
+        await viewModel.load()
+        #expect(viewModel.completionFeedbackRevision == 1)
+
+        await viewModel.toggleCompletion(taskID: task.id)
+        #expect(viewModel.completionFeedbackRevision == 1)
+        #expect(viewModel.tasks.first.map { viewModel.isCompleted($0) } == false)
+    }
+
+    @Test func routineCompletionFeedbackIgnoresUnchangedCompletionAndFailure() async {
+        let referenceDate = Date.now
+        let periodKey = PeriodicCycleCalculator.periodKey(for: .daily, date: referenceDate)
+        let task = makePeriodicTask(
+            title: "定期已完成不重复回应",
+            cycle: .daily,
+            completions: [PeriodicCompletion(periodKey: periodKey, completedAt: referenceDate)]
+        )
+        let service = CapturingPeriodicTaskApplicationService(tasks: [])
+        service.completionTaskToReturn = task
+        let viewModel = makeRoutinesViewModel(periodicTaskApplicationService: service)
+        viewModel.referenceDate = referenceDate
+        viewModel.tasks = [task]
+
+        await viewModel.toggleCompletion(taskID: task.id)
+        #expect(viewModel.completionFeedbackRevision == 0)
+
+        service.completionTaskToReturn = nil
+        var incompleteTask = task
+        incompleteTask.completions = []
+        viewModel.tasks = [incompleteTask]
+        await viewModel.toggleCompletion(taskID: task.id)
+
+        #expect(viewModel.operationErrorMessage != nil)
+        #expect(viewModel.completionFeedbackRevision == 0)
     }
 
     @Test func routineCycleSelectionIsBlockedWhileInlineDetailIsExpanded() async {
@@ -4770,6 +4870,7 @@ private func makePeriodicTask(
 private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplicationServiceProtocol, @unchecked Sendable {
     private(set) var tasks: [PeriodicTask]
     private(set) var updatedDrafts: [PeriodicTaskDraft] = []
+    var completionTaskToReturn: PeriodicTask?
     private let shouldFailUpdates: Bool
     private let shouldFailFetch: Bool
 
@@ -4829,6 +4930,7 @@ private final class CapturingPeriodicTaskApplicationService: PeriodicTaskApplica
     }
 
     func toggleCompletion(in spaceID: UUID, taskID: UUID, referenceDate: Date) async throws -> PeriodicTask {
+        if let completionTaskToReturn { return completionTaskToReturn }
         guard let index = tasks.firstIndex(where: { $0.id == taskID }) else {
             throw PeriodicTaskError.notFound
         }
@@ -4892,6 +4994,7 @@ private final class CapturingNotificationService: NotificationServiceProtocol, @
 @MainActor
 private final class CapturingTaskApplicationService: TaskApplicationServiceProtocol, @unchecked Sendable {
     var capturedSnoozeOption: TaskSnoozeOption?
+    var completionItemToReturn: Item?
     var snoozeItemToReturn: Item?
     var capturedRescheduleDueAt: Date?
     var capturedRescheduleRemindAt: Date?
@@ -5014,6 +5117,7 @@ private final class CapturingTaskApplicationService: TaskApplicationServiceProto
         actorID: UUID,
         referenceDate: Date
     ) async throws -> Item {
+        if let completionItemToReturn { return completionItemToReturn }
         throw RepositoryError.notFound
     }
 

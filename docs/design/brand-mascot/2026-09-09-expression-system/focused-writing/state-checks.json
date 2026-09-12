@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "case": "writing",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Writing",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "case": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "WritingHold",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "case": "resume",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Writing",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "case": "exit",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "case": "concern",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Concerned",
+        "Expressions": "Expr_Auto",
+        "LightActions": "Action_Rest"
+      }
+    }
+  ]
+}

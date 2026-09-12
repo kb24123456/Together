@@ -1,0 +1,291 @@
+{
+  "passed": true,
+  "modifiedTimelines": 23,
+  "changedEyeKeys": 10026,
+  "stateMachineUnchanged": true,
+  "viewModelUnchanged": true,
+  "mouthBodyPropsOtherKeysUnchanged": true,
+  "keyframes": [
+    {
+      "animationId": "0-471157",
+      "totalKeys": 669,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-472653",
+      "totalKeys": 668,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-474148",
+      "totalKeys": 673,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-475651",
+      "totalKeys": 669,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-477147",
+      "totalKeys": 668,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-478642",
+      "totalKeys": 673,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-489133",
+      "totalKeys": 693,
+      "changedEyeKeys": 210,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-490653",
+      "totalKeys": 668,
+      "changedEyeKeys": 210,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-492148",
+      "totalKeys": 685,
+      "changedEyeKeys": 210,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-540406",
+      "totalKeys": 669,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-541902",
+      "totalKeys": 668,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-543397",
+      "totalKeys": 673,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-544900",
+      "totalKeys": 669,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-546396",
+      "totalKeys": 668,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-547891",
+      "totalKeys": 673,
+      "changedEyeKeys": 258,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-580942",
+      "totalKeys": 669,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-582438",
+      "totalKeys": 668,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-583933",
+      "totalKeys": 673,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-589944",
+      "totalKeys": 669,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-591440",
+      "totalKeys": 672,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-592939",
+      "totalKeys": 681,
+      "changedEyeKeys": 190,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-602270",
+      "totalKeys": 56582,
+      "changedEyeKeys": 4852,
+      "otherPropertiesUnchanged": true
+    },
+    {
+      "animationId": "0-660023",
+      "totalKeys": 8823,
+      "changedEyeKeys": 512,
+      "otherPropertiesUnchanged": true
+    }
+  ],
+  "checks": [
+    {
+      "expression": 2,
+      "kind": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SoftHappy",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 2,
+      "kind": "pulse-return",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 3,
+      "kind": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Laugh",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 3,
+      "kind": "pulse-return",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeDown",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 16,
+      "kind": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Speechless",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 16,
+      "kind": "pulse-return",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 17,
+      "kind": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_SleepyYawn",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 17,
+      "kind": "pulse-return",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_QuietMedium",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 18,
+      "kind": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Content",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 18,
+      "kind": "pulse-return",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUp",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 26,
+      "kind": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle_GazeUpRight",
+        "Expressions": "Hold_Helpless",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 26,
+      "kind": "pulse-return",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 28,
+      "kind": "hold",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_SleepyLow",
+        "LightActions": "Action_Rest"
+      }
+    },
+    {
+      "expression": 28,
+      "kind": "pulse-return",
+      "passed": true,
+      "finalStates": {
+        "Behavior": "Idle",
+        "Expressions": "Hold_Calm",
+        "LightActions": "Action_Rest"
+      }
+    }
+  ],
+  "checkCount": 14
+}

@@ -1,0 +1,143 @@
+{
+  "recordedDate": "2026-09-09",
+  "scope": "Focused visual checks of the 8-pose offline static display-review page",
+  "source": "CUA observations supplied by the coordinating agent; existing screenshot files verified locally for dimensions and hashes",
+  "passed": true,
+  "caseCount": 5,
+  "cases": [
+    {
+      "page": "home",
+      "theme": "dark",
+      "appearance": "white",
+      "pose": "happy",
+      "visibleBodyDiameterPt": 44,
+      "viewportCssPx": [
+        402,
+        874
+      ],
+      "method": "CUA visual inspection by the coordinating agent",
+      "passed": true,
+      "results": {
+        "noVisibleCropping": true,
+        "noTitleOcclusion": true,
+        "cancelAndSaveClear": "not applicable to home"
+      },
+      "screenshot": null,
+      "evidenceNote": "Observed by the coordinating agent; no separate screenshot retained for this case."
+    },
+    {
+      "page": "home",
+      "theme": "dark",
+      "appearance": "white",
+      "pose": "tears",
+      "visibleBodyDiameterPt": 36,
+      "viewportCssPx": [
+        402,
+        874
+      ],
+      "method": "CUA visual inspection by the coordinating agent",
+      "passed": true,
+      "results": {
+        "noVisibleCropping": true,
+        "noTitleOcclusion": true,
+        "cancelAndSaveClear": "not applicable to home"
+      },
+      "screenshot": {
+        "file": "expressions-home-dark-tears-36.png",
+        "pixelSize": [
+          402,
+          874
+        ],
+        "sha256": "82b08f64e470b1b802ea168c9530e01f0f91cc538abeaa7359189ad568f4ee03",
+        "kind": "Browser rendering, not native App or physical iPhone capture"
+      }
+    },
+    {
+      "page": "home",
+      "theme": "light",
+      "appearance": "black",
+      "pose": "wink",
+      "visibleBodyDiameterPt": 36,
+      "viewportCssPx": [
+        402,
+        874
+      ],
+      "method": "CUA visual inspection by the coordinating agent",
+      "passed": true,
+      "results": {
+        "noVisibleCropping": true,
+        "noTitleOcclusion": true,
+        "cancelAndSaveClear": "not applicable to home"
+      },
+      "screenshot": null,
+      "evidenceNote": "Observed by the coordinating agent; no separate screenshot retained for this case."
+    },
+    {
+      "page": "editor",
+      "theme": "light",
+      "appearance": "black",
+      "pose": "happy",
+      "visibleBodyDiameterPt": 56,
+      "viewportCssPx": [
+        375,
+        812
+      ],
+      "method": "CUA visual inspection by the coordinating agent",
+      "passed": true,
+      "results": {
+        "noVisibleCropping": true,
+        "noTitleOcclusion": true,
+        "cancelAndSaveClear": true
+      },
+      "screenshot": {
+        "file": "expressions-editor-light-happy-56.png",
+        "pixelSize": [
+          375,
+          812
+        ],
+        "sha256": "d4681c906dcd37b1394b16a31b76dbd6a19c0cbc5639c2bc3c183dce3db83224",
+        "kind": "Browser rendering, not native App or physical iPhone capture"
+      }
+    },
+    {
+      "page": "editor",
+      "theme": "dark",
+      "appearance": "white",
+      "pose": "tears",
+      "visibleBodyDiameterPt": 48,
+      "viewportCssPx": [
+        375,
+        812
+      ],
+      "method": "CUA visual inspection by the coordinating agent",
+      "passed": true,
+      "results": {
+        "noVisibleCropping": true,
+        "noTitleOcclusion": true,
+        "cancelAndSaveClear": true
+      },
+      "screenshot": {
+        "file": "expressions-editor-dark-tears-48.png",
+        "pixelSize": [
+          375,
+          812
+        ],
+        "sha256": "56a273830790c180a0524db0e83cd3506085b288fdc6b38f295efd3a8f10ff1b",
+        "kind": "Browser rendering, not native App or physical iPhone capture"
+      }
+    }
+  ],
+  "browserDiagnostics": {
+    "warnings": 0,
+    "errors": 0,
+    "source": "Coordinating agent CUA browser check"
+  },
+  "nativeDeviceAcceptance": false,
+  "limitations": [
+    "Static browser layout checks, not Rive runtime playback or native App acceptance.",
+    "Only the five listed combinations were visually checked in this pass; this is not an exhaustive visual matrix of all eight poses, sizes and themes.",
+    "Physical size, device brightness, native safe areas, Dynamic Type, Reduce Motion, interaction hit testing and frame-rate performance remain outside this verification.",
+    "Happy/Celebrate aesthetics remain for review; layout clearance does not establish final expression approval."
+  ],
+  "previousBrowserVerification": "verification-preview.json covers the previous six PNG assets only; its 129 checks were not rerun or claimed for the expanded page."
+}

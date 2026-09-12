@@ -1,0 +1,199 @@
+{
+  "status": "passed",
+  "file": {
+    "success": true,
+    "name": "Together Sphere Motion Study",
+    "fileId": 2564580,
+    "projectId": 1982795,
+    "folderId": null,
+    "workspaceId": null,
+    "workspaceName": null,
+    "projectName": null,
+    "isLibrary": false,
+    "url": "https://editor.rive.app/file/together-sphere-motion-study/2564580"
+  },
+  "timelineCount": 137,
+  "totalKeyframes": 347925,
+  "translatedKeys": 1390,
+  "unchangedKeys": 346535,
+  "changedTimelines": 33,
+  "allKeyIdsFramesInterpolationAndNonTargetValuesUnchanged": true,
+  "changesMatchManifest": true,
+  "timelineIdentityNamesDurationUnchanged": true,
+  "stateMachineExactlyUnchanged": true,
+  "hierarchyExactlyUnchangedExceptFourApprovedGradientColors": true,
+  "errors": [],
+  "actualProperties": {
+    "success": true,
+    "values": {
+      "0-23": {
+        "13": -173.0,
+        "14": 155.0,
+        "15": 0.0,
+        "16": 100.0,
+        "17": 100.0
+      },
+      "0-40": {
+        "13": 169.0,
+        "14": 166.0,
+        "15": 0.0,
+        "16": 100.0,
+        "17": 100.0
+      },
+      "0-96": {
+        "13": -105.0,
+        "14": 250.0,
+        "15": 0.0,
+        "16": 100.0,
+        "17": 100.0
+      },
+      "0-32": {
+        "13": 0.0,
+        "14": -6.0,
+        "15": -24.0,
+        "16": 100.0,
+        "17": 100.0
+      },
+      "0-65": {
+        "13": 37.0,
+        "14": 78.0,
+        "15": 156.0,
+        "16": 100.0,
+        "17": 100.0
+      },
+      "0-69": {
+        "13": 44.0,
+        "14": 96.0,
+        "15": 156.0,
+        "16": 100.0,
+        "17": 100.0
+      },
+      "0-33": {
+        "20": 20.0,
+        "21": 158.0
+      },
+      "0-66": {
+        "20": 20.0,
+        "21": 32.0
+      },
+      "0-70": {
+        "20": 9.0,
+        "21": 16.0
+      },
+      "0-37": {
+        "20": 120.0,
+        "21": 120.0
+      },
+      "0-41": {
+        "20": 116.0,
+        "21": 116.0
+      },
+      "0-169097": {
+        "555": "#ff2c2c2c"
+      },
+      "0-169099": {
+        "555": "#ff0e0e0e"
+      },
+      "0-169101": {
+        "555": "#ff222222"
+      },
+      "0-169103": {
+        "555": "#ff0b0b0b"
+      }
+    }
+  },
+  "export": {
+    "path": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-10-writing-hands/deliverables/together_sphere_motion_study.riv",
+    "size": 4205742,
+    "sha256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691"
+  },
+  "appAsset": {
+    "path": "/Users/papertiger/Desktop/Together/Together/Resources/BrandMascot/together_sphere_motion_study.riv",
+    "size": 4205742,
+    "sha256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691"
+  },
+  "appAndExportMatch": true,
+  "limits": [
+    "Read-only structural validation; no device playback performed by this independent audit.",
+    "Static dimension comparison uses the main agent pre-change live query relayed in this turn; independently re-read final dimensions and verified unchanged animated geometry."
+  ],
+  "appIntegrationStatus": "resource_palette_and_static_fallbacks_synchronized",
+  "hierarchyReadMethod": "query_objects objectIds=[0-14] depth=4 matching baseline",
+  "viewModelInterfaceAndDefaultsUnchangedExceptFourHandColors": true,
+  "lightPaletteMatchesRiveDefaultColors": true,
+  "paletteColors": {
+    "bodyLight": "0xFF101010",
+    "bodyShade": "0xFF030303",
+    "handLight": "0xFF2C2C2C",
+    "handShade": "0xFF0E0E0E",
+    "farHandLight": "0xFF222222",
+    "farHandShade": "0xFF0B0B0B",
+    "eyeColor": "0xFFFFFFFF",
+    "sweatColor": "0xFFFFFFFF",
+    "penBodyColor": "0xFFF2EEE6",
+    "penTipColor": "0xFF111111",
+    "inkColor": "0xFF777777",
+    "tearColor": "0xFF88CFF3"
+  },
+  "dimensionsBaselineSource": "Main agent pre-change live query_property_values for this turn, relayed to independent auditor; props.json itself does not contain static dimensions.",
+  "dimensionsUnchangedFromReportedLiveBaseline": true,
+  "dimensionsActual": {
+    "0-16": {
+      "20": 368.0,
+      "21": 368.0
+    },
+    "0-37": {
+      "20": 120.0,
+      "21": 120.0
+    },
+    "0-41": {
+      "20": 116.0,
+      "21": 116.0
+    },
+    "0-33": {
+      "20": 20.0,
+      "21": 158.0
+    },
+    "0-66": {
+      "20": 20.0,
+      "21": 32.0
+    },
+    "0-70": {
+      "20": 9.0,
+      "21": 16.0
+    }
+  },
+  "penSubpartLocalYDelta": {
+    "0-32": -6.0,
+    "0-65": -6.0,
+    "0-69": -6.0
+  },
+  "penSubpartsTranslatedUniformlyMinusSix": true,
+  "continuityReason": "Every existing target track keeps the same key ids, key times and interpolation metadata, and adds one constant to all values. Original velocity/acceleration profile and inter-timeline relative poses are therefore preserved for each affected local transform track; non-target animation properties are byte-equivalent as decoded JSON.",
+  "scopeStatus": "passed",
+  "staticFallbacks": [
+    {
+      "theme": "light",
+      "sourceFrame": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-10-writing-hands/holding-light/frame-00060.png",
+      "appPath": "/Users/papertiger/Desktop/Together/Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding.png",
+      "sourceSHA256": "efd469747eed6aa1f9765c9b71368a4cdc98b5429b36b23c21de5e24e8a6f534",
+      "appSHA256": "efd469747eed6aa1f9765c9b71368a4cdc98b5429b36b23c21de5e24e8a6f534",
+      "exactCopy": true,
+      "renderedFromLatestRiv": true,
+      "renderedPaletteMatchesApp": true,
+      "renderedPixelSHA256": "e8ebbb0c3b0e176cb5f412d0d720ed74527da07deb0794652e1984f708d01aa5"
+    },
+    {
+      "theme": "dark",
+      "sourceFrame": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-10-writing-hands/holding-dark/frame-00060.png",
+      "appPath": "/Users/papertiger/Desktop/Together/Together/Assets.xcassets/BrandMascot/MascotHolding.imageset/holding-white.png",
+      "sourceSHA256": "c9708b19998914d2a5e833c7f73ccec2fb03a1c35af846b60d1580a294c2bbd2",
+      "appSHA256": "c9708b19998914d2a5e833c7f73ccec2fb03a1c35af846b60d1580a294c2bbd2",
+      "exactCopy": true,
+      "renderedFromLatestRiv": true,
+      "renderedPaletteMatchesApp": true,
+      "renderedPixelSHA256": "9b81fa6940a76ea125bd69776c69c3e76e0f48e4402ea5c319aa784e3f0bafcb"
+    }
+  ],
+  "staticFallbacksSynchronized": true
+}

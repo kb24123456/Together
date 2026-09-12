@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小球 · 书写与打盹</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eeeef0;color:#171719;font:15px/1.65 system-ui,-apple-system,sans-serif}main{max-width:880px;margin:auto;padding:36px 20px}h1{font-size:26px;margin:0 0 8px}p{color:#626268;margin:0 0 24px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{border-radius:22px;overflow:hidden;background:#fff}.dark{background:#202023;color:#fafafa}.card h2{font-size:17px;padding:20px 24px 0;margin:0}.hero{height:206px;display:flex;justify-content:center;align-items:center}.hero img{width:196px;height:196px;object-fit:contain}.sizes{display:flex;justify-content:space-evenly;gap:12px;padding:4px 16px 24px}.sample{text-align:center;font-size:12px;color:#76767d}.dark .sample{color:#b3b3b9}.slot{height:64px;display:flex;align-items:center;justify-content:center}.slot img{width:calc(var(--size)*512/368);height:calc(var(--size)*512/368);transform:translateY(calc(var(--size)*16/368))}.caption{margin-top:20px;font-size:13px}@media(max-width:540px){main{padding:24px 12px}.grid{gap:10px}.card h2{padding:16px 16px 0}.hero{height:154px}.hero img{width:150px;height:150px}.sizes{gap:4px;padding:0 6px 18px}.sample{font-size:11px}}
+</style>
+<main>
+<h1>专心写字，安静打盹</h1>
+<p>保留两条简洁眼线。睡眠符号在动画中依次浮起、淡出。</p>
+<div class="grid">
+<section class="card"><h2>书写 · 浅色</h2><div class="hero"><img src="assets/holding.png" alt="黑球低头持笔，两条圆润眼弧"></div><div class="sizes"><div class="sample"><div class="slot"><img style="--size:30px" src="assets/holding.png" alt="编辑栏尺寸"></div>编辑栏大小</div><div class="sample"><div class="slot"><img style="--size:40px" src="assets/holding.png" alt="首页尺寸对照"></div>首页大小对照</div></div></section>
+<section class="card dark"><h2>书写 · 深色</h2><div class="hero"><img src="assets/holding-white.png" alt="白球持笔，黑色圆润眼弧"></div><div class="sizes"><div class="sample"><div class="slot"><img style="--size:30px" src="assets/holding-white.png" alt="编辑栏尺寸"></div>编辑栏大小</div><div class="sample"><div class="slot"><img style="--size:40px" src="assets/holding-white.png" alt="首页尺寸对照"></div>首页大小对照</div></div></section>
+<section class="card"><h2>打盹 · 浅色</h2><div class="hero"><img src="assets/doze.png" alt="黑球闭眼，三个渐大睡眠符号"></div><div class="sizes"><div class="sample"><div class="slot"><img style="--size:40px" src="assets/doze.png" alt="首页打盹尺寸"></div>首页大小</div></div></section>
+<section class="card dark"><h2>打盹 · 深色</h2><div class="hero"><img src="assets/doze-white.png" alt="白球闭眼，三个渐大睡眠符号"></div><div class="sizes"><div class="sample"><div class="slot"><img style="--size:40px" src="assets/doze-white.png" alt="首页打盹尺寸"></div>首页大小</div></div></section>
+</div>
+<p class="caption">以上是 Rive 原生静态素材，按未缩放浏览器的编辑栏与首页尺寸排版。此页不是 iOS 截图；导航位置、连续动效与键盘布局请在最新真机构建中验收。</p>
+</main>
+</html>

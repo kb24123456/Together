@@ -1,0 +1,81 @@
+{
+  "assetSHA256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+  "date": "2026-09-10",
+  "rendering": [
+    {
+      "directory": "final-30pt-light",
+      "assetSHA256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+      "renderedFrames": 360,
+      "pngFrames": 38,
+      "inspectedPNGs": [
+        "frame-00060.png",
+        "frame-00180.png",
+        "frame-00285.png"
+      ],
+      "videoBytes": 140714
+    },
+    {
+      "directory": "final-30pt-dark",
+      "assetSHA256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+      "renderedFrames": 360,
+      "pngFrames": 38,
+      "inspectedPNGs": [
+        "frame-00060.png",
+        "frame-00180.png",
+        "frame-00285.png"
+      ],
+      "videoBytes": 136425
+    },
+    {
+      "directory": "final-40pt-light",
+      "assetSHA256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+      "renderedFrames": 360,
+      "pngFrames": 38,
+      "inspectedPNGs": [
+        "frame-00060.png",
+        "frame-00180.png",
+        "frame-00285.png"
+      ],
+      "videoBytes": 186689
+    },
+    {
+      "directory": "final-40pt-dark",
+      "assetSHA256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+      "renderedFrames": 360,
+      "pngFrames": 38,
+      "inspectedPNGs": [
+        "frame-00060.png",
+        "frame-00180.png",
+        "frame-00285.png"
+      ],
+      "videoBytes": 184417
+    }
+  ],
+  "staticObservations": [
+    "At both sizes and themes, the hands retain separate round silhouettes and mild tonal separation from the sphere.",
+    "Hands still lightly contact/overlap the body at their inner upper edges; this is not a completely detached-hand design.",
+    "Writing and holding sampled frames preserve the approved wider straight eye shapes.",
+    "The pen tip and scribble remain visible within the artboard.",
+    "Post-exit frame 285 in all four variants clears both hands, pen and scribble; the capsule eyes have restored."
+  ],
+  "quickTimePlayback": {
+    "path": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-10-writing-hands/final-30pt-light/preview.mov",
+    "actuallyOpenedAndPlayed": true,
+    "observedSamples": [
+      "initial capsule eyes without hands",
+      "writing eyes with moving pose of hand/pen",
+      "restored capsule eyes without lingering hands"
+    ],
+    "windowClosedAfterCheck": true,
+    "limits": [
+      "CUA supplied discrete screenshots while the movie actually played; not an uninterrupted human observation of all 360 frames.",
+      "QuickTime expanded the small encoded video to its minimum window size; exact 30pt/40pt visual comparison was performed using rendered native-resolution PNGs, not the expanded QuickTime window."
+    ]
+  },
+  "boundsEvidence": "final-small-pixel-bounds.json",
+  "limits": [
+    "No iPhone install or iOS runtime acceptance performed by this subtask.",
+    "All 152 saved PNGs checked for bounds; not every encoded MOV frame.",
+    "This evidence does not establish device performance or energy consumption."
+  ]
+}

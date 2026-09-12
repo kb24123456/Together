@@ -1,0 +1,2482 @@
+[
+  {
+    "objectId": "0-452872",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -130.10764773832483,
+    "keyframeId": "0-911393",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452872",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -130.10764773832463,
+    "keyframeId": "0-911395",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452872",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 315.0,
+    "keyframeId": "0-911397",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452872",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322511,
+    "keyframeId": "0-911399",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 16,
+    "propertyName": "sx",
+    "frame": 0,
+    "type": "double",
+    "value": 100.0,
+    "keyframeId": "0-911402",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 17,
+    "propertyName": "sy",
+    "frame": 0,
+    "type": "double",
+    "value": 100.0,
+    "keyframeId": "0-911404",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911704",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 1,
+    "type": "double",
+    "value": -0.022049484326576232,
+    "keyframeId": "0-911707",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 2,
+    "type": "double",
+    "value": -0.16145912716557437,
+    "keyframeId": "0-911709",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 3,
+    "type": "double",
+    "value": -0.49691358024691357,
+    "keyframeId": "0-911711",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 4,
+    "type": "double",
+    "value": -1.0697556266829245,
+    "keyframeId": "0-911713",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 5,
+    "type": "double",
+    "value": -1.8893207336280038,
+    "keyframeId": "0-911715",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 6,
+    "type": "double",
+    "value": -2.9382716049382713,
+    "keyframeId": "0-911717",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 7,
+    "type": "double",
+    "value": -4.177932733831226,
+    "keyframeId": "0-911719",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 8,
+    "type": "double",
+    "value": -5.553624955545393,
+    "keyframeId": "0-911721",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 9,
+    "type": "double",
+    "value": -7.0,
+    "keyframeId": "0-911723",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 10,
+    "type": "double",
+    "value": -8.446375044454607,
+    "keyframeId": "0-911725",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 11,
+    "type": "double",
+    "value": -9.822067266168778,
+    "keyframeId": "0-911727",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 12,
+    "type": "double",
+    "value": -11.06172839506173,
+    "keyframeId": "0-911729",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 13,
+    "type": "double",
+    "value": -12.110679266371994,
+    "keyframeId": "0-911731",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 14,
+    "type": "double",
+    "value": -12.930244373317082,
+    "keyframeId": "0-911733",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 15,
+    "type": "double",
+    "value": -13.503086419753084,
+    "keyframeId": "0-911735",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 16,
+    "type": "double",
+    "value": -13.838540872834416,
+    "keyframeId": "0-911737",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 17,
+    "type": "double",
+    "value": -13.97795051567342,
+    "keyframeId": "0-911739",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 18,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911741",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 19,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911743",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 20,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911745",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 21,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911747",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 22,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911749",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 23,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911751",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 24,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911753",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 25,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911755",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 26,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911757",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 27,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911759",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 28,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911761",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 29,
+    "type": "double",
+    "value": -14.0,
+    "keyframeId": "0-911763",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 30,
+    "type": "double",
+    "value": -13.9915689984,
+    "keyframeId": "0-911765",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 31,
+    "type": "double",
+    "value": -13.9366463488,
+    "keyframeId": "0-911767",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 32,
+    "type": "double",
+    "value": -13.7995354112,
+    "keyframeId": "0-911769",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 33,
+    "type": "double",
+    "value": -13.5553775616,
+    "keyframeId": "0-911771",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 34,
+    "type": "double",
+    "value": -13.18912,
+    "keyframeId": "0-911773",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 35,
+    "type": "double",
+    "value": -12.6944835584,
+    "keyframeId": "0-911775",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 36,
+    "type": "double",
+    "value": -12.072930508799999,
+    "keyframeId": "0-911777",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 37,
+    "type": "double",
+    "value": -11.3326323712,
+    "keyframeId": "0-911779",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 38,
+    "type": "double",
+    "value": -10.4874377216,
+    "keyframeId": "0-911781",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 39,
+    "type": "double",
+    "value": -9.55584,
+    "keyframeId": "0-911783",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 40,
+    "type": "double",
+    "value": -8.5599453184,
+    "keyframeId": "0-911785",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 41,
+    "type": "double",
+    "value": -7.524440268800001,
+    "keyframeId": "0-911787",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 42,
+    "type": "double",
+    "value": -6.475559731199999,
+    "keyframeId": "0-911789",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 43,
+    "type": "double",
+    "value": -5.440054681599999,
+    "keyframeId": "0-911791",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 44,
+    "type": "double",
+    "value": -4.444159999999999,
+    "keyframeId": "0-911793",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 45,
+    "type": "double",
+    "value": -3.5125622784,
+    "keyframeId": "0-911795",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 46,
+    "type": "double",
+    "value": -2.6673676287999966,
+    "keyframeId": "0-911797",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 47,
+    "type": "double",
+    "value": -1.927069491199999,
+    "keyframeId": "0-911799",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 48,
+    "type": "double",
+    "value": -1.3055164415999996,
+    "keyframeId": "0-911801",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 49,
+    "type": "double",
+    "value": -0.810879999999998,
+    "keyframeId": "0-911803",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 50,
+    "type": "double",
+    "value": -0.4446224384000066,
+    "keyframeId": "0-911805",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 51,
+    "type": "double",
+    "value": -0.20046458879999474,
+    "keyframeId": "0-911807",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 52,
+    "type": "double",
+    "value": -0.06335365120000369,
+    "keyframeId": "0-911809",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 53,
+    "type": "double",
+    "value": -0.008431001600001098,
+    "keyframeId": "0-911811",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 54,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911813",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911706",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 1,
+    "type": "double",
+    "value": 0.0472488949855205,
+    "keyframeId": "0-911708",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 2,
+    "type": "double",
+    "value": 0.34598384392623077,
+    "keyframeId": "0-911710",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 3,
+    "type": "double",
+    "value": 1.0648148148148147,
+    "keyframeId": "0-911712",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 4,
+    "type": "double",
+    "value": 2.2923334857491238,
+    "keyframeId": "0-911714",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 5,
+    "type": "double",
+    "value": 4.048544429202866,
+    "keyframeId": "0-911716",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 6,
+    "type": "double",
+    "value": 6.296296296296296,
+    "keyframeId": "0-911718",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 7,
+    "type": "double",
+    "value": 8.952713001066913,
+    "keyframeId": "0-911720",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 8,
+    "type": "double",
+    "value": 11.900624904740129,
+    "keyframeId": "0-911722",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 9,
+    "type": "double",
+    "value": 15.0,
+    "keyframeId": "0-911724",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 10,
+    "type": "double",
+    "value": 18.09937509525987,
+    "keyframeId": "0-911726",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 11,
+    "type": "double",
+    "value": 21.047286998933096,
+    "keyframeId": "0-911728",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 12,
+    "type": "double",
+    "value": 23.703703703703706,
+    "keyframeId": "0-911730",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 13,
+    "type": "double",
+    "value": 25.95145557079713,
+    "keyframeId": "0-911732",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 14,
+    "type": "double",
+    "value": 27.70766651425089,
+    "keyframeId": "0-911734",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 15,
+    "type": "double",
+    "value": 28.93518518518518,
+    "keyframeId": "0-911736",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 16,
+    "type": "double",
+    "value": 29.65401615607375,
+    "keyframeId": "0-911738",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 17,
+    "type": "double",
+    "value": 29.952751105014475,
+    "keyframeId": "0-911740",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 18,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911742",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 19,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911744",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 20,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911746",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 21,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911748",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 22,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911750",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 23,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911752",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 24,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911754",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 25,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911756",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 26,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911758",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 27,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911760",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 28,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911762",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 29,
+    "type": "double",
+    "value": 30.0,
+    "keyframeId": "0-911764",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 30,
+    "type": "double",
+    "value": 29.981933568000002,
+    "keyframeId": "0-911766",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 31,
+    "type": "double",
+    "value": 29.864242175999998,
+    "keyframeId": "0-911768",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 32,
+    "type": "double",
+    "value": 29.570433024,
+    "keyframeId": "0-911770",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 33,
+    "type": "double",
+    "value": 29.047237631999998,
+    "keyframeId": "0-911772",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 34,
+    "type": "double",
+    "value": 28.2624,
+    "keyframeId": "0-911774",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 35,
+    "type": "double",
+    "value": 27.202464768000002,
+    "keyframeId": "0-911776",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 36,
+    "type": "double",
+    "value": 25.870565376,
+    "keyframeId": "0-911778",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 37,
+    "type": "double",
+    "value": 24.284212224,
+    "keyframeId": "0-911780",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 38,
+    "type": "double",
+    "value": 22.473080832,
+    "keyframeId": "0-911782",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 39,
+    "type": "double",
+    "value": 20.476799999999997,
+    "keyframeId": "0-911784",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 40,
+    "type": "double",
+    "value": 18.342739968,
+    "keyframeId": "0-911786",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 41,
+    "type": "double",
+    "value": 16.123800576,
+    "keyframeId": "0-911788",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 42,
+    "type": "double",
+    "value": 13.876199423999998,
+    "keyframeId": "0-911790",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 43,
+    "type": "double",
+    "value": 11.657260031999998,
+    "keyframeId": "0-911792",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 44,
+    "type": "double",
+    "value": 9.5232,
+    "keyframeId": "0-911794",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 45,
+    "type": "double",
+    "value": 7.526919168,
+    "keyframeId": "0-911796",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 46,
+    "type": "double",
+    "value": 5.715787775999993,
+    "keyframeId": "0-911798",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 47,
+    "type": "double",
+    "value": 4.129434623999998,
+    "keyframeId": "0-911800",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 48,
+    "type": "double",
+    "value": 2.797535231999999,
+    "keyframeId": "0-911802",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 49,
+    "type": "double",
+    "value": 1.7375999999999958,
+    "keyframeId": "0-911804",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 50,
+    "type": "double",
+    "value": 0.9527623680000141,
+    "keyframeId": "0-911806",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 51,
+    "type": "double",
+    "value": 0.4295669759999887,
+    "keyframeId": "0-911808",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 52,
+    "type": "double",
+    "value": 0.1357578240000079,
+    "keyframeId": "0-911810",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 53,
+    "type": "double",
+    "value": 0.018066432000002353,
+    "keyframeId": "0-911812",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 54,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911814",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452672",
+    "propertyKey": 15,
+    "propertyName": "r",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911406",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452848",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 130.10764773832472,
+    "keyframeId": "0-911409",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452848",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -130.10764773832477,
+    "keyframeId": "0-911411",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452848",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 44.99999999999997,
+    "keyframeId": "0-911413",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452848",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322531,
+    "keyframeId": "0-911415",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452856",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 130.10764773832486,
+    "keyframeId": "0-911418",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452856",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 130.1076477383246,
+    "keyframeId": "0-911420",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452856",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 134.99999999999994,
+    "keyframeId": "0-911422",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452856",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322534,
+    "keyframeId": "0-911424",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452864",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -130.10764773832466,
+    "keyframeId": "0-911427",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452864",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 130.10764773832483,
+    "keyframeId": "0-911429",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452864",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 224.99999999999997,
+    "keyframeId": "0-911431",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452864",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322526,
+    "keyframeId": "0-911433",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452863",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -102.22492287560667,
+    "keyframeId": "0-911436",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452863",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 152.99040866366843,
+    "keyframeId": "0-911438",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452863",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 213.74999999999997,
+    "keyframeId": "0-911440",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452863",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322534,
+    "keyframeId": "0-911442",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452865",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -152.99040866366818,
+    "keyframeId": "0-911445",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452865",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 102.22492287560698,
+    "keyframeId": "0-911447",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452865",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 236.24999999999994,
+    "keyframeId": "0-911449",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452865",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322518,
+    "keyframeId": "0-911451",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452866",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -169.99383398207667,
+    "keyframeId": "0-911492",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452866",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 70.41375155517672,
+    "keyframeId": "0-911494",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452866",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 247.49999999999991,
+    "keyframeId": "0-911496",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452866",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.96553975032254,
+    "keyframeId": "0-911498",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452862",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -70.41375155517639,
+    "keyframeId": "0-911483",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452862",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 169.9938339820768,
+    "keyframeId": "0-911485",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452862",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 202.49999999999991,
+    "keyframeId": "0-911487",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452862",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322518,
+    "keyframeId": "0-911489",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452846",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 70.41375155517649,
+    "keyframeId": "0-911474",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452846",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -169.99383398207675,
+    "keyframeId": "0-911476",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452846",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 22.499999999999982,
+    "keyframeId": "0-911478",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452846",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322526,
+    "keyframeId": "0-911480",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452670",
+    "propertyKey": 16,
+    "propertyName": "sx",
+    "frame": 0,
+    "type": "double",
+    "value": 100.0,
+    "keyframeId": "0-911463",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452670",
+    "propertyKey": 17,
+    "propertyName": "sy",
+    "frame": 0,
+    "type": "double",
+    "value": 100.0,
+    "keyframeId": "0-911465",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452670",
+    "propertyKey": 13,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911467",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452670",
+    "propertyKey": 14,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911469",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452670",
+    "propertyKey": 15,
+    "propertyName": "r",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911471",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452850",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 169.99383398207672,
+    "keyframeId": "0-911454",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452850",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -70.4137515551766,
+    "keyframeId": "0-911456",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452850",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 67.49999999999999,
+    "keyframeId": "0-911458",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452850",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322522,
+    "keyframeId": "0-911460",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452867",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -180.46449159419436,
+    "keyframeId": "0-911501",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452867",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 35.89661925096778,
+    "keyframeId": "0-911503",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452867",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 258.74999999999994,
+    "keyframeId": "0-911505",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452867",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322543,
+    "keyframeId": "0-911507",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452861",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -35.896619250967504,
+    "keyframeId": "0-911510",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452861",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 180.46449159419439,
+    "keyframeId": "0-911512",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452861",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 191.24999999999997,
+    "keyframeId": "0-911514",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452861",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322534,
+    "keyframeId": "0-911516",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452868",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -184.0,
+    "keyframeId": "0-911519",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452868",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 1.4921397450962104e-13,
+    "keyframeId": "0-911521",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452868",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 270.0,
+    "keyframeId": "0-911523",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452868",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322547,
+    "keyframeId": "0-911525",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452852",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 184.0,
+    "keyframeId": "0-911528",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452852",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -1.2789769243681803e-13,
+    "keyframeId": "0-911530",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452852",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 89.99999999999997,
+    "keyframeId": "0-911532",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452852",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322533,
+    "keyframeId": "0-911534",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452844",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911537",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452844",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -184.0,
+    "keyframeId": "0-911539",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452844",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911541",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452844",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322543,
+    "keyframeId": "0-911543",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452860",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 1.3500311979441904e-13,
+    "keyframeId": "0-911546",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452860",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 184.0,
+    "keyframeId": "0-911548",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452860",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 179.99999999999997,
+    "keyframeId": "0-911550",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452860",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322547,
+    "keyframeId": "0-911552",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452873",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -102.22492287560698,
+    "keyframeId": "0-911555",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452873",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -152.99040866366818,
+    "keyframeId": "0-911557",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452873",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 326.24999999999994,
+    "keyframeId": "0-911559",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452873",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322538,
+    "keyframeId": "0-911561",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452855",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 152.9904086636684,
+    "keyframeId": "0-911564",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452855",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 102.22492287560667,
+    "keyframeId": "0-911566",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452855",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 123.74999999999993,
+    "keyframeId": "0-911568",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452855",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322522,
+    "keyframeId": "0-911570",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452869",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -180.46449159419439,
+    "keyframeId": "0-911573",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452869",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -35.8966192509675,
+    "keyframeId": "0-911575",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452869",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 281.25,
+    "keyframeId": "0-911577",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452869",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322547,
+    "keyframeId": "0-911579",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452859",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 35.896619250967774,
+    "keyframeId": "0-911582",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452859",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 180.46449159419436,
+    "keyframeId": "0-911584",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452859",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 168.74999999999994,
+    "keyframeId": "0-911586",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452859",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322543,
+    "keyframeId": "0-911588",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-15",
+    "propertyKey": 18,
+    "propertyName": "opacity",
+    "frame": 0,
+    "type": "double",
+    "value": 100.0,
+    "keyframeId": "0-911591",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452849",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 152.9904086636683,
+    "keyframeId": "0-911594",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452849",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -102.22492287560686,
+    "keyframeId": "0-911596",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452849",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 56.249999999999986,
+    "keyframeId": "0-911598",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452849",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322524,
+    "keyframeId": "0-911600",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452847",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 102.22492287560677,
+    "keyframeId": "0-911603",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452847",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -152.99040866366835,
+    "keyframeId": "0-911605",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452847",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 33.74999999999997,
+    "keyframeId": "0-911607",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452847",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.96553975032253,
+    "keyframeId": "0-911609",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452858",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 70.4137515551767,
+    "keyframeId": "0-911642",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452858",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 169.99383398207667,
+    "keyframeId": "0-911644",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452858",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 157.49999999999994,
+    "keyframeId": "0-911646",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452858",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.96553975032253,
+    "keyframeId": "0-911648",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452854",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 169.99383398207678,
+    "keyframeId": "0-911633",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452854",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 70.41375155517639,
+    "keyframeId": "0-911635",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452854",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 112.49999999999993,
+    "keyframeId": "0-911637",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452854",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322524,
+    "keyframeId": "0-911639",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452870",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -169.99383398207678,
+    "keyframeId": "0-911624",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452870",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -70.41375155517645,
+    "keyframeId": "0-911626",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452870",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 292.49999999999994,
+    "keyframeId": "0-911628",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452870",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322531,
+    "keyframeId": "0-911630",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452874",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -70.41375155517663,
+    "keyframeId": "0-911615",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452874",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -169.99383398207672,
+    "keyframeId": "0-911617",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452874",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 337.49999999999994,
+    "keyframeId": "0-911619",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452874",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322554,
+    "keyframeId": "0-911621",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452842",
+    "propertyKey": 18,
+    "propertyName": "opacity",
+    "frame": 0,
+    "type": "double",
+    "value": 0.0,
+    "keyframeId": "0-911612",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452845",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 35.89661925096759,
+    "keyframeId": "0-911660",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452845",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -180.46449159419439,
+    "keyframeId": "0-911662",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452845",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 11.250000000000014,
+    "keyframeId": "0-911664",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452845",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.96553975032253,
+    "keyframeId": "0-911666",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452851",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 180.46449159419436,
+    "keyframeId": "0-911651",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452851",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -35.89661925096772,
+    "keyframeId": "0-911653",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452851",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 78.74999999999996,
+    "keyframeId": "0-911655",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452851",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.96553975032253,
+    "keyframeId": "0-911657",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452857",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 102.22492287560694,
+    "keyframeId": "0-911678",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452857",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 152.99040866366823,
+    "keyframeId": "0-911680",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452857",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 146.24999999999994,
+    "keyframeId": "0-911682",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452857",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.96553975032253,
+    "keyframeId": "0-911684",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452871",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -152.99040866366838,
+    "keyframeId": "0-911669",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452871",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -102.22492287560674,
+    "keyframeId": "0-911671",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452871",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 303.75,
+    "keyframeId": "0-911673",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452871",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.96553975032252,
+    "keyframeId": "0-911675",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452853",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": 180.46449159419439,
+    "keyframeId": "0-911696",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452853",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": 35.896619250967476,
+    "keyframeId": "0-911698",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452853",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 101.24999999999999,
+    "keyframeId": "0-911700",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452853",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322533,
+    "keyframeId": "0-911702",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452875",
+    "propertyKey": 24,
+    "propertyName": "x",
+    "frame": 0,
+    "type": "double",
+    "value": -35.89661925096768,
+    "keyframeId": "0-911687",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452875",
+    "propertyKey": 25,
+    "propertyName": "y",
+    "frame": 0,
+    "type": "double",
+    "value": -180.46449159419439,
+    "keyframeId": "0-911689",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452875",
+    "propertyKey": 82,
+    "propertyName": "rotation",
+    "frame": 0,
+    "type": "double",
+    "value": 348.75,
+    "keyframeId": "0-911691",
+    "interpolationType": "linear"
+  },
+  {
+    "objectId": "0-452875",
+    "propertyKey": 83,
+    "propertyName": "distance",
+    "frame": 0,
+    "type": "double",
+    "value": 11.965539750322554,
+    "keyframeId": "0-911693",
+    "interpolationType": "linear"
+  }
+]

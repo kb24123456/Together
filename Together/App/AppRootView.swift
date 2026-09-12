@@ -13,6 +13,7 @@ struct AppRootView: View {
     var body: some View {
         HomeRootContent()
             .environment(appContext)
+            .environment(\.isMascotSurfaceUncovered, !appContext.sessionStore.isAppLocked)
             .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
     }
 }
@@ -22,12 +23,17 @@ struct HomeRootContent: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var mascotSession = MascotPlaybackSession()
+    @State private var isHomeMascotInteracting = false
     @State private var rootNavigationPath = NavigationPath()
     @State private var activeOCRSourceSession: OCRSourceSheetSession?
     @State private var pendingOCRReviewSession: OCRReviewSession?
     @State private var isPresentingDirectOCRPhotoPicker = false
     @State private var directOCRPhotoPickerSelection: [PhotosPickerItem] = []
     @State private var directOCRProcessingTask: Task<Void, Never>?
+    @State private var directOCRProcessingSessionID: UUID?
+    @State private var directOCRViewModel: OCRImportViewModel?
     @State private var isPresentingDirectOCRCamera = false
     @State private var taskCreationDestination: TaskCreationDestination?
     @State private var pendingCreatedTaskReveal: TaskCreationDestination?
@@ -37,6 +43,8 @@ struct HomeRootContent: View {
     @AccessibilityFocusState private var weeklyReviewMenuFocus: HomeWeeklyReviewMenuFocus?
     @Namespace private var taskCreationTransition
     @Namespace private var taskDetailTransition
+
+    private var homeMascot: MascotController { mascotSession.controller }
 
     private var displayedRootSurface: RootSurface {
         appContext.router.currentSurface
@@ -53,7 +61,27 @@ struct HomeRootContent: View {
             && taskCreationDestination == nil
     }
 
-    var body: some View {
+    private var homeMascotContext: MascotContext {
+        MascotContext(
+            isVisible: isHomeSurfaceVisible
+                && scenePhase == .active
+                && !isWeeklyReviewMenuPresented
+                && !appContext.homeViewModel.isOverdueSheetPresented
+                && !appContext.homeViewModel.isWeeklyCompletedSheetPresented
+                && !appContext.sessionStore.isAppLocked,
+            isProcessing: directOCRViewModel?.flowState == .processing,
+            hasOverdueTasks: displayedRootSurface != .routines
+                && appContext.homeViewModel.showsOverdueCapsule,
+            isInteracting: isHomeMascotInteracting
+        )
+    }
+
+    private var observesHomeMascotTime: Bool {
+        homeMascotContext.isVisible && scenePhase == .active
+    }
+
+    @ViewBuilder
+    private var presentedRootContent: some View {
         @Bindable var router = appContext.router
 
         ZStack {
@@ -144,7 +172,7 @@ struct HomeRootContent: View {
             )
             .ignoresSafeArea()
         }
-        .fullScreenCover(item: $activeTaskDetailPresentation) { presentation in
+        .fullScreenCover(item: $activeTaskDetailPresentation, onDismiss: didDismissTaskDetail) { presentation in
             taskDetailView(presentation: presentation)
         }
         .fullScreenCover(item: $taskCreationDestination, onDismiss: revealCreatedTaskIfNeeded) { destination in
@@ -154,6 +182,13 @@ struct HomeRootContent: View {
         .font(AppTheme.typography.body)
         .tint(AppTheme.colors.title)
         .preferredColorScheme(appContext.appearanceManager.resolvedColorScheme)
+        .modifier(MascotPlaybackEnvironment(session: mascotSession))
+    }
+
+    var body: some View {
+        @Bindable var router = appContext.router
+
+        presentedRootContent
         .onChange(of: router.isProfilePresented) { _, isPresented in
             guard isPresented else { return }
             guard rootNavigationPath.count == 0 else { return }
@@ -162,6 +197,8 @@ struct HomeRootContent: View {
         .onChange(of: rootNavigationPath.count) { _, count in
             if count == 0 {
                 router.isProfilePresented = false
+            } else {
+                invalidateUpdateAttention()
             }
         }
         .onChange(of: router.rootResetRevision) { _, _ in
@@ -172,6 +209,51 @@ struct HomeRootContent: View {
         }
         .onAppear {
             synchronizeComposerPresentation(router: router)
+        }
+        .onChange(of: homeMascotContext, initial: true) { _, _ in
+            refreshHomeMascotContext()
+            if !homeMascotContext.isVisible { mascotSession.cancelUpdateNotice() }
+            else if !mascotSession.isEditing { presentPendingUpdateFeedback() }
+        }
+        .onChange(of: appContext.homeViewModel.updateFeedback?.id) { _, _ in
+            if homeMascotContext.isVisible && !mascotSession.isEditing { presentPendingUpdateFeedback() }
+        }
+        .onChange(of: appContext.routinesViewModel.updateFeedback?.id) { _, _ in
+            if homeMascotContext.isVisible && !mascotSession.isEditing { presentPendingUpdateFeedback() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { invalidateUpdateAttention() }
+        }
+        .onChange(of: appContext.sessionStore.isAppLocked) { _, isLocked in
+            if isLocked { invalidateUpdateAttention() }
+        }
+        .onChange(of: displayedRootSurface) { _, _ in
+            invalidateUpdateAttention()
+            isHomeMascotInteracting = false
+            recordHomeMascotActivity()
+        }
+        .onChange(of: appContext.homeViewModel.completionFeedbackRevision) { _, _ in
+            refreshHomeMascotContext()
+            homeMascot.requestCelebration()
+        }
+        .onChange(of: appContext.routinesViewModel.completionFeedbackRevision) { _, _ in
+            refreshHomeMascotContext()
+            homeMascot.requestCelebration()
+        }
+        .task(id: observesHomeMascotTime) {
+            guard observesHomeMascotTime else { return }
+            refreshHomeMascotContext()
+            // Refresh time-derived overdue status without reloading repositories or polling frames.
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                guard !Task.isCancelled else { return }
+                refreshHomeMascotContext()
+            }
+        }
+        .onDisappear {
+            isHomeMascotInteracting = false
+            invalidateUpdateAttention()
+            mascotSession.updateHomeContext(MascotContext())
         }
         .task {
             StartupTrace.mark("AppRootView.visible")
@@ -195,8 +277,31 @@ struct HomeRootContent: View {
             onOpenTaskDetail: openTaskDetail,
             onCompletedHistoryTapped: { filter in
                 rootNavigationPath.append(AppRootRoute.completedHistory(filter))
-            }
+            },
+            onInteractionChanged: updateHomeMascotInteraction
         )
+        .simultaneousGesture(TapGesture().onEnded { recordHomeMascotActivity() })
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 10).onEnded { _ in recordHomeMascotActivity() }
+        )
+    }
+
+    private func refreshHomeMascotContext() {
+        let context = homeMascotContext
+        if !context.isVisible { isHomeMascotInteracting = false }
+        mascotSession.updateHomeContext(context)
+    }
+
+    private func updateHomeMascotInteraction(_ isInteracting: Bool) {
+        let next = isInteracting && homeMascotContext.isVisible
+        guard next != isHomeMascotInteracting else { return }
+        isHomeMascotInteracting = next
+        refreshHomeMascotContext()
+    }
+
+    private func recordHomeMascotActivity() {
+        refreshHomeMascotContext()
+        homeMascot.recordUserActivity()
     }
 
     private var weeklyReviewMenuOverlay: some View {
@@ -396,33 +501,30 @@ struct HomeRootContent: View {
                         .accessibilityAddTraits(.isHeader)
                 }
             }
+            .opacity(mascotSession.isShowingUpdateNotice ? 0 : 1)
+            .animation(.easeInOut(duration: 0.12), value: mascotSession.isShowingUpdateNotice)
+            .allowsHitTesting(!mascotSession.isShowingUpdateNotice)
+            .disabled(mascotSession.isShowingUpdateNotice)
+            .accessibilityHidden(mascotSession.isShowingUpdateNotice)
         }
 
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 HomeInteractionFeedback.selection()
+                refreshHomeMascotContext()
+                homeMascot.requestAcknowledgement()
                 openProfile(router: router)
             } label: {
-                let avatar = appContext.homeViewModel.currentUserAvatar
-                UserAvatarView(
-                    avatarAsset: avatar.avatarAsset,
-                    displayName: avatar.displayName,
-                    size: 40,
-                    fillColor: AppTheme.colors.avatarWarm,
-                    symbolColor: AppTheme.colors.title.opacity(0.82),
-                    symbolFont: AppTheme.typography.sized(18, weight: .semibold),
-                    overrideImage: avatar.overrideImage
-                )
-                .overlay {
-                    Circle()
-                        .strokeBorder(AppTheme.colors.hairline, lineWidth: 0.5)
-                }
+                BrandMascotView(session: mascotSession, surface: .home, diameter: 40)
                 .frame(width: 44, height: 44)
-                .contentShape(Circle())
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(mascotSession.isShowingUpdateNotice)
+            .accessibilityHidden(mascotSession.isShowingUpdateNotice)
             .accessibilityLabel("打开个人页")
             .accessibilityHint("查看个人资料和设置")
+            .accessibilityIdentifier("together.brand-mascot.profile")
         }
     }
 
@@ -515,7 +617,8 @@ struct HomeRootContent: View {
     private func openTaskDetail(_ route: TaskDetailRoute) {
         guard rootNavigationPath.isEmpty,
               taskCreationDestination == nil,
-              activeTaskDetailPresentation == nil
+              activeTaskDetailPresentation == nil,
+              !mascotSession.isEditing
         else { return }
 
         let didPrepare: Bool
@@ -531,6 +634,9 @@ struct HomeRootContent: View {
 
         guard didPrepare else { return }
         let presentation = TaskDetailPresentation(route: route)
+        appContext.homeViewModel.invalidateUpdateFeedback()
+        appContext.routinesViewModel.invalidateUpdateFeedback()
+        mascotSession.beginEditing(id: presentation.id)
         activeTaskDetailPresentation = presentation
         HomeInteractionFeedback.soft()
     }
@@ -542,6 +648,7 @@ struct HomeRootContent: View {
             presentation: presentation,
             homeViewModel: appContext.homeViewModel,
             routinesViewModel: appContext.routinesViewModel,
+            mascot: mascotSession.editor(id: presentation.id),
             onDidDisappear: finishTaskDetailPresentation
         )
 
@@ -593,11 +700,38 @@ struct HomeRootContent: View {
         }
     }
 
+    private func finishMascotEditing() {
+        guard let id = mascotSession.ownership.editorID else { return }
+        refreshHomeMascotContext()
+        mascotSession.finishEditing(id: id)
+    }
+
+    private func didDismissTaskDetail() {
+        // Native completion, including a committed interactive dismissal, is the handoff.
+        finishMascotEditing()
+        presentPendingUpdateFeedback()
+    }
+
+    private func presentPendingUpdateFeedback() {
+        guard homeMascotContext.isVisible else { return }
+        let todoFeedback = appContext.homeViewModel.consumeUpdateFeedback()
+        let periodicFeedback = appContext.routinesViewModel.consumeUpdateFeedback()
+        guard let feedback = displayedRootSurface == .routines ? periodicFeedback : todoFeedback else { return }
+        mascotSession.presentUpdateNotice(feedback)
+    }
+
+    private func invalidateUpdateAttention() {
+        mascotSession.cancelUpdateNotice()
+        appContext.homeViewModel.invalidateUpdateFeedback()
+        appContext.routinesViewModel.invalidateUpdateFeedback()
+    }
+
     private func presentTaskCreation(
         domain: TaskMorphDomain,
         title: String? = nil
     ) {
-        guard taskCreationDestination == nil else { return }
+        guard taskCreationDestination == nil, activeTaskDetailPresentation == nil,
+              !mascotSession.isEditing else { return }
         switch domain {
         case .todo:
             appContext.homeViewModel.beginTaskCreation()
@@ -605,6 +739,7 @@ struct HomeRootContent: View {
                 appContext.homeViewModel.updateTaskCreationDraft { $0.title = title }
             }
             guard let session = appContext.homeViewModel.taskCreationSession else { return }
+            mascotSession.beginEditing(id: session.id)
             taskCreationDestination = .todo(session.id)
         case .periodic:
             appContext.routinesViewModel.beginTaskCreation(
@@ -614,6 +749,7 @@ struct HomeRootContent: View {
                 appContext.routinesViewModel.updateCreationDraft { $0.title = title }
             }
             guard let session = appContext.routinesViewModel.creationSession else { return }
+            mascotSession.beginEditing(id: session.id)
             taskCreationDestination = .periodic(session.id)
         }
     }
@@ -642,6 +778,7 @@ struct HomeRootContent: View {
                 destination: destination,
                 homeViewModel: appContext.homeViewModel,
                 routinesViewModel: appContext.routinesViewModel,
+                mascot: mascotSession.editor(id: destination.id),
                 onCancel: { taskCreationDestination = nil },
                 onCreated: completeTaskCreation
             )
@@ -651,6 +788,7 @@ struct HomeRootContent: View {
                 destination: destination,
                 homeViewModel: appContext.homeViewModel,
                 routinesViewModel: appContext.routinesViewModel,
+                mascot: mascotSession.editor(id: destination.id),
                 onCancel: { taskCreationDestination = nil },
                 onCreated: completeTaskCreation
             )
@@ -674,6 +812,7 @@ struct HomeRootContent: View {
     }
 
     private func revealCreatedTaskIfNeeded() {
+        finishMascotEditing()
         guard let pendingCreatedTaskReveal else {
             // Interactive dismissal is equivalent to the explicit cancel action.
             appContext.homeViewModel.discardTaskCreation()
@@ -691,68 +830,95 @@ struct HomeRootContent: View {
 
     private func openDirectOCRPhotoPicker() {
         HomeInteractionFeedback.selection()
-        directOCRProcessingTask?.cancel()
+        cancelDirectOCRProcessing()
         directOCRPhotoPickerSelection = []
         isPresentingDirectOCRPhotoPicker = true
     }
 
     private func openDirectOCRCamera() {
         HomeInteractionFeedback.selection()
-        directOCRProcessingTask?.cancel()
+        cancelDirectOCRProcessing()
         isPresentingDirectOCRCamera = true
     }
 
     private func openDirectOCRTextPaste() {
         HomeInteractionFeedback.selection()
-        directOCRProcessingTask?.cancel()
+        cancelDirectOCRProcessing()
         activeOCRSourceSession = OCRSourceSheetSession(source: .pasteText)
     }
 
     private func handleDirectOCRCapture(_ image: UIImage) {
-        directOCRProcessingTask?.cancel()
+        cancelDirectOCRProcessing()
+        let sessionID = UUID()
+        directOCRProcessingSessionID = sessionID
         directOCRProcessingTask = Task { @MainActor in
+            defer { finishDirectOCRProcessing(sessionID: sessionID) }
+            guard isCurrentOCRProcessingSession(sessionID) else { return }
             let viewModel = OCRImportViewModel()
+            directOCRViewModel = viewModel
             await viewModel.processImages([image])
-            switch viewModel.flowState {
-            case .review:
-                appContext.router.activeOCRReviewSession = OCRReviewSession(
-                    viewModel: viewModel,
-                    availableHeight: OCRWindowMetrics.availableHeight
-                )
-            case .failed:
-                activeOCRSourceSession = OCRSourceSheetSession(viewModel: viewModel)
-            default:
-                break
-            }
+            guard isCurrentOCRProcessingSession(sessionID) else { return }
+            presentDirectOCRResult(viewModel)
         }
     }
 
     private func loadDirectOCRPhotos(from items: [PhotosPickerItem]) {
         guard items.isEmpty == false else { return }
         directOCRPhotoPickerSelection = []
-        directOCRProcessingTask?.cancel()
+        cancelDirectOCRProcessing()
+        let sessionID = UUID()
+        directOCRProcessingSessionID = sessionID
         directOCRProcessingTask = Task { @MainActor in
+            defer { finishDirectOCRProcessing(sessionID: sessionID) }
             var images: [UIImage] = []
             for item in items {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
+                guard isCurrentOCRProcessingSession(sessionID) else { return }
+                let data = try? await item.loadTransferable(type: Data.self)
+                guard isCurrentOCRProcessingSession(sessionID) else { return }
+                if let data, let image = UIImage(data: data) {
                     images.append(image)
                 }
             }
             guard images.isEmpty == false else { return }
             let viewModel = OCRImportViewModel()
+            directOCRViewModel = viewModel
             await viewModel.processImages(images)
-            switch viewModel.flowState {
-            case .review:
-                appContext.router.activeOCRReviewSession = OCRReviewSession(
-                    viewModel: viewModel,
-                    availableHeight: OCRWindowMetrics.availableHeight
-                )
-            case .failed:
-                activeOCRSourceSession = OCRSourceSheetSession(viewModel: viewModel)
-            default:
-                break
-            }
+            guard isCurrentOCRProcessingSession(sessionID) else { return }
+            presentDirectOCRResult(viewModel)
+        }
+    }
+
+    private func isCurrentOCRProcessingSession(_ sessionID: UUID) -> Bool {
+        !Task.isCancelled && directOCRProcessingSessionID == sessionID
+    }
+
+    private func cancelDirectOCRProcessing() {
+        directOCRProcessingTask?.cancel()
+        directOCRProcessingSessionID = nil
+        directOCRProcessingTask = nil
+        directOCRViewModel = nil
+        refreshHomeMascotContext()
+    }
+
+    private func finishDirectOCRProcessing(sessionID: UUID) {
+        guard directOCRProcessingSessionID == sessionID else { return }
+        directOCRProcessingSessionID = nil
+        directOCRProcessingTask = nil
+        directOCRViewModel = nil
+        refreshHomeMascotContext()
+    }
+
+    private func presentDirectOCRResult(_ viewModel: OCRImportViewModel) {
+        switch viewModel.flowState {
+        case .review:
+            appContext.router.activeOCRReviewSession = OCRReviewSession(
+                viewModel: viewModel,
+                availableHeight: OCRWindowMetrics.availableHeight
+            )
+        case .failed:
+            activeOCRSourceSession = OCRSourceSheetSession(viewModel: viewModel)
+        default:
+            break
         }
     }
 
@@ -774,6 +940,7 @@ struct HomeRootContent: View {
         guard router.currentSurface != surface else { return }
 
         HomeInteractionFeedback.selection()
+        recordHomeMascotActivity()
 
         withAnimation(rootModeAnimation) {
             router.currentSurface = surface

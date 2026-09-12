@@ -1,0 +1,63 @@
+{
+  "createdAt": "2026-09-08T18:44:49.586334+00:00",
+  "passed": true,
+  "build": "Xcode 27 beta 3, Together-UnitTests, Debug, generic/platform=iOS, CODE_SIGNING_ALLOWED=NO, build-for-testing",
+  "buildLog": "/private/tmp/together-mascot-refinement-app-build.log",
+  "assetSHA256": "7e9cee4db3fdf133f37c03eabb80cbbffce18eb15e17c04e9a43b6a7fd4d2fa1",
+  "bundledAssetSHA256": "7e9cee4db3fdf133f37c03eabb80cbbffce18eb15e17c04e9a43b6a7fd4d2fa1",
+  "bundledAssetBytes": 1696775,
+  "sourceSHA256": {
+    "Together/Features/BrandMascot/MascotBehaviorState.swift": "ef6aba0aabca8f411f415f4531739c844cbb392dac971bc1a95e675d7ad83261",
+    "Together/Features/BrandMascot/MascotController.swift": "e3d52454b2f20afcabbb2412633b73aa4d393d6aa795567730d3f9a54904bc38",
+    "Together/App/AppRootView.swift": "cc64a54ad4ac905997115e9bd34cd1b6d2ebbf4a3be64b375b0ae9327784dddd",
+    "Together/Features/Home/HomeView.swift": "a9c71e66d9d440d738ba09f48ef55e68c8bb841da7bedaebc05c2606516f3b73",
+    "Together/Features/Shared/TaskCreationView.swift": "bec44443da6699633bd76aab9270a99e88b85b9907964f6c1afdda6b836fa785",
+    "Together/Features/Shared/TaskDetailView.swift": "50f1b7f7fc1fb350f734168ce0d9759791b67df52340ee7312dd4470b4af17ed",
+    "TogetherTests/MascotBehaviorTests.swift": "49109e41bac9749bbd1ff255c3bc544e23c2d8a2f32e7d851bcefad15f32e607"
+  },
+  "behaviorTests": {
+    "passed": 19,
+    "execution": "Independent Swift Testing package containing exact production Behavior and Controller plus MascotBehaviorTests",
+    "log": "/private/tmp/together-mascot-15s-scroll-behavior-tests.log"
+  },
+  "limits": [
+    "iOS tests compiled, not executed",
+    "No simulator, signed installation, device layout, keyboard, accessibility or energy validation"
+  ],
+  "retrievalEvidence": {
+    "query": "SwiftUI toolbar principal stable animated view identity navigation title Dynamic Type onScrollPhaseChange ancestor scroll interaction idle timer",
+    "keys": [],
+    "applied": [],
+    "result": "无需 Expert Delta",
+    "officialReferences": [
+      "https://developer.apple.com/documentation/swiftui/toolbaritemplacement/principal",
+      "https://developer.apple.com/documentation/swiftui/view/onscrollphasechange%28_%3A%29-1k12m"
+    ]
+  },
+  "fallbackImages": {
+    "holding.png": {
+      "sha256": "3f664a8090c6e6b87338e2408ff78fe49c1ad002dbd57e0d0f45ba004880ff20",
+      "matchesAppAsset": true,
+      "source": "Native Rive capture_artboard, 512x512 transparent PNG; no raster editing",
+      "pose": "WritingHold frame 0"
+    },
+    "holding-white.png": {
+      "sha256": "8c65ddd330be1b3a909e1d5e89615622b7e4ce281b3e7e771bc8002811c70831",
+      "matchesAppAsset": true,
+      "source": "Native Rive capture_artboard, 512x512 transparent PNG; no raster editing",
+      "pose": "WritingHold frame 0"
+    },
+    "doze.png": {
+      "sha256": "5706ac068f6e696bc7e19df51ac293774043e4b0e01bfa61674e3a6659bc182a",
+      "matchesAppAsset": true,
+      "source": "Native Rive capture_artboard, 512x512 transparent PNG; no raster editing",
+      "pose": "Doze frame 105"
+    },
+    "doze-white.png": {
+      "sha256": "803209d473a25d270560baf87bac2106c3ee6ce9129e18b00e1fc008e35fc711",
+      "matchesAppAsset": true,
+      "source": "Native Rive capture_artboard, 512x512 transparent PNG; no raster editing",
+      "pose": "Doze frame 105"
+    }
+  }
+}

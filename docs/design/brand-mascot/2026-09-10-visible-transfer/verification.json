@@ -1,0 +1,98 @@
+{
+  "created_at": "2026-09-10T15:19:13.066026+00:00",
+  "status": "implemented_and_compile_verified_device_acceptance_pending",
+  "baseline_directory": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-visible-transfer/baseline",
+  "scope": "One root-owned RiveUIView visibly transfers between native toolbar anchors; no Rive or task business changes this stage.",
+  "sources": {
+    "Together/Features/BrandMascot/BrandMascotView.swift": "5a26cd62987a78c761c62d52969b2c4bad319508afcdfc8e58b0b5c678d6fbf2",
+    "Together/Features/BrandMascot/MascotPlaybackSession.swift": "fdf4635eef53b8f12c3a5f7e0cd0d43ceb074cc745bfc7b3095943366ec3d851",
+    "Together/Features/BrandMascot/MascotVisualTransfer.swift": "395a29ab26bb60d1a34bfa6b51982ba9581a957a576153a5df5ab0c298a714c2",
+    "Together/Features/BrandMascot/MascotTransferState.swift": "11b4dfa410a2273fcb6f14f8f42f01502d9df7753f27e373bf267c31c444c773",
+    "Together/Features/BrandMascot/MascotNavigationObserver.swift": "f4ff982dbaf9fb0a457bb2b2038067c4f5c62fbb95d0af01ff1d5dcdaec36e57",
+    "Together/Features/Shared/TaskCreationView.swift": "471bec7bc73275d684e91d6f9ab2c0e8d4db3babc71e3583da9e06fe8719d33c",
+    "Together/Features/Shared/TaskDetailView.swift": "3aa089afdfe520b4138d7ae7c23c61a92dd366c8e580ebcc7cc5001814af4a5f",
+    "TogetherTests/MascotTransferStateTests.swift": "81d3625745e063f041c1837c6ab374154870df8a24defdc32884fc1896ecb1c5"
+  },
+  "build": {
+    "status": "passed",
+    "kind": "build-for-testing",
+    "destination": "generic/platform=iOS",
+    "signed": false,
+    "tests_executed": false,
+    "toolchain": "Xcode 27 beta 3 (27A5218g)",
+    "rive_ios": "6.25.1",
+    "developer_dir": "/Users/papertiger/Downloads/Xcode-beta 3.app/Contents/Developer",
+    "source_packages": "/Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik/SourcePackages",
+    "log": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-visible-transfer/build-for-testing-final.log",
+    "log_sha256": "fd4f2757dc5737154694f58d8a9a19bbc557277557fe5bde7e416e7b7a5fe9de",
+    "command": "DEVELOPER_DIR='/Users/papertiger/Downloads/Xcode-beta 3.app/Contents/Developer' xcodebuild build-for-testing -project Together.xcodeproj -scheme Together -destination 'generic/platform=iOS' -derivedDataPath /Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik -clonedSourcePackagesDirPath /Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik/SourcePackages -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO"
+  },
+  "pure_tests": {
+    "executed": true,
+    "passed": 15,
+    "suites": 2,
+    "harness": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/continuity-implementation/ownership-tests",
+    "log": "/Users/papertiger/Documents/Codex/2026-09-10/together-mascot-ui-discussion/work/continuity-implementation/pure-transfer-state-tests.log",
+    "log_sha256": "c8e12cb8600d814b73284d73874d214c452eb4ff0acfbd1b64449c27062f452c",
+    "harness_matches_current_production_and_pure_tests": true,
+    "environment_recovery": "Compiler/SDK mismatch fixed with process-local matching Xcode toolchain and macOS SDK; failed log preserved as pure-transfer-state-tests-environment-mismatch.log."
+  },
+  "uikit_tests": {
+    "compiled": 6,
+    "executed": false,
+    "coverage": [
+      "unique artwork identity and geometry across dock/lift/return",
+      "stale anchor unregister",
+      "late target anchor recovery",
+      "cancelled unregistered transition",
+      "target ready without source",
+      "removed target with cached geometry"
+    ],
+    "warnings": "Two scene-less hidden UIWindow(frame:) fixture call sites are deprecated in iOS 26. No production window construction added."
+  },
+  "resource": {
+    "path": "Together/Resources/BrandMascot/together_sphere_motion_study.riv",
+    "bytes": 4269590,
+    "sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8",
+    "built_path": "/Users/papertiger/Library/Developer/Xcode/DerivedData/Together-djoefdjmosrqzacyvdvtuajwfgik/Build/Products/Debug-iphoneos/Together.app/together_sphere_motion_study.riv",
+    "built_sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8",
+    "changed_this_stage": false
+  },
+  "review": {
+    "resolved": [
+      "Native registration failure followed by interactive cancellation now settles at source.",
+      "Absent source with ready target now docks; absent target removes artwork/overlay until anchor returns."
+    ],
+    "unresolved_p0_p1_p2": [],
+    "method": "source review with independent agent; Rive SDK detach display-link lifecycle inspected"
+  },
+  "validation_limits": [
+    "No Simulator started",
+    "No Together installation or launch",
+    "UIKit runtime tests not executed",
+    "No device visual/gesture/accessibility acceptance",
+    "No performance or energy measurements",
+    "No Git commit or push"
+  ],
+  "next_device_checks": [
+    "Run updated build from Xcode",
+    "home/editor/return visible position and scale continuity",
+    "interactive cancellation and quick reversal/reentry",
+    "nested attribute sheets",
+    "light/dark, Reduce Motion, Dynamic Type and VoiceOver"
+  ],
+  "apple_knowledge": {
+    "queries": [
+      "SwiftUI fullScreenCover navigationTransition zoom UIKit transitionCoordinator alongsideTransition shared UIView overlay interactive dismissal cancellation toolbar anchor finalFrame",
+      "SwiftUI UIViewControllerRepresentable ancestor transitionCoordinator fullScreenCover zoom animate alongside interactive cancellation final frame coordinate conversion"
+    ],
+    "hit_keys": [],
+    "adopted_records": [],
+    "result": "无需 Expert Delta",
+    "official_sources_in": "README.md"
+  },
+  "diff_check": {
+    "passed": true,
+    "command": "git diff --check"
+  }
+}

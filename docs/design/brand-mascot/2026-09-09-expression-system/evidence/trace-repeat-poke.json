@@ -1,0 +1,279 @@
+{
+  "stateMachineId": "0-7",
+  "stateMachineName": "Mascot",
+  "success": true,
+  "framesAdvanced": 150,
+  "settled": false,
+  "transitionsObserved": 10,
+  "finalStates": [
+    {
+      "layerId": "0-8",
+      "layerName": "Behavior",
+      "stateId": "0-9073",
+      "stateName": "Idle_QuietShort"
+    },
+    {
+      "layerId": "0-452882",
+      "layerName": "Expressions",
+      "stateId": "0-475648",
+      "stateName": "Hold_SoftHappy"
+    },
+    {
+      "layerId": "0-452886",
+      "layerName": "LightActions",
+      "stateId": "0-457758",
+      "stateName": "Action_Rest"
+    }
+  ],
+  "trace": [
+    {
+      "kind": "frame",
+      "frame": 1
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-8",
+      "layerName": "Behavior"
+    },
+    {
+      "kind": "transition",
+      "line": 1,
+      "transitionId": "0-13",
+      "fromStateId": "0-11",
+      "fromStateName": "Entry",
+      "toStateId": "0-168021",
+      "toStateName": "Resolve"
+    },
+    {
+      "kind": "state",
+      "line": 2,
+      "stateId": "0-168021",
+      "stateName": "Resolve",
+      "stateType": "animation"
+    },
+    {
+      "kind": "transition",
+      "line": 3,
+      "transitionId": "0-168086",
+      "fromStateId": "0-168021",
+      "fromStateName": "Resolve",
+      "toStateId": "0-9076",
+      "toStateName": "PickAfterShort"
+    },
+    {
+      "kind": "state",
+      "line": 4,
+      "stateId": "0-9076",
+      "stateName": "PickAfterShort",
+      "stateType": "animation"
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-452882",
+      "layerName": "Expressions"
+    },
+    {
+      "kind": "transition",
+      "line": 5,
+      "transitionId": "0-495158",
+      "fromStateId": "0-452885",
+      "fromStateName": "Entry",
+      "toStateId": "0-457755",
+      "toStateName": "Expr_Resolve"
+    },
+    {
+      "kind": "state",
+      "line": 6,
+      "stateId": "0-457755",
+      "stateName": "Expr_Resolve",
+      "stateType": "animation"
+    },
+    {
+      "kind": "transition",
+      "line": 7,
+      "transitionId": "0-495163",
+      "fromStateId": "0-457755",
+      "fromStateName": "Expr_Resolve",
+      "toStateId": "0-475648",
+      "toStateName": "Hold_SoftHappy"
+    },
+    {
+      "kind": "state",
+      "line": 8,
+      "stateId": "0-475648",
+      "stateName": "Hold_SoftHappy",
+      "stateType": "animation"
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-452886",
+      "layerName": "LightActions"
+    },
+    {
+      "kind": "transition",
+      "line": 9,
+      "transitionId": "0-495178",
+      "fromStateId": "0-452889",
+      "fromStateName": "Entry",
+      "toStateId": "0-457758",
+      "toStateName": "Action_Rest"
+    },
+    {
+      "kind": "state",
+      "line": 10,
+      "stateId": "0-457758",
+      "stateName": "Action_Rest",
+      "stateType": "animation"
+    },
+    {
+      "kind": "frame",
+      "frame": 3
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-8",
+      "layerName": "Behavior"
+    },
+    {
+      "kind": "transition",
+      "line": 11,
+      "transitionId": "0-168126",
+      "fromStateId": "0-9076",
+      "fromStateName": "PickAfterShort",
+      "toStateId": "0-359916",
+      "toStateName": "Idle_GazeUp"
+    },
+    {
+      "kind": "state",
+      "line": 12,
+      "stateId": "0-359916",
+      "stateName": "Idle_GazeUp",
+      "stateType": "animation"
+    },
+    {
+      "kind": "frame",
+      "frame": 6
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-452886",
+      "layerName": "LightActions"
+    },
+    {
+      "kind": "transition",
+      "line": 13,
+      "transitionId": "0-495182",
+      "fromStateId": "0-452887",
+      "fromStateName": "Any State",
+      "toStateId": "0-466652",
+      "toStateName": "Action_Poke"
+    },
+    {
+      "kind": "state",
+      "line": 14,
+      "stateId": "0-466652",
+      "stateName": "Action_Poke",
+      "stateType": "animation"
+    },
+    {
+      "kind": "frame",
+      "frame": 33
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-452886",
+      "layerName": "LightActions"
+    },
+    {
+      "kind": "transition",
+      "line": 15,
+      "transitionId": "0-495186",
+      "fromStateId": "0-466652",
+      "fromStateName": "Action_Poke",
+      "toStateId": "0-457758",
+      "toStateName": "Action_Rest"
+    },
+    {
+      "kind": "state",
+      "line": 16,
+      "stateId": "0-457758",
+      "stateName": "Action_Rest",
+      "stateType": "animation"
+    },
+    {
+      "kind": "frame",
+      "frame": 136
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-8",
+      "layerName": "Behavior"
+    },
+    {
+      "kind": "transition",
+      "line": 17,
+      "transitionId": "0-359926",
+      "fromStateId": "0-359916",
+      "fromStateName": "Idle_GazeUp",
+      "toStateId": "0-9077",
+      "toStateName": "PickAfterOthers"
+    },
+    {
+      "kind": "state",
+      "line": 18,
+      "stateId": "0-9077",
+      "stateName": "PickAfterOthers",
+      "stateType": "animation"
+    },
+    {
+      "kind": "transition",
+      "line": 19,
+      "transitionId": "0-168132",
+      "fromStateId": "0-9077",
+      "fromStateName": "PickAfterOthers",
+      "toStateId": "0-9073",
+      "toStateName": "Idle_QuietShort"
+    },
+    {
+      "kind": "state",
+      "line": 20,
+      "stateId": "0-9073",
+      "stateName": "Idle_QuietShort",
+      "stateType": "animation"
+    },
+    {
+      "kind": "frame",
+      "frame": 150
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-8",
+      "layerName": "Behavior"
+    },
+    {
+      "kind": "message",
+      "line": 21,
+      "message": "Done"
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-452882",
+      "layerName": "Expressions"
+    },
+    {
+      "kind": "message",
+      "line": 22,
+      "message": "Done"
+    },
+    {
+      "kind": "layer",
+      "layerId": "0-452886",
+      "layerName": "LightActions"
+    },
+    {
+      "kind": "message",
+      "line": 23,
+      "message": "Done"
+    }
+  ]
+}

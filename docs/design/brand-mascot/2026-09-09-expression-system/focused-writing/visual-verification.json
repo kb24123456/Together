@@ -1,0 +1,54 @@
+{
+  "assetSHA256": "e476454430f09a0109e1abcdf9535a97c84feae7a244f282cacd83765382ff4a",
+  "scope": "42pt at 3x, native 126x126 pixels; light and dark themes; read-only asset verification.",
+  "runs": [
+    {
+      "directory": "final-42pt-light",
+      "frames": 1260,
+      "fps": 60,
+      "gpuDrawnFrames": 1187,
+      "unchangedFrameReuse": 73,
+      "pngCount": 7,
+      "video": "preview.mov"
+    },
+    {
+      "directory": "final-42pt-dark",
+      "frames": 1260,
+      "fps": 60,
+      "gpuDrawnFrames": 1187,
+      "unchangedFrameReuse": 73,
+      "pngCount": 7,
+      "video": "preview.mov"
+    }
+  ],
+  "totalAdvancedFrames": 2520,
+  "totalSeconds": 42,
+  "totalPNG": 14,
+  "manuallyViewedPNGs": [
+    "final-42pt-light/frame-00180.png",
+    "final-42pt-light/frame-00420.png",
+    "final-42pt-light/frame-00720.png",
+    "final-42pt-light/frame-00900.png",
+    "final-42pt-light/frame-01050.png",
+    "final-42pt-light/frame-01200.png",
+    "final-42pt-dark/frame-00180.png",
+    "final-42pt-dark/frame-00420.png",
+    "final-42pt-dark/frame-00720.png",
+    "final-42pt-dark/frame-00900.png",
+    "final-42pt-dark/frame-01050.png",
+    "final-42pt-dark/frame-01200.png"
+  ],
+  "result": "No blocking visual issue found in the 12 inspected frames. No additional geometry adjustment indicated.",
+  "observations": [
+    "Writing at frames 180 and 720 uses two genuinely straight, round-ended strokes with a restrained inward tilt; it reads as focused effort rather than the previous sleepy U curve.",
+    "At this native 3x size the strokes remain distinguishable, neither excessively short nor aggressively steep. The spacing is balanced relative to the unchanged hands.",
+    "Hold at frame 420 retains the focused eyes. No eye/hand overlap or additional face element appears in either theme.",
+    "Frame 900 returns to capsule eyes with hands and writing face hidden. Frame 1050 retains the old concern eyes and sweat; frame 1200 returns cleanly to capsule eyes."
+  ],
+  "limits": [
+    "Two actual Rive Apple Runtime 6.25.1 sequences were advanced continuously and encoded to full MOVs; manual visual inspection covered the 12 listed PNGs, not uninterrupted viewing of every movie frame.",
+    "126x126 PNGs are native 3x evidence for a 42pt artboard. Physical-device display, actual App placement, energy, and wall-clock performance remain outside this check.",
+    "State-change logs use a separate official legacy inspection replay, not the rendered instance.",
+    "No Rive asset, App source, interface, or animation track was modified by this QA task."
+  ]
+}

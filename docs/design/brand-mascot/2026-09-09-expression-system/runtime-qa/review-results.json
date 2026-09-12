@@ -1,0 +1,257 @@
+{
+  "status": "completed-with-explicit-validation-limits",
+  "asset": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-09-expression-system/deliverables/together_sphere_motion_study.riv",
+  "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+  "assetBytes": 3848270,
+  "runs": [
+    {
+      "name": "final-48pt-dark",
+      "frames": 2700,
+      "fps": 60,
+      "pngs": 31,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 2691,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-48pt-dark/evidence.json",
+      "video": "final-48pt-dark/preview.mov"
+    },
+    {
+      "name": "final-48pt-light",
+      "frames": 2700,
+      "fps": 60,
+      "pngs": 31,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 2696,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-48pt-light/evidence.json",
+      "video": "final-48pt-light/preview.mov"
+    },
+    {
+      "name": "final-80pt-dark",
+      "frames": 2700,
+      "fps": 60,
+      "pngs": 31,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 2698,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-80pt-dark/evidence.json",
+      "video": "final-80pt-dark/preview.mov"
+    },
+    {
+      "name": "final-80pt-light",
+      "frames": 2700,
+      "fps": 60,
+      "pngs": 31,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 2700,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-80pt-light/evidence.json",
+      "video": "final-80pt-light/preview.mov"
+    },
+    {
+      "name": "final-actions",
+      "frames": 600,
+      "fps": 60,
+      "pngs": 101,
+      "gpuDrawnFrames": 600,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 600,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-actions/evidence.json",
+      "video": "final-actions/preview.mov"
+    },
+    {
+      "name": "final-all-28-dark",
+      "frames": 2700,
+      "fps": 60,
+      "pngs": 31,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 2699,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-all-28-dark/evidence.json",
+      "video": "final-all-28-dark/preview.mov"
+    },
+    {
+      "name": "final-all-28-light",
+      "frames": 2700,
+      "fps": 60,
+      "pngs": 31,
+      "gpuDrawnFrames": 2700,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 2699,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-all-28-light/evidence.json",
+      "video": "final-all-28-light/preview.mov"
+    },
+    {
+      "name": "final-combinations",
+      "frames": 720,
+      "fps": 60,
+      "pngs": 49,
+      "gpuDrawnFrames": 720,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 720,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-combinations/evidence.json",
+      "video": "final-combinations/preview.mov"
+    },
+    {
+      "name": "final-rapid",
+      "frames": 600,
+      "fps": 60,
+      "pngs": 101,
+      "gpuDrawnFrames": 585,
+      "gpuSkippedUnchangedFrames": 15,
+      "distinctPixelFrames": 561,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-rapid/evidence.json",
+      "video": "final-rapid/preview.mov"
+    },
+    {
+      "name": "final-reaction-restore",
+      "frames": 480,
+      "fps": 60,
+      "pngs": 33,
+      "gpuDrawnFrames": 480,
+      "gpuSkippedUnchangedFrames": 0,
+      "distinctPixelFrames": 480,
+      "assetSHA256": "5253c970e7855db8ae6ff77fb523051746680d9e520853e56051e63bdcaea4ed",
+      "evidence": "final-reaction-restore/evidence.json",
+      "video": "final-reaction-restore/preview.mov"
+    }
+  ],
+  "totalRenderedFrames": 18600,
+  "totalPNGCount": 470,
+  "totalVideoSeconds": 310.0,
+  "manuallyViewedFinalLightPresetNumbersByThisAgent": [
+    4,
+    5,
+    7,
+    8,
+    9,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28
+  ],
+  "additionalRootVisualReview": "Root separately reported final SoftHappy, WinkSmile, Love, Embarrassed, dark SleepyYawn, small Surprised and corrected angled-eye frames as correct. Earlier representative v1/v2 frames are stored separately and are not the final asset hash.",
+  "visualChecks": [
+    {
+      "check": "Final 15/19/23 angled eyes render after winding correction",
+      "status": "observed-correct",
+      "frames": [
+        "final-all-28-light/frame-01395.png",
+        "final-all-28-light/frame-01755.png",
+        "final-all-28-light/frame-02115.png",
+        "final-all-28-dark/frame-01395.png",
+        "final-all-28-dark/frame-01755.png",
+        "final-all-28-dark/frame-02115.png"
+      ],
+      "note": "The previous 321e83 version rendered these eyes empty. The final 5253c970 export has been independently re-rendered; no old-frame pass claim is reused."
+    },
+    {
+      "check": "Sweat stays inside face with margin",
+      "status": "observed-correct",
+      "frames": [
+        "final-all-28-light/frame-01305.png",
+        "final-all-28-light/frame-02475.png"
+      ]
+    },
+    {
+      "check": "Short tears present and dark theme colors readable",
+      "status": "observed-correct",
+      "frames": [
+        "final-all-28-light/frame-01845.png",
+        "final-all-28-dark/frame-01845.png"
+      ],
+      "note": "Left/right tears use staggered opacity; both are visible in this sampled frame."
+    },
+    {
+      "check": "SleepyLow keeps distinct low face and body posture without mouth",
+      "status": "observed-correct",
+      "frames": [
+        "final-all-28-light/frame-02565.png",
+        "final-80pt-dark/frame-02565.png"
+      ]
+    },
+    {
+      "check": "48/80pt native-density sample geometry",
+      "status": "sampled-pixels-correct",
+      "frames": [
+        "final-48pt-light/frame-01395.png",
+        "final-48pt-dark/frame-01755.png",
+        "final-48pt-dark/frame-02115.png",
+        "final-48pt-light/frame-01845.png",
+        "final-80pt-dark/frame-02565.png"
+      ],
+      "note": "Native 3x rendering at 144 or 240 pixels. Shapes and tears are present and separable in sampled PNGs. The generated size-check.html supplies 48/80 CSS-point display; this agent did not perform physical-device size acceptance."
+    },
+    {
+      "check": "Poke has true local indentation and clean recovery",
+      "status": "observed-correct",
+      "frames": [
+        "final-actions/frame-00432.png",
+        "final-actions/frame-00474.png"
+      ]
+    },
+    {
+      "check": "Independent expression/action combinations",
+      "status": "observed-correct",
+      "frames": [
+        "final-combinations/frame-00045.png",
+        "final-combinations/frame-00225.png",
+        "final-combinations/frame-00405.png",
+        "final-combinations/frame-00585.png"
+      ],
+      "note": "SoftHappy + celebrateMotion; Excited + celebrateMotion; Love + observe; PuzzledOpen + nod."
+    },
+    {
+      "check": "Rapid triggers settle and return to clean legacy idle",
+      "status": "observed-correct",
+      "frames": [
+        "final-rapid/frame-00510.png"
+      ],
+      "inspectionNote": "Independent replay records final Action_Rest at frame 151, Expr_Auto at 227, Writing at 252, Concerned at 384 and idle routing at 492/495. This is not a same-instance video trace."
+    },
+    {
+      "check": "Temporary reaction restores persistent expression",
+      "status": "observed-correct",
+      "frames": [
+        "final-reaction-restore/frame-00150.png",
+        "final-reaction-restore/frame-00405.png"
+      ],
+      "inspectionNote": "Independent replay restores Expr_Love at 109 and Expr_PuzzledOpen at 349; actual rendered PNGs show the corresponding restored forms."
+    }
+  ],
+  "expertRetrieval": {
+    "skill": "apple-dev-patterns",
+    "query": "Metal offscreen render MTLTexture storageMode shared readback after MTLCommandBuffer completion AVAssetWriter deterministic animation frame capture",
+    "result": "无需 Expert Delta",
+    "hitKeys": [],
+    "adoptedRecords": []
+  },
+  "limits": [
+    "Offline native state-machine rendering and sampled visual review, not wall-clock frame-rate or battery measurement.",
+    "No iOS Simulator or physical iOS device was used.",
+    "The Metal Worker API lacks public stateChanges; logged stateChanges are an independent official inspection replay. Random idle choices may differ from video.",
+    "Representative combinations and rapid interruption sequences were inspected; all possible combinations of every expression with every action were not exhaustively enumerated."
+  ]
+}

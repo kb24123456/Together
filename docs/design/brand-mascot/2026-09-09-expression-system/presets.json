@@ -1,0 +1,170 @@
+[
+  {
+    "value": 1,
+    "name": "Calm",
+    "label": "待机",
+    "source": "图1-01"
+  },
+  {
+    "value": 2,
+    "name": "SoftHappy",
+    "label": "柔和开心",
+    "source": "图1-02 + 图2-05"
+  },
+  {
+    "value": 3,
+    "name": "Laugh",
+    "label": "大笑",
+    "source": "图1-03"
+  },
+  {
+    "value": 4,
+    "name": "Excited",
+    "label": "兴奋",
+    "source": "图1-04"
+  },
+  {
+    "value": 5,
+    "name": "WinkSmile",
+    "label": "单眨眼带笑",
+    "source": "图1-05"
+  },
+  {
+    "value": 6,
+    "name": "Love",
+    "label": "喜爱",
+    "source": "图1-06"
+  },
+  {
+    "value": 7,
+    "name": "Blush",
+    "label": "害羞·腮红",
+    "source": "图1-07"
+  },
+  {
+    "value": 8,
+    "name": "Smug",
+    "label": "小得意",
+    "source": "图1-08 + 图2-06"
+  },
+  {
+    "value": 9,
+    "name": "CuriousOpen",
+    "label": "好奇·张嘴",
+    "source": "图1-09"
+  },
+  {
+    "value": 10,
+    "name": "PuzzledOpen",
+    "label": "疑惑·张嘴",
+    "source": "图1-10"
+  },
+  {
+    "value": 11,
+    "name": "ThinkingUp",
+    "label": "思考·抬眼",
+    "source": "图1-11"
+  },
+  {
+    "value": 12,
+    "name": "GentleFocus",
+    "label": "专注·轻",
+    "source": "图1-12"
+  },
+  {
+    "value": 13,
+    "name": "Surprised",
+    "label": "惊讶",
+    "source": "图1-13 + 图2-08"
+  },
+  {
+    "value": 14,
+    "name": "Embarrassed",
+    "label": "尴尬流汗",
+    "source": "图1-14"
+  },
+  {
+    "value": 15,
+    "name": "MildAngry",
+    "label": "小生气",
+    "source": "图1-15"
+  },
+  {
+    "value": 16,
+    "name": "Speechless",
+    "label": "无语",
+    "source": "图1-16"
+  },
+  {
+    "value": 17,
+    "name": "SleepyYawn",
+    "label": "犯困·哈欠",
+    "source": "图1-17"
+  },
+  {
+    "value": 18,
+    "name": "Content",
+    "label": "轻松满足",
+    "source": "图1-18"
+  },
+  {
+    "value": 19,
+    "name": "Sad",
+    "label": "难过",
+    "source": "图1-19"
+  },
+  {
+    "value": 20,
+    "name": "SmallTears",
+    "label": "委屈·短泪",
+    "source": "图1-20"
+  },
+  {
+    "value": 21,
+    "name": "CuriousQuiet",
+    "label": "好奇·无嘴",
+    "source": "图2-01"
+  },
+  {
+    "value": 22,
+    "name": "PuzzledQuiet",
+    "label": "思考／疑惑·无嘴",
+    "source": "图2-02 + 图2-09"
+  },
+  {
+    "value": 23,
+    "name": "Determined",
+    "label": "专注·认真",
+    "source": "图2-03"
+  },
+  {
+    "value": 24,
+    "name": "Realization",
+    "label": "恍然大悟",
+    "source": "图2-04"
+  },
+  {
+    "value": 25,
+    "name": "ShyLookAway",
+    "label": "害羞·避开视线",
+    "source": "图2-07"
+  },
+  {
+    "value": 26,
+    "name": "Helpless",
+    "label": "无奈",
+    "source": "图2-10"
+  },
+  {
+    "value": 27,
+    "name": "Nervous",
+    "label": "小紧张",
+    "source": "图2-11"
+  },
+  {
+    "value": 28,
+    "name": "SleepyLow",
+    "label": "犯困·趴低",
+    "source": "图2-12"
+  }
+]

@@ -1,0 +1,45 @@
+{
+  "changedAnimation": "Writing",
+  "animationId": "0-108",
+  "changedObject": "Grip",
+  "changedKeys": 651,
+  "unchangedKeys": 2616,
+  "stateMachineUnchanged": true,
+  "loopEndpointsUnchanged": true,
+  "factors": {
+    "13": {
+      "min": -122.0,
+      "max": -86.00088345656856,
+      "factor": 2.4
+    },
+    "14": {
+      "min": 125.4,
+      "max": 135.29536088358245,
+      "factor": 2.2
+    },
+    "15": {
+      "min": -2.4000000000000004,
+      "max": 2.6960838627644126,
+      "factor": 3
+    }
+  },
+  "durationSeconds": 3.6,
+  "priorResourceSHA256": "034bc570f48ed845c12721ecd95630513e091fd5229a02fc2948ae8b4fb1b8e4",
+  "resourceSHA256": "8dfea4c3f2655a5de53f4ac8b7777d16d82647d6ea527d49d0a9ad7b3c75d924",
+  "signedBuild": "passed",
+  "staticHolding": "unchanged",
+  "nativeRenderedFrames": 1800,
+  "pngBoundaryChecks": 209,
+  "deviceVisualAcceptance": "accepted by user",
+  "installed": true,
+  "launched": true,
+  "processIdentifier": 23616,
+  "browserPlayback": "observed new and old native videos advancing at normal speed",
+  "userAcceptance": {
+    "source": "user report in current conversation",
+    "status": "accepted",
+    "scope": "current physical-device visuals and complete usage flow",
+    "instrumentedPerformance": "not measured",
+    "energy": "not measured"
+  }
+}

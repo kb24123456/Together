@@ -1,0 +1,30 @@
+{
+  "signedBuild": "passed",
+  "bundleAssetMatches": true,
+  "assetSHA256": "f271aa4f51dd5673f273463a6f29d1f1041f5944b214ed6d0f52a12509243691",
+  "bundles": {
+    "Together.app": {
+      "signed": true,
+      "bundleId": "com.pigdog.Together",
+      "build": "50",
+      "version": "1.0",
+      "deviceCovered": true,
+      "appGroupMatches": true
+    },
+    "TogetherWidget.appex": {
+      "signed": true,
+      "bundleId": "com.pigdog.Together.TogetherWidget",
+      "build": "50",
+      "version": "1.0",
+      "deviceCovered": true,
+      "appGroupMatches": true
+    }
+  },
+  "log": "/private/tmp/together-writing-hands-device-build.log",
+  "deviceVisualAcceptance": "pending user review",
+  "installedOnPhysicalDevice": true,
+  "deviceModel": "iPhone 17",
+  "launchSucceeded": true,
+  "processConfirmed": true,
+  "simulatorUsed": false
+}

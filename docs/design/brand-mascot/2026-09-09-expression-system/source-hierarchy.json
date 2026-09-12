@@ -1,0 +1,1927 @@
+{
+  "success": true,
+  "objects": [
+    {
+      "id": "0-318771",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318772",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318773",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318774",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318770",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-318771",
+        "0-318772",
+        "0-318773",
+        "0-318774"
+      ]
+    },
+    {
+      "id": "0-318776",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-318775",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-318776"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-318769",
+      "types": [
+        "Shape"
+      ],
+      "name": "SleepZLarge",
+      "children": [
+        "0-318770",
+        "0-318775"
+      ]
+    },
+    {
+      "id": "0-318763",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318764",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318765",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318766",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318762",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-318763",
+        "0-318764",
+        "0-318765",
+        "0-318766"
+      ]
+    },
+    {
+      "id": "0-318768",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-318767",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-318768"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-318761",
+      "types": [
+        "Shape"
+      ],
+      "name": "SleepZMedium",
+      "children": [
+        "0-318762",
+        "0-318767"
+      ]
+    },
+    {
+      "id": "0-318755",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318756",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318757",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318758",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-318754",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-318755",
+        "0-318756",
+        "0-318757",
+        "0-318758"
+      ]
+    },
+    {
+      "id": "0-318760",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-318759",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-318760"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-318753",
+      "types": [
+        "Shape"
+      ],
+      "name": "SleepZSmall",
+      "children": [
+        "0-318754",
+        "0-318759"
+      ]
+    },
+    {
+      "id": "0-318752",
+      "types": [
+        "Node"
+      ],
+      "name": "SleepSymbols",
+      "children": [
+        "0-318769",
+        "0-318761",
+        "0-318753"
+      ]
+    },
+    {
+      "id": "0-13112",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-13113",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-13111",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-13112",
+        "0-13113"
+      ]
+    },
+    {
+      "id": "0-13115",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13114",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-13115"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-13110",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionEyeFar",
+      "children": [
+        "0-13111",
+        "0-13114"
+      ]
+    },
+    {
+      "id": "0-13106",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-13107",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-13105",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-13106",
+        "0-13107"
+      ]
+    },
+    {
+      "id": "0-13109",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13108",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-13109"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-13104",
+      "types": [
+        "Shape"
+      ],
+      "name": "ExpressionEyeNear",
+      "children": [
+        "0-13105",
+        "0-13108"
+      ]
+    },
+    {
+      "id": "0-13091",
+      "types": [
+        "Node"
+      ],
+      "name": "ExpressionEyes",
+      "children": [
+        "0-13110",
+        "0-13104"
+      ]
+    },
+    {
+      "id": "0-13099",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-13102",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13103",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13101",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component",
+      "children": [
+        "0-13102",
+        "0-13103"
+      ]
+    },
+    {
+      "id": "0-13100",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-13101"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-13101",
+        "stops": [
+          {
+            "id": "0-13102",
+            "color": "#ff141414",
+            "position": 0.0
+          },
+          {
+            "id": "0-13103",
+            "color": "#ff060606",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-13098",
+      "types": [
+        "Shape"
+      ],
+      "name": "GestureHandFar",
+      "children": [
+        "0-13099",
+        "0-13100"
+      ]
+    },
+    {
+      "id": "0-13093",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-13096",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13097",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-13095",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component",
+      "children": [
+        "0-13096",
+        "0-13097"
+      ]
+    },
+    {
+      "id": "0-13094",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-13095"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-13095",
+        "stops": [
+          {
+            "id": "0-13096",
+            "color": "#ff141414",
+            "position": 0.0
+          },
+          {
+            "id": "0-13097",
+            "color": "#ff060606",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-13092",
+      "types": [
+        "Shape"
+      ],
+      "name": "GestureHandNear",
+      "children": [
+        "0-13093",
+        "0-13094"
+      ]
+    },
+    {
+      "id": "0-13090",
+      "types": [
+        "Node"
+      ],
+      "name": "ExpressionHands",
+      "children": [
+        "0-13098",
+        "0-13092"
+      ]
+    },
+    {
+      "id": "0-98",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-99",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-100",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-101",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-102",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-103",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-104",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-105",
+      "types": [
+        "StraightVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-97",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-98",
+        "0-99",
+        "0-100",
+        "0-101",
+        "0-102",
+        "0-103",
+        "0-104",
+        "0-105"
+      ]
+    },
+    {
+      "id": "0-107",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-106",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-107"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff777777"
+      }
+    },
+    {
+      "id": "0-96",
+      "types": [
+        "Shape"
+      ],
+      "name": "WritingScribble",
+      "children": [
+        "0-97",
+        "0-106"
+      ]
+    },
+    {
+      "id": "0-41",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-169090",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-169091",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-169089",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component",
+      "children": [
+        "0-169090",
+        "0-169091"
+      ]
+    },
+    {
+      "id": "0-42",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-169089"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-169089",
+        "stops": [
+          {
+            "id": "0-169090",
+            "color": "#ff080808",
+            "position": 0.0
+          },
+          {
+            "id": "0-169091",
+            "color": "#ff080808",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-40",
+      "types": [
+        "Shape"
+      ],
+      "name": "HandFar",
+      "children": [
+        "0-41",
+        "0-42"
+      ]
+    },
+    {
+      "id": "0-70",
+      "types": [
+        "Triangle"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-72",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-71",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-72"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff111111"
+      }
+    },
+    {
+      "id": "0-69",
+      "types": [
+        "Shape"
+      ],
+      "name": "PencilNib",
+      "children": [
+        "0-70",
+        "0-71"
+      ]
+    },
+    {
+      "id": "0-66",
+      "types": [
+        "Triangle"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-68",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-67",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-68"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffded6ca"
+      }
+    },
+    {
+      "id": "0-65",
+      "types": [
+        "Shape"
+      ],
+      "name": "PencilWood",
+      "children": [
+        "0-66",
+        "0-67"
+      ]
+    },
+    {
+      "id": "0-37",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-62",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-38",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-62"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-62",
+        "stops": [
+          {
+            "id": "0-63",
+            "color": "#ff141414",
+            "position": 0.0
+          },
+          {
+            "id": "0-64",
+            "color": "#ff060606",
+            "position": 100.0
+          }
+        ],
+        "startX": -24.0,
+        "startY": -28.0,
+        "endX": 35.0,
+        "endY": 39.0
+      }
+    },
+    {
+      "id": "0-36",
+      "types": [
+        "Shape"
+      ],
+      "name": "HandNear",
+      "children": [
+        "0-37",
+        "0-38"
+      ]
+    },
+    {
+      "id": "0-33",
+      "types": [
+        "Rectangle"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-35",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-34",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-35"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#fff2eee6"
+      }
+    },
+    {
+      "id": "0-32",
+      "types": [
+        "Shape"
+      ],
+      "name": "PencilShaft",
+      "children": [
+        "0-33",
+        "0-34"
+      ]
+    },
+    {
+      "id": "0-23",
+      "types": [
+        "Node"
+      ],
+      "name": "Grip",
+      "children": [
+        "0-69",
+        "0-65",
+        "0-36",
+        "0-32"
+      ]
+    },
+    {
+      "id": "0-22",
+      "types": [
+        "Node"
+      ],
+      "name": "WritingProps",
+      "children": [
+        "0-96",
+        "0-40",
+        "0-23"
+      ]
+    },
+    {
+      "id": "0-91",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-92",
+      "types": [
+        "CubicAsymmetricVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-93",
+      "types": [
+        "CubicAsymmetricVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-90",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-91",
+        "0-92",
+        "0-93"
+      ]
+    },
+    {
+      "id": "0-95",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-94",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-95"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-89",
+      "types": [
+        "Shape"
+      ],
+      "name": "SweatDrop",
+      "children": [
+        "0-90",
+        "0-94"
+      ]
+    },
+    {
+      "id": "0-83",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-84",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-85",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-86",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-82",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-83",
+        "0-84",
+        "0-85",
+        "0-86"
+      ]
+    },
+    {
+      "id": "0-88",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-87",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-88"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-81",
+      "types": [
+        "Shape"
+      ],
+      "name": "SweatEyeFar",
+      "children": [
+        "0-82",
+        "0-87"
+      ]
+    },
+    {
+      "id": "0-75",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-76",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-77",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-78",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-74",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-75",
+        "0-76",
+        "0-77",
+        "0-78"
+      ]
+    },
+    {
+      "id": "0-80",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-79",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-80"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-73",
+      "types": [
+        "Shape"
+      ],
+      "name": "SweatEyeNear",
+      "children": [
+        "0-74",
+        "0-79"
+      ]
+    },
+    {
+      "id": "0-21",
+      "types": [
+        "Node"
+      ],
+      "name": "SweatingFace",
+      "children": [
+        "0-89",
+        "0-81",
+        "0-73"
+      ]
+    },
+    {
+      "id": "0-52",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-53",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-51",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-52",
+        "0-53"
+      ]
+    },
+    {
+      "id": "0-55",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-54",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-55"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-50",
+      "types": [
+        "Shape"
+      ],
+      "name": "WritingEyeFar",
+      "children": [
+        "0-51",
+        "0-54"
+      ]
+    },
+    {
+      "id": "0-46",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-47",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-45",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-46",
+        "0-47"
+      ]
+    },
+    {
+      "id": "0-49",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-48",
+      "types": [
+        "Stroke"
+      ],
+      "name": "Stroke 1",
+      "children": [
+        "0-49"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-44",
+      "types": [
+        "Shape"
+      ],
+      "name": "WritingEyeNear",
+      "children": [
+        "0-45",
+        "0-48"
+      ]
+    },
+    {
+      "id": "0-20",
+      "types": [
+        "Node"
+      ],
+      "name": "WritingFace",
+      "children": [
+        "0-50",
+        "0-44"
+      ]
+    },
+    {
+      "id": "0-32891",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32892",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32893",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32894",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32895",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32896",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32897",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32898",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32872",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-32891",
+        "0-32892",
+        "0-32893",
+        "0-32894",
+        "0-32895",
+        "0-32896",
+        "0-32897",
+        "0-32898"
+      ]
+    },
+    {
+      "id": "0-32882",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-32881",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-32882"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-32871",
+      "types": [
+        "Shape"
+      ],
+      "name": "SphereEyeFar",
+      "children": [
+        "0-32872",
+        "0-32881"
+      ]
+    },
+    {
+      "id": "0-32883",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32884",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32885",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32886",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32887",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32888",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32889",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32890",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component",
+      "children": []
+    },
+    {
+      "id": "0-32860",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-32883",
+        "0-32884",
+        "0-32885",
+        "0-32886",
+        "0-32887",
+        "0-32888",
+        "0-32889",
+        "0-32890"
+      ]
+    },
+    {
+      "id": "0-32870",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-32869",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-32870"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-32859",
+      "types": [
+        "Shape"
+      ],
+      "name": "SphereEyeNear",
+      "children": [
+        "0-32860",
+        "0-32869"
+      ]
+    },
+    {
+      "id": "0-29",
+      "types": [
+        "Rectangle"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-31",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-30",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-31"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-28",
+      "types": [
+        "Shape"
+      ],
+      "name": "IdleEyeFar",
+      "children": [
+        "0-29",
+        "0-30"
+      ]
+    },
+    {
+      "id": "0-25",
+      "types": [
+        "Rectangle"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-27",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-26",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-27"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ffffffff"
+      }
+    },
+    {
+      "id": "0-24",
+      "types": [
+        "Shape"
+      ],
+      "name": "IdleEyeNear",
+      "children": [
+        "0-25",
+        "0-26"
+      ]
+    },
+    {
+      "id": "0-185839",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185840",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185841",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185842",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185843",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185844",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185838",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-185839",
+        "0-185840",
+        "0-185841",
+        "0-185842",
+        "0-185843",
+        "0-185844"
+      ]
+    },
+    {
+      "id": "0-185846",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185845",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-185846"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff88cff3"
+      }
+    },
+    {
+      "id": "0-185837",
+      "types": [
+        "Shape"
+      ],
+      "name": "TearFlowNear",
+      "children": [
+        "0-185838",
+        "0-185845"
+      ]
+    },
+    {
+      "id": "0-185829",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185830",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185831",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185832",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185833",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185834",
+      "types": [
+        "CubicDetachedVertex"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185828",
+      "types": [
+        "PointsPath"
+      ],
+      "name": "Path",
+      "children": [
+        "0-185829",
+        "0-185830",
+        "0-185831",
+        "0-185832",
+        "0-185833",
+        "0-185834"
+      ]
+    },
+    {
+      "id": "0-185836",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-185835",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-185836"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff88cff3"
+      }
+    },
+    {
+      "id": "0-185827",
+      "types": [
+        "Shape"
+      ],
+      "name": "TearFlowFar",
+      "children": [
+        "0-185828",
+        "0-185835"
+      ]
+    },
+    {
+      "id": "0-185826",
+      "types": [
+        "Node"
+      ],
+      "name": "TearFlows",
+      "children": [
+        "0-185837",
+        "0-185827"
+      ]
+    },
+    {
+      "id": "0-19",
+      "types": [
+        "Node"
+      ],
+      "name": "IdleFace",
+      "children": [
+        "0-32871",
+        "0-32859",
+        "0-28",
+        "0-24",
+        "0-185826"
+      ]
+    },
+    {
+      "id": "0-16",
+      "types": [
+        "Ellipse"
+      ],
+      "name": "Path",
+      "children": []
+    },
+    {
+      "id": "0-60",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-61",
+      "types": [
+        "GradientStop"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-59",
+      "types": [
+        "RadialGradient"
+      ],
+      "name": "Component",
+      "children": [
+        "0-60",
+        "0-61"
+      ]
+    },
+    {
+      "id": "0-17",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-59"
+      ],
+      "paint": {
+        "colorType": "radial",
+        "gradientId": "0-59",
+        "stops": [
+          {
+            "id": "0-60",
+            "color": "#ff101010",
+            "position": 0.0
+          },
+          {
+            "id": "0-61",
+            "color": "#ff030303",
+            "position": 100.0
+          }
+        ],
+        "startX": -85.0,
+        "startY": -110.0,
+        "endX": 120.0,
+        "endY": 160.0
+      }
+    },
+    {
+      "id": "0-15",
+      "types": [
+        "Shape"
+      ],
+      "name": "Body",
+      "children": [
+        "0-16",
+        "0-17"
+      ]
+    },
+    {
+      "id": "0-14",
+      "types": [
+        "Node"
+      ],
+      "name": "CharacterRoot",
+      "children": [
+        "0-318752",
+        "0-13091",
+        "0-13090",
+        "0-22",
+        "0-21",
+        "0-20",
+        "0-19",
+        "0-15"
+      ]
+    },
+    {
+      "id": "0-5",
+      "types": [
+        "LayoutComponentStyle"
+      ],
+      "name": "Layout Style"
+    },
+    {
+      "id": "0-4",
+      "types": [
+        "SolidColor"
+      ],
+      "name": "Component"
+    },
+    {
+      "id": "0-3",
+      "types": [
+        "Fill"
+      ],
+      "name": "Fill 1",
+      "children": [
+        "0-4"
+      ],
+      "paint": {
+        "colorType": "solid",
+        "color": "#ff282828"
+      }
+    },
+    {
+      "id": "0-2",
+      "types": [
+        "Artboard"
+      ],
+      "name": "TogetherSphere",
+      "children": [
+        "0-14",
+        "0-5",
+        "0-3"
+      ]
+    }
+  ]
+}

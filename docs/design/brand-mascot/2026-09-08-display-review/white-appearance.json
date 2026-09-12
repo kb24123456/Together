@@ -1,0 +1,121 @@
+{
+  "date": "2026-09-08",
+  "status": "User-approved static capture record; native Rive theme binding now implemented separately; Apple runtime pending",
+  "sourceFileId": 2561771,
+  "artboardId": "0-2",
+  "method": "Native Rive capture_artboard, same v6 frame-0 poses. No raster recoloring, CSS filter, geometry or animation edits.",
+  "farHandMaterial": {
+    "shapeId": "0-40",
+    "originalFillId": "0-42",
+    "originalSolidId": "0-43",
+    "method": "Temporarily duplicate near-hand fill 0-38, reparent only the duplicate to HandFar, make original SolidColor transparent during capture; delete duplicate and restore original color afterwards.",
+    "gradient": {
+      "type": "radial",
+      "startX": -24,
+      "startY": -28,
+      "endX": 35,
+      "endY": 39,
+      "stops": [
+        {
+          "color": "#FFE8E8E8",
+          "position": 0
+        },
+        {
+          "color": "#FFB8B8B8",
+          "position": 100
+        }
+      ]
+    }
+  },
+  "restore": {
+    "mismatch": [],
+    "hierarchyEqual": true,
+    "propertyCount": 208
+  },
+  "scopeLimits": [
+    "Historical static overrides include temporary transparent old far-hand fill; do not apply them to current hierarchy",
+    "Current Rive editor binding is implemented in theme-v6.json",
+    "App and physical-device runtime unchanged"
+  ],
+  "approval": {
+    "date": "2026-09-08",
+    "userStatement": "我觉得可以",
+    "scope": "Static appearance approved: light black sphere, dark soft-white sphere and near-black facial marks",
+    "nativeDeviceAcceptance": false
+  },
+  "captureOverrideValues": {
+    "0-60": {
+      "38": "#fff0f0f0"
+    },
+    "0-61": {
+      "38": "#ffd5d5d5"
+    },
+    "0-63": {
+      "38": "#fff0f0f0"
+    },
+    "0-64": {
+      "38": "#ffbdbdbd"
+    },
+    "0-43": {
+      "37": "#00000000"
+    },
+    "0-13096": {
+      "38": "#fff0f0f0"
+    },
+    "0-13097": {
+      "38": "#ffbdbdbd"
+    },
+    "0-13102": {
+      "38": "#fff0f0f0"
+    },
+    "0-13103": {
+      "38": "#ffbdbdbd"
+    },
+    "0-32870": {
+      "37": "#ff1b1b1b"
+    },
+    "0-32882": {
+      "37": "#ff1b1b1b"
+    },
+    "0-27": {
+      "37": "#ff1b1b1b"
+    },
+    "0-31": {
+      "37": "#ff1b1b1b"
+    },
+    "0-49": {
+      "37": "#ff1b1b1b"
+    },
+    "0-55": {
+      "37": "#ff1b1b1b"
+    },
+    "0-80": {
+      "37": "#ff1b1b1b"
+    },
+    "0-88": {
+      "37": "#ff1b1b1b"
+    },
+    "0-13109": {
+      "37": "#ff1b1b1b"
+    },
+    "0-13115": {
+      "37": "#ff1b1b1b"
+    },
+    "0-95": {
+      "37": "#ff686868"
+    },
+    "0-35": {
+      "37": "#ff767676"
+    },
+    "0-68": {
+      "37": "#ffded6ca"
+    },
+    "0-72": {
+      "37": "#ffadadad"
+    },
+    "0-107": {
+      "37": "#ff929292"
+    }
+  },
+  "currentThemeBindingContract": "../2026-09-08-rive-study/theme-v6.json"
+}

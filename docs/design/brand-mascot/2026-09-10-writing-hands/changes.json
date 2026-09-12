@@ -1,0 +1,160 @@
+{
+  "offsets": {
+    "0-23": {
+      "13": -52,
+      "14": 22
+    },
+    "0-40": {
+      "13": 50,
+      "14": 29
+    },
+    "0-96": {
+      "13": -52,
+      "14": 16
+    },
+    "0-32": {
+      "14": -6
+    },
+    "0-65": {
+      "14": -6
+    },
+    "0-69": {
+      "14": -6
+    }
+  },
+  "changed": [
+    {
+      "animationId": "0-359914",
+      "keys": 12
+    },
+    {
+      "animationId": "0-359913",
+      "keys": 12
+    },
+    {
+      "animationId": "0-359915",
+      "keys": 12
+    },
+    {
+      "animationId": "0-185848",
+      "keys": 12
+    },
+    {
+      "animationId": "0-185849",
+      "keys": 12
+    },
+    {
+      "animationId": "0-185850",
+      "keys": 313
+    },
+    {
+      "animationId": "0-185847",
+      "keys": 12
+    },
+    {
+      "animationId": "0-122625",
+      "keys": 18
+    },
+    {
+      "animationId": "0-122626",
+      "keys": 12
+    },
+    {
+      "animationId": "0-122624",
+      "keys": 12
+    },
+    {
+      "animationId": "0-122622",
+      "keys": 12
+    },
+    {
+      "animationId": "0-122623",
+      "keys": 12
+    },
+    {
+      "animationId": "0-18430",
+      "keys": 12
+    },
+    {
+      "animationId": "0-13230",
+      "keys": 12
+    },
+    {
+      "animationId": "0-13228",
+      "keys": 12
+    },
+    {
+      "animationId": "0-13231",
+      "keys": 12
+    },
+    {
+      "animationId": "0-13229",
+      "keys": 12
+    },
+    {
+      "animationId": "0-13232",
+      "keys": 12
+    },
+    {
+      "animationId": "0-13233",
+      "keys": 162
+    },
+    {
+      "animationId": "0-8762",
+      "keys": 12
+    },
+    {
+      "animationId": "0-5973",
+      "keys": 12
+    },
+    {
+      "animationId": "0-5971",
+      "keys": 12
+    },
+    {
+      "animationId": "0-5972",
+      "keys": 12
+    },
+    {
+      "animationId": "0-1036",
+      "keys": 12
+    },
+    {
+      "animationId": "0-1037",
+      "keys": 12
+    },
+    {
+      "animationId": "0-1032",
+      "keys": 16
+    },
+    {
+      "animationId": "0-1033",
+      "keys": 38
+    },
+    {
+      "animationId": "0-1034",
+      "keys": 15
+    },
+    {
+      "animationId": "0-1035",
+      "keys": 12
+    },
+    {
+      "animationId": "0-108",
+      "keys": 273
+    },
+    {
+      "animationId": "0-109",
+      "keys": 12
+    },
+    {
+      "animationId": "0-110",
+      "keys": 255
+    },
+    {
+      "animationId": "0-6",
+      "keys": 12
+    }
+  ],
+  "totalKeys": 1390
+}

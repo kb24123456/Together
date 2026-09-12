@@ -1,0 +1,109 @@
+{
+  "date": "2026-09-08",
+  "fileId": 2561771,
+  "keyframeReadback": {
+    "counts": {
+      "Idle": 194,
+      "WritingEnter": 144,
+      "Writing": 190,
+      "WritingHold": 128,
+      "WritingExit": 132,
+      "ConcernEnter": 130,
+      "Concerned": 133,
+      "Recover": 125,
+      "Acknowledge": 125,
+      "Preview": 527
+    },
+    "errors": []
+  },
+  "simulations": [
+    {
+      "name": "edit_pause_resume_concern_recover",
+      "success": true,
+      "frames": 600,
+      "transitions": 10,
+      "final": [
+        "Idle"
+      ],
+      "path": [
+        "Idle",
+        "WritingEnter",
+        "Writing",
+        "WritingHold",
+        "Writing",
+        "WritingExit",
+        "ConcernEnter",
+        "Concerned",
+        "Recover",
+        "Idle"
+      ]
+    },
+    {
+      "name": "cancel_during_enter_and_latest_target",
+      "success": true,
+      "frames": 360,
+      "transitions": 7,
+      "final": [
+        "Idle"
+      ],
+      "path": [
+        "Idle",
+        "WritingEnter",
+        "WritingExit",
+        "WritingEnter",
+        "Writing",
+        "WritingExit",
+        "Idle"
+      ]
+    },
+    {
+      "name": "acknowledge_and_interrupt",
+      "success": true,
+      "frames": 300,
+      "transitions": 8,
+      "final": [
+        "Idle"
+      ],
+      "path": [
+        "Idle",
+        "Acknowledge",
+        "Idle",
+        "Acknowledge",
+        "WritingEnter",
+        "WritingHold",
+        "WritingExit",
+        "Idle"
+      ]
+    },
+    {
+      "name": "concern_to_edit_hold",
+      "success": true,
+      "frames": 300,
+      "transitions": 6,
+      "final": [
+        "WritingHold"
+      ],
+      "path": [
+        "Idle",
+        "ConcernEnter",
+        "Concerned",
+        "Recover",
+        "WritingEnter",
+        "WritingHold"
+      ]
+    }
+  ],
+  "review": {
+    "loopContinuity": "passed",
+    "sphereUniformScale": "passed",
+    "eyeGroupOverlap": "none found in sampled timeline and blend checks",
+    "penHandFade": "staggered; no pen visible under translucent grip group in sampled clips and Preview",
+    "gui": "Preview playback and writing, hold, sweat, entry/exit key poses inspected; pen ghosting fixed and same frame rechecked"
+  },
+  "limitations": [
+    "Editor prototype only; no Apple runtime or device acceptance",
+    "Rapid reversal completes short one-shots before routing to latest mode",
+    "mode must be 0, 1 or 2; acknowledge only handled while idle",
+    "No runtime export available under current workspace plan"
+  ]
+}

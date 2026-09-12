@@ -1,0 +1,29 @@
+{
+  "reviewedAt": "2026-09-09T12:07:08.767321+00:00",
+  "scope": "Independent review against per-turn backups; no production/test edits by reviewer",
+  "findings": [],
+  "blockingFindings": 0,
+  "sourceSHA256": {
+    "Together/Features/BrandMascot/BrandMascotView.swift": "0c0d54030aa6f33eb360ca8568c8581ec9e7872f20df360fbaafc00ac539aa5a",
+    "Together/Features/BrandMascot/MascotBehaviorState.swift": "3e90b91c0dd973ee904805b1b6f594c5b1d28c3c3be0eb65f1b71d910ca11917",
+    "Together/Features/BrandMascot/MascotController.swift": "134237986b35caa37657f3d2be165be0ffdc92be2daeff87f0533da64a4ac525",
+    "Together/Features/BrandMascot/MascotRuntime.swift": "a9b5a8be572fadbc05b55e9d630685b050738391985f28aabc07931668cefb4d"
+  },
+  "reviewedConcerns": [
+    "No automatic sleep mode/static pose is emitted by production policy",
+    "Random choices consumed only at visible schedule boundaries; no missed-event burst",
+    "Previous pending MainActor deadline task is cancelled and checked before refresh",
+    "Context, feedback, activity and playback transitions clear idle selection",
+    "Runtime applies expression before mode/typing; feedback clears expression before trigger",
+    "hasPresentedIdleExpression remains true until hidden cleanup, covering a pending Close after selector reset",
+    "Loading applies latest controller state twice around worker initialization; cancelled generation cannot install stale runtime",
+    "Pause cleanup tested at ten expression phases using the exact two fixed advance sequences"
+  ],
+  "runtimeEvidence": "verification.json",
+  "runtimeChecksPassed": 1200,
+  "runtimeChecksFailed": 0,
+  "limits": [
+    "Core state execution checked using the official synchronous inspection API; production uses the New Runtime worker API",
+    "Visual rendering and iPhone validation are not included in this independent audit"
+  ]
+}

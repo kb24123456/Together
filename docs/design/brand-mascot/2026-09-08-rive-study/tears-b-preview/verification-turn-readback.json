@@ -1,0 +1,20 @@
+{
+  "keyframeCount": 11495,
+  "expectedCount": 11495,
+  "readbackMismatches": 0,
+  "originalTearsUnchanged": true,
+  "productionMascotUnchanged": true,
+  "date": "2026-09-08",
+  "artboardId": "0-169138",
+  "animationId": "0-174151",
+  "nativePoseCaptures": [
+    "front",
+    "left",
+    "right",
+    "down"
+  ],
+  "nativePlaybackStarted": true,
+  "productionIntegrated": false,
+  "appChanged": false,
+  "userAcceptancePending": true
+}

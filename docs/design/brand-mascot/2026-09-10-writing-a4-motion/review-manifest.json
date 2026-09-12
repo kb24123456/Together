@@ -1,0 +1,45 @@
+{
+  "fileId": 2564580,
+  "artboard": "TogetherSphere",
+  "artboardId": "0-2",
+  "animation": "Review_Writing_A4",
+  "animationId": "0-893641",
+  "duration": 3.6,
+  "fps": 60,
+  "keys": 2256,
+  "status": "user approved; integrated into production writing chain and installed on physical iPhone",
+  "sourceReference": "../2026-09-10-writing-concepts/writing-A4-raised-eyes.png",
+  "bodyDiameter": 368,
+  "eyeLengthIncludingCaps": 102,
+  "eyeThickness": 14,
+  "eyeCenters": [
+    [
+      -82,
+      -15
+    ],
+    [
+      82,
+      -14
+    ]
+  ],
+  "handCenters": [
+    [
+      -122,
+      132
+    ],
+    [
+      107,
+      124
+    ]
+  ],
+  "handDiameters": [
+    122,
+    116
+  ],
+  "stateMachine": "Review_Writing_A4",
+  "stateMachineId": "0-896281",
+  "layerId": "0-896286",
+  "stateId": "0-896290",
+  "entryTransitionId": "0-896291",
+  "integration": "../2026-09-10-writing-a4-integration/README.md"
+}

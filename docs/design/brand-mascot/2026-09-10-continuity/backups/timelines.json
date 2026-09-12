@@ -1,0 +1,830 @@
+[
+  {
+    "id": "0-893641",
+    "name": "Review_Writing_A4",
+    "duration": 3.6,
+    "isSelected": false
+  },
+  {
+    "id": "0-893589",
+    "name": "Home_Acquire",
+    "duration": 0.9,
+    "isSelected": false
+  },
+  {
+    "id": "0-831134",
+    "name": "Home_Release",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-830794",
+    "name": "Home_HappyExit",
+    "duration": 0.3,
+    "isSelected": false
+  },
+  {
+    "id": "0-830692",
+    "name": "Home_HappyHold",
+    "duration": 1.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-830352",
+    "name": "Home_HappyEnter",
+    "duration": 0.3,
+    "isSelected": false
+  },
+  {
+    "id": "0-830138",
+    "name": "Home_CuriousExit",
+    "duration": 0.25,
+    "isSelected": false
+  },
+  {
+    "id": "0-830036",
+    "name": "Home_CuriousHold",
+    "duration": 1.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-829822",
+    "name": "Home_CuriousEnter",
+    "duration": 0.25,
+    "isSelected": false
+  },
+  {
+    "id": "0-829720",
+    "name": "Home_Calm",
+    "duration": 1.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-660023",
+    "name": "Preview_LightActions_4",
+    "duration": 6.166666666666667,
+    "isSelected": false
+  },
+  {
+    "id": "0-602270",
+    "name": "Preview_Expressions_28",
+    "duration": 50.4,
+    "isSelected": false
+  },
+  {
+    "id": "0-592939",
+    "name": "Expr_Pulse_SleepyLow",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-591440",
+    "name": "Expr_Close_SleepyLow",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-589944",
+    "name": "Expr_SleepyLow",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-588441",
+    "name": "Expr_Pulse_Nervous",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-586946",
+    "name": "Expr_Close_Nervous",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-585436",
+    "name": "Expr_Nervous",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-583933",
+    "name": "Expr_Pulse_Helpless",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-582438",
+    "name": "Expr_Close_Helpless",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-580942",
+    "name": "Expr_Helpless",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-579439",
+    "name": "Expr_Pulse_ShyLookAway",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-577944",
+    "name": "Expr_Close_ShyLookAway",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-576438",
+    "name": "Expr_ShyLookAway",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-574927",
+    "name": "Expr_Pulse_Realization",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-573428",
+    "name": "Expr_Close_Realization",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-571922",
+    "name": "Expr_Realization",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-570411",
+    "name": "Expr_Pulse_Determined",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-568912",
+    "name": "Expr_Close_Determined",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-567416",
+    "name": "Expr_Determined",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-565913",
+    "name": "Expr_Pulse_PuzzledQuiet",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-564418",
+    "name": "Expr_Close_PuzzledQuiet",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-562912",
+    "name": "Expr_PuzzledQuiet",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-561409",
+    "name": "Expr_Pulse_CuriousQuiet",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-559914",
+    "name": "Expr_Close_CuriousQuiet",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-558408",
+    "name": "Expr_CuriousQuiet",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-556905",
+    "name": "Expr_Pulse_SmallTears",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-555410",
+    "name": "Expr_Close_SmallTears",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-553888",
+    "name": "Expr_SmallTears",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-552385",
+    "name": "Expr_Pulse_Sad",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-550890",
+    "name": "Expr_Close_Sad",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-549394",
+    "name": "Expr_Sad",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-547891",
+    "name": "Expr_Pulse_Content",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-546396",
+    "name": "Expr_Close_Content",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-544900",
+    "name": "Expr_Content",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-543397",
+    "name": "Expr_Pulse_Speechless",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-541902",
+    "name": "Expr_Close_Speechless",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-540406",
+    "name": "Expr_Speechless",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-538903",
+    "name": "Expr_Pulse_MildAngry",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-537408",
+    "name": "Expr_Close_MildAngry",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-535912",
+    "name": "Expr_MildAngry",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-534409",
+    "name": "Expr_Pulse_Embarrassed",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-532914",
+    "name": "Expr_Close_Embarrassed",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-531404",
+    "name": "Expr_Embarrassed",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-529893",
+    "name": "Expr_Pulse_Surprised",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-528394",
+    "name": "Expr_Close_Surprised",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-526898",
+    "name": "Expr_Surprised",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-525395",
+    "name": "Expr_Pulse_GentleFocus",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-523900",
+    "name": "Expr_Close_GentleFocus",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-522394",
+    "name": "Expr_GentleFocus",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-520891",
+    "name": "Expr_Pulse_ThinkingUp",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-519396",
+    "name": "Expr_Close_ThinkingUp",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-517890",
+    "name": "Expr_ThinkingUp",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-516387",
+    "name": "Expr_Pulse_CuriousOpen",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-514892",
+    "name": "Expr_Close_CuriousOpen",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-513386",
+    "name": "Expr_CuriousOpen",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-511883",
+    "name": "Expr_Pulse_Smug",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-510388",
+    "name": "Expr_Close_Smug",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-508892",
+    "name": "Expr_Smug",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-507389",
+    "name": "Expr_Pulse_Blush",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-505894",
+    "name": "Expr_Close_Blush",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-504388",
+    "name": "Expr_Blush",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-502885",
+    "name": "Expr_Pulse_WinkSmile",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-501390",
+    "name": "Expr_Close_WinkSmile",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-499894",
+    "name": "Expr_WinkSmile",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-498391",
+    "name": "Expr_Pulse_Excited",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-496896",
+    "name": "Expr_Close_Excited",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-495390",
+    "name": "Expr_Excited",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-493663",
+    "name": "Expr_Close_Auto",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-492148",
+    "name": "Expr_Pulse_SleepyYawn",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-490653",
+    "name": "Expr_Close_SleepyYawn",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-489133",
+    "name": "Expr_SleepyYawn",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-487630",
+    "name": "Expr_Pulse_PuzzledOpen",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-486135",
+    "name": "Expr_Close_PuzzledOpen",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-484639",
+    "name": "Expr_PuzzledOpen",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-483136",
+    "name": "Expr_Pulse_Love",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-481641",
+    "name": "Expr_Close_Love",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-480145",
+    "name": "Expr_Love",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-478642",
+    "name": "Expr_Pulse_Laugh",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-477147",
+    "name": "Expr_Close_Laugh",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-475651",
+    "name": "Expr_Laugh",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-474148",
+    "name": "Expr_Pulse_SoftHappy",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-472653",
+    "name": "Expr_Close_SoftHappy",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-471157",
+    "name": "Expr_SoftHappy",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-469654",
+    "name": "Expr_Pulse_Calm",
+    "duration": 1.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-468159",
+    "name": "Expr_Close_Calm",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-466653",
+    "name": "Expr_Calm",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-459523",
+    "name": "Action_Poke",
+    "duration": 0.8666666666666667,
+    "isSelected": false
+  },
+  {
+    "id": "0-458875",
+    "name": "Action_Celebrate",
+    "duration": 1.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-458347",
+    "name": "Action_Nod",
+    "duration": 0.7,
+    "isSelected": false
+  },
+  {
+    "id": "0-457759",
+    "name": "Action_Observe",
+    "duration": 0.9,
+    "isSelected": false
+  },
+  {
+    "id": "0-457437",
+    "name": "Action_Rest",
+    "duration": 0.016666666666666666,
+    "isSelected": false
+  },
+  {
+    "id": "0-455944",
+    "name": "Expr_ReactionBlank",
+    "duration": 0.1,
+    "isSelected": false
+  },
+  {
+    "id": "0-454451",
+    "name": "Expr_Resolve",
+    "duration": 0.016666666666666666,
+    "isSelected": false
+  },
+  {
+    "id": "0-452958",
+    "name": "Expr_Auto",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-359914",
+    "name": "Idle_GazeDown",
+    "duration": 4.4,
+    "isSelected": false
+  },
+  {
+    "id": "0-359913",
+    "name": "Idle_GazeUp",
+    "duration": 4.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-359915",
+    "name": "Idle_GazeUpRight",
+    "duration": 5.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-185848",
+    "name": "Expression_Tears",
+    "duration": 4.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-185847",
+    "name": "Expression_Wink",
+    "duration": 1.6,
+    "isSelected": false
+  },
+  {
+    "id": "0-185849",
+    "name": "Expression_TearsTurn",
+    "duration": 9.6,
+    "isSelected": false
+  },
+  {
+    "id": "0-185850",
+    "name": "Preview_All",
+    "duration": 54.95,
+    "isSelected": false
+  },
+  {
+    "id": "0-122625",
+    "name": "CelebrateConcern",
+    "duration": 1.6,
+    "isSelected": false
+  },
+  {
+    "id": "0-122626",
+    "name": "Settle",
+    "duration": 0.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-122624",
+    "name": "DozeEnter",
+    "duration": 1.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-122622",
+    "name": "ThinkingEnter",
+    "duration": 0.75,
+    "isSelected": false
+  },
+  {
+    "id": "0-122623",
+    "name": "ThinkingExit",
+    "duration": 0.6,
+    "isSelected": false
+  },
+  {
+    "id": "0-18430",
+    "name": "Idle_Orient",
+    "duration": 27.8,
+    "isSelected": false
+  },
+  {
+    "id": "0-13230",
+    "name": "Remind",
+    "duration": 1.8,
+    "isSelected": false
+  },
+  {
+    "id": "0-13228",
+    "name": "Thinking",
+    "duration": 4.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-13231",
+    "name": "Doze",
+    "duration": 4.8,
+    "isSelected": false
+  },
+  {
+    "id": "0-13229",
+    "name": "Celebrate",
+    "duration": 1.4,
+    "isSelected": false
+  },
+  {
+    "id": "0-13232",
+    "name": "Wake",
+    "duration": 1.4,
+    "isSelected": false
+  },
+  {
+    "id": "0-13233",
+    "name": "Preview_Behaviors_v5",
+    "duration": 27.75,
+    "isSelected": false
+  },
+  {
+    "id": "0-8762",
+    "name": "Idle_QuietMedium",
+    "duration": 4.6,
+    "isSelected": false
+  },
+  {
+    "id": "0-5971",
+    "name": "Idle_QuietShort",
+    "duration": 2.7,
+    "isSelected": false
+  },
+  {
+    "id": "0-5972",
+    "name": "Idle_Look",
+    "duration": 2.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-5973",
+    "name": "Idle_Select",
+    "duration": 0.016666666666666666,
+    "isSelected": false
+  },
+  {
+    "id": "0-1036",
+    "name": "Recover",
+    "duration": 0.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-1037",
+    "name": "Acknowledge",
+    "duration": 0.4,
+    "isSelected": false
+  },
+  {
+    "id": "0-1032",
+    "name": "WritingEnter",
+    "duration": 0.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-1033",
+    "name": "WritingHold",
+    "duration": 4.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-1034",
+    "name": "WritingExit",
+    "duration": 0.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-1035",
+    "name": "ConcernEnter",
+    "duration": 0.2,
+    "isSelected": false
+  },
+  {
+    "id": "0-108",
+    "name": "Writing",
+    "duration": 3.6,
+    "isSelected": true
+  },
+  {
+    "id": "0-109",
+    "name": "Concerned",
+    "duration": 6.0,
+    "isSelected": false
+  },
+  {
+    "id": "0-110",
+    "name": "Preview",
+    "duration": 24.05,
+    "isSelected": false
+  },
+  {
+    "id": "0-6",
+    "name": "Idle",
+    "duration": 5.6,
+    "isSelected": false
+  }
+]

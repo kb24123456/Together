@@ -1,0 +1,57 @@
+{
+  "name": "A4 writing 40pt",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Review_Writing_A4",
+  "viewModel": "TogetherSphereModel",
+  "fps": 60,
+  "frames": 216,
+  "width": 168,
+  "height": 168,
+  "pngEvery": 0,
+  "pngFrames": [
+    0,
+    24,
+    60,
+    84,
+    96,
+    144,
+    168,
+    180,
+    204,
+    215
+  ],
+  "video": true,
+  "backgroundARGB": "FFFFFFFF",
+  "startupSteps": [
+    0
+  ],
+  "firstFrameAdvance": 0,
+  "events": [
+    {
+      "frame": 0,
+      "label": "A4 review starts",
+      "numbers": {
+        "mode": 1,
+        "expression": 0,
+        "idleFace": -1
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "FF101010",
+        "bodyShade": "FF030303",
+        "handLight": "FF2C2C2C",
+        "handShade": "FF0E0E0E",
+        "farHandLight": "FF222222",
+        "farHandShade": "FF0B0B0B",
+        "eyeColor": "FFFFFFFF",
+        "sweatColor": "FFFFFFFF",
+        "penBodyColor": "FFF2EEE6",
+        "penTipColor": "FF111111",
+        "inkColor": "FF777777",
+        "tearColor": "FF88CFF3"
+      }
+    }
+  ]
+}

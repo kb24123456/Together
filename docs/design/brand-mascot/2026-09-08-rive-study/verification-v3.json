@@ -1,0 +1,1733 @@
+{
+  "fileId": 2561771,
+  "checkedAt": "2026-09-08",
+  "keyframes": [
+    {
+      "name": "Idle",
+      "expectedKeys": 120,
+      "actualKeys": 120,
+      "match": true
+    },
+    {
+      "name": "Writing",
+      "expectedKeys": 190,
+      "actualKeys": 190,
+      "match": true
+    },
+    {
+      "name": "Concerned",
+      "expectedKeys": 133,
+      "actualKeys": 133,
+      "match": true
+    },
+    {
+      "name": "Preview",
+      "expectedKeys": 1894,
+      "actualKeys": 1894,
+      "match": true
+    },
+    {
+      "name": "WritingEnter",
+      "expectedKeys": 126,
+      "actualKeys": 126,
+      "match": true
+    },
+    {
+      "name": "WritingHold",
+      "expectedKeys": 128,
+      "actualKeys": 128,
+      "match": true
+    },
+    {
+      "name": "WritingExit",
+      "expectedKeys": 126,
+      "actualKeys": 126,
+      "match": true
+    },
+    {
+      "name": "ConcernEnter",
+      "expectedKeys": 118,
+      "actualKeys": 118,
+      "match": true
+    },
+    {
+      "name": "Recover",
+      "expectedKeys": 114,
+      "actualKeys": 114,
+      "match": true
+    },
+    {
+      "name": "Acknowledge",
+      "expectedKeys": 122,
+      "actualKeys": 122,
+      "match": true
+    },
+    {
+      "name": "Idle_QuietShort",
+      "expectedKeys": 120,
+      "actualKeys": 120,
+      "match": true
+    },
+    {
+      "name": "Idle_Look",
+      "expectedKeys": 125,
+      "actualKeys": 125,
+      "match": true
+    },
+    {
+      "name": "Idle_Select",
+      "expectedKeys": 108,
+      "actualKeys": 108,
+      "match": true
+    },
+    {
+      "name": "Idle_QuietMedium",
+      "expectedKeys": 120,
+      "actualKeys": 120,
+      "match": true
+    }
+  ],
+  "independentParameterReview": {
+    "clips": 13,
+    "clipSamples": 38193,
+    "routeCount": 44,
+    "routeSourcePhases": 17504,
+    "blendSamples": 622478,
+    "issues": [],
+    "limits": "Numeric opacity/scale/cubic sampling; not pixel/performance acceptance."
+  },
+  "preview": {
+    "samples": 14431,
+    "violations": [],
+    "actualKeys": 1894
+  },
+  "phaseReversals": [
+    {
+      "source": "WritingEnter",
+      "phase": 1,
+      "target": 0,
+      "changedAt": 21,
+      "reached": 46,
+      "latencyMs": 416.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 1,
+      "target": 2,
+      "changedAt": 21,
+      "reached": 58,
+      "latencyMs": 616.6666666666666,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 2,
+      "target": 0,
+      "changedAt": 22,
+      "reached": 46,
+      "latencyMs": 400,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 2,
+      "target": 2,
+      "changedAt": 22,
+      "reached": 58,
+      "latencyMs": 600,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 3,
+      "target": 0,
+      "changedAt": 23,
+      "reached": 46,
+      "latencyMs": 383.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 3,
+      "target": 2,
+      "changedAt": 23,
+      "reached": 58,
+      "latencyMs": 583.3333333333334,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 4,
+      "target": 0,
+      "changedAt": 24,
+      "reached": 46,
+      "latencyMs": 366.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 4,
+      "target": 2,
+      "changedAt": 24,
+      "reached": 58,
+      "latencyMs": 566.6666666666666,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 5,
+      "target": 0,
+      "changedAt": 25,
+      "reached": 46,
+      "latencyMs": 350,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 5,
+      "target": 2,
+      "changedAt": 25,
+      "reached": 58,
+      "latencyMs": 550,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 6,
+      "target": 0,
+      "changedAt": 26,
+      "reached": 46,
+      "latencyMs": 333.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 6,
+      "target": 2,
+      "changedAt": 26,
+      "reached": 58,
+      "latencyMs": 533.3333333333334,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 7,
+      "target": 0,
+      "changedAt": 27,
+      "reached": 46,
+      "latencyMs": 316.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 7,
+      "target": 2,
+      "changedAt": 27,
+      "reached": 58,
+      "latencyMs": 516.6666666666666,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 8,
+      "target": 0,
+      "changedAt": 28,
+      "reached": 46,
+      "latencyMs": 300,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 8,
+      "target": 2,
+      "changedAt": 28,
+      "reached": 58,
+      "latencyMs": 500,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 9,
+      "target": 0,
+      "changedAt": 29,
+      "reached": 46,
+      "latencyMs": 283.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 9,
+      "target": 2,
+      "changedAt": 29,
+      "reached": 58,
+      "latencyMs": 483.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 10,
+      "target": 0,
+      "changedAt": 30,
+      "reached": 46,
+      "latencyMs": 266.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 10,
+      "target": 2,
+      "changedAt": 30,
+      "reached": 58,
+      "latencyMs": 466.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 11,
+      "target": 0,
+      "changedAt": 31,
+      "reached": 46,
+      "latencyMs": 250,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 11,
+      "target": 2,
+      "changedAt": 31,
+      "reached": 58,
+      "latencyMs": 450,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 12,
+      "target": 0,
+      "changedAt": 32,
+      "reached": 46,
+      "latencyMs": 233.33333333333334,
+      "success": true
+    },
+    {
+      "source": "WritingEnter",
+      "phase": 12,
+      "target": 2,
+      "changedAt": 32,
+      "reached": 58,
+      "latencyMs": 433.3333333333333,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 1,
+      "target": 0,
+      "changedAt": 21,
+      "reached": 46,
+      "latencyMs": 416.6666666666667,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 1,
+      "target": 1,
+      "changedAt": 21,
+      "reached": 58,
+      "latencyMs": 616.6666666666666,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 2,
+      "target": 0,
+      "changedAt": 22,
+      "reached": 46,
+      "latencyMs": 400,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 2,
+      "target": 1,
+      "changedAt": 22,
+      "reached": 58,
+      "latencyMs": 600,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 3,
+      "target": 0,
+      "changedAt": 23,
+      "reached": 46,
+      "latencyMs": 383.3333333333333,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 3,
+      "target": 1,
+      "changedAt": 23,
+      "reached": 58,
+      "latencyMs": 583.3333333333334,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 4,
+      "target": 0,
+      "changedAt": 24,
+      "reached": 46,
+      "latencyMs": 366.6666666666667,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 4,
+      "target": 1,
+      "changedAt": 24,
+      "reached": 58,
+      "latencyMs": 566.6666666666666,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 5,
+      "target": 0,
+      "changedAt": 25,
+      "reached": 46,
+      "latencyMs": 350,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 5,
+      "target": 1,
+      "changedAt": 25,
+      "reached": 58,
+      "latencyMs": 550,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 6,
+      "target": 0,
+      "changedAt": 26,
+      "reached": 46,
+      "latencyMs": 333.3333333333333,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 6,
+      "target": 1,
+      "changedAt": 26,
+      "reached": 58,
+      "latencyMs": 533.3333333333334,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 7,
+      "target": 0,
+      "changedAt": 27,
+      "reached": 46,
+      "latencyMs": 316.6666666666667,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 7,
+      "target": 1,
+      "changedAt": 27,
+      "reached": 58,
+      "latencyMs": 516.6666666666666,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 8,
+      "target": 0,
+      "changedAt": 28,
+      "reached": 46,
+      "latencyMs": 300,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 8,
+      "target": 1,
+      "changedAt": 28,
+      "reached": 58,
+      "latencyMs": 500,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 9,
+      "target": 0,
+      "changedAt": 29,
+      "reached": 46,
+      "latencyMs": 283.3333333333333,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 9,
+      "target": 1,
+      "changedAt": 29,
+      "reached": 58,
+      "latencyMs": 483.3333333333333,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 10,
+      "target": 0,
+      "changedAt": 30,
+      "reached": 46,
+      "latencyMs": 266.6666666666667,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 10,
+      "target": 1,
+      "changedAt": 30,
+      "reached": 58,
+      "latencyMs": 466.6666666666667,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 11,
+      "target": 0,
+      "changedAt": 31,
+      "reached": 46,
+      "latencyMs": 250,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 11,
+      "target": 1,
+      "changedAt": 31,
+      "reached": 58,
+      "latencyMs": 450,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 12,
+      "target": 0,
+      "changedAt": 32,
+      "reached": 46,
+      "latencyMs": 233.33333333333334,
+      "success": true
+    },
+    {
+      "source": "ConcernEnter",
+      "phase": 12,
+      "target": 1,
+      "changedAt": 32,
+      "reached": 58,
+      "latencyMs": 433.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 1,
+      "target": 1,
+      "changedAt": 46,
+      "reached": 71,
+      "latencyMs": 416.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 1,
+      "target": 2,
+      "changedAt": 46,
+      "reached": 71,
+      "latencyMs": 416.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 2,
+      "target": 1,
+      "changedAt": 47,
+      "reached": 71,
+      "latencyMs": 400,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 2,
+      "target": 2,
+      "changedAt": 47,
+      "reached": 71,
+      "latencyMs": 400,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 3,
+      "target": 1,
+      "changedAt": 48,
+      "reached": 71,
+      "latencyMs": 383.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 3,
+      "target": 2,
+      "changedAt": 48,
+      "reached": 71,
+      "latencyMs": 383.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 4,
+      "target": 1,
+      "changedAt": 49,
+      "reached": 71,
+      "latencyMs": 366.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 4,
+      "target": 2,
+      "changedAt": 49,
+      "reached": 71,
+      "latencyMs": 366.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 5,
+      "target": 1,
+      "changedAt": 50,
+      "reached": 71,
+      "latencyMs": 350,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 5,
+      "target": 2,
+      "changedAt": 50,
+      "reached": 71,
+      "latencyMs": 350,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 6,
+      "target": 1,
+      "changedAt": 51,
+      "reached": 71,
+      "latencyMs": 333.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 6,
+      "target": 2,
+      "changedAt": 51,
+      "reached": 71,
+      "latencyMs": 333.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 7,
+      "target": 1,
+      "changedAt": 52,
+      "reached": 71,
+      "latencyMs": 316.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 7,
+      "target": 2,
+      "changedAt": 52,
+      "reached": 71,
+      "latencyMs": 316.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 8,
+      "target": 1,
+      "changedAt": 53,
+      "reached": 71,
+      "latencyMs": 300,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 8,
+      "target": 2,
+      "changedAt": 53,
+      "reached": 71,
+      "latencyMs": 300,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 9,
+      "target": 1,
+      "changedAt": 54,
+      "reached": 71,
+      "latencyMs": 283.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 9,
+      "target": 2,
+      "changedAt": 54,
+      "reached": 71,
+      "latencyMs": 283.3333333333333,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 10,
+      "target": 1,
+      "changedAt": 55,
+      "reached": 71,
+      "latencyMs": 266.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 10,
+      "target": 2,
+      "changedAt": 55,
+      "reached": 71,
+      "latencyMs": 266.6666666666667,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 11,
+      "target": 1,
+      "changedAt": 56,
+      "reached": 71,
+      "latencyMs": 250,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 11,
+      "target": 2,
+      "changedAt": 56,
+      "reached": 71,
+      "latencyMs": 250,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 12,
+      "target": 1,
+      "changedAt": 57,
+      "reached": 71,
+      "latencyMs": 233.33333333333334,
+      "success": true
+    },
+    {
+      "source": "WritingExit",
+      "phase": 12,
+      "target": 2,
+      "changedAt": 57,
+      "reached": 71,
+      "latencyMs": 233.33333333333334,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 1,
+      "target": 1,
+      "changedAt": 46,
+      "reached": 71,
+      "latencyMs": 416.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 1,
+      "target": 2,
+      "changedAt": 46,
+      "reached": 71,
+      "latencyMs": 416.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 2,
+      "target": 1,
+      "changedAt": 47,
+      "reached": 71,
+      "latencyMs": 400,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 2,
+      "target": 2,
+      "changedAt": 47,
+      "reached": 71,
+      "latencyMs": 400,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 3,
+      "target": 1,
+      "changedAt": 48,
+      "reached": 71,
+      "latencyMs": 383.3333333333333,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 3,
+      "target": 2,
+      "changedAt": 48,
+      "reached": 71,
+      "latencyMs": 383.3333333333333,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 4,
+      "target": 1,
+      "changedAt": 49,
+      "reached": 71,
+      "latencyMs": 366.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 4,
+      "target": 2,
+      "changedAt": 49,
+      "reached": 71,
+      "latencyMs": 366.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 5,
+      "target": 1,
+      "changedAt": 50,
+      "reached": 71,
+      "latencyMs": 350,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 5,
+      "target": 2,
+      "changedAt": 50,
+      "reached": 71,
+      "latencyMs": 350,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 6,
+      "target": 1,
+      "changedAt": 51,
+      "reached": 71,
+      "latencyMs": 333.3333333333333,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 6,
+      "target": 2,
+      "changedAt": 51,
+      "reached": 71,
+      "latencyMs": 333.3333333333333,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 7,
+      "target": 1,
+      "changedAt": 52,
+      "reached": 71,
+      "latencyMs": 316.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 7,
+      "target": 2,
+      "changedAt": 52,
+      "reached": 71,
+      "latencyMs": 316.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 8,
+      "target": 1,
+      "changedAt": 53,
+      "reached": 71,
+      "latencyMs": 300,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 8,
+      "target": 2,
+      "changedAt": 53,
+      "reached": 71,
+      "latencyMs": 300,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 9,
+      "target": 1,
+      "changedAt": 54,
+      "reached": 71,
+      "latencyMs": 283.3333333333333,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 9,
+      "target": 2,
+      "changedAt": 54,
+      "reached": 71,
+      "latencyMs": 283.3333333333333,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 10,
+      "target": 1,
+      "changedAt": 55,
+      "reached": 71,
+      "latencyMs": 266.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 10,
+      "target": 2,
+      "changedAt": 55,
+      "reached": 71,
+      "latencyMs": 266.6666666666667,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 11,
+      "target": 1,
+      "changedAt": 56,
+      "reached": 71,
+      "latencyMs": 250,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 11,
+      "target": 2,
+      "changedAt": 56,
+      "reached": 71,
+      "latencyMs": 250,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 12,
+      "target": 1,
+      "changedAt": 57,
+      "reached": 71,
+      "latencyMs": 233.33333333333334,
+      "success": true
+    },
+    {
+      "source": "Recover",
+      "phase": 12,
+      "target": 2,
+      "changedAt": 57,
+      "reached": 71,
+      "latencyMs": 233.33333333333334,
+      "success": true
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "ack-before",
+      "success": true,
+      "path": [
+        {
+          "frame": 1,
+          "name": "Idle"
+        },
+        {
+          "frame": 385,
+          "name": "Acknowledge"
+        },
+        {
+          "frame": 410,
+          "name": "Idle"
+        }
+      ],
+      "final": [
+        {
+          "layerId": "0-8",
+          "layerName": "Behavior",
+          "stateId": "0-12",
+          "stateName": "Idle"
+        }
+      ]
+    },
+    {
+      "name": "ack-boundary",
+      "success": true,
+      "path": [
+        {
+          "frame": 1,
+          "name": "Idle"
+        },
+        {
+          "frame": 386,
+          "name": "Acknowledge"
+        },
+        {
+          "frame": 410,
+          "name": "Idle"
+        }
+      ],
+      "final": [
+        {
+          "layerId": "0-8",
+          "layerName": "Behavior",
+          "stateId": "0-12",
+          "stateName": "Idle"
+        }
+      ]
+    },
+    {
+      "name": "ack-after",
+      "success": true,
+      "path": [
+        {
+          "frame": 1,
+          "name": "Idle"
+        },
+        {
+          "frame": 386,
+          "name": "PickAfterOthers"
+        },
+        {
+          "frame": 386,
+          "name": "Idle_QuietShort"
+        },
+        {
+          "frame": 387,
+          "name": "Acknowledge"
+        },
+        {
+          "frame": 412,
+          "name": "Idle"
+        }
+      ],
+      "final": [
+        {
+          "layerId": "0-8",
+          "layerName": "Behavior",
+          "stateId": "0-12",
+          "stateName": "Idle"
+        }
+      ]
+    },
+    {
+      "name": "mode-wins",
+      "success": true,
+      "path": [
+        {
+          "frame": 1,
+          "name": "Idle"
+        },
+        {
+          "frame": 386,
+          "name": "WritingEnter"
+        },
+        {
+          "frame": 398,
+          "name": "WritingHold"
+        }
+      ],
+      "final": [
+        {
+          "layerId": "0-8",
+          "layerName": "Behavior",
+          "stateId": "0-3937",
+          "stateName": "WritingHold"
+        }
+      ]
+    },
+    {
+      "name": "rapid-latest",
+      "success": true,
+      "path": [
+        {
+          "frame": 1,
+          "name": "Idle"
+        },
+        {
+          "frame": 21,
+          "name": "WritingEnter"
+        },
+        {
+          "frame": 34,
+          "name": "WritingExit"
+        },
+        {
+          "frame": 46,
+          "name": "Idle"
+        },
+        {
+          "frame": 430,
+          "name": "PickAfterOthers"
+        },
+        {
+          "frame": 430,
+          "name": "Idle_QuietShort"
+        }
+      ],
+      "final": [
+        {
+          "layerId": "0-8",
+          "layerName": "Behavior",
+          "stateId": "0-9073",
+          "stateName": "Idle_QuietShort"
+        }
+      ]
+    },
+    {
+      "name": "repeat-taps",
+      "success": true,
+      "path": [
+        {
+          "frame": 1,
+          "name": "Idle"
+        },
+        {
+          "frame": 21,
+          "name": "Acknowledge"
+        },
+        {
+          "frame": 46,
+          "name": "Idle"
+        },
+        {
+          "frame": 61,
+          "name": "Acknowledge"
+        },
+        {
+          "frame": 86,
+          "name": "Idle"
+        },
+        {
+          "frame": 470,
+          "name": "PickAfterOthers"
+        },
+        {
+          "frame": 470,
+          "name": "Idle_QuietShort"
+        }
+      ],
+      "final": [
+        {
+          "layerId": "0-8",
+          "layerName": "Behavior",
+          "stateId": "0-9073",
+          "stateName": "Idle_QuietShort"
+        }
+      ]
+    }
+  ],
+  "randomSimulation": {
+    "stateMachineId": "0-7",
+    "stateMachineName": "Mascot",
+    "success": true,
+    "framesAdvanced": 600,
+    "settled": false,
+    "transitionsObserved": 25,
+    "finalStates": [
+      {
+        "layerId": "0-8",
+        "layerName": "Behavior",
+        "stateId": "0-9074",
+        "stateName": "Idle_QuietMedium"
+      }
+    ],
+    "trace": [
+      {
+        "kind": "frame",
+        "frame": 1
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 1,
+        "transitionId": "0-13",
+        "fromStateId": "0-11",
+        "fromStateName": "Entry",
+        "toStateId": "0-12",
+        "toStateName": "Idle"
+      },
+      {
+        "kind": "state",
+        "line": 2,
+        "stateId": "0-12",
+        "stateName": "Idle",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 66
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 3,
+        "transitionId": "0-9090",
+        "fromStateId": "0-12",
+        "fromStateName": "Idle",
+        "toStateId": "0-9077",
+        "toStateName": "PickAfterOthers"
+      },
+      {
+        "kind": "state",
+        "line": 4,
+        "stateId": "0-9077",
+        "stateName": "PickAfterOthers",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 5,
+        "transitionId": "0-9099",
+        "fromStateId": "0-9077",
+        "fromStateName": "PickAfterOthers",
+        "toStateId": "0-9075",
+        "toStateName": "Idle_Look"
+      },
+      {
+        "kind": "state",
+        "line": 6,
+        "stateId": "0-9075",
+        "stateName": "Idle_Look",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 82
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 7,
+        "transitionId": "0-9089",
+        "fromStateId": "0-9075",
+        "fromStateName": "Idle_Look",
+        "toStateId": "0-12",
+        "toStateName": "Idle"
+      },
+      {
+        "kind": "state",
+        "line": 8,
+        "stateId": "0-12",
+        "stateName": "Idle",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 146
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 9,
+        "transitionId": "0-9090",
+        "fromStateId": "0-12",
+        "fromStateName": "Idle",
+        "toStateId": "0-9077",
+        "toStateName": "PickAfterOthers"
+      },
+      {
+        "kind": "state",
+        "line": 10,
+        "stateId": "0-9077",
+        "stateName": "PickAfterOthers",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 11,
+        "transitionId": "0-9098",
+        "fromStateId": "0-9077",
+        "fromStateName": "PickAfterOthers",
+        "toStateId": "0-9073",
+        "toStateName": "Idle_QuietShort"
+      },
+      {
+        "kind": "state",
+        "line": 12,
+        "stateId": "0-9073",
+        "stateName": "Idle_QuietShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 182
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 13,
+        "transitionId": "0-9081",
+        "fromStateId": "0-9073",
+        "fromStateName": "Idle_QuietShort",
+        "toStateId": "0-9076",
+        "toStateName": "PickAfterShort"
+      },
+      {
+        "kind": "state",
+        "line": 14,
+        "stateId": "0-9076",
+        "stateName": "PickAfterShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 15,
+        "transitionId": "0-9094",
+        "fromStateId": "0-9076",
+        "fromStateName": "PickAfterShort",
+        "toStateId": "0-12",
+        "toStateName": "Idle"
+      },
+      {
+        "kind": "state",
+        "line": 16,
+        "stateId": "0-12",
+        "stateName": "Idle",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 246
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 17,
+        "transitionId": "0-9090",
+        "fromStateId": "0-12",
+        "fromStateName": "Idle",
+        "toStateId": "0-9077",
+        "toStateName": "PickAfterOthers"
+      },
+      {
+        "kind": "state",
+        "line": 18,
+        "stateId": "0-9077",
+        "stateName": "PickAfterOthers",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 19,
+        "transitionId": "0-9098",
+        "fromStateId": "0-9077",
+        "fromStateName": "PickAfterOthers",
+        "toStateId": "0-9073",
+        "toStateName": "Idle_QuietShort"
+      },
+      {
+        "kind": "state",
+        "line": 20,
+        "stateId": "0-9073",
+        "stateName": "Idle_QuietShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 282
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 21,
+        "transitionId": "0-9081",
+        "fromStateId": "0-9073",
+        "fromStateName": "Idle_QuietShort",
+        "toStateId": "0-9076",
+        "toStateName": "PickAfterShort"
+      },
+      {
+        "kind": "state",
+        "line": 22,
+        "stateId": "0-9076",
+        "stateName": "PickAfterShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 23,
+        "transitionId": "0-9095",
+        "fromStateId": "0-9076",
+        "fromStateName": "PickAfterShort",
+        "toStateId": "0-9075",
+        "toStateName": "Idle_Look"
+      },
+      {
+        "kind": "state",
+        "line": 24,
+        "stateId": "0-9075",
+        "stateName": "Idle_Look",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 298
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 25,
+        "transitionId": "0-9089",
+        "fromStateId": "0-9075",
+        "fromStateName": "Idle_Look",
+        "toStateId": "0-12",
+        "toStateName": "Idle"
+      },
+      {
+        "kind": "state",
+        "line": 26,
+        "stateId": "0-12",
+        "stateName": "Idle",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 362
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 27,
+        "transitionId": "0-9090",
+        "fromStateId": "0-12",
+        "fromStateName": "Idle",
+        "toStateId": "0-9077",
+        "toStateName": "PickAfterOthers"
+      },
+      {
+        "kind": "state",
+        "line": 28,
+        "stateId": "0-9077",
+        "stateName": "PickAfterOthers",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 29,
+        "transitionId": "0-9098",
+        "fromStateId": "0-9077",
+        "fromStateName": "PickAfterOthers",
+        "toStateId": "0-9073",
+        "toStateName": "Idle_QuietShort"
+      },
+      {
+        "kind": "state",
+        "line": 30,
+        "stateId": "0-9073",
+        "stateName": "Idle_QuietShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 398
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 31,
+        "transitionId": "0-9081",
+        "fromStateId": "0-9073",
+        "fromStateName": "Idle_QuietShort",
+        "toStateId": "0-9076",
+        "toStateName": "PickAfterShort"
+      },
+      {
+        "kind": "state",
+        "line": 32,
+        "stateId": "0-9076",
+        "stateName": "PickAfterShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 33,
+        "transitionId": "0-9093",
+        "fromStateId": "0-9076",
+        "fromStateName": "PickAfterShort",
+        "toStateId": "0-9074",
+        "toStateName": "Idle_QuietMedium"
+      },
+      {
+        "kind": "state",
+        "line": 34,
+        "stateId": "0-9074",
+        "stateName": "Idle_QuietMedium",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 449
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 35,
+        "transitionId": "0-9085",
+        "fromStateId": "0-9074",
+        "fromStateName": "Idle_QuietMedium",
+        "toStateId": "0-9077",
+        "toStateName": "PickAfterOthers"
+      },
+      {
+        "kind": "state",
+        "line": 36,
+        "stateId": "0-9077",
+        "stateName": "PickAfterOthers",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 37,
+        "transitionId": "0-9098",
+        "fromStateId": "0-9077",
+        "fromStateName": "PickAfterOthers",
+        "toStateId": "0-9073",
+        "toStateName": "Idle_QuietShort"
+      },
+      {
+        "kind": "state",
+        "line": 38,
+        "stateId": "0-9073",
+        "stateName": "Idle_QuietShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 485
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 39,
+        "transitionId": "0-9081",
+        "fromStateId": "0-9073",
+        "fromStateName": "Idle_QuietShort",
+        "toStateId": "0-9076",
+        "toStateName": "PickAfterShort"
+      },
+      {
+        "kind": "state",
+        "line": 40,
+        "stateId": "0-9076",
+        "stateName": "PickAfterShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 41,
+        "transitionId": "0-9093",
+        "fromStateId": "0-9076",
+        "fromStateName": "PickAfterShort",
+        "toStateId": "0-9074",
+        "toStateName": "Idle_QuietMedium"
+      },
+      {
+        "kind": "state",
+        "line": 42,
+        "stateId": "0-9074",
+        "stateName": "Idle_QuietMedium",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 535
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 43,
+        "transitionId": "0-9085",
+        "fromStateId": "0-9074",
+        "fromStateName": "Idle_QuietMedium",
+        "toStateId": "0-9077",
+        "toStateName": "PickAfterOthers"
+      },
+      {
+        "kind": "state",
+        "line": 44,
+        "stateId": "0-9077",
+        "stateName": "PickAfterOthers",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 45,
+        "transitionId": "0-9098",
+        "fromStateId": "0-9077",
+        "fromStateName": "PickAfterOthers",
+        "toStateId": "0-9073",
+        "toStateName": "Idle_QuietShort"
+      },
+      {
+        "kind": "state",
+        "line": 46,
+        "stateId": "0-9073",
+        "stateName": "Idle_QuietShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 571
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "transition",
+        "line": 47,
+        "transitionId": "0-9081",
+        "fromStateId": "0-9073",
+        "fromStateName": "Idle_QuietShort",
+        "toStateId": "0-9076",
+        "toStateName": "PickAfterShort"
+      },
+      {
+        "kind": "state",
+        "line": 48,
+        "stateId": "0-9076",
+        "stateName": "PickAfterShort",
+        "stateType": "animation"
+      },
+      {
+        "kind": "transition",
+        "line": 49,
+        "transitionId": "0-9093",
+        "fromStateId": "0-9076",
+        "fromStateName": "PickAfterShort",
+        "toStateId": "0-9074",
+        "toStateName": "Idle_QuietMedium"
+      },
+      {
+        "kind": "state",
+        "line": 50,
+        "stateId": "0-9074",
+        "stateName": "Idle_QuietMedium",
+        "stateType": "animation"
+      },
+      {
+        "kind": "frame",
+        "frame": 600
+      },
+      {
+        "kind": "layer",
+        "layerId": "0-8",
+        "layerName": "Behavior"
+      },
+      {
+        "kind": "message",
+        "line": 51,
+        "message": "Done"
+      }
+    ]
+  },
+  "editorVerification": {
+    "pointerListener": "Body pointer down → acknowledge; observed Idle_QuietMedium → Acknowledge → Idle in live editor console.",
+    "random": "Live editor console observed Short, Medium, Long and Look.",
+    "entryFrames": "Preview 10:44 hand translucent / pen invisible; 10:47 opaque hand / pencil fading in.",
+    "smallSize": "120px capture = whole artboard40pt @3x; body28.75pt. Idle eyes readable; dark silhouette subdued. Not an iPhone runtime test."
+  },
+  "limits": [
+    ".riv/.rev export previously plan-gated; no retry or alternate export",
+    "App integration, Reduce Motion, invisibility pause, dark-mode native treatment and physical device acceptance pending",
+    "Bounded short settle; not arbitrary-phase instantaneous reversal. Maximum target-state entry616.7ms plus50ms final blend."
+  ]
+}

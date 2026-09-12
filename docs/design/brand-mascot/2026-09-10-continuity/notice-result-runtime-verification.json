@@ -1,0 +1,679 @@
+{
+  "caseCount" : 53,
+  "cases" : [
+    {
+      "afterModeIdle" : [
+
+      ],
+      "case" : "admission",
+      "mode" : 0,
+      "passed" : true,
+      "trace" : [
+        "Action_NoticeResult",
+        "Action_Rest"
+      ]
+    },
+    {
+      "afterModeIdle" : [
+
+      ],
+      "case" : "admission",
+      "mode" : 1,
+      "passed" : true,
+      "trace" : [
+
+      ]
+    },
+    {
+      "afterModeIdle" : [
+
+      ],
+      "case" : "admission",
+      "mode" : 2,
+      "passed" : true,
+      "trace" : [
+        "Action_NoticeResult",
+        "Action_Rest"
+      ]
+    },
+    {
+      "afterModeIdle" : [
+
+      ],
+      "case" : "admission",
+      "mode" : 3,
+      "passed" : true,
+      "trace" : [
+
+      ]
+    },
+    {
+      "afterModeIdle" : [
+
+      ],
+      "case" : "admission",
+      "mode" : 4,
+      "passed" : true,
+      "trace" : [
+
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 0,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 0,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 0,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 0,
+      "mode" : 0,
+      "passed" : true,
+      "trace" : [
+        "Action_NoticeResult",
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 1,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 1,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 1,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 1,
+      "mode" : 0,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 6,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 6,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 6,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 6,
+      "mode" : 0,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 18,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 18,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 18,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 18,
+      "mode" : 0,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 34,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 34,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 34,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 34,
+      "mode" : 0,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 53,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 53,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 53,
+      "initialMode" : 0,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 53,
+      "mode" : 0,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 0,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 0,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 0,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 0,
+      "mode" : 2,
+      "passed" : true,
+      "trace" : [
+        "Action_NoticeResult",
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 1,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 1,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 1,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 1,
+      "mode" : 2,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 6,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 6,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 6,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 6,
+      "mode" : 2,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 18,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 18,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 18,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 18,
+      "mode" : 2,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 34,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 34,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 34,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 34,
+      "mode" : 2,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 53,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 1,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 53,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 3,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "interruption",
+      "consumedFrames" : 53,
+      "initialMode" : 2,
+      "passed" : true,
+      "targetMode" : 4,
+      "trace" : [
+        "Action_Rest"
+      ]
+    },
+    {
+      "after" : [
+
+      ],
+      "case" : "pause-drain",
+      "consumedFrames" : 53,
+      "mode" : 2,
+      "passed" : true,
+      "trace" : [
+        "Action_Rest"
+      ]
+    }
+  ],
+  "failedCount" : 0,
+  "runtime" : "Rive Apple Runtime 6.25.1 inspection API",
+  "scope" : "trigger admission, editing\/OCR interruption, pause drainage; no performance claim"
+}

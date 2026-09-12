@@ -1,0 +1,14 @@
+[
+  {
+    "format": "riv",
+    "path": "docs/design/brand-mascot/2026-09-09-refinement/runtime-source/together_sphere_motion_study.riv",
+    "bytes": 1696775,
+    "sha256": "7e9cee4db3fdf133f37c03eabb80cbbffce18eb15e17c04e9a43b6a7fd4d2fa1"
+  },
+  {
+    "format": "rev",
+    "path": "docs/design/brand-mascot/2026-09-09-refinement/runtime-source/together_sphere_motion_study.rev",
+    "bytes": 5882538,
+    "sha256": "acdd6d6c38acc6e988cc0a74fd2e520045dc971c787281a891716e91cd5401e2"
+  }
+]

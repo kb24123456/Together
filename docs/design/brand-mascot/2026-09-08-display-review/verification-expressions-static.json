@@ -1,0 +1,168 @@
+{
+  "date": "2026-09-08",
+  "scope": "8 static poses in light black and dark white appearances; PNG integrity and source checks only",
+  "passed": true,
+  "checkCount": 31,
+  "checks": [
+    {
+      "check": "Existing native asset unchanged",
+      "file": "assets/idle.png",
+      "passed": true
+    },
+    {
+      "check": "Existing native asset unchanged",
+      "file": "assets/holding.png",
+      "passed": true
+    },
+    {
+      "check": "Existing native asset unchanged",
+      "file": "assets/concerned.png",
+      "passed": true
+    },
+    {
+      "check": "Existing native asset unchanged",
+      "file": "assets/idle-white.png",
+      "passed": true
+    },
+    {
+      "check": "Existing native asset unchanged",
+      "file": "assets/holding-white.png",
+      "passed": true
+    },
+    {
+      "check": "Existing native asset unchanged",
+      "file": "assets/concerned-white.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/happy.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/happy-white.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/wink.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/wink-white.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/tears.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/tears-white.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/thinking.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/thinking-white.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/doze.png",
+      "passed": true
+    },
+    {
+      "check": "Native PNG geometry and clear border",
+      "file": "assets/doze-white.png",
+      "passed": true
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "idle",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "holding",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "thinking",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "concerned",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "happy",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "wink",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "tears",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "Theme-paired alpha identical",
+      "pose": "doze",
+      "passed": true,
+      "comparedPixels": 262144
+    },
+    {
+      "check": "16 embedded native PNGs",
+      "passed": true
+    },
+    {
+      "check": "No unresolved mascot tokens",
+      "passed": true
+    },
+    {
+      "check": "Unique HTML IDs",
+      "passed": true
+    },
+    {
+      "check": "No external HTML resources",
+      "passed": true
+    },
+    {
+      "check": "Pending happy review explicit",
+      "passed": true
+    },
+    {
+      "check": "Embedded images exactly match assets",
+      "passed": true
+    },
+    {
+      "check": "JavaScript syntax parse",
+      "passed": true,
+      "error": ""
+    }
+  ],
+  "browserReview": "Focused CUA review completed for five visual combinations; see verification-expressions-browser.json. Existing verification-preview.json covers only the prior six assets.",
+  "nativeDeviceAcceptance": false,
+  "imagesModifiedByVerification": false
+}

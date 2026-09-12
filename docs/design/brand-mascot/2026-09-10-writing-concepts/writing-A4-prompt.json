@@ -1,0 +1,12 @@
+{
+  "date": "2026-09-10",
+  "mode": "built-in image_gen",
+  "status": "pending user visual approval",
+  "request": "眼睛的位置可以再高一点，目前偏低",
+  "reference": "writing-A3-gentler-eyes.png",
+  "output": "writing-A4-raised-eyes.png",
+  "generated_source": "/Users/papertiger/.codex/generated_images/01a07ca3-6577-7970-a394-88ca4ee44e77/exec-b1937e38-1029-4e6b-88d1-c5a520f34878.png",
+  "prompt": "Use case: precise-object-edit.\nInput: the attached image is the exact EDIT TARGET, chosen writing mascot A3.\nMake ONE localized change: translate BOTH white eye strokes straight upward together, by approximately 7 percent of the black sphere diameter (about 50 pixels in this 1254-pixel square reference). Their current vertical centers are around y=633; move them to around y=583, just slightly below the sphere's center. Keep the pair's small existing vertical offset.\n\nPreserve the eye strokes' exact current lengths, thickness, generous horizontal spacing, horizontal positions, slight inward tilt, straight geometry, and soft round caps. Do not rotate, reshape, shorten, widen, curve, or redesign the eyes. Cleanly remove the original lower eye marks and reconstruct the uninterrupted matte black surface there: exactly TWO white eye marks in the finished face, never double eyes.\n\nEverything else is locked: same perfectly round black sphere, same proportions and subtle matte spherical shading, same large round hands, ivory pencil and nib, small gray scribble, writing pose, framing, perspective, white background, and A label. The goal is to raise the face a modest but clearly visible amount, increasing breathing space above the hands. Do not lift the sphere or move the hands or pencil. Do not add eyebrows, mouth, pupils, arms, or decoration. Return one square image of the SAME character with ONLY its two eyes shifted upward.",
+  "verification": "Static output visually inspected: two eyes raised to near the sphere center, with original broad straight rounded shapes retained. Generated upward shift is visibly larger than the prompt's initial 50px target; no exact displacement claimed. Pose and props visually retained. Actual app size and motion unverified.",
+  "scope": "Static concept only; no Rive or App changes"
+}

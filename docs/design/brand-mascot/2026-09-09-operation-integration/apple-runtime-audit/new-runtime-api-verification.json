@@ -1,0 +1,49 @@
+{
+  "createdAt": "2026-09-08T18:05:39.603316+00:00",
+  "runtimeVersion": "6.25.1",
+  "compiler": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+  "sdk": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+  "newRuntimeVerification": "Typecheck exact production View/Runtime/Palette/Controller/Behavior against the official macOS framework, MainActor default isolation and complete concurrency checks.",
+  "feedbackVerification": "Execute the official inspection API against the same exported asset to observe core state changes. This trace fixture is not the App's New Runtime adapter.",
+  "sourceSHA256": {
+    "Together/Features/BrandMascot/MascotBehaviorState.swift": "beb1fe0629cd22824551dd2bd9c640acc7b2b8e0170748c1e63ad11c42a2f359",
+    "Together/Features/BrandMascot/MascotController.swift": "a4f545d91e8104e4645e38c92e5aa6781010f771845257bd8ec1560c210f948a",
+    "Together/Features/BrandMascot/MascotPalette.swift": "6adb43f2c11f31cb4e04f3464368f695f166c6a66912b48dedd43cf965bab30c",
+    "Together/Features/BrandMascot/MascotRuntime.swift": "bffcec0b251a2a35dca2a852e1e2e368d6e695a12e3b7c72ec9b6faeee39d4cf",
+    "Together/Features/BrandMascot/BrandMascotView.swift": "3347170d6283782afed2b48901195888988db733f1031958799b912a66a47e72"
+  },
+  "limits": [
+    "No full iOS App build, device, rendering, touch, or energy validation.",
+    "New Runtime APIs are compiler checked; the state-name traces use the SDK inspection API."
+  ],
+  "newRuntimeTypecheck": {
+    "passed": true,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-typecheck",
+      "-parse-as-library",
+      "-swift-version",
+      "5",
+      "-default-isolation",
+      "MainActor",
+      "-strict-concurrency=complete",
+      "-F",
+      "/private/tmp/together-rive-apple-audit.9TAn8W/.build/artifacts/rive-ios/RiveRuntime/RiveRuntime.xcframework/macos-arm64_x86_64",
+      "-module-cache-path",
+      "/private/tmp/together-rive-api-e7kjuskz/modules",
+      "/Users/papertiger/Desktop/Together/Together/Features/BrandMascot/MascotBehaviorState.swift",
+      "/Users/papertiger/Desktop/Together/Together/Features/BrandMascot/MascotController.swift",
+      "/Users/papertiger/Desktop/Together/Together/Features/BrandMascot/MascotPalette.swift",
+      "/Users/papertiger/Desktop/Together/Together/Features/BrandMascot/MascotRuntime.swift",
+      "/Users/papertiger/Desktop/Together/Together/Features/BrandMascot/BrandMascotView.swift"
+    ],
+    "diagnostics": ""
+  },
+  "feedbackInterruption": {
+    "passed": true,
+    "output": "90/90 pause/resume checks passed\n"
+  },
+  "passed": true
+}

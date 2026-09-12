@@ -1,0 +1,36 @@
+{
+  "reference": "/Users/papertiger/.codex/generated_images/01a07ca3-6577-7970-a394-88ca4ee44e77/exec-bd5c41f0-af47-442c-ad38-62c8d7a03bbc.png",
+  "panel": "03 单眨眼",
+  "acceptanceEvidence": "User explicitly said 这个单眨眼是不错的. Static appearance accepted; timing below is a proposal.",
+  "observedGeometry": {
+    "openEye": "Viewer-left / near eye remains the large softly tilted filled capsule.",
+    "closedEye": "Viewer-right / far eye becomes a single rounded inverted-U arch: apex up, ends down (∩). No point, chevron, diagonal slash or lower U shape.",
+    "closedEyeStyle": "Filled white continuous curved ribbon, rounded ends, subtle taper. No extra facial marks.",
+    "estimatedRatiosToSphereDiameter": {
+      "closedEyeOuterWidth": [0.17, 0.18],
+      "closedEyeOuterHeight": [0.11, 0.12],
+      "closedEyeStrokeThickness": [0.035, 0.04]
+    },
+    "ratioNote": "Visual estimates from the source panel, not exact traced measurements; keep sphere perspective and the current neutral eye registration."
+  },
+  "proposedTimingSeconds": {
+    "total": 0.8,
+    "neutral": [0.0, 0.12],
+    "closeFarEye": [0.12, 0.23],
+    "holdWink": [0.23, 0.46],
+    "reopenFarEye": [0.46, 0.68],
+    "settle": [0.68, 0.8]
+  },
+  "implementationConstraints": [
+    "Preserve the open near capsule without simultaneous double blink.",
+    "Morph one eye path where feasible; never overlap open and closed versions visibly.",
+    "Project both eyes from one persistent sphere-facing coordinate system. Do not force a right-up view or snap to a reference pose.",
+    "Recovery restores neutral geometry at the latest sphere orientation.",
+    "No additional hands, mouth, eyebrow, decorative marks, bounce or new behavior mode is required."
+  ],
+  "happyAcceptance": {
+    "status": "unconfirmed",
+    "evidence": "Panel 02 开心 exists in the same sheet, and Celebrate exists in project documentation, but no explicit user approval of this happy eye design was found. Earlier user feedback rejected 开心、单眨眼、小委屈 together; the later explicit positive statement names only 单眨眼.",
+    "handling": "Preserve any existing happy/Celebrate expression as an existing review candidate. Do not label panel 02 approved or silently replace it."
+  }
+}

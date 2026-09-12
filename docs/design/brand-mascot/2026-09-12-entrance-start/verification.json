@@ -1,0 +1,65 @@
+{
+  "date": "2026-09-12",
+  "status": "implementation_and_isolated_runtime_verified_device_visual_pending",
+  "files_sha256": {
+    "Together/Features/BrandMascot/MascotVisualTransfer.swift": "93e10f56deba7e4e65ad27a0a649750266857752b645751d1ede7514e13cbde1",
+    "Together/Features/BrandMascot/MascotPlaybackSession.swift": "dc5fe15c18c7e6ff6e88cd7e7c52cdccf401adec47ec7f822aa53b6dbf2b5371",
+    "TogetherTests/MascotTransferStateTests.swift": "baedd880b9f3a63c8944dae2c4327edcce52d13c9579b4f79c30109af608d30a"
+  },
+  "native_probe": {
+    "platform": "Mac Catalyst, macOS 27, Xcode 27 beta 3",
+    "flow": "SwiftUI NavigationStack + toolbar anchor + fullScreenCover + native zoom",
+    "rendering": "Production transfer/session/observer/anchor code; Rive drawing replaced by one blue UIView stand-in",
+    "sampling": "Main-queue 25ms requests reading CALayer presentation geometry; not a frame-rate or pixel benchmark",
+    "results": {
+      "before": {
+        "intermediate_x_positions": [],
+        "artwork_identity_count": 1,
+        "source_window_remained_key": true,
+        "animation_duration_seconds": 0.4,
+        "animations_enabled_at_start": false
+      },
+      "after": {
+        "intermediate_x_positions": [
+          638.381,
+          645.657,
+          678.688,
+          832.459,
+          1022.876
+        ],
+        "artwork_identity_count": 1,
+        "source_window_remained_key": true,
+        "animation_duration_seconds": 0.4,
+        "animations_enabled_at_start": true
+      }
+    },
+    "artifacts": "/Users/papertiger/Documents/Codex/2026-09-12/together-mascot-visible-layer/native-probe",
+    "build_command": "/Users/papertiger/Documents/Codex/2026-09-12/together-mascot-visible-layer/native-probe/final-build-command.txt"
+  },
+  "pure_tests": {
+    "passed": 51,
+    "log": "/Users/papertiger/Documents/Codex/2026-09-12/together-mascot-visible-layer/ownership-tests.log"
+  },
+  "ios_test_build": {
+    "result": "TEST BUILD SUCCEEDED",
+    "destination": "generic/platform=iOS",
+    "signed": false,
+    "uikit_tests": "10 compiled, not executed on iOS",
+    "log": "/Users/papertiger/Documents/Codex/2026-09-12/together-mascot-visible-layer/build-for-testing.log",
+    "warnings": "Existing actor isolation, deprecation and switch exhaustiveness warnings outside this change"
+  },
+  "rive_sha256": "7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8",
+  "apple_retrieval": {
+    "query": "SwiftUI layout disables UIView animations UIViewPropertyAnimator starts inside performWithoutAnimation jumps to final position defer startup main queue areAnimationsEnabled",
+    "hit_keys": [],
+    "adopted_records": [],
+    "result": "无需 Expert Delta"
+  },
+  "not_run": [
+    "iOS Simulator",
+    "Together device launch or installation",
+    "iPhone visual/gesture acceptance",
+    "Rive runtime frame quality in probe",
+    "performance or energy profiling"
+  ]
+}

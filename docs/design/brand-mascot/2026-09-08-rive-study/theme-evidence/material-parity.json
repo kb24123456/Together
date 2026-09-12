@@ -1,0 +1,99 @@
+{
+  "passed": true,
+  "approvedPoses": [
+    {
+      "pose": "Idle",
+      "theme": "light",
+      "rgbaChannelMaxDiff": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "changedPixels": 0,
+      "fullyOpaqueChangedPixels": 0,
+      "alphaExact": true,
+      "maxCompositeDiffOnAppBackgrounds": 0,
+      "passed": true
+    },
+    {
+      "pose": "Idle",
+      "theme": "dark",
+      "rgbaChannelMaxDiff": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "changedPixels": 0,
+      "fullyOpaqueChangedPixels": 0,
+      "alphaExact": true,
+      "maxCompositeDiffOnAppBackgrounds": 0,
+      "passed": true
+    },
+    {
+      "pose": "WritingHold",
+      "theme": "light",
+      "rgbaChannelMaxDiff": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "changedPixels": 0,
+      "fullyOpaqueChangedPixels": 0,
+      "alphaExact": true,
+      "maxCompositeDiffOnAppBackgrounds": 0,
+      "passed": true
+    },
+    {
+      "pose": "WritingHold",
+      "theme": "dark",
+      "rgbaChannelMaxDiff": [
+        3,
+        3,
+        3,
+        0
+      ],
+      "changedPixels": 7,
+      "fullyOpaqueChangedPixels": 0,
+      "alphaExact": true,
+      "maxCompositeDiffOnAppBackgrounds": 1,
+      "passed": true
+    },
+    {
+      "pose": "Concerned",
+      "theme": "light",
+      "rgbaChannelMaxDiff": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "changedPixels": 0,
+      "fullyOpaqueChangedPixels": 0,
+      "alphaExact": true,
+      "maxCompositeDiffOnAppBackgrounds": 0,
+      "passed": true
+    },
+    {
+      "pose": "Concerned",
+      "theme": "dark",
+      "rgbaChannelMaxDiff": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "changedPixels": 0,
+      "fullyOpaqueChangedPixels": 0,
+      "alphaExact": true,
+      "maxCompositeDiffOnAppBackgrounds": 0,
+      "passed": true
+    }
+  ],
+  "allSevenPoseAlphasMatch": true,
+  "motionSourceUnchanged": true,
+  "method": "Native Design-pose material captures; binding itself is separately checked through live editor playback",
+  "roundingNote": "Formal single far-hand gradient differs from temporary double-fill capture at 7 partially transparent antialias pixels only; <=1/255 per channel after compositing on either App background. All opaque pixels and all alpha values match."
+}

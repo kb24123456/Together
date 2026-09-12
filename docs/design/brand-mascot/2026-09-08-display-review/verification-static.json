@@ -1,0 +1,570 @@
+{
+  "geometryReview": {
+    "scope": "Independent static pose data review only. No Rive access or mutation, no App edits. Authoritative current versioned motion-v6 and bindings-v6.",
+    "sourceSha256": "80eb4baf958329f73ef3ee01968bdc5407165a116dbae26482a9f655933ed9a8",
+    "selectionRationale": "Frame 0 gives identical root/body geometry across all three static defaults. Idle matches neutral designPose; WritingHold is a fully opaque lifted pen hold rather than a fade; Concerned starts with a full-opacity drop at its baseline cheek position.",
+    "recommended": {
+      "Idle": {
+        "animation": "Idle",
+        "timelineId": "0-6",
+        "frame": 0,
+        "timeSeconds": 0,
+        "root": {
+          "x": 256.0,
+          "y": 240.0,
+          "rotationDegrees": 0.0,
+          "scaleXPercent": 100.0,
+          "scaleYPercent": 100.0
+        },
+        "alphaPercent": {
+          "idleFace": 100.0,
+          "writingFace": 0.0,
+          "concernFace": 0.0,
+          "writingProps": 0.0,
+          "sweat": 0.0,
+          "penBarrel": 100.0,
+          "penPart2": 100.0,
+          "penPart3": 100.0,
+          "expressionHands": 0.0,
+          "expressionEyes": 0.0,
+          "legacyIdleEyeNear": 0.0,
+          "legacyIdleEyeFar": 0.0,
+          "sphereEyeNear": 100.0,
+          "sphereEyeFar": 100.0
+        },
+        "fullVisibleBounds512": null,
+        "equalsNeutral": true,
+        "effectiveAlphaPercent": {
+          "sphereEyes": 100.0,
+          "writingEyes": 0.0,
+          "concernEyes": 0.0,
+          "writingHands": 0.0,
+          "penParts": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "sweat": 0.0
+        }
+      },
+      "WritingHold": {
+        "animation": "WritingHold",
+        "timelineId": "0-1033",
+        "frame": 0,
+        "timeSeconds": 0,
+        "root": {
+          "x": 256.0,
+          "y": 240.0,
+          "rotationDegrees": 0.0,
+          "scaleXPercent": 100.0,
+          "scaleYPercent": 100.0
+        },
+        "alphaPercent": {
+          "idleFace": 0.0,
+          "writingFace": 100.0,
+          "concernFace": 0.0,
+          "writingProps": 100.0,
+          "sweat": 0.0,
+          "penBarrel": 100.0,
+          "penPart2": 100.0,
+          "penPart3": 100.0,
+          "expressionHands": 0.0,
+          "expressionEyes": 0.0,
+          "legacyIdleEyeNear": 0.0,
+          "legacyIdleEyeFar": 0.0,
+          "sphereEyeNear": 100.0,
+          "sphereEyeFar": 100.0
+        },
+        "fullVisibleBounds512": null,
+        "grip": {
+          "localX": -121,
+          "localY": 123,
+          "rotationDegrees": -4,
+          "nearHandCenterWorld": [
+            135,
+            363
+          ],
+          "farHandCenterWorld": [
+            375,
+            377
+          ]
+        },
+        "zeroMotionPropertiesWindowFrames": [
+          0,
+          45
+        ],
+        "effectiveAlphaPercent": {
+          "sphereEyes": 0.0,
+          "writingEyes": 100.0,
+          "concernEyes": 0.0,
+          "writingHands": 100.0,
+          "penParts": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "sweat": 0.0
+        }
+      },
+      "Concerned": {
+        "animation": "Concerned",
+        "timelineId": "0-109",
+        "frame": 0,
+        "timeSeconds": 0,
+        "root": {
+          "x": 256.0,
+          "y": 240.0,
+          "rotationDegrees": 0.0,
+          "scaleXPercent": 100.0,
+          "scaleYPercent": 100.0
+        },
+        "alphaPercent": {
+          "idleFace": 0.0,
+          "writingFace": 0.0,
+          "concernFace": 100.0,
+          "writingProps": 0.0,
+          "sweat": 100.0,
+          "penBarrel": 100.0,
+          "penPart2": 100.0,
+          "penPart3": 100.0,
+          "expressionHands": 0.0,
+          "expressionEyes": 0.0,
+          "legacyIdleEyeNear": 0.0,
+          "legacyIdleEyeFar": 0.0,
+          "sphereEyeNear": 100.0,
+          "sphereEyeFar": 100.0
+        },
+        "fullVisibleBounds512": null,
+        "sweat": {
+          "localAnchor": [
+            132,
+            -51
+          ],
+          "worldAnchor": [
+            388,
+            189
+          ],
+          "scalePercent": [
+            100,
+            100
+          ],
+          "rotationDegrees": 0,
+          "opacityPercent": 100
+        },
+        "sweatFullyOpaqueFrameRanges": [
+          [
+            0,
+            64
+          ],
+          [
+            210,
+            270
+          ],
+          [
+            354,
+            360
+          ]
+        ],
+        "avoidSweatAbsentFrameRanges": [
+          [
+            86,
+            196
+          ],
+          [
+            296,
+            334
+          ]
+        ],
+        "effectiveAlphaPercent": {
+          "sphereEyes": 0.0,
+          "writingEyes": 0.0,
+          "concernEyes": 100.0,
+          "writingHands": 0.0,
+          "penParts": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "sweat": 100.0
+        }
+      }
+    },
+    "artboard": {
+      "width": 512,
+      "height": 512,
+      "bodyDiameter": 368,
+      "bodyCenter": [
+        256,
+        240
+      ],
+      "bodyBounds": {
+        "minX": 72,
+        "minY": 56,
+        "maxX": 440,
+        "maxY": 424,
+        "width": 368,
+        "height": 368
+      }
+    },
+    "boundsMethod": {
+      "body": "Exact radius184 at root(256,240), zero rotation,100% uniform scale.",
+      "hands": "Exact circles from versioned verification-v6 documented live hierarchy: Grip0-23 contains D120 HandNear0-36; D116 HandFar0-40 under WritingProps0-22. Parent transform is identity in chosen pose.",
+      "idleEyes": "Analytic extrema of cubic Bezier segments constructed from v6 animated vertex coordinates and in/out polar handles; translated to artboard coordinates.",
+      "fullVisible": "Not recoverable from these animation/binding JSON files: pen, writing marks, sweat and WritingFace/SweatingFace static outlines are absent. Native transparent render alpha bounds remain required. Do not confuse body+hands union with all visible content."
+    },
+    "knownComponentBounds512": {
+      "body": {
+        "minX": 72,
+        "minY": 56,
+        "maxX": 440,
+        "maxY": 424,
+        "width": 368,
+        "height": 368
+      },
+      "writingNearHand": {
+        "minX": 75,
+        "minY": 303,
+        "maxX": 195,
+        "maxY": 423,
+        "width": 120,
+        "height": 120
+      },
+      "writingFarHand": {
+        "minX": 317,
+        "minY": 319,
+        "maxX": 433,
+        "maxY": 435,
+        "width": 116,
+        "height": 116
+      },
+      "writingBodyAndHandsUnionExcludingPenAndMarks": {
+        "minX": 72,
+        "minY": 56,
+        "maxX": 440,
+        "maxY": 435,
+        "width": 368,
+        "height": 379
+      },
+      "SphereEyeNear": {
+        "minX": 208.9983469875146,
+        "minY": 162.94866122222317,
+        "maxX": 240.1265758232955,
+        "maxY": 246.93460237588488,
+        "width": 31.128228835780902,
+        "height": 83.98594115366171
+      },
+      "SphereEyeFar": {
+        "minX": 296.23974994024076,
+        "minY": 163.41854722140008,
+        "maxX": 326.4928357022707,
+        "maxY": 245.80895993442658,
+        "width": 30.25308576202997,
+        "height": 82.3904127130265
+      }
+    },
+    "displaySizes": [
+      {
+        "specifiedBodyDiameterPt": 36,
+        "scale": 0.09782608695652174,
+        "completeArtboardPt": 50.08695652173913,
+        "bodyCenterFromArtboardOriginPt": [
+          25.043478260869566,
+          23.47826086956522
+        ],
+        "bodyBoundsPt": {
+          "minX": 7.043478260869565,
+          "minY": 5.478260869565218,
+          "maxX": 43.04347826086957,
+          "maxY": 41.47826086956522,
+          "width": 36.00000000000001,
+          "height": 36.0
+        },
+        "nearHandDiameterPt": 11.73913043478261,
+        "farHandDiameterPt": 11.347826086956522,
+        "bodyAndHandsUnionPt": {
+          "minX": 7.043478260869565,
+          "minY": 5.478260869565218,
+          "maxX": 43.04347826086957,
+          "maxY": 42.55434782608696,
+          "width": 36.00000000000001,
+          "height": 37.07608695652174
+        },
+        "idleEyesBoundsPt": {
+          "SphereEyeNear": {
+            "minX": 20.445490466169908,
+            "minY": 15.940629902174006,
+            "maxX": 23.490643287061516,
+            "maxY": 24.156645884597435,
+            "width": 3.0451528208916088,
+            "height": 8.216015982423428
+          },
+          "SphereEyeFar": {
+            "minX": 28.97997553763225,
+            "minY": 15.986597010789138,
+            "maxX": 31.939516536091702,
+            "maxY": 24.046528689237384,
+            "width": 2.9595409984594525,
+            "height": 8.059931678448246
+          }
+        },
+        "ifSpecifiedSizeInsteadMeansArtboardSideThenBodyDiameterPt": 25.875
+      },
+      {
+        "specifiedBodyDiameterPt": 40,
+        "scale": 0.10869565217391304,
+        "completeArtboardPt": 55.65217391304348,
+        "bodyCenterFromArtboardOriginPt": [
+          27.82608695652174,
+          26.08695652173913
+        ],
+        "bodyBoundsPt": {
+          "minX": 7.826086956521739,
+          "minY": 6.08695652173913,
+          "maxX": 47.826086956521735,
+          "maxY": 46.08695652173913,
+          "width": 39.99999999999999,
+          "height": 40.0
+        },
+        "nearHandDiameterPt": 13.043478260869565,
+        "farHandDiameterPt": 12.608695652173912,
+        "bodyAndHandsUnionPt": {
+          "minX": 7.826086956521739,
+          "minY": 6.08695652173913,
+          "maxX": 47.826086956521735,
+          "maxY": 47.28260869565217,
+          "width": 39.99999999999999,
+          "height": 41.19565217391304
+        },
+        "idleEyesBoundsPt": {
+          "SphereEyeNear": {
+            "minX": 22.717211629077674,
+            "minY": 17.711811002415562,
+            "maxX": 26.100714763401683,
+            "maxY": 26.840717649552705,
+            "width": 3.383503134324009,
+            "height": 9.128906647137143
+          },
+          "SphereEyeFar": {
+            "minX": 32.19997281959139,
+            "minY": 17.762885567543485,
+            "maxX": 35.488351706768555,
+            "maxY": 26.71836521026376,
+            "width": 3.288378887177167,
+            "height": 8.955479642720274
+          }
+        },
+        "ifSpecifiedSizeInsteadMeansArtboardSideThenBodyDiameterPt": 28.75
+      },
+      {
+        "specifiedBodyDiameterPt": 44,
+        "scale": 0.11956521739130435,
+        "completeArtboardPt": 61.21739130434783,
+        "bodyCenterFromArtboardOriginPt": [
+          30.608695652173914,
+          28.695652173913043
+        ],
+        "bodyBoundsPt": {
+          "minX": 8.608695652173914,
+          "minY": 6.695652173913044,
+          "maxX": 52.608695652173914,
+          "maxY": 50.69565217391305,
+          "width": 44.0,
+          "height": 44.0
+        },
+        "nearHandDiameterPt": 14.347826086956522,
+        "farHandDiameterPt": 13.869565217391305,
+        "bodyAndHandsUnionPt": {
+          "minX": 8.608695652173914,
+          "minY": 6.695652173913044,
+          "maxX": 52.608695652173914,
+          "maxY": 52.01086956521739,
+          "width": 44.0,
+          "height": 45.315217391304344
+        },
+        "idleEyesBoundsPt": {
+          "SphereEyeNear": {
+            "minX": 24.98893279198544,
+            "minY": 19.482992102657118,
+            "maxX": 28.710786239741854,
+            "maxY": 29.524789414507975,
+            "width": 3.7218534477564127,
+            "height": 10.041797311850857
+          },
+          "SphereEyeFar": {
+            "minX": 35.419970101550525,
+            "minY": 19.539174124297837,
+            "maxX": 39.037186877445414,
+            "maxY": 29.390201731290137,
+            "width": 3.6172167758948888,
+            "height": 9.8510276069923
+          }
+        },
+        "ifSpecifiedSizeInsteadMeansArtboardSideThenBodyDiameterPt": 31.625
+      },
+      {
+        "specifiedBodyDiameterPt": 48,
+        "scale": 0.13043478260869565,
+        "completeArtboardPt": 66.78260869565217,
+        "bodyCenterFromArtboardOriginPt": [
+          33.391304347826086,
+          31.304347826086957
+        ],
+        "bodyBoundsPt": {
+          "minX": 9.391304347826086,
+          "minY": 7.304347826086956,
+          "maxX": 57.391304347826086,
+          "maxY": 55.30434782608695,
+          "width": 48.0,
+          "height": 48.0
+        },
+        "nearHandDiameterPt": 15.652173913043478,
+        "farHandDiameterPt": 15.130434782608695,
+        "bodyAndHandsUnionPt": {
+          "minX": 9.391304347826086,
+          "minY": 7.304347826086956,
+          "maxX": 57.391304347826086,
+          "maxY": 56.73913043478261,
+          "width": 48.0,
+          "height": 49.434782608695656
+        },
+        "idleEyesBoundsPt": {
+          "SphereEyeNear": {
+            "minX": 27.260653954893208,
+            "minY": 21.254173202898674,
+            "maxX": 31.32085771608202,
+            "maxY": 32.20886117946324,
+            "width": 4.060203761188813,
+            "height": 10.954687976564568
+          },
+          "SphereEyeFar": {
+            "minX": 38.63996738350966,
+            "minY": 21.315462681052182,
+            "maxX": 42.58602204812227,
+            "maxY": 32.06203825231651,
+            "width": 3.9460546646126033,
+            "height": 10.74657557126433
+          }
+        },
+        "ifSpecifiedSizeInsteadMeansArtboardSideThenBodyDiameterPt": 34.5
+      },
+      {
+        "specifiedBodyDiameterPt": 56,
+        "scale": 0.15217391304347827,
+        "completeArtboardPt": 77.91304347826087,
+        "bodyCenterFromArtboardOriginPt": [
+          38.95652173913044,
+          36.52173913043478
+        ],
+        "bodyBoundsPt": {
+          "minX": 10.956521739130435,
+          "minY": 8.521739130434783,
+          "maxX": 66.95652173913044,
+          "maxY": 64.52173913043478,
+          "width": 56.0,
+          "height": 56.0
+        },
+        "nearHandDiameterPt": 18.26086956521739,
+        "farHandDiameterPt": 17.65217391304348,
+        "bodyAndHandsUnionPt": {
+          "minX": 10.956521739130435,
+          "minY": 8.521739130434783,
+          "maxX": 66.95652173913044,
+          "maxY": 66.19565217391305,
+          "width": 56.0,
+          "height": 57.673913043478265
+        },
+        "idleEyesBoundsPt": {
+          "SphereEyeNear": {
+            "minX": 31.804096280708745,
+            "minY": 24.79653540338179,
+            "maxX": 36.54100066876236,
+            "maxY": 37.57700470937379,
+            "width": 4.736904388053613,
+            "height": 12.780469305992
+          },
+          "SphereEyeFar": {
+            "minX": 45.07996194742795,
+            "minY": 24.868039794560882,
+            "maxX": 49.683692389475986,
+            "maxY": 37.40571129436926,
+            "width": 4.60373044204804,
+            "height": 12.53767149980838
+          }
+        },
+        "ifSpecifiedSizeInsteadMeansArtboardSideThenBodyDiameterPt": 40.25
+      }
+    ],
+    "limitations": [
+      "Opacity guard coherence is verified from data; exact pen occlusion and silhouette visibility require native pixel review.",
+      "Full visible bounds per pose are intentionally null until native alpha-bounds measurement.",
+      "Current data has a visible writing-mark node0-96 locally at(-53,234) within WritingProps; its static path bounds are absent and may set the bottom content edge.",
+      "Sweat0-89 frame0 anchor is world(388,189); its contour size and exact cheek overlap are absent from these JSONs."
+    ]
+  },
+  "nativePNGReview": [
+    {
+      "name": "idle.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "alphaRange": [
+        0,
+        255
+      ],
+      "bbox": [
+        72,
+        56,
+        440,
+        424
+      ],
+      "borderAlphaMax": 0
+    },
+    {
+      "name": "holding.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "alphaRange": [
+        0,
+        255
+      ],
+      "bbox": [
+        72,
+        56,
+        440,
+        479
+      ],
+      "borderAlphaMax": 0
+    },
+    {
+      "name": "concerned.png",
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "alphaRange": [
+        0,
+        255
+      ],
+      "bbox": [
+        72,
+        56,
+        440,
+        424
+      ],
+      "borderAlphaMax": 0
+    }
+  ],
+  "riveDesignRestored": {
+    "passed": true,
+    "propertyCount": 184,
+    "diff": []
+  },
+  "passed": true,
+  "scope": "Static PNG and authoring pose verification; does not establish iPhone runtime, performance, appearance, or accessibility acceptance."
+}

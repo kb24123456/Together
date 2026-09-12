@@ -1,0 +1,18 @@
+{
+  "fileId": 2564580,
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "asset": "/Users/papertiger/Desktop/Together/docs/design/brand-mascot/2026-09-09-expression-system/focused-writing/deliverables/together_sphere_motion_study.riv",
+  "assetSHA256": "e476454430f09a0109e1abcdf9535a97c84feae7a244f282cacd83765382ff4a",
+  "bytes": 3848190,
+  "changedNodes": [
+    "0-44",
+    "0-50",
+    "0-46",
+    "0-47",
+    "0-52",
+    "0-53"
+  ],
+  "timelineKeyframesUnchanged": 317430,
+  "appChanged": false
+}
