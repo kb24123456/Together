@@ -1,0 +1,122 @@
+{
+  "name": "Diligent Writing 126px light",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "fps": 60,
+  "frames": 720,
+  "width": 126,
+  "height": 126,
+  "pngEvery": 0,
+  "pngFrames": [
+    0,
+    60,
+    66,
+    72,
+    78,
+    90,
+    105,
+    120,
+    150,
+    180,
+    210,
+    240,
+    270,
+    300,
+    306,
+    312,
+    318,
+    330,
+    345,
+    360,
+    420,
+    426,
+    432,
+    438,
+    450,
+    465,
+    480,
+    510,
+    540,
+    546,
+    552,
+    558,
+    570,
+    585,
+    600,
+    630,
+    660,
+    719
+  ],
+  "video": true,
+  "backgroundARGB": "FFFFFFFF",
+  "startupSteps": [
+    0,
+    0.15
+  ],
+  "firstFrameAdvance": 0,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Home start",
+      "numbers": {
+        "mode": 0,
+        "expression": 0,
+        "idleFace": 0
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "FF101010",
+        "bodyShade": "FF030303",
+        "handLight": "FF2C2C2C",
+        "handShade": "FF0E0E0E",
+        "farHandLight": "FF222222",
+        "farHandShade": "FF0B0B0B",
+        "eyeColor": "FFFFFFFF",
+        "sweatColor": "FFFFFFFF",
+        "penBodyColor": "FFB6B2AA",
+        "penTipColor": "FF111111",
+        "inkColor": "FF777777",
+        "tearColor": "FF88CFF3"
+      }
+    },
+    {
+      "frame": 60,
+      "label": "Writing enter",
+      "numbers": {
+        "idleFace": -1,
+        "mode": 1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 300,
+      "label": "Stop typing / WritingHold",
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 420,
+      "label": "Resume Writing",
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 540,
+      "label": "WritingExit / Home acquire",
+      "numbers": {
+        "idleFace": 0,
+        "mode": 0
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    }
+  ]
+}

@@ -2150,8 +2150,9 @@ struct HomeTimelineRow: View {
                     }
 
                     if isFollowed {
-                        Image(systemName: "scope")
-                            .foregroundStyle(AppTheme.colors.sky)
+                        TaskFollowMascotView(colorScheme: colorScheme)
+                            .frame(width: 16, height: 16)
+                            .accessibilityElement(children: .ignore)
                             .accessibilityLabel("已关注")
                     }
                 }

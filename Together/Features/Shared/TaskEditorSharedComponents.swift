@@ -96,9 +96,10 @@ enum TaskAttributeIconEffect {
 }
 
 struct TaskAttributeLabel: View {
-    let icon: String
+    var icon: String = ""
     let title: String
     let isConfigured: Bool
+    var usesFollowMascot = false
     var tint: Color? = nil
     var isCircular = false
     var usesContinuousCapsule = false
@@ -150,18 +151,31 @@ struct TaskAttributeLabel: View {
         .frame(width: isCircular ? 34 : nil, height: 34)
         .frame(maxWidth: fillsAvailableWidth && isCircular == false ? .infinity : nil)
         .background {
-            backgroundShape
-                .fill(backgroundFill)
-
-            if isConfigured, let tint {
+            if !usesFollowMascot {
                 backgroundShape
-                    .fill(tint.opacity(colorScheme == .dark ? 0.16 : 0.09))
+                    .fill(backgroundFill)
+
+                if isConfigured, let tint {
+                    backgroundShape
+                        .fill(tint.opacity(colorScheme == .dark ? 0.16 : 0.09))
+                }
             }
         }
     }
 
     @ViewBuilder
     private var iconView: some View {
+        if usesFollowMascot {
+            TaskFollowMascotView(colorScheme: colorScheme, isMuted: !isConfigured)
+                .frame(width: 34, height: 34)
+                .accessibilityHidden(true)
+        } else {
+            systemIconView
+        }
+    }
+
+    @ViewBuilder
+    private var systemIconView: some View {
         let image = Image(systemName: icon)
             .font(AppTheme.typography.sized(14, weight: .semibold))
             .frame(width: 16)

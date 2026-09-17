@@ -1,0 +1,782 @@
+[
+  {
+    "file": "holding-light/frame-00060.png",
+    "bounds": [
+      70,
+      56,
+      440,
+      465
+    ],
+    "margin": 47
+  },
+  {
+    "file": "holding-dark/frame-00060.png",
+    "bounds": [
+      70,
+      56,
+      440,
+      465
+    ],
+    "margin": 47
+  },
+  {
+    "file": "flow-126-light/frame-00300.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00060.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00510.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      116
+    ],
+    "margin": 10
+  },
+  {
+    "file": "flow-126-light/frame-00465.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      116
+    ],
+    "margin": 10
+  },
+  {
+    "file": "flow-126-light/frame-00105.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-light/frame-00306.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00312.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00072.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00066.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      110
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00270.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      114
+    ],
+    "margin": 12
+  },
+  {
+    "file": "flow-126-light/frame-00660.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00000.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00570.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00558.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00438.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-light/frame-00360.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00210.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      113
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00600.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00546.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      108
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00552.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00585.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00432.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00426.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00630.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00180.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      116
+    ],
+    "margin": 10
+  },
+  {
+    "file": "flow-126-light/frame-00345.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00540.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-light/frame-00420.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00150.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      113
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00240.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00719.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-light/frame-00120.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-light/frame-00450.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-light/frame-00078.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00090.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-light/frame-00480.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00330.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-light/frame-00318.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00300.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00060.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00510.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00465.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      116
+    ],
+    "margin": 10
+  },
+  {
+    "file": "flow-126-dark/frame-00105.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-dark/frame-00306.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00312.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00072.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00066.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      110
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00270.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      114
+    ],
+    "margin": 12
+  },
+  {
+    "file": "flow-126-dark/frame-00660.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00000.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00570.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00558.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00438.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      116
+    ],
+    "margin": 10
+  },
+  {
+    "file": "flow-126-dark/frame-00360.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00210.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      113
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00600.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00546.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      108
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00552.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00585.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00432.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00426.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00630.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00180.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      116
+    ],
+    "margin": 10
+  },
+  {
+    "file": "flow-126-dark/frame-00345.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00540.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-dark/frame-00420.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00150.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      113
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00240.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00719.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      105
+    ],
+    "margin": 13
+  },
+  {
+    "file": "flow-126-dark/frame-00120.png",
+    "bounds": [
+      17,
+      14,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-dark/frame-00450.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      117
+    ],
+    "margin": 9
+  },
+  {
+    "file": "flow-126-dark/frame-00078.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00090.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      116
+    ],
+    "margin": 10
+  },
+  {
+    "file": "flow-126-dark/frame-00480.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      114
+    ],
+    "margin": 12
+  },
+  {
+    "file": "flow-126-dark/frame-00330.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  },
+  {
+    "file": "flow-126-dark/frame-00318.png",
+    "bounds": [
+      17,
+      13,
+      109,
+      115
+    ],
+    "margin": 11
+  }
+]

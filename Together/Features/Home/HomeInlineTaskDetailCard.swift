@@ -474,18 +474,21 @@ struct HomeTaskAttributeFooter: View {
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .allowsHitTesting(isExpanded)
             .sheet(item: $schedulePresentation, onDismiss: triggerScheduleIconEffects) { presentation in
-                DateTimePickerSheet(
-                    presentation: presentation,
-                    selectionFeedback: HomeInteractionFeedback.selection,
-                    onChange: { draft in
-                        latestScheduleDraft = draft
-                        viewModel.updateDraftSchedule(
-                            date: draft.selectedDate,
-                            time: draft.selectedTime,
-                            reminderOffset: draft.reminderOffset
+                Group {
+                    if presentation.transitionSource == .time {
+                        TaskTimePickerSheet(
+                            presentation: presentation,
+                            selectionFeedback: HomeInteractionFeedback.selection,
+                            onChange: updateScheduleDraft
+                        )
+                    } else {
+                        DateTimePickerSheet(
+                            presentation: presentation,
+                            selectionFeedback: HomeInteractionFeedback.selection,
+                            onChange: updateScheduleDraft
                         )
                     }
-                )
+                }
                 .taskAttributeEditorNavigationTransition(
                     from: presentation.transitionSource,
                     in: attributeTransition,
@@ -493,6 +496,15 @@ struct HomeTaskAttributeFooter: View {
                     allowsZoomTransition: presentation.allowsZoomTransition
                 )
             }
+    }
+
+    private func updateScheduleDraft(_ draft: ExistingTaskScheduleDraft) {
+        latestScheduleDraft = draft
+        viewModel.updateDraftSchedule(
+            date: draft.selectedDate,
+            time: draft.selectedTime,
+            reminderOffset: draft.reminderOffset
+        )
     }
 
     private var expandedControls: some View {
@@ -564,10 +576,9 @@ struct HomeTaskAttributeFooter: View {
                 Task { await viewModel.toggleTaskFollow(entry.itemID) }
             } label: {
                 TaskAttributeLabel(
-                    icon: "scope",
                     title: "",
                     isConfigured: isFollowed,
-                    tint: isFollowed ? AppTheme.colors.sky : nil,
+                    usesFollowMascot: true,
                     isCircular: true,
                     alignsToCardCorner: true,
                     isFocusForeground: true,

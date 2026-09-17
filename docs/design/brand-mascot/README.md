@@ -1,5 +1,9 @@
 # Together 品牌小球
 
+2026-09-15补充：用户确认眼距缩短约14%、眼线加粗25%，[眼部精修版](2026-09-15-diligent-writing/eye-refinement-review/README.md)已导出接入，并完成Build57签名构建、实体iPhone17覆盖安装与启动；实际眼型和输入体验待用户验收。
+
+2026-09-15：书写形象按用户选定的「专注苦写」方案更新：集中眼神、缩小错位圆手、清晰灰色长笔杆、无底部笔迹，3.6秒内三组有轻重的短笔画配合轻微下压。只改四条生产书写时间轴及一个配色默认值；实际资源、浅深色降级图、原生回放、构建及待真机验收见[本轮记录](2026-09-15-diligent-writing/README.md)。
+
 2026-09-12：当前代码修复首页进入编辑时直接跳动：入场离开 SwiftUI 暂时关闭 UIKit 动画的布局事务后启动，保留同一真实渲染视图、原生落点和返回协调方式；移动途中自然拿笔，不再等待停靠。Mac Catalyst 隔离复现已记录修复前无中间位置、修复后连续中间位置，用户随后确认连续多次切页的 iPhone 真机复测保持正常；[复测记录](2026-09-12-repeat-switch-diagnostics/README.md)保留此前暂停现象及未确认的根因。此前 V1 造型、书写幅度及完整使用流程的验收不代表新版已验收。
 
 当前入口：[入场直跳修复](2026-09-12-entrance-start/README.md)。历史阶段：[入场与抵达后书写](2026-09-12-editor-arrival/README.md)；[可见跨页承接](2026-09-10-visible-transfer/README.md)；资源制作：[连续性与改期提示](2026-09-10-continuity/README.md)。
@@ -7,10 +11,10 @@
 ## 正式资源
 
 - App资源：[`together_sphere_motion_study.riv`](../../../Together/Resources/BrandMascot/together_sphere_motion_study.riv)
-- 可交付 `.riv`：[下载](2026-09-10-continuity/deliverables/together_sphere_motion_study.riv)
-- 完整可编辑 `.rev`：[下载](2026-09-10-continuity/deliverables/together_sphere_motion_study.rev)
-- 最后一次修改前完整备份：[before-continuity.rev](2026-09-10-continuity/backups/before-continuity.rev)
-- 运行资源SHA256：`7eb9ed8e1ee821322c2a12d70832e0ab969e0d4c394f5450b8e8c18c1eb72bd8`，4269590 bytes。
+- 可交付 `.riv`：[下载](2026-09-15-diligent-writing/eye-refinement-review/deliverables/together_sphere_motion_study.riv)
+- 完整可编辑 `.rev`：[下载](2026-09-15-diligent-writing/eye-refinement-review/deliverables/together_sphere_motion_study.rev)
+- 最后一次修改前完整备份：[before.rev](2026-09-15-diligent-writing/backups/before.rev)
+- 运行资源SHA256：`731a86cd92f84705790c71960b4dc0d0b82e9a73e7b3ab67cd2017b697c9c0db`，4269185 bytes。
 - [Rive原项目](https://editor.rive.app/file/together-sphere-motion-study/2564580)：`TogetherSphere` / `Mascot` / `TogetherSphereModel`。
 
 ## App中的正式行为
@@ -18,8 +22,8 @@
 | 场景 | 表现与现有控制入口 |
 | --- | --- |
 | 首页静候 | `mode=0`，随机球面转向、呼吸、眨眼；`idleFace=0/2/21` 对应基础、柔和开心、好奇 |
-| 编辑输入 | `mode=1`、`isTyping=true`；A4宽直线眼、大圆手、3.6秒不等长书写，增强挥笔幅度 |
-| 编辑停顿 | 停止输入约0.9秒后 `isTyping=false`，保持持笔姿态 |
+| 编辑输入 | `mode=1`、`isTyping=true`；专注下视眼、小圆手、清晰长笔杆、无笔迹；3.6秒三组短笔画配合轻微下压 |
+| 编辑停顿 | 停止输入约0.9秒后 `isTyping=false`，保持持笔姿态，眼角略放松 |
 | 今日逾期 | `mode=2`，流汗 |
 | OCR处理中 | `mode=3`，思考 |
 | 完成反馈 | `celebrateRequested`，沿用成功完成事件与结束恢复逻辑 |

@@ -366,10 +366,9 @@ struct TaskCreationView: View {
             } label: {
                 let isFollowed = homeViewModel.taskCreationSession?.draft.shouldFollowOnCreation == true
                 TaskAttributeLabel(
-                    icon: "scope",
                     title: "",
                     isConfigured: isFollowed,
-                    tint: isFollowed ? AppTheme.colors.sky : nil,
+                    usesFollowMascot: true,
                     isCircular: true,
                     isFocusForeground: true,
                     usesLightweightBackground: true

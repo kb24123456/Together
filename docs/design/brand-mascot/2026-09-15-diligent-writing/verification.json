@@ -1,0 +1,55 @@
+{
+  "changes": [
+    {
+      "animation": "0-108",
+      "replaced": 2852,
+      "added": 2852
+    },
+    {
+      "animation": "0-1033",
+      "replaced": 37,
+      "added": 39
+    },
+    {
+      "animation": "0-1032",
+      "replaced": 38,
+      "added": 37
+    },
+    {
+      "animation": "0-1034",
+      "replaced": 36,
+      "added": 37
+    }
+  ],
+  "unchangedAnimations": 135,
+  "stateMachineUnchanged": true,
+  "timelineDurationsUnchanged": true,
+  "loopEndpointsMatch": true,
+  "scribbleHiddenInAllWritingPhases": true,
+  "nativeRendering": {
+    "runtime": "Rive Apple 6.25.1 New Runtime / Metal",
+    "frames": 4082,
+    "pngs": 287,
+    "minimumInsetPixels": 9
+  },
+  "deviceAcceptance": "not installed or tested",
+  "defaultPenColor": {
+    "viewModelInstanceProperty": "0-169109",
+    "before": "FFF2EEE6",
+    "after": "FFB6B2AA"
+  },
+  "finalReadbackPassed": true,
+  "assetSHA256": "b90393c6a35a1c21dd29f11ae7e4a8b6c1451725464134daba3d5e238e72e42a",
+  "build": {
+    "result": "passed",
+    "xcode": "27.0 / 27A5218g",
+    "destination": "generic/platform=iOS",
+    "signingAllowed": false,
+    "buildNumber": "57",
+    "resourceMatchesSourceAndDeliverable": true,
+    "log": "/private/tmp/together-diligent-writing-xcode27-build.log"
+  },
+  "swiftParse": "passed",
+  "diffCheck": "passed",
+  "simulatorStarted": false
+}

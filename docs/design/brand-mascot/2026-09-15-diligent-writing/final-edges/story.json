@@ -1,0 +1,306 @@
+{
+  "name": "A4 integration edge transitions",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "fps": 60,
+  "frames": 1080,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 0,
+  "pngFrames": [
+    0,
+    15,
+    30,
+    33,
+    36,
+    39,
+    42,
+    45,
+    48,
+    51,
+    60,
+    75,
+    90,
+    93,
+    96,
+    99,
+    102,
+    105,
+    108,
+    111,
+    114,
+    117,
+    120,
+    123,
+    126,
+    135,
+    150,
+    165,
+    180,
+    195,
+    210,
+    213,
+    216,
+    219,
+    222,
+    225,
+    231,
+    234,
+    237,
+    240,
+    243,
+    255,
+    270,
+    285,
+    300,
+    315,
+    330,
+    333,
+    336,
+    339,
+    342,
+    345,
+    348,
+    351,
+    354,
+    357,
+    360,
+    375,
+    390,
+    393,
+    396,
+    399,
+    402,
+    405,
+    420,
+    435,
+    450,
+    465,
+    480,
+    495,
+    510,
+    513,
+    516,
+    519,
+    522,
+    525,
+    540,
+    543,
+    546,
+    549,
+    552,
+    555,
+    570,
+    585,
+    600,
+    603,
+    606,
+    609,
+    612,
+    615,
+    630,
+    645,
+    660,
+    675,
+    690,
+    705,
+    720,
+    723,
+    726,
+    729,
+    732,
+    735,
+    750,
+    765,
+    780,
+    795,
+    810,
+    813,
+    816,
+    819,
+    822,
+    825,
+    840,
+    855,
+    870,
+    885,
+    900,
+    915,
+    930,
+    933,
+    936,
+    939,
+    942,
+    945,
+    960,
+    975,
+    990,
+    1005,
+    1020,
+    1035,
+    1050,
+    1065
+  ],
+  "video": true,
+  "backgroundARGB": "FFFFFFFF",
+  "startupSteps": [
+    0,
+    0.15
+  ],
+  "firstFrameAdvance": 0,
+  "events": [
+    {
+      "frame": 0,
+      "label": "Home calm",
+      "numbers": {
+        "mode": 0,
+        "expression": 0,
+        "idleFace": 0
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "FF101010",
+        "bodyShade": "FF030303",
+        "handLight": "FF2C2C2C",
+        "handShade": "FF0E0E0E",
+        "farHandLight": "FF222222",
+        "farHandShade": "FF0B0B0B",
+        "eyeColor": "FFFFFFFF",
+        "sweatColor": "FFFFFFFF",
+        "penBodyColor": "FFB6B2AA",
+        "penTipColor": "FF111111",
+        "inkColor": "FF777777",
+        "tearColor": "FF88CFF3"
+      }
+    },
+    {
+      "frame": 30,
+      "label": "Enter writing",
+      "numbers": {
+        "mode": 1,
+        "idleFace": -1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 39,
+      "label": "Exit during enter",
+      "numbers": {
+        "mode": 0,
+        "idleFace": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 90,
+      "label": "Hold direct",
+      "numbers": {
+        "mode": 1,
+        "idleFace": -1
+      }
+    },
+    {
+      "frame": 102,
+      "label": "Typing on",
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 114,
+      "label": "Quick pause",
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 210,
+      "label": "Resume",
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 231,
+      "label": "Pause within stroke",
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 330,
+      "label": "Resume 2",
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 348,
+      "label": "Pause 2",
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 390,
+      "label": "Long write",
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 510,
+      "label": "Writing to concerned",
+      "numbers": {
+        "mode": 2
+      }
+    },
+    {
+      "frame": 600,
+      "label": "Concerned to thinking",
+      "numbers": {
+        "mode": 3
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    },
+    {
+      "frame": 720,
+      "label": "Thinking to home curious",
+      "numbers": {
+        "mode": 0,
+        "idleFace": 21
+      }
+    },
+    {
+      "frame": 810,
+      "label": "Home curious to writing",
+      "numbers": {
+        "mode": 1,
+        "idleFace": -1
+      },
+      "booleans": {
+        "isTyping": true
+      }
+    },
+    {
+      "frame": 930,
+      "label": "Return home happy",
+      "numbers": {
+        "mode": 0,
+        "idleFace": 2
+      },
+      "booleans": {
+        "isTyping": false
+      }
+    }
+  ]
+}

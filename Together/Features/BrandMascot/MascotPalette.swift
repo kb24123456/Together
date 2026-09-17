@@ -11,7 +11,7 @@ enum MascotPalette {
         ("farHandShade", 0xFF0B0B0B, 0xFFB8B8B8),
         ("eyeColor", 0xFFFFFFFF, 0xFF1B1B1B),
         ("sweatColor", 0xFFFFFFFF, 0xFF686868),
-        ("penBodyColor", 0xFFF2EEE6, 0xFF767676),
+        ("penBodyColor", 0xFFB6B2AA, 0xFF767676),
         ("penTipColor", 0xFF111111, 0xFFADADAD),
         ("inkColor", 0xFF777777, 0xFF929292),
         ("tearColor", 0xFF88CFF3, 0xFF347FA6),

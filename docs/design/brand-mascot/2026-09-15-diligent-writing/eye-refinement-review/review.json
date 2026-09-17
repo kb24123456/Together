@@ -1,0 +1,32 @@
+{
+  "status": "approved, exported, integrated, installed and launched on physical iPhone",
+  "changedKeyframes": 16,
+  "eyeCenterSeparation": {
+    "before": 170,
+    "after": 146
+  },
+  "eyeThickness": {
+    "before": 16,
+    "after": 20
+  },
+  "approved": true,
+  "assetSHA256": "731a86cd92f84705790c71960b4dc0d0b82e9a73e7b3ab67cd2017b697c9c0db",
+  "nativeFrames": 1562,
+  "pngsChecked": 78,
+  "minimumInsetPixels": 9,
+  "runtime": "Rive Apple 6.25.1 New Runtime / Metal",
+  "build": {
+    "status": "passed",
+    "xcode": "27.0 / 27A5218g",
+    "signed": true,
+    "bundleId": "com.pigdog.Together",
+    "buildNumber": "57",
+    "sourceDeliverableBundleMatch": true
+  },
+  "previousAppResourceSHA256": "b90393c6a35a1c21dd29f11ae7e4a8b6c1451725464134daba3d5e238e72e42a",
+  "codesignVerification": "passed",
+  "installation": "devicectl succeeded on connected physical iPhone 17",
+  "launch": "devicectl succeeded",
+  "deviceVisualAcceptance": "pending user review",
+  "simulatorStarted": false
+}

@@ -1,0 +1,48 @@
+{
+  "name": "Static Holding transparent dark",
+  "artboard": "TogetherSphere",
+  "stateMachine": "Mascot",
+  "viewModel": "TogetherSphereModel",
+  "fps": 60,
+  "frames": 61,
+  "width": 512,
+  "height": 512,
+  "pngEvery": 0,
+  "pngFrames": [
+    60
+  ],
+  "video": false,
+  "backgroundARGB": "00000000",
+  "startupSteps": [
+    0,
+    0.15
+  ],
+  "firstFrameAdvance": 0,
+  "events": [
+    {
+      "frame": 0,
+      "numbers": {
+        "mode": 1,
+        "expression": 0,
+        "idleFace": -1
+      },
+      "booleans": {
+        "isTyping": false
+      },
+      "colors": {
+        "bodyLight": "FFF0F0F0",
+        "bodyShade": "FFD5D5D5",
+        "handLight": "FFF0F0F0",
+        "handShade": "FFBDBDBD",
+        "farHandLight": "FFE8E8E8",
+        "farHandShade": "FFB8B8B8",
+        "eyeColor": "FF1B1B1B",
+        "sweatColor": "FF686868",
+        "penBodyColor": "FF767676",
+        "penTipColor": "FFADADAD",
+        "inkColor": "FF929292",
+        "tearColor": "FF347FA6"
+      }
+    }
+  ]
+}
