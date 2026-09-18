@@ -2,11 +2,13 @@ import SwiftUI
 import UIKit
 import CoreText
 
-/// The existing-task time entry owns only a local preview of the shared schedule draft.
+/// A shared time surface. Callers adapt its local preview to their own editor draft.
 struct TaskTimePickerSheet: View {
     let selectionFeedback: () -> Void
     let onChange: (ExistingTaskScheduleDraft) -> Void
     private let scale: TaskTimeRulerScale
+    private let contextTitle: String?
+    private let onContentHeightChange: ((CGFloat) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,15 +36,34 @@ struct TaskTimePickerSheet: View {
         selectionFeedback: @escaping () -> Void,
         onChange: @escaping (ExistingTaskScheduleDraft) -> Void
     ) {
+        self.init(
+            initialDraft: presentation.initialDraft,
+            selectionFeedback: selectionFeedback,
+            onChange: onChange
+        )
+    }
+
+    init(
+        initialDraft: ExistingTaskScheduleDraft,
+        contextTitle: String? = nil,
+        calendar: Calendar = .current,
+        seed: Date = .now,
+        onContentHeightChange: ((CGFloat) -> Void)? = nil,
+        selectionFeedback: @escaping () -> Void,
+        onChange: @escaping (ExistingTaskScheduleDraft) -> Void
+    ) {
         self.selectionFeedback = selectionFeedback
         self.onChange = onChange
-        let draft = presentation.initialDraft
+        self.contextTitle = contextTitle
+        self.onContentHeightChange = onContentHeightChange
+        let draft = initialDraft
         let scale = TaskTimeRulerScale(
             on: draft.selectedDate,
-            minuteInterval: ExistingTaskScheduleEditorPolicy.timeMinuteInterval
+            minuteInterval: ExistingTaskScheduleEditorPolicy.timeMinuteInterval,
+            calendar: calendar
         )
         self.scale = scale
-        let index = scale.nearestIndex(to: draft.selectedTime ?? .now)
+        let index = scale.nearestIndex(to: draft.selectedTime ?? seed)
         _draft = State(initialValue: draft)
         _publishedDraft = State(initialValue: draft)
         _scrollID = State(initialValue: index)
@@ -62,7 +83,10 @@ struct TaskTimePickerSheet: View {
                 .padding(.horizontal, inset)
                 .padding(.top, inset)
                 .padding(.bottom, max(0, inset - geometry.safeAreaInsets.bottom))
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    contentHeight = $0
+                    onContentHeightChange?($0)
+                }
             }
             .scrollIndicators(.hidden)
             .scrollBounceBehavior(.basedOnSize)
@@ -277,7 +301,8 @@ struct TaskTimePickerSheet: View {
                 TaskTimeSystemPicker(
                     selection: systemTimeSelection,
                     minimumDate: scale.times.first!,
-                    maximumDate: scale.times.last!
+                    maximumDate: scale.times.last!,
+                    calendar: scale.calendar
                 )
                 .frame(width: 280, height: 200)
                 .padding(12)
@@ -309,13 +334,14 @@ struct TaskTimePickerSheet: View {
     }
 
     private var dateTitle: String {
+        if let contextTitle { return contextTitle }
         if Calendar.current.isDateInToday(draft.selectedDate) { return "今天" }
         if Calendar.current.isDateInTomorrow(draft.selectedDate) { return "明天" }
         return draft.selectedDate.formatted(.dateTime.month().day().weekday())
     }
 
     private var timeAccessibilityValue: String {
-        draft.selectedTime.map { $0.formatted(.dateTime.hour().minute()) } ?? "未设置时间"
+        draft.selectedTime.map(scale.label(for:)) ?? "未设置时间"
     }
 
     private var systemTimeSelection: Binding<Date> {
@@ -328,7 +354,7 @@ struct TaskTimePickerSheet: View {
     private func previewTime(at index: Int) {
         let time = scale.times[index]
         guard draft.selectedTime != time else { return }
-        draft.selectTime(time)
+        draft.selectTime(time, calendar: scale.calendar)
     }
 
     private func selectTime(at index: Int) {
@@ -392,6 +418,7 @@ private struct TaskTimeSystemPicker: UIViewRepresentable {
     @Binding var selection: Date
     let minimumDate: Date
     let maximumDate: Date
+    let calendar: Calendar
 
     func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
 
@@ -399,6 +426,8 @@ private struct TaskTimeSystemPicker: UIViewRepresentable {
         let picker = UIDatePicker()
         picker.datePickerMode = .time
         picker.preferredDatePickerStyle = .wheels
+        picker.calendar = calendar
+        picker.timeZone = calendar.timeZone
         picker.minuteInterval = ExistingTaskScheduleEditorPolicy.timeMinuteInterval
         picker.minimumDate = minimumDate
         picker.maximumDate = maximumDate
